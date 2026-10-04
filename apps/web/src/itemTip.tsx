@@ -77,7 +77,8 @@ function tipStyle(anchor: Anchor): CSSProperties {
   };
 }
 
-function ItemTipBody({ tokenId }: { tokenId: number }) {
+/** Icon, name, stats, item level, and jobs. Omitted fields are not rendered. */
+export function ItemCatalogDetails({ tokenId }: { tokenId: number }) {
   const def = getItem(tokenId);
   const name = def?.name ?? "Item " + tokenId;
   const statsLine = formatPrimaryEffects(def?.stats, def?.consume?.hp);
@@ -158,7 +159,7 @@ export function ItemTipHost({
       {show &&
         createPortal(
           <div className="skill-tip item-hover-tip" role="tooltip" style={tipStyle(anchor)}>
-            <ItemTipBody tokenId={tokenId} />
+            <ItemCatalogDetails tokenId={tokenId} />
           </div>,
           document.body,
         )}

@@ -1,7 +1,7 @@
 import { getItem } from "@bellgrave/items";
 import type { InventorySlot, LokItemBalance } from "@bellgrave/protocol";
 import { useState } from "react";
-import { ItemTipHost } from "./itemTip";
+import { ItemCatalogDetails, ItemTipHost } from "./itemTip";
 import { send } from "./net";
 
 type Near = { id: string; name: string };
@@ -110,6 +110,9 @@ export function ProvisionerBag({ inventory, logItems, inbox, others }: Props) {
               </ItemTipHost>
               {open && (
                 <div className="prov-pop" role="menu" aria-label={cell.name}>
+                  <div className="item-panel-details">
+                    <ItemCatalogDetails tokenId={cell.tokenId} />
+                  </div>
                   <button
                     type="button"
                     className="cmd-pill-tab"
@@ -203,6 +206,9 @@ export function ProvisionerBag({ inventory, logItems, inbox, others }: Props) {
               </ItemTipHost>
               {open && (
                 <div className="prov-pop" role="menu" aria-label={"Take " + itemName(row.tokenId)}>
+                  <div className="item-panel-details">
+                    <ItemCatalogDetails tokenId={row.tokenId} />
+                  </div>
                   <button
                     type="button"
                     className="cmd-pill-tab"
