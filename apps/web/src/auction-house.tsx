@@ -1,6 +1,7 @@
 import { CATALOG, EQUIP_SLOTS, getItem, type EquipSlot, type ItemDef, type ItemKind } from "@bellgrave/items";
 import { compareAsks, planQuantityFills, type AskQuote, type LokListingView, type QuantityPlan } from "@bellgrave/protocol";
 import { useState } from "react";
+import { ItemTipHost } from "./itemTip";
 import { send } from "./net";
 
 const WEEK_SEC = 7 * 24 * 60 * 60;
@@ -261,19 +262,20 @@ export function AuctionBook({ listings, buyer }: Props) {
           {!searching && !selected && <p className="lok-note">Choose a category.</p>}
           {(searching || selected) && lines.length === 0 && <p className="lok-note">No items match.</p>}
           {lines.map((line) => (
-            <button
-              key={line.itemId}
-              type="button"
-              className="prov-commodity"
-              onClick={() => {
-                setBuyingId(line.itemId);
-                setQtyText("1");
-              }}
-            >
-              <span className="prov-name">{line.name}</span>
-              <span className="prov-qty">{line.total} listed</span>
-              <span className="prov-ask">{line.unit === "none" ? "none" : line.unit + " KEK each"}</span>
-            </button>
+            <ItemTipHost key={line.itemId} tokenId={line.itemId} active={buyingId == null}>
+              <button
+                type="button"
+                className="prov-commodity"
+                onClick={() => {
+                  setBuyingId(line.itemId);
+                  setQtyText("1");
+                }}
+              >
+                <span className="prov-name">{line.name}</span>
+                <span className="prov-qty">{line.total} listed</span>
+                <span className="prov-ask">{line.unit === "none" ? "none" : line.unit + " KEK each"}</span>
+              </button>
+            </ItemTipHost>
           ))}
         </div>
       </div>

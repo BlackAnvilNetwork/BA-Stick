@@ -15,64 +15,15 @@ import {
   itemIcon,
   itemName,
   type EquipSlot,
-  type ItemDef,
-  type ItemStats,
 } from "@bellgrave/items";
+import { formatJobs, formatPrimaryEffects } from "./itemTip";
 import type { SnapshotMessage, UnitSnapshot } from "@bellgrave/protocol";
 import { useMemo } from "react";
 import { send } from "./net";
 import { statTooltip } from "./statTooltips";
 
-const JOB_ABBR: Record<string, string> = {
-  knight: "KNT",
-  rogue: "ROG",
-  cleric: "CLR",
-  sorcerer: "SOR",
-  fighter: "FTR",
-  battlemage: "BMG",
-  tim: "TM",
-  time_mage: "TM",
-};
-
-const PRIMARY_STAT_KEYS = ["def", "atk", "mab", "mdb", "acc", "eva", "hp", "mp"] as const;
-
 function formatSigned(v: number): string {
   return `${v > 0 ? "+" : ""}${v}`;
-}
-
-/** Primary defense/stat line + remaining +effects (FFXI-style). */
-function formatPrimaryEffects(stats: ItemStats | undefined, consumeHp?: number): string {
-  if ((!stats || !Object.keys(stats).length) && consumeHp == null) return "";
-  const entries = { ...(stats ?? {}) } as Record<string, number>;
-  let primaryKey: string | undefined;
-  let primaryVal: number | undefined;
-
-  for (const k of PRIMARY_STAT_KEYS) {
-    if (typeof entries[k] === "number") {
-      primaryKey = k;
-      primaryVal = entries[k];
-      delete entries[k];
-      break;
-    }
-  }
-  if (primaryKey == null && consumeHp != null) {
-    primaryKey = "hp";
-    primaryVal = consumeHp;
-  }
-
-  const effects = Object.entries(entries)
-    .map(([k, v]) => `${k.toUpperCase()} ${formatSigned(v)}`)
-    .join(" / ");
-
-  if (primaryKey == null) return effects;
-  const head = `${primaryKey.toUpperCase()}: ${primaryVal}`;
-  return effects ? `${head} / ${effects}` : head;
-}
-
-function formatJobs(jobRestrict: ItemDef["jobRestrict"]): string {
-  if (!jobRestrict) return "";
-  if (jobRestrict === "all") return "All jobs";
-  return jobRestrict.map((j) => JOB_ABBR[j] ?? j.toUpperCase()).join(" / ");
 }
 
 function isMatKind(kind: string | undefined): boolean {

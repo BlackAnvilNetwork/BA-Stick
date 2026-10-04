@@ -3440,3 +3440,23 @@ button.equip-stat-label:focus-visible {
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
 }
 .prov-pop .cmd-pill-tab { width: 100%; }
+
+.item-tip-host { display: block; width: 100%; }
+.item-hover-tip.skill-tip {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 240px;
+  opacity: 1;
+  visibility: visible;
+  pointer-events: none;
+  z-index: 80;
+}
+.item-hover-icon {
+  width: 36px;
+  height: 36px;
+}
+.item-hover-copy { min-width: 0; }
+.item-hover-copy .skill-tip-title { margin-bottom: 2px; }
+.item-hover-copy .equip-item-meta { margin-top: 4px; }
+
