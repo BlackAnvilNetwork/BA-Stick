@@ -1,3 +1,4 @@
+import { planQuantityFills, type AskQuote } from "@bellgrave/protocol";
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -499,4 +500,104 @@ test("item drop cannot mint an arbitrary credit", () => {
   assert.equal(lok.itemOf(a.tokenId, "7"), "0");
   assert.equal(lok.importFromBag(a.tokenId, "7", "2").ok, true);
   assert.equal(lok.itemOf(a.tokenId, "7"), "2");
+});
+
+test("quantity buy fills cheapest asks first, charges each ask, skips self, and stops when short", () => {
+  const dir = mkdtempSync(join(tmpdir(), "lok-qty-"));
+  const lok = LokWorld.open(dir, undefined, {});
+  const ada = lok.spawn("char-a", "Ada", 0);
+  const bea = lok.spawn("char-b", "Bea", 1);
+  const cam = lok.spawn("char-c", "Cam", 2);
+  const dot = lok.spawn("char-d", "Dot", 0);
+  const eve = lok.spawn("char-e", "Eve", 1);
+  assert.equal(ada.ok && bea.ok && cam.ok && dot.ok && eve.ok, true);
+  if (!ada.ok || !bea.ok || !cam.ok || !dot.ok || !eve.ok) return;
+  const dust = "1057";
+  assert.equal(noteImport(lok, ada.tokenId, dust, "1", "1").ok, true);
+  assert.equal(noteImport(lok, bea.tokenId, dust, "2", "1").ok, true);
+  assert.equal(noteImport(lok, cam.tokenId, dust, "2", "1").ok, true);
+  assert.equal(noteImport(lok, eve.tokenId, dust, "4", "1").ok, true);
+  assert.equal(noteImport(lok, dot.tokenId, dust, "5", "1").ok, true);
+  assert.equal(noteDeposit(lok, dot.tokenId, "10000", "2").ok, true);
+  const t0 = 1_700_000_000;
+  const askCam = lok.ask(cam.tokenId, dust, "2", "10", t0 + 50);
+  const askBea = lok.ask(bea.tokenId, dust, "2", "10", t0);
+  const askEve = lok.ask(eve.tokenId, dust, "4", "8", t0 + 1);
+  const askAda = lok.ask(ada.tokenId, dust, "1", "100", t0 + 2);
+  const askSelf = lok.ask(dot.tokenId, dust, "5", "1", t0);
+  assert.equal(askCam.ok && askBea.ok && askEve.ok && askAda.ok && askSelf.ok, true);
+  if (!askCam.ok || !askBea.ok || !askEve.ok || !askAda.ok || !askSelf.ok) return;
+
+  const quotes: AskQuote[] = lok.view(dot.tokenId).listings.map((row) => ({
+    id: row.id,
+    seller: row.seller,
+    itemId: row.itemId,
+    amount: row.amount,
+    minPrice: row.minPrice,
+    listedAt: row.listedAt,
+    book: row.book,
+  }));
+  const planned = planQuantityFills(quotes, dot.tokenId, 1057, 3);
+  assert.deepEqual(planned.fills.map((fill) => fill.id), [askEve.listingId]);
+  assert.equal(planned.filled, "4");
+  assert.equal(planned.short, false);
+  assert.equal(planned.fills[0]!.price, "8");
+
+  const rejected = lok.buyQuantity(dot.tokenId, dust, 0);
+  assert.equal(rejected.ok, false);
+  const len = lok.length;
+
+  const first = lok.buyQuantity(dot.tokenId, dust, 3);
+  assert.equal(first.ok, true);
+  if (!first.ok) return;
+  assert.deepEqual(first.fills.map((fill) => fill.listingId), [askEve.listingId]);
+  assert.deepEqual(first.fills.map((fill) => fill.price), ["8"]);
+  assert.equal(first.filled, "4");
+  assert.equal(first.short, false);
+  assert.equal(lok.length, len + 1);
+  assert.equal(lok.kekOf(dot.tokenId), "9992");
+  assert.equal(lok.kekOf(eve.tokenId), "8");
+  assert.equal(lok.kekOf(bea.tokenId), "0");
+  assert.equal(lok.view(dot.tokenId).listings.some((row) => row.id === askSelf.listingId), true);
+
+  const tie = lok.buyQuantity(dot.tokenId, dust, 2);
+  assert.equal(tie.ok, true);
+  if (!tie.ok) return;
+  assert.deepEqual(tie.fills.map((fill) => fill.listingId), [askBea.listingId]);
+  assert.deepEqual(tie.fills.map((fill) => fill.price), ["10"]);
+  assert.equal(lok.kekOf(bea.tokenId), "10");
+  assert.equal(lok.kekOf(cam.tokenId), "0");
+  assert.equal(lok.view(dot.tokenId).listings.some((row) => row.id === askCam.listingId), true);
+
+  const beforeShort = lok.length;
+  const kekBefore = lok.kekOf(dot.tokenId);
+  const rest = lok.buyQuantity(dot.tokenId, dust, 50);
+  assert.equal(rest.ok, true);
+  if (!rest.ok) return;
+  assert.equal(rest.short, true);
+  assert.deepEqual(rest.fills.map((fill) => fill.listingId), [askCam.listingId, askAda.listingId]);
+  assert.deepEqual(rest.fills.map((fill) => fill.price), ["10", "100"]);
+  assert.equal(rest.filled, "3");
+  assert.equal(lok.length, beforeShort + 2);
+  assert.equal(lok.kekOf(dot.tokenId), (BigInt(kekBefore) - 110n).toString());
+  assert.equal(lok.kekOf(cam.tokenId), "10");
+  assert.equal(lok.kekOf(ada.tokenId), "100");
+  assert.equal(lok.itemOf(dot.tokenId, dust), "0");
+  assert.equal(lok.view(dot.tokenId).inbox.find((row) => row.tokenId === 1057)?.amount, "9");
+  assert.deepEqual(
+    lok.view(dot.tokenId).listings.map((row) => row.id),
+    [askSelf.listingId],
+  );
+
+  const stuck = lok.length;
+  const own = lok.buyQuantity(dot.tokenId, dust, 1);
+  assert.equal(own.ok, false);
+  if (!own.ok) assert.match(own.error, /ask/i);
+  assert.equal(lok.length, stuck);
+  assert.equal(lok.kekOf(dot.tokenId), (BigInt(kekBefore) - 110n).toString());
+  assert.equal(lok.view(dot.tokenId).listings[0]?.id, askSelf.listingId);
+
+  const buys = lok.explore({ tokenId: dot.tokenId }).events.filter((event) => event.kind === "buy");
+  assert.equal(buys.length, 4);
+  assert.equal(buys.some((event) => event.kind !== "buy"), false);
 });

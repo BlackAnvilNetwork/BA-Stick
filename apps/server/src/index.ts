@@ -957,16 +957,47 @@ function noteBuy(
   pushLog(p, "Bought the lowest " + itemLabel(itemId) + " ask for " + paid + " KEK. It is in your Provisioner inbox.");
 }
 
-function handleLokBuy(p: Player, itemId: number) {
+function noteQuantityBuy(
+  p: Player,
+  token: string,
+  itemId: number,
+  res: { fills: { seller?: string; price?: string }[]; filled: string; short: boolean; stopped?: string },
+): void {
+  const prices: string[] = [];
+  for (const fill of res.fills) {
+    const paid = fill.price && fill.price !== "0" ? fill.price : "";
+    if (!paid) continue;
+    prices.push(paid + " KEK");
+    if (fill.seller && fill.seller !== token) {
+      void sinkOrMove(reassignKekOnchain(token, fill.seller, paid));
+      tellToken(fill.seller, "Your " + itemLabel(itemId) + " ask sold for " + paid + " KEK.");
+    }
+  }
+  const charged = prices.length > 0 ? " Charged each ask on its own (" + prices.join(", then ") + ")." : "";
+  const head = res.short
+    ? "The book ran out after " + res.filled + " " + itemLabel(itemId) + "."
+    : "Bought " + res.filled + " " + itemLabel(itemId) + ".";
+  const noAsk = res.stopped === "no ask at or under that bid";
+  const why = res.stopped && !noAsk ? " " + res.stopped : "";
+  pushLog(p, head + charged + " The stacks are in your Provisioner inbox." + why);
+}
+
+function handleLokBuy(p: Player, itemId: number, qty?: number) {
   const token = lokToken(p);
   if (!token) {
     pushLog(p, "Could not open your log identity.");
     return;
   }
   void guardedKekMove(token, () => {
-    const res = lok.buy(token, String(itemId));
-    if (!res.ok) pushLog(p, res.error);
-    else noteBuy(p, token, itemId, res);
+    if (qty == null) {
+      const res = lok.buy(token, String(itemId));
+      if (!res.ok) pushLog(p, res.error);
+      else noteBuy(p, token, itemId, res);
+    } else {
+      const res = lok.buyQuantity(token, String(itemId), qty);
+      if (!res.ok) pushLog(p, res.error);
+      else noteQuantityBuy(p, token, itemId, res);
+    }
     send(p.ws, snapshotFor(p));
   }).catch(() => failAction(p, "KEK buy"));
 }
@@ -4614,7 +4645,7 @@ function onMessage(ws: WebSocket, data: string) {
       handleLokBid(p, msg.itemId, msg.amount);
       break;
     case "lok/buy":
-      handleLokBuy(p, msg.itemId);
+      handleLokBuy(p, msg.itemId, msg.qty);
       break;
     case "lok/cancel":
       handleLokCancel(p, msg.listingId);

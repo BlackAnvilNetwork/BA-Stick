@@ -134,10 +134,11 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
     itemId: z.number().int().positive(),
     amount: z.string().regex(/^[1-9][0-9]{0,18}$/),
   }),
-  /** Buy the cheapest open ask. The buyer pays that ask, not a separate bid. */
+  /** Buy the cheapest open ask and pay that ask. qty keeps buying whole asks until that many items are taken. Not a bid. */
   z.object({
     type: z.literal("lok/buy"),
     itemId: z.number().int().positive(),
+    qty: z.number().int().positive().max(1_000_000).optional(),
   }),
   z.object({
     type: z.literal("lok/reclaim"),
@@ -584,3 +585,6 @@ export function emptyBuffs(): BuffState {
     regenUntil: 0,
   };
 }
+
+export { compareAsks, planQuantityFills } from "./auction-book";
+export type { AskQuote, PlannedFill, QuantityPlan } from "./auction-book";
