@@ -1,4 +1,4 @@
-import { EQUIP_SLOTS, getItem, type EquipSlot, type ItemKind } from "@bellgrave/items";
+import { CATALOG, EQUIP_SLOTS, getItem, type EquipSlot, type ItemDef, type ItemKind } from "@bellgrave/items";
 import { compareAsks, planQuantityFills, type AskQuote, type LokListingView, type QuantityPlan } from "@bellgrave/protocol";
 import { useState } from "react";
 import { send } from "./net";
@@ -101,53 +101,70 @@ type Commodity = {
   rows: LokListingView[];
 };
 
-function inCategory(itemId: number, selected: string): boolean {
-  const def = getItem(itemId);
-  if (!def) return false;
+function matchesCategory(def: ItemDef, selected: string): boolean {
   if (selected.startsWith("slot:")) return def.kind === "equipment" && def.slot === selected.slice(5);
   if (selected.startsWith("kind:")) return def.kind === selected.slice(5);
   return false;
 }
 
-function commodities(listings: LokListingView[], query: string, selected: string | null): Commodity[] {
-  const q = query.trim().toLowerCase();
+function bookByItem(listings: LokListingView[]): Map<number, LokListingView[]> {
   const groups = new Map<number, LokListingView[]>();
   for (const row of listings) {
     if (!row.book) continue;
-    if (q) {
-      if (!itemName(row.itemId).toLowerCase().includes(q)) continue;
-    } else if (!selected || !inCategory(row.itemId, selected)) {
-      continue;
-    }
     const list = groups.get(row.itemId) ?? [];
     list.push(row);
     groups.set(row.itemId, list);
   }
+  return groups;
+}
+
+function commodityOf(def: ItemDef, rows: LokListingView[]): Commodity {
+  const ordered = rows.slice().sort((a, b) => compareAsks(quoteOf(a), quoteOf(b)));
+  const buyable = ordered.filter((row) => !row.yours);
+  const priced = buyable.length > 0 ? buyable : ordered;
+  const unit = lowestUnit(priced);
+  return {
+    itemId: def.id,
+    name: def.name,
+    total: sumAmount(ordered),
+    unit: unit === "0" ? "none" : unit,
+    rows: ordered,
+  };
+}
+
+/** Full content catalog, enriched with asks already on the client. Search never hits the chain. */
+function commodities(listings: LokListingView[], query: string, selected: string | null): Commodity[] {
+  const q = query.trim().toLowerCase();
+  const groups = bookByItem(listings);
   const out: Commodity[] = [];
-  for (const [itemId, rows] of groups) {
-    const ordered = rows.slice().sort((a, b) => compareAsks(quoteOf(a), quoteOf(b)));
-    const buyable = ordered.filter((row) => !row.yours);
-    out.push({
-      itemId,
-      name: itemName(itemId),
-      total: sumAmount(ordered),
-      unit: lowestUnit(buyable.length > 0 ? buyable : ordered),
-      rows: ordered,
-    });
+  for (const def of CATALOG) {
+    if (q) {
+      if (!def.name.toLowerCase().includes(q)) continue;
+    } else if (!selected || !matchesCategory(def, selected)) {
+      continue;
+    }
+    out.push(commodityOf(def, groups.get(def.id) ?? []));
   }
   out.sort((a, b) => a.name.localeCompare(b.name) || a.itemId - b.itemId);
   return out;
 }
 
-function categoryCount(listings: LokListingView[], selected: string, query: string): number {
+function commodityById(listings: LokListingView[], itemId: number): Commodity | null {
+  const def = getItem(itemId);
+  if (!def) return null;
+  const rows = listings.filter((row) => row.book && row.itemId === itemId);
+  return commodityOf(def, rows);
+}
+
+function categoryCount(selected: string, query: string): number {
   const q = query.trim().toLowerCase();
-  const ids = new Set<number>();
-  for (const row of listings) {
-    if (!row.book || !inCategory(row.itemId, selected)) continue;
-    if (q && !itemName(row.itemId).toLowerCase().includes(q)) continue;
-    ids.add(row.itemId);
+  let count = 0;
+  for (const def of CATALOG) {
+    if (!matchesCategory(def, selected)) continue;
+    if (q && !def.name.toLowerCase().includes(q)) continue;
+    count += 1;
   }
-  return ids.size;
+  return count;
 }
 
 function buyNote(plan: QuantityPlan, qty: number): string {
@@ -168,14 +185,7 @@ export function AuctionBook({ listings, buyer }: Props) {
   const [buyingId, setBuyingId] = useState<number | null>(null);
   const [qtyText, setQtyText] = useState("1");
   const lines = commodities(listings, query, selected);
-  const buying =
-    buyingId == null
-      ? null
-      : commodities(
-          listings.filter((row) => row.itemId === buyingId),
-          itemName(buyingId),
-          null,
-        )[0] ?? null;
+  const buying = buyingId == null ? null : commodityById(listings, buyingId);
   const qty = Number(qtyText);
   const plan =
     buying && Number.isSafeInteger(qty) && qty >= 1 && qty <= 1_000_000
@@ -199,7 +209,7 @@ export function AuctionBook({ listings, buyer }: Props) {
         <div className="prov-tree" role="tree" aria-label="Item categories">
           {KIND_TREE.map((node) => {
             const id = "kind:" + node.kind;
-            const count = categoryCount(listings, id, query);
+            const count = categoryCount(id, query);
             return (
               <div key={node.kind}>
                 <div className="prov-branch">
@@ -227,7 +237,7 @@ export function AuctionBook({ listings, buyer }: Props) {
                   <div className="prov-children">
                     {EQUIP_SLOTS.map((slot) => {
                       const slotId = "slot:" + slot;
-                      const slotCount = categoryCount(listings, slotId, query);
+                      const slotCount = categoryCount(slotId, query);
                       return (
                         <button
                           key={slot}
@@ -249,7 +259,7 @@ export function AuctionBook({ listings, buyer }: Props) {
         </div>
         <div className="prov-book" aria-label="Commodities">
           {!searching && !selected && <p className="lok-note">Choose a category.</p>}
-          {(searching || selected) && lines.length === 0 && <p className="lok-note">Nothing listed there.</p>}
+          {(searching || selected) && lines.length === 0 && <p className="lok-note">No items match.</p>}
           {lines.map((line) => (
             <button
               key={line.itemId}
@@ -262,7 +272,7 @@ export function AuctionBook({ listings, buyer }: Props) {
             >
               <span className="prov-name">{line.name}</span>
               <span className="prov-qty">{line.total} listed</span>
-              <span className="prov-ask">{line.unit} KEK each</span>
+              <span className="prov-ask">{line.unit === "none" ? "none" : line.unit + " KEK each"}</span>
             </button>
           ))}
         </div>

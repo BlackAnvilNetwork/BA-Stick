@@ -3277,7 +3277,7 @@ button.equip-stat-label:focus-visible {
   position: absolute;
   top: 72px;
   right: 12px;
-  width: 460px;
+  width: 780px;
   max-width: calc(100vw - 24px);
   max-height: calc(100vh - 160px);
   overflow: auto;
@@ -3370,7 +3370,7 @@ button.equip-stat-label:focus-visible {
 .prov-count { color: var(--cmd-text-muted); font-size: 11px; }
 .prov-commodity {
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: minmax(0, 1fr) max-content max-content;
   gap: 8px;
   width: 100%;
   padding: 8px 6px;
