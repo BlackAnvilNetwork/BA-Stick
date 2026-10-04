@@ -353,6 +353,55 @@ export class LokWorld {
     return { ...bought, price };
   }
 
+  /**
+   * Buy whole asks until qty items are taken or the book runs out.
+   * Each step is buy(), so the cheapest ask is charged its own price.
+   * The buyer's own asks are skipped by the engine. A short book is a partial fill.
+   */
+  buyQuantity(
+    bidder: string,
+    itemId: string,
+    qty: number,
+  ):
+    | { ok: true; fills: { listingId?: string; seller?: string; stack?: string; price?: string }[]; filled: string; short: boolean; stopped?: string }
+    | { ok: false; error: string } {
+    if (!Number.isSafeInteger(qty) || qty < 1 || qty > 1_000_000) {
+      return { ok: false, error: "Pick a quantity from 1 to 1000000. Nothing was bought." };
+    }
+    const fills: { listingId?: string; seller?: string; stack?: string; price?: string }[] = [];
+    let filled = 0n;
+    const want = BigInt(qty);
+    while (filled < want) {
+      const res = this.buy(bidder, itemId);
+      if (!res.ok) {
+        if (fills.length === 0) return res;
+        return { ok: true, fills, filled: filled.toString(), short: true, stopped: res.error };
+      }
+      let stack = 0n;
+      try {
+        stack = BigInt(res.stack || "0");
+      } catch {
+        stack = 0n;
+      }
+      fills.push({ listingId: res.listingId, seller: res.seller, stack: res.stack, price: res.price });
+      if (stack <= 0n) {
+        return {
+          ok: true,
+          fills,
+          filled: filled.toString(),
+          short: true,
+          stopped: "The ask had no stack. Nothing further was bought.",
+        };
+      }
+      filled += stack;
+      if (fills.length >= 10_000) {
+        return { ok: true, fills, filled: filled.toString(), short: filled < want, stopped: "Stopped after 10000 asks." };
+      }
+    }
+    return { ok: true, fills, filled: filled.toString(), short: false };
+  }
+
+
   private bought(
     before: EngineListing[],
     res: LokResult,

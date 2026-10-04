@@ -3296,6 +3296,9 @@ button.equip-stat-label:focus-visible {
   align-items: center;
   margin: 4px 0;
 }
+.lok-row.lok-indent {
+  margin-left: 14px;
+}
 .lok-row input {
   flex: 1;
   min-width: 72px;

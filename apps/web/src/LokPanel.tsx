@@ -1,6 +1,7 @@
 import { getItem } from "@bellgrave/items";
 import type { SnapshotMessage } from "@bellgrave/protocol";
 import { useState } from "react";
+import { AuctionBook } from "./auction-house";
 import { send } from "./net";
 import { useGame } from "./state";
 
@@ -19,8 +20,6 @@ export function LokPanel({ you, onClose }: Props) {
   const [toId, setToId] = useState("");
   const [kek, setKek] = useState("1");
   const [minPrice, setMinPrice] = useState("");
-  const [bid, setBid] = useState<Record<string, string>>({});
-  const weekSec = 7 * 24 * 60 * 60;
   const others = units.filter(
     (u) => u.kind === "player" && !!u.characterId && u.characterId !== you.characterId,
   );
@@ -209,55 +208,7 @@ export function LokPanel({ you, onClose }: Props) {
         </div>
       ))}
 
-      <div className="cmd-section-label">Auction</div>
-      {lok.listings.length === 0 && <p className="lok-note">No listings.</p>}
-      {lok.listings.map((row) => (
-        <div className="lok-row" key={row.id}>
-          <span>
-            #{row.id} {itemName(row.itemId)} x{row.amount}{row.book ? " min " + row.minPrice : ""} · {row.sellerName} · bid {row.highBid}
-            {row.highBidderName ? " by " + row.highBidderName : ""}
-          </span>
-          {row.book ? (
-            <button
-              type="button"
-              className="cmd-pill-tab"
-              onClick={() => send({ type: "lok/buy", itemId: row.itemId })}
-            >
-              Buy lowest
-            </button>
-          ) : (
-            <>
-              <input
-                value={bid[row.id] ?? ""}
-                placeholder="KEK"
-                onChange={(e) => setBid({ ...bid, [row.id]: e.target.value })}
-              />
-              <button
-                type="button"
-                className="cmd-pill-tab"
-                onClick={() => send({ type: "lok/bid", itemId: row.itemId, amount: bid[row.id] ?? "" })}
-              >
-                Bid
-              </button>
-            </>
-          )}
-          {row.yours && (
-            <button type="button" className="cmd-pill-tab" onClick={() => send({ type: "lok/cancel", listingId: row.id })}>
-              Cancel
-            </button>
-          )}
-          {row.book && row.yours && row.listedAt > 0 && Date.now() / 1000 >= row.listedAt + weekSec && (
-            <button type="button" className="cmd-pill-tab" onClick={() => send({ type: "lok/reclaim", listingId: row.id })}>
-              Reclaim
-            </button>
-          )}
-          {!row.book && row.highBidder && (
-            <button type="button" className="cmd-pill-tab" onClick={() => send({ type: "lok/settle", listingId: row.id })}>
-              Settle
-            </button>
-          )}
-        </div>
-      ))}
+      <AuctionBook listings={lok.listings} buyer={lok.tokenId} />
     </div>
   );
 }
