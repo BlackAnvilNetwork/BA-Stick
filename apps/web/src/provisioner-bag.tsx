@@ -1,6 +1,7 @@
 import { getItem } from "@bellgrave/items";
 import type { InventorySlot, LokItemBalance } from "@bellgrave/protocol";
 import { useState } from "react";
+import { ItemTipHost } from "./itemTip";
 import { send } from "./net";
 
 type Near = { id: string; name: string };
@@ -94,17 +95,19 @@ export function ProvisionerBag({ inventory, logItems, inbox, others }: Props) {
             (cell.logAmount ? (cell.bagAmount > 0 ? " / " : "") + "log " + cell.logAmount : "");
           return (
             <div className="prov-cell-wrap" key={cell.key}>
-              <button
-                type="button"
-                className={open ? "prov-cell on" : "prov-cell"}
-                onClick={() => setOpenKey(open ? null : cell.key)}
-              >
-                <span className="prov-cell-name">{cell.name}</span>
-                <span className="prov-cell-qty">
-                  {qty}
-                  {cell.starter ? " starter" : ""}
-                </span>
-              </button>
+              <ItemTipHost tokenId={cell.tokenId} active={!open}>
+                <button
+                  type="button"
+                  className={open ? "prov-cell on" : "prov-cell"}
+                  onClick={() => setOpenKey(open ? null : cell.key)}
+                >
+                  <span className="prov-cell-name">{cell.name}</span>
+                  <span className="prov-cell-qty">
+                    {qty}
+                    {cell.starter ? " starter" : ""}
+                  </span>
+                </button>
+              </ItemTipHost>
               {open && (
                 <div className="prov-pop" role="menu" aria-label={cell.name}>
                   <button
@@ -188,14 +191,16 @@ export function ProvisionerBag({ inventory, logItems, inbox, others }: Props) {
           const open = inboxKey === row.tokenId;
           return (
             <div className="prov-cell-wrap" key={"inbox-" + row.tokenId}>
-              <button
-                type="button"
-                className={open ? "prov-cell on" : "prov-cell"}
-                onClick={() => setInboxKey(open ? null : row.tokenId)}
-              >
-                <span className="prov-cell-name">{itemName(row.tokenId)}</span>
-                <span className="prov-cell-qty">x{row.amount}</span>
-              </button>
+              <ItemTipHost tokenId={row.tokenId} active={!open}>
+                <button
+                  type="button"
+                  className={open ? "prov-cell on" : "prov-cell"}
+                  onClick={() => setInboxKey(open ? null : row.tokenId)}
+                >
+                  <span className="prov-cell-name">{itemName(row.tokenId)}</span>
+                  <span className="prov-cell-qty">x{row.amount}</span>
+                </button>
+              </ItemTipHost>
               {open && (
                 <div className="prov-pop" role="menu" aria-label={"Take " + itemName(row.tokenId)}>
                   <button
