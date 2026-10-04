@@ -24,7 +24,14 @@ export const Gender = z.enum(["male", "female", "pepeka"]);
 export type Gender = z.infer<typeof Gender>;
 
 export const ClientMessageSchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("auth"), wallet: z.string().min(3) }),
+  z.object({ type: z.literal("auth/hello"), wallet: z.string().regex(/^0x[0-9a-fA-F]{40}$/) }),
+  z.object({
+    type: z.literal("auth"),
+    wallet: z.string().regex(/^0x[0-9a-fA-F]{40}$/),
+    signature: z.string().min(8).max(200),
+    nonce: z.string().min(8).max(128),
+    message: z.string().min(16).max(2000),
+  }),
   z.object({
     type: z.literal("char/create"),
     name: z.string().min(2).max(16),
@@ -90,15 +97,17 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
     tokenId: z.number().int().positive(),
     amount: z.number().int().positive().max(1_000_000),
   }),
+  /** `to` is a character id or log token. A typed display name is not a target. */
   z.object({
     type: z.literal("lok/sendItem"),
-    to: z.string().min(1).max(32),
+    to: z.string().min(1).max(64),
     tokenId: z.number().int().positive(),
     amount: z.number().int().positive().max(1_000_000),
   }),
+  /** `to` is a character id or log token. A typed display name is not a target. */
   z.object({
     type: z.literal("lok/sendKek"),
-    to: z.string().min(1).max(32),
+    to: z.string().min(1).max(64),
     amount: z.string().regex(/^[1-9][0-9]{0,18}$/),
   }),
   /** Refused until a vault withdrawal is queued. Does not debit in-game KEK. */
@@ -255,6 +264,8 @@ export type BuffState = {
 export type UnitSnapshot = {
   id: string;
   kind: "player" | "mob" | "npc";
+  /** Stable character id for players. Sends use this, not the display name. */
+  characterId?: string;
   name: string;
   x: number;
   /** Terrain height — outdoor undulates; indoor hubs stay flat. */
@@ -437,6 +448,13 @@ export type SpellOffer = {
 export type ServerMessage =
   | SnapshotMessage
   | { type: "error"; message: string }
+  | {
+      type: "auth/challenge";
+      wallet: string;
+      nonce: string;
+      issuedAt: string;
+      message: string;
+    }
   | {
       type: "auth/ok";
       wallet: string;
