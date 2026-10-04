@@ -1,7 +1,7 @@
 import { CATALOG, EQUIP_SLOTS, getItem, type EquipSlot, type ItemDef, type ItemKind } from "@bellgrave/items";
 import { compareAsks, planQuantityFills, type AskQuote, type LokListingView, type QuantityPlan } from "@bellgrave/protocol";
 import { useState } from "react";
-import { ItemTipHost } from "./itemTip";
+import { ItemCatalogDetails, ItemTipHost } from "./itemTip";
 import { send } from "./net";
 
 const WEEK_SEC = 7 * 24 * 60 * 60;
@@ -284,7 +284,9 @@ export function AuctionBook({ listings, buyer }: Props) {
           <div className="prov-dialog-head">
             <div>
               <div className="cmd-kicker">Commodity</div>
-              <div className="prov-dialog-title">{buying.name}</div>
+              <div className="item-panel-details">
+                <ItemCatalogDetails tokenId={buying.itemId} />
+              </div>
             </div>
             <button type="button" className="cmd-close-btn" onClick={() => setBuyingId(null)}>
               Close

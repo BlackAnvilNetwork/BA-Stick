@@ -3429,7 +3429,7 @@ button.equip-stat-label:focus-visible {
   top: calc(100% + 4px);
   left: 0;
   z-index: 5;
-  width: 190px;
+  width: 240px;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -3440,6 +3440,15 @@ button.equip-stat-label:focus-visible {
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
 }
 .prov-pop .cmd-pill-tab { width: 100%; }
+.item-panel-details {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.prov-pop .item-panel-details,
+.prov-dialog .item-panel-details {
+  margin-bottom: 2px;
+}
 
 .item-tip-host { display: block; width: 100%; }
 .item-hover-tip.skill-tip {
