@@ -309,9 +309,14 @@ export class LokWorld {
     return this.apply({ op: "harvest", tokenId, materialId, amount });
   }
 
-  /** Loot drop counter. Like harvest: records the drop without minting spendable items. */
+  /** Closed: the engine refuses every new ItemDrop append (ClosedMint). Log mob loot with lootDrop. */
   itemDrop(tokenId: string, itemId: string, amount: string): LokResult {
     return this.apply({ op: "itemDrop", tokenId, itemId, amount });
+  }
+
+  /** Loot drop counter. Like harvest: records the drop without minting spendable items. */
+  lootDrop(tokenId: string, itemId: string, amount: string): LokResult {
+    return this.apply({ op: "lootDrop", tokenId, itemId, amount });
   }
 
   /** Explicit bag import. Credits this stack without a chain inbound nonce. */
