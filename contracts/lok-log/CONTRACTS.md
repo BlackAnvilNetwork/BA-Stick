@@ -2,13 +2,30 @@
 
 These decisions are locked for the lok-log package.
 
-- **KEK is deposit-only from Robinhood L2.** It is not earnable in-game. There is no faucet. Trainer ability prices and craft `recipe.kek` charges spend that deposited balance through `spendKek`. Dust is no longer the spend currency for those prices. `spendKek` does not mint and is not a withdrawal. `lok/withdrawKek` stays disabled. No chain watcher is added.
-- **KEK token (Robinhood L2):** `0x5a3544a0328afD50A9979e03404F35c555B88c00`. Deposit-only. There is no faucet. This is the token a vault would custody. Do not deploy it from this tree.
-- **In-game transfers and the auction house are lok-engine log events, not contracts.** A transfer or bid moves only KEK or items the character already holds. There is no transfer tax and no auction fee. Listing an item escrows it so it cannot be transferred, exported, or listed again until cancel or settle.
-- **Goal:** prove in-game events cheaply with an event-sourced rules engine and a hash-chained log. Items and KEK enter from Robinhood. Items can be minted out as NFTs (exports) and brought back (import).
-- **Per-token vault cap:** `KekVault.queueWithdrawal` for a `tokenId` cannot exceed that character's deposited KEK minus withdrawals already reserved for them (pending or claimed). Cancel releases the reservation; claim does not. Another player's KEK sitting in the same vault does not raise the cap. The global check (pending withdrawals cannot exceed the vault balance) still applies. `lok/withdrawKek` stays disabled on the server; the engine `WithdrawKek` op remains.
-- **Inbound nonce:** `depositKek` and on-chain `importItem` each take the next per-character inbound nonce (`inboundCount`, shared by both). The engine accepts that nonce once, in order, and a checkpoint's `inboundConsumed` is how many of those inbounds the log has applied. Replaying a nonce does not credit again. Bag imports (`bagImport`) credit items without a chain nonce and are not counted in `inboundConsumed`. The game client cannot invent a custody inbound; there is no client `lok/deposit`. A local watcher credits `KekDepositRequested` and `ItemImportRequested`, swallows only nonces already applied, and halts on gaps.
-- **Withdrawal delay:** the deploy default stays **24 hours** (`KEK_WITHDRAW_DELAY` in `script/Deploy.s.sol`). An admin may set it between 1 hour and 30 days (`MIN_WITHDRAW_DELAY` / `MAX_WITHDRAW_DELAY` on `KekVault`). Do not change that default or those bounds.
+## Current lock (gold + WETH / EEZ)
+
+- **Two units.** **Gold** is in-game only (log counter). **WETH** is the settlement asset for the auction house, settlement sends, and PvP bounties. There is no new game token. Gold never converts directly to WETH; the route is item → AH → WETH.
+- **Gold** funds training, crafting, respec, NPC shops, and other soft sinks. It enters via quests, drops, harvest, and NPC buy-back. It has no vault path and no player-to-player `Send` in v1. Earn/spend use new log events only (see `docs/economy-weth-eez.md` and epic E1).
+- **WETH** is the AH / PvP unit (18 decimals). Players fund bids, asks’ proceeds, and PvP stakes with ETH that can remain on L1 (or an EEZ-connected home chain) and move into escrow through **[eez-core-protocol](https://github.com/eez-association/eez-core-protocol)** sync cross-chain calls with value — not by parking Robinhood KEK in `KekVault` as the play path.
+- **EEZ caveats are binding.** Upstream is early-stage and unaudited. Upstream `src/periphery/` (Bridge, WrappedToken, defi mocks) is test-only and must not be treated as the production bridge. Game-facing wrap/escrow contracts are first-party.
+- **In-game transfers and the auction house remain lok-engine log events** for balances the engine tracks. Listing still escrows the item in the log so it cannot be transferred, exported, or listed again until cancel or settle. On-chain WETH escrow must stay consistent with those events; the client cannot invent custody.
+- **Goal:** prove in-game events cheaply with an event-sourced rules engine and a hash-chained log. Gold is mintable only by engine rules (faucets with daily caps). WETH enters via EEZ-funded escrow (and any explicit wrap path we own). Items can still be minted out as NFTs (exports) and brought back (import).
+- **New events only.** Do not change the meaning or serialization of any existing event. Historical KEK events stay for replay of old fixtures. Fresh log + anvil wipe on the batched redeploy; bump `LOCAL_RULESET_HASH` and the wasm pin together.
+- **AH fee:** still undecided. The previous lock said “no auction fee.” If a fee ships, it is in WETH and this file must be updated before merge.
 - **Known MVP limits** stay as the package README already states: no k-of-n signer threshold, no fraud proofs, no on-chain Merkle proof yet, and unique-item supply of 1 is not enforced in the items contract.
+
+Design narrative and implementation order: [`docs/economy-weth-eez.md`](../../docs/economy-weth-eez.md).
+
+## Superseded (KEK deposit era — replay only)
+
+These applied to the KEK vault play path. They remain true for **replaying committed KEK events** and for code that has not yet been migrated. They are **not** the target product for new AH/PvP/training spend.
+
+- KEK was deposit-only from Robinhood L2 (`0x5a3544a0328afD50A9979e03404F35c555B88c00`), not earnable in-game, no faucet. Trainer and craft spent deposited KEK via `spendKek`. Dust was not the spend currency.
+- `KekVault` per-token withdrawal caps, 24h default delay (1h–30d admin bounds), inbound nonces shared by `depositKek` / on-chain `importItem`, bag imports outside `inboundConsumed`, and “no client `lok/deposit`” were the custody rules for that era.
+- `lok/withdrawKek` stayed disabled on the server while the engine `WithdrawKek` op remained.
+
+Do not reinterpret those events. Do not extend the KEK play path for AH or PvP.
+
+---
 
 This directory is a standalone Foundry project. It is not a pnpm workspace package. The game (`apps/*`, `packages/*`) does not compile these Solidity files.
