@@ -97,9 +97,7 @@ Example AH list placeholder: **1 xDAI** on Gnosis/Chiado; **0.001 ETH** on anvil
 
 ### Still needs go-ahead / redeploy / out-of-band
 
-- **Chiado broadcast go-ahead** from the user (code side ready per support re-test of 9432083+).
-- **Multisig + fee recipient addresses** (DeployChiado `MULTISIG` / AhEscrow fee recipient).
-- Chiado (then Gnosis 100) deploy of the package in §4.
+- **Official Gnosis launch** per `docs/gnosis-launch.md` (Safe + distinct server keys + real items or `address(0)`). The 2026-10-12 chain-100 deploy is **dry-run only** (`deployments/gnosis.json`).
 - EEZ wiring against public Chiado rollup0 (see §2).
 - Production WalletConnect project id.
 - Decision **(7)** redeploy timing.

@@ -1,46 +1,17 @@
-# Chiado deploy runbook (do not broadcast without go-ahead)
+# Chiado deploy
 
-Settlement testnet: **Gnosis Chiado** (`chainId` **10200**), native **xDAI**.
+Superseded for role layout / items policy by **`docs/gnosis-launch.md`** (same `DeployChiado` entrypoint).
 
-## Prerequisites
+Quick pointer:
 
-- Funded deployer EOA with Chiado xDAI
-- Multisig / rotator / guardian / proposer / listing addresses
-- External `ITEMS` (ERC-1155) and `KEK` (ERC-20) addresses on Chiado (or placeholders only if you accept non-functional export until real tokens exist)
-- `BASE_URI` for CharacterNFT metadata
-
-## Env
-
-Copy `contracts/lok-log/.env.chiado.example` → gitignored `.env.chiado` and fill secrets.
+- Chain id **10200**, native xDAI, default mint fee **1 xDAI**
+- `ADMIN` Safe, distinct `LISTING` / `ROTATOR` / `PROPOSER`, distinct `FEE_RECIPIENT`
+- `ITEMS=0x0` or a real access-controlled ERC-1155 — **never** `DeployChiadoMocks` on Chiado
+- After broadcast: `script/verify-deploy.sh`, then ruleset propose + **48h** timelock
 
 ```bash
 cd contracts/lok-log
 set -a && source .env.chiado && set +a
-# Dry-run (no broadcast):
-forge script script/DeployChiado.s.sol:DeployChiado \
-  --rpc-url "$CHIADO_RPC_URL" \
-  --sig "run()"
-# Broadcast ONLY after explicit user go-ahead:
-# forge script script/DeployChiado.s.sol:DeployChiado \
-#   --rpc-url "$CHIADO_RPC_URL" \
-#   --broadcast \
-#   --sig "run()"
+forge script script/DeployChiado.s.sol:DeployChiado --rpc-url "$CHIADO_RPC_URL" --sig "run()"
+# --broadcast only with explicit go-ahead
 ```
-
-`MINT_FEE` defaults to `1000000000000000000` (1 xDAI). Override in wei if product picks a different fee.
-
-## After deploy (manual)
-
-Same as `Deploy.s.sol` footer: items minter, starting jobs, ruleset propose, rotator session keys. Then wire server:
-
-```
-LOK_CHAIN_ID=10200
-LOK_CHAIN_RPC=<chiado rpc>
-LOK_PUBLIC_RPC=<browser-reachable chiado rpc>
-LOK_AH_ESCROW=...
-LOK_CHARACTER_NFT=...
-LOK_CHARACTER_FACTORY=...
-LOK_LISTING_KEY=<xDAI-funded listing key>
-```
-
-UI will show **xDAI** via `settlementCurrency(10200)`.
