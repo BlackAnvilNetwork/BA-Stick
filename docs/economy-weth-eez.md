@@ -1,13 +1,13 @@
 # Economy: gold + WETH (EEZ), not KEK
 
-Product direction for the gold/stable epic. Settlement asset is **WETH**, funded through **[eez-core-protocol](https://github.com/eez-association/eez-core-protocol)** so players can pay AH and PvP with ETH that never needs a long-lived “deposit into the game” balance.
+Product direction for the gold/stable epic. Settlement asset is **ETH** (wei; WETH only as a wrap/unwrap convenience). **[eez-core-protocol](https://github.com/eez-association/eez-core-protocol)** sync calls fund AH/PvP so buyers need not park a long-lived game vault balance. Deep dive: [`docs/eez-ah-research.md`](eez-ah-research.md).
 
 ## Locked here
 
 | Role | Asset | Where it lives |
 |------|--------|----------------|
 | Training, crafting, respec, NPC shops, gold sinks | **Gold** | Log only (`GoldEarn` / `GoldSpend` / `GoldSell`). No token, no vault. |
-| Auction house, player sends, PvP bounties | **ETH / WETH** (18 decimals) | Log settlement balance (engine still names the key/events `Kek` for replay). Product UI and vault path are ETH. EEZ funds escrow without a long-lived deposit UX. |
+| Auction house, player sends, PvP bounties | **ETH** (18 decimals wei) | EEZ moves **native ETH** with call `value` (protocol unit). Engine settlement key/events still named `Kek` for replay. WETH on a home chain is unwrapped before sync pay when needed. |
 
 - No new game token.
 - No USDT0 / Robinhood-KEK as the AH unit.
@@ -16,14 +16,14 @@ Product direction for the gold/stable epic. Settlement asset is **WETH**, funded
 
 ## Why EEZ
 
-[eez-core-protocol](https://github.com/eez-association/eez-core-protocol) is sync-rollup infrastructure: L1 `EEZ.sol` tracks per-rollup roots and **ETH accounting** (`etherDelta`); batches prove and execute cross-chain calls that can carry **`value`**. Atomic L1↔rollup (and rollup↔rollup) calls in one L1 block mean a wallet can bid or stake using ETH that still lives on L1 / another EEZ rollup, without a separate custodial deposit UX into `KekVault`.
+[eez-core-protocol](https://github.com/eez-association/eez-core-protocol) is sync-rollup infrastructure: L1 `EEZ.sol` tracks per-rollup roots and **native ETH** (`etherBalance` / `etherDelta`); batches prove and execute cross-chain calls that can carry **`value`**. Atomic L1↔rollup calls in one L1 block mean a wallet can fill an ask from home-chain ETH without a prior vault deposit. Details and UX options: [`eez-ah-research.md`](eez-ah-research.md).
 
-Intended player story:
+Intended player story (north star):
 
-1. Hold ETH on L1 (or an EEZ-connected home chain).
-2. Open AH bid / PvP bounty from the client.
-3. Wallet signs one flow that EEZ executes as a sync cross-chain call with value (wrap to WETH on the game side if the settle surface is ERC-20).
-4. Escrow holds WETH for the listing / match duration; settle or cancel releases it. No “park KEK in Bellgrave for days” step to play the market.
+1. Hold ETH (or WETH to unwrap) on L1 or another **EEZ-zone** chain.
+2. Click **Buy** on an ask; client picks the funded home chain.
+3. One sync transaction: proxy call with `value` = price → `AhEscrow` fills on the game domain; item to buyer, ETH to seller (ideally seller’s home chain in the same batch).
+4. No “deposit MockKEK / wait for watcher” step for zone buyers. Non-zone funds keep a deposit fallback.
 
 Caveats (do not paper over):
 
