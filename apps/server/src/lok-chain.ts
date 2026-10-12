@@ -199,10 +199,13 @@ export async function scanChainInbounds(opts: {
   rpcCall: (method: string, params: unknown[]) => Promise<unknown>;
   apply: (inbound: ChainInbound) => { ok: true } | { ok: false; error: string };
   expectedNonce?: (tokenId: string) => number;
+  /** Blocks behind tip (default DEPOSIT_CONFIRMATIONS). */
+  confirmations?: bigint;
 }): Promise<{ cursor: bigint }> {
+  const confirmations = opts.confirmations ?? DEPOSIT_CONFIRMATIONS;
   const latest = BigInt(String(await opts.rpcCall("eth_blockNumber", [])));
-  if (latest < DEPOSIT_CONFIRMATIONS) return { cursor: opts.cursor };
-  const safeHead = latest - DEPOSIT_CONFIRMATIONS;
+  if (latest < confirmations) return { cursor: opts.cursor };
+  const safeHead = latest - confirmations;
   if (safeHead < opts.cursor) return { cursor: opts.cursor };
   const logs = (await opts.rpcCall("eth_getLogs", [
     {

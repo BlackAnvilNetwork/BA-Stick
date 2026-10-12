@@ -182,6 +182,7 @@ import { playerStance, resolveTimAbility } from "./tim-abilities";
 import { hasKit } from "./support-job";
 import { pickDotKillCredit } from "./dot-credit";
 import { loadLokEnv } from "./lok-chain";
+import { applySettlementDeployFile } from "./settlement-deploy";
 import {
   ahEscrowAddress,
   ahEscrowClientConfig,
@@ -543,6 +544,7 @@ let fieldNodes: FieldNode[] = createPaleHollowNodes();
 const lok: LokWorld = await (async (): Promise<LokWorld> => {
   try {
     loadLokEnv();
+    applySettlementDeployFile();
     const world = LokWorld.open(defaultLokDir());
     configureMintClaimNonceStore(pathJoin(defaultLokDir(), "mint-claim-nonces.json"));
     console.log(

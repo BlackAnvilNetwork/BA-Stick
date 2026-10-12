@@ -4,15 +4,21 @@ interface ImportMetaEnv {
   readonly VITE_WS_URL?: string;
   /** WalletConnect Cloud project id — enables the Connect Wallet button. */
   readonly VITE_WALLETCONNECT_PROJECT_ID?: string;
-  /** Public RPC for WalletConnect / pay flows (e.g. Robinhood mainnet). */
+  /** Public RPC for WalletConnect / pay flows (Gnosis default in .env.example). */
   readonly VITE_RPC_URL?: string;
+  /** Ethereum L1 RPC for AppKit home-chain network. */
+  readonly VITE_ETH_RPC_URL?: string;
+  /** Gnosis mainnet RPC override for WC rpcMap. */
+  readonly VITE_GNOSIS_RPC_URL?: string;
+  /** Chiado testnet RPC override for WC rpcMap. */
+  readonly VITE_CHIADO_RPC_URL?: string;
   /** Anvil RPC on the dev machine (defaults to 127.0.0.1:8545). */
   readonly VITE_ANVIL_RPC_URL?: string;
   /** Reachable anvil RPC for mobile WalletConnect (LAN IP, ngrok, etc.). */
   readonly VITE_ANVIL_PUBLIC_RPC_URL?: string;
   /** When "1", allow WalletConnect optionalChains to include anvil 31337 outside Vite DEV. */
   readonly VITE_ALLOW_ANVIL_WC?: string;
-  /** Target chain id (default 4663 Robinhood). Use 31337 for local preview mint pay. */
+  /** Home / login chain id (default 100 Gnosis). Use 31337 for local anvil mint pay. */
   readonly VITE_CHAIN_ID?: string;
 }
 

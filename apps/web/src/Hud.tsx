@@ -1166,7 +1166,21 @@ export function Hud() {
 function WalletConnectButton() {
   const pushLog = useGame((s) => s.pushLog);
   const [busy, setBusy] = useState(false);
-  if (!walletConnectLoginAvailable()) return null;
+  // Always visible: missing project id used to return null (no Connect at all).
+  // Without Reown id, injected MetaMask/Rabby still works; otherwise show a disabled hint.
+  if (!walletConnectLoginAvailable()) {
+    return (
+      <button
+        type="button"
+        className="boot-primary"
+        disabled
+        style={{ marginTop: "0.75rem", width: "100%", opacity: 0.75 }}
+        title="Set VITE_WALLETCONNECT_PROJECT_ID (Reown) in apps/web/.env.local, or install a browser wallet"
+      >
+        Connect Wallet (set Reown project ID or install MetaMask)
+      </button>
+    );
+  }
   return (
     <button
       type="button"
@@ -1178,12 +1192,12 @@ function WalletConnectButton() {
         setBusy(true);
         void loginWithWalletConnect().then((res) => {
           setBusy(false);
-          if (!res.ok) pushLog("WalletConnect: " + res.error);
-          else pushLog("WalletConnect: " + res.address.slice(0, 6) + "…" + res.address.slice(-4));
+          if (!res.ok) pushLog("Wallet: " + res.error);
+          else pushLog("Wallet: " + res.address.slice(0, 6) + "…" + res.address.slice(-4));
         });
       }}
     >
-      {busy ? "Opening WalletConnect…" : "Connect Wallet"}
+      {busy ? "Opening wallet…" : "Connect Wallet"}
     </button>
   );
 }
@@ -1205,7 +1219,7 @@ export function BootScreens() {
           {!connected || phase === "boot" || phase === "auth" ? (
             <>
               <p className="boot-sub">{connected ? "Signing in…" : "Connecting to server…"}</p>
-              {connected ? <WalletConnectButton /> : null}
+              <WalletConnectButton />
             </>
           ) : phase === "create" ? (
             <>

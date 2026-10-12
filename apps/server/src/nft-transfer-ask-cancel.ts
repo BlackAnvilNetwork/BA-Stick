@@ -10,6 +10,8 @@ import { join } from "node:path";
 import { ahEscrowAddress, listingRoleKey } from "./ah-escrow";
 import { classifyClosedAsk, type ReconcileRpc } from "./ah-escrow-reconcile";
 import { cancelAskOnchain, readAskOnchain } from "./ah-escrow-tx";
+import { settlementConfirmations } from "./settlement-confirmations";
+import { settlementChainId } from "./settlement-chain";
 import { defaultLokDir, type LokWorld } from "./lok-world";
 import { writeTextAtomic } from "./lok-vault";
 
@@ -642,13 +644,16 @@ export function startNftTransferAskCancelWatcher(
   const cursorPath = opts?.cursorPath ?? nftTransferCursorPath(dataDir);
   const pendingPath = opts?.pendingPath ?? nftTransferPendingPath(dataDir);
   const droppedPath = nftTransferDroppedPath(dataDir);
+  const confirmations = settlementConfirmations(env);
   console.log(
     "[bellgrave] NFT transfer ask-cancel watcher rpc=" +
       rpc +
       " nft=" +
       nft +
+      " chain=" +
+      settlementChainId(env) +
       " confirmations=" +
-      NFT_TRANSFER_CONFIRMATIONS.toString() +
+      confirmations.toString() +
       " droppedAlerts=" +
       droppedPath,
   );
@@ -675,6 +680,7 @@ export function startNftTransferAskCancelWatcher(
       const next = await scanNftTransfers({
         cursor,
         nft,
+        confirmations,
         rpcCall: (method, params) => jsonRpc(rpc, method, params),
         onTransfer: async (xfer) => {
           const res = await cancelOpenAsksForCharacter(lok, xfer.tokenId, {

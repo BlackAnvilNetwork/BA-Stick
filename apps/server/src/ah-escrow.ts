@@ -6,6 +6,7 @@
 import { settlementCurrencyView } from "@bellgrave/config";
 import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { settlementConfirmations } from "./settlement-confirmations";
 import { settlementChainId } from "./settlement-chain";
 import {
   alertAskFilledQuarantine,
@@ -29,6 +30,7 @@ import { defaultLokDir, type LokWorld } from "./lok-world";
  */
 export const ASK_FILLED_TOPIC = "0x7f623940623393c52bf22f242ae3b57d9fbb8e603232b8952a1ad894943a1907";
 
+/** @deprecated Prefer settlementConfirmations(env). Kept for tests / callers. */
 export const ASK_FILL_CONFIRMATIONS = 2n;
 
 export type AskFilled = {
@@ -238,10 +240,13 @@ export async function scanAskFilled(opts: {
   rpcCall: (method: string, params: unknown[]) => Promise<unknown>;
   apply: (fill: AskFilled, fillKey: string, log: RpcLog) => ApplyAskFilledResult;
   quarantine?: AskFilledQuarantine;
+  /** Blocks behind tip (default ASK_FILL_CONFIRMATIONS / settlementConfirmations). */
+  confirmations?: bigint;
 }): Promise<{ cursor: bigint }> {
+  const confirmations = opts.confirmations ?? ASK_FILL_CONFIRMATIONS;
   const latest = BigInt(String(await opts.rpcCall("eth_blockNumber", [])));
-  if (latest < ASK_FILL_CONFIRMATIONS) return { cursor: opts.cursor };
-  const safeHead = latest - ASK_FILL_CONFIRMATIONS;
+  if (latest < confirmations) return { cursor: opts.cursor };
+  const safeHead = latest - confirmations;
   if (safeHead < opts.cursor) return { cursor: opts.cursor };
 
   // Page getLogs in 2k-block chunks so L2 RPCs with range limits still work.
@@ -321,13 +326,16 @@ export function startAskFilledWatcher(
         " AskFilled fill(s) still quarantined — pnpm --filter @bellgrave/server lok:replay-ask-filled --list",
     );
   }
+  const confirmations = settlementConfirmations(env);
   console.log(
     "[bellgrave] AhEscrow watcher rpc=" +
       rpc +
       " escrow=" +
       escrow +
+      " chain=" +
+      settlementChainId(env) +
       " confirmations=" +
-      ASK_FILL_CONFIRMATIONS.toString(),
+      confirmations.toString(),
   );
   let cursor = readAskFilledCursor(cursorPath);
   let busy = false;
@@ -340,6 +348,7 @@ export function startAskFilledWatcher(
         cursor,
         escrow,
         quarantine,
+        confirmations,
         rpcCall: (method, params) => jsonRpc(rpc, method, params),
         apply: (fill, fillKey, log) => {
           const beforeSeller = lok.listingOf(fill.listingId)?.seller;

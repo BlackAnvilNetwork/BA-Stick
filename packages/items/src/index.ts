@@ -35,6 +35,7 @@ export {
   type RecipeMatGroup,
 } from "./craft";
 export { npcSellUnitGold, npcSellTotalGold } from "./npc-sell";
+export { chainFungibleId, chainUniqueId, chainFungibleIdHex } from "./chain-ids";
 
 import { CATALOG_BY_ID } from "./catalog.generated";
 import { EQUIP_SLOTS, type Equipment, type EquipSlot, type ItemDef, type ItemStats } from "./types";

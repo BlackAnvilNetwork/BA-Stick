@@ -3,8 +3,10 @@ import { generatePrivateKey, privateKeyToAccount, type PrivateKeyAccount } from 
 import { clearPendingMint, clearPendingMintIfTokenBound } from "./pending-mint";
 import { useGame } from "./state";
 import { setPreferredPayoutWallet } from "./wallet";
+import { appKitConfigured, connectWithAppKit, disconnectAppKit } from "./appkit";
+import { connectInjectedWallet, injectedWalletAvailable } from "./injected-login";
 import {
-  connectWalletConnect,
+  defaultRpcUrl,
   disconnectWalletConnect,
   walletConnectConfigured,
 } from "./walletconnect";
@@ -162,51 +164,66 @@ async function completeSignedAuth(msg: Extract<ServerMessage, { type: "auth/chal
   }
 }
 
-/** Open WalletConnect, then re-auth as that wallet (replaces burner session). */
+/**
+ * Connect home-chain wallet (Reown AppKit picker, or injected MetaMask without project id),
+ * then re-auth as that wallet (replaces burner session). Login is sign-only — no forced switch.
+ */
 export async function loginWithWalletConnect(opts?: {
   chainId?: number;
   rpcUrl?: string;
 }): Promise<{ ok: true; address: string } | { ok: false; error: string }> {
-  if (!walletConnectConfigured()) {
-    return { ok: false, error: "WalletConnect is not configured (VITE_WALLETCONNECT_PROJECT_ID)." };
-  }
-  const chainId = opts?.chainId ?? Number(import.meta.env.VITE_CHAIN_ID ?? "4663");
-  const rpcUrl =
-    opts?.rpcUrl ??
-    (import.meta.env.VITE_RPC_URL?.trim() ||
-      "https://rpc.mainnet.chain.robinhood.com");
+  const chainId = opts?.chainId ?? Number(import.meta.env.VITE_CHAIN_ID ?? "100");
+  const rpcUrl = opts?.rpcUrl ?? defaultRpcUrl(chainId);
   if (!Number.isSafeInteger(chainId) || chainId <= 0) {
-    return { ok: false, error: "Bad VITE_CHAIN_ID for WalletConnect." };
+    return { ok: false, error: "Bad VITE_CHAIN_ID for wallet login." };
   }
   try {
-    // Rule 5: login is sign-only — do not force a chain switch.
-    const session = await connectWalletConnect({
-      chainId,
-      rpcUrl,
-      switchChain: false,
-    });
-    setPreferredPayoutWallet(session.address);
-    externalAuth = {
-      address: session.address,
-      signMessage: async (message) =>
-        session.client.signMessage({ message, account: session.account }),
-    };
+    let address: `0x${string}`;
+    let signMessage: (message: string) => Promise<string>;
+
+    if (appKitConfigured()) {
+      const session = await connectWithAppKit();
+      address = session.address;
+      signMessage = async (message) =>
+        session.client.signMessage({ message, account: session.account });
+      useGame.getState().pushLog("Wallet connected. Signing in…");
+    } else if (injectedWalletAvailable()) {
+      const session = await connectInjectedWallet({ chainId, rpcUrl, switchChain: false });
+      address = session.address;
+      signMessage = async (message) =>
+        session.client.signMessage({ message, account: session.account });
+      useGame.getState().pushLog("Browser wallet connected. Signing in…");
+    } else {
+      return {
+        ok: false,
+        error:
+          "No wallet available. Set VITE_WALLETCONNECT_PROJECT_ID for Reown AppKit, or install MetaMask/Rabby.",
+      };
+    }
+
+    setPreferredPayoutWallet(address);
+    externalAuth = { address, signMessage };
     authedWallet = null;
     authInFlight = false;
-    useGame.getState().pushLog("WalletConnect connected. Signing in…");
     if (socket?.readyState === WebSocket.OPEN) {
-      beginAuthHello(session.address);
+      beginAuthHello(address);
     } else {
       connectSocket();
     }
-    return { ok: true, address: session.address };
+    return { ok: true, address };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
 }
 
+/** Connect is offered when AppKit (project id) or an injected wallet is available. */
 export function walletConnectLoginAvailable(): boolean {
-  return walletConnectConfigured();
+  return walletConnectConfigured() || injectedWalletAvailable();
+}
+
+/** @deprecated Use walletConnectLoginAvailable — includes injected fallback. */
+export function walletLoginAvailable(): boolean {
+  return walletConnectLoginAvailable();
 }
 
 /** True after the server has accepted signed auth (auth/ok). */
@@ -241,6 +258,7 @@ export function checkCharacterNameAvailable(
 
 export async function clearExternalWalletAuth(): Promise<void> {
   externalAuth = null;
+  await disconnectAppKit();
   await disconnectWalletConnect();
 }
 

@@ -27,11 +27,12 @@ import {AhEscrow} from "../src/AhEscrow.sol";
 ///        optional: EMERGENCY (default ADMIN), ITEMS (default 0), KEK (default 0), MINT_FEE
 ///
 /// After running, the Safe must still:
-///   1. items.setMinter(checkpoint, true)            (if ITEMS != 0)
+///   1. Items.grantRole(MINTER_ROLE, checkpoint) + registerFungible… (if ITEMS != 0; see DeployItems)
 ///   2. factory.setStartingJob(job, true)            (per starting job)
 ///   3. proposer: rulesets.propose(hash, delay, uri) (first ruleset; wait out the 48h timelock)
 ///   4. rotator service: checkpoint.addSigner(sessionKey, expiry)
 /// Then verify implementations (see script/verify-deploy.sh + docs/gnosis-launch.md).
+
 contract Deploy is Script {
     uint64 constant RULESET_MIN_DELAY = 48 hours;
     uint256 constant ANVIL_CHAIN_ID = 31337;

@@ -94,6 +94,9 @@ export function defaultRpcUrl(chainId: number): string {
       "http://127.0.0.1:8545"
     );
   }
+  if (chainId === 1) {
+    return import.meta.env.VITE_ETH_RPC_URL?.trim() || "https://ethereum.publicnode.com";
+  }
   if (chainId === 4663) {
     return (
       import.meta.env.VITE_RPC_URL?.trim() ||

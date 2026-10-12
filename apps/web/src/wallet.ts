@@ -11,9 +11,11 @@ import {
   http,
   type Account,
   type Chain,
+  type EIP1193Provider,
   type WalletClient,
 } from "viem";
 import { generatePrivateKey, privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
+import { appKitConfigured, connectWithAppKit } from "./appkit";
 import {
   activeWalletConnectProvider,
   connectWalletConnect,
@@ -24,13 +26,14 @@ const PK_KEY = "bellgrave.walletKey";
 const WALLET_KEY = "bellgrave.wallet";
 const PAYOUT_KEY = "bellgrave.payoutWallet";
 
-declare global {
-  interface Window {
-    ethereum?: {
-      request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
-      on?: (event: string, handler: (...args: unknown[]) => void) => void;
-    };
-  }
+type Eip1193 = {
+  request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
+  on?: (event: string, handler: (...args: unknown[]) => void) => void;
+};
+
+function injectedProvider(): Eip1193 | null {
+  const eth = (window as unknown as { ethereum?: Eip1193 }).ethereum;
+  return eth && typeof eth.request === "function" ? eth : null;
 }
 
 export function burnerAccount(): PrivateKeyAccount {
@@ -49,7 +52,7 @@ export type WalletSession = {
   account: Account;
   address: `0x${string}`;
   client: WalletClient;
-  source: "injected" | "burner" | "walletconnect";
+  source: "injected" | "burner" | "walletconnect" | "appkit";
 };
 
 function chainOf(chainId: number, rpcUrl: string): Chain {
@@ -63,7 +66,7 @@ function chainOf(chainId: number, rpcUrl: string): Chain {
 }
 
 async function ensureInjectedChain(
-  ethereum: NonNullable<Window["ethereum"]>,
+  ethereum: Eip1193,
   chainId: number,
   rpcUrl: string,
 ): Promise<void> {
@@ -130,10 +133,11 @@ export async function getWalletSession(opts: {
   const chain = chainOf(opts.chainId, opts.rpcUrl);
   const prefer = opts.preferInjected !== false;
   const allowBurner = opts.allowBurnerFallback === true;
-  if (prefer && typeof window !== "undefined" && window.ethereum) {
+  const injected = prefer && typeof window !== "undefined" ? injectedProvider() : null;
+  if (injected) {
     try {
-      await ensureInjectedChain(window.ethereum, opts.chainId, opts.rpcUrl);
-      const accounts = (await window.ethereum.request({
+      await ensureInjectedChain(injected, opts.chainId, opts.rpcUrl);
+      const accounts = (await injected.request({
         method: "eth_requestAccounts",
       })) as string[];
       const address = accounts[0] as `0x${string}` | undefined;
@@ -142,7 +146,7 @@ export async function getWalletSession(opts: {
         const client = createWalletClient({
           account: address,
           chain,
-          transport: custom(window.ethereum),
+          transport: custom(injected as EIP1193Provider),
         });
         return { account: address as unknown as Account, address, client, source: "injected" };
       }
@@ -169,6 +173,16 @@ export async function getWalletSession(opts: {
   }
 
   if (opts.preferWalletConnect) {
+    if (appKitConfigured()) {
+      const ak = await connectWithAppKit();
+      setPreferredPayoutWallet(ak.address);
+      return {
+        account: ak.account,
+        address: ak.address,
+        client: ak.client,
+        source: "appkit",
+      };
+    }
     const wc = await connectWalletConnect({ chainId: opts.chainId, rpcUrl: opts.rpcUrl });
     setPreferredPayoutWallet(wc.address);
     return {

@@ -18,9 +18,14 @@ On chainid ≠ 31337 the script **reverts** if listing/rotator/proposer are not 
 
 ## Items / KEK (HIGH)
 
-- Pass a **real access-controlled** ERC-1155 as `ITEMS`, **or** `ITEMS=0x000…000` (imports/exports stay off via `NotConfigured`).
+- Pass a **real access-controlled** `Items` ERC-1155 as `ITEMS`, **or** `ITEMS=0x000…000` (imports/exports stay off via `NotConfigured`).
 - **Never** run `DeployChiadoMocks` / wire `MockItems` / `MockKEK` on 100 or 10200. Those mocks expose open `setMinter`. The deploy script calls `isBellgraveTestMock()` and reverts on non-anvil if a mock is passed.
-- After a real items deploy: Safe calls `items.setMinter(checkpoint, true)`.
+- Deploy Items (no broadcast until go-ahead):
+  ```bash
+  # ADMIN=Safe … optional CHECKPOINT=… ITEMS_SEED_SLUGS=pale-dust,iron-ore
+  forge script script/DeployItems.s.sol:DeployItems --rpc-url "$RPC_URL" --sig "run()"
+  ```
+- After Items + character stack: Safe `items.grantRole(MINTER_ROLE, checkpoint)` (if not set at deploy), `checkpoint.setItems(items)`, then `registerFungible(slug, uri, 0)` for each exportable catalog slug (or `ITEMS_SEED_SLUGS`). New items later = registrar only — **no Items redeploy**. Chain ids = `ItemIds.fungible(slug)` (see `@bellgrave/items` `chainFungibleId`).
 
 ## Mint fee
 
@@ -60,11 +65,12 @@ CHAIN_ID=100 VERIFIERS="sourcify blockscout" \
 
 1. Roles: admin = Safe; listing/rotator/proposer = intended EOAs; feeRecipient correct; deployer admin/listing dropped.
 2. `factory.setStartingJob(job, true)` for each starting job.
-3. Items minter (if `ITEMS != 0`).
+3. Items: `MINTER_ROLE` → checkpoint; `setItems`; register launch slugs (if `ITEMS != 0`).
 4. Ruleset propose + 48h wait.
-5. Sourcify/Blockscout green on all four impls + AhEscrow.
+5. Sourcify/Blockscout green on all four impls + AhEscrow (+ Items).
 6. Fund listing/rotator with minimal xDAI; sweep leftovers to treasury after ops.
-7. Server env: `LOK_CHAIN_ID=100`, RPCs, escrow/nft/factory addresses, listing key — **never** commit keys.
+7. Server: copy `apps/server/.env.gnosis.example` → `.env.local` (`LOK_CHAIN_ID=100`, `LOK_LISTING_KEY`). Blank `LOK_NFT`/`LOK_FACTORY`/`LOK_AH_ESCROW` fill from `deployments/gnosis.json`. Web: `VITE_WALLETCONNECT_PROJECT_ID` + `VITE_CHAIN_ID=100`.
+8. Confirmations: default 2 blocks (~10s); override with `LOK_CONFIRMATIONS`.
 
 ## Dry-run stuck funds (2026-10-12)
 

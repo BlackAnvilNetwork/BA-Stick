@@ -8,6 +8,7 @@ import { createPublicClient, http, type Hex } from "viem";
 import { freshMintNonce, mintClaimMessage } from "./mint-claim";
 import { clearPendingMint, readPendingMint, writePendingMint } from "./pending-mint";
 import { burnerAccount, getWalletSession } from "./wallet";
+import { walletConnectConfigured } from "./walletconnect";
 
 const CREATE_FOR_ABI = [
   {
@@ -127,7 +128,8 @@ export async function mintCharacterWithWallet(opts: {
     const session = await getWalletSession({
       chainId: opts.mint.chainId,
       rpcUrl: opts.mint.rpcUrl,
-      allowBurnerFallback: !hasInjected,
+      allowBurnerFallback: !hasInjected && !walletConnectConfigured(),
+      preferWalletConnect: walletConnectConfigured() && !hasInjected,
     });
     const pub = createPublicClient({
       transport: http(opts.mint.rpcUrl),
