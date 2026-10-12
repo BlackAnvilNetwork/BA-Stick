@@ -79,9 +79,13 @@ abstract contract Base is Test {
         nft.grantRole(nft.MINTER_ROLE(), address(factory));
         cp.grantRole(cp.FACTORY_ROLE(), address(factory));
         cp.grantRole(cp.NFT_ROLE(), address(nft));
+        factory.grantRole(factory.GUARDIAN_ROLE(), guardian);
         cp.setRulesets(address(rulesets));
         cp.setItems(address(items));
         cp.setVault(address(vault));
+        // Tests exercise import/export paths; production leaves these false until policy is live.
+        cp.setImportsEnabled(true);
+        cp.setExportsEnabled(true);
         vault.grantRole(vault.BRIDGE_ROLE(), address(cp));
         rulesets.grantRole(rulesets.PROPOSER_ROLE(), proposer);
         factory.setStartingJob(1, true);
@@ -97,8 +101,9 @@ abstract contract Base is Test {
         cp.addSigner(signer, uint64(block.timestamp + 6 hours));
 
         vm.deal(player, 10 ether);
+        uint256 expected = nft.nextTokenId() + 1;
         vm.prank(player);
-        tokenId = factory.createCharacter{value: 0.001 ether}(1);
+        tokenId = factory.createCharacterFor{value: 0.001 ether}(1, expected);
     }
 
     // ---------------------------------------------------------------- helpers

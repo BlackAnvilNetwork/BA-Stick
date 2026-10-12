@@ -5,7 +5,7 @@
 #   AH_ESCROW=0x... DEPLOYER=0x... NFT_PROXY=0x... FEE_RECIPIENT=0x... \
 #   CHAIN_ID=100 ./script/verify-deploy.sh
 #
-# Or: ./script/verify-deploy.sh ../../deployments/gnosis.json
+# Or: ./script/verify-deploy.sh ../../deployments/gnosis-dryrun.json
 # (JSON path mode needs `jq` and implementation addresses in the JSON — prefer env after Deploy logs.)
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

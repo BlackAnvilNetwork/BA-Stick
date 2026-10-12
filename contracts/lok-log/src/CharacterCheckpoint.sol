@@ -28,6 +28,9 @@ import {IKekVault} from "./interfaces/IKekVault.sol";
 ///         both. Everything else (crafting, XP, abilities, equipment) is off-chain game events, replayable by anyone
 ///         from the published log.
 ///         External contracts still keep the same hooks: initCharacter (factory) and onTransfer (NFT).
+///         Item import/export are gated by `importsEnabled` / `exportsEnabled` (default false) in addition to
+///         `items != address(0)`. Players must approve this contract on Items before `importItem`.
+///         UUPS upgrades must be authorized by `upgradeAuthority` (Timelock) once set.
 contract CharacterCheckpoint is
     Initializable,
     AccessControlUpgradeable,
@@ -81,6 +84,15 @@ contract CharacterCheckpoint is
     IItems public items;
     IKekVault public vault;
 
+    /// @notice When false (default), `importItem` reverts even if `items` is set.
+    bool public importsEnabled;
+    /// @notice When false (default), checkpoint `exports` minting reverts. Keep off until export policy is live.
+    bool public exportsEnabled;
+    /// @notice Soft cap on exports per checkpoint root span (0 = uncapped when exports are enabled).
+    uint256 public maxExportsPerCheckpoint;
+    /// @notice Timelock (or similar) that alone may authorize UUPS upgrades. When unset, DEFAULT_ADMIN may upgrade (anvil).
+    address public upgradeAuthority;
+
     struct Export {
         uint256 itemId;
         uint32 amount;
@@ -127,6 +139,10 @@ contract CharacterCheckpoint is
     event RulesetsSet(address rulesets);
     event ItemsSet(address items);
     event VaultSet(address vault);
+    event ImportsEnabledSet(bool enabled);
+    event ExportsEnabledSet(bool enabled);
+    event MaxExportsPerCheckpointSet(uint256 maxExports);
+    event UpgradeAuthoritySet(address indexed authority);
 
     // ----------------------------------------------------------------- errors
     error NotOwner();
@@ -143,6 +159,11 @@ contract CharacterCheckpoint is
     error AlreadyInit();
     error RulesetNotAccepted();
     error NotConfigured();
+    error ImportsDisabled();
+    error ExportsDisabled();
+    error UnauthorizedUpgrade();
+    error UpgradeAuthorityAlreadySet();
+    error ZeroAddress();
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -162,7 +183,21 @@ contract CharacterCheckpoint is
         nft = ICharacterNFT(nft_);
     }
 
-    function _authorizeUpgrade(address) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
+    /// @notice Set once to the TimelockController that must authorize upgrades in production.
+    function setUpgradeAuthority(address authority) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (upgradeAuthority != address(0)) revert UpgradeAuthorityAlreadySet();
+        if (authority == address(0)) revert ZeroAddress();
+        upgradeAuthority = authority;
+        emit UpgradeAuthoritySet(authority);
+    }
+
+    function _authorizeUpgrade(address) internal override {
+        if (upgradeAuthority != address(0)) {
+            if (msg.sender != upgradeAuthority) revert UnauthorizedUpgrade();
+        } else {
+            _checkRole(DEFAULT_ADMIN_ROLE);
+        }
+    }
 
     // ------------------------------------------------------------------ admin
     function setRulesets(address r) external onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -178,6 +213,21 @@ contract CharacterCheckpoint is
     function setVault(address v) external onlyRole(DEFAULT_ADMIN_ROLE) {
         vault = IKekVault(v);
         emit VaultSet(v);
+    }
+
+    function setImportsEnabled(bool enabled) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        importsEnabled = enabled;
+        emit ImportsEnabledSet(enabled);
+    }
+
+    function setExportsEnabled(bool enabled) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        exportsEnabled = enabled;
+        emit ExportsEnabledSet(enabled);
+    }
+
+    function setMaxExportsPerCheckpoint(uint256 maxExports) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        maxExportsPerCheckpoint = maxExports;
+        emit MaxExportsPerCheckpointSet(maxExports);
     }
 
     // ------------------------------------------- signer registry + guardian (unchanged from CharacterState)
@@ -275,7 +325,10 @@ contract CharacterCheckpoint is
         }
         uint256 n = c.exports.length;
         if (n != 0) {
+            // Exports mint ERC-1155 unbound to a separate root registry — keep disabled by default.
+            if (!exportsEnabled) revert ExportsDisabled();
             if (address(items) == address(0)) revert NotConfigured();
+            if (maxExportsPerCheckpoint != 0 && n > maxExportsPerCheckpoint) revert BadExport();
             for (uint256 i; i < n; ++i) {
                 Export calldata e = c.exports[i];
                 if (e.amount == 0) revert BadExport();
@@ -289,7 +342,10 @@ contract CharacterCheckpoint is
     /// KEK deposits. The engine must apply that nonce once, in order; the next checkpoint's `inboundConsumed` is how
     /// many of those ids the log has consumed. Watchers cross-check the log against these events.
     /// A pending import travels with the character if it is transferred before the log applies it.
+    /// Requires `importsEnabled` and `items` set. With real `Items`, the player must
+    /// `setApprovalForAll(checkpoint, true)` so this contract can burn.
     function importItem(uint256 tokenId, uint256 itemId, uint32 amount) external whenNotPaused nonReentrant {
+        if (!importsEnabled) revert ImportsDisabled();
         if (address(items) == address(0)) revert NotConfigured();
         if (nft.ownerOf(tokenId) != msg.sender) revert NotOwner();
         if (amount == 0) revert BadImport();

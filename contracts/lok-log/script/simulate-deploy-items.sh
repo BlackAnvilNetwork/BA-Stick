@@ -7,7 +7,7 @@ cd "$ROOT/contracts/lok-log"
 
 # Prefer SIM_* so a shell with production ADMIN/CHECKPOINT does not get reused.
 export ADMIN="${SIM_ADMIN:-${ADMIN:-0x00000000000000000000000000000000000000A1}}"
-export ITEMS_BASE_URI="${ITEMS_BASE_URI:-https://legendofkek.com/items/}"
+export ITEMS_BASE_URI="${ITEMS_BASE_URI:-https://blackanvil.gg/items/}"
 export CHECKPOINT="${SIM_CHECKPOINT:-0x00000000000000000000000000000000000000C1}"
 if [[ -z "${ITEMS_SEED_SLUGS:-}" ]]; then
   ITEMS_SEED_SLUGS="$(pnpm --filter @bellgrave/items print-seed)"

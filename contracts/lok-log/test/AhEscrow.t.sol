@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
+import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {AhEscrow} from "../src/AhEscrow.sol";
 import {MockOwnerNft} from "./mocks/MockOwnerNft.sol";
 
@@ -14,6 +15,7 @@ contract AhEscrowTest is Test {
     address proxy = makeAddr("eezProxy");
     address feeTo = makeAddr("feeTo");
     address newOwner = makeAddr("newOwner");
+    address guardian = makeAddr("guardian");
 
     uint256 constant LISTING = 7;
     uint256 constant SELLER_TOKEN = 1;
@@ -26,6 +28,9 @@ contract AhEscrowTest is Test {
         nft = new MockOwnerNft();
         nft.setOwner(SELLER_TOKEN, seller);
         escrow = new AhEscrow(admin, address(nft), payable(feeTo));
+        bytes32 guardianRole = escrow.GUARDIAN_ROLE();
+        vm.prank(admin);
+        escrow.grantRole(guardianRole, guardian);
         vm.deal(buyer, 1 ether);
         vm.deal(proxy, 1 ether);
     }
@@ -103,6 +108,44 @@ contract AhEscrowTest is Test {
         vm.prank(buyer);
         vm.expectRevert(AhEscrow.AskClosed.selector);
         escrow.buyAsk{value: PRICE}(LISTING, BUYER_TOKEN);
+    }
+
+    function test_cancelAsks_batch() public {
+        _open(LISTING, PRICE);
+        _open(LISTING + 1, PRICE);
+        uint256[] memory ids = new uint256[](2);
+        ids[0] = LISTING;
+        ids[1] = LISTING + 1;
+        vm.prank(admin);
+        escrow.cancelAsks(ids);
+        (,,,, bool open0,) = escrow.asks(LISTING);
+        (,,,, bool open1,) = escrow.asks(LISTING + 1);
+        assertFalse(open0);
+        assertFalse(open1);
+    }
+
+    function test_pause_blocksOpenAskAndBuyAsk() public {
+        _open(LISTING, PRICE);
+        vm.prank(guardian);
+        escrow.pause();
+
+        vm.prank(admin);
+        vm.expectRevert(Pausable.EnforcedPause.selector);
+        escrow.openAsk(LISTING + 1, SELLER_TOKEN, ITEM, AMOUNT, PRICE);
+
+        vm.prank(buyer);
+        vm.expectRevert(Pausable.EnforcedPause.selector);
+        escrow.buyAsk{value: PRICE}(LISTING, BUYER_TOKEN);
+
+        // Cancel still works while paused.
+        vm.prank(admin);
+        escrow.cancelAsk(LISTING);
+
+        vm.prank(admin);
+        escrow.unpause();
+        _open(LISTING + 2, PRICE);
+        vm.prank(buyer);
+        escrow.buyAsk{value: PRICE}(LISTING + 2, BUYER_TOKEN);
     }
 
     function test_receive_rejectsNakedEth() public {

@@ -3,10 +3,40 @@ pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
 import {Deploy} from "../script/Deploy.s.sol";
-import {AhEscrow} from "../src/AhEscrow.sol";
 import {MockKEK, MockItems} from "./mocks/Mocks.sol";
 
+/// Minimal contract so non-anvil validateConfig accepts ADMIN/EMERGENCY/GUARDIAN.
+contract DummySafe {
+    uint256 public threshold = 2;
+
+    function getThreshold() external view returns (uint256) {
+        return threshold;
+    }
+
+    function setThreshold(uint256 t) external {
+        threshold = t;
+    }
+}
+
 contract DeployTest is Test {
+    function _anvilConfig() internal returns (Deploy.Config memory c) {
+        address admin = makeAddr("admin");
+        c = Deploy.Config({
+            admin: admin,
+            emergency: admin,
+            guardian: admin,
+            feeRecipient: makeAddr("fee"),
+            rotator: makeAddr("rotator"),
+            proposer: makeAddr("proposer"),
+            listing: makeAddr("listing"),
+            items: address(new MockItems()),
+            kek: address(new MockKEK()),
+            timelock: address(0),
+            baseURI: "ipfs://x/",
+            mintFee: 0.001 ether
+        });
+    }
+
     function test_deployScript_wiresAndHandsOver() public {
         address admin = makeAddr("admin");
         address feeRecipient = makeAddr("fee");
@@ -25,6 +55,7 @@ contract DeployTest is Test {
             listing: listing,
             items: address(items),
             kek: address(new MockKEK()),
+            timelock: address(0),
             baseURI: "ipfs://x/",
             mintFee: 0.001 ether
         });
@@ -49,7 +80,11 @@ contract DeployTest is Test {
         assertEq(address(d.checkpoint.rulesets()), address(d.rulesets));
         assertEq(address(d.checkpoint.items()), address(items));
         assertEq(address(d.checkpoint.vault()), address(0));
+        assertFalse(d.checkpoint.importsEnabled());
+        assertFalse(d.checkpoint.exportsEnabled());
         assertTrue(d.ahEscrow.hasRole(d.ahEscrow.LISTING_ROLE(), listing));
+        assertTrue(d.ahEscrow.hasRole(d.ahEscrow.GUARDIAN_ROLE(), admin));
+        assertTrue(d.factory.hasRole(d.factory.GUARDIAN_ROLE(), admin));
         assertEq(address(d.ahEscrow.characterNft()), address(d.nft));
         assertEq(d.ahEscrow.feeRecipient(), feeRecipient);
         assertEq(d.ahEscrow.FEE_BPS(), 100);
@@ -57,6 +92,8 @@ contract DeployTest is Test {
         assertTrue(d.rulesets.hasRole(d.rulesets.EMERGENCY_ROLE(), admin));
         assertEq(d.rulesets.minDelay(), 48 hours);
         assertEq(d.factory.mintFee(), 0.001 ether);
+        assertEq(d.nft.name(), "Black Anvil Character");
+        assertEq(d.nft.symbol(), "BANV");
         assertTrue(d.nftImpl != address(0));
         assertTrue(address(d.ahEscrow) != address(0));
 
@@ -66,8 +103,9 @@ contract DeployTest is Test {
         d.factory.setStartingJob(1, true);
         address p = makeAddr("p");
         vm.deal(p, 1 ether);
+        uint256 expected = d.nft.nextTokenId() + 1;
         vm.prank(p);
-        uint256 id = d.factory.createCharacter{value: 0.001 ether}(1);
+        uint256 id = d.factory.createCharacterFor{value: 0.001 ether}(1, expected);
         assertEq(d.nft.ownerOf(id), p);
         assertEq(d.checkpoint.level(id), 1);
     }
@@ -85,11 +123,13 @@ contract DeployTest is Test {
             listing: makeAddr("listing"),
             items: address(0),
             kek: address(0),
+            timelock: address(0),
             baseURI: "ipfs://x/",
             mintFee: 1 ether
         });
         Deploy.Deployed memory d = s.deploy(c, address(s));
         assertEq(address(d.checkpoint.items()), address(0));
+        assertFalse(d.checkpoint.importsEnabled());
     }
 
     function test_deployScript_sameAdminAsDeployerKeepsAdmin_onAnvil() public {
@@ -106,6 +146,7 @@ contract DeployTest is Test {
             listing: deployer,
             items: address(new MockItems()),
             kek: address(new MockKEK()),
+            timelock: address(0),
             baseURI: "ipfs://x/",
             mintFee: 1 ether
         });
@@ -113,6 +154,18 @@ contract DeployTest is Test {
         bytes32 adminRole = d.nft.DEFAULT_ADMIN_ROLE();
         assertTrue(d.nft.hasRole(adminRole, deployer));
         assertTrue(d.ahEscrow.hasRole(d.ahEscrow.LISTING_ROLE(), deployer));
+    }
+
+    function test_deployScript_setsUpgradeAuthority_whenTimelockProvided() public {
+        Deploy s = new Deploy();
+        address timelock = address(new DummySafe());
+        Deploy.Config memory c = _anvilConfig();
+        c.timelock = timelock;
+        Deploy.Deployed memory d = s.deploy(c, address(s));
+        assertEq(d.nft.upgradeAuthority(), timelock);
+        assertEq(d.factory.upgradeAuthority(), timelock);
+        assertEq(d.checkpoint.upgradeAuthority(), timelock);
+        assertEq(d.rulesets.upgradeAuthority(), timelock);
     }
 
     function test_rejectMocksOnNonAnvil() public {
@@ -145,6 +198,7 @@ contract DeployTest is Test {
             listing: rotator,
             items: address(0),
             kek: address(0),
+            timelock: address(0),
             baseURI: "ipfs://x/",
             mintFee: 1 ether
         });
@@ -166,6 +220,7 @@ contract DeployTest is Test {
             listing: makeAddr("listing"),
             items: address(0),
             kek: address(0),
+            timelock: address(0),
             baseURI: "ipfs://x/",
             mintFee: 1 ether
         });
@@ -174,9 +229,42 @@ contract DeployTest is Test {
         s.validateConfig(c);
     }
 
+    function test_validateConfig_requiresContractRoles_onMainnet() public {
+        Deploy s = new Deploy();
+        address eoa = makeAddr("eoaAdmin");
+        Deploy.Config memory c = Deploy.Config({
+            admin: eoa,
+            emergency: eoa,
+            guardian: eoa,
+            feeRecipient: makeAddr("fee"),
+            rotator: makeAddr("rotator"),
+            proposer: makeAddr("proposer"),
+            listing: makeAddr("listing"),
+            items: address(0),
+            kek: address(0),
+            timelock: address(0),
+            baseURI: "ipfs://x/",
+            mintFee: 1 ether
+        });
+        vm.chainId(100);
+        vm.expectRevert(abi.encodeWithSelector(Deploy.BadConfig.selector, "admin must be a contract"));
+        s.validateConfig(c);
+
+        DummySafe safe = new DummySafe();
+        c.admin = address(safe);
+        c.emergency = address(safe);
+        c.guardian = address(safe);
+        s.validateConfig(c);
+
+        safe.setThreshold(1);
+        vm.expectRevert(abi.encodeWithSelector(Deploy.BadConfig.selector, "admin Safe threshold < 2"));
+        s.validateConfig(c);
+    }
+
     function test_deployOnMainnetChainId_rejectsMockItems() public {
         Deploy s = new Deploy();
-        address admin = makeAddr("admin");
+        DummySafe safe = new DummySafe();
+        address admin = address(safe);
         address mockItems = address(new MockItems());
         Deploy.Config memory c = Deploy.Config({
             admin: admin,
@@ -188,6 +276,7 @@ contract DeployTest is Test {
             listing: makeAddr("listing"),
             items: mockItems,
             kek: address(0),
+            timelock: address(0),
             baseURI: "ipfs://x/",
             mintFee: 1 ether
         });

@@ -13,8 +13,8 @@ import {ItemIds} from "../src/libraries/ItemIds.sol";
 ///
 /// Env:
 ///   ADMIN          Safe multisig (DEFAULT_ADMIN + REGISTRAR after handoff)
-///   ITEMS_BASE_URI optional, default https://legendofkek.com/items/
-///   CHECKPOINT     optional — if set, grant MINTER_ROLE
+///   ITEMS_BASE_URI optional, default https://blackanvil.gg/items/
+///   CHECKPOINT     optional — if set, grant MINTER_ROLE (Checkpoint should be sole minter)
 ///   ITEMS_SEED_SLUGS optional comma-separated catalog slugs to registerFungible
 contract DeployItems is Script {
     error BadConfig(string reason);
@@ -22,7 +22,7 @@ contract DeployItems is Script {
     function run() external returns (Items items) {
         address admin = vm.envAddress("ADMIN");
         if (admin == address(0)) revert BadConfig("ADMIN=0");
-        string memory baseURI = vm.envOr("ITEMS_BASE_URI", string("https://legendofkek.com/items/"));
+        string memory baseURI = vm.envOr("ITEMS_BASE_URI", string("https://blackanvil.gg/items/"));
         address checkpoint = vm.envOr("CHECKPOINT", address(0));
         string memory seed = vm.envOr("ITEMS_SEED_SLUGS", string(""));
 

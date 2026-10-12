@@ -14,7 +14,7 @@ contract ItemsTest is Test {
     address internal player = makeAddr("player");
 
     function setUp() public {
-        items = new Items(admin, "https://legendofkek.com/items/");
+        items = new Items(admin, "https://blackanvil.gg/items/");
         vm.startPrank(admin);
         items.grantRole(items.MINTER_ROLE(), checkpoint);
         items.grantRole(items.REGISTRAR_ROLE(), registrar);
@@ -47,6 +47,8 @@ contract ItemsTest is Test {
         items.mint(player, id, 5);
         assertEq(items.balanceOf(player, id), 5);
 
+        vm.prank(player);
+        items.setApprovalForAll(checkpoint, true);
         vm.prank(checkpoint);
         items.burn(player, id, 2);
         assertEq(items.balanceOf(player, id), 3);
@@ -55,6 +57,25 @@ contract ItemsTest is Test {
         vm.prank(checkpoint);
         vm.expectRevert(abi.encodeWithSelector(Items.NotRegistered.selector, unknown));
         items.mint(player, unknown, 1);
+    }
+
+    function test_burn_requiresApprovalFromOtherAddress() public {
+        uint256 id = ItemIds.fungible("pale-dust");
+        vm.prank(registrar);
+        items.registerItem(id, "pale-dust", "pale-dust.json", false, 0);
+        vm.prank(checkpoint);
+        items.mint(player, id, 3);
+
+        // Minter cannot burn another wallet's tokens without approval.
+        vm.prank(checkpoint);
+        vm.expectRevert(Items.NotApproved.selector);
+        items.burn(player, id, 1);
+
+        vm.prank(player);
+        items.setApprovalForAll(checkpoint, true);
+        vm.prank(checkpoint);
+        items.burn(player, id, 1);
+        assertEq(items.balanceOf(player, id), 2);
     }
 
     function test_unique_supplyOne() public {
@@ -109,6 +130,8 @@ contract ItemsTest is Test {
         vm.prank(checkpoint);
         i.mint(player, id, 1);
         assertEq(i.balanceOf(player, id), 1);
+        vm.prank(player);
+        items.setApprovalForAll(checkpoint, true);
         vm.prank(checkpoint);
         i.burn(player, id, 1);
         assertEq(i.balanceOf(player, id), 0);

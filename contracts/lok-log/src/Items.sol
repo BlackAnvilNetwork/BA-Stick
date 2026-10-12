@@ -8,8 +8,11 @@ import {ItemIds} from "./libraries/ItemIds.sol";
 
 /// @title Items
 /// @notice Access-controlled ERC-1155 for exported tradable items on settlement.
-///         Implements `IItems` (mint/burn/balanceOf). CharacterCheckpoint holds
-///         `MINTER_ROLE` (mint on export, burn on import).
+///         Implements `IItems` (mint/burn/balanceOf). CharacterCheckpoint should be the
+///         sole `MINTER_ROLE` holder (mint on export, burn on import).
+///         `burn` requires `from == msg.sender` or `isApprovedForAll(from, msg.sender)` so a
+///         compromised minter cannot burn arbitrary wallets without prior approval.
+///         Players must `setApprovalForAll(checkpoint, true)` before `importItem`.
 ///         New item types are added via `REGISTRAR_ROLE` without redeploying — use
 ///         content-addressed ids from `ItemIds` (catalog `slug` as `typeId`).
 ///
@@ -41,6 +44,7 @@ contract Items is ERC1155, ERC1155URIStorage, AccessControl {
     error BadAmount();
     error SupplyCap(uint256 id);
     error UniqueAmount();
+    error NotApproved();
 
     event ItemRegistered(
         uint256 indexed id, string typeId, bool uniqueItem, uint256 maxSupply, string tokenURI
@@ -150,10 +154,12 @@ contract Items is ERC1155, ERC1155URIStorage, AccessControl {
         _mint(to, id, amount, "");
     }
 
-    /// @dev IItems.burn — checkpoint import path.
+    /// @dev IItems.burn — checkpoint import path. MINTER_ROLE should be Checkpoint only.
+    ///      Operator must be `from` or an ERC-1155 operator approved via `setApprovalForAll`.
     function burn(address from, uint256 id, uint256 amount) external onlyRole(MINTER_ROLE) {
         if (from == address(0)) revert ZeroAddress();
         if (amount == 0) revert BadAmount();
+        if (from != msg.sender && !isApprovedForAll(from, msg.sender)) revert NotApproved();
         ItemMeta storage m = _meta[id];
         if (!m.registered) revert NotRegistered(id);
         if (m.totalSupply < amount) revert BadAmount();

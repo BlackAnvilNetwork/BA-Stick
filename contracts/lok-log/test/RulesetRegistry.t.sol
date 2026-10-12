@@ -129,10 +129,32 @@ contract RulesetRegistryTest is Test {
     function test_setMinDelay_adminOnly() public {
         vm.prank(other);
         vm.expectRevert();
-        reg.setMinDelay(0);
+        reg.setMinDelay(2 days);
         vm.prank(admin);
-        reg.setMinDelay(1 hours);
-        assertEq(reg.minDelay(), 1 hours);
+        reg.setMinDelay(2 days);
+        assertEq(reg.minDelay(), 2 days);
+    }
+
+    function test_setMinDelay_rejectsZeroAndBelowFloor() public {
+        vm.startPrank(admin);
+        vm.expectRevert(RulesetRegistry.DelayTooShort.selector);
+        reg.setMinDelay(0);
+        vm.expectRevert(RulesetRegistry.DelayTooShort.selector);
+        reg.setMinDelay(1 days - 1);
+        reg.setMinDelay(1 days);
+        assertEq(reg.minDelay(), 1 days);
+        vm.stopPrank();
+    }
+
+    function test_initialize_rejectsBelowMinDelay() public {
+        vm.expectRevert(RulesetRegistry.DelayTooShort.selector);
+        RulesetRegistry(
+            address(
+                new ERC1967Proxy(
+                    address(new RulesetRegistry()), abi.encodeCall(RulesetRegistry.initialize, (admin, 0))
+                )
+            )
+        );
     }
 
     function test_upgrade_adminOnly_andPreservesState() public {

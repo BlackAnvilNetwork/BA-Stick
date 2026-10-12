@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
+
 /// @dev Minimal NFT ownership read used at fill time (CharacterNFT).
 interface ICharacterOwnerOf {
     function ownerOf(uint256 tokenId) external view returns (address);
@@ -23,8 +25,10 @@ interface ICharacterOwnerOf {
 ///         cannot be reopened (`used` flag). Buyers cannot name the seller's
 ///         character token as the recipient. Owner change cancels open listings
 ///         off-chain (app watcher); fill still pays whoever owns the NFT then.
-contract AhEscrow {
+///         GUARDIAN_ROLE can pause openAsk/buyAsk; DEFAULT_ADMIN_ROLE unpauses.
+contract AhEscrow is Pausable {
     bytes32 public constant LISTING_ROLE = keccak256("LISTING_ROLE");
+    bytes32 public constant GUARDIAN_ROLE = keccak256("GUARDIAN_ROLE");
     bytes32 public constant DEFAULT_ADMIN_ROLE = 0x00;
 
     /// @notice 1% of sale price (fee = price * FEE_BPS / BPS_DENOM, floor).
@@ -91,7 +95,7 @@ contract AhEscrow {
         _locked = 1;
     }
 
-    /// @param admin Temporary admin (Deploy hands over to multisig).
+    /// @param admin Temporary admin (Deploy hands over to multisig). Also receives GUARDIAN_ROLE.
     /// @param nft_ Character NFT whose `ownerOf` receives sale proceeds at fill.
     /// @param feeRecipient_ Multisig/admin treasury for the 1% fee.
     constructor(address admin, address nft_, address payable feeRecipient_) {
@@ -100,6 +104,7 @@ contract AhEscrow {
         feeRecipient = feeRecipient_;
         _grant(DEFAULT_ADMIN_ROLE, admin);
         _grant(LISTING_ROLE, admin);
+        _grant(GUARDIAN_ROLE, admin);
         emit FeeRecipientSet(feeRecipient_);
     }
 
@@ -125,6 +130,16 @@ contract AhEscrow {
         emit FeeRecipientSet(to);
     }
 
+    /// @notice Guardian pause: blocks openAsk / buyAsk. Cancel remains available.
+    function pause() external onlyRole(GUARDIAN_ROLE) {
+        _pause();
+    }
+
+    /// @notice Safe/admin only may resume trading.
+    function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _unpause();
+    }
+
     /// @notice Floor split: `fee = price * 100 / 10000`, `sellerNet = price - fee`.
     function quoteFee(uint256 priceWei) public pure returns (uint256 feeWei, uint256 sellerNetWei) {
         feeWei = (priceWei * FEE_BPS) / BPS_DENOM;
@@ -148,7 +163,7 @@ contract AhEscrow {
         uint256 itemId,
         uint256 amount,
         uint256 priceWei
-    ) external onlyRole(LISTING_ROLE) {
+    ) external onlyRole(LISTING_ROLE) whenNotPaused {
         if (listingId == 0 || itemId == 0 || sellerTokenId == 0) revert BadId();
         if (amount == 0 || priceWei == 0) revert BadAmount();
         Ask storage ask = asks[listingId];
@@ -167,6 +182,18 @@ contract AhEscrow {
 
     /// @notice Pull an unsold ask (log cancel/reclaim should run after this succeeds).
     function cancelAsk(uint256 listingId) external onlyRole(LISTING_ROLE) {
+        _cancelAsk(listingId);
+    }
+
+    /// @notice Batch cancel for pause/incident response. Same per-id rules as `cancelAsk`.
+    function cancelAsks(uint256[] calldata listingIds) external onlyRole(LISTING_ROLE) {
+        uint256 n = listingIds.length;
+        for (uint256 i; i < n; ++i) {
+            _cancelAsk(listingIds[i]);
+        }
+    }
+
+    function _cancelAsk(uint256 listingId) private {
         Ask storage ask = asks[listingId];
         if (!ask.open) revert AskClosed();
         ask.open = false;
@@ -178,7 +205,7 @@ contract AhEscrow {
     /// @param listingId Engine ask id already opened on-chain.
     /// @param buyerTokenId Character that will receive the stack on the log after `AskFilled`.
     ///        Must not be the seller's character token.
-    function buyAsk(uint256 listingId, uint256 buyerTokenId) external payable nonReentrant {
+    function buyAsk(uint256 listingId, uint256 buyerTokenId) external payable nonReentrant whenNotPaused {
         if (buyerTokenId == 0) revert BadId();
         Ask storage ask = asks[listingId];
         if (!ask.open) revert AskClosed();

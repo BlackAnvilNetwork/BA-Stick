@@ -31,7 +31,16 @@ import {AhEscrow} from "../src/AhEscrow.sol";
 ///   2. factory.setStartingJob(job, true)            (per starting job)
 ///   3. proposer: rulesets.propose(hash, delay, uri) (first ruleset; wait out the 48h timelock)
 ///   4. rotator service: checkpoint.addSigner(sessionKey, expiry)
+///   5. If TIMELOCK unset: Safe setUpgradeAuthority(timelock) on NFT/Factory/Checkpoint/Rulesets
+///   6. Enable imports/exports only after Items minter + policy: setImportsEnabled / setExportsEnabled
 /// Then verify implementations (see script/verify-deploy.sh + docs/gnosis-launch.md).
+///
+/// UUPS upgrades: production must route through TimelockController via `upgradeAuthority`.
+
+/// @dev Minimal Safe read used only for launch validation (optional threshold check).
+interface ISafeThreshold {
+    function getThreshold() external view returns (uint256);
+}
 
 contract Deploy is Script {
     uint64 constant RULESET_MIN_DELAY = 48 hours;
@@ -50,6 +59,7 @@ contract Deploy is Script {
         address listing;
         address items;
         address kek;
+        address timelock;
         string baseURI;
         uint256 mintFee;
     }
@@ -92,6 +102,7 @@ contract Deploy is Script {
             listing: vm.envAddress("LISTING"),
             items: vm.envOr("ITEMS", address(0)),
             kek: vm.envOr("KEK", address(0)),
+            timelock: vm.envOr("TIMELOCK", address(0)),
             baseURI: vm.envString("BASE_URI"),
             mintFee: vm.envOr("MINT_FEE", uint256(0.001 ether))
         });
@@ -147,6 +158,19 @@ contract Deploy is Script {
         if (c.guardian == c.listing || c.guardian == c.rotator || c.guardian == c.proposer) {
             revert BadConfig("guardian must not be a server key");
         }
+
+        // Launch roles must be contracts (Safe / Timelock), not bare EOAs.
+        if (c.admin.code.length == 0) revert BadConfig("admin must be a contract");
+        if (c.emergency.code.length == 0) revert BadConfig("emergency must be a contract");
+        if (c.guardian.code.length == 0) revert BadConfig("guardian must be a contract");
+        if (c.timelock != address(0) && c.timelock.code.length == 0) {
+            revert BadConfig("timelock must be a contract");
+        }
+
+        // Optional: if ADMIN looks like a Safe, require threshold >= 2.
+        try ISafeThreshold(c.admin).getThreshold() returns (uint256 threshold) {
+            if (threshold < 2) revert BadConfig("admin Safe threshold < 2");
+        } catch {}
     }
 
     /// `deployer` is the account executing the calls (temporary admin).
@@ -163,7 +187,10 @@ contract Deploy is Script {
         d.rulesetsImpl = rulesetsImpl;
 
         d.nft = CharacterNFT(
-            _proxy(nftImpl, abi.encodeCall(CharacterNFT.initialize, (deployer, "Legend of Kek Character", "LOKC", c.baseURI)))
+            _proxy(
+                nftImpl,
+                abi.encodeCall(CharacterNFT.initialize, (deployer, "Black Anvil Character", "BANV", c.baseURI))
+            )
         );
         d.checkpoint = CharacterCheckpoint(
             _proxy(
@@ -188,11 +215,21 @@ contract Deploy is Script {
         d.checkpoint.grantRole(d.checkpoint.FACTORY_ROLE(), address(d.factory));
         d.checkpoint.grantRole(d.checkpoint.NFT_ROLE(), address(d.nft));
         d.checkpoint.setRulesets(address(d.rulesets));
-        // address(0) leaves importItem/export off (NotConfigured). Never wire mocks off-anvil.
+        // address(0) / importsEnabled=false leave importItem off. Never wire mocks off-anvil.
         d.checkpoint.setItems(c.items);
         d.rulesets.grantRole(d.rulesets.PROPOSER_ROLE(), c.proposer);
         d.rulesets.grantRole(d.rulesets.EMERGENCY_ROLE(), c.emergency);
         d.ahEscrow.grantRole(d.ahEscrow.LISTING_ROLE(), c.listing);
+        d.ahEscrow.grantRole(d.ahEscrow.GUARDIAN_ROLE(), c.guardian);
+        d.factory.grantRole(d.factory.GUARDIAN_ROLE(), c.guardian);
+
+        // Production UUPS: pin upgrades to Timelock before admin handoff.
+        if (c.timelock != address(0)) {
+            d.nft.setUpgradeAuthority(c.timelock);
+            d.checkpoint.setUpgradeAuthority(c.timelock);
+            d.factory.setUpgradeAuthority(c.timelock);
+            d.rulesets.setUpgradeAuthority(c.timelock);
+        }
 
         // Hand over admin to Safe. If admin == deployer, do NOT renounce
         // (grant+renounce on the same address would leave zero admins).
@@ -203,14 +240,19 @@ contract Deploy is Script {
             d.factory.grantRole(adminRole, c.admin);
             d.rulesets.grantRole(adminRole, c.admin);
             d.ahEscrow.grantRole(d.ahEscrow.DEFAULT_ADMIN_ROLE(), c.admin);
+            // Revoke temporary deployer roles before renouncing admin.
+            if (c.listing != deployer) {
+                d.ahEscrow.revokeRole(d.ahEscrow.LISTING_ROLE(), deployer);
+            }
+            if (c.guardian != deployer) {
+                d.ahEscrow.revokeRole(d.ahEscrow.GUARDIAN_ROLE(), deployer);
+                d.factory.revokeRole(d.factory.GUARDIAN_ROLE(), deployer);
+            }
+            d.ahEscrow.revokeRole(d.ahEscrow.DEFAULT_ADMIN_ROLE(), deployer);
             d.nft.renounceRole(adminRole, deployer);
             d.checkpoint.renounceRole(adminRole, deployer);
             d.factory.renounceRole(adminRole, deployer);
             d.rulesets.renounceRole(adminRole, deployer);
-            if (c.listing != deployer) {
-                d.ahEscrow.revokeRole(d.ahEscrow.LISTING_ROLE(), deployer);
-            }
-            d.ahEscrow.revokeRole(d.ahEscrow.DEFAULT_ADMIN_ROLE(), deployer);
         } else if (c.listing != deployer) {
             d.ahEscrow.revokeRole(d.ahEscrow.LISTING_ROLE(), deployer);
         }
