@@ -1,13 +1,13 @@
 /**
- * AppKit session helpers for login / mint / pay (viem WalletClient over AppKit provider).
- * Modal init lives in appkit-config.ts (docs: createAppKit outside React components).
+ * AppKit session helpers for login / mint / pay (viem over AppKit provider).
+ * Modal init: appkit-config.ts
  */
 import type { AppKit } from "@reown/appkit/react";
 import { createWalletClient, custom, type Account, type WalletClient } from "viem";
-import { appKit, appKitConfigured } from "./appkit-config";
+import { appKitConfigured, ensureAppKit } from "./appkit-config";
 import { defaultRpcUrl } from "./walletconnect";
 
-export { appKit, appKitConfigured } from "./appkit-config";
+export { appKitConfigured, ensureAppKit, appKitInitError } from "./appkit-config";
 
 export type AppKitSession = {
   account: Account;
@@ -18,21 +18,33 @@ export type AppKitSession = {
 };
 
 export function getAppKit(): AppKit | null {
-  return appKit;
+  return ensureAppKit();
 }
 
-/** @deprecated createAppKit now runs at import of appkit-config; kept for main.tsx. */
 export function initAppKit(): void {
-  void appKit;
+  ensureAppKit();
 }
 
 function isAddress(a: unknown): a is `0x${string}` {
   return typeof a === "string" && /^0x[0-9a-fA-F]{40}$/.test(a);
 }
 
+/** Build a viem session from an already-connected AppKit account (no modal open). */
+export async function sessionFromConnectedAppKit(): Promise<AppKitSession> {
+  const modal = ensureAppKit();
+  if (!modal) {
+    throw new Error("Reown AppKit is not configured (set VITE_WALLETCONNECT_PROJECT_ID).");
+  }
+  const address = modal.getAddress();
+  if (!isAddress(address)) {
+    throw new Error("No AppKit wallet connected yet.");
+  }
+  return sessionFromModal(modal, address);
+}
+
 /** Open AppKit Connect view and resolve when a wallet account is connected. */
 export async function connectWithAppKit(): Promise<AppKitSession> {
-  const modal = appKit;
+  const modal = ensureAppKit();
   if (!modal) {
     throw new Error("Reown AppKit is not configured (set VITE_WALLETCONNECT_PROJECT_ID).");
   }
@@ -112,9 +124,10 @@ async function sessionFromModal(modal: AppKit, address: `0x${string}`): Promise<
 }
 
 export async function disconnectAppKit(): Promise<void> {
-  if (!appKitConfigured() || !appKit) return;
+  const modal = ensureAppKit();
+  if (!modal) return;
   try {
-    await appKit.disconnect();
+    await modal.disconnect();
   } catch {
     /* ignore */
   }

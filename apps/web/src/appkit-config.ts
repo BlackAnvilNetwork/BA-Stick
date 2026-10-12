@@ -1,9 +1,10 @@
 /**
- * Reown AppKit bootstrap — matches https://docs.reown.com/appkit/overview
- * and the React + Ethers install guide: call createAppKit once at module scope
- * (outside React components) so the pre-built modal UI is available.
+ * Reown AppKit bootstrap — https://docs.reown.com/appkit/overview
+ * createAppKit once at module scope (outside React components).
+ * projectId = VITE_WALLETCONNECT_PROJECT_ID (Reown Dashboard).
  *
- * projectId = VITE_WALLETCONNECT_PROJECT_ID from https://dashboard.reown.com
+ * Do NOT use @walletconnect/ethereum-provider showQrModal for Connect — that is
+ * a QR-only Web3Modal and is what produced the raw-QR UX.
  */
 import { createAppKit, type AppKit } from "@reown/appkit/react";
 import { EthersAdapter } from "@reown/appkit-adapter-ethers";
@@ -31,11 +32,18 @@ function defaultNetwork(): AppKitNetwork {
   return gnosis;
 }
 
-const projectId = walletConnectProjectId();
+let kit: AppKit | null = null;
+let initError: string | null = null;
+let initialized = false;
 
-/** Singleton from createAppKit, or null when project id is unset. */
-export const appKit: AppKit | null = projectId
-  ? createAppKit({
+/** Lazily create AppKit so a failed createAppKit does not break the whole bundle. */
+export function ensureAppKit(): AppKit | null {
+  if (initialized) return kit;
+  initialized = true;
+  const projectId = walletConnectProjectId();
+  if (!projectId) return null;
+  try {
+    kit = createAppKit({
       adapters: [new EthersAdapter()],
       networks: appKitNetworks(),
       defaultNetwork: defaultNetwork(),
@@ -43,7 +51,6 @@ export const appKit: AppKit | null = projectId
       metadata: {
         name: "Legend of KEK",
         description: "Bellgrave — Legend of KEK",
-        // Verify API: must match the page origin (localhost in preview).
         url: typeof window !== "undefined" ? window.location.origin : "https://legendofkek.com",
         icons: ["https://legendofkek.com/favicon.ico"],
       },
@@ -64,9 +71,25 @@ export const appKit: AppKit | null = projectId
       },
       allWallets: "SHOW",
       themeMode: "dark",
-    })
-  : null;
+    });
+  } catch (err) {
+    initError = err instanceof Error ? err.message : String(err);
+    console.error("[bellgrave] createAppKit failed — Connect will not use raw WC QR:", initError);
+    kit = null;
+  }
+  return kit;
+}
+
+/** Eager init when this module is imported from main.tsx. */
+ensureAppKit();
+
+export const appKit: AppKit | null = ensureAppKit();
 
 export function appKitConfigured(): boolean {
-  return appKit != null;
+  return ensureAppKit() != null;
+}
+
+export function appKitInitError(): string | null {
+  ensureAppKit();
+  return initError;
 }

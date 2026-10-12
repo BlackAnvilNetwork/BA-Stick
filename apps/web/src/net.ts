@@ -3,13 +3,14 @@ import { generatePrivateKey, privateKeyToAccount, type PrivateKeyAccount } from 
 import { clearPendingMint, clearPendingMintIfTokenBound } from "./pending-mint";
 import { useGame } from "./state";
 import { setPreferredPayoutWallet } from "./wallet";
-import { appKitConfigured, connectWithAppKit, disconnectAppKit } from "./appkit";
-import { connectInjectedWallet, injectedWalletAvailable } from "./injected-login";
 import {
-  defaultRpcUrl,
-  disconnectWalletConnect,
-  walletConnectConfigured,
-} from "./walletconnect";
+  appKitConfigured,
+  connectWithAppKit,
+  disconnectAppKit,
+  sessionFromConnectedAppKit,
+} from "./appkit";
+import { connectInjectedWallet, injectedWalletAvailable } from "./injected-login";
+import { defaultRpcUrl, walletConnectConfigured } from "./walletconnect";
 
 const WS_URL = import.meta.env.VITE_WS_URL ?? "ws://localhost:8787";
 const HEARTBEAT_MS = 20_000;
@@ -167,10 +168,14 @@ async function completeSignedAuth(msg: Extract<ServerMessage, { type: "auth/chal
 /**
  * Connect home-chain wallet (Reown AppKit picker, or injected MetaMask without project id),
  * then re-auth as that wallet (replaces burner session). Login is sign-only — no forced switch.
+ *
+ * Never uses @walletconnect/ethereum-provider showQrModal (raw QR-only modal).
  */
 export async function loginWithWalletConnect(opts?: {
   chainId?: number;
   rpcUrl?: string;
+  /** When true, only adopt an already-connected AppKit account (Hud opened the modal). */
+  appKitAlreadyOpen?: boolean;
 }): Promise<{ ok: true; address: string } | { ok: false; error: string }> {
   const chainId = opts?.chainId ?? Number(import.meta.env.VITE_CHAIN_ID ?? "100");
   const rpcUrl = opts?.rpcUrl ?? defaultRpcUrl(chainId);
@@ -182,7 +187,9 @@ export async function loginWithWalletConnect(opts?: {
     let signMessage: (message: string) => Promise<string>;
 
     if (appKitConfigured()) {
-      const session = await connectWithAppKit();
+      const session = opts?.appKitAlreadyOpen
+        ? await sessionFromConnectedAppKit()
+        : await connectWithAppKit();
       address = session.address;
       signMessage = async (message) =>
         session.client.signMessage({ message, account: session.account });
@@ -259,7 +266,6 @@ export function checkCharacterNameAvailable(
 export async function clearExternalWalletAuth(): Promise<void> {
   externalAuth = null;
   await disconnectAppKit();
-  await disconnectWalletConnect();
 }
 
 function bindVisibility() {

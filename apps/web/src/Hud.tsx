@@ -1187,7 +1187,8 @@ function AppKitConnectButton() {
   useEffect(() => {
     if (!busy || !isConnected || !address || loginStarted.current) return;
     loginStarted.current = true;
-    void loginWithWalletConnect().then((res) => {
+    // Modal already open via useAppKit — do not call connectWithAppKit / raw WC QR.
+    void loginWithWalletConnect({ appKitAlreadyOpen: true }).then((res) => {
       setBusy(false);
       loginStarted.current = false;
       if (!res.ok) pushLog("Wallet: " + res.error);

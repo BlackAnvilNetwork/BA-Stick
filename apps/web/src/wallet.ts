@@ -16,11 +16,7 @@ import {
 } from "viem";
 import { generatePrivateKey, privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
 import { appKitConfigured, connectWithAppKit } from "./appkit";
-import {
-  activeWalletConnectProvider,
-  connectWalletConnect,
-  ensureWalletConnectChain,
-} from "./walletconnect";
+import { activeWalletConnectProvider, ensureWalletConnectChain } from "./walletconnect";
 
 const PK_KEY = "bellgrave.walletKey";
 const WALLET_KEY = "bellgrave.wallet";
@@ -183,18 +179,13 @@ export async function getWalletSession(opts: {
         source: "appkit",
       };
     }
-    const wc = await connectWalletConnect({ chainId: opts.chainId, rpcUrl: opts.rpcUrl });
-    setPreferredPayoutWallet(wc.address);
-    return {
-      account: wc.account,
-      address: wc.address,
-      client: wc.client,
-      source: "walletconnect",
-    };
+    throw new Error(
+      "Reown AppKit is required for wallet pay (set VITE_WALLETCONNECT_PROJECT_ID). Raw WalletConnect QR is disabled.",
+    );
   }
 
   if (!allowBurner) {
-    throw new Error("Connect an injected wallet or WalletConnect to pay.");
+    throw new Error("Connect an injected wallet or Reown AppKit to pay.");
   }
   const account = burnerAccount();
   setPreferredPayoutWallet(account.address);

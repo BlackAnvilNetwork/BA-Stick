@@ -1,8 +1,8 @@
 /**
- * WalletConnect v2 (QR / mobile) for auth + pay flows.
- * Requires VITE_WALLETCONNECT_PROJECT_ID. Never falls back to burner.
+ * Shared WC helpers: project id, chain ids, RPC map.
+ * Connect UI must use Reown AppKit (appkit-config.ts) — not EthereumProvider
+ * showQrModal (that is a QR-only modal and is hard-disabled below).
  *
- * Login (rule 5): connect + sign only — no forced chain switch.
  * Chain 31337 is optional only in Vite DEV or when VITE_ALLOW_ANVIL_WC=1.
  */
 import { SETTLEMENT_BY_CHAIN, settlementCurrency } from "@bellgrave/config";
@@ -202,64 +202,12 @@ export async function connectWalletConnect(opts: {
    */
   switchChain?: boolean;
 }): Promise<WcSession> {
-  const projectId = walletConnectProjectId();
-  if (!projectId) {
-    throw new Error("WalletConnect is not configured (set VITE_WALLETCONNECT_PROJECT_ID).");
-  }
-  if (opts.chainId === 31337 && !anvilWalletConnectAllowed()) {
-    throw new Error("WalletConnect anvil (31337) is disabled outside local preview.");
-  }
-  const rpcMap = buildWalletConnectRpcMap(opts.chainId, opts.rpcUrl);
-  const optionalChains = walletConnectChainIds();
-  // EthereumProvider requires a non-empty tuple; settlement table always supplies ≥1.
-  const optionalTuple: [number, ...number[]] =
-    optionalChains.length === 0
-      ? [opts.chainId]
-      : optionalChains.length === 1
-        ? [optionalChains[0]!]
-        : (optionalChains as [number, ...number[]]);
-  if (!provider) {
-    provider = await EthereumProvider.init({
-      projectId,
-      optionalChains: optionalTuple,
-      showQrModal: true,
-      rpcMap,
-      metadata: {
-        name: "Legend of KEK",
-        description: "Bellgrave — Legend of KEK",
-        url: typeof window !== "undefined" ? window.location.origin : "https://legendofkek.com",
-        icons: [],
-      },
-    });
-  }
-  await provider.enable();
-  const doSwitch = opts.switchChain !== false;
-  if (doSwitch) {
-    await ensureProviderChain(provider, opts.chainId, rpcMap[opts.chainId] ?? opts.rpcUrl);
-  }
-  const accounts = provider.accounts as string[];
-  const address = accounts[0] as `0x${string}` | undefined;
-  if (!address || !/^0x[0-9a-fA-F]{40}$/.test(address)) {
-    throw new Error("WalletConnect did not return an account.");
-  }
-  const sessionChainId = doSwitch ? opts.chainId : await providerChainId(provider);
-  const sessionRpc =
-    rpcMap[sessionChainId] ??
-    defaultRpcUrl(sessionChainId) ??
-    opts.rpcUrl;
-  const chain = chainOf(sessionChainId, sessionRpc);
-  const client = createWalletClient({
-    account: address,
-    chain,
-    transport: custom(provider),
-  });
-  return {
-    account: address as unknown as Account,
-    address,
-    client,
-    source: "walletconnect",
-    provider,
-  };
+  void opts;
+  // Raw EthereumProvider + showQrModal is a QR-only Web3Modal (the bug users hit).
+  // Login/mint/pay must use Reown AppKit (appkit-config.ts / useAppKit().open).
+  throw new Error(
+    "Raw WalletConnect QR modal is disabled. Use Reown AppKit Connect (VITE_WALLETCONNECT_PROJECT_ID).",
+  );
 }
 
 export async function disconnectWalletConnect(): Promise<void> {
