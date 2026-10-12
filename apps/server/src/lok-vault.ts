@@ -14,7 +14,7 @@ export const LOCAL_RULESET_HASH = "0x02c316daf43e7c3f013cabd179b00eabc1fcbafeeb0
  * purpose: rebuild the wasm, run contracts/lok-log/engine/scripts/check-wasm-pin.mjs, update this pin,
  * and on any non-local network propose a new ruleset hash for the new bundle.
  */
-export const LOCAL_RULESET_WASM_SHA256 = "190ecd42f44627e38afa8eb319baf448b5bfec29e5da1962b4292e4d6e52bf71";
+export const LOCAL_RULESET_WASM_SHA256 = "926bf5339c88d2c6f6c8c46ccbe7a46461517bee80af2c71024434aee1fb439c";
 
 const CHECKPOINT_TUPLE =
   "(bytes32,bytes32,uint64,uint64,bytes32,bytes32,uint256,uint64,uint256,(uint256,uint32)[])";

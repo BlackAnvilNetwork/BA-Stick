@@ -2,7 +2,7 @@
 
 use lok_engine::{
     gold_source_cap, Engine, EngineError, Gate, Input, Key, World, GOLD_DAILY_TOTAL_CAP,
-    GOLD_SOURCE_NPC_SELL, U256,
+    GOLD_MAX_DAY, GOLD_SOURCE_NPC_SELL, U256,
 };
 
 fn n(v: u64) -> U256 {
@@ -251,6 +251,57 @@ fn bad_day_zero_rejected() {
             .unwrap_err(),
         EngineError::BadDay
     );
+}
+
+#[test]
+fn day_above_max_rejected_and_does_not_lock_later_earns() {
+    let token = n(6);
+    let mut engine = Engine::open(token, 1);
+    spawn(&mut engine, token, 1);
+    for day in [GOLD_MAX_DAY + 1, u64::MAX] {
+        assert_eq!(
+            engine
+                .apply(Input::GoldEarn {
+                    token_id: token,
+                    source: "quest".into(),
+                    amount: n(1),
+                    day,
+                })
+                .unwrap_err(),
+            EngineError::BadDay
+        );
+        assert_eq!(
+            engine
+                .apply(Input::GoldSell {
+                    token_id: token,
+                    item_id: n(42),
+                    qty: n(1),
+                    amount: n(1),
+                    day,
+                })
+                .unwrap_err(),
+            EngineError::BadDay
+        );
+    }
+    // The rejected huge day did not move GoldDay, so a normal day still earns.
+    engine
+        .apply(Input::GoldEarn {
+            token_id: token,
+            source: "quest".into(),
+            amount: n(7),
+            day: 20_737,
+        })
+        .unwrap();
+    assert_eq!(engine.state().get(&Key::Gold), n(7));
+    // The ceiling itself is accepted.
+    engine
+        .apply(Input::GoldEarn {
+            token_id: token,
+            source: "quest".into(),
+            amount: n(1),
+            day: GOLD_MAX_DAY,
+        })
+        .unwrap();
 }
 
 fn cmd_ok(gate: &mut Gate, cmd: &str) -> bool {

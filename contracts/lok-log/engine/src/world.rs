@@ -1023,7 +1023,7 @@ impl World {
                 if *amount == U256::ZERO {
                     return Err(EngineError::ZeroAmount);
                 }
-                if *day == 0 {
+                if *day == 0 || *day > crate::gold::GOLD_MAX_DAY {
                     return Err(EngineError::BadDay);
                 }
                 if !self.characters.contains_key(token_id) {
@@ -1048,7 +1048,7 @@ impl World {
                 if *qty == U256::ZERO || *amount == U256::ZERO {
                     return Err(EngineError::ZeroAmount);
                 }
-                if *day == 0 {
+                if *day == 0 || *day > crate::gold::GOLD_MAX_DAY {
                     return Err(EngineError::BadDay);
                 }
                 if !self.characters.contains_key(token_id) {

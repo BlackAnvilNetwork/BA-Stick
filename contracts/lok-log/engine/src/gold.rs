@@ -9,6 +9,15 @@ use crate::u256::U256;
 /// Total gold a character may earn in one server day (all sources).
 pub const GOLD_DAILY_TOTAL_CAP: u64 = 50_000;
 
+/// Largest accepted server day id (UTC days since 1970-01-01; ~year 2243).
+///
+/// The day is server-stamped and not verifiable by a replayer. A higher day
+/// rolls the daily earn counters, so caps only bind an honest server clock (see
+/// CONTRACTS.md, "Gold day is server-trusted"). This ceiling only stops a single
+/// huge day from parking `GoldDay` near `u64::MAX` and locking every later earn
+/// on that character behind `StaleDay`.
+pub const GOLD_MAX_DAY: u64 = 100_000;
+
 /// Earn source used by `GoldSell`.
 pub const GOLD_SOURCE_NPC_SELL: &str = "npc_sell";
 
@@ -52,10 +61,11 @@ fn day_u64(raw: &U256) -> u64 {
 }
 
 /// Credit gold from a faucet. `day` is a server-stamped day id (non-zero).
-/// A higher day rolls counters; a lower day is rejected.
+/// A higher day rolls counters; a lower day is rejected; a day above
+/// [`GOLD_MAX_DAY`] is rejected as `BadDay`.
 pub fn credit_earn(state: &mut State, source: &str, amount: U256, day: u64) -> Result<(), GoldError> {
     parse_source(source)?;
-    if day == 0 {
+    if day == 0 || day > GOLD_MAX_DAY {
         return Err(GoldError::BadDay);
     }
     if amount == U256::ZERO {
@@ -106,6 +116,11 @@ pub fn debit_spend(state: &mut State, amount: U256) -> Result<(), GoldError> {
 }
 
 /// Burn `qty` of `item_id` and credit `amount` gold under the npc_sell earn cap for `day`.
+///
+/// TODO(E5): `amount` is server-chosen; only the npc_sell daily cap bounds it.
+/// A per-item NPC price table in the engine (amount <= price(item_id) * qty)
+/// would let a replayer reject an over-paid sell. Until then the price is
+/// server-trusted (see CONTRACTS.md).
 pub fn sell_item(
     state: &mut State,
     item_id: U256,
@@ -115,6 +130,10 @@ pub fn sell_item(
 ) -> Result<(), GoldError> {
     if item_id == U256::ZERO {
         return Err(GoldError::BadId);
+    }
+    // Check the day before burning the item, so a bad day never half-applies.
+    if day == 0 || day > GOLD_MAX_DAY {
+        return Err(GoldError::BadDay);
     }
     if qty == U256::ZERO || amount == U256::ZERO {
         return Err(GoldError::ZeroAmount);
