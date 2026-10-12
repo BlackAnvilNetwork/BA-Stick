@@ -158,7 +158,7 @@ export function EquipPanel({ you, me, onClose }: Props) {
           <Row label="HP" value={`${me.hp} / ${me.maxHp}`} />
           <Row label="MP" value={`${me.mp} / ${me.maxMp}`} />
           <Row label="TP" value={`${tpPct}%`} />
-          <Row label="Dust" value={String(you.dust)} />
+          <Row label="Gold" value={you.lok?.gold ?? "0"} />
           <Row label="XP" value={`${xpHave} / ${xpNeed}`} hint={`${xpLeft} to next`} />
 
           <div className="cmd-section-label">

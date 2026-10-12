@@ -15,6 +15,12 @@ fn import_item(world: &mut World, token: U256, item: U256, amount: U256) {
     world.append_import_item(token, item, amount, nonce).unwrap();
 }
 
+fn tx(byte: u8) -> [u8; 32] {
+    let mut h = [0u8; 32];
+    h[31] = byte;
+    h
+}
+
 #[test]
 fn chain_fill_moves_item_without_touching_kek() {
     let dust = fungible_id("pale_dust");
@@ -30,7 +36,9 @@ fn chain_fill_moves_item_without_touching_kek() {
     assert_eq!(world.kek_balance(&n(1)), Some(n(0)));
     assert_eq!(world.kek_balance(&n(2)), Some(n(0)));
 
-    world.append_chain_fill(n(10), n(2), n(500)).unwrap();
+    world
+        .append_chain_fill(n(10), n(2), n(500), dust, n(1), n(1), tx(1), 0)
+        .unwrap();
     assert!(world.listing(&n(10)).is_none());
     assert_eq!(world.inbox_balance(&n(2), &dust), Some(n(1)));
     assert_eq!(world.kek_balance(&n(1)), Some(n(0)), "seller Kek unchanged");
@@ -42,7 +50,7 @@ fn chain_fill_moves_item_without_touching_kek() {
 }
 
 #[test]
-fn chain_fill_rejects_wrong_price_and_self_buy() {
+fn chain_fill_rejects_wrong_price_self_buy_and_mismatch() {
     let dust = fungible_id("pale_dust");
     let mut world = World::new();
     world.append_spawn(n(1), 3).unwrap();
@@ -54,12 +62,28 @@ fn chain_fill_rejects_wrong_price_and_self_buy() {
         .unwrap();
 
     assert_eq!(
-        world.append_chain_fill(n(10), n(2), n(99)).unwrap_err(),
+        world
+            .append_chain_fill(n(10), n(2), n(99), dust, n(1), n(1), tx(1), 0)
+            .unwrap_err(),
         EngineError::OverAsk
     );
     assert_eq!(
-        world.append_chain_fill(n(10), n(1), n(100)).unwrap_err(),
+        world
+            .append_chain_fill(n(10), n(1), n(100), dust, n(1), n(1), tx(2), 0)
+            .unwrap_err(),
         EngineError::SelfTransfer
+    );
+    assert_eq!(
+        world
+            .append_chain_fill(n(10), n(2), n(100), dust, n(2), n(1), tx(3), 0)
+            .unwrap_err(),
+        EngineError::FillMismatch
+    );
+    assert_eq!(
+        world
+            .append_chain_fill(n(10), n(2), n(100), dust, n(1), n(9), tx(4), 0)
+            .unwrap_err(),
+        EngineError::FillMismatch
     );
     assert!(world.listing(&n(10)).is_some());
 }

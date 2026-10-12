@@ -11,7 +11,7 @@ import {
   abilitiesUnlockedDual,
   abilityLabel,
   abilityUnlockLevel,
-  trainerAbilityDustCost,
+  trainerAbilityGoldCost,
   trainerOffersForJobs,
   canTrainAbility,
   isTrainerFreeAbility,
@@ -179,37 +179,21 @@ import {
 import { playerStance, resolveTimAbility } from "./tim-abilities";
 import { hasKit } from "./support-job";
 import { pickDotKillCredit } from "./dot-credit";
-import { loadLokEnv, startKekDepositWatcher } from "./lok-chain";
+import { loadLokEnv } from "./lok-chain";
 import {
   ahEscrowAddress,
   ahEscrowClientConfig,
-  cancelAskCastArgs,
-  openAskCastArgs,
   startAskFilledWatcher,
   type AskFilledApplied,
 } from "./ah-escrow";
-import {
-  claimQueuedWithdrawal,
-  depositKekOnchain,
-  ensureLocalRuleset,
-  linkCharacterNft,
-  loadQueues,
-  queueKekWithdrawal,
-  enqueueVaultSync,
-  startVaultSyncWorker,
-  vaultClaimBlocked,
-  queuesFor,
-  readWithdrawDelay,
-  vaultDelaySec,
-  vaultWithdrawalMatches,
-  withdrawalById,
-} from "./lok-vault";
-import { endClaim, guardedKekMove, guardedWithdraw, prepareClaim, readWithdrawIntents, reconcileWithdrawIntents, removeWithdrawIntent, reservedOf, upsertWithdrawIntent, withPlayerCharge, withdrawIntentPath, writeWithdrawIntents } from "./kek-guard";
+import { cancelAskOnchain, openAskOnchain } from "./ah-escrow-tx";
+import { ensureLocalRuleset, linkCharacterNft } from "./lok-vault";
+import { guardedKekMove, withPlayerCharge } from "./kek-guard";
 import { characterNameKey, normalizeCharacterName } from "./character-name";
 import { randomBytes } from "node:crypto";
 import { authAllowlist, authVerifyClient, clientAddress, dropAuthConnection, issueAuthChallenge, resolveAuthOrigin, verifyAuthLogin, isEthAddress } from "./wallet-auth";
 import { defaultLokDir, LokWorld } from "./lok-world";
-import { readPlayerProgress, reconcileCharacterProgress, playerProgressPath, rememberLedger, chargeSkillRespec, RESPEC_KEK_COST, shouldChargeForAbility, type PlayerProgress } from "./player-progress";
+import { readPlayerProgress, reconcileCharacterProgress, playerProgressPath, rememberLedger, chargeSkillRespec, RESPEC_GOLD_COST, shouldChargeForAbility, type PlayerProgress } from "./player-progress";
 import { debugCheatsEnabled } from "./debug-cheats";
 import {
   PARTY_INVITE_RANGE,
@@ -469,29 +453,6 @@ let tick = 0;
 let mobs: Mob[] = spawnSegmentAPack();
 let fieldNodes: FieldNode[] = createPaleHollowNodes();
 
-async function reconcileQueuedWithdrawals(world: LokWorld): Promise<void> {
-  const path = withdrawIntentPath(defaultLokDir());
-  const intents = readWithdrawIntents(path);
-  if (intents.length === 0) return;
-  const left = await reconcileWithdrawIntents({
-    intents,
-    existsOnChain: (intent) =>
-      intent.id ? vaultWithdrawalMatches(intent.id, intent.token, intent.amount) : false,
-    debit: (() => {
-      const seen = new Map<string, number>();
-      return (token: string, amount: string) => {
-        const key = token + ":" + amount;
-        const nth = (seen.get(key) ?? 0) + 1;
-        seen.set(key, nth);
-        if (world.withdrawCount(token, amount) >= nth) return { ok: true as const };
-        return world.withdrawKek(token, amount);
-      };
-    })(),
-  });
-  writeWithdrawIntents(path, left);
-  console.log("[bellgrave] withdraw intents reconciled=" + (intents.length - left.length) + " still open=" + left.length);
-}
-
 const lok: LokWorld = await (async (): Promise<LokWorld> => {
   try {
     loadLokEnv();
@@ -499,20 +460,13 @@ const lok: LokWorld = await (async (): Promise<LokWorld> => {
     console.log(
       "[bellgrave] lok log " + world.logPath + " entries=" + world.length + ". " + world.chainNote,
     );
-    startKekDepositWatcher(world);
     startAskFilledWatcher(world, {
       onFilled: (fill) => {
         notifyAhEscrowFill(fill);
       },
     });
-    startVaultSyncWorker(defaultLokDir());
-    loadQueues(defaultLokDir());
-    await reconcileQueuedWithdrawals(world);
     const moved = reconcilePlayers(world);
     if (moved > 0) console.log("[bellgrave] moved " + moved + " log item stack(s) into character bags");
-    void readWithdrawDelay().catch(() => {
-      console.error("[bellgrave] withdraw delay read failed");
-    });
     void ensureLocalRuleset().catch(() => {
       console.error("[bellgrave] ruleset check failed");
     });
@@ -850,29 +804,6 @@ function serverGoldDay(nowMs: number = Date.now()): number {
   return Math.floor(nowMs / 86_400_000);
 }
 
-function spendLogKek(p: Player, amount: number): Promise<{ ok: true } | { ok: false; error: string }> {
-  if (!Number.isSafeInteger(amount) || amount < 0) return Promise.resolve({ ok: false, error: "Bad KEK cost." });
-  if (amount === 0) return Promise.resolve({ ok: true });
-  const token = lokToken(p);
-  if (!token) return Promise.resolve({ ok: false, error: "Could not open your log identity." });
-  return guardedKekMove(token, async () => {
-    const gate = await vaultClaimBlocked();
-    if (gate.blocked) return { ok: false, error: gate.error };
-    let bal: bigint;
-    let cost: bigint;
-    try {
-      bal = BigInt(lok.kekOf(token)) - reservedOf(token);
-      cost = BigInt(amount);
-    } catch {
-      return { ok: false, error: "Bad KEK balance." };
-    }
-    if (bal < cost) return { ok: false, error: "Need " + amount + " KEK (you have " + bal.toString() + ")." };
-    const spent = lok.spendKek(token, String(amount));
-    if (spent.ok) sinkOrMove({ kind: "sink", tokenId: token, amount: String(amount) });
-    return spent;
-  });
-}
-
 /** Spend in-game gold (trainer, craft, respec). Not vault KEK / WETH. */
 function spendLogGold(
   p: Player,
@@ -905,6 +836,11 @@ function earnLogGold(p: Player, source: string, amount: number): void {
   if (!res.ok) pushLog(p, "Gold was not written to your log: " + res.error);
 }
 
+/** Small gold drip on mob kills (5–25). */
+function mobKillGoldDrop(): number {
+  return 5 + Math.floor(Math.random() * 21);
+}
+
 function refuseFundCustody(p: Player, action: string) {
   pushLog(
     p,
@@ -923,7 +859,7 @@ function handleLokWithdrawKek(p: Player, _amount: string) {
 }
 
 function handleLokClaim(p: Player, _id: string) {
-  refuseFundCustody(p, "Vault claim");
+  refuseFundCustody(p, "Claim");
 }
 
 function handleLokList(p: Player, tokenId: number, amount: number, minPrice: string) {
@@ -932,164 +868,64 @@ function handleLokList(p: Player, tokenId: number, amount: number, minPrice: str
     pushLog(p, "Could not open your log identity.");
     return;
   }
-  if (!/^[1-9][0-9]{0,18}$/.test(minPrice)) {
-    pushLog(p, "Enter a minimum price greater than 0. Nothing was listed.");
+  // minPrice is wei (client parseEther). Cap length so we stay under uint256.
+  if (!/^[1-9][0-9]{0,76}$/.test(minPrice)) {
+    pushLog(p, "Enter a minimum price greater than 0 (ETH). Nothing was listed.");
+    return;
+  }
+  if (!p.wallet || !isEthAddress(p.wallet)) {
+    pushLog(p, "A wallet is required to list for ETH. Nothing was listed.");
+    return;
+  }
+  if (!ahEscrowAddress()) {
+    pushLog(p, "AhEscrow is not configured on this server. Nothing was listed.");
     return;
   }
   const listedAt = Math.floor(Date.now() / 1000);
   const res = lok.ask(token, String(tokenId), String(amount), minPrice, listedAt);
-  if (!res.ok) {
-    pushLog(p, res.error);
+  if (!res.ok || !res.listingId) {
+    pushLog(p, res.ok ? "Listing id missing." : res.error);
     return;
   }
-  const escrow = ahEscrowAddress();
-  const rpc = process.env.LOK_CHAIN_RPC?.trim();
-  const key = process.env.LOK_OWNER_KEY?.trim() || process.env.LOK_LISTING_KEY?.trim();
-  if (escrow && rpc && key && res.listingId && p.wallet) {
-    void import("node:child_process")
-      .then(({ execFile }) => {
-        const args = openAskCastArgs(
-          escrow,
-          res.listingId!,
-          token,
-          p.wallet,
-          String(tokenId),
-          String(amount),
-          minPrice,
-          rpc,
-          key,
-        );
-        execFile("cast", args, { timeout: 60_000 }, (err) => {
-          if (err) {
-            console.error("[bellgrave] AhEscrow openAsk failed for listing", res.listingId, err.message);
-            pushLog(
-              p,
-              "Listed #" +
-                res.listingId +
-                " on the log, but the on-chain ask could not be opened yet. Buyers cannot pay ETH until it is registered.",
-            );
-            send(p.ws, snapshotFor(p));
-          }
-        });
-      })
-      .catch(() => {
-        /* cast optional */
-      });
-  }
-  pushLog(
-    p,
-    "Listed " +
-      itemLabel(tokenId) +
-      " x" +
-      amount +
-      " as #" +
-      res.listingId +
-      " for at least " +
-      minPrice +
-      " ETH (paid on-chain via EEZ when filled). The auction house is holding the item.",
-  );
-  send(p.ws, snapshotFor(p));
-}
-
-
-function sinkOrMove(op: { kind: "sink"; tokenId: string; amount: string } | { kind: "reassign"; fromId: string; toId: string; amount: string }): void {
-  enqueueVaultSync(op);
-}
-
-function noteBuy(
-  p: Player,
-  token: string,
-  itemId: number,
-  res: { seller?: string; price?: string },
-): void {
-  const paid = res.price && res.price !== "0" ? res.price : "";
-  if (!paid) {
-    pushLog(p, "The buy did not name an ask price. Nothing was recorded as paid.");
-    return;
-  }
-  if (res.seller && res.seller !== token) {
-    sinkOrMove({ kind: "reassign", fromId: token, toId: res.seller, amount: paid });
-    tellToken(res.seller, "Your " + itemLabel(itemId) + " ask sold for " + paid + " KEK.");
-  }
-  pushLog(p, "Bought the lowest " + itemLabel(itemId) + " ask for " + paid + " KEK. It is in your Provisioner inbox.");
-}
-
-function noteQuantityBuy(
-  p: Player,
-  token: string,
-  itemId: number,
-  res: { fills: { seller?: string; price?: string }[]; filled: string; short: boolean; stopped?: string },
-): void {
-  const prices: string[] = [];
-  for (const fill of res.fills) {
-    const paid = fill.price && fill.price !== "0" ? fill.price : "";
-    if (!paid) continue;
-    prices.push(paid + " KEK");
-    if (fill.seller && fill.seller !== token) {
-      sinkOrMove({ kind: "reassign", fromId: token, toId: fill.seller, amount: paid });
-      tellToken(fill.seller, "Your " + itemLabel(itemId) + " ask sold for " + paid + " KEK.");
+  const listingId = res.listingId;
+  void openAskOnchain({
+    listingId,
+    sellerTokenId: token,
+    sellerPayout: p.wallet,
+    itemId: String(tokenId),
+    amount: String(amount),
+    priceWei: minPrice,
+  }).then((chain) => {
+    if (!chain.ok) {
+      const undone = lok.cancelAsk(listingId, token);
+      pushLog(
+        p,
+        "On-chain ask failed (" +
+          chain.error +
+          "). " +
+          (undone.ok ? "The log listing was cancelled." : "The log listing could not be cancelled: " + undone.error),
+      );
+      send(p.ws, snapshotFor(p));
+      return;
     }
-  }
-  const charged = prices.length > 0 ? " Charged each ask on its own (" + prices.join(", then ") + ")." : "";
-  const head = res.short
-    ? "The book ran out after " + res.filled + " " + itemLabel(itemId) + "."
-    : "Bought " + res.filled + " " + itemLabel(itemId) + ".";
-  const noAsk = res.stopped === "no ask at or under that bid";
-  const why = res.stopped && !noAsk ? " " + res.stopped : "";
-  pushLog(p, head + charged + " The stacks are in your Provisioner inbox." + why);
+    pushLog(
+      p,
+      "Listed " +
+        itemLabel(tokenId) +
+        " x" +
+        amount +
+        " as #" +
+        listingId +
+        " for " +
+        minPrice +
+        " wei ETH on AhEscrow. The auction house is holding the item.",
+    );
+    send(p.ws, snapshotFor(p));
+  });
 }
 
 function handleLokBuy(p: Player, _itemId: number, _qty?: number) {
   refuseFundCustody(p, "Log-balance buy");
-}
-
-async function queuePlayerWithdrawal(p: Player, token: string, amount: string) {
-  let claim = 0n;
-  let cost = 0n;
-  try {
-    claim = BigInt(lok.vaultClaim(token) || "0");
-    cost = BigInt(amount);
-  } catch {
-    return { ok: false as const, error: "Bad withdrawal amount. No in-game KEK was spent." };
-  }
-  if (claim < cost) {
-    return {
-      ok: false as const,
-      error: "Only KEK still credited to this character can be withdrawn. Nothing was queued.",
-    };
-  }
-  // The log debit is appended by the vault hook after the read-only chain checks
-  // (chain id, ruleset accepted), not before them. undoWithdraw can only pop the
-  // last entry, so the shorter the gap between debit and a definite refusal, the
-  // less likely a level-up, loot drop, or incoming send lands in between and
-  // strands the debit. Undo only what this attempt actually appended.
-  let debited = false;
-  const res = await queueKekWithdrawal(token, amount, process.env, undefined, {
-    debit: () => {
-      const logged = lok.withdrawKek(token, amount);
-      if (logged.ok) debited = true;
-      return logged;
-    },
-    beforeSend: (id) => upsertWithdrawIntent(withdrawIntentPath(defaultLokDir()), { token, amount, id }),
-    prepare: (chain) => {
-      const drafted = lok.checkpointFor(token, chain.fromIndex);
-      if (!drafted.ok) return undefined;
-      if (drafted.body.kekOut !== amount) return undefined;
-      if (drafted.body.prevRoot.toLowerCase() !== chain.prevRoot.toLowerCase()) return undefined;
-      return { player: p.wallet, ...drafted.body };
-    },
-  });
-  if (!res.ok && !res.uncertain && debited) {
-    const undone = lok.undoWithdraw(token, amount);
-    if (!undone.ok) {
-      return {
-        ok: false as const,
-        uncertain: true,
-        error: "Withdrawal was not queued and the log debit could not be undone. Spendable KEK stays reserved.",
-      };
-    }
-  }
-  return res;
 }
 
 function handleLokBid(p: Player, _itemId: number, _amount: string) {
@@ -1103,39 +939,46 @@ function handleLokCancel(p: Player, listingId: string) {
     return;
   }
   const row = lok.view(token).listings.find((l) => l.id === listingId);
-  const res = row?.book ? lok.cancelAsk(listingId, token) : lok.cancel(listingId, token);
-  if (!res.ok) {
-    pushLog(p, res.error);
+  if (!row) {
+    pushLog(p, "Unknown listing. Nothing was cancelled.");
     return;
   }
-  const escrow = ahEscrowAddress();
-  const rpc = process.env.LOK_CHAIN_RPC?.trim();
-  const key = process.env.LOK_OWNER_KEY?.trim() || process.env.LOK_LISTING_KEY?.trim();
-  if (row?.book && escrow && rpc && key) {
-    void import("node:child_process")
-      .then(({ execFile }) => {
-        execFile("cast", cancelAskCastArgs(escrow, listingId, rpc, key), { timeout: 60_000 }, (err) => {
-          if (err) {
-            console.error("[bellgrave] AhEscrow cancelAsk failed for listing", listingId, err.message);
-            pushLog(
-              p,
-              "Cancelled #" + listingId + " on the log, but the on-chain ask may still be open. Contact ops if a buyer can still pay.",
-            );
-            send(p.ws, snapshotFor(p));
-          }
-        });
-      })
-      .catch(() => {
-        /* cast optional */
-      });
+  if (!row.book) {
+    const res = lok.cancel(listingId, token);
+    if (!res.ok) pushLog(p, res.error);
+    else pushLog(p, "Cancelled listing #" + listingId + ". Escrow returned.");
+    send(p.ws, snapshotFor(p));
+    return;
   }
-  pushLog(
-    p,
-    row?.book
-      ? "Cancelled listing #" + listingId + ". The stack is in your Provisioner inbox."
-      : "Cancelled listing #" + listingId + ". Escrow returned.",
-  );
-  send(p.ws, snapshotFor(p));
+  if (!ahEscrowAddress()) {
+    pushLog(p, "AhEscrow is not configured; cannot cancel an on-chain ask safely.");
+    send(p.ws, snapshotFor(p));
+    return;
+  }
+  void cancelAskOnchain({ listingId }).then((chain) => {
+    if (!chain.ok) {
+      pushLog(p, "On-chain cancel failed (" + chain.error + "). The log listing was left open.");
+      send(p.ws, snapshotFor(p));
+      return;
+    }
+    if (chain.alreadyClosed) {
+      pushLog(
+        p,
+        "On-chain ask #" +
+          listingId +
+          " was already closed (likely filled). Waiting for AskFilled to mirror the item. Log listing left open.",
+      );
+      send(p.ws, snapshotFor(p));
+      return;
+    }
+    const res = lok.cancelAsk(listingId, token);
+    if (!res.ok) {
+      pushLog(p, "On-chain ask cancelled, but the log cancel failed: " + res.error);
+    } else {
+      pushLog(p, "Cancelled listing #" + listingId + ". The stack is in your Provisioner inbox.");
+    }
+    send(p.ws, snapshotFor(p));
+  });
 }
 
 function handleLokReclaim(p: Player, listingId: string) {
@@ -1144,27 +987,29 @@ function handleLokReclaim(p: Player, listingId: string) {
     pushLog(p, "Could not open your log identity.");
     return;
   }
-  const res = lok.reclaim(listingId, token, Math.floor(Date.now() / 1000));
-  if (!res.ok) {
-    pushLog(p, res.error);
+  if (!ahEscrowAddress()) {
+    pushLog(p, "AhEscrow is not configured; cannot reclaim an on-chain ask safely.");
     return;
   }
-  const escrow = ahEscrowAddress();
-  const rpc = process.env.LOK_CHAIN_RPC?.trim();
-  const key = process.env.LOK_OWNER_KEY?.trim() || process.env.LOK_LISTING_KEY?.trim();
-  if (escrow && rpc && key) {
-    void import("node:child_process")
-      .then(({ execFile }) => {
-        execFile("cast", cancelAskCastArgs(escrow, listingId, rpc, key), { timeout: 60_000 }, (err) => {
-          if (err) console.error("[bellgrave] AhEscrow cancelAsk after reclaim failed", listingId, err.message);
-        });
-      })
-      .catch(() => {
-        /* cast optional */
-      });
-  }
-  pushLog(p, "Reclaimed listing #" + listingId + " into your Provisioner inbox.");
-  send(p.ws, snapshotFor(p));
+  void cancelAskOnchain({ listingId }).then((chain) => {
+    if (!chain.ok) {
+      pushLog(p, "On-chain cancel before reclaim failed (" + chain.error + "). Nothing was reclaimed.");
+      send(p.ws, snapshotFor(p));
+      return;
+    }
+    if (chain.alreadyClosed) {
+      pushLog(
+        p,
+        "On-chain ask #" + listingId + " was already closed (likely filled). Waiting for AskFilled; nothing reclaimed on the log.",
+      );
+      send(p.ws, snapshotFor(p));
+      return;
+    }
+    const res = lok.reclaim(listingId, token, Math.floor(Date.now() / 1000));
+    if (!res.ok) pushLog(p, res.error);
+    else pushLog(p, "Reclaimed listing #" + listingId + " into your Provisioner inbox.");
+    send(p.ws, snapshotFor(p));
+  });
 }
 
 function handleLokTakeInbox(p: Player, tokenId: number, amount: number) {
@@ -1222,9 +1067,7 @@ function handleSkillRespec(p: Player) {
         }
         if (bal < cost) return { ok: false, error: "Need " + amount + " gold (you have " + bal.toString() + ")." };
         if (nodeIds.length === 0) return { ok: false, error: "No paid skill nodes to respec." };
-        const spent = lok.goldSpend(token, "respec", String(amount));
-        if (!spent.ok) return spent;
-        return lok.respecSkills(token, nodeIds);
+        return lok.goldPaidRespec(token, String(amount), nodeIds);
       });
     },
     apply: (unlocked, skillPoints) => {
@@ -1235,7 +1078,7 @@ function handleSkillRespec(p: Player) {
     },
   }).then((result) => {
     if (!result.ok) pushLog(p, result.error === "no longer available" ? "No paid skill nodes to respec." : result.error);
-    else pushLog(p, "Respec paid " + RESPEC_KEK_COST + " gold. The tree was cleared and the points were refunded.");
+    else pushLog(p, "Respec paid " + RESPEC_GOLD_COST + " gold. The tree was cleared and the points were refunded.");
     syncVitals(p, false);
     send(p.ws, snapshotFor(p));
   }).catch(() => failAction(p, "Respec"));
@@ -1286,9 +1129,6 @@ function handleLokSettle(p: Player, listingId: string) {
     pushLog(p, res.error);
     return;
   }
-  if (row?.highBidder && row.highBid && row.highBid !== "0") {
-    sinkOrMove({ kind: "reassign", fromId: row.highBidder, toId: row.seller, amount: row.highBid });
-  }
   pushLog(p, "Settled listing #" + listingId + ".");
   if (row?.highBidder) {
     tellToken(
@@ -1296,7 +1136,7 @@ function handleLokSettle(p: Player, listingId: string) {
       "You won listing #" + listingId + " (" + itemLabel(row.itemId) + " x" + row.amount + ").",
     );
     if (row.seller !== token) {
-      tellToken(row.seller, "Listing #" + listingId + " settled for " + row.highBid + " KEK.");
+      tellToken(row.seller, "Listing #" + listingId + " settled for " + row.highBid + " (legacy bid).");
     }
   }
   send(p.ws, snapshotFor(p));
@@ -2389,8 +2229,8 @@ function snapshotFor(p: Player): SnapshotMessage {
         return {
           ...view,
           ahEscrow: ahEscrowClientConfig(),
-          withdrawDelaySec: vaultDelaySec(),
-          queues: queuesFor(view.tokenId),
+          withdrawDelaySec: null,
+          queues: [],
         };
       })(),
     },
@@ -2769,16 +2609,20 @@ function rewardMobKill(p: Player, mob: Mob, now: number) {
     shareRecipients.push(ally);
   }
   let killXp = 0;
+  let killGold = 0;
   for (const recip of shareRecipients) {
-    recip.dust += 25;
+    const goldDrop = mobKillGoldDrop();
+    earnLogGold(recip, "drop", goldDrop);
     const xpGain = Math.max(
       0,
       Math.min(200, Math.floor((200 * mob.level) / Math.max(1, recip.level))),
     );
     recip.xp += xpGain;
     tryLevelUp(recip);
-    if (recip.wallet === p.wallet) killXp = xpGain;
-    else pushLog(recip, `Party credit — ${mob.name} down. +25 Dust, +${xpGain} XP.`);
+    if (recip.wallet === p.wallet) {
+      killXp = xpGain;
+      killGold = goldDrop;
+    } else pushLog(recip, `Party credit — ${mob.name} down. +${goldDrop} gold, +${xpGain} XP.`);
   }
   const dropNotes: string[] = [];
   for (const mat of mob.drops ?? []) {
@@ -2822,8 +2666,8 @@ function rewardMobKill(p: Player, mob: Mob, now: number) {
   pushLog(
     p,
     dropNotes.length
-      ? `${mob.name} defeated. +25 Dust, +${killXp} XP. Loot: ${dropNotes.join(", ")}.`
-      : `${mob.name} defeated. +25 Dust, +${killXp} XP.`,
+      ? `${mob.name} defeated. +${killGold} gold, +${killXp} XP. Loot: ${dropNotes.join(", ")}.`
+      : `${mob.name} defeated. +${killGold} gold, +${killXp} XP.`,
   );
   if (wasTarget) autoEngageNext(p, mob.id);
 }
@@ -2987,6 +2831,7 @@ function handleAbility(p: Player, id: AbilityId, targetId?: string) {
       },
       dist,
       playerCombatStats: (pl) => playerCombatStats(pl as Player),
+      earnGold: (pl, amount) => earnLogGold(pl as Player, "drop", amount),
     });
     return;
   }
@@ -3136,7 +2981,7 @@ function handleNpcInteract(p: Player, npcId: string) {
       type: "npc/dialog",
       npcId: TRAINER.id,
       title: "Trainer",
-      body: `Buy job abilities with deposited KEK (${jobNote}). Main: up to your level; support: up to floor(level/2). Costs scale 500-10000 by unlock level. Starter kit (Rest + L1 signature) is free. Dust is no longer the spend currency.`,
+      body: `Buy job abilities with gold (${jobNote}). Main: up to your level; support: up to floor(level/2). Costs scale 500-10000 by unlock level. Starter kit (Rest + L1 signature) is free.`,
       spells: offers,
     });
     return;
@@ -3161,7 +3006,7 @@ function handleNpcInteract(p: Player, npcId: string) {
       crafter:
         "Bring base mats from the field. Synth at my bench — I'll rank your crafts as you work.",
       vendor:
-        "The camp ledger is here. Send or list what the log already holds. Items and KEK enter only from a custody nonce the server recorded — I cannot mint them, and this counter cannot.",
+        "The camp ledger is here. Send or list what the log already holds. Items enter only from field play — I cannot mint them, and this counter cannot.",
     };
     send(p.ws, {
       type: "npc/dialog",
@@ -3204,7 +3049,7 @@ async function handleSpellBuy(p: Player, id: AbilityId) {
     }
     return;
   }
-  const cost = trainerAbilityDustCost(unlockLevel);
+  const cost = trainerAbilityGoldCost(unlockLevel);
   const token = lokToken(p);
   const logKnows = !!(token && lok.hasAbility(token, id));
   if (!shouldChargeForAbility(p.learned, logKnows, id)) {
@@ -3334,14 +3179,13 @@ function handleDebugMaxLevel(p: Player) {
       added += 1;
     }
   }
-  p.dust = Math.max(p.dust, 5000);
   // Leave skillPrestige alone — post-max echoes come from EXP.
   ensureMainHub(p);
   pushLog(
     p,
     from >= MAX_LEVEL
-      ? `Debug: already L${MAX_LEVEL}. Learned ${added} Trainer abilit(ies). Dust ${p.dust}.`
-      : `Debug: L${from} → L${MAX_LEVEL}. Learned ${added} Trainer abilit(ies). Dust ${p.dust}.`,
+      ? `Debug: already L${MAX_LEVEL}. Learned ${added} Trainer abilit(ies). Gold ${lok.goldOf(lokToken(p) ?? "")}.`
+      : `Debug: L${from} → L${MAX_LEVEL}. Learned ${added} Trainer abilit(ies). Gold ${lok.goldOf(lokToken(p) ?? "")}.`,
   );
   pushLog(
     p,
@@ -4402,7 +4246,7 @@ async function handleCraft(p: Player, itemId: number) {
     pushLog(p, "Recipe materials unknown or incomplete — cannot craft.");
     return;
   }
-  const goldCost = def.recipe?.kek ?? 0;
+  const goldCost = def.recipe?.gold ?? 0;
   const charged = await withPlayerCharge(
     p.charId,
     () => {

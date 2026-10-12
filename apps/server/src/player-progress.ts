@@ -149,7 +149,7 @@ export function mergeLogItemsIntoBag(
 
 /**
  * Union trainer ability ids from the per-character log into `learned`.
- * Does not invent craft XP, equipment, or Dust. Returns true when the save changed.
+ * Does not invent craft XP or equipment. Returns true when the save changed.
  */
 export function hydrateLearnedFromLog(progress: PlayerProgress, abilityIds: string[]): number {
   let added = 0;
@@ -164,7 +164,7 @@ export function hydrateLearnedFromLog(progress: PlayerProgress, abilityIds: stri
 }
 
 /**
- * True when buying this ability should debit KEK.
+ * True when buying this ability should debit gold.
  * Already in `learned` or already on the character log must not charge again.
  */
 export function shouldChargeForAbility(learned: readonly string[], logKnows: boolean, abilityId: string): boolean {
@@ -299,9 +299,6 @@ export function hydrateSkillTree(
 
 /** Gold cost to clear paid skill nodes (was KEK; gold + WETH economy). */
 export const RESPEC_GOLD_COST = 10_000;
-/** @deprecated Use RESPEC_GOLD_COST. */
-export const RESPEC_KEK_COST = RESPEC_GOLD_COST;
-
 export async function chargeSkillRespec(args: {
   charId: string;
   paidNodes: () => string[];

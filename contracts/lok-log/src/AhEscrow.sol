@@ -13,8 +13,9 @@ pragma solidity ^0.8.24;
 ///         calls `buyAsk{value}` → seller receives ETH → `AskFilled` is emitted →
 ///         the game server appends a log `chainFill` (items only).
 ///
-///         Intentionally dependency-free (no OZ) so the contract stays reviewable
-///         and forge-testable without the full lok-log lib tree.
+///         Listing ids are single-use: once opened, filled, or cancelled they
+///         cannot be reopened (`used` flag). Buyers cannot name the seller's
+///         character token as the recipient.
 contract AhEscrow {
     bytes32 public constant LISTING_ROLE = keccak256("LISTING_ROLE");
     bytes32 public constant DEFAULT_ADMIN_ROLE = 0x00;
@@ -26,6 +27,7 @@ contract AhEscrow {
         uint256 amount;
         uint256 priceWei;
         bool open;
+        bool used;
     }
 
     mapping(uint256 listingId => Ask) public asks;
@@ -105,6 +107,7 @@ contract AhEscrow {
     }
 
     /// @notice Register an ask the log already escrowed. `listingId` must match the engine ask id.
+    ///         Ids are single-use: a filled or cancelled id cannot be reopened.
     function openAsk(
         uint256 listingId,
         uint256 sellerTokenId,
@@ -116,7 +119,8 @@ contract AhEscrow {
         if (listingId == 0 || itemId == 0 || sellerTokenId == 0) revert BadId();
         if (amount == 0 || priceWei == 0) revert BadAmount();
         if (sellerPayout == address(0)) revert BadAddress();
-        if (asks[listingId].open) revert AskExists();
+        Ask storage ask = asks[listingId];
+        if (ask.open || ask.used) revert AskExists();
 
         asks[listingId] = Ask({
             sellerPayout: sellerPayout,
@@ -124,12 +128,13 @@ contract AhEscrow {
             itemId: itemId,
             amount: amount,
             priceWei: priceWei,
-            open: true
+            open: true,
+            used: true
         });
         emit AskOpened(listingId, sellerTokenId, sellerPayout, itemId, amount, priceWei);
     }
 
-    /// @notice Pull an unsold ask (log cancel/reclaim should run in the same ops window).
+    /// @notice Pull an unsold ask (log cancel/reclaim should run after this succeeds).
     function cancelAsk(uint256 listingId) external onlyRole(LISTING_ROLE) {
         Ask storage ask = asks[listingId];
         if (!ask.open) revert AskClosed();
@@ -141,10 +146,12 @@ contract AhEscrow {
     ///         (important for EEZ proxies that may overshoot). Does not credit the log.
     /// @param listingId Engine ask id already opened on-chain.
     /// @param buyerTokenId Character that will receive the stack on the log after `AskFilled`.
+    ///        Must not be the seller's character token.
     function buyAsk(uint256 listingId, uint256 buyerTokenId) external payable nonReentrant {
         if (buyerTokenId == 0) revert BadId();
         Ask storage ask = asks[listingId];
         if (!ask.open) revert AskClosed();
+        if (buyerTokenId == ask.sellerTokenId) revert BadId();
         if (msg.value < ask.priceWei) revert WrongPrice();
 
         uint256 price = ask.priceWei;

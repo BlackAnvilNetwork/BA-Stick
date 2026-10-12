@@ -189,7 +189,7 @@ import {
 import type { JobId } from "./jobs";
 import {
   isTrainerFreeAbility,
-  trainerAbilityDustCost,
+  trainerAbilityGoldCost,
 } from "./trainer";
 export {
   TRAINER_COST_MAX,
@@ -198,7 +198,7 @@ export {
   TRAINER_FREE_ABILITY_IDS,
   isTrainerFreeAbility,
   requiresTrainerPurchase,
-  trainerAbilityDustCost,
+  trainerAbilityGoldCost,
 } from "./trainer";
 
 import { SHARED_ABILITY_ICON } from "./shared-icons";
@@ -779,7 +779,7 @@ export function trainerOffersForJobs(
       out.push({
         id,
         label: abilityLabel(id),
-        cost: trainerAbilityDustCost(unlockLevel),
+        cost: trainerAbilityGoldCost(unlockLevel),
         unlockLevel,
         track,
       });

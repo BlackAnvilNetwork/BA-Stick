@@ -120,7 +120,7 @@ export function CraftingPanel({ you, onClose }: Props) {
         {closeList.map((c) => {
           const pct = Math.round(c.matFrac * 100);
           const groups = c.materialGroups ?? c.materials.map((m) => ({ options: [m] }));
-          const goldCost = c.def.recipe?.kek ?? 0;
+          const goldCost = c.def.recipe?.gold ?? 0;
           let goldBal = 0n;
           try {
             goldBal = BigInt(you.lok?.gold ?? "0");

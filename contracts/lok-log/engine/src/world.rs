@@ -475,8 +475,31 @@ impl World {
         listing_id: U256,
         buyer: U256,
         price_wei: U256,
+        item_id: U256,
+        amount: U256,
+        seller: U256,
+        tx_hash: [u8; 32],
+        log_index: u64,
     ) -> Result<AppliedEvent, EngineError> {
-        self.apply(Input::ChainFill { listing_id, buyer, price_wei })
+        self.apply(Input::ChainFill {
+            listing_id,
+            buyer,
+            price_wei,
+            item_id,
+            amount,
+            seller,
+            tx_hash,
+            log_index,
+        })
+    }
+
+    pub fn append_gold_paid_respec(
+        &mut self,
+        token_id: U256,
+        amount: U256,
+        node_ids: Vec<String>,
+    ) -> Result<AppliedEvent, EngineError> {
+        self.apply(Input::GoldPaidRespec { token_id, amount, node_ids })
     }
 
     pub fn append_cancel_ask(&mut self, listing_id: U256, seller: U256) -> Result<AppliedEvent, EngineError> {
@@ -1115,9 +1138,21 @@ impl World {
                 touch.insert(*bidder);
                 touch.insert(chosen.seller);
             }
-            Input::ChainFill { listing_id, buyer, price_wei } => {
-                if *price_wei == U256::ZERO {
+            Input::ChainFill {
+                listing_id,
+                buyer,
+                price_wei,
+                item_id,
+                amount,
+                seller,
+                tx_hash: _,
+                log_index: _,
+            } => {
+                if *price_wei == U256::ZERO || *amount == U256::ZERO {
                     return Err(EngineError::ZeroAmount);
+                }
+                if *item_id == U256::ZERO || *listing_id == U256::ZERO {
+                    return Err(EngineError::BadId);
                 }
                 let listing = self.listings.get(listing_id).ok_or(EngineError::UnknownListing)?;
                 if !listing.book {
@@ -1129,11 +1164,26 @@ impl World {
                 if *price_wei != listing.min_price {
                     return Err(EngineError::OverAsk);
                 }
-                if !self.characters.contains_key(buyer) || !self.characters.contains_key(&listing.seller) {
+                if *item_id != listing.item_id || *amount != listing.amount || *seller != listing.seller {
+                    return Err(EngineError::FillMismatch);
+                }
+                if !self.characters.contains_key(buyer) || !self.characters.contains_key(seller) {
                     return Err(EngineError::NotSpawned);
                 }
                 touch.insert(*buyer);
-                touch.insert(listing.seller);
+                touch.insert(*seller);
+            }
+            Input::GoldPaidRespec { token_id, amount, node_ids } => {
+                if *amount == U256::ZERO || node_ids.is_empty() {
+                    return Err(EngineError::BadId);
+                }
+                for id in node_ids {
+                    parse_label(id)?;
+                }
+                if !self.characters.contains_key(token_id) {
+                    return Err(EngineError::NotSpawned);
+                }
+                touch.insert(*token_id);
             }
             Input::CancelAsk { listing_id, seller } => {
                 let listing = self.listings.get(listing_id).ok_or(EngineError::UnknownListing)?;
@@ -1353,8 +1403,22 @@ impl World {
                 self.fill(*bidder, *item_id, *amount, *listing_id, touch)
             }
             Input::Buy { bidder, item_id, listing_id } => self.buy(*bidder, *item_id, *listing_id, touch),
-            Input::ChainFill { listing_id, buyer, price_wei } => {
-                self.chain_fill(*listing_id, *buyer, *price_wei, touch)
+            Input::ChainFill {
+                listing_id,
+                buyer,
+                price_wei,
+                item_id,
+                amount,
+                seller,
+                ..
+            } => self.chain_fill(*listing_id, *buyer, *price_wei, *item_id, *amount, *seller, touch),
+            Input::GoldPaidRespec { token_id, amount, node_ids } => {
+                if touch.contains(token_id) {
+                    let ch = self.characters.get_mut(token_id).ok_or(EngineError::NotSpawned)?;
+                    gold::debit_spend(&mut ch.state, *amount).map_err(gold_err)?;
+                    self.respec_skills(*token_id, node_ids)?;
+                }
+                Ok(())
             }
             Input::CancelAsk { listing_id, seller } => self.cancel_ask(*listing_id, *seller, touch),
             Input::ReclaimAsk { listing_id, seller, now } => self.reclaim_ask(*listing_id, *seller, *now, touch),
@@ -1947,6 +2011,9 @@ impl World {
         listing_id: U256,
         buyer: U256,
         price_wei: U256,
+        item_id: U256,
+        amount: U256,
+        seller: U256,
         touch: &BTreeSet<U256>,
     ) -> Result<(), EngineError> {
         let listing = self.listings.get(&listing_id).cloned().ok_or(EngineError::UnknownListing)?;
@@ -1958,6 +2025,9 @@ impl World {
         }
         if price_wei != listing.min_price {
             return Err(EngineError::OverAsk);
+        }
+        if item_id != listing.item_id || amount != listing.amount || seller != listing.seller {
+            return Err(EngineError::FillMismatch);
         }
         if touch.contains(&buyer) {
             self.credit_inbox(buyer, listing.item_id, listing.amount)?;

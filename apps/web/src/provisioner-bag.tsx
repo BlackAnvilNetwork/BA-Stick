@@ -1,6 +1,7 @@
 import { getItem } from "@bellgrave/items";
 import type { InventorySlot, LokItemBalance } from "@bellgrave/protocol";
 import { useState } from "react";
+import { parseEther } from "viem";
 import { ItemCatalogDetails, ItemTipHost } from "./itemTip";
 import { send } from "./net";
 
@@ -63,7 +64,17 @@ export function ProvisionerBag({ inventory, logItems, inbox, others }: Props) {
   const [minPrice, setMinPrice] = useState("");
   const cells = cellsOf(inventory, logItems);
   const selected = others.find((unit) => unit.id === toId);
-  const priceOk = /^[1-9][0-9]{0,18}$/.test(minPrice);
+  let minPriceWei: string | null = null;
+  const trimmed = minPrice.trim();
+  if (trimmed) {
+    try {
+      const wei = parseEther(trimmed);
+      if (wei > 0n) minPriceWei = wei.toString();
+    } catch {
+      minPriceWei = null;
+    }
+  }
+  const priceOk = minPriceWei !== null;
 
   return (
     <div className="prov-hold">
@@ -132,14 +143,14 @@ export function ProvisionerBag({ inventory, logItems, inbox, others }: Props) {
                     type="button"
                     className="cmd-pill-tab"
                     disabled={!cell.logAmount || !priceOk}
-                    title={priceOk ? "List the log stack at this minimum." : "Minimum must be greater than 0."}
+                    title={priceOk ? "List the log stack at this minimum." : "Enter a minimum ETH amount greater than 0."}
                     onClick={() => {
-                      if (!cell.logAmount || !priceOk) return;
+                      if (!cell.logAmount || !minPriceWei) return;
                       send({
                         type: "lok/list",
                         tokenId: cell.tokenId,
                         amount: Number(cell.logAmount),
-                        minPrice,
+                        minPrice: minPriceWei,
                       });
                     }}
                   >

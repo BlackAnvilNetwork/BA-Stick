@@ -3,7 +3,7 @@
  * The server watches AskFilled and mirrors items via chainFill; this never
  * credits ETH onto the character log.
  */
-import { createWalletClient, http, type Chain, type Hex } from "viem";
+import { createPublicClient, createWalletClient, http, type Chain, type Hex } from "viem";
 import { generatePrivateKey, privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
 import type { AhEscrowClientConfig } from "@bellgrave/protocol";
 
@@ -60,11 +60,13 @@ export async function buyAsksWithWallet(opts: {
   }
   const account = localAccount();
   const chain = chainOf(opts.escrow);
+  const transport = http(opts.escrow.rpcUrl);
   const client = createWalletClient({
     account,
     chain,
-    transport: http(opts.escrow.rpcUrl),
+    transport,
   });
+  const publicClient = createPublicClient({ chain, transport });
   const hashes: Hex[] = [];
   for (const fill of opts.fills) {
     if (!/^[1-9][0-9]{0,77}$/.test(fill.listingId)) {
@@ -87,6 +89,16 @@ export async function buyAsksWithWallet(opts: {
         chain,
         account,
       });
+      const receipt = await publicClient.waitForTransactionReceipt({ hash });
+      if (receipt.status === "reverted") {
+        return {
+          ok: false,
+          error: hashes.length
+            ? "Paid " + hashes.length + " ask(s), then a buy reverted on-chain."
+            : "Buy transaction reverted.",
+          hashes,
+        };
+      }
       hashes.push(hash);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);

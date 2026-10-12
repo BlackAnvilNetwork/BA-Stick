@@ -107,6 +107,11 @@ export type ChainFillInbound = {
   buyerTokenId: string;
   priceWei: string;
   fillKey: string;
+  itemId: string;
+  amount: string;
+  sellerTokenId: string;
+  txHash: string;
+  logIndex: string;
 };
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -126,15 +131,15 @@ export function chainModeFromEnv(env: NodeJS.ProcessEnv = process.env): {
       note: "No LOK_CHAIN_RPC. The log governs items and gold only — no vault deposit path. AH pays ETH on-chain via AhEscrow / EEZ when configured.",
     };
   }
-  if (env.LOK_AH_ESCROW?.trim() || env.LOK_CHECKPOINT?.trim()) {
+  if (env.LOK_AH_ESCROW?.trim()) {
     return {
       chain: "watching",
-      note: "Chain endpoint set. Player vault deposit/withdraw is closed. AhEscrow AskFilled events mirror item fills into the log (no spendable ETH on the log).",
+      note: "Watching AhEscrow AskFilled. Item fills mirror into the log; ETH never credits a character balance.",
     };
   }
   return {
     chain: "rpc-unwatched",
-    note: "LOK_CHAIN_RPC is set, but AhEscrow is not configured. Vault deposit/withdraw stay closed; AH ETH pay is not live on this server.",
+    note: "LOK_CHAIN_RPC is set, but AhEscrow is not configured. AH ETH pay is not live on this server.",
   };
 }
 
@@ -314,9 +319,8 @@ export class LokWorld {
   }
 
   /**
-   * Spend deposited KEK on an in-game price. Debits spendable balance only.
-   * Escrowed bids stay locked. Does not mint and does not withdraw.
-   * Prefer goldSpend for trainer / craft / respec (gold + WETH economy).
+   * Replay helper: spend historical Key::Kek. Live sinks use goldSpend.
+   * Debits spendable KEK only; escrowed bids stay locked. Does not mint or withdraw.
    */
   spendKek(tokenId: string, amount: string): LokResult {
     return this.apply({ op: "spendKek", tokenId, amount });
@@ -476,9 +480,23 @@ export class LokWorld {
     ) {
       return { ok: false, error: "AhEscrow fill is not a recorded on-chain fill" };
     }
-    const res = this.apply({ op: "chainFill", listingId, buyer, priceWei });
+    const res = this.apply({
+      op: "chainFill",
+      listingId,
+      buyer,
+      priceWei,
+      itemId: noted.itemId,
+      amount: noted.amount,
+      seller: noted.sellerTokenId,
+      txHash: noted.txHash,
+      logIndex: noted.logIndex,
+    });
     if (res.ok) this.chainFills.delete(fillKey);
     return res;
+  }
+
+  goldPaidRespec(tokenId: string, amount: string, nodeIds: string[]): LokResult {
+    return this.apply({ op: "goldPaidRespec", tokenId, amount, nodeIds });
   }
 
   /**

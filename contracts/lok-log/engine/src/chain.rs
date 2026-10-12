@@ -292,6 +292,21 @@ fn req_u256(value: &serde_json::Value, key: &str) -> Result<U256, String> {
         .and_then(parse_u256_json)
 }
 
+fn req_b256(value: &serde_json::Value, key: &str) -> Result<[u8; 32], String> {
+    let raw = value
+        .get(key)
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| format!("missing {key}"))?;
+    let hexbody = raw
+        .strip_prefix("0x")
+        .or_else(|| raw.strip_prefix("0X"))
+        .unwrap_or(raw);
+    if hexbody.len() != 64 || !hexbody.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return Err(format!("bad {key}"));
+    }
+    parse_b256(hexbody).map_err(|_| format!("bad {key}"))
+}
+
 pub(crate) fn parse_input(value: &serde_json::Value) -> Result<Input, String> {
     let kind = value
         .get("type")
@@ -518,7 +533,34 @@ pub(crate) fn parse_input(value: &serde_json::Value) -> Result<Input, String> {
             listing_id: req_u256(value, "listingId")?,
             buyer: req_u256(value, "buyer")?,
             price_wei: req_u256(value, "priceWei")?,
+            item_id: req_u256(value, "itemId")?,
+            amount: req_u256(value, "amount")?,
+            seller: req_u256(value, "seller")?,
+            tx_hash: req_b256(value, "txHash")?,
+            log_index: req_u64(value, "logIndex")?,
         }),
+        "goldPaidRespec" => {
+            let token_id = req_u256(value, "tokenId")?;
+            let amount = req_u256(value, "amount")?;
+            let raw = value
+                .get("nodeIds")
+                .and_then(|v| v.as_array())
+                .ok_or_else(|| "goldPaidRespec needs nodeIds".to_string())?;
+            let mut node_ids = Vec::with_capacity(raw.len());
+            for (i, v) in raw.iter().enumerate() {
+                let id = v
+                    .as_str()
+                    .ok_or_else(|| format!("bad nodeIds[{i}]"))?;
+                if id.is_empty() {
+                    return Err(format!("bad nodeIds[{i}]"));
+                }
+                node_ids.push(id.to_string());
+            }
+            if node_ids.is_empty() {
+                return Err("gold paid respec needs at least one skill node".to_string());
+            }
+            Ok(Input::GoldPaidRespec { token_id, amount, node_ids })
+        }
         other => Err(format!("unknown input type {other}")),
     }
 }
@@ -737,11 +779,31 @@ Input::CancelAsk { listing_id, seller } => serde_json::json!({
             "amount": s(amount),
             "day": day,
         }),
-        Input::ChainFill { listing_id, buyer, price_wei } => serde_json::json!({
+        Input::ChainFill {
+            listing_id,
+            buyer,
+            price_wei,
+            item_id,
+            amount,
+            seller,
+            tx_hash,
+            log_index,
+        } => serde_json::json!({
             "type": "chainFill",
             "listingId": s(listing_id),
             "buyer": s(buyer),
             "priceWei": s(price_wei),
+            "itemId": s(item_id),
+            "amount": s(amount),
+            "seller": s(seller),
+            "txHash": format!("0x{}", hex::encode(tx_hash)),
+            "logIndex": log_index,
+        }),
+        Input::GoldPaidRespec { token_id, amount, node_ids } => serde_json::json!({
+            "type": "goldPaidRespec",
+            "tokenId": s(token_id),
+            "amount": s(amount),
+            "nodeIds": node_ids,
         }),
     }
 }

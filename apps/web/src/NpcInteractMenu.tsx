@@ -123,7 +123,7 @@ export function NpcInteractMenu() {
     return (
       <div className="npc-dialog npc-dialog-world npc-dialog-slim">
         <div className="npc-dialog-card npc-dialog-card-slim npc-trainer-card-wrap">
-          <div className="npc-trainer-dust">{goldText} gold</div>
+          <div className="npc-trainer-gold">{goldText} gold</div>
           <div className="npc-trainer-cards">
             {spells.length === 0 && <p className="npc-trainer-empty">Nothing available</p>}
             {spells.map((sp) => {

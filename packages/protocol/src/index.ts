@@ -110,7 +110,7 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
     to: z.string().min(1).max(64),
     amount: z.string().regex(/^[1-9][0-9]{0,18}$/),
   }),
-  /** Appends the WithdrawKek debit, then queues the vault withdrawal. A definite refusal undoes the debit. */
+  /** Legacy client message. The server refuses — vault withdrawals are removed. */
   z.object({
     type: z.literal("lok/withdrawKek"),
     amount: z.string().regex(/^[1-9][0-9]{0,18}$/),

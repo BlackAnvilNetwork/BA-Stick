@@ -7,7 +7,8 @@ import {CharacterNFT} from "../src/CharacterNFT.sol";
 import {CharacterCheckpoint} from "../src/CharacterCheckpoint.sol";
 import {CharacterFactory} from "../src/CharacterFactory.sol";
 import {RulesetRegistry} from "../src/RulesetRegistry.sol";
-import {KekVault} from "../src/KekVault.sol";
+// KekVault.sol + CharacterCheckpoint.vault stay until a batched redeploy drops custody deposits.
+// Play path uses AhEscrow only; this script does not deploy or wire a vault.
 
 /// Deploys the log-model character stack behind UUPS proxies, wires roles, then hands admin to the multisig.
 /// The deployer is the temporary admin and renounces at the end. Items (ERC-1155) and KEK (ERC-20) are external:
@@ -23,7 +24,6 @@ import {KekVault} from "../src/KekVault.sol";
 ///   4. rotator service: checkpoint.addSigner(sessionKey, expiry)
 contract Deploy is Script {
     uint64 constant RULESET_MIN_DELAY = 48 hours;
-    uint64 constant KEK_WITHDRAW_DELAY = 24 hours;
 
     struct Config {
         address multisig;
@@ -41,7 +41,6 @@ contract Deploy is Script {
         CharacterCheckpoint checkpoint;
         CharacterFactory factory;
         RulesetRegistry rulesets;
-        KekVault vault;
     }
 
     function run() external returns (Deployed memory d) {
@@ -62,7 +61,6 @@ contract Deploy is Script {
         console.log("CharacterCheckpoint ", address(d.checkpoint));
         console.log("CharacterFactory    ", address(d.factory));
         console.log("RulesetRegistry     ", address(d.rulesets));
-        console.log("KekVault            ", address(d.vault));
     }
 
     function _proxy(address impl, bytes memory init) internal returns (address) {
@@ -92,12 +90,8 @@ contract Deploy is Script {
         d.rulesets = RulesetRegistry(
             _proxy(address(new RulesetRegistry()), abi.encodeCall(RulesetRegistry.initialize, (deployer, RULESET_MIN_DELAY)))
         );
-        d.vault = KekVault(
-            _proxy(
-                address(new KekVault()),
-                abi.encodeCall(KekVault.initialize, (deployer, c.kek, c.guardian, KEK_WITHDRAW_DELAY))
-            )
-        );
+
+        // Batched redeploy: drop CharacterCheckpoint.vault / KekVault once no live chain needs deposit custody.
 
         // wiring
         d.nft.setState(address(d.checkpoint));
@@ -106,8 +100,6 @@ contract Deploy is Script {
         d.checkpoint.grantRole(d.checkpoint.NFT_ROLE(), address(d.nft));
         d.checkpoint.setRulesets(address(d.rulesets));
         d.checkpoint.setItems(c.items);
-        d.checkpoint.setVault(address(d.vault));
-        d.vault.grantRole(d.vault.BRIDGE_ROLE(), address(d.checkpoint));
         d.rulesets.grantRole(d.rulesets.PROPOSER_ROLE(), c.proposer);
         d.rulesets.grantRole(d.rulesets.EMERGENCY_ROLE(), c.multisig);
 
@@ -117,11 +109,9 @@ contract Deploy is Script {
         d.checkpoint.grantRole(admin, c.multisig);
         d.factory.grantRole(admin, c.multisig);
         d.rulesets.grantRole(admin, c.multisig);
-        d.vault.grantRole(admin, c.multisig);
         d.nft.renounceRole(admin, deployer);
         d.checkpoint.renounceRole(admin, deployer);
         d.factory.renounceRole(admin, deployer);
         d.rulesets.renounceRole(admin, deployer);
-        d.vault.renounceRole(admin, deployer);
     }
 }

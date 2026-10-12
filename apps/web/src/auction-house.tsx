@@ -9,6 +9,7 @@ import {
   type QuantityPlan,
 } from "@bellgrave/protocol";
 import { useState } from "react";
+import { formatEther } from "viem";
 import { buyAsksWithWallet } from "./ah-buy";
 import { ItemCatalogDetails, ItemTipHost } from "./itemTip";
 import { send } from "./net";
@@ -65,14 +66,18 @@ function asInt(raw: string): bigint | null {
   }
 }
 
-function formatUnit(price: bigint, amount: bigint): string {
-  if (amount <= 0n) return price.toString();
-  const whole = price / amount;
-  const rem = price % amount;
-  if (rem === 0n) return whole.toString();
-  const frac = (rem * 100n) / amount;
-  const digits = frac.toString().padStart(2, "0").replace(/0+$/, "");
-  return whole.toString() + "." + digits;
+function formatUnit(priceWei: bigint, amount: bigint): string {
+  if (amount <= 0n) return formatEther(priceWei);
+  return formatEther(priceWei / amount);
+}
+
+function formatWeiEth(wei: string): string {
+  if (!/^\d+$/.test(wei)) return wei;
+  try {
+    return formatEther(BigInt(wei));
+  } catch {
+    return wei;
+  }
 }
 
 function lowestUnit(rows: LokListingView[]): string {
@@ -188,7 +193,15 @@ function buyNote(plan: QuantityPlan, qty: number): string {
     : plan.short
       ? " The book runs out after " + plan.filled + "."
       : "";
-  return "Total " + total + " ETH across " + plan.fills.length + " asks. Each ask is charged its own price, not a blended rate." + over + short;
+  return (
+    "Total " +
+    formatWeiEth(total) +
+    " ETH across " +
+    plan.fills.length +
+    " asks. Each ask is charged its own price, not a blended rate." +
+    over +
+    short
+  );
 }
 
 type Props = {
@@ -362,7 +375,7 @@ export function AuctionBook({ listings, buyer, ahEscrow }: Props) {
           <ul className="prov-fills">
             {plan.fills.slice(0, 8).map((fill) => (
               <li key={fill.id}>
-                x{fill.amount} at {fill.price} ETH
+                x{fill.amount} at {formatWeiEth(fill.price)} ETH
               </li>
             ))}
             {plan.fills.length > 8 && <li>plus {plan.fills.length - 8} more asks, cheapest first</li>}
@@ -401,7 +414,7 @@ function YourAsks({ rows, showSettle }: { rows: LokListingView[]; showSettle?: b
         <div className="prov-yours-line" key={row.id}>
           <span>
             {itemName(row.itemId)} x{row.amount}
-            {row.book ? " ask " + row.minPrice + " ETH" : " legacy"}
+            {row.book ? " ask " + formatWeiEth(row.minPrice) + " ETH" : " legacy"}
           </span>
           {row.yours && (
             <button type="button" className="cmd-pill-tab" onClick={() => send({ type: "lok/cancel", listingId: row.id })}>

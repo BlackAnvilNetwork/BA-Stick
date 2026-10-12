@@ -15,7 +15,7 @@ import {
   readPlayerProgress,
   reconcileCharacterProgress,
   rememberLedger,
-  RESPEC_KEK_COST,
+  RESPEC_GOLD_COST,
   shouldChargeForAbility,
   writePlayerProgress,
   type PlayerProgress,
@@ -372,7 +372,7 @@ test("respec spends nothing when the tree has no paid nodes or the balance is sh
   assert.equal(short.ok, false);
   if (!short.ok) assert.match(short.error, /10000/);
   assert.equal(recorded, 0);
-  assert.equal(RESPEC_KEK_COST, 10000);
+  assert.equal(RESPEC_GOLD_COST, 10000);
 });
 
 test("one respec at a time and a second call does not spend again", async () => {

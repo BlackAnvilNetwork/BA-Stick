@@ -36,8 +36,9 @@ contract AhEscrowTest is Test {
         escrow.buyAsk{value: PRICE}(LISTING, BUYER_TOKEN);
 
         assertEq(seller.balance, beforeSeller + PRICE);
-        (,,,,, bool open) = escrow.asks(LISTING);
+        (,,,,, bool open, bool used) = escrow.asks(LISTING);
         assertFalse(open);
+        assertTrue(used);
     }
 
     function test_buyAsk_refundsExcess_toMsgSender() public {

@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { defaultLokDir, type LokWorld } from "./lok-world";
+import type { LokWorld } from "./lok-world";
 
 /** Keccak of KekDepositRequested(uint256,uint64,uint256,address). */
 export const KEK_DEPOSIT_TOPIC = "0x44f9238c77e838571825580331e7e82218690fd4282906f9c351f6b85533ef47";
@@ -232,106 +232,8 @@ export async function scanChainInbounds(opts: {
   return { cursor };
 }
 
-export function startKekDepositWatcher(
-  lok: Pick<LokWorld, "noteCustodyInbound" | "depositKek" | "importItem" | "inboundAppliedOf">,
-  cursorPath = depositCursorPath(defaultLokDir()),
-): void {
-  const rpc = process.env.LOK_CHAIN_RPC?.trim();
-  const checkpoint = process.env.LOK_CHECKPOINT?.trim();
-  if (!rpc || !checkpoint) return;
-  const vault = process.env.LOK_VAULT?.trim() || "-";
-  const kek = process.env.LOK_KEK?.trim() || "-";
-  console.log(
-    "[bellgrave] lok watcher rpc=" +
-      rpc +
-      " checkpoint=" +
-      checkpoint +
-      " vault=" +
-      vault +
-      " kek=" +
-      kek +
-      " confirmations=" +
-      DEPOSIT_CONFIRMATIONS.toString(),
-  );
-  let cursor = readDepositCursor(cursorPath);
-  let busy = false;
-  const tick = async () => {
-    if (busy) return;
-    busy = true;
-    try {
-      const next = await scanChainInbounds({
-        cursor,
-        checkpoint,
-        rpcCall: (method, params) => jsonRpc(rpc, method, params),
-        expectedNonce: (tokenId) => (lok.inboundAppliedOf?.(tokenId) ?? 0) + 1,
-        apply: (inbound) => {
-          const res = applyChainInbound(lok, inbound);
-          if (res.ok) {
-            if (inbound.kind === "depositKek") {
-              console.log(
-                "[bellgrave] credited KEK deposit token=" +
-                  inbound.tokenId +
-                  " nonce=" +
-                  inbound.nonce +
-                  " amount=" +
-                  inbound.amount,
-              );
-            } else {
-              console.log(
-                "[bellgrave] credited item import token=" +
-                  inbound.tokenId +
-                  " nonce=" +
-                  inbound.nonce +
-                  " item=" +
-                  inbound.itemId +
-                  " amount=" +
-                  inbound.amount,
-              );
-            }
-            return res;
-          }
-          const expected = (lok.inboundAppliedOf?.(inbound.tokenId) ?? 0) + 1;
-          const kind = classifyInboundFailure(expected, inbound.nonce, res.error);
-          if (kind === "replay") return res;
-          console.error(
-            "[bellgrave] chain inbound halted (" +
-              kind +
-              ") " +
-              inbound.tokenId +
-              ":" +
-              inbound.nonce +
-              ": " +
-              res.error,
-          );
-          return res;
-        },
-      });
-      cursor = next.cursor;
-      writeDepositCursor(cursorPath, cursor);
-    } finally {
-      busy = false;
-    }
-  };
-  tick().catch((err) => console.error("[bellgrave] lok watcher", err));
-  const timer = setInterval(() => {
-    tick().catch((err) => console.error("[bellgrave] lok watcher", err));
-  }, 4000);
-  timer.unref?.();
-}
-
 function cmpHex(a: string | undefined, b: string | undefined): number {
   const left = BigInt(a && a !== "0x" ? a : "0x0");
   const right = BigInt(b && b !== "0x" ? b : "0x0");
   return left < right ? -1 : left > right ? 1 : 0;
-}
-
-async function jsonRpc(url: string, method: string, params: unknown[]): Promise<unknown> {
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
-  });
-  const body = (await res.json()) as { result?: unknown; error?: { message?: string } };
-  if (body.error) throw new Error(body.error.message || "rpc error");
-  return body.result;
 }

@@ -1,15 +1,24 @@
 /**
- * First-party AhEscrow helpers: open asks on-chain, watch AskFilled, mirror into
- * the log as chainFill (items only — no settlement ETH on the character log).
+ * First-party AhEscrow helpers: open/cancel asks on-chain, watch AskFilled,
+ * mirror into the log as chainFill (items only). Permanently unapplyable fills
+ * are quarantined (#214 policy) so one bad fill cannot freeze AH for everyone.
  */
 import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import {
+  alertAskFilledQuarantine,
+  AskFilledQuarantine,
+  askFilledMirroredPath,
+  askFilledQuarantinePath,
+  MirroredFills,
+  reasonFromEngineError,
+  type QuarantinedAskFill,
+} from "./lok-ask-filled-quarantine";
 import { defaultLokDir, type LokWorld } from "./lok-world";
 
 /** Keccak of AskFilled(uint256,address,uint256,address,uint256,uint256,uint256). */
 export const ASK_FILLED_TOPIC = "0x4f31be848e37f66bf5ef389ecfd87011d9fbf0c3fcf65dbf46b119f5058564ca";
 
-/** Match deposit watcher depth so anvil/local and L2 behave the same. */
 export const ASK_FILL_CONFIRMATIONS = 2n;
 
 export type AskFilled = {
@@ -26,8 +35,12 @@ export type ChainFillNote = {
   listingId: string;
   buyerTokenId: string;
   priceWei: string;
-  /** Unique key for this on-chain fill (txHash-logIndex). */
   fillKey: string;
+  itemId: string;
+  amount: string;
+  sellerTokenId: string;
+  txHash: string;
+  logIndex: string;
 };
 
 type RpcLog = {
@@ -38,11 +51,15 @@ type RpcLog = {
   transactionHash?: string;
 };
 
+export type ApplyAskFilledResult =
+  | { ok: true; kind: "applied" | "replay" }
+  | { ok: false; kind: "quarantine"; error: string; reason: ReturnType<typeof reasonFromEngineError> }
+  | { ok: false; kind: "halt"; error: string };
+
 export function decodeAskFilled(log: { topics?: string[]; data?: string }): AskFilled | null {
   const topics = log.topics ?? [];
   if (topics.length < 4 || topics[0]?.toLowerCase() !== ASK_FILLED_TOPIC.toLowerCase()) return null;
   const data = log.data ?? "";
-  // abi.encode(address sellerPayout, uint256 priceWei, uint256 itemId, uint256 amount)
   if (!data.startsWith("0x") || data.length < 2 + 64 * 4) return null;
   try {
     const sellerWord = data.slice(2, 2 + 64);
@@ -69,27 +86,103 @@ export function fillKeyOf(log: { transactionHash?: string; logIndex?: string; bl
   return "block-" + block + "-" + idx;
 }
 
-/** Apply a fill the server already observed on-chain. Items move; ETH does not enter the log. */
+function parseTxHash(fillKey: string, log?: RpcLog): string {
+  if (log?.transactionHash && /^0x[0-9a-fA-F]{64}$/.test(log.transactionHash)) {
+    return log.transactionHash.toLowerCase();
+  }
+  const head = fillKey.split("-")[0] ?? "";
+  if (/^0x[0-9a-fA-F]{64}$/.test(head)) return head.toLowerCase();
+  return "0x" + "0".repeat(64);
+}
+
+function parseLogIndex(fillKey: string, log?: RpcLog): string {
+  if (log?.logIndex && log.logIndex !== "0x") {
+    try {
+      return BigInt(log.logIndex).toString();
+    } catch {
+      /* fall through */
+    }
+  }
+  const parts = fillKey.split("-");
+  const last = parts[parts.length - 1] ?? "0";
+  return /^\d+$/.test(last) ? last : "0";
+}
+
+/**
+ * Mirror an AskFilled into the log. Replay only when this exact fillKey was
+ * already mirrored. Unknown listing / self-buy / not spawned / mismatch →
+ * quarantine (caller persists). Transient/unexpected → halt.
+ */
 export function applyAskFilled(
-  lok: Pick<LokWorld, "noteChainFill" | "chainFill">,
+  lok: Pick<LokWorld, "noteChainFill" | "chainFill" | "listingOf">,
   fill: AskFilled,
   fillKey: string,
-): { ok: true } | { ok: false; error: string } {
+  opts?: {
+    mirrored?: MirroredFills;
+    log?: RpcLog;
+  },
+): ApplyAskFilledResult {
+  const mirrored = opts?.mirrored;
+  if (mirrored?.has(fillKey)) return { ok: true, kind: "replay" };
+
+  const listing = lok.listingOf(fill.listingId);
+  if (!listing) {
+    return {
+      ok: false,
+      kind: "quarantine",
+      error: "unknown listing",
+      reason: "unknown-listing",
+    };
+  }
+
+  const txHash = parseTxHash(fillKey, opts?.log);
+  const logIndex = parseLogIndex(fillKey, opts?.log);
+
   lok.noteChainFill({
     listingId: fill.listingId,
     buyerTokenId: fill.buyerTokenId,
     priceWei: fill.priceWei,
     fillKey,
+    itemId: fill.itemId,
+    amount: fill.amount,
+    sellerTokenId: listing.seller,
+    txHash,
+    logIndex,
   });
-  return lok.chainFill(fill.listingId, fill.buyerTokenId, fill.priceWei, fillKey);
+  const res = lok.chainFill(fill.listingId, fill.buyerTokenId, fill.priceWei, fillKey);
+  if (res.ok) {
+    mirrored?.add(fillKey);
+    return { ok: true, kind: "applied" };
+  }
+
+  const reason = reasonFromEngineError(res.error);
+  if (
+    reason === "unknown-listing" ||
+    reason === "self-transfer" ||
+    reason === "not-spawned" ||
+    reason === "fill-mismatch" ||
+    reason === "over-ask" ||
+    reason === "unprocessable"
+  ) {
+    return { ok: false, kind: "quarantine", error: res.error, reason };
+  }
+  return { ok: false, kind: "halt", error: res.error };
 }
 
-/** Listing already gone / fill already mirrored — safe to advance the cursor. */
-export function classifyAskFilledFailure(error: string): "replay" | "other" {
-  if (/unknown listing|not found|already/i.test(error)) return "replay";
-  if (/self.?transfer/i.test(error)) return "other";
-  if (/over.?ask|price/i.test(error)) return "other";
-  if (/not a recorded on-chain fill/i.test(error)) return "other";
+/** @deprecated use applyAskFilled result kinds; kept for older tests that only check ok. */
+export function classifyAskFilledFailure(error: string): "replay" | "quarantine" | "other" {
+  if (/already mirrored|already (applied|consumed)/i.test(error)) return "replay";
+  const reason = reasonFromEngineError(error);
+  if (
+    reason === "unknown-listing" ||
+    reason === "self-transfer" ||
+    reason === "not-spawned" ||
+    reason === "fill-mismatch" ||
+    reason === "over-ask" ||
+    reason === "unprocessable"
+  ) {
+    return "quarantine";
+  }
   return "other";
 }
 
@@ -98,7 +191,6 @@ export function ahEscrowAddress(env: NodeJS.ProcessEnv = process.env): string | 
   return addr && /^0x[0-9a-fA-F]{40}$/.test(addr) ? addr : null;
 }
 
-/** Public chain config the web client uses to sign buyAsk. RPC must be browser-reachable. */
 export function ahEscrowClientConfig(env: NodeJS.ProcessEnv = process.env): {
   address: string;
   rpcUrl: string;
@@ -140,34 +232,59 @@ export async function scanAskFilled(opts: {
   cursor: bigint;
   escrow: string;
   rpcCall: (method: string, params: unknown[]) => Promise<unknown>;
-  apply: (fill: AskFilled, fillKey: string) => { ok: true } | { ok: false; error: string };
+  apply: (fill: AskFilled, fillKey: string, log: RpcLog) => ApplyAskFilledResult;
+  quarantine?: AskFilledQuarantine;
 }): Promise<{ cursor: bigint }> {
   const latest = BigInt(String(await opts.rpcCall("eth_blockNumber", [])));
   if (latest < ASK_FILL_CONFIRMATIONS) return { cursor: opts.cursor };
   const safeHead = latest - ASK_FILL_CONFIRMATIONS;
   if (safeHead < opts.cursor) return { cursor: opts.cursor };
-  const logs = (await opts.rpcCall("eth_getLogs", [
-    {
-      address: opts.escrow,
-      fromBlock: "0x" + opts.cursor.toString(16),
-      toBlock: "0x" + safeHead.toString(16),
-      topics: [ASK_FILLED_TOPIC],
-    },
-  ])) as RpcLog[];
-  if (!Array.isArray(logs)) throw new Error("eth_getLogs returned no list");
+
+  // Page getLogs in 2k-block chunks so L2 RPCs with range limits still work.
+  const PAGE = 2000n;
+  let from = opts.cursor;
   let cursor = safeHead + 1n;
-  const ordered = logs
-    .slice()
-    .sort((a, b) => cmpHex(a.blockNumber, b.blockNumber) || cmpHex(a.logIndex, b.logIndex));
-  for (const log of ordered) {
-    const fill = decodeAskFilled(log);
-    if (!fill) continue;
-    const key = fillKeyOf(log);
-    const res = opts.apply(fill, key);
-    if (res.ok) continue;
-    if (classifyAskFilledFailure(res.error) === "replay") continue;
-    cursor = BigInt(log.blockNumber && log.blockNumber !== "0x" ? log.blockNumber : "0x0");
-    break;
+  while (from <= safeHead) {
+    const to = from + PAGE - 1n > safeHead ? safeHead : from + PAGE - 1n;
+    const logs = (await opts.rpcCall("eth_getLogs", [
+      {
+        address: opts.escrow,
+        fromBlock: "0x" + from.toString(16),
+        toBlock: "0x" + to.toString(16),
+        topics: [ASK_FILLED_TOPIC],
+      },
+    ])) as RpcLog[];
+    if (!Array.isArray(logs)) throw new Error("eth_getLogs returned no list");
+    const ordered = logs
+      .slice()
+      .sort((a, b) => cmpHex(a.blockNumber, b.blockNumber) || cmpHex(a.logIndex, b.logIndex));
+    for (const log of ordered) {
+      const fill = decodeAskFilled(log);
+      if (!fill) continue;
+      const key = fillKeyOf(log);
+      const res = opts.apply(fill, key, log);
+      if (res.ok) continue;
+      if (res.kind === "quarantine") {
+        if (opts.quarantine) {
+          const entry: QuarantinedAskFill = {
+            id: key,
+            reason: res.reason,
+            error: res.error,
+            fill,
+            blockNumber: log.blockNumber ?? "0x0",
+            logIndex: log.logIndex ?? "0x0",
+            transactionHash: log.transactionHash ?? "",
+            quarantinedAt: new Date().toISOString(),
+          };
+          if (opts.quarantine.add(entry)) alertAskFilledQuarantine(entry);
+        }
+        continue;
+      }
+      // halt
+      cursor = BigInt(log.blockNumber && log.blockNumber !== "0x" ? log.blockNumber : "0x0");
+      return { cursor };
+    }
+    from = to + 1n;
   }
   return { cursor };
 }
@@ -178,6 +295,7 @@ export function startAskFilledWatcher(
   lok: Pick<LokWorld, "noteChainFill" | "chainFill" | "listingOf">,
   opts?: {
     cursorPath?: string;
+    dataDir?: string;
     onFilled?: (fill: AskFilledApplied, fillKey: string) => void;
     env?: NodeJS.ProcessEnv;
   },
@@ -186,7 +304,17 @@ export function startAskFilledWatcher(
   const rpc = env.LOK_CHAIN_RPC?.trim();
   const escrow = ahEscrowAddress(env);
   if (!rpc || !escrow) return;
-  const cursorPath = opts?.cursorPath ?? askFilledCursorPath(defaultLokDir());
+  const dataDir = opts?.dataDir ?? defaultLokDir();
+  const cursorPath = opts?.cursorPath ?? askFilledCursorPath(dataDir);
+  const quarantine = new AskFilledQuarantine(askFilledQuarantinePath(dataDir));
+  const mirrored = new MirroredFills(askFilledMirroredPath(dataDir));
+  if (quarantine.list().length > 0) {
+    console.error(
+      "[bellgrave] ALERT " +
+        quarantine.list().length +
+        " AskFilled fill(s) still quarantined — pnpm --filter @bellgrave/server lok:replay-ask-filled --list",
+    );
+  }
   console.log(
     "[bellgrave] AhEscrow watcher rpc=" +
       rpc +
@@ -197,6 +325,7 @@ export function startAskFilledWatcher(
   );
   let cursor = readAskFilledCursor(cursorPath);
   let busy = false;
+  let haltedLogged = false;
   const tick = async () => {
     if (busy) return;
     busy = true;
@@ -204,11 +333,12 @@ export function startAskFilledWatcher(
       const next = await scanAskFilled({
         cursor,
         escrow,
+        quarantine,
         rpcCall: (method, params) => jsonRpc(rpc, method, params),
-        apply: (fill, fillKey) => {
-          const sellerTokenId = lok.listingOf?.(fill.listingId)?.seller;
-          const res = applyAskFilled(lok, fill, fillKey);
-          if (res.ok) {
+        apply: (fill, fillKey, log) => {
+          const beforeSeller = lok.listingOf(fill.listingId)?.seller;
+          const res = applyAskFilled(lok, fill, fillKey, { mirrored, log });
+          if (res.ok && res.kind === "applied") {
             console.log(
               "[bellgrave] chainFill listing=" +
                 fill.listingId +
@@ -219,19 +349,29 @@ export function startAskFilledWatcher(
                 " key=" +
                 fillKey,
             );
-            opts?.onFilled?.({ ...fill, sellerTokenId }, fillKey);
+            opts?.onFilled?.({ ...fill, sellerTokenId: beforeSeller }, fillKey);
+            haltedLogged = false;
             return res;
           }
-          const kind = classifyAskFilledFailure(res.error);
-          if (kind === "replay") return res;
-          console.error(
-            "[bellgrave] AskFilled halted listing=" + fill.listingId + " key=" + fillKey + ": " + res.error,
-          );
+          if (res.ok) {
+            haltedLogged = false;
+            return res;
+          }
+          if (res.kind === "halt") {
+            if (!haltedLogged) {
+              console.error(
+                "[bellgrave] AskFilled halted listing=" + fill.listingId + " key=" + fillKey + ": " + res.error,
+              );
+              haltedLogged = true;
+            }
+          }
           return res;
         },
       });
       cursor = next.cursor;
       writeAskFilledCursor(cursorPath, cursor);
+    } catch (err) {
+      console.error("[bellgrave] AhEscrow watcher", err);
     } finally {
       busy = false;
     }
@@ -243,36 +383,9 @@ export function startAskFilledWatcher(
   timer.unref?.();
 }
 
-export function openAskCastArgs(
-  escrow: string,
-  listingId: string,
-  sellerTokenId: string,
-  sellerPayout: string,
-  itemId: string,
-  amount: string,
-  priceWei: string,
-  rpc: string,
-  key: string,
-): string[] {
-  return [
-    "send",
-    "--rpc-url",
-    rpc,
-    "--private-key",
-    key,
-    escrow,
-    "openAsk(uint256,uint256,address,uint256,uint256,uint256)",
-    listingId,
-    sellerTokenId,
-    sellerPayout,
-    itemId,
-    amount,
-    priceWei,
-  ];
-}
-
-export function cancelAskCastArgs(escrow: string, listingId: string, rpc: string, key: string): string[] {
-  return ["send", "--rpc-url", rpc, "--private-key", key, escrow, "cancelAsk(uint256)", listingId];
+export function listingRoleKey(env: NodeJS.ProcessEnv = process.env): string | null {
+  const key = (env.LOK_LISTING_KEY?.trim() || env.LOK_OWNER_KEY?.trim() || "").trim();
+  return /^0x[0-9a-fA-F]{64}$/.test(key) ? key : null;
 }
 
 function cmpHex(a: string | undefined, b: string | undefined): number {

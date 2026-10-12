@@ -109,12 +109,25 @@ pub enum Input {
     GoldSell { token_id: U256, item_id: U256, qty: U256, amount: U256, day: u64 },
     /// On-chain AhEscrow fill mirrored into the log. Moves the ask's stack into the buyer's
     /// inbox. Does **not** debit or credit settlement ETH/`Key::Kek` — payment already settled
-    /// on-chain. `price_wei` must equal the ask's `min_price` so the mirror cannot disagree
-    /// with the escrow receipt. Appended only by the server after a trusted `AskFilled`.
+    /// on-chain. `price_wei` / `item_id` / `amount` / `seller` must match the open ask.
+    /// `tx_hash` + `log_index` bind the mirror to the AskFilled receipt (dedupe + audit).
+    /// Appended only by the server after a trusted on-chain fill. Not yet on any committed log.
     ChainFill {
         listing_id: U256,
         buyer: U256,
         price_wei: U256,
+        item_id: U256,
+        amount: U256,
+        seller: U256,
+        tx_hash: [u8; 32],
+        log_index: u64,
+    },
+    /// Debit in-game gold and drop skill-node ids in one apply. Mirrors PaidRespecSkills
+    /// but spends gold rather than KEK. Not a mint and not kekOut.
+    GoldPaidRespec {
+        token_id: U256,
+        amount: U256,
+        node_ids: Vec<String>,
     },
 }
 
@@ -342,11 +355,34 @@ Input::CancelAsk { listing_id, seller } => {
             buf.u256(amount);
             buf.u64(*day);
         }
-        Input::ChainFill { listing_id, buyer, price_wei } => {
+        Input::ChainFill {
+            listing_id,
+            buyer,
+            price_wei,
+            item_id,
+            amount,
+            seller,
+            tx_hash,
+            log_index,
+        } => {
             buf.b256(&domain(b"LOK_CHAIN_FILL_V1"));
             buf.u256(listing_id);
             buf.u256(buyer);
             buf.u256(price_wei);
+            buf.u256(item_id);
+            buf.u256(amount);
+            buf.u256(seller);
+            buf.b256(tx_hash);
+            buf.u64(*log_index);
+        }
+        Input::GoldPaidRespec { token_id, amount, node_ids } => {
+            buf.b256(&domain(b"LOK_GOLD_PAID_RESPEC_V1"));
+            buf.u256(token_id);
+            buf.u256(amount);
+            buf.u64(node_ids.len() as u64);
+            for id in node_ids {
+                push_label(&mut buf, id);
+            }
         }
     }
     keccak256(&buf.bytes)

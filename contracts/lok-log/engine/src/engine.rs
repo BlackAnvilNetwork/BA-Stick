@@ -67,6 +67,8 @@ pub enum EngineError {
     ClosedMint,
     /// A fill priced above the selected ask. The buyer pays the ask.
     OverAsk,
+    /// ChainFill fields disagree with the open ask (item, amount, or seller).
+    FillMismatch,
 }
 
 impl fmt::Display for EngineError {
@@ -105,6 +107,7 @@ impl fmt::Display for EngineError {
             Self::BadClock => write!(f, "listing has no time"),
             Self::ClosedMint => write!(f, "item drop cannot mint"),
             Self::OverAsk => write!(f, "buyer would pay more than the ask"),
+            Self::FillMismatch => write!(f, "chain fill does not match the ask"),
         }
     }
 }
@@ -233,6 +236,7 @@ impl Engine {
             | Input::SendInbox { .. }
             | Input::TakeInbox { .. }
             | Input::ChainFill { .. } => Err(EngineError::NotOnCharacterLog),
+            // GoldPaidRespec is applied on the character log (gold + skills).
             Input::LevelUp { token_id, level } => self.apply_level(*token_id, *level),
             Input::LearnAbility { token_id, ability_id } => self.learn(*token_id, ability_id),
             Input::Craft { token_id, item_id, amount } => self.note_craft(*token_id, *item_id, *amount),
@@ -265,6 +269,14 @@ impl Engine {
             Input::GoldSell { token_id, item_id, qty, amount, day } => {
                 self.involves(token_id)?;
                 gold::sell_item(&mut self.state, *item_id, *qty, *amount, *day).map_err(gold_err)
+            }
+            Input::GoldPaidRespec { token_id, amount, node_ids } => {
+                if node_ids.is_empty() {
+                    return Err(EngineError::BadId);
+                }
+                self.involves(token_id)?;
+                gold::debit_spend(&mut self.state, *amount).map_err(gold_err)?;
+                self.respec_skills(*token_id, node_ids)
             }
         }
     }

@@ -96,9 +96,10 @@ describe("AhEscrow AskFilled mirror", () => {
     );
   });
 
-  it("classifyAskFilledFailure treats unknown listing as replay", () => {
-    assert.equal(classifyAskFilledFailure("Unknown listing"), "replay");
-    assert.equal(classifyAskFilledFailure("price mismatch OverAsk"), "other");
+  it("classifyAskFilledFailure treats unknown listing as quarantine", () => {
+    assert.equal(classifyAskFilledFailure("unknown listing"), "quarantine");
+    assert.equal(classifyAskFilledFailure("buyer would pay more than the ask"), "quarantine");
+    assert.equal(classifyAskFilledFailure("rpc timeout"), "other");
   });
 
   it("ahEscrowClientConfig needs address + http rpc + chain id", () => {
@@ -151,7 +152,7 @@ describe("AhEscrow AskFilled mirror", () => {
       apply: (fill, fillKey) => {
         applied.push(fill.listingId + ":" + fillKey);
         assert.equal(fillKey, fillKeyOf(log));
-        return { ok: true };
+        return { ok: true, kind: "applied" };
       },
     });
     // safeHead = 8 - 2 = 6; cursor advances to 7

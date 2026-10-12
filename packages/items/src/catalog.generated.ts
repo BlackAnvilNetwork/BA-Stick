@@ -14,7 +14,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 6,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Ashbeam Lumber×2, Pale Dust×1"
     },
     "stats": {
@@ -41,7 +41,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 10,
     "craftSkill": "clothcraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Linen Cloth×3, Pale Dust×1"
     },
     "stats": {
@@ -68,7 +68,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 5,
     "craftSkill": "alchemy",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Distilled Pale×1, Dustgrain×1, Pale Dust×1"
     },
     "stats": {
@@ -88,7 +88,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 22,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Iron Ingot×2, Ashbeam Lumber×1, Ash Dust×1"
     },
     "stats": {
@@ -115,7 +115,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 28,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Iron Ingot×3, Ash Dust×1"
     },
     "stats": {
@@ -149,7 +149,7 @@ export const CATALOG: ItemDef[] = [
     "delayMs": 1800,
     "weaponFamily": "dagger",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Iron Ingot×1, Ash Dust×1"
     }
   },
@@ -163,7 +163,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 10,
     "craftSkill": "leathercraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Leather×3, Pale Dust×1"
     },
     "stats": {
@@ -200,7 +200,7 @@ export const CATALOG: ItemDef[] = [
     "delayMs": 3800,
     "weaponFamily": "greatsword",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Iron Ingot×4, Ash Dust×1"
     }
   },
@@ -214,7 +214,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 40,
     "craftSkill": "leathercraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Stone Scale×3, Soft Pelt×1, Ash Dust×1"
     },
     "stats": {
@@ -239,7 +239,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 3,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bronze Ingot×1, Pale Dust×1"
     }
   },
@@ -253,7 +253,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 20,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Iron Ingot×1, Ash Dust×1"
     }
   },
@@ -267,7 +267,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 40,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Steel Ingot×1, Ash Dust×1"
     }
   },
@@ -281,7 +281,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 44,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Mythril Ingot×1, Slag Dust×1"
     }
   },
@@ -295,7 +295,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 60,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Mythril Ingot×1, Slag Dust×1"
     }
   },
@@ -309,7 +309,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 80,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Darksteel Ingot×1, Bell Dust×1"
     }
   },
@@ -323,7 +323,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 40,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Steel Ingot×1, Slag Dust×1"
     }
   },
@@ -337,7 +337,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 86,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Orichalcum Ingot×1, Throne Dust×1"
     }
   },
@@ -351,7 +351,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 10,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Ashbeam Lumber×1, Bronze Arrowhead×1, Pale Dust×1"
     },
     "stats": {
@@ -371,7 +371,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 20,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Ashbeam Lumber×1, Pale Dust×1"
     }
   },
@@ -385,7 +385,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 39,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Ashbeam Lumber×1, Ash Dust×1"
     }
   },
@@ -399,7 +399,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 48,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bloodbeam Lumber×1, Mythril Arrowhead×1, Slag Dust×1"
     },
     "stats": {
@@ -419,7 +419,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 60,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bloodbeam Lumber×1, Slag Dust×1"
     }
   },
@@ -433,7 +433,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 62,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bloodbeam Lumber×1, Bell Dust×1"
     }
   },
@@ -447,7 +447,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 64,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bloodbeam Lumber×1, Bell Dust×1"
     }
   },
@@ -461,7 +461,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 75,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bellwood Lumber×1, Darksteel Ingot×1, Acid Bolt Compound×1, Bell Dust×1"
     },
     "stats": {
@@ -481,7 +481,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 79,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bellwood Lumber×1, Bell Dust×1"
     }
   },
@@ -495,7 +495,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 87,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bellwood Lumber×1, Throne Dust×1"
     }
   },
@@ -509,7 +509,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 89,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bellwood Lumber×1, Throne Dust×1"
     }
   },
@@ -523,7 +523,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 94,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bellwood Lumber×1, Throne Dust×1"
     }
   },
@@ -537,7 +537,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 97,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bellwood Lumber×1, Throne Dust×1"
     }
   },
@@ -551,7 +551,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 33,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Ashbeam Lumber×2, Sulfur Bit×1, Ash Dust×1"
     },
     "stats": {
@@ -575,7 +575,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 33,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Ashbeam Lumber×2, Echo Extract×1, Ash Dust×1"
     },
     "stats": {
@@ -599,7 +599,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 57,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bloodbeam Lumber×2, Lapis×1, Slag Dust×1"
     },
     "stats": {
@@ -623,7 +623,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 57,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bloodbeam Lumber×2, Onyx×1, Slag Dust×1"
     },
     "stats": {
@@ -647,7 +647,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 80,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bellwood Lumber×2, Glass Bead×1, Bell Dust×1"
     },
     "stats": {
@@ -672,7 +672,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 80,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bellwood Lumber×2, Bat Wing×2, Bell Dust×1"
     },
     "stats": {
@@ -697,7 +697,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 41,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Ashbeam Lumber×1, Steel Arrowhead×1, Ash Dust×1"
     },
     "stats": {
@@ -717,7 +717,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 87,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bellwood Lumber×1, Orichalcum Arrowhead×1, Throne Dust×1"
     },
     "stats": {
@@ -737,7 +737,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 15,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Ashbeam Lumber×2, Climbing Cord×1, Pale Dust×1"
     },
     "stats": {
@@ -758,7 +758,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 45,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bloodbeam Lumber×2, Silk Thread×1, Slag Dust×1"
     },
     "stats": {
@@ -779,7 +779,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 75,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bellwood Lumber×2, Mythril Chain×1, Bell Dust×1"
     },
     "stats": {
@@ -800,7 +800,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 100,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Relic Staff Blank×1, Diamond×1, Ornamented Plate Accent×1, Throne Dust×2"
     },
     "stats": {
@@ -827,7 +827,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 19,
     "craftSkill": "leathercraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Leather×1, Pale Dust×1"
     }
   },
@@ -841,7 +841,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 21,
     "craftSkill": "leathercraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Leather×1, Ash Dust×1"
     }
   },
@@ -855,7 +855,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 34,
     "craftSkill": "leathercraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Leather×1, Ash Dust×1"
     }
   },
@@ -869,7 +869,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 40,
     "craftSkill": "leathercraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Leather×1, Ash Dust×1"
     }
   },
@@ -883,7 +883,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 60,
     "craftSkill": "leathercraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Fine Leather×1, Slag Dust×1"
     }
   },
@@ -897,7 +897,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 64,
     "craftSkill": "leathercraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Fine Leather×1, Bell Dust×1"
     }
   },
@@ -911,7 +911,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 80,
     "craftSkill": "leathercraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Scale Leather×1, Bell Dust×1"
     }
   },
@@ -925,7 +925,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 99,
     "craftSkill": "leathercraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Scale Leather×1, Throne Dust×1"
     }
   },
@@ -939,7 +939,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 1,
     "craftSkill": "clothcraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Pale Flax×2, Dead Fiber×1, Pale Dust×1"
     }
   },
@@ -953,7 +953,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 26,
     "craftSkill": "clothcraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Linen Cloth×1, Ash Dust×1"
     }
   },
@@ -967,7 +967,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 38,
     "craftSkill": "clothcraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Linen Cloth×1, Ash Dust×1"
     }
   },
@@ -981,7 +981,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 25,
     "craftSkill": "clothcraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Shade Cotton×2, Ash Dust×1"
     }
   },
@@ -995,7 +995,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 44,
     "craftSkill": "clothcraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Linen Cloth×1, Slag Dust×1"
     }
   },
@@ -1009,7 +1009,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 45,
     "craftSkill": "clothcraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Silk Thread×3, Slag Dust×1"
     }
   },
@@ -1023,7 +1023,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 60,
     "craftSkill": "clothcraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Velvet Fiber×2 or Velvet Dust×3, Bell Dust×1"
     }
   },
@@ -1037,7 +1037,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 86,
     "craftSkill": "clothcraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Velvet Cloth×1, Throne Dust×1"
     }
   },
@@ -1051,7 +1051,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 30,
     "craftSkill": "clothcraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Linen Cloth×2, Spell Parchment×1, Ash Dust×1"
     },
     "stats": {
@@ -1077,7 +1077,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 78,
     "craftSkill": "clothcraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Velvet Cloth×2, Spell Parchment×2, Bell Dust×1"
     },
     "stats": {
@@ -1102,7 +1102,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 5,
     "craftSkill": "bonecraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bone Chip×2, Pale Dust×1"
     }
   },
@@ -1116,7 +1116,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 12,
     "craftSkill": "bonecraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bone Arrowhead×1, Ashbeam Lumber×1, Pale Dust×1"
     },
     "stats": {
@@ -1136,7 +1136,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 22,
     "craftSkill": "bonecraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bone Chip×2, Ash Dust×1"
     }
   },
@@ -1150,7 +1150,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 27,
     "craftSkill": "bonecraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bone Chip×2, Ash Dust×1"
     }
   },
@@ -1164,7 +1164,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 34,
     "craftSkill": "bonecraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bone Chip×2, Ash Dust×1"
     }
   },
@@ -1178,7 +1178,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 42,
     "craftSkill": "bonecraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bone Chip×2, Slag Dust×1"
     }
   },
@@ -1192,7 +1192,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 44,
     "craftSkill": "bonecraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bone Chip×2, Slag Dust×1"
     }
   },
@@ -1206,7 +1206,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 47,
     "craftSkill": "bonecraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bone Chip×2, Slag Dust×1"
     }
   },
@@ -1220,7 +1220,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 52,
     "craftSkill": "bonecraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bone Chip×2, Slag Dust×1"
     }
   },
@@ -1234,7 +1234,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 54,
     "craftSkill": "bonecraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bone Chip×2, Slag Dust×1"
     }
   },
@@ -1248,7 +1248,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 57,
     "craftSkill": "bonecraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bone Chip×2, Slag Dust×1"
     }
   },
@@ -1262,7 +1262,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 59,
     "craftSkill": "bonecraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bone Chip×2, Slag Dust×1"
     }
   },
@@ -1276,7 +1276,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 65,
     "craftSkill": "bonecraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bone Chip×2, Bell Dust×1"
     }
   },
@@ -1290,7 +1290,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 67,
     "craftSkill": "bonecraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bone Chip×2, Bell Dust×1"
     }
   },
@@ -1304,7 +1304,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 72,
     "craftSkill": "bonecraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bone Chip×2, Bell Dust×1"
     }
   },
@@ -1318,7 +1318,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 74,
     "craftSkill": "bonecraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bone Chip×2, Bell Dust×1"
     }
   },
@@ -1332,7 +1332,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 76,
     "craftSkill": "bonecraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bone Chip×2, Bell Dust×1"
     }
   },
@@ -1346,7 +1346,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 78,
     "craftSkill": "bonecraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bone Chip×2, Bell Dust×1"
     }
   },
@@ -1360,7 +1360,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 80,
     "craftSkill": "bonecraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bone Chip×2, Bell Dust×1"
     }
   },
@@ -1374,7 +1374,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 82,
     "craftSkill": "bonecraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bone Chip×2, Throne Dust×1"
     }
   },
@@ -1388,7 +1388,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 84,
     "craftSkill": "bonecraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bone Chip×2, Throne Dust×1"
     }
   },
@@ -1402,7 +1402,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 92,
     "craftSkill": "bonecraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bone Chip×2, Throne Dust×1"
     }
   },
@@ -1416,7 +1416,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 94,
     "craftSkill": "bonecraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bone Chip×2, Throne Dust×1"
     }
   },
@@ -1430,7 +1430,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 96,
     "craftSkill": "bonecraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bone Chip×2, Throne Dust×1"
     }
   },
@@ -1444,7 +1444,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 98,
     "craftSkill": "bonecraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bone Chip×2, Throne Dust×1"
     }
   },
@@ -1458,7 +1458,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 10,
     "craftSkill": "bonecraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bone Chip×2, Leather×1, Pale Dust×1"
     },
     "stats": {
@@ -1482,7 +1482,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 55,
     "craftSkill": "bonecraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Giant Femur×1, Fine Leather×1, Slag Dust×1"
     },
     "stats": {
@@ -1506,7 +1506,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 7,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Copper Ore×1, Pale Dust×1"
     }
   },
@@ -1520,7 +1520,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 9,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Copper Ore×1, Pale Dust×1"
     }
   },
@@ -1534,7 +1534,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 17,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Copper Ore×1, Pale Dust×1"
     }
   },
@@ -1548,7 +1548,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 19,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Copper Ore×1, Pale Dust×1"
     }
   },
@@ -1562,7 +1562,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 21,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Iron Ingot×1, Ash Dust×1"
     }
   },
@@ -1576,7 +1576,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 23,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Iron Ingot×1, Ash Dust×1"
     }
   },
@@ -1590,7 +1590,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 27,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Iron Ingot×1, Ash Dust×1"
     }
   },
@@ -1604,7 +1604,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 29,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Iron Ingot×1, Ash Dust×1"
     }
   },
@@ -1618,7 +1618,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 32,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Iron Ingot×1, Ash Dust×1"
     }
   },
@@ -1632,7 +1632,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 34,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Iron Ingot×1, Ash Dust×1"
     }
   },
@@ -1646,7 +1646,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 36,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Iron Ingot×1, Ash Dust×1"
     }
   },
@@ -1660,7 +1660,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 38,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Iron Ingot×1, Ash Dust×1"
     }
   },
@@ -1674,7 +1674,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 1,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Copper Ore×2, Tin Ore×1 or Metal Scrap×5, Pale Dust×1"
     }
   },
@@ -1688,7 +1688,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 40,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Iron Ingot×1, Ash Dust×1"
     }
   },
@@ -1702,7 +1702,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 5,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bronze Ingot×2, Ashbeam Lumber×1, Pale Dust×1"
     },
     "stats": {
@@ -1729,7 +1729,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 7,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bronze Ingot×2, Pale Dust×1"
     },
     "stats": {
@@ -1753,7 +1753,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 8,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bronze Ingot×1, Pale Dust×1"
     },
     "stats": {
@@ -1775,7 +1775,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 9,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bronze Ingot×1, Pale Dust×1"
     },
     "stats": {
@@ -1797,7 +1797,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 10,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bronze Ingot×3, Pale Dust×1"
     },
     "stats": {
@@ -1821,7 +1821,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 11,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bronze Ingot×2, Pale Dust×1"
     },
     "stats": {
@@ -1843,7 +1843,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 12,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bronze Ingot×2, Pale Dust×1"
     },
     "stats": {
@@ -1865,7 +1865,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 14,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bronze Ingot×3, Cobble×2, Pale Dust×1"
     },
     "stats": {
@@ -1889,7 +1889,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 16,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bronze Ingot×1, Pale Dust×1"
     }
   },
@@ -1903,7 +1903,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 18,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Iron Ore×3, Ash Dust×1"
     }
   },
@@ -1917,7 +1917,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 42,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Iron Ingot×1, Slag Dust×1"
     }
   },
@@ -1931,7 +1931,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 24,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Iron Ingot×4, Ash Dust×1"
     },
     "stats": {
@@ -1956,7 +1956,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 26,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Iron Ingot×1, Ash Dust×1"
     },
     "stats": {
@@ -1978,7 +1978,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 27,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Iron Ingot×1, Ash Dust×1"
     },
     "stats": {
@@ -2000,7 +2000,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 29,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Iron Ingot×2, Ash Dust×1"
     },
     "stats": {
@@ -2022,7 +2022,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 30,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Iron Ingot×2, Ash Dust×1"
     },
     "stats": {
@@ -2044,7 +2044,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 32,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Iron Ingot×1, Ash Dust×1"
     }
   },
@@ -2058,7 +2058,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 34,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Iron Ingot×1, Ash Dust×1"
     }
   },
@@ -2072,7 +2072,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 35,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Iron Ingot×2, Iron Sand×1, Slag Dust×1"
     }
   },
@@ -2086,7 +2086,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 37,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Steel Ingot×1, Ash Dust×1"
     }
   },
@@ -2100,7 +2100,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 38,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Steel Ingot×4, Slag Dust×1"
     },
     "stats": {
@@ -2126,7 +2126,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 44,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Iron Ingot×1, Slag Dust×1"
     }
   },
@@ -2140,7 +2140,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 42,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Mythril Ore×3, Slag Dust×1"
     }
   },
@@ -2154,7 +2154,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 47,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Mythril Ingot×1, Slag Dust×1"
     }
   },
@@ -2168,7 +2168,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 46,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Mythril Ingot×2, Bloodbeam Lumber×1, Slag Dust×1"
     },
     "stats": {
@@ -2195,7 +2195,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 48,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Mythril Ingot×1, Slag Dust×1"
     },
     "stats": {
@@ -2216,7 +2216,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 49,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Mythril Ingot×1, Slag Dust×1"
     },
     "stats": {
@@ -2237,7 +2237,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 50,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Mythril Ingot×3, Slag Dust×1"
     },
     "stats": {
@@ -2260,7 +2260,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 51,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Mythril Ingot×2, Slag Dust×1"
     },
     "stats": {
@@ -2281,7 +2281,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 52,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Mythril Ingot×2, Slag Dust×1"
     },
     "stats": {
@@ -2302,7 +2302,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 54,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Mythril Ingot×3, Slag Dust×1"
     },
     "stats": {
@@ -2324,7 +2324,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 56,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Mythril Ingot×1, Slag Dust×1"
     }
   },
@@ -2338,7 +2338,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 58,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Mythril Ingot×4, Slag Dust×1"
     },
     "stats": {
@@ -2364,7 +2364,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 54,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Mythril Ingot×1, Slag Dust×1"
     }
   },
@@ -2378,7 +2378,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 62,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Darksteel Ore×3, Iron Sand×1, Bell Dust×1"
     }
   },
@@ -2392,7 +2392,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 65,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Darksteel Ingot×2, Bellwood Lumber×1, Bell Dust×1"
     },
     "stats": {
@@ -2419,7 +2419,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 66,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Darksteel Ingot×4, Bell Dust×1"
     },
     "stats": {
@@ -2444,7 +2444,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 68,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Darksteel Ingot×1, Bell Dust×1"
     },
     "stats": {
@@ -2466,7 +2466,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 69,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Darksteel Ingot×1, Bell Dust×1"
     },
     "stats": {
@@ -2488,7 +2488,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 70,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Darksteel Ingot×3, Bell Dust×1"
     },
     "stats": {
@@ -2512,7 +2512,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 71,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Darksteel Ingot×2, Bell Dust×1"
     },
     "stats": {
@@ -2534,7 +2534,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 72,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Darksteel Ingot×2, Bell Dust×1"
     },
     "stats": {
@@ -2556,7 +2556,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 74,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Darksteel Ingot×3, Bell Dust×1"
     },
     "stats": {
@@ -2578,7 +2578,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 76,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Darksteel Ingot×1, Bell Dust×1"
     }
   },
@@ -2592,7 +2592,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 78,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Darksteel Ingot×1, Bell Dust×1"
     }
   },
@@ -2606,7 +2606,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 56,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Mythril Ingot×1, Slag Dust×1"
     }
   },
@@ -2620,7 +2620,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 82,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Orichalcum Ore×2, Mythril Ingot×1, Throne Dust×1"
     }
   },
@@ -2634,7 +2634,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 84,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Orichalcum Ingot×1, Throne Dust×1"
     }
   },
@@ -2648,7 +2648,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 86,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Orichalcum Ingot×1, Throne Dust×1"
     }
   },
@@ -2662,7 +2662,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 88,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Orichalcum Ingot×2, Bellwood Lumber×1, Throne Dust×1"
     },
     "stats": {
@@ -2688,7 +2688,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 90,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Orichalcum Ingot×1, Throne Dust×1"
     }
   },
@@ -2702,7 +2702,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 92,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Orichalcum Ingot×1, Marble Chip×1, Throne Dust×1"
     },
     "stats": {
@@ -2723,7 +2723,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 93,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Orichalcum Ingot×1, Marble Chip×1, Throne Dust×1"
     },
     "stats": {
@@ -2744,7 +2744,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 94,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Orichalcum Ingot×3, Marble Chip×2, Darksteel Goldsmith Wire×2, Goldsmith Filigree×1, Throne Dust×1"
     },
     "stats": {
@@ -2767,7 +2767,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 95,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Orichalcum Ingot×2, Marble Chip×1, Throne Dust×1"
     },
     "stats": {
@@ -2788,7 +2788,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 96,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Orichalcum Ingot×2, Marble Chip×1, Throne Dust×1"
     },
     "stats": {
@@ -2809,7 +2809,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 98,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Orichalcum Ingot×3, Column Fragment×1, Throne Dust×1"
     },
     "stats": {
@@ -2834,7 +2834,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 100,
     "craftSkill": "smithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Orichalcum Ingot×1, Diamond×1, Throne Dust×1"
     }
   },
@@ -2848,7 +2848,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 1,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Ashbeam Log×2, Bark Strip×1, Pale Dust×1"
     }
   },
@@ -2862,7 +2862,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 3,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Ashbeam Lumber×1, Pale Dust×1"
     }
   },
@@ -2876,7 +2876,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 4,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Ashbeam Lumber×2, Cracked Brick×1, Pale Dust×1"
     },
     "stats": {
@@ -2895,7 +2895,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 8,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Ashbeam Lumber×1, Pale Dust×1"
     }
   },
@@ -2909,7 +2909,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 58,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Mythril Ingot×1, Slag Dust×1"
     }
   },
@@ -2923,7 +2923,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 12,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Ashbeam Lumber×1, Pale Dust×1"
     }
   },
@@ -2937,7 +2937,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 14,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Ashbeam Lumber×1, Pale Dust×1"
     }
   },
@@ -2951,7 +2951,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 16,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Ashbeam Lumber×1, Leather×1, Ash Dust×1"
     },
     "stats": {
@@ -2969,7 +2969,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 20,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Ashbeam Lumber×1, Iron Arrowhead×1, Ash Dust×1"
     }
   },
@@ -2983,7 +2983,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 60,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Mythril Ingot×1, Slag Dust×1"
     }
   },
@@ -2997,7 +2997,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 22,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Ashbeam Lumber×1, Ash Dust×1"
     }
   },
@@ -3011,7 +3011,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 24,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Ashbeam Lumber×1, Ash Dust×1"
     }
   },
@@ -3025,7 +3025,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 25,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Ashbeam Lumber×1, Bone Chip×1, Ash Dust×1"
     },
     "stats": {
@@ -3050,7 +3050,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 27,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Ashbeam Lumber×1, Ash Dust×1"
     }
   },
@@ -3064,7 +3064,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 29,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Ashbeam Lumber×1, Ash Dust×1"
     }
   },
@@ -3078,7 +3078,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 31,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Ashbeam Lumber×1, Ash Dust×1"
     }
   },
@@ -3092,7 +3092,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 33,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Ashbeam Lumber×1, Ash Dust×1"
     }
   },
@@ -3106,7 +3106,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 35,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Ashbeam Lumber×1, Ash Dust×1"
     }
   },
@@ -3120,7 +3120,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 37,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Ashbeam Lumber×1, Ash Dust×1"
     }
   },
@@ -3134,7 +3134,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 62,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Mythril Ingot×1, Bell Dust×1"
     }
   },
@@ -3148,7 +3148,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 40,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bloodbeam Log×2, Bark Strip×1, Slag Dust×1"
     }
   },
@@ -3162,7 +3162,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 42,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bloodbeam Lumber×1, Slag Dust×1"
     }
   },
@@ -3176,7 +3176,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 44,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bloodbeam Lumber×1, Slag Dust×1"
     }
   },
@@ -3190,7 +3190,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 45,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bloodbeam Lumber×1, Iron Ingot×1, Slag Dust×1"
     },
     "stats": {
@@ -3214,7 +3214,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 47,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bloodbeam Lumber×1, Slag Dust×1"
     }
   },
@@ -3228,7 +3228,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 64,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Mythril Ingot×1, Bell Dust×1"
     }
   },
@@ -3242,7 +3242,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 50,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bloodbeam Lumber×2, Silk Thread×1, Slag Dust×1"
     },
     "stats": {
@@ -3261,7 +3261,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 52,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bloodbeam Lumber×1, Slag Dust×1"
     }
   },
@@ -3275,7 +3275,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 54,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bloodbeam Lumber×1, Slag Dust×1"
     }
   },
@@ -3289,7 +3289,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 56,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bloodbeam Lumber×1, Slag Dust×1"
     }
   },
@@ -3303,7 +3303,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 58,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bloodbeam Lumber×1, Slag Dust×1"
     }
   },
@@ -3317,7 +3317,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 72,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Darksteel Ingot×1, Bell Dust×1"
     }
   },
@@ -3331,7 +3331,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 65,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bellwood Log×2, Bark Strip×1, Bell Dust×1"
     }
   },
@@ -3345,7 +3345,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 67,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bellwood Lumber×1, Bell Dust×1"
     }
   },
@@ -3359,7 +3359,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 69,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bellwood Lumber×1, Bell Dust×1"
     }
   },
@@ -3373,7 +3373,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 70,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bellwood Lumber×2, Silk Thread×1, Bell Dust×1"
     },
     "stats": {
@@ -3399,7 +3399,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 72,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bellwood Lumber×1, Fine Leather×1, Bell Dust×1"
     },
     "stats": {
@@ -3417,7 +3417,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 74,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bellwood Lumber×1, Bell Dust×1"
     }
   },
@@ -3431,7 +3431,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 74,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Darksteel Ingot×1, Bell Dust×1"
     }
   },
@@ -3445,7 +3445,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 77,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bellwood Lumber×1, Bell Dust×1"
     }
   },
@@ -3459,7 +3459,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 77,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Darksteel Ingot×1, Bell Dust×1"
     }
   },
@@ -3473,7 +3473,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 81,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bellwood Lumber×1, Throne Dust×1"
     }
   },
@@ -3487,7 +3487,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 83,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bellwood Lumber×1, Throne Dust×1"
     }
   },
@@ -3501,7 +3501,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 85,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bellwood Lumber×1, Throne Dust×1"
     }
   },
@@ -3515,7 +3515,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 90,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bellwood Lumber×2, Horn×1, Throne Dust×1"
     },
     "stats": {
@@ -3534,7 +3534,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 92,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bellwood Lumber×1, Throne Dust×1"
     }
   },
@@ -3548,7 +3548,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 95,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bellwood Lumber×2, Bellwood Ferrule×1, Bellwood Laminate×1, Orichalcum Ingot×1, Throne Dust×1"
     },
     "stats": {
@@ -3573,7 +3573,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 98,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bellwood Lumber×2, Diamond×1, Throne Dust×1"
     },
     "stats": {
@@ -3598,7 +3598,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 100,
     "craftSkill": "woodworking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bellwood Lumber×2 or Petrified Lumber×2, Ancient Branch×1, Orichalcum Ingot×1, Throne Dust×2"
     }
   },
@@ -3612,7 +3612,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 1,
     "craftSkill": "leathercraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Desiccated Hide×2, Pale Dust×1"
     }
   },
@@ -3626,7 +3626,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 3,
     "craftSkill": "leathercraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Leather×1, Pale Dust×1"
     }
   },
@@ -3640,7 +3640,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 4,
     "craftSkill": "leathercraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Leather×1, Pale Dust×1"
     },
     "stats": {
@@ -3663,7 +3663,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 5,
     "craftSkill": "leathercraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Leather×1, Pale Dust×1"
     },
     "stats": {
@@ -3686,7 +3686,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 6,
     "craftSkill": "leathercraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Leather×1, Pale Dust×1"
     },
     "stats": {
@@ -3709,7 +3709,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 8,
     "craftSkill": "leathercraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Leather×2, Pale Dust×1"
     },
     "stats": {
@@ -3732,7 +3732,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 12,
     "craftSkill": "leathercraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Leather×1, Pale Dust×1"
     }
   },
@@ -3746,7 +3746,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 14,
     "craftSkill": "leathercraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Leather×1, Pale Dust×1"
     }
   },
@@ -3760,7 +3760,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 15,
     "craftSkill": "leathercraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Leather×1, Ash Dust×1"
     },
     "stats": {
@@ -3778,7 +3778,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 17,
     "craftSkill": "leathercraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Leather×1, Pale Dust×1"
     }
   },
@@ -3792,7 +3792,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 79,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Darksteel Ingot×1, Bell Dust×1"
     }
   },
@@ -3806,7 +3806,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 81,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Darksteel Ingot×1, Throne Dust×1"
     }
   },
@@ -3820,7 +3820,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 22,
     "craftSkill": "leathercraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Leather×2, Silk Thread×1, Ash Dust×1"
     },
     "stats": {
@@ -3841,7 +3841,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 24,
     "craftSkill": "leathercraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Leather×2, Silk Thread×1, Ash Dust×1"
     },
     "stats": {
@@ -3862,7 +3862,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 26,
     "craftSkill": "leathercraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Leather×2, Silk Thread×1, Ash Dust×1"
     },
     "stats": {
@@ -3883,7 +3883,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 28,
     "craftSkill": "leathercraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Leather×2, Silk Thread×1, Ash Dust×1"
     },
     "stats": {
@@ -3904,7 +3904,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 30,
     "craftSkill": "leathercraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Leather×3, Silk Thread×1, Ash Dust×1"
     },
     "stats": {
@@ -3927,7 +3927,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 32,
     "craftSkill": "leathercraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Leather×1, Climbing Cord×1, Ash Dust×1"
     },
     "stats": {
@@ -3951,7 +3951,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 36,
     "craftSkill": "leathercraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Leather×1, Ash Dust×1"
     }
   },
@@ -3965,7 +3965,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 38,
     "craftSkill": "leathercraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Leather×1, Ash Dust×1"
     }
   },
@@ -3979,7 +3979,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 83,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Orichalcum Ingot×1, Throne Dust×1"
     }
   },
@@ -3993,7 +3993,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 42,
     "craftSkill": "leathercraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Soft Pelt×2, Slime Oil×1, Slag Dust×1"
     }
   },
@@ -4007,7 +4007,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 44,
     "craftSkill": "leathercraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Fine Leather×1, Slag Dust×1"
     }
   },
@@ -4021,7 +4021,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 45,
     "craftSkill": "leathercraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Fine Leather×1, Bone Chip×1, Slag Dust×1"
     },
     "stats": {
@@ -4039,7 +4039,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 47,
     "craftSkill": "leathercraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Fine Leather×1, Slag Dust×1"
     }
   },
@@ -4053,7 +4053,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 48,
     "craftSkill": "leathercraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Fine Leather×1, Slag Dust×1"
     },
     "stats": {
@@ -4075,7 +4075,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 50,
     "craftSkill": "leathercraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Fine Leather×3, Slag Dust×1"
     },
     "stats": {
@@ -4099,7 +4099,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 52,
     "craftSkill": "leathercraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Fine Leather×1, Slag Dust×1"
     },
     "stats": {
@@ -4121,7 +4121,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 54,
     "craftSkill": "leathercraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Fine Leather×2, Slag Dust×1"
     },
     "stats": {
@@ -4143,7 +4143,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 56,
     "craftSkill": "leathercraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Fine Leather×2, Slag Dust×1"
     },
     "stats": {
@@ -4165,7 +4165,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 58,
     "craftSkill": "leathercraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Fine Leather×1, Slag Dust×1"
     }
   },
@@ -4179,7 +4179,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 87,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Orichalcum Ingot×1, Throne Dust×1"
     }
   },
@@ -4193,7 +4193,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 62,
     "craftSkill": "leathercraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Fine Leather×1, Bell Dust×1"
     }
   },
@@ -4207,7 +4207,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 65,
     "craftSkill": "leathercraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Scale Hide×2, Bell Dust×1"
     }
   },
@@ -4221,7 +4221,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 67,
     "craftSkill": "leathercraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Scale Leather×1, Bell Dust×1"
     }
   },
@@ -4235,7 +4235,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 69,
     "craftSkill": "leathercraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Scale Leather×1, Bell Dust×1"
     }
   },
@@ -4249,7 +4249,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 70,
     "craftSkill": "leathercraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Scale Leather×1, Bell Dust×1"
     },
     "stats": {
@@ -4271,7 +4271,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 72,
     "craftSkill": "leathercraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Scale Leather×1, Bell Dust×1"
     },
     "stats": {
@@ -4293,7 +4293,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 74,
     "craftSkill": "leathercraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Scale Leather×3, Bell Dust×1"
     },
     "stats": {
@@ -4317,7 +4317,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 76,
     "craftSkill": "leathercraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Scale Leather×2, Bell Dust×1"
     },
     "stats": {
@@ -4339,7 +4339,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 78,
     "craftSkill": "leathercraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Scale Leather×2, Bell Dust×1"
     },
     "stats": {
@@ -4361,7 +4361,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 89,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Orichalcum Ingot×1, Throne Dust×1"
     }
   },
@@ -4375,7 +4375,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 82,
     "craftSkill": "leathercraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Scale Leather×1, Throne Dust×1"
     }
   },
@@ -4389,7 +4389,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 84,
     "craftSkill": "leathercraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Scale Leather×1, Throne Dust×1"
     }
   },
@@ -4403,7 +4403,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 86,
     "craftSkill": "leathercraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Scale Leather×1, Throne Dust×1"
     }
   },
@@ -4417,7 +4417,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 88,
     "craftSkill": "leathercraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Scale Leather×1, Throne Dust×1"
     }
   },
@@ -4431,7 +4431,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 90,
     "craftSkill": "leathercraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Scale Leather×1, Throne Dust×1"
     }
   },
@@ -4445,7 +4445,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 92,
     "craftSkill": "leathercraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Scale Leather×1, Throne Dust×1"
     }
   },
@@ -4459,7 +4459,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 94,
     "craftSkill": "leathercraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Scale Leather×1, Throne Dust×1"
     }
   },
@@ -4473,7 +4473,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 95,
     "craftSkill": "leathercraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Scale Leather×3, Jadeite×1, Scale Leather Belt×1, Scale Leather Stud Kit×1, Throne Dust×1"
     },
     "stats": {
@@ -4496,7 +4496,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 97,
     "craftSkill": "leathercraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Scale Leather×1, Throne Dust×1"
     }
   },
@@ -4510,7 +4510,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 92,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Orichalcum Ingot×1, Throne Dust×1"
     }
   },
@@ -4524,7 +4524,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 100,
     "craftSkill": "leathercraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Scale Leather×2, Fine Leather×2, Throne Dust×1"
     }
   },
@@ -4538,7 +4538,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 1,
     "craftSkill": "clothcraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Linen Thread×3 or Linen Scrap×4, Pale Dust×1"
     }
   },
@@ -4552,7 +4552,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 3,
     "craftSkill": "clothcraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Linen Cloth×1, Pale Dust×1"
     }
   },
@@ -4566,7 +4566,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 4,
     "craftSkill": "clothcraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Linen Cloth×1, Pale Dust×1"
     },
     "stats": {
@@ -4590,7 +4590,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 5,
     "craftSkill": "clothcraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Linen Cloth×1, Pale Dust×1"
     },
     "stats": {
@@ -4614,7 +4614,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 6,
     "craftSkill": "clothcraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Linen Cloth×1, Pale Dust×1"
     },
     "stats": {
@@ -4638,7 +4638,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 8,
     "craftSkill": "clothcraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Linen Cloth×2, Pale Dust×1"
     },
     "stats": {
@@ -4662,7 +4662,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 12,
     "craftSkill": "clothcraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Linen Cloth×1, Pale Dust×1"
     }
   },
@@ -4676,7 +4676,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 14,
     "craftSkill": "clothcraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Linen Cloth×1, Pale Dust×1"
     }
   },
@@ -4690,7 +4690,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 16,
     "craftSkill": "clothcraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Linen Cloth×1, Pale Dust×1"
     }
   },
@@ -4704,7 +4704,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 18,
     "craftSkill": "clothcraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Linen Cloth×1, Pale Dust×1"
     }
   },
@@ -4718,7 +4718,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 94,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Orichalcum Ingot×1, Throne Dust×1"
     }
   },
@@ -4732,7 +4732,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 22,
     "craftSkill": "clothcraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Parchment×1, Ink Salt×1, Ash Dust×1"
     }
   },
@@ -4746,7 +4746,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 24,
     "craftSkill": "clothcraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Linen Cloth×1, Ash Dust×1"
     }
   },
@@ -4760,7 +4760,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 96,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Orichalcum Ingot×1, Throne Dust×1"
     }
   },
@@ -4774,7 +4774,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 28,
     "craftSkill": "clothcraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Linen Cloth×1, Shade Cotton×1, Ash Dust×1"
     },
     "stats": {
@@ -4798,7 +4798,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 30,
     "craftSkill": "clothcraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Linen Cloth×3, Shade Cotton Thread×1, Ash Dust×1"
     },
     "stats": {
@@ -4825,7 +4825,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 32,
     "craftSkill": "clothcraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Linen Cloth×1, Shade Cotton×1, Ash Dust×1"
     },
     "stats": {
@@ -4849,7 +4849,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 34,
     "craftSkill": "clothcraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Linen Cloth×2, Shade Cotton×1, Ash Dust×1"
     },
     "stats": {
@@ -4873,7 +4873,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 36,
     "craftSkill": "clothcraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Linen Cloth×1, Shade Cotton×1, Ash Dust×1"
     },
     "stats": {
@@ -4897,7 +4897,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 42,
     "craftSkill": "clothcraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Linen Cloth×1, Slag Dust×1"
     }
   },
@@ -4911,7 +4911,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 45,
     "craftSkill": "clothcraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Spun Silk×1, Slag Dust×1"
     }
   },
@@ -4925,7 +4925,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 47,
     "craftSkill": "clothcraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Silk Cloth×1, Slag Dust×1"
     }
   },
@@ -4939,7 +4939,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 48,
     "craftSkill": "clothcraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Silk Cloth×1, Slag Dust×1"
     },
     "stats": {
@@ -4963,7 +4963,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 50,
     "craftSkill": "clothcraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Silk Cloth×3, Slag Dust×1"
     },
     "stats": {
@@ -4990,7 +4990,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 52,
     "craftSkill": "clothcraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Silk Cloth×1, Slag Dust×1"
     },
     "stats": {
@@ -5014,7 +5014,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 54,
     "craftSkill": "clothcraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Silk Cloth×2, Slag Dust×1"
     },
     "stats": {
@@ -5038,7 +5038,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 56,
     "craftSkill": "clothcraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Silk Cloth×1, Slag Dust×1"
     },
     "stats": {
@@ -5062,7 +5062,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 58,
     "craftSkill": "clothcraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Silk Cloth×1, Slag Dust×1"
     }
   },
@@ -5076,7 +5076,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 98,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Orichalcum Ingot×1, Throne Dust×1"
     }
   },
@@ -5090,7 +5090,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 62,
     "craftSkill": "clothcraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Silk Cloth×1, Bell Dust×1"
     }
   },
@@ -5104,7 +5104,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 64,
     "craftSkill": "clothcraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Silk Cloth×1, Bell Dust×1"
     }
   },
@@ -5118,7 +5118,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 65,
     "craftSkill": "clothcraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Velvet Thread×3, Silk Cloth×1, Bell Dust×1"
     }
   },
@@ -5132,7 +5132,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 67,
     "craftSkill": "clothcraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Velvet Cloth×1, Bell Dust×1"
     }
   },
@@ -5146,7 +5146,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 69,
     "craftSkill": "clothcraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Velvet Cloth×1, Bell Dust×1"
     }
   },
@@ -5160,7 +5160,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 70,
     "craftSkill": "clothcraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Velvet Cloth×1, Bell Dust×1"
     },
     "stats": {
@@ -5182,7 +5182,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 72,
     "craftSkill": "clothcraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Velvet Cloth×3, Bell Dust×1"
     },
     "stats": {
@@ -5207,7 +5207,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 74,
     "craftSkill": "clothcraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Velvet Cloth×1, Bell Dust×1"
     },
     "stats": {
@@ -5229,7 +5229,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 76,
     "craftSkill": "clothcraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Velvet Cloth×2, Bell Dust×1"
     },
     "stats": {
@@ -5251,7 +5251,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 78,
     "craftSkill": "clothcraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Velvet Cloth×1, Bell Dust×1"
     },
     "stats": {
@@ -5273,7 +5273,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 75,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Mythril Ingot×1, Fine Leather×1, Bell Dust×1"
     },
     "stats": {
@@ -5291,7 +5291,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 82,
     "craftSkill": "clothcraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Velvet Cloth×1, Throne Dust×1"
     }
   },
@@ -5305,7 +5305,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 84,
     "craftSkill": "clothcraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Velvet Cloth×1, Throne Dust×1"
     }
   },
@@ -5319,7 +5319,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 20,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Copper Ore×2, Leather×1, Ash Dust×1"
     },
     "stats": {
@@ -5340,7 +5340,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 88,
     "craftSkill": "clothcraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Velvet Cloth×1, Throne Dust×1"
     }
   },
@@ -5354,7 +5354,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 90,
     "craftSkill": "clothcraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Velvet Cloth×1, Throne Dust×1"
     }
   },
@@ -5368,7 +5368,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 92,
     "craftSkill": "clothcraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Velvet Cloth×2, Jadeite×1, Throne Dust×1"
     },
     "stats": {
@@ -5392,7 +5392,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 94,
     "craftSkill": "clothcraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Velvet Cloth×1, Throne Dust×1"
     }
   },
@@ -5406,7 +5406,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 95,
     "craftSkill": "clothcraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Velvet Cloth×3, Diamond×1, Throne Dust×1"
     },
     "stats": {
@@ -5431,7 +5431,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 97,
     "craftSkill": "clothcraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Velvet Cloth×1, Throne Dust×1"
     }
   },
@@ -5445,7 +5445,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 99,
     "craftSkill": "clothcraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Velvet Cloth×1, Throne Dust×1"
     }
   },
@@ -5459,7 +5459,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 100,
     "craftSkill": "clothcraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Velvet Cloth×2, Diamond×1, Throne Dust×1"
     }
   },
@@ -5473,7 +5473,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 1,
     "craftSkill": "bonecraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bone Chip×2, Pale Dust×1"
     },
     "stats": {
@@ -5491,7 +5491,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 3,
     "craftSkill": "bonecraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bone Chip×1, Pale Dust×1"
     },
     "stats": {
@@ -5509,7 +5509,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 45,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Mythril Ingot×1, Fine Leather×1, Slag Dust×1"
     },
     "stats": {
@@ -5528,7 +5528,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 7,
     "craftSkill": "bonecraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bone Chip×2, Pale Dust×1"
     }
   },
@@ -5542,7 +5542,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 8,
     "craftSkill": "bonecraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Giant Femur×1, Pale Dust×1"
     },
     "stats": {
@@ -5566,7 +5566,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 10,
     "craftSkill": "bonecraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bone Chip×2, Pale Dust×1"
     }
   },
@@ -5580,7 +5580,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 92,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Orichalcum Ingot×1, Diamond×1, Throne Dust×1"
     },
     "stats": {
@@ -5602,7 +5602,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 14,
     "craftSkill": "bonecraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bone Chip×2, Pale Dust×1"
     }
   },
@@ -5616,7 +5616,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 16,
     "craftSkill": "bonecraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bone Chip×2, Pale Dust×1"
     }
   },
@@ -5630,7 +5630,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 18,
     "craftSkill": "bonecraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bone Chip×2, Pale Dust×1"
     }
   },
@@ -5644,7 +5644,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 20,
     "craftSkill": "bonecraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bone Chip×1, Horn×1, Ash Dust×1"
     },
     "stats": {
@@ -5662,7 +5662,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 34,
     "craftSkill": "alchemy",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Distilled Ash×1, Ash Dust×1"
     },
     "stats": {
@@ -5684,7 +5684,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 24,
     "craftSkill": "bonecraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bone Chip×2, Ash Dust×1"
     }
   },
@@ -5698,7 +5698,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 25,
     "craftSkill": "bonecraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Skull Plate×1, Ash Dust×1"
     },
     "stats": {
@@ -5716,7 +5716,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 28,
     "craftSkill": "bonecraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Giant Femur×1, Desiccated Hide×1, Ash Dust×1"
     },
     "stats": {
@@ -5740,7 +5740,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 30,
     "craftSkill": "bonecraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Skull Plate×1, Soft Pelt×1, Ash Dust×1"
     },
     "stats": {
@@ -5762,7 +5762,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 32,
     "craftSkill": "bonecraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bone Chip×2, Ash Dust×1"
     }
   },
@@ -5776,7 +5776,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 35,
     "craftSkill": "bonecraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Giant Femur×1, Soft Pelt×1, Slag Dust×1"
     },
     "stats": {
@@ -5798,7 +5798,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 37,
     "craftSkill": "bonecraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bone Chip×2, Ash Dust×1"
     }
   },
@@ -5812,7 +5812,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 39,
     "craftSkill": "bonecraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bone Chip×2, Ash Dust×1"
     }
   },
@@ -5826,7 +5826,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 40,
     "craftSkill": "bonecraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Horn×2, Slag Dust×1"
     },
     "stats": {
@@ -5844,7 +5844,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 45,
     "craftSkill": "bonecraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Stone Scale×2, Bone Chip×1, Slag Dust×1"
     },
     "stats": {
@@ -5862,7 +5862,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 48,
     "craftSkill": "bonecraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Stone Scale×4, Slag Dust×1"
     },
     "stats": {
@@ -5881,7 +5881,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 50,
     "craftSkill": "bonecraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Mythril Ingot×1, Bone Chip×1, Slag Dust×1"
     },
     "stats": {
@@ -5899,7 +5899,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 55,
     "craftSkill": "bonecraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Skull Plate×1, Soft Pelt×1, Slag Dust×1"
     },
     "stats": {
@@ -5920,7 +5920,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 61,
     "craftSkill": "bonecraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bone Chip×2, Bell Dust×1"
     }
   },
@@ -5934,7 +5934,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 63,
     "craftSkill": "bonecraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bone Chip×2, Bell Dust×1"
     }
   },
@@ -5948,7 +5948,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 69,
     "craftSkill": "bonecraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bone Chip×2, Bell Dust×1"
     }
   },
@@ -5962,7 +5962,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 70,
     "craftSkill": "bonecraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Onyx×1, Bone Chip×1, Bell Dust×1"
     },
     "stats": {
@@ -5980,7 +5980,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 44,
     "craftSkill": "alchemy",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Distilled Ash×1, Slag Dust×1"
     },
     "stats": {
@@ -6000,7 +6000,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 86,
     "craftSkill": "bonecraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bone Chip×2, Throne Dust×1"
     }
   },
@@ -6014,7 +6014,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 88,
     "craftSkill": "bonecraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bone Chip×2, Throne Dust×1"
     }
   },
@@ -6028,7 +6028,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 90,
     "craftSkill": "bonecraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Diamond×1, Orichalcum Ingot×1, Bone Inlay×2, Ash Bone Shell Buckle×1, Throne Dust×1"
     },
     "stats": {
@@ -6047,7 +6047,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 100,
     "craftSkill": "bonecraft",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Diamond×1, Skull Plate×1, Throne Dust×1"
     },
     "stats": {
@@ -6065,7 +6065,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 1,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "River Sand×2, Potter's Clay×1 or Limestone×3, Pale Dust×1"
     }
   },
@@ -6079,7 +6079,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 3,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Copper Ore×1, Pale Dust×1"
     }
   },
@@ -6093,7 +6093,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 5,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Copper Ore×2, Pale Dust×1"
     },
     "stats": {
@@ -6111,7 +6111,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 47,
     "craftSkill": "alchemy",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Distilled Ash×1, Slag Dust×1"
     },
     "stats": {
@@ -6131,7 +6131,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 49,
     "craftSkill": "alchemy",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Distilled Ash×1, Slag Dust×1"
     },
     "stats": {
@@ -6153,7 +6153,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 11,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Copper Ore×1, Pale Dust×1"
     }
   },
@@ -6167,7 +6167,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 13,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Copper Ore×1 or Tile Shard×2, Pale Dust×1"
     }
   },
@@ -6181,7 +6181,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 15,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bronze Ingot×1, Glass Bead×1, Copper Goldsmith Cabochon×1, Ash Dust×1"
     },
     "stats": {
@@ -6199,7 +6199,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 52,
     "craftSkill": "alchemy",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Distilled Ash×1, Slag Dust×1"
     },
     "stats": {
@@ -6221,7 +6221,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 54,
     "craftSkill": "alchemy",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Distilled Ash×1, Slag Dust×1"
     },
     "stats": {
@@ -6243,7 +6243,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 57,
     "craftSkill": "alchemy",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Distilled Ash×1, Slag Dust×1"
     }
   },
@@ -6257,7 +6257,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 25,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Tin Ore×2, Copper Ore×1, Ash Dust×1"
     },
     "stats": {
@@ -6275,7 +6275,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 30,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Lapis×1, Copper Ore×1, Ash Dust×1"
     },
     "stats": {
@@ -6293,7 +6293,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 64,
     "craftSkill": "alchemy",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Distilled Ash×1, Bell Dust×1"
     },
     "stats": {
@@ -6313,7 +6313,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 67,
     "craftSkill": "alchemy",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Distilled Ash×1, Bell Dust×1"
     },
     "stats": {
@@ -6333,7 +6333,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 69,
     "craftSkill": "alchemy",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Distilled Ash×1, Bell Dust×1"
     },
     "stats": {
@@ -6355,7 +6355,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 72,
     "craftSkill": "alchemy",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Distilled Ash×1, Bell Dust×1"
     },
     "stats": {
@@ -6377,7 +6377,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 74,
     "craftSkill": "alchemy",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Distilled Ash×1, Bell Dust×1"
     },
     "stats": {
@@ -6399,7 +6399,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 77,
     "craftSkill": "alchemy",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Distilled Ash×1, Bell Dust×1"
     }
   },
@@ -6413,7 +6413,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 82,
     "craftSkill": "alchemy",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Distilled Ash×1, Throne Dust×1"
     }
   },
@@ -6427,7 +6427,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 45,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Mythril Ingot×1, Slag Dust×1"
     },
     "stats": {
@@ -6445,7 +6445,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 48,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Mythril Ingot×1, Slag Dust×1"
     }
   },
@@ -6459,7 +6459,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 50,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Jadeite×1, Mythril Ingot×1, Slag Dust×1"
     },
     "stats": {
@@ -6477,7 +6477,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 52,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Onyx×1, Mythril Ingot×1, Slag Dust×1"
     },
     "stats": {
@@ -6495,7 +6495,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 66,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Mythril Ingot×1, Bell Dust×1"
     }
   },
@@ -6509,7 +6509,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 68,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Mythril Ingot×1, Bell Dust×1"
     }
   },
@@ -6523,7 +6523,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 70,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Mythril Ingot×1, Bell Dust×1"
     },
     "stats": {
@@ -6541,7 +6541,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 84,
     "craftSkill": "alchemy",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Distilled Ash×1, Throne Dust×1"
     },
     "stats": {
@@ -6561,7 +6561,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 85,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Orichalcum Ingot×1, Throne Dust×1"
     }
   },
@@ -6575,7 +6575,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 90,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Diamond×1, Orichalcum Ingot×1, Throne Dust×1"
     },
     "stats": {
@@ -6593,7 +6593,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 100,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Diamond×1, Ornamented Plate Accent×1, Throne Dust×1"
     },
     "stats": {
@@ -6611,7 +6611,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 20,
     "craftSkill": "alchemy",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Ash Dust×2, Antidote Root×1"
     }
   },
@@ -6625,7 +6625,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 3,
     "craftSkill": "alchemy",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Antidote Root×1, Pale Dust×1"
     },
     "stats": {
@@ -6645,7 +6645,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 7,
     "craftSkill": "alchemy",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Distilled Pale×1, Pale Dust×1"
     },
     "stats": {
@@ -6665,7 +6665,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 9,
     "craftSkill": "alchemy",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Distilled Pale×1, Pale Dust×1"
     },
     "stats": {
@@ -6687,7 +6687,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 11,
     "craftSkill": "alchemy",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Distilled Pale×1, Pale Dust×1"
     },
     "stats": {
@@ -6709,7 +6709,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 12,
     "craftSkill": "alchemy",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Poison Sac×1, Ash Dust×1"
     },
     "stats": {
@@ -6729,7 +6729,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 14,
     "craftSkill": "alchemy",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Distilled Pale×1, Pale Dust×1"
     },
     "stats": {
@@ -6751,7 +6751,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 16,
     "craftSkill": "alchemy",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Distilled Pale×1, Pale Dust×1"
     }
   },
@@ -6765,7 +6765,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 20,
     "craftSkill": "alchemy",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Distilled Ash×1, Ink Salt×1, Ash Dust×1"
     },
     "stats": {
@@ -6785,7 +6785,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 20,
     "craftSkill": "alchemy",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Echo Extract×1, Ash Dust×1"
     },
     "stats": {
@@ -6805,7 +6805,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 22,
     "craftSkill": "alchemy",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Distilled Ash×1, Lapis×1, Ash Dust×1"
     },
     "stats": {
@@ -6825,7 +6825,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 24,
     "craftSkill": "alchemy",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Distilled Ash×1, Ash Dust×1"
     },
     "stats": {
@@ -6845,7 +6845,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 26,
     "craftSkill": "alchemy",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Distilled Ash×1, Ash Dust×1"
     },
     "stats": {
@@ -6865,7 +6865,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 28,
     "craftSkill": "alchemy",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Spell Parchment×1, Pale Dust×1, Glass Bead×1"
     },
     "stats": {
@@ -6885,7 +6885,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 30,
     "craftSkill": "alchemy",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Distilled Ash×1, Ash Dust×1"
     },
     "stats": {
@@ -6907,7 +6907,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 32,
     "craftSkill": "alchemy",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Distilled Ash×1, Ash Dust×1"
     },
     "stats": {
@@ -6929,7 +6929,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 35,
     "craftSkill": "alchemy",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Slime Oil×1, Dead Fiber×1, Slag Dust×1"
     },
     "stats": {
@@ -6949,7 +6949,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 37,
     "craftSkill": "alchemy",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Distilled Ash×1, Ash Dust×1"
     }
   },
@@ -6963,7 +6963,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 38,
     "craftSkill": "alchemy",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Distilled Ash×1, Glass Bead×1, Insect Wing×1, Slag Dust×1"
     },
     "stats": {
@@ -6983,7 +6983,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 40,
     "craftSkill": "alchemy",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bitter Spice×1, Distilled Ash×1, Slag Dust×1"
     },
     "stats": {
@@ -7003,7 +7003,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 42,
     "craftSkill": "alchemy",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Slime Oil×1, Iron Sand×1, Slag Dust×1"
     }
   },
@@ -7017,7 +7017,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 45,
     "craftSkill": "alchemy",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Echo Extract×1, Slime Oil×1, Slag Dust×1"
     },
     "stats": {
@@ -7037,7 +7037,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 50,
     "craftSkill": "alchemy",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Spell Parchment×1, Slag Dust×1, Onyx×1"
     },
     "stats": {
@@ -7057,7 +7057,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 55,
     "craftSkill": "alchemy",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Spell Parchment×1, Slag Dust×1, Sulfur Bit×1"
     },
     "stats": {
@@ -7077,7 +7077,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 59,
     "craftSkill": "alchemy",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Distilled Ash×1, Slag Dust×1"
     }
   },
@@ -7091,7 +7091,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 60,
     "craftSkill": "alchemy",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Spell Parchment×1, Bell Dust×1, Lapis×1"
     },
     "stats": {
@@ -7111,7 +7111,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 62,
     "craftSkill": "alchemy",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Distilled Ash×1, Bell Dust×1"
     }
   },
@@ -7125,7 +7125,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 65,
     "craftSkill": "alchemy",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Echo Extract×1, Silk Thread×1, Bell Dust×1"
     },
     "stats": {
@@ -7145,7 +7145,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 70,
     "craftSkill": "alchemy",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Antidote Root×1, Echo Extract×1, Bell Dust×1"
     },
     "stats": {
@@ -7165,7 +7165,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 75,
     "craftSkill": "alchemy",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Poison Sac×1, Onyx×1, Bell Dust×1"
     },
     "stats": {
@@ -7185,7 +7185,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 78,
     "craftSkill": "alchemy",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Sulfur Bit×2, Bell Dust×1"
     },
     "stats": {
@@ -7205,7 +7205,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 80,
     "craftSkill": "alchemy",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Echo Extract×1, Bell Dust×1"
     },
     "stats": {
@@ -7225,7 +7225,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 86,
     "craftSkill": "alchemy",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Distilled Ash×1, Throne Dust×1"
     },
     "stats": {
@@ -7245,7 +7245,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 88,
     "craftSkill": "alchemy",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Distilled Ash×1, Throne Dust×1"
     }
   },
@@ -7259,7 +7259,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 90,
     "craftSkill": "alchemy",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Echo Extract×2, Bell Koi×1, Throne Dust×1"
     },
     "stats": {
@@ -7279,7 +7279,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 92,
     "craftSkill": "alchemy",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Distilled Ash×1, Throne Dust×1"
     },
     "stats": {
@@ -7301,7 +7301,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 94,
     "craftSkill": "alchemy",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Distilled Ash×1, Throne Dust×1"
     },
     "stats": {
@@ -7323,7 +7323,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 96,
     "craftSkill": "alchemy",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Distilled Ash×1, Throne Dust×1"
     }
   },
@@ -7337,7 +7337,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 98,
     "craftSkill": "alchemy",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Distilled Ash×1, Throne Dust×1"
     }
   },
@@ -7351,7 +7351,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 100,
     "craftSkill": "alchemy",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Remedy×1, Diamond×1, Slag Binding Agent×2, Slag Cluster Shell×1, Throne Dust×2"
     },
     "stats": {
@@ -7371,7 +7371,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 1,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Dried Ration Scrap×2, Pale Dust×1"
     },
     "stats": {
@@ -7391,7 +7391,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 3,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Rock Salt×1, Dustgrain×1, Pale Dust×1"
     }
   },
@@ -7405,7 +7405,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 5,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Dustgrain×2, Rock Salt×1, Pale Dust×1"
     },
     "stats": {
@@ -7426,7 +7426,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 7,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Fossil Minnow×2, Dustgrain×1, Pale Dust×1"
     }
   },
@@ -7440,7 +7440,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 8,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Fossil Minnow×2, Rock Salt×1, Pale Dust×1"
     },
     "stats": {
@@ -7458,7 +7458,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 10,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Clay Crab×1, Dustgrain×2, Pale Dust×1"
     }
   },
@@ -7472,7 +7472,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 12,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Dustgrain×2, Rock Salt×1, Pale Dust×1"
     }
   },
@@ -7486,7 +7486,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 14,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Dustgrain×2, Pale Dust×1"
     }
   },
@@ -7500,7 +7500,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 16,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Echo Carp×1, Rock Salt×1, Pale Dust×1"
     }
   },
@@ -7514,7 +7514,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 18,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Fossil Minnow×1, Clay Crab×1, Dustgrain×1, Pale Dust×1"
     }
   },
@@ -7528,7 +7528,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 20,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Clay Crab×1, Dustgrain×1, Ash Dust×1"
     },
     "stats": {
@@ -7549,7 +7549,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 22,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Antidote Root×1, Dustgrain×1, Ash Dust×1"
     }
   },
@@ -7563,7 +7563,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 24,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bone Chip×1, Dustgrain×1, Ash Dust×1"
     }
   },
@@ -7577,7 +7577,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 25,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Stone Scale×2, Bitter Spice×1, Ash Dust×1"
     },
     "stats": {
@@ -7598,7 +7598,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 27,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Dustgrain×2, Rock Salt×1, Ash Dust×1"
     }
   },
@@ -7612,7 +7612,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 29,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bone Chip×2, Dustgrain×1, Ash Dust×1"
     }
   },
@@ -7626,7 +7626,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 31,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Dried Ration Scrap×1, Dustgrain×1, Ash Dust×1"
     }
   },
@@ -7640,7 +7640,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 33,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bone Chip×1, Fossil Minnow×1, Ash Dust×1"
     }
   },
@@ -7654,7 +7654,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 35,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Glass Bead×1, Dustgrain×1, Ash Dust×1"
     }
   },
@@ -7668,7 +7668,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 37,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Clay Crab×1, Fossil Minnow×1, Dustgrain×1, Ash Dust×1"
     }
   },
@@ -7682,7 +7682,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 39,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Fossil Minnow×2, Rock Salt×1, Ash Dust×1"
     }
   },
@@ -7696,7 +7696,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 40,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Echo Carp×1, Rock Salt×1, Slag Dust×1"
     },
     "stats": {
@@ -7717,7 +7717,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 42,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Dustgrain×2, Rock Salt×1, Slag Dust×1"
     }
   },
@@ -7731,7 +7731,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 44,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Fossil Minnow×1, Dustgrain×1, Slag Dust×1"
     }
   },
@@ -7745,7 +7745,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 45,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Dustgrain×1, Distilled Ash×1, Lapis×1, Slag Dust×1"
     },
     "stats": {
@@ -7766,7 +7766,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 47,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Fossil Minnow×2, Dustgrain×1, Slag Dust×1"
     }
   },
@@ -7780,7 +7780,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 48,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Stone Scale×1, Bitter Spice×1, Slag Dust×1"
     },
     "stats": {
@@ -7801,7 +7801,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 50,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Clay Crab×1, Dustgrain×2, Slag Dust×1"
     }
   },
@@ -7815,7 +7815,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 52,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Dustgrain×2, Rock Salt×1, Slag Dust×1"
     }
   },
@@ -7829,7 +7829,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 54,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Dustgrain×2, Slag Dust×1"
     }
   },
@@ -7843,7 +7843,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 56,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Echo Carp×1, Rock Salt×1, Slag Dust×1"
     }
   },
@@ -7857,7 +7857,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 58,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Fossil Minnow×1, Clay Crab×1, Dustgrain×1, Slag Dust×1"
     }
   },
@@ -7871,7 +7871,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 60,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Glass Eel×1, Bitter Spice×1, Slag Dust×1"
     },
     "stats": {
@@ -7891,7 +7891,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 62,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Antidote Root×1, Echo Extract×1, Bell Dust×1"
     }
   },
@@ -7905,7 +7905,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 64,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bone Chip×1, Echo Carp×1, Bell Dust×1"
     }
   },
@@ -7919,7 +7919,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 65,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bell Koi×2, Bell Dust×1"
     },
     "stats": {
@@ -7940,7 +7940,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 67,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Dustgrain×2, Rock Salt×1, Bell Dust×1"
     }
   },
@@ -7954,7 +7954,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 69,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bone Chip×2, Dustgrain×1, Bell Dust×1"
     }
   },
@@ -7968,7 +7968,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 70,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Glass Eel×1, Dustgrain×1, Bell Dust×1"
     },
     "stats": {
@@ -7988,7 +7988,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 72,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Rock Salt×2, Bell Dust×1"
     }
   },
@@ -8002,7 +8002,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 74,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Dustgrain×3, Rock Salt×1, Bell Dust×1"
     }
   },
@@ -8016,7 +8016,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 76,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Desiccated Hide×1, Rock Salt×1, Bell Dust×1"
     }
   },
@@ -8030,7 +8030,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 78,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Echo Carp×1, Clay Crab×1, Bell Dust×1"
     }
   },
@@ -8044,7 +8044,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 80,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Rock Salt×2, Bell Dust×1"
     }
   },
@@ -8058,7 +8058,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 82,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Dustgrain×2, Rock Salt×1, Throne Dust×1"
     }
   },
@@ -8072,7 +8072,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 84,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Echo Carp×1, Dustgrain×1, Throne Dust×1"
     }
   },
@@ -8086,7 +8086,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 86,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Scale Hide×1, Rock Salt×1, Throne Dust×1"
     }
   },
@@ -8100,7 +8100,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 88,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bone Chip×2, Dustgrain×1, Throne Dust×1"
     }
   },
@@ -8114,7 +8114,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 90,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bell Koi×1, Echo Carp×1, Dustgrain×1, Throne Dust×1"
     },
     "stats": {
@@ -8143,7 +8143,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 92,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Dustgrain×2, Rock Salt×1, Throne Dust×1"
     }
   },
@@ -8157,7 +8157,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 94,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Dustgrain×2, Throne Dust×1"
     }
   },
@@ -8171,7 +8171,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 96,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Echo Carp×1, Rock Salt×1, Throne Dust×1"
     }
   },
@@ -8185,7 +8185,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 98,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Echo Carp×1, Glass Eel×1, Dustgrain×1, Throne Dust×1"
     }
   },
@@ -8199,7 +8199,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 100,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Throne Feast×1, Diamond×1, Throne Dust×2"
     },
     "stats": {
@@ -8228,7 +8228,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 2,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Dustgrain×1, Pale Dust×1"
     },
     "consume": {
@@ -8245,7 +8245,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 8,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Fossil Minnow×1, Pale Dust×1"
     },
     "consume": {
@@ -8262,7 +8262,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 14,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Stone Scale×1, Pale Dust×1"
     },
     "consume": {
@@ -8279,7 +8279,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 22,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Dustgrain×1, Ash Dust×1"
     },
     "consume": {
@@ -8296,7 +8296,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 28,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Clay Crab×1, Ash Dust×1"
     },
     "consume": {
@@ -8313,7 +8313,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 36,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Dustgrain×1, Echo Extract×1, Ash Dust×1"
     },
     "consume": {
@@ -8330,7 +8330,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 44,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Dustgrain×1, Slag Dust×1"
     },
     "consume": {
@@ -8347,7 +8347,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 52,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Echo Carp×1, Slag Dust×1"
     },
     "consume": {
@@ -8364,7 +8364,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 60,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Dustgrain×1, Bitter Spice×1, Slag Dust×1"
     },
     "consume": {
@@ -8381,7 +8381,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 68,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Dustgrain×1, Bell Dust×1"
     },
     "consume": {
@@ -8398,7 +8398,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 76,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Bell Koi×1, Bell Dust×1"
     },
     "consume": {
@@ -8415,7 +8415,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 84,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Dustgrain×1, Throne Dust×1"
     },
     "consume": {
@@ -8432,7 +8432,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 92,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Dustgrain×1, Echo Extract×1, Throne Dust×1"
     },
     "consume": {
@@ -8449,7 +8449,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 100,
     "craftSkill": "cooking",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Dustgrain×1, Diamond×1, Throne Dust×1"
     },
     "consume": {
@@ -8493,7 +8493,7 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 1,
     "craftSkill": "alchemy",
     "recipe": {
-      "kek": 1000,
+      "gold": 1000,
       "materialsText": "Pale Dust×2, Antidote Root×1"
     }
   },

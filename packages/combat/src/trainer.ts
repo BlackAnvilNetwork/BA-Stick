@@ -15,7 +15,7 @@ export const TRAINER_COST_MIN = 500;
 export const TRAINER_COST_MAX = 10000;
 
 /** Gold cost to learn an ability at the given unlock level. */
-export function trainerAbilityDustCost(unlockLevel: number): number {
+export function trainerAbilityGoldCost(unlockLevel: number): number {
   const lv = Math.max(1, Math.min(TRAINER_COST_MAX_LEVEL, Math.floor(unlockLevel)));
   if (TRAINER_COST_MAX_LEVEL <= 1) return TRAINER_COST_MIN;
   return Math.round(
