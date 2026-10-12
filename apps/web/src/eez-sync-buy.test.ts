@@ -42,7 +42,7 @@ describe("buyAsksWithEezSync wallet routing", () => {
       buyerTokenId: "1",
       fills: [{ listingId: "1", priceWei: "1000000000000000000" }],
       getSession: getSession as unknown as typeof import("./wallet").getWalletSession,
-      forceWalletFlags: { hasInjected: false, appKitConfigured: true },
+      forceWalletFlags: { hasInjected: false, appKitConfigured: true, burnerAllowed: false },
     });
 
     assert.equal(calls.length, 1);
@@ -58,8 +58,30 @@ describe("buyAsksWithEezSync wallet routing", () => {
       buyerTokenId: "1",
       fills: [{ listingId: "1", priceWei: "1" }],
       getSession: async () => fakeSession("burner"),
-      forceWalletFlags: { hasInjected: false, appKitConfigured: true },
+      forceWalletFlags: { hasInjected: false, appKitConfigured: true, burnerAllowed: false },
     });
+    assert.equal(res.ok, false);
+    assert.match(res.error, /burner/i);
+    assert.equal(res.hashes.length, 0);
+  });
+
+  it("refuses burner on non-anvil even when AppKit is not configured", async () => {
+    const calls: Array<Record<string, unknown>> = [];
+    const getSession = mock.fn(async (opts: Record<string, unknown>) => {
+      calls.push(opts);
+      return fakeSession("burner");
+    });
+
+    const res = await buyAsksWithEezSync({
+      eez: eezCfg,
+      buyerTokenId: "1",
+      fills: [{ listingId: "1", priceWei: "1" }],
+      getSession: getSession as unknown as typeof import("./wallet").getWalletSession,
+      forceWalletFlags: { hasInjected: false, appKitConfigured: false, burnerAllowed: false },
+    });
+
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0]!.allowBurnerFallback, false);
     assert.equal(res.ok, false);
     assert.match(res.error, /burner/i);
     assert.equal(res.hashes.length, 0);
@@ -73,7 +95,7 @@ describe("buyAsksWithEezSync wallet routing", () => {
       getSession: async () => {
         throw new Error("Connect an injected wallet or Reown AppKit to pay.");
       },
-      forceWalletFlags: { hasInjected: false, appKitConfigured: true },
+      forceWalletFlags: { hasInjected: false, appKitConfigured: true, burnerAllowed: false },
     });
     assert.equal(res.ok, false);
     assert.match(res.error, /AppKit|wallet/i);

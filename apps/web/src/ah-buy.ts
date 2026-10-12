@@ -1,7 +1,7 @@
 /**
  * Client-signed AhEscrow.buyAsk — pays native settlement value from the browser
  * wallet (injected EIP-1193 when available, else Reown AppKit). Never falls back
- * to the localStorage burner for pay when AppKit is configured.
+ * to the localStorage burner for pay on Gnosis/Chiado (or whenever AppKit is configured).
  *
  * EEZ / local mock sync buy: see eez-sync-buy.ts + docs/eez-sync-buy.md.
  */
@@ -9,6 +9,7 @@ import { settlementCurrency } from "@bellgrave/config";
 import { createPublicClient, http, type Hex } from "viem";
 import type { AhEscrowClientConfig } from "@bellgrave/protocol";
 import { appKitConfigured } from "./appkit";
+import { burnerIdentityAllowed } from "./burner-identity";
 import { hasInjectedWallet, payWalletSessionOpts } from "./pay-wallet";
 import { getWalletSession, type WalletSession } from "./wallet";
 
@@ -30,26 +31,38 @@ export type BuyAskFill = {
   priceWei: string;
 };
 
+export type PayWalletFlags = {
+  hasInjected: boolean;
+  appKitConfigured: boolean;
+  burnerAllowed?: boolean;
+};
+
 export async function buyAsksWithWallet(opts: {
   escrow: AhEscrowClientConfig;
   buyerTokenId: string;
   fills: BuyAskFill[];
   /** Test seam */
   getSession?: typeof getWalletSession;
-  /** Test seam — override injected/AppKit detection */
-  forceWalletFlags?: { hasInjected: boolean; appKitConfigured: boolean };
+  /** Test seam — override injected/AppKit/burner detection */
+  forceWalletFlags?: PayWalletFlags;
 }): Promise<{ ok: true; hashes: Hex[] } | { ok: false; error: string; hashes: Hex[] }> {
   if (!opts.fills.length) return { ok: false, error: "No asks to buy.", hashes: [] };
   if (!/^[1-9][0-9]{0,77}$/.test(opts.buyerTokenId)) {
     return { ok: false, error: "Bad buyer character id.", hashes: [] };
   }
-  const flags =
+  const flags: PayWalletFlags =
     opts.forceWalletFlags ??
-    ({
+    {
       hasInjected: hasInjectedWallet(),
       appKitConfigured: appKitConfigured(),
-    } as const);
-  const sessionOpts = payWalletSessionOpts(flags);
+      burnerAllowed: burnerIdentityAllowed(),
+    };
+  const burnerAllowed = flags.burnerAllowed ?? burnerIdentityAllowed();
+  const sessionOpts = payWalletSessionOpts({
+    hasInjected: flags.hasInjected,
+    appKitConfigured: flags.appKitConfigured,
+    burnerAllowed,
+  });
   let session: WalletSession;
   try {
     session = await (opts.getSession ?? getWalletSession)({
@@ -65,10 +78,10 @@ export async function buyAsksWithWallet(opts: {
       hashes: [],
     };
   }
-  if (session.source === "burner" && flags.appKitConfigured) {
+  if (session.source === "burner" && !burnerAllowed) {
     return {
       ok: false,
-      error: "Refusing to pay with local burner while Reown AppKit is configured. Connect a wallet.",
+      error: "Refusing to pay with local burner on this network. Connect a wallet.",
       hashes: [],
     };
   }

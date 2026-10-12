@@ -1,15 +1,16 @@
 ﻿import type { ClientMessage, ServerMessage } from "@bellgrave/protocol";
 import { generatePrivateKey, privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
-import { clearPendingMint, clearPendingMintIfTokenBound } from "./pending-mint";
-import { useGame } from "./state";
-import { setPreferredPayoutWallet } from "./wallet";
 import {
   appKitConfigured,
   connectWithAppKit,
   disconnectAppKit,
   sessionFromConnectedAppKit,
 } from "./appkit";
+import { burnerIdentityAllowed } from "./burner-identity";
 import { connectInjectedWallet, injectedWalletAvailable } from "./injected-login";
+import { clearPendingMint, clearPendingMintIfTokenBound } from "./pending-mint";
+import { useGame } from "./state";
+import { setPreferredPayoutWallet } from "./wallet";
 import { defaultRpcUrl, walletConnectConfigured } from "./walletconnect";
 
 const WS_URL = import.meta.env.VITE_WS_URL ?? "ws://localhost:8787";
@@ -92,8 +93,16 @@ function clearResumeStorage() {
   }
 }
 
-/** Local anvil-style account kept in this browser. Never logged. */
+/**
+ * Local anvil-style account kept in this browser. Never logged.
+ * Disabled on Gnosis/Chiado — must not be game-auth identity (audit L-8 / C-1).
+ */
 function localAccount(): PrivateKeyAccount {
+  if (!burnerIdentityAllowed()) {
+    throw new Error(
+      "Local burner identity is disabled on Gnosis/Chiado. Connect an injected wallet or Reown AppKit.",
+    );
+  }
   let key = localStorage.getItem(PK_KEY);
   const existingWallet = localStorage.getItem(WALLET_KEY);
   // Migrate mock 0xmvp… ids to a real secp256k1 account.
@@ -124,6 +133,11 @@ function tryAutoAuth() {
     beginAuthHello(externalAuth.address);
     return;
   }
+  if (!burnerIdentityAllowed()) {
+    // Wait for Connect Wallet — do not create or use a localStorage private key as identity.
+    useGame.getState().setPhase("auth");
+    return;
+  }
   beginAuthHello(localAccount().address);
 }
 
@@ -138,6 +152,10 @@ async function completeSignedAuth(msg: Extract<ServerMessage, { type: "auth/chal
     if (externalAuth && externalAuth.address.toLowerCase() === msg.wallet.toLowerCase()) {
       wallet = externalAuth.address;
       signature = await externalAuth.signMessage(msg.message);
+    } else if (!burnerIdentityAllowed()) {
+      useGame.getState().pushLog("Error: Connect a wallet to sign in.");
+      authInFlight = false;
+      return;
     } else {
       const account = localAccount();
       if (account.address.toLowerCase() !== msg.wallet.toLowerCase()) {

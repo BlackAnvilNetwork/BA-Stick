@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it, mock } from "node:test";
-import type { Account, Hex, WalletClient } from "viem";
+import type { Account, WalletClient } from "viem";
 import { buyAsksWithWallet } from "./ah-buy";
 import type { WalletSession } from "./wallet";
 
@@ -35,7 +35,7 @@ describe("buyAsksWithWallet wallet routing", () => {
       buyerTokenId: "1",
       fills: [{ listingId: "1", priceWei: "1000000000000000000" }],
       getSession: getSession as unknown as typeof import("./wallet").getWalletSession,
-      forceWalletFlags: { hasInjected: false, appKitConfigured: true },
+      forceWalletFlags: { hasInjected: false, appKitConfigured: true, burnerAllowed: false },
     });
 
     assert.equal(calls.length, 1);
@@ -55,8 +55,34 @@ describe("buyAsksWithWallet wallet routing", () => {
       buyerTokenId: "1",
       fills: [{ listingId: "1", priceWei: "1" }],
       getSession: async () => fakeSession("burner"),
-      forceWalletFlags: { hasInjected: false, appKitConfigured: true },
+      forceWalletFlags: { hasInjected: false, appKitConfigured: true, burnerAllowed: false },
     });
+    assert.equal(res.ok, false);
+    assert.match(res.error, /burner/i);
+    assert.equal(res.hashes.length, 0);
+  });
+
+  it("refuses burner on non-anvil even when AppKit is not configured", async () => {
+    const calls: Array<Record<string, unknown>> = [];
+    const getSession = mock.fn(async (opts: Record<string, unknown>) => {
+      calls.push(opts);
+      return fakeSession("burner");
+    });
+
+    const res = await buyAsksWithWallet({
+      escrow: {
+        address: "0x2222222222222222222222222222222222222222",
+        chainId: 100,
+        rpcUrl: "http://127.0.0.1:8545",
+      },
+      buyerTokenId: "1",
+      fills: [{ listingId: "1", priceWei: "1" }],
+      getSession: getSession as unknown as typeof import("./wallet").getWalletSession,
+      forceWalletFlags: { hasInjected: false, appKitConfigured: false, burnerAllowed: false },
+    });
+
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0]!.allowBurnerFallback, false);
     assert.equal(res.ok, false);
     assert.match(res.error, /burner/i);
     assert.equal(res.hashes.length, 0);
@@ -74,7 +100,7 @@ describe("buyAsksWithWallet wallet routing", () => {
       getSession: async () => {
         throw new Error("Connect an injected wallet or Reown AppKit to pay.");
       },
-      forceWalletFlags: { hasInjected: false, appKitConfigured: true },
+      forceWalletFlags: { hasInjected: false, appKitConfigured: true, burnerAllowed: false },
     });
     assert.equal(res.ok, false);
     assert.match(res.error, /AppKit|wallet/i);

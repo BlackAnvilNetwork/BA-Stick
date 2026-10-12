@@ -8,6 +8,7 @@ import { createPublicClient, http, type Hex } from "viem";
 import { freshMintNonce, mintClaimMessage } from "./mint-claim";
 import { clearPendingMint, readPendingMint, writePendingMint } from "./pending-mint";
 import { appKitConfigured } from "./appkit";
+import { burnerIdentityAllowed } from "./burner-identity";
 import { hasInjectedWallet, payWalletSessionOpts } from "./pay-wallet";
 import { burnerAccount, getWalletSession } from "./wallet";
 
@@ -97,7 +98,7 @@ async function signClaim(opts: {
 export async function mintCharacterWithWallet(opts: {
   mint: CharacterMintConfig;
   job: number;
-  /** Game auth wallet (burner) that will own the log character. */
+  /** Game auth wallet that will own the log character (injected/AppKit on Gnosis; burner OK on anvil). */
   gameWallet: string;
   /** Character name bound into the mint claim (same rules as server). */
   charId: string;
@@ -125,9 +126,11 @@ export async function mintCharacterWithWallet(opts: {
     rpcUrls: { default: { http: [opts.mint.rpcUrl] } },
   };
   const hasInjected = hasInjectedWallet();
+  const burnerAllowed = burnerIdentityAllowed();
   const sessionFlags = payWalletSessionOpts({
     hasInjected,
     appKitConfigured: appKitConfigured(),
+    burnerAllowed,
   });
   try {
     const session = await getWalletSession({
@@ -136,6 +139,12 @@ export async function mintCharacterWithWallet(opts: {
       allowBurnerFallback: sessionFlags.allowBurnerFallback,
       preferWalletConnect: sessionFlags.preferWalletConnect,
     });
+    if (session.source === "burner" && !burnerAllowed) {
+      return {
+        ok: false,
+        error: "Refusing to mint with local burner on this network. Connect a wallet.",
+      };
+    }
     const pub = createPublicClient({
       transport: http(opts.mint.rpcUrl),
     });
@@ -280,7 +289,8 @@ export async function mintCharacterWithWallet(opts: {
     });
     return { ok: true, hash, tokenId, payer, charId: named.name, ...claim };
   } catch (err) {
-    if (hasInjected) {
+    // Anvil-only: keep a burner address warm after an injected decline for local play.
+    if (hasInjected && burnerAllowed) {
       try {
         burnerAccount();
       } catch {

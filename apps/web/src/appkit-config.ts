@@ -9,6 +9,7 @@
 import { createAppKit, type AppKit } from "@reown/appkit/react";
 import { EthersAdapter } from "@reown/appkit-adapter-ethers";
 import { anvil, gnosis, gnosisChiado, type AppKitNetwork } from "@reown/appkit/networks";
+import { assertWalletConnectProjectIdForPublicNetwork } from "./burner-identity";
 import {
   anvilWalletConnectAllowed,
   defaultRpcUrl,
@@ -55,10 +56,10 @@ export function ensureAppKit(): AppKit | null {
       defaultNetwork: defaultNetwork(),
       projectId,
       metadata: {
-        name: "Legend of KEK",
-        description: "Bellgrave — Legend of KEK",
-        url: typeof window !== "undefined" ? window.location.origin : "https://legendofkek.com",
-        icons: ["https://legendofkek.com/favicon.ico"],
+        name: "Black Anvil",
+        description: "Black Anvil",
+        url: typeof window !== "undefined" ? window.location.origin : "https://blackanvil.gg",
+        icons: ["https://blackanvil.gg/favicon.ico"],
       },
       customRpcUrls: {
         [`eip155:${gnosis.id}`]: [{ url: defaultRpcUrl(100) }],
@@ -90,8 +91,16 @@ export function ensureAppKit(): AppKit | null {
 /**
  * Eager init in the browser only — node tests import ah-buy without Vite env.
  * main.tsx also imports this module so the modal is ready before Connect.
+ * Production Gnosis/Chiado bundles must ship VITE_WALLETCONNECT_PROJECT_ID.
  */
 if (typeof window !== "undefined") {
+  if (import.meta.env.PROD) {
+    assertWalletConnectProjectIdForPublicNetwork({
+      VITE_NETWORK: import.meta.env.VITE_NETWORK,
+      VITE_CHAIN_ID: import.meta.env.VITE_CHAIN_ID,
+      VITE_WALLETCONNECT_PROJECT_ID: import.meta.env.VITE_WALLETCONNECT_PROJECT_ID,
+    });
+  }
   ensureAppKit();
 }
 

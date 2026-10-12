@@ -16,6 +16,7 @@ import {
 } from "viem";
 import { generatePrivateKey, privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
 import { appKitConfigured, connectWithAppKit } from "./appkit";
+import { burnerIdentityAllowed } from "./burner-identity";
 import { activeWalletConnectProvider, ensureWalletConnectChain } from "./walletconnect";
 
 const PK_KEY = "bellgrave.walletKey";
@@ -33,6 +34,11 @@ function injectedProvider(): Eip1193 | null {
 }
 
 export function burnerAccount(): PrivateKeyAccount {
+  if (!burnerIdentityAllowed()) {
+    throw new Error(
+      "Local burner identity is disabled on Gnosis/Chiado. Connect an injected wallet or Reown AppKit.",
+    );
+  }
   let key = localStorage.getItem(PK_KEY);
   const existingWallet = localStorage.getItem(WALLET_KEY);
   if (!key || !existingWallet || !/^0x[0-9a-fA-F]{40}$/.test(existingWallet)) {
@@ -128,7 +134,8 @@ export async function getWalletSession(opts: {
 }): Promise<WalletSession> {
   const chain = chainOf(opts.chainId, opts.rpcUrl);
   const prefer = opts.preferInjected !== false;
-  const allowBurner = opts.allowBurnerFallback === true;
+  // Hard gate: never pay/auth with burner outside anvil, even if a caller opts in.
+  const allowBurner = opts.allowBurnerFallback === true && burnerIdentityAllowed();
   const injected = prefer && typeof window !== "undefined" ? injectedProvider() : null;
   if (injected) {
     try {

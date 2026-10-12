@@ -1,12 +1,13 @@
 /**
  * Local EEZ sync buy via MockEezSyncBuy.syncBuy{value}.
  * Seller payout is already same-transaction inside AhEscrow.buyAsk.
- * Wallet routing matches ah-buy / character-mint (AppKit, never burner when configured).
+ * Wallet routing matches ah-buy / character-mint (never burner on Gnosis/Chiado).
  */
 import { settlementCurrency } from "@bellgrave/config";
 import { createPublicClient, http, type Hex } from "viem";
 import type { EezSyncBuyClientConfig } from "@bellgrave/protocol";
 import { appKitConfigured } from "./appkit";
+import { burnerIdentityAllowed } from "./burner-identity";
 import { eezSyncBuyAvailable, selectedHomeChain } from "./eez-home-chain";
 import { hasInjectedWallet, payWalletSessionOpts } from "./pay-wallet";
 import { getWalletSession, type WalletSession } from "./wallet";
@@ -29,13 +30,19 @@ export type EezBuyFill = {
   priceWei: string;
 };
 
+export type PayWalletFlags = {
+  hasInjected: boolean;
+  appKitConfigured: boolean;
+  burnerAllowed?: boolean;
+};
+
 export async function buyAsksWithEezSync(opts: {
   eez: EezSyncBuyClientConfig;
   buyerTokenId: string;
   fills: EezBuyFill[];
   homeChainId?: number;
   getSession?: typeof getWalletSession;
-  forceWalletFlags?: { hasInjected: boolean; appKitConfigured: boolean };
+  forceWalletFlags?: PayWalletFlags;
 }): Promise<{ ok: true; hashes: Hex[] } | { ok: false; error: string; hashes: Hex[] }> {
   if (!opts.fills.length) return { ok: false, error: "No asks to buy.", hashes: [] };
   if (!eezSyncBuyAvailable(opts.eez) || !opts.eez.mockSyncBuy) {
@@ -47,13 +54,19 @@ export async function buyAsksWithEezSync(opts: {
   const home = selectedHomeChain(opts.eez, opts.homeChainId);
   if (!home) return { ok: false, error: "No home chain configured for sync buy.", hashes: [] };
 
-  const flags =
+  const flags: PayWalletFlags =
     opts.forceWalletFlags ??
-    ({
+    {
       hasInjected: hasInjectedWallet(),
       appKitConfigured: appKitConfigured(),
-    } as const);
-  const sessionOpts = payWalletSessionOpts(flags);
+      burnerAllowed: burnerIdentityAllowed(),
+    };
+  const burnerAllowed = flags.burnerAllowed ?? burnerIdentityAllowed();
+  const sessionOpts = payWalletSessionOpts({
+    hasInjected: flags.hasInjected,
+    appKitConfigured: flags.appKitConfigured,
+    burnerAllowed,
+  });
   let session: WalletSession;
   try {
     session = await (opts.getSession ?? getWalletSession)({
@@ -69,10 +82,10 @@ export async function buyAsksWithEezSync(opts: {
       hashes: [],
     };
   }
-  if (session.source === "burner" && flags.appKitConfigured) {
+  if (session.source === "burner" && !burnerAllowed) {
     return {
       ok: false,
-      error: "Refusing to pay with local burner while Reown AppKit is configured. Connect a wallet.",
+      error: "Refusing to pay with local burner on this network. Connect a wallet.",
       hashes: [],
     };
   }

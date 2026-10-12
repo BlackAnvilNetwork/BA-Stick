@@ -1277,7 +1277,13 @@ export function BootScreens() {
           <h1 className="boot-brand">Legend of KEK</h1>
           {!connected || phase === "boot" || phase === "auth" ? (
             <>
-              <p className="boot-sub">{connected ? "Signing in…" : "Connecting to server…"}</p>
+              <p className="boot-sub">
+                {!connected
+                  ? "Connecting to server…"
+                  : phase === "auth"
+                    ? "Connect a wallet to sign in."
+                    : "Signing in…"}
+              </p>
               <WalletConnectButton />
             </>
           ) : phase === "create" ? (

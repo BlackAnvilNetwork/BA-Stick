@@ -4,20 +4,34 @@ import { payWalletSessionOpts } from "./pay-wallet";
 
 describe("payWalletSessionOpts", () => {
   it("prefers AppKit and forbids burner when AppKit is configured without injected wallet", () => {
-    const o = payWalletSessionOpts({ hasInjected: false, appKitConfigured: true });
+    const o = payWalletSessionOpts({ hasInjected: false, appKitConfigured: true, burnerAllowed: true });
     assert.equal(o.preferWalletConnect, true);
     assert.equal(o.allowBurnerFallback, false);
   });
 
   it("uses injected when present and does not force AppKit modal", () => {
-    const o = payWalletSessionOpts({ hasInjected: true, appKitConfigured: true });
+    const o = payWalletSessionOpts({ hasInjected: true, appKitConfigured: true, burnerAllowed: true });
     assert.equal(o.preferWalletConnect, false);
     assert.equal(o.allowBurnerFallback, false);
   });
 
   it("allows burner only for local anvil-style setups without AppKit or injected", () => {
-    const o = payWalletSessionOpts({ hasInjected: false, appKitConfigured: false });
+    const o = payWalletSessionOpts({
+      hasInjected: false,
+      appKitConfigured: false,
+      burnerAllowed: true,
+    });
     assert.equal(o.preferWalletConnect, false);
     assert.equal(o.allowBurnerFallback, true);
+  });
+
+  it("refuses burner on non-anvil even when AppKit is not configured", () => {
+    const o = payWalletSessionOpts({
+      hasInjected: false,
+      appKitConfigured: false,
+      burnerAllowed: false,
+    });
+    assert.equal(o.preferWalletConnect, false);
+    assert.equal(o.allowBurnerFallback, false);
   });
 });
