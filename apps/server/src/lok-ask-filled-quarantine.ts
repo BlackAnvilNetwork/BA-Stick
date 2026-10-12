@@ -13,6 +13,7 @@
 import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { AskFilled } from "./ah-escrow";
+import { opsAlert } from "./ops-log";
 
 export const ASK_FILLED_QUARANTINE_FILE = "lok-ask-filled-quarantine.json";
 export const ASK_FILLED_MIRRORED_FILE = "lok-ask-filled-mirrored.json";
@@ -153,20 +154,22 @@ export function reasonFromEngineError(error: string): AskFillQuarantineReason | 
 }
 
 export function alertAskFilledQuarantine(entry: QuarantinedAskFill): void {
-  console.error(
-    "[bellgrave] ALERT AskFilled quarantined id=" +
+  opsAlert({
+    level: "alert",
+    event: "ask_filled_quarantine",
+    msg:
+      "AskFilled quarantined id=" +
       entry.id +
       " reason=" +
       entry.reason +
       " listing=" +
-      entry.fill.listingId +
-      " buyerToken=" +
-      entry.fill.buyerTokenId +
-      " price=" +
-      entry.fill.priceWei +
-      " err=" +
-      entry.error +
-      " — replay: pnpm --filter @bellgrave/server lok:replay-ask-filled " +
-      entry.id,
-  );
+      entry.fill.listingId,
+    id: entry.id,
+    reason: entry.reason,
+    listingId: entry.fill.listingId,
+    buyerTokenId: entry.fill.buyerTokenId,
+    priceWei: entry.fill.priceWei,
+    error: entry.error,
+    replay: "pnpm --filter @bellgrave/server lok:replay-ask-filled " + entry.id,
+  });
 }

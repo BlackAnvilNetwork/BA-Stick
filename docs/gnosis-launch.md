@@ -114,8 +114,32 @@ CHAIN_ID=100 VERIFIERS="sourcify blockscout" \
 4. Ruleset propose + 48h wait.
 5. Sourcify/Blockscout green on all four impls + AhEscrow (+ Items).
 6. Fund listing/rotator with minimal xDAI; sweep leftovers to treasury after ops.
-7. Server: copy `apps/server/.env.gnosis.example` → `.env.local` (`NETWORK=gnosis`, `LOK_LISTING_KEY`). Blank `LOK_NFT`/`LOK_FACTORY`/`LOK_AH_ESCROW` fill from `deployments/gnosis.json`. Web: `VITE_WALLETCONNECT_PROJECT_ID` + `VITE_NETWORK=gnosis` (or `VITE_CHAIN_ID=100`).
+7. Server: copy `apps/server/.env.gnosis.example` → `.env.local` (`NETWORK=gnosis`, `LOK_LISTING_KEY`, `LOK_DEPLOY_BLOCK`). Blank `LOK_NFT`/`LOK_FACTORY`/`LOK_AH_ESCROW` fill from deploy JSON **only after official deploy** — never the dry-run MockItems Checkpoint. Web: `VITE_WALLETCONNECT_PROJECT_ID` + `VITE_NETWORK=gnosis` (or `VITE_CHAIN_ID=100`).
 8. Confirmations: profile default 2 blocks (~10s); override with `LOK_CONFIRMATIONS`. RPC fallbacks: `LOK_CHAIN_RPC_URLS` (comma list from the gnosis profile).
+
+## Ops (production server)
+
+| Probe | URL | Meaning |
+|-------|-----|---------|
+| Liveness | `GET /health` | Process up (always 200 when listening) |
+| Readiness | `GET /ready` | Lok data dir open; RPC not stuck in hard fail |
+| Status | `GET /status` | JSON: network, RPC stats, watcher lags, dropped-cancel + quarantine counts, recent structured alerts |
+
+Same `PORT` as the WebSocket game server (default `8787`).
+
+**Structured alerts** — stderr JSON lines (`event`: `watcher_lag`, `nft_transfer_cancel_dropped`, `ask_filled_quarantine`). Lag threshold: `LOK_WATCHER_LAG_ALERT_BLOCKS` (default 50). Durable files under `LOK_DATA_DIR`:
+
+- `nft-transfer-cancel-dropped.json`
+- `lok-ask-filled-quarantine.json`
+
+**Backups** (cron recommended, e.g. hourly):
+
+```bash
+cd apps/server
+LOK_DATA_DIR=./data BACKUP_ROOT=./backups RETAIN=48 ./scripts/backup-data-dir.sh
+```
+
+Keys are never in the data dir — only rotate/sweep EOAs separately.
 
 ## Dry-run stuck funds (2026-10-12)
 

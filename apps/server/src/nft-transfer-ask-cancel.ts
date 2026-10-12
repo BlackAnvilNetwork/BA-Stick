@@ -17,6 +17,7 @@ import {
   watcherLagBlocks,
   watcherStartBlock,
 } from "./settlement-rpc";
+import { opsAlert, watcherLagAlertBlocks } from "./ops-log";
 import { defaultLokDir, type LokWorld } from "./lok-world";
 import { writeTextAtomic } from "./lok-vault";
 
@@ -266,17 +267,20 @@ export function recordDroppedPendingCancel(
   };
   const existing = readDroppedPendingCancels(path).filter((d) => d.listingId !== entry.listingId);
   writeTextAtomic(path, JSON.stringify({ dropped: existing.concat([entry]) }, null, 2) + "\n");
-  console.error(
-    "[bellgrave] ALERT: NFT transfer pending cancel dropped after " +
+  opsAlert({
+    level: "alert",
+    event: "nft_transfer_cancel_dropped",
+    msg:
+      "NFT transfer pending cancel dropped after " +
       entry.attempts +
       " attempts listing#" +
-      entry.listingId +
-      " char=" +
-      entry.sellerTokenId +
-      (entry.ambiguous ? " (ambiguous closed-ask)" : "") +
-      " — recorded in " +
-      path,
-  );
+      entry.listingId,
+    listingId: entry.listingId,
+    sellerTokenId: entry.sellerTokenId,
+    attempts: entry.attempts,
+    ambiguous: !!entry.ambiguous,
+    path,
+  });
   return entry;
 }
 
@@ -334,14 +338,19 @@ export function bumpPendingCancel(
         },
       );
     } else {
-      console.error(
-        "[bellgrave] ALERT: NFT transfer pending cancel dropped after " +
+      opsAlert({
+        level: "alert",
+        event: "nft_transfer_cancel_dropped",
+        msg:
+          "NFT transfer pending cancel dropped after " +
           attempts +
           " attempts listing#" +
-          row.listingId +
-          " char=" +
-          row.sellerTokenId,
-      );
+          row.listingId,
+        listingId: row.listingId,
+        sellerTokenId: row.sellerTokenId,
+        attempts,
+        recorded: false,
+      });
     }
     return null;
   }
@@ -720,15 +729,19 @@ export function startNftTransferAskCancelWatcher(
         cursor,
         confirmations,
       });
-      if (lag > 50n) {
-        console.error(
-          "[bellgrave] ALERT NFT transfer watcher lag=" +
-            lag.toString() +
-            " blocks tip=" +
-            (rpc.stats.tipBlock?.toString() ?? "?") +
-            " cursor=" +
-            cursor.toString(),
-        );
+      const lagAlert = watcherLagAlertBlocks();
+      if (lag > lagAlert) {
+        opsAlert({
+          level: "alert",
+          event: "watcher_lag",
+          msg: "NFT transfer watcher lag=" + lag.toString() + " blocks",
+          watcher: "nftTransfer",
+          lagBlocks: lag.toString(),
+          tip: rpc.stats.tipBlock?.toString() ?? null,
+          cursor: cursor.toString(),
+          threshold: lagAlert.toString(),
+          dedupeKey: "lag:nftTransfer:" + lag.toString(),
+        });
       }
       // Re-read+merge pending, then cursor — concurrent list-race enqueues survive this write.
       pending = persistPendingThenCursor(pendingPath, cursorPath, pending, cursor);

@@ -151,7 +151,9 @@ import type {
   UnitSnapshot,
 } from "@bellgrave/protocol";
 import { emptyBuffs, parseClientMessage } from "@bellgrave/protocol";
+import { createServer } from "node:http";
 import { WebSocketServer, type WebSocket } from "ws";
+import { handleOpsHttp } from "./ops-health";
 import {
   clearKnightBuffs,
   resolveKnightAbility,
@@ -5191,8 +5193,21 @@ function onMessage(ws: WebSocket, data: string) {
 }
 
 const AUTH_ORIGINS = authAllowlist();
+const OPS_STARTED_AT = Date.now();
+const httpServer = createServer((req, res) => {
+  if (
+    handleOpsHttp(req, res, {
+      lokReady: () => !!lok,
+      startedAtMs: OPS_STARTED_AT,
+    })
+  ) {
+    return;
+  }
+  res.writeHead(404, { "content-type": "text/plain" });
+  res.end("Not found");
+});
 const wss = new WebSocketServer({
-  port: PORT,
+  server: httpServer,
   verifyClient: (info: { origin: string }) => authVerifyClient(info),
 });
 wss.on("connection", (ws, req) => {
@@ -5237,4 +5252,9 @@ const SAVE_INTERVAL_MS = 15_000;
 setInterval(() => {
   for (const p of players.values()) rememberPlayer(p);
 }, SAVE_INTERVAL_MS);
-console.log(`[bellgrave] game server on ws://localhost:${PORT}`);
+httpServer.listen(PORT, () => {
+  console.log(`[bellgrave] game server on ws://localhost:${PORT}`);
+  console.log(
+    `[bellgrave] ops probes http://localhost:${PORT}/health|/ready|/status`,
+  );
+});

@@ -23,6 +23,7 @@ import {
   type AskFillQuarantineReason,
   type QuarantinedAskFill,
 } from "./lok-ask-filled-quarantine";
+import { opsAlert, watcherLagAlertBlocks } from "./ops-log";
 import { defaultLokDir, type LokWorld } from "./lok-world";
 
 /**
@@ -408,15 +409,19 @@ export function startAskFilledWatcher(
         cursor,
         confirmations,
       });
-      if (lag > 50n) {
-        console.error(
-          "[bellgrave] ALERT AskFilled watcher lag=" +
-            lag.toString() +
-            " blocks tip=" +
-            (rpc.stats.tipBlock?.toString() ?? "?") +
-            " cursor=" +
-            cursor.toString(),
-        );
+      const lagAlert = watcherLagAlertBlocks();
+      if (lag > lagAlert) {
+        opsAlert({
+          level: "alert",
+          event: "watcher_lag",
+          msg: "AskFilled watcher lag=" + lag.toString() + " blocks",
+          watcher: "askFilled",
+          lagBlocks: lag.toString(),
+          tip: rpc.stats.tipBlock?.toString() ?? null,
+          cursor: cursor.toString(),
+          threshold: lagAlert.toString(),
+          dedupeKey: "lag:askFilled:" + lag.toString(),
+        });
       }
     } catch (err) {
       console.error("[bellgrave] AhEscrow watcher", err);
