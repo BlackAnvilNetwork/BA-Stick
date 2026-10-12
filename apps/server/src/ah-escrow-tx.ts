@@ -334,8 +334,8 @@ export async function replacePendingOpenAsk(opts: {
           chain: c.chain,
         });
         const receipt = await waitReceipt(c.pub, hash, 1);
-        if (receipt.status !== "success") {
-          return { ok: false, error: "replacement cancelAsk reverted" };
+        if (!cancelReceiptProvesAskCancelled(receipt, opts.listingId, c.escrow)) {
+          return { ok: false, error: "replacement cancelAsk reverted or missing AskCancelled" };
         }
         openAskPendingStore(opts.dataDir).clear(opts.listingId);
         cancelTxRecordStore(opts.dataDir).set(opts.listingId, hash);
@@ -492,6 +492,9 @@ export async function openAskOnchain(opts: {
 /**
  * Verify a recorded cancelAsk receipt proves AskCancelled. Clears the record when
  * the tx reverted or succeeded without AskCancelled (buy race / Unauthorized).
+ *
+ * When `pollOnly` is set (LISTING queue path), uses a single getTransactionReceipt
+ * with no wait — pending/dropped hashes return keepWaiting so the queue is not held.
  */
 async function verifyRecordedCancel(opts: {
   listingId: string;
@@ -501,6 +504,8 @@ async function verifyRecordedCancel(opts: {
   confirmations: number;
   timeoutMs?: number;
   dataDir?: string;
+  /** Inside the LISTING queue: one receipt poll, never waitForTransactionReceipt. */
+  pollOnly?: boolean;
 }): Promise<
   | { ok: true; serverCancelled: true }
   | { ok: false; keepWaiting: true; error: string }
@@ -508,24 +513,39 @@ async function verifyRecordedCancel(opts: {
 > {
   const cancels = cancelTxRecordStore(opts.dataDir);
   let receipt: TransactionReceipt;
-  try {
-    receipt = await waitReceipt(
-      opts.pub,
-      opts.hash,
-      opts.confirmations >= 1 ? opts.confirmations : 1,
-      opts.timeoutMs,
-    );
-  } catch (err) {
-    return {
-      ok: false,
-      keepWaiting: true,
-      error:
-        "server cancelAsk " +
-        opts.hash +
-        " finality wait failed: " +
-        (err instanceof Error ? err.message : String(err)) +
-        " — retry; log escrow not released yet",
-    };
+  if (opts.pollOnly) {
+    try {
+      receipt = await opts.pub.getTransactionReceipt({ hash: opts.hash });
+    } catch {
+      return {
+        ok: false,
+        keepWaiting: true,
+        error:
+          "server cancelAsk " +
+          opts.hash +
+          " receipt not mined yet — retry; log escrow not released yet",
+      };
+    }
+  } else {
+    try {
+      receipt = await waitReceipt(
+        opts.pub,
+        opts.hash,
+        opts.confirmations >= 1 ? opts.confirmations : 1,
+        opts.timeoutMs,
+      );
+    } catch (err) {
+      return {
+        ok: false,
+        keepWaiting: true,
+        error:
+          "server cancelAsk " +
+          opts.hash +
+          " finality wait failed: " +
+          (err instanceof Error ? err.message : String(err)) +
+          " — retry; log escrow not released yet",
+      };
+    }
   }
   const decided = decideRecordedCancelReceipt(receipt, opts.listingId, opts.escrow);
   if (decided.decision === "serverCancelled") {
@@ -534,6 +554,41 @@ async function verifyRecordedCancel(opts: {
   // Reverted or mined without AskCancelled — never release log escrow.
   cancels.clear(opts.listingId);
   return { ok: false, notOurCancel: true };
+}
+
+/** Serialize cancel/reclaim for the same listingId (N-2). */
+const listingCancelLocks = new Map<string, Promise<unknown>>();
+
+export async function withListingCancelLock<T>(
+  listingId: string,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const prev = listingCancelLocks.get(listingId) ?? Promise.resolve();
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const chained = prev.then(
+    () => gate,
+    () => gate,
+  );
+  listingCancelLocks.set(listingId, chained);
+  try {
+    await prev.then(
+      () => undefined,
+      () => undefined,
+    );
+    return await fn();
+  } finally {
+    release();
+    if (listingCancelLocks.get(listingId) === chained) {
+      listingCancelLocks.delete(listingId);
+    }
+  }
+}
+
+export function resetListingCancelLocksForTests(): void {
+  listingCancelLocks.clear();
 }
 
 export async function cancelAskOnchain(opts: {
@@ -546,6 +601,24 @@ export async function cancelAskOnchain(opts: {
       hash: Hex;
       alreadyClosed?: boolean;
       /** This server's own cancelAsk mined with AskCancelled — safe to release log escrow. */
+      serverCancelled?: boolean;
+      neverOpened?: boolean;
+      pendingOpen?: boolean;
+    }
+  | { ok: false; error: string }
+> {
+  return withListingCancelLock(opts.listingId, () => cancelAskOnchainUnlocked(opts));
+}
+
+async function cancelAskOnchainUnlocked(opts: {
+  listingId: string;
+  env?: NodeJS.ProcessEnv;
+  dataDir?: string;
+}): Promise<
+  | {
+      ok: true;
+      hash: Hex;
+      alreadyClosed?: boolean;
       serverCancelled?: boolean;
       neverOpened?: boolean;
       pendingOpen?: boolean;
@@ -587,7 +660,10 @@ export async function cancelAskOnchain(opts: {
     const c = client(env);
     if (!c.ok) return c;
 
-    /** Only treat a recorded hash as our cancel after AskCancelled is proven. */
+    /**
+     * Only treat a recorded hash as our cancel after AskCancelled is proven.
+     * Poll receipt once (no 15m wait) so a pending/dropped hash cannot stall LISTING.
+     */
     const verifiedRecordedOrAlreadyClosed = async (): Promise<
       | {
           ok: true;
@@ -598,6 +674,7 @@ export async function cancelAskOnchain(opts: {
           chainId: number;
         }
       | { ok: true; hash: Hex; alreadyClosed: true }
+      | { ok: false; error: string }
     > => {
       const recorded = cancels.get(opts.listingId);
       if (recorded && /^0x[0-9a-fA-F]{64}$/.test(recorded.hash)) {
@@ -607,8 +684,8 @@ export async function cancelAskOnchain(opts: {
           pub: c.pub,
           escrow: c.escrow,
           confirmations: 1,
-          timeoutMs: CANCEL_FINALITY_TIMEOUT_MS,
           dataDir: opts.dataDir,
+          pollOnly: true,
         });
         if (verified.ok) {
           return {
@@ -621,8 +698,7 @@ export async function cancelAskOnchain(opts: {
           };
         }
         if ("keepWaiting" in verified && verified.keepWaiting) {
-          // Treat as not releaseable yet — surface as alreadyClosed wait for AskFilled / retry.
-          return { ok: true as const, hash: "0x" as Hex, alreadyClosed: true as const };
+          return { ok: false as const, error: verified.error };
         }
       }
       return { ok: true as const, hash: "0x" as Hex, alreadyClosed: true as const };

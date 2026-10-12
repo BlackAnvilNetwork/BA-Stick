@@ -152,5 +152,19 @@ export async function migrateCharacterWalletsToNftOwners(
       dedupeKey: "c1-migrate:" + out.rebound,
     });
   }
+  if (out.errors.length > 0) {
+    opsAlert({
+      level: "alert",
+      event: "ops",
+      msg:
+        "C-1 wallet migration ownerOf errors: " +
+        out.errors.length +
+        (out.errors[0] ? " (e.g. " + out.errors[0] + ")" : ""),
+      errors: out.errors.length,
+      checked: out.checked,
+      rebound: out.rebound,
+      dedupeKey: "c1-migrate-errors",
+    });
+  }
   return out;
 }

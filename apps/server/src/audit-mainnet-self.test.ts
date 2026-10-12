@@ -33,7 +33,10 @@ import {
   CANCEL_FINALITY_TIMEOUT_MS,
   cancelReceiptProvesAskCancelled,
   decideRecordedCancelReceipt,
+  resetListingCancelLocksForTests,
+  withListingCancelLock,
 } from "./ah-escrow-tx";
+import { recentOpsAlerts, resetOpsAlertsForTests } from "./ops-log";
 import {
   CancelTxRecordStore,
   resetCancelTxRecordForTests,
@@ -315,6 +318,57 @@ describe("ops auth + migration lows", () => {
     });
     assert.ok(maxInFlight <= 4, "concurrency capped, got " + maxInFlight);
     assert.ok(maxInFlight >= 2, "actually parallelized");
+  });
+
+  it("alerts when boot migration has ownerOf errors", async () => {
+    resetOpsAlertsForTests();
+    const lok = {
+      boundChars: () => [
+        {
+          charId: "c1",
+          tokenId: "1",
+          wallet: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        },
+      ],
+      rebindWallet: () => ({ ok: true as const, previous: null }),
+    };
+    const out = await migrateCharacterWalletsToNftOwners(lok, {
+      readOwner: async () => ({ ok: false as const, error: "rpc down" }),
+    });
+    assert.equal(out.errors.length, 1);
+    const alerts = recentOpsAlerts();
+    assert.ok(
+      alerts.some((a) => a.event === "ops" && /ownerOf errors/i.test(a.msg)),
+      "expected migration error alert",
+    );
+  });
+
+  it("serializes concurrent cancel/reclaim for the same listing", async () => {
+    resetListingCancelLocksForTests();
+    const order: string[] = [];
+    const a = withListingCancelLock("42", async () => {
+      order.push("a-start");
+      await new Promise((r) => setTimeout(r, 40));
+      order.push("a-end");
+      return 1;
+    });
+    const b = withListingCancelLock("42", async () => {
+      order.push("b-start");
+      order.push("b-end");
+      return 2;
+    });
+    const c = withListingCancelLock("99", async () => {
+      order.push("c");
+      return 3;
+    });
+    await Promise.all([a, b, c]);
+    assert.deepEqual(order.filter((x) => x.startsWith("a") || x.startsWith("b")), [
+      "a-start",
+      "a-end",
+      "b-start",
+      "b-end",
+    ]);
+    assert.ok(order.includes("c"));
   });
 });
 
