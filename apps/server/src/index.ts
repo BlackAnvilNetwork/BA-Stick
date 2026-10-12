@@ -181,6 +181,14 @@ import { hasKit } from "./support-job";
 import { pickDotKillCredit } from "./dot-credit";
 import { loadLokEnv, startKekDepositWatcher } from "./lok-chain";
 import {
+  ahEscrowAddress,
+  ahEscrowClientConfig,
+  cancelAskCastArgs,
+  openAskCastArgs,
+  startAskFilledWatcher,
+  type AskFilledApplied,
+} from "./ah-escrow";
+import {
   claimQueuedWithdrawal,
   depositKekOnchain,
   ensureLocalRuleset,
@@ -200,7 +208,6 @@ import { endClaim, guardedKekMove, guardedWithdraw, prepareClaim, readWithdrawIn
 import { characterNameKey, normalizeCharacterName } from "./character-name";
 import { randomBytes } from "node:crypto";
 import { authAllowlist, authVerifyClient, clientAddress, dropAuthConnection, issueAuthChallenge, resolveAuthOrigin, verifyAuthLogin, isEthAddress } from "./wallet-auth";
-import { ahEscrowAddress, openAskCastArgs } from "./ah-escrow";
 import { defaultLokDir, LokWorld } from "./lok-world";
 import { readPlayerProgress, reconcileCharacterProgress, playerProgressPath, rememberLedger, chargeSkillRespec, RESPEC_KEK_COST, shouldChargeForAbility, type PlayerProgress } from "./player-progress";
 import { debugCheatsEnabled } from "./debug-cheats";
@@ -493,6 +500,11 @@ const lok: LokWorld = await (async (): Promise<LokWorld> => {
       "[bellgrave] lok log " + world.logPath + " entries=" + world.length + ". " + world.chainNote,
     );
     startKekDepositWatcher(world);
+    startAskFilledWatcher(world, {
+      onFilled: (fill) => {
+        notifyAhEscrowFill(fill);
+      },
+    });
     startVaultSyncWorker(defaultLokDir());
     loadQueues(defaultLokDir());
     await reconcileQueuedWithdrawals(world);
@@ -677,6 +689,22 @@ function tellToken(tokenId: string, message: string) {
       pushLog(pl, message);
     }
   }
+}
+
+/** After AhEscrow AskFilled → chainFill: notify buyer/seller and refresh snapshots. */
+function notifyAhEscrowFill(fill: AskFilledApplied) {
+  const item = itemLabel(Number(fill.itemId));
+  tellToken(
+    fill.buyerTokenId,
+    "Bought " + item + " x" + fill.amount + " for " + fill.priceWei + " ETH on-chain. It is in your Provisioner inbox.",
+  );
+  if (fill.sellerTokenId && fill.sellerTokenId !== fill.buyerTokenId) {
+    tellToken(
+      fill.sellerTokenId,
+      "Your " + item + " ask #" + fill.listingId + " sold for " + fill.priceWei + " ETH (paid on-chain).",
+    );
+  }
+  broadcastSnapshots();
 }
 
 function handleLokImport(p: Player, tokenId: number, amount: number) {
@@ -1075,10 +1103,31 @@ function handleLokCancel(p: Player, listingId: string) {
     return;
   }
   const row = lok.view(token).listings.find((l) => l.id === listingId);
-  const res = lok.cancel(listingId, token);
+  const res = row?.book ? lok.cancelAsk(listingId, token) : lok.cancel(listingId, token);
   if (!res.ok) {
     pushLog(p, res.error);
     return;
+  }
+  const escrow = ahEscrowAddress();
+  const rpc = process.env.LOK_CHAIN_RPC?.trim();
+  const key = process.env.LOK_OWNER_KEY?.trim() || process.env.LOK_LISTING_KEY?.trim();
+  if (row?.book && escrow && rpc && key) {
+    void import("node:child_process")
+      .then(({ execFile }) => {
+        execFile("cast", cancelAskCastArgs(escrow, listingId, rpc, key), { timeout: 60_000 }, (err) => {
+          if (err) {
+            console.error("[bellgrave] AhEscrow cancelAsk failed for listing", listingId, err.message);
+            pushLog(
+              p,
+              "Cancelled #" + listingId + " on the log, but the on-chain ask may still be open. Contact ops if a buyer can still pay.",
+            );
+            send(p.ws, snapshotFor(p));
+          }
+        });
+      })
+      .catch(() => {
+        /* cast optional */
+      });
   }
   pushLog(
     p,
@@ -1099,6 +1148,20 @@ function handleLokReclaim(p: Player, listingId: string) {
   if (!res.ok) {
     pushLog(p, res.error);
     return;
+  }
+  const escrow = ahEscrowAddress();
+  const rpc = process.env.LOK_CHAIN_RPC?.trim();
+  const key = process.env.LOK_OWNER_KEY?.trim() || process.env.LOK_LISTING_KEY?.trim();
+  if (escrow && rpc && key) {
+    void import("node:child_process")
+      .then(({ execFile }) => {
+        execFile("cast", cancelAskCastArgs(escrow, listingId, rpc, key), { timeout: 60_000 }, (err) => {
+          if (err) console.error("[bellgrave] AhEscrow cancelAsk after reclaim failed", listingId, err.message);
+        });
+      })
+      .catch(() => {
+        /* cast optional */
+      });
   }
   pushLog(p, "Reclaimed listing #" + listingId + " into your Provisioner inbox.");
   send(p.ws, snapshotFor(p));
@@ -2323,7 +2386,12 @@ function snapshotFor(p: Player): SnapshotMessage {
       freeStats: { ...p.freeStats },
       lok: (() => {
         const view = lok.view(lokToken(p));
-        return { ...view, withdrawDelaySec: vaultDelaySec(), queues: queuesFor(view.tokenId) };
+        return {
+          ...view,
+          ahEscrow: ahEscrowClientConfig(),
+          withdrawDelaySec: vaultDelaySec(),
+          queues: queuesFor(view.tokenId),
+        };
       })(),
     },
     units,

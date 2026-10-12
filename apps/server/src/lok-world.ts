@@ -566,6 +566,16 @@ export class LokWorld {
     return this.apply({ op: "cancel", listingId, seller });
   }
 
+  /** Cancel an order-book ask into the seller inbox (not the legacy bid/settle path). */
+  cancelAsk(listingId: string, seller: string): LokResult {
+    return this.apply({ op: "cancelAsk", listingId, seller });
+  }
+
+  /** Open ask/listing row, if any. Used before chainFill removes it. */
+  listingOf(listingId: string): EngineListing | undefined {
+    return this.state.listings.find((row) => row.id === listingId);
+  }
+
   settle(listingId: string): LokResult {
     return this.apply({ op: "settle", listingId });
   }
@@ -810,6 +820,7 @@ export class LokWorld {
       inbox,
       listings,
       chain: this.chain,
+      ahEscrow: null,
       withdrawDelaySec: null,
       queues: [],
     };

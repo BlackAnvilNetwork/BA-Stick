@@ -4,7 +4,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import { keccak256, stringToHex } from "viem";
-import { ASK_FILLED_TOPIC, applyAskFilled, decodeAskFilled } from "./ah-escrow";
+import {
+  ASK_FILLED_TOPIC,
+  ahEscrowClientConfig,
+  applyAskFilled,
+  classifyAskFilledFailure,
+  decodeAskFilled,
+  fillKeyOf,
+  scanAskFilled,
+} from "./ah-escrow";
 import { LokWorld } from "./lok-world";
 
 describe("AhEscrow AskFilled mirror", () => {
@@ -86,5 +94,68 @@ describe("AhEscrow AskFilled mirror", () => {
       lok.view(seller.tokenId).listings.some((l) => l.id === ask.listingId),
       false,
     );
+  });
+
+  it("classifyAskFilledFailure treats unknown listing as replay", () => {
+    assert.equal(classifyAskFilledFailure("Unknown listing"), "replay");
+    assert.equal(classifyAskFilledFailure("price mismatch OverAsk"), "other");
+  });
+
+  it("ahEscrowClientConfig needs address + http rpc + chain id", () => {
+    assert.equal(ahEscrowClientConfig({}), null);
+    assert.deepEqual(
+      ahEscrowClientConfig({
+        LOK_AH_ESCROW: "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707",
+        LOK_CHAIN_RPC: "http://127.0.0.1:8545",
+        LOK_CHAIN_ID: "31337",
+      }),
+      {
+        address: "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707",
+        rpcUrl: "http://127.0.0.1:8545",
+        chainId: 31337,
+      },
+    );
+  });
+
+  it("scanAskFilled applies confirmed logs and advances the cursor", async () => {
+    const pad = (n: bigint) => n.toString(16).padStart(64, "0");
+    const addrPad = (a: string) => a.slice(2).toLowerCase().padStart(64, "0");
+    const listingId = 9n;
+    const buyer = "0x00000000000000000000000000000000000000bb";
+    const buyerToken = 2n;
+    const sellerPayout = "0x00000000000000000000000000000000000000aa";
+    const price = 500n;
+    const itemId = 111n;
+    const amount = 1n;
+    const log = {
+      topics: [
+        ASK_FILLED_TOPIC,
+        "0x" + pad(listingId),
+        "0x" + addrPad(buyer),
+        "0x" + pad(buyerToken),
+      ],
+      data: "0x" + addrPad(sellerPayout) + pad(price) + pad(itemId) + pad(amount),
+      blockNumber: "0x5",
+      logIndex: "0x0",
+      transactionHash: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    };
+    const applied: string[] = [];
+    const next = await scanAskFilled({
+      cursor: 0n,
+      escrow: "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707",
+      rpcCall: async (method) => {
+        if (method === "eth_blockNumber") return "0x8";
+        if (method === "eth_getLogs") return [log];
+        throw new Error("unexpected " + method);
+      },
+      apply: (fill, fillKey) => {
+        applied.push(fill.listingId + ":" + fillKey);
+        assert.equal(fillKey, fillKeyOf(log));
+        return { ok: true };
+      },
+    });
+    // safeHead = 8 - 2 = 6; cursor advances to 7
+    assert.equal(next.cursor, 7n);
+    assert.deepEqual(applied, ["9:" + fillKeyOf(log)]);
   });
 });

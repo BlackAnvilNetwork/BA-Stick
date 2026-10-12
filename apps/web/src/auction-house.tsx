@@ -1,8 +1,18 @@
 import { CATALOG, EQUIP_SLOTS, getItem, type EquipSlot, type ItemDef, type ItemKind } from "@bellgrave/items";
-import { compareAsks, MAX_QUANTITY_FILLS, planQuantityFills, type AskQuote, type LokListingView, type QuantityPlan } from "@bellgrave/protocol";
+import {
+  compareAsks,
+  MAX_QUANTITY_FILLS,
+  planQuantityFills,
+  type AhEscrowClientConfig,
+  type AskQuote,
+  type LokListingView,
+  type QuantityPlan,
+} from "@bellgrave/protocol";
 import { useState } from "react";
+import { buyAsksWithWallet } from "./ah-buy";
 import { ItemCatalogDetails, ItemTipHost } from "./itemTip";
 import { send } from "./net";
+import { useGame } from "./state";
 
 const WEEK_SEC = 7 * 24 * 60 * 60;
 
@@ -181,14 +191,20 @@ function buyNote(plan: QuantityPlan, qty: number): string {
   return "Total " + total + " ETH across " + plan.fills.length + " asks. Each ask is charged its own price, not a blended rate." + over + short;
 }
 
-type Props = { listings: LokListingView[]; buyer: string };
+type Props = {
+  listings: LokListingView[];
+  buyer: string;
+  ahEscrow?: AhEscrowClientConfig | null;
+};
 
-export function AuctionBook({ listings, buyer }: Props) {
+export function AuctionBook({ listings, buyer, ahEscrow }: Props) {
+  const pushLog = useGame((s) => s.pushLog);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
   const [equipmentOpen, setEquipmentOpen] = useState(true);
   const [buyingId, setBuyingId] = useState<number | null>(null);
   const [qtyText, setQtyText] = useState("1");
+  const [paying, setPaying] = useState(false);
   const lines = commodities(listings, query, selected);
   const buying = buyingId == null ? null : commodityById(listings, buyingId);
   const qty = Number(qtyText);
@@ -197,6 +213,31 @@ export function AuctionBook({ listings, buyer }: Props) {
       ? planQuantityFills(buying.rows.map(quoteOf), buyer, buying.itemId, qty)
       : { fills: [], filled: "0", short: true };
   const yours = listings.filter((row) => row.yours || row.highBidder === buyer);
+  const canPay = !!ahEscrow && plan.fills.length > 0 && !paying;
+
+  async function payWithEth() {
+    if (!ahEscrow || !buying || plan.fills.length === 0 || paying) return;
+    setPaying(true);
+    try {
+      const res = await buyAsksWithWallet({
+        escrow: ahEscrow,
+        buyerTokenId: buyer,
+        fills: plan.fills.map((fill) => ({ listingId: fill.id, priceWei: fill.price })),
+      });
+      if (!res.ok) {
+        pushLog("Error: " + res.error);
+        return;
+      }
+      pushLog(
+        "Submitted " +
+          res.hashes.length +
+          " AhEscrow buy(s). Items land in your Provisioner inbox after the server sees AskFilled.",
+      );
+      setBuyingId(null);
+    } finally {
+      setPaying(false);
+    }
+  }
   const searching = query.trim().length > 0;
 
   return (
@@ -328,11 +369,18 @@ export function AuctionBook({ listings, buyer }: Props) {
           </ul>
           <p className="lok-note">{buyNote(plan, qty)}</p>
           <p className="lok-note">
-            Buys pay ETH on-chain through AhEscrow (EEZ sync from your home chain). There is no in-game deposit —
-            the log only receives the item after the chain fill.
+            {ahEscrow
+              ? "Buys pay ETH from your wallet to AhEscrow. The log only receives the item after AskFilled is confirmed."
+              : "AhEscrow is not configured on this server (set LOK_AH_ESCROW + LOK_CHAIN_RPC). Buys stay disabled."}
           </p>
-          <button type="button" className="boot-primary" disabled title="Wallet EEZ buyAsk path not wired in the client yet">
-            Pay with ETH (wallet)
+          <button
+            type="button"
+            className="boot-primary"
+            disabled={!canPay}
+            title={ahEscrow ? "Sign buyAsk with your local wallet" : "AhEscrow not configured"}
+            onClick={() => void payWithEth()}
+          >
+            {paying ? "Paying…" : "Pay with ETH"}
           </button>
           <YourAsks rows={buying.rows.filter((row) => row.yours)} />
         </div>

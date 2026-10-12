@@ -52,7 +52,7 @@ export function LokPanel({ you, onClose }: Props) {
         in-game deposit or spendable ETH balance.
       </p>
 
-      <AuctionBook listings={lok.listings} buyer={lok.tokenId} />
+      <AuctionBook listings={lok.listings} buyer={lok.tokenId} ahEscrow={lok.ahEscrow ?? null} />
       <ProvisionerBag
         inventory={you.inventory}
         logItems={lok.items}

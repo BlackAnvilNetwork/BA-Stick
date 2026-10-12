@@ -163,11 +163,11 @@ Gold stays log-only for training/craft — EEZ does not need to touch it.
 
 **Phase 0:** Gold sinks; refuse client deposit/withdraw/send-ETH/log-balance buy/bid; docs lock EEZ-only pay.
 
-**Phase 1 (in progress) — first-party `AhEscrow`:**  
-`AhEscrow.sol` `openAsk` / `buyAsk{value}` / `cancelAsk`; pays seller immediately; emits `AskFilled`. Engine `ChainFill` mirrors **items only** (no `Key::Kek`). Server `ah-escrow.ts` decodes fills and applies `chainFill` after a noted on-chain receipt. EEZ sync call from L1 still to wire.
+**Phase 1 — first-party `AhEscrow` (wired):**  
+`AhEscrow.sol` `openAsk` / `buyAsk{value}` / `cancelAsk`. Engine `ChainFill`. Server watches `AskFilled` → `chainFill`. Client signs `buyAsk` via local wallet when snapshot exposes `ahEscrow` (`LOK_AH_ESCROW` + `LOK_CHAIN_RPC` / `LOK_PUBLIC_RPC`). List/cancel/reclaim sync on-chain asks via cast + LISTING_ROLE.
 
 **Phase 2 — EEZ sync buy from L1 (or home rollup):**  
-Client “Pay from Ethereum”; unwrap WETH if needed; one sync call with value.
+Same `buyAsk` entrypoint; client/relayer builds EEZ batch with `value` instead of a plain home-chain tx. Unwrap WETH if needed.
 
 **Phase 3 — seller home payout + PvP stakes** in the same batch model.
 

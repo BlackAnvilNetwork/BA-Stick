@@ -357,14 +357,22 @@ export type LokListingView = {
   yours: boolean;
 };
 
+/** Browser-reachable AhEscrow config so the client can sign buyAsk. Null when unset. */
+export type AhEscrowClientConfig = {
+  address: string;
+  rpcUrl: string;
+  chainId: number;
+};
+
 export type LokSnapshot = {
   tokenId: string;
   /**
    * Settlement balance for AH bids/asks and player sends (ETH/WETH wei on the log).
    * Engine event names still say Kek for replay; product unit is ETH.
+   * New play does not credit this for AH — payment is on-chain via AhEscrow.
    */
   kek: string;
-  /** Same as `kek` — preferred client field for AH / sends (ETH). */
+  /** Same as `kek` — preferred client field for legacy settlement display. */
   eth?: string;
   /** In-game gold (log-only). Trainer / craft / respec spend this, not ETH. */
   gold?: string;
@@ -372,8 +380,10 @@ export type LokSnapshot = {
   /** Provisioner inbox. Sends, sales, cancels, and reclaims land here, not in the bag. */
   inbox: LokItemBalance[];
   listings: LokListingView[];
-  /** engine-only: no endpoint. rpc-unwatched: endpoint set, vault not followed. watching: deposits are applied from the checkpoint. */
+  /** engine-only: no endpoint. rpc-unwatched: endpoint set, vault not followed. watching: AhEscrow and/or checkpoint are followed. */
   chain: "engine-only" | "rpc-unwatched" | "watching";
+  /** Present when the server exposes a public RPC + AhEscrow address for wallet buys. */
+  ahEscrow?: AhEscrowClientConfig | null;
   withdrawDelaySec: number | null;
   queues: { id: string; amount: string; availableAt: number }[];
 };
