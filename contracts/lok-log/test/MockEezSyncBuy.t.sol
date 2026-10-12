@@ -26,6 +26,7 @@ contract MockEezSyncBuyTest is Test {
     function setUp() public {
         nft = new MockOwnerNft();
         nft.setOwner(SELLER_TOKEN, sellerHome);
+        nft.setOwner(BUYER_TOKEN, buyerHome);
         escrow = new AhEscrow(admin, address(nft), payable(feeTo));
         mock = new MockEezSyncBuy(escrow, ZONE);
         vm.deal(buyerHome, 1 ether);

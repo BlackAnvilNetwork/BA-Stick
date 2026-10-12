@@ -146,6 +146,15 @@ describe("support 9692ea2: AskFilled while the server was down", { skip: !canRun
         args: [BigInt(seller), "0x00000000000000000000000000000000000000aa"],
       }),
     });
+    // L-4: buyAsk requires ownerOf(buyerTokenId).
+    await pub.waitForTransactionReceipt({
+      hash: await lister.writeContract({
+        address: nft,
+        abi: ABI,
+        functionName: "setOwner",
+        args: [BigInt(buyer), buyerW.account.address],
+      }),
+    });
     const startBlock = BigInt(String(await rpc("eth_blockNumber", [])));
     for (const id of [idA, idB]) {
       const h = await lister.writeContract({

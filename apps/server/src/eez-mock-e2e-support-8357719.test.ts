@@ -167,6 +167,15 @@ describe("support 8357719: EEZ mock sync buy (throwaway anvil)", { skip: !canRun
         args: [BigInt(s.tokenId), payout],
       }),
     });
+    // L-4: buyAsk / syncBuy require ownerOf(buyerTokenId).
+    await pub.waitForTransactionReceipt({
+      hash: await lister.writeContract({
+        address: nft,
+        abi: NFT_ABI,
+        functionName: "setOwner",
+        args: [BigInt(b.tokenId), buyer.address],
+      }),
+    });
     const fee = P / 100n;
     const sellerNet = P - fee;
     const start = BigInt(String(await rpc("eth_blockNumber", [])));
