@@ -2,7 +2,7 @@
 
 interface ImportMetaEnv {
   readonly VITE_WS_URL?: string;
-  /** WalletConnect Cloud project id — enables the Connect Wallet button. */
+  /** Reown / WalletConnect project id — enables AppKit picker. Injected MetaMask works without it. */
   readonly VITE_WALLETCONNECT_PROJECT_ID?: string;
   /** Public RPC for WalletConnect / pay flows (Gnosis default in .env.example). */
   readonly VITE_RPC_URL?: string;
