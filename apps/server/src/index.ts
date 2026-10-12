@@ -649,6 +649,10 @@ function logLokHarvest(p: Player, materialId: string, amount: number) {
   if (!token) return;
   const res = lok.harvest(token, materialId, String(amount));
   if (!res.ok) pushLog(p, "Gather was not written to your log: " + res.error);
+  else {
+    // Placeholder harvest faucet until E5 budget sheet lands (10 gold per unit).
+    earnLogGold(p, "harvest", amount * 10);
+  }
 }
 
 function logLokDrop(p: Player, itemId: number, amount: number) {
@@ -852,6 +856,11 @@ function failAction(p: Player, label: string): void {
   }
 }
 
+/** UTC day id stamped on GoldEarn / GoldSell (engine daily caps). */
+function serverGoldDay(nowMs: number = Date.now()): number {
+  return Math.floor(nowMs / 86_400_000);
+}
+
 function spendLogKek(p: Player, amount: number): Promise<{ ok: true } | { ok: false; error: string }> {
   if (!Number.isSafeInteger(amount) || amount < 0) return Promise.resolve({ ok: false, error: "Bad KEK cost." });
   if (amount === 0) return Promise.resolve({ ok: true });
@@ -873,6 +882,38 @@ function spendLogKek(p: Player, amount: number): Promise<{ ok: true } | { ok: fa
     if (spent.ok) sinkOrMove({ kind: "sink", tokenId: token, amount: String(amount) });
     return spent;
   });
+}
+
+/** Spend in-game gold (trainer, craft, respec). Not vault KEK / WETH. */
+function spendLogGold(
+  p: Player,
+  amount: number,
+  sink: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!Number.isSafeInteger(amount) || amount < 0) return Promise.resolve({ ok: false, error: "Bad gold cost." });
+  if (amount === 0) return Promise.resolve({ ok: true });
+  const token = lokToken(p);
+  if (!token) return Promise.resolve({ ok: false, error: "Could not open your log identity." });
+  return guardedKekMove(token, async () => {
+    let bal: bigint;
+    let cost: bigint;
+    try {
+      bal = BigInt(lok.goldOf(token));
+      cost = BigInt(amount);
+    } catch {
+      return { ok: false, error: "Bad gold balance." };
+    }
+    if (bal < cost) return { ok: false, error: "Need " + amount + " gold (you have " + bal.toString() + ")." };
+    return lok.goldSpend(token, sink, String(amount));
+  });
+}
+
+function earnLogGold(p: Player, source: string, amount: number): void {
+  if (!Number.isSafeInteger(amount) || amount <= 0) return;
+  const token = lokToken(p);
+  if (!token) return;
+  const res = lok.goldEarn(token, source, String(amount), serverGoldDay());
+  if (!res.ok) pushLog(p, "Gold was not written to your log: " + res.error);
 }
 
 function handleLokDeposit(p: Player, amount: string) {
@@ -1206,20 +1247,19 @@ function handleSkillRespec(p: Player) {
       const token = lokToken(p);
       if (!token) return { ok: false, error: "Could not open your log identity." };
       return guardedKekMove(token, async () => {
-        const gate = await vaultClaimBlocked();
-        if (gate.blocked) return { ok: false, error: gate.error };
         let bal: bigint;
         let cost: bigint;
         try {
-          bal = BigInt(lok.kekOf(token)) - reservedOf(token);
+          bal = BigInt(lok.goldOf(token));
           cost = BigInt(amount);
         } catch {
-          return { ok: false, error: "Bad KEK balance." };
+          return { ok: false, error: "Bad gold balance." };
         }
-        if (bal < cost) return { ok: false, error: "Need " + amount + " KEK (you have " + bal.toString() + ")." };
-        const spent = lok.paidRespecSkills(token, String(amount), nodeIds);
-        if (spent.ok) sinkOrMove({ kind: "sink", tokenId: token, amount: String(amount) });
-        return spent;
+        if (bal < cost) return { ok: false, error: "Need " + amount + " gold (you have " + bal.toString() + ")." };
+        if (nodeIds.length === 0) return { ok: false, error: "No paid skill nodes to respec." };
+        const spent = lok.goldSpend(token, "respec", String(amount));
+        if (!spent.ok) return spent;
+        return lok.respecSkills(token, nodeIds);
       });
     },
     apply: (unlocked, skillPoints) => {
@@ -1230,7 +1270,7 @@ function handleSkillRespec(p: Player) {
     },
   }).then((result) => {
     if (!result.ok) pushLog(p, result.error === "no longer available" ? "No paid skill nodes to respec." : result.error);
-    else pushLog(p, "Respec paid " + RESPEC_KEK_COST + " KEK. The tree was cleared and the points were refunded.");
+    else pushLog(p, "Respec paid " + RESPEC_KEK_COST + " gold. The tree was cleared and the points were refunded.");
     syncVitals(p, false);
     send(p.ws, snapshotFor(p));
   }).catch(() => failAction(p, "Respec"));
@@ -3218,11 +3258,11 @@ async function handleSpellBuy(p: Player, id: AbilityId) {
         if (at >= 0) p.learned.splice(at, 1);
       };
     },
-    () => spendLogKek(p, cost),
+    () => spendLogGold(p, cost, "trainer"),
     () => {
       logLokAbility(p, id);
       rememberPlayer(p);
-      pushLog(p, "Learned " + abilityLabel(id) + " (-" + cost + " KEK).");
+      pushLog(p, "Learned " + abilityLabel(id) + " (-" + cost + " gold).");
       send(p.ws, snapshotFor(p));
       handleNpcInteract(p, TRAINER.id);
     },
@@ -3231,7 +3271,7 @@ async function handleSpellBuy(p: Player, id: AbilityId) {
     if (charged.error === "no longer available") {
       pushLog(p, "You already know " + abilityLabel(id) + ".");
     } else {
-      pushLog(p, "Need " + cost + " KEK for " + abilityLabel(id) + ". " + charged.error);
+      pushLog(p, "Need " + cost + " gold for " + abilityLabel(id) + ". " + charged.error);
     }
   }
 }
@@ -4392,7 +4432,7 @@ async function handleCraft(p: Player, itemId: number) {
     pushLog(p, "Recipe materials unknown or incomplete — cannot craft.");
     return;
   }
-  const kekCost = def.recipe?.kek ?? 0;
+  const goldCost = def.recipe?.kek ?? 0;
   const charged = await withPlayerCharge(
     p.charId,
     () => {
@@ -4414,7 +4454,7 @@ async function handleCraft(p: Player, itemId: number) {
         for (const prev of taken) grantBaseMat(p, prev.slug, prev.qty);
       };
     },
-    () => spendLogKek(p, kekCost),
+    () => spendLogGold(p, goldCost, "craft"),
     () => {
       if (def.kind === "base") grantBaseMat(p, def.slug, 1);
       else addItem(p.inventory, def.id, 1);
@@ -4434,7 +4474,7 @@ async function handleCraft(p: Player, itemId: number) {
       if (preview.length === 0) pushLog(p, "Recipe materials unknown.");
       else pushLog(p, "Need materials: " + preview.map((m) => m.name + " x" + m.qty).join(", ") + ".");
     } else {
-      pushLog(p, "Need " + kekCost + " KEK to craft " + def.name + ". " + charged.error);
+      pushLog(p, "Need " + goldCost + " gold to craft " + def.name + ". " + charged.error);
     }
   }
 }

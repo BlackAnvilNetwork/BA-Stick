@@ -55,8 +55,8 @@ Caveats (do not paper over):
 
 ## Integration sketch (implementation order)
 
-1. **Docs / CONTRACTS.md** — this file; unlock KEK-as-spend; lock gold + WETH + EEZ (done in the same change set).
-2. **E1 gold ledger** — earn/spend/NPC sell with daily caps; trainer + craft move to gold.
+1. **Docs / CONTRACTS.md** — this file; unlock KEK-as-spend; lock gold + WETH + EEZ (done).
+2. **E1 gold ledger** — engine `GoldEarn` / `GoldSpend` / `GoldSell` with daily caps; trainer, craft, and respec spend gold; harvest credits a placeholder gold faucet (tune in E5).
 3. **Game-side WETH escrow** — first-party contracts: bid/list/PvP stake hold WETH; settle pays seller / winner. Prefer WETH ERC-20 on the game rollup for AH book math; wrap native `value` from EEZ calls at the edge.
 4. **EEZ wiring** — register Bellgrave rollup (or host AH/PvP contracts where EEZ can target them); client builds sync calls so L1 ETH funds escrow without a pre-deposit. Do not depend on upstream periphery Bridge for production.
 5. **Engine log** — append-only WETH credit/debit/escrow events mirroring on-chain escrow outcomes the server is allowed to trust (same discipline as today’s deposit watcher: client cannot invent custody).

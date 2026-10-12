@@ -140,6 +140,24 @@ function describe(entry: RawEntry, logTokenId: string, nameOf: (tokenId: string)
       bits.push("kek");
       break;
     }
+    case "goldEarn": {
+      character = who(token) || owner;
+      text = `${character} earned ${amount} gold (${field(input, "source") || "source"})`;
+      bits.push("gold");
+      break;
+    }
+    case "goldSpend": {
+      character = who(token) || owner;
+      text = `${character} spent ${amount} gold (${field(input, "sink") || "sink"})`;
+      bits.push("gold");
+      break;
+    }
+    case "goldSell": {
+      character = who(token) || owner;
+      text = `${character} sold ${item} x${field(input, "qty") || amount} for ${amount} gold`;
+      bits.push("gold");
+      break;
+    }
     case "sendItem": {
       const from = field(input, "from");
       const to = field(input, "to");

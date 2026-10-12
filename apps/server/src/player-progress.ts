@@ -297,14 +297,17 @@ export function hydrateSkillTree(
   return !same || addedPaid !== 0 || removedPaid !== 0;
 }
 
-export const RESPEC_KEK_COST = 10_000;
+/** Gold cost to clear paid skill nodes (was KEK; gold + WETH economy). */
+export const RESPEC_GOLD_COST = 10_000;
+/** @deprecated Use RESPEC_GOLD_COST. */
+export const RESPEC_KEK_COST = RESPEC_GOLD_COST;
 
 export async function chargeSkillRespec(args: {
   charId: string;
   paidNodes: () => string[];
   earnedPoints: number;
   kept: (clearIds: readonly string[]) => string[];
-  /** One call that debits KEK and clears the tree together (or fails without spending). */
+  /** One call that debits gold and clears the tree together (or fails without spending). */
   payAndClear: (amount: number, nodeIds: string[]) => Promise<{ ok: true } | { ok: false; error: string }>;
   apply: (unlocked: string[], skillPoints: number) => void;
 }): Promise<{ ok: true; unlocked: string[]; skillPoints: number } | { ok: false; error: string }> {
@@ -317,7 +320,7 @@ export async function chargeSkillRespec(args: {
       return clearIds.length > 0;
     },
     () => () => {},
-    () => args.payAndClear(RESPEC_KEK_COST, clearIds),
+    () => args.payAndClear(RESPEC_GOLD_COST, clearIds),
     () => {
       const unlocked = args.kept(clearIds);
       args.apply(unlocked, args.earnedPoints);

@@ -26,6 +26,8 @@ type EngineCraftSkill = { skillId: string; level: number };
 type EngineCharacter = {
   tokenId: string;
   kek: string;
+  /** In-game gold (log-only). Absent on logs that never earned gold. */
+  gold?: string;
   vaultClaim?: string;
   sunkKek?: string;
   inboundApplied?: number;
@@ -300,9 +302,25 @@ export class LokWorld {
   /**
    * Spend deposited KEK on an in-game price. Debits spendable balance only.
    * Escrowed bids stay locked. Does not mint and does not withdraw.
+   * Prefer goldSpend for trainer / craft / respec (gold + WETH economy).
    */
   spendKek(tokenId: string, amount: string): LokResult {
     return this.apply({ op: "spendKek", tokenId, amount });
+  }
+
+  /** Credit in-game gold. `day` is a server-stamped day id (engine enforces caps). */
+  goldEarn(tokenId: string, source: string, amount: string, day: number): LokResult {
+    return this.apply({ op: "goldEarn", tokenId, source, amount, day });
+  }
+
+  /** Debit in-game gold for a sink (trainer, craft, respec, shop). */
+  goldSpend(tokenId: string, sink: string, amount: string): LokResult {
+    return this.apply({ op: "goldSpend", tokenId, sink, amount });
+  }
+
+  /** NPC buy-back: burn items, credit gold under the npc_sell earn cap. */
+  goldSell(tokenId: string, itemId: string, qty: string, amount: string, day: number): LokResult {
+    return this.apply({ op: "goldSell", tokenId, itemId, qty, amount, day });
   }
 
   /** Record the next level. Rejects a skip. Does not mint KEK. */
@@ -752,6 +770,7 @@ export class LokWorld {
     return {
       tokenId,
       kek: me?.kek ?? "0",
+      gold: me?.gold ?? "0",
       items,
       inbox,
       listings,
@@ -763,6 +782,10 @@ export class LokWorld {
 
   kekOf(tokenId: string): string {
     return this.state.characters.find((c) => c.tokenId === tokenId)?.kek ?? "0";
+  }
+
+  goldOf(tokenId: string): string {
+    return this.state.characters.find((c) => c.tokenId === tokenId)?.gold ?? "0";
   }
 
   vaultClaim(tokenId: string): string {

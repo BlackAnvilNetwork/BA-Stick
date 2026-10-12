@@ -4,6 +4,7 @@ use std::fmt;
 
 use crate::chain::Chain;
 use crate::event::{entry_hash, item_drop_credits_at, Input, Outcome};
+use crate::gold::{self, GoldError};
 use crate::ids::genesis_root;
 use crate::state::{label_key, Key, State};
 use crate::u256::U256;
@@ -17,8 +18,15 @@ pub enum EngineError {
     SelfTransfer,
     ZeroAmount,
     InsufficientKek,
+    InsufficientGold,
     InsufficientItem,
     Overflow,
+    /// Daily gold earn cap (per source or total) would be exceeded.
+    EarnCap,
+    /// Gold earn day is older than the day already accumulated on the log.
+    StaleDay,
+    /// Gold earn day was zero or otherwise unusable.
+    BadDay,
     ListingExists,
     AlreadyListed,
     UnknownListing,
@@ -70,8 +78,12 @@ impl fmt::Display for EngineError {
             Self::SelfTransfer => write!(f, "cannot send to self"),
             Self::ZeroAmount => write!(f, "amount must be greater than zero"),
             Self::InsufficientKek => write!(f, "insufficient KEK"),
+            Self::InsufficientGold => write!(f, "insufficient gold"),
             Self::InsufficientItem => write!(f, "insufficient item"),
             Self::Overflow => write!(f, "balance overflow"),
+            Self::EarnCap => write!(f, "daily gold earn cap"),
+            Self::StaleDay => write!(f, "gold earn day is stale"),
+            Self::BadDay => write!(f, "gold earn day is invalid"),
             Self::ListingExists => write!(f, "listing id already exists"),
             Self::AlreadyListed => write!(f, "item is already listed"),
             Self::UnknownListing => write!(f, "unknown listing"),
@@ -239,6 +251,19 @@ impl Engine {
                 }
                 self.debit_kek(*token_id, *amount)?;
                 self.respec_skills(*token_id, node_ids)
+            }
+            Input::GoldEarn { token_id, source, amount, day } => {
+                self.involves(token_id)?;
+                gold::credit_earn(&mut self.state, source, *amount, *day).map_err(gold_err)
+            }
+            Input::GoldSpend { token_id, sink, amount } => {
+                self.involves(token_id)?;
+                parse_label(sink)?;
+                gold::debit_spend(&mut self.state, *amount).map_err(gold_err)
+            }
+            Input::GoldSell { token_id, item_id, qty, amount, day } => {
+                self.involves(token_id)?;
+                gold::sell_item(&mut self.state, *item_id, *qty, *amount, *day).map_err(gold_err)
             }
         }
     }
@@ -479,5 +504,18 @@ impl Engine {
             self.state.set_item(item_id, next);
         }
         Ok(())
+    }
+}
+
+pub(crate) fn gold_err(err: GoldError) -> EngineError {
+    match err {
+        GoldError::ZeroAmount => EngineError::ZeroAmount,
+        GoldError::Overflow => EngineError::Overflow,
+        GoldError::InsufficientGold => EngineError::InsufficientGold,
+        GoldError::InsufficientItem => EngineError::InsufficientItem,
+        GoldError::EarnCap => EngineError::EarnCap,
+        GoldError::StaleDay => EngineError::StaleDay,
+        GoldError::BadDay => EngineError::BadDay,
+        GoldError::BadId => EngineError::BadId,
     }
 }

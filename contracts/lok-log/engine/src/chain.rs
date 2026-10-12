@@ -496,6 +496,24 @@ pub(crate) fn parse_input(value: &serde_json::Value) -> Result<Input, String> {
             }
             Ok(Input::PaidRespecSkills { token_id, amount, node_ids })
         }
+        "goldEarn" => Ok(Input::GoldEarn {
+            token_id: req_u256(value, "tokenId")?,
+            source: req_label(value, "source")?,
+            amount: req_u256(value, "amount")?,
+            day: req_u64(value, "day")?,
+        }),
+        "goldSpend" => Ok(Input::GoldSpend {
+            token_id: req_u256(value, "tokenId")?,
+            sink: req_label(value, "sink")?,
+            amount: req_u256(value, "amount")?,
+        }),
+        "goldSell" => Ok(Input::GoldSell {
+            token_id: req_u256(value, "tokenId")?,
+            item_id: req_u256(value, "itemId")?,
+            qty: req_u256(value, "qty")?,
+            amount: req_u256(value, "amount")?,
+            day: req_u64(value, "day")?,
+        }),
         other => Err(format!("unknown input type {other}")),
     }
 }
@@ -692,6 +710,27 @@ Input::CancelAsk { listing_id, seller } => serde_json::json!({
             "tokenId": s(token_id),
             "amount": s(amount),
             "nodeIds": node_ids,
+        }),
+        Input::GoldEarn { token_id, source, amount, day } => serde_json::json!({
+            "type": "goldEarn",
+            "tokenId": s(token_id),
+            "source": source,
+            "amount": s(amount),
+            "day": day,
+        }),
+        Input::GoldSpend { token_id, sink, amount } => serde_json::json!({
+            "type": "goldSpend",
+            "tokenId": s(token_id),
+            "sink": sink,
+            "amount": s(amount),
+        }),
+        Input::GoldSell { token_id, item_id, qty, amount, day } => serde_json::json!({
+            "type": "goldSell",
+            "tokenId": s(token_id),
+            "itemId": s(item_id),
+            "qty": s(qty),
+            "amount": s(amount),
+            "day": day,
         }),
     }
 }

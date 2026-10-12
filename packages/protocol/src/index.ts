@@ -360,6 +360,8 @@ export type LokListingView = {
 export type LokSnapshot = {
   tokenId: string;
   kek: string;
+  /** In-game gold (log-only). Trainer / craft / respec spend this, not KEK. */
+  gold?: string;
   items: LokItemBalance[];
   /** Provisioner inbox. Sends, sales, cancels, and reclaims land here, not in the bag. */
   inbox: LokItemBalance[];

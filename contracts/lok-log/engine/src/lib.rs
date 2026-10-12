@@ -19,6 +19,7 @@ mod chain;
 mod checkpoint;
 mod engine;
 mod event;
+mod gold;
 mod ids;
 mod state;
 mod u256;
@@ -36,6 +37,7 @@ pub use chain::{
 pub use checkpoint::{checkpoint_body_hash, eip712_digest, Checkpoint, Export};
 pub use engine::{Engine, EngineError};
 pub use event::{entry_hash, event_id, item_drop_credits_at, Input, Outcome, HISTORICAL_ITEM_DROP_MAX_SEQ};
+pub use gold::{gold_source_cap, GOLD_DAILY_TOTAL_CAP, GOLD_SOURCE_NPC_SELL};
 pub use ids::{fungible_id, genesis_root, genesis_tag, spawn_tag, unique_id, world_genesis};
 pub use state::{commit_entries, label_key, Key, State};
 pub use u256::{parse_address, parse_b256, U256};

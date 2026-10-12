@@ -266,6 +266,7 @@ fn state_body(world: &World) -> serde_json::Map<String, Value> {
             "tokenId": snap.token_id.to_dec(),
             "kek": snap.kek.to_dec(),
             "solvencyKek": snap.solvency_kek.to_dec(),
+            "gold": snap.gold.to_dec(),
             "vaultClaim": world.vault_claim(&snap.token_id).unwrap_or(crate::u256::U256::ZERO).to_dec(),
             "sunkKek": world.sunk_kek(&snap.token_id).unwrap_or(crate::u256::U256::ZERO).to_dec(),
             "inboundApplied": world.inbound_applied(&snap.token_id).unwrap_or(0),

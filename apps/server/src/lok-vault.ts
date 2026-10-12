@@ -3,7 +3,8 @@ import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 /** Accepted on the local anvil only. Not a mainnet ruleset. */
-export const LOCAL_RULESET_HASH = "0x5d9ceefcea8710b7a205f925e26aecb17a3c83aa4b668d12fb76ffafeda3bd38";
+/** Local anvil ruleset id only. Bumped with the E1 gold ledger wasm. Not a mainnet ruleset. */
+export const LOCAL_RULESET_HASH = "0x02c316daf43e7c3f013cabd179b00eabc1fcbafeeb01527c22134487b817b12b";
 
 /**
  * sha256 of the checked-in engine bundle (contracts/lok-log/engine/pkg/lok_engine.wasm) that
@@ -13,7 +14,7 @@ export const LOCAL_RULESET_HASH = "0x5d9ceefcea8710b7a205f925e26aecb17a3c83aa4b6
  * purpose: rebuild the wasm, run contracts/lok-log/engine/scripts/check-wasm-pin.mjs, update this pin,
  * and on any non-local network propose a new ruleset hash for the new bundle.
  */
-export const LOCAL_RULESET_WASM_SHA256 = "ee51c9a825f974715f4fa34d6d45137c88a9e44df676e624dd5298c850805fd2";
+export const LOCAL_RULESET_WASM_SHA256 = "190ecd42f44627e38afa8eb319baf448b5bfec29e5da1962b4292e4d6e52bf71";
 
 const CHECKPOINT_TUPLE =
   "(bytes32,bytes32,uint64,uint64,bytes32,bytes32,uint256,uint64,uint256,(uint256,uint32)[])";

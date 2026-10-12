@@ -28,8 +28,16 @@ pub enum Key {
     /// Craft skill level. Key data is keccak256 of the skill id. Value is the level, not XP.
     CraftSkill(U256),
     /// Total amount looted of an item (`LootDrop`). Not a spendable balance and not a mint.
-    /// Declared last with the newest tag so state roots of logs without loot counters are unchanged.
+    /// Declared after CraftSkill so state roots of logs without loot counters are unchanged.
     Drop(U256),
+    /// Spendable gold. In-game only; no vault path. Newest tags sort after Drop.
+    Gold,
+    /// Server day id currently accumulating earn caps. Zero means no earn yet.
+    GoldDay,
+    /// Total gold earned on `GoldDay`.
+    GoldEarnedDay,
+    /// Per-source gold earned on `GoldDay`. Key data is keccak256 of the source label.
+    GoldEarnedSource(U256),
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -65,6 +73,39 @@ impl State {
 
     pub(crate) fn set_kek(&mut self, amount: U256) {
         self.map.insert(Key::Kek, amount);
+    }
+
+    pub(crate) fn set_gold(&mut self, amount: U256) {
+        if amount == U256::ZERO {
+            self.map.remove(&Key::Gold);
+        } else {
+            self.map.insert(Key::Gold, amount);
+        }
+    }
+
+    pub(crate) fn set_gold_day(&mut self, day: u64) {
+        self.map.insert(Key::GoldDay, U256::from_u64(day));
+    }
+
+    pub(crate) fn set_gold_earned_day(&mut self, amount: U256) {
+        if amount == U256::ZERO {
+            self.map.remove(&Key::GoldEarnedDay);
+        } else {
+            self.map.insert(Key::GoldEarnedDay, amount);
+        }
+    }
+
+    pub(crate) fn set_gold_earned_source(&mut self, source: U256, amount: U256) {
+        if amount == U256::ZERO {
+            self.map.remove(&Key::GoldEarnedSource(source));
+        } else {
+            self.map.insert(Key::GoldEarnedSource(source), amount);
+        }
+    }
+
+    /// Drop per-day earn counters. Does not touch the gold balance.
+    pub(crate) fn clear_gold_earn_counters(&mut self) {
+        self.map.retain(|key, _| !matches!(key, Key::GoldEarnedSource(_) | Key::GoldEarnedDay));
     }
 
     pub fn level_u32(&self) -> u32 {
@@ -190,12 +231,22 @@ fn key_tag(key: &Key) -> u8 {
         Key::Harvest(_) => 12,
         Key::CraftSkill(_) => 13,
         Key::Drop(_) => 14,
+        Key::Gold => 15,
+        Key::GoldDay => 16,
+        Key::GoldEarnedDay => 17,
+        Key::GoldEarnedSource(_) => 18,
     }
 }
 
 fn leaf(key: &Key, value: &U256) -> [u8; 32] {
     let key_data = match key {
-        Key::Item(id) | Key::Ability(id) | Key::Craft(id) | Key::Harvest(id) | Key::Drop(id) | Key::CraftSkill(id) => *id,
+        Key::Item(id)
+        | Key::Ability(id)
+        | Key::Craft(id)
+        | Key::Harvest(id)
+        | Key::Drop(id)
+        | Key::CraftSkill(id)
+        | Key::GoldEarnedSource(id) => *id,
         _ => U256::ZERO,
     };
     let mut buf = Buf::new();
