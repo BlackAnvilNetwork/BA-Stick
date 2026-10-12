@@ -11,8 +11,8 @@ import { createConnection } from "node:net";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import WebSocket from "ws";
-import {
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
+import {
   MELEE_RANGE,
   PH_ALL_MOBS,
   PH_BRIDGE_SITES,
