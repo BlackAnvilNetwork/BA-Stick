@@ -22,6 +22,7 @@ mod event;
 mod gold;
 mod ids;
 mod npc_price;
+mod npc_price_data;
 mod state;
 mod u256;
 mod gate;

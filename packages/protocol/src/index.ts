@@ -41,6 +41,10 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
     tokenId: z.string().regex(/^[1-9][0-9]{0,77}$/).optional(),
     /** Wallet that paid the mint fee (may differ from burner auth). */
     mintWallet: z.string().regex(/^0x[0-9a-fA-F]{40}$/).optional(),
+    /** EIP-191 mint claim when mintWallet !== auth wallet (H1). */
+    mintNonce: z.string().min(8).max(128).optional(),
+    mintExpiry: z.number().int().positive().optional(),
+    mintSignature: z.string().min(130).max(200).optional(),
   }),
   z.object({
     type: z.literal("char/enter"),
@@ -408,6 +412,13 @@ export type LokSnapshot = {
     mintFee: string;
     chainId: number;
     rpcUrl: string;
+    /** False on factories deployed before createCharacterFor. */
+    supportsCreateFor?: boolean;
+    /** Suggested next token id (max of chain next and log bind counter). */
+    suggestedTokenId?: string;
+    /** Dev faucet / server-mint hints for local 31337. */
+    devFaucet?: boolean;
+    devServerMint?: boolean;
   } | null;
   withdrawDelaySec: number | null;
   queues: { id: string; amount: string; availableAt: number }[];
@@ -519,6 +530,10 @@ export type ServerMessage =
         mintFee: string;
         chainId: number;
         rpcUrl: string;
+        supportsCreateFor?: boolean;
+        suggestedTokenId?: string;
+        devFaucet?: boolean;
+        devServerMint?: boolean;
       } | null;
     }
   | { type: "log"; message: string }

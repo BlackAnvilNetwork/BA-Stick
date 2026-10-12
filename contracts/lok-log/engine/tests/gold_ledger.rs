@@ -173,8 +173,8 @@ fn gold_sell_burns_item_and_credits_under_npc_sell_cap() {
         })
         .unwrap();
 
-    // Item 99 unit price = 40 + (99 % 20) = 59 (npc_price table).
-    let unit = 59u64;
+    // Catalog id 99 is filler → unit 1 (npc_price_data from catalog).
+    let unit = 1u64;
     engine
         .apply(Input::GoldSell {
             token_id: token,
@@ -204,7 +204,7 @@ fn gold_sell_burns_item_and_credits_under_npc_sell_cap() {
 
     // Hit the npc_sell daily cap with a correctly priced large sell.
     let sell_cap = gold_source_cap(GOLD_SOURCE_NPC_SELL);
-    let over_qty = (sell_cap / unit) + 1; // 170 * 59 = 10030 > 10_000
+    let over_qty = sell_cap + 1; // unit=1 → 10001 > 10_000
     engine
         .apply(Input::BagImport {
             token_id: token,

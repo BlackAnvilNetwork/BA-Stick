@@ -1,10 +1,10 @@
 /**
- * Player-paid CharacterFactory.createCharacterFor{value: mintFee}(job, tokenId).
- * Native ETH fee (same unit as AhEscrow / EEZ msg.value — not WETH).
- * The server no longer pays the fee from LOK_OWNER_KEY unless LOK_DEV_SERVER_MINT=1.
+ * Player-paid CharacterFactory mint (native ETH fee — same unit as AhEscrow / EEZ).
+ * Prefer createCharacterFor when the factory supports it and a suggested id is known.
  */
 import { createPublicClient, http, type Hex } from "viem";
-import { getWalletSession } from "./wallet";
+import { freshMintNonce, mintClaimMessage } from "./mint-claim";
+import { burnerAccount, getWalletSession } from "./wallet";
 
 const CREATE_FOR_ABI = [
   {
@@ -35,14 +35,31 @@ export type CharacterMintConfig = {
   mintFee: string;
   chainId: number;
   rpcUrl: string;
+  supportsCreateFor?: boolean;
+  suggestedTokenId?: string;
+  devFaucet?: boolean;
+  devServerMint?: boolean;
 };
+
+export type MintResult =
+  | {
+      ok: true;
+      hash: Hex;
+      tokenId: string;
+      payer: string;
+      mintNonce?: string;
+      mintExpiry?: number;
+      mintSignature?: string;
+    }
+  | { ok: false; error: string };
 
 export async function mintCharacterWithWallet(opts: {
   mint: CharacterMintConfig;
   job: number;
-  /** Log token id — required so payment binds to this character (createCharacterFor). */
+  /** Game auth wallet (burner) that will own the log character. */
+  gameWallet: string;
   tokenId?: string;
-}): Promise<{ ok: true; hash: Hex; tokenId?: string; payer: string } | { ok: false; error: string }> {
+}): Promise<MintResult> {
   if (!Number.isInteger(opts.job) || opts.job < 0 || opts.job > 255) {
     return { ok: false, error: "Bad job for mint." };
   }
@@ -58,62 +75,112 @@ export async function mintCharacterWithWallet(opts: {
     nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
     rpcUrls: { default: { http: [opts.mint.rpcUrl] } },
   };
+  const hasInjected = typeof window !== "undefined" && !!window.ethereum;
   try {
-    // Mint/pay flows: do not silently fall back when the user declines the extension.
+    // F3: if an extension is present, declining must not silently use the burner for payment.
+    // When there is no extension, the burner is the only wallet (local auth).
     const session = await getWalletSession({
       chainId: opts.mint.chainId,
       rpcUrl: opts.mint.rpcUrl,
-      allowBurnerFallback: true, // local auth is burner; faucet funds it on 31337
+      allowBurnerFallback: !hasInjected,
     });
     const pub = createPublicClient({
       transport: http(opts.mint.rpcUrl),
     });
 
-    if (opts.tokenId && /^[1-9][0-9]{0,77}$/.test(opts.tokenId)) {
-      const hash = await session.client.writeContract({
+    const expected =
+      opts.tokenId && /^[1-9][0-9]{0,77}$/.test(opts.tokenId)
+        ? opts.tokenId
+        : opts.mint.supportsCreateFor &&
+            opts.mint.suggestedTokenId &&
+            /^[1-9][0-9]{0,77}$/.test(opts.mint.suggestedTokenId)
+          ? opts.mint.suggestedTokenId
+          : undefined;
+
+    let hash: Hex | undefined;
+    let tokenId: string | undefined;
+
+    const useCreateFor = !!expected && opts.mint.supportsCreateFor !== false;
+    if (useCreateFor && expected) {
+      try {
+        hash = await session.client.writeContract({
+          address: opts.mint.factory as `0x${string}`,
+          abi: CREATE_FOR_ABI,
+          functionName: "createCharacterFor",
+          args: [opts.job, BigInt(expected)],
+          value: fee,
+          account: session.account,
+          chain,
+        });
+        tokenId = expected;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (!/createCharacterFor|WrongTokenId|not found/i.test(msg)) throw err;
+        hash = undefined;
+        tokenId = undefined;
+      }
+    }
+    if (!hash) {
+      hash = await session.client.writeContract({
         address: opts.mint.factory as `0x${string}`,
-        abi: CREATE_FOR_ABI,
-        functionName: "createCharacterFor",
-        args: [opts.job, BigInt(opts.tokenId)],
+        abi: CREATE_ABI,
+        functionName: "createCharacter",
+        args: [opts.job],
         value: fee,
         account: session.account,
         chain,
       });
-      const receipt = await pub.waitForTransactionReceipt({ hash });
-      if (receipt.status !== "success") {
-        return { ok: false, error: "createCharacterFor reverted." };
-      }
-      return { ok: true, hash, tokenId: opts.tokenId, payer: session.address };
     }
 
-    // Mint-first path (no log token yet): plain createCharacter, return minted id from receipt logs if needed.
-    const hash = await session.client.writeContract({
-      address: opts.mint.factory as `0x${string}`,
-      abi: CREATE_ABI,
-      functionName: "createCharacter",
-      args: [opts.job],
-      value: fee,
-      account: session.account,
-      chain,
-    });
     const receipt = await pub.waitForTransactionReceipt({ hash });
     if (receipt.status !== "success") {
-      return { ok: false, error: "createCharacter reverted." };
+      return { ok: false, error: "Character mint reverted." };
     }
-    // CharacterCreated(player, tokenId, job) — topic0 + player + tokenId
-    let mintedId: string | undefined;
-    for (const log of receipt.logs) {
-      if (log.topics.length >= 3 && log.address.toLowerCase() === opts.mint.factory.toLowerCase()) {
-        try {
-          mintedId = BigInt(log.topics[2]!).toString();
-          break;
-        } catch {
-          /* ignore */
+    if (!tokenId) {
+      for (const log of receipt.logs) {
+        if (log.topics.length >= 3 && log.address.toLowerCase() === opts.mint.factory.toLowerCase()) {
+          try {
+            tokenId = BigInt(log.topics[2]!).toString();
+            break;
+          } catch {
+            /* ignore */
+          }
         }
       }
     }
-    return { ok: true, hash, tokenId: mintedId, payer: session.address };
+    if (!tokenId) {
+      return { ok: false, error: "Mint succeeded but no token id was returned." };
+    }
+
+    const payer = session.address.toLowerCase();
+    const game = opts.gameWallet.toLowerCase();
+    if (payer === game) {
+      return { ok: true, hash, tokenId, payer };
+    }
+
+    // H1: prove mintWallet controls the claim for this game wallet.
+    const mintNonce = freshMintNonce();
+    const mintExpiry = Math.floor(Date.now() / 1000) + 10 * 60;
+    const message = mintClaimMessage({
+      tokenId,
+      gameWallet: game,
+      nonce: mintNonce,
+      expiry: mintExpiry,
+    });
+    const mintSignature = await session.client.signMessage({
+      message,
+      account: session.account,
+    });
+    return { ok: true, hash, tokenId, payer, mintNonce, mintExpiry, mintSignature };
   } catch (err) {
+    // If extension was declined, surface that — do not mint from burner behind the user's back.
+    if (hasInjected) {
+      try {
+        burnerAccount(); // ensure burner exists for auth, but do not pay with it here
+      } catch {
+        /* ignore */
+      }
+    }
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
 }

@@ -271,6 +271,11 @@ export class LokWorld {
     return this.bind.chars.find((c) => c.charId === charId)?.tokenId ?? null;
   }
 
+  /** Next log token id the bind file would assign (may lag or lead the chain). */
+  nextTokenId(): string {
+    return this.bind.nextToken;
+  }
+
   spawn(
     charId: string,
     name: string,

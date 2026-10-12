@@ -189,12 +189,13 @@ import {
   startAskFilledWatcher,
   type AskFilledApplied,
 } from "./ah-escrow";
-import { cancelAskOnchain, openAskOnchain, readAskOnchain } from "./ah-escrow-tx";
+import { reconcileOpenAsksFromChain } from "./ah-escrow-reconcile";
+import { cancelAskOnchain, openAskOnchain } from "./ah-escrow-tx";
+import { acceptedMintWallets } from "./mint-claim";
 import {
   characterMintClientConfig,
   ensureLocalRuleset,
   faucetAnvilEth,
-  linkCharacterNft,
   linkCharacterNftWithRetry,
   serverMintCharacterFor,
   verifyCharacterNftOwner,
@@ -453,8 +454,9 @@ type Mob = {
 };
 
 const PORT = Number(process.env.PORT ?? 8787);
-/** Cached at boot — snapshot is sync. */
+/** Cached at boot — snapshot is sync. null until first load finishes (L5). */
 let cachedCharacterMint: CharacterMintClientConfig | null = null;
+let mintConfigReady = false;
 /** Dev cheats (Max Lv). Off unless ALLOW_DEBUG_CHEATS=1. Not implied by a dev NODE_ENV. */
 const DEBUG_CHEATS_ENABLED = debugCheatsEnabled();
 const players = new Map<string, Player>();
@@ -493,9 +495,24 @@ const lok: LokWorld = await (async (): Promise<LokWorld> => {
     void ensureLocalRuleset().catch(() => {
       console.error("[bellgrave] ruleset check failed");
     });
-    void characterMintClientConfig().then((cfg) => {
-      cachedCharacterMint = cfg;
-    });
+    void characterMintClientConfig(process.env, {
+      logNextTokenId: world.nextTokenId(),
+    })
+      .then((cfg) => {
+        cachedCharacterMint = cfg;
+        mintConfigReady = true;
+        if (cfg && !cfg.supportsCreateFor) {
+          console.warn(
+            "[bellgrave] CharacterFactory has no createCharacterFor (pre-4cf0bce deploy). " +
+              "Client uses createCharacter; set LOK_DEV_FAUCET (default on with owner key) or " +
+              "LOK_DEV_SERVER_MINT=1 after a factory upgrade. Do not redeploy the shared anvil ad-hoc.",
+          );
+        }
+      })
+      .catch((err) => {
+        mintConfigReady = true;
+        console.error("[bellgrave] character mint config failed", err);
+      });
     return world;
   } catch (err) {
     console.error("[bellgrave] lok log failed to open; refusing to start.", err);
@@ -1085,35 +1102,6 @@ function handleLokReclaim(p: Player, listingId: string) {
     }
     send(p.ws, snapshotFor(p));
   });
-}
-
-/** L1: cancel log listings whose chain ask was cancelled (used && !open) with no fill/quarantine. */
-async function reconcileOpenAsksFromChain(world: LokWorld): Promise<void> {
-  if (!ahEscrowAddress()) return;
-  const { AskFilledQuarantine, askFilledQuarantinePath } = await import("./lok-ask-filled-quarantine");
-  const quarantine = new AskFilledQuarantine(askFilledQuarantinePath(defaultLokDir()));
-  const quarantinedListingIds = new Set(
-    quarantine.list().map((e) => e.fill.listingId).filter(Boolean),
-  );
-  const rows = world.openBookListings();
-  for (const row of rows) {
-    const onchain = await readAskOnchain({ listingId: row.id });
-    if (!onchain.ok) continue;
-    if (!onchain.ask.used || onchain.ask.open) continue;
-    if (quarantinedListingIds.has(row.id)) {
-      // Paid fill waiting for operator / permanent quarantine — do not cancel to seller.
-      continue;
-    }
-    // used && !open with no quarantine: treat as chain cancel whose log cancel never landed.
-    const seller = row.seller;
-    if (!seller) continue;
-    const res = world.cancelAsk(row.id, seller);
-    if (res.ok) {
-      console.log(
-        "[bellgrave] reconciled cancelled on-chain ask #" + row.id + " onto the log (item to seller inbox).",
-      );
-    }
-  }
 }
 
 function handleLokNpcSell(p: Player, tokenId: number, amount: number) {
@@ -4558,6 +4546,14 @@ function onMessage(ws: WebSocket, data: string) {
         send(ws, { type: "error", message: "Authenticate with a signed wallet first." });
         return;
       }
+      // L5: wait until mint config has loaded so we do not skip the fee gate.
+      if (!mintConfigReady) {
+        send(ws, {
+          type: "error",
+          message: "Character mint config is still loading. Try create again in a moment.",
+        });
+        return;
+      }
       const named = normalizeCharacterName(msg.name);
       if (!named.ok) {
         send(ws, { type: "error", message: named.error });
@@ -4576,31 +4572,57 @@ function onMessage(ws: WebSocket, data: string) {
       const jobIndex = JOB_IDS.indexOf(job);
       const gender =
         msg.gender === "female" ? "female" : msg.gender === "pepeka" ? "pepeka" : "male";
-      const mintWallet =
-        typeof msg.mintWallet === "string" && isEthAddress(msg.mintWallet)
-          ? msg.mintWallet.toLowerCase()
-          : "";
-      const acceptedWallets = [wallet, mintWallet].filter(Boolean);
-      const bindToken: string | undefined =
-        typeof msg.tokenId === "string" && /^[1-9][0-9]{0,77}$/.test(msg.tokenId) ? msg.tokenId : undefined;
 
-      // When mint is configured, require a paid NFT first (mint-first) so payment binds to this character.
+      // L6: only accept a client tokenId when mint is configured (verified on-chain).
+      let bindToken: string | undefined;
+      let acceptedWallets = [wallet.toLowerCase()];
       if (cachedCharacterMint) {
+        bindToken =
+          typeof msg.tokenId === "string" && /^[1-9][0-9]{0,77}$/.test(msg.tokenId)
+            ? msg.tokenId
+            : undefined;
         if (!bindToken) {
           send(ws, {
             type: "error",
             message:
-              "Pay the character mint fee (native ETH) first, then create with the minted token id.",
+              "Pay the character mint fee (native ETH) first, then create with the minted token id." +
+              (cachedCharacterMint.devFaucet
+                ? " Dev faucet is available (dev/faucet)."
+                : " Set LOK_DEV_FAUCET=1 or LOK_DEV_SERVER_MINT=1 for local testing."),
           });
           return;
         }
+        const wallets = await acceptedMintWallets({
+          authWallet: wallet,
+          mintWallet: typeof msg.mintWallet === "string" ? msg.mintWallet : undefined,
+          tokenId: bindToken,
+          mintNonce: typeof msg.mintNonce === "string" ? msg.mintNonce : undefined,
+          mintExpiry: typeof msg.mintExpiry === "number" ? msg.mintExpiry : undefined,
+          mintSignature: typeof msg.mintSignature === "string" ? msg.mintSignature : undefined,
+        });
+        if (!wallets.ok) {
+          send(ws, { type: "error", message: wallets.error });
+          return;
+        }
+        acceptedWallets = wallets.wallets;
         const verified = await verifyCharacterNftOwner(bindToken, acceptedWallets);
         if (!verified.ok) {
           if (process.env.LOK_DEV_SERVER_MINT === "1") {
+            if (!cachedCharacterMint.supportsCreateFor) {
+              send(ws, {
+                type: "error",
+                message:
+                  "LOK_DEV_SERVER_MINT needs createCharacterFor on the factory. " +
+                  "This anvil factory predates that method — use the faucet + client createCharacter, " +
+                  "or wait for the batched redeploy. " +
+                  verified.error,
+              });
+              return;
+            }
             const minted = await serverMintCharacterFor(
               bindToken,
               jobIndex < 0 ? 0 : jobIndex,
-              mintWallet || wallet,
+              acceptedWallets[0]!,
             );
             if (!minted.ok) {
               send(ws, { type: "error", message: verified.error + " " + minted.error });
@@ -4620,7 +4642,7 @@ function onMessage(ws: WebSocket, data: string) {
         return;
       }
       const spawned = lok.spawn(charId, claimed.name, jobIndex < 0 ? 0 : jobIndex, wallet, {
-        tokenId: bindToken,
+        ...(bindToken ? { tokenId: bindToken } : {}),
       });
       if (!spawned.ok) {
         send(ws, { type: "error", message: spawned.error });
@@ -4628,29 +4650,31 @@ function onMessage(ws: WebSocket, data: string) {
       }
       const p = createPlayer(wallet, claimed.name, ws, job, gender, charId);
       claimStarter(p);
-      void linkCharacterNftWithRetry(spawned.tokenId, jobIndex < 0 ? 0 : jobIndex, wallet, {
-        acceptedWallets,
-        attempts: 8,
-        delayMs: 750,
-      })
-        .then((res) => {
-          if (p.ws.readyState !== p.ws.OPEN) return;
-          if (res.ok) {
-            pushLog(p, "Linked character NFT #" + res.tokenId + " on the local checkpoint.");
-          } else if (res.needsPlayerMint) {
-            pushLog(
-              p,
-              "Pay createCharacterFor for NFT #" +
-                spawned.tokenId +
-                " from your wallet, then the link will retry. " +
-                res.error,
-            );
-          } else {
-            pushLog(p, res.error);
-          }
-          send(p.ws, snapshotFor(p));
+      if (cachedCharacterMint) {
+        void linkCharacterNftWithRetry(spawned.tokenId, jobIndex < 0 ? 0 : jobIndex, wallet, {
+          acceptedWallets,
+          attempts: 8,
+          delayMs: 750,
         })
-        .catch((err) => console.error("[bellgrave] character NFT link failed", err));
+          .then((res) => {
+            if (p.ws.readyState !== p.ws.OPEN) return;
+            if (res.ok) {
+              pushLog(p, "Linked character NFT #" + res.tokenId + " on the local checkpoint.");
+            } else if (res.needsPlayerMint) {
+              pushLog(
+                p,
+                "Pay the mint fee for NFT #" +
+                  spawned.tokenId +
+                  " from your wallet, then the link will retry. " +
+                  res.error,
+              );
+            } else {
+              pushLog(p, res.error);
+            }
+            send(p.ws, snapshotFor(p));
+          })
+          .catch((err) => console.error("[bellgrave] character NFT link failed", err));
+      }
       pushLog(
         p,
         `${JOBS[job].name} created. At L${SUBJOB_UNLOCK_LEVEL}+ the Job Master sets a support job (half level).`,
@@ -4664,15 +4688,16 @@ function onMessage(ws: WebSocket, data: string) {
   }
 
   if (msg.type === "dev/faucet") {
-    const to = (typeof msg.to === "string" && isEthAddress(msg.to) ? msg.to : wallet).toLowerCase();
-    void faucetAnvilEth(to).then((res) => {
+    // L7: only the caller's verified wallet; ignore client-supplied `to`.
+    const to = wallet.toLowerCase();
+    void faucetAnvilEth(to, process.env, { callerWallet: wallet }).then((res) => {
       if (res.ok) {
         send(ws, {
           type: "log",
           message: "Dev faucet sent " + (Number(res.amountWei) / 1e18).toFixed(4) + " ETH to " + to + ".",
         });
       } else if (!/disabled/i.test(res.error)) {
-        console.warn("[bellgrave] faucet: " + res.error);
+        send(ws, { type: "log", message: "Faucet: " + res.error });
       }
     });
     return;

@@ -51,6 +51,10 @@ type GameState = {
     mintFee: string;
     chainId: number;
     rpcUrl: string;
+    supportsCreateFor?: boolean;
+    suggestedTokenId?: string;
+    devFaucet?: boolean;
+    devServerMint?: boolean;
   } | null;
   snapshot: SnapshotMessage | null;
   logs: string[];

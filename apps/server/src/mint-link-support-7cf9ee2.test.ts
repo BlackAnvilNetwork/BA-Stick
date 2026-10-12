@@ -3,7 +3,8 @@
  * Spins a throwaway anvil + MintFixture; does not touch the shared :8545 anvil.
  */
 import assert from "node:assert/strict";
-import { spawn, type ChildProcess } from "node:child_process";
+import { spawn, type ChildProcess, execFileSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import { createServer } from "node:net";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -14,6 +15,29 @@ import { linkCharacterNft } from "./lok-vault";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const LOK = join(ROOT, "contracts", "lok-log");
+
+function resolveAnvil(): string | null {
+  for (const candidate of [
+    process.env.ANVIL_PATH,
+    "anvil",
+    join(process.env.HOME || "", ".foundry/bin/anvil"),
+    "/home/ubuntu/.foundry/bin/anvil",
+  ]) {
+    if (!candidate) continue;
+    try {
+      if (candidate === "anvil") {
+        execFileSync("anvil", ["--version"], { stdio: "ignore" });
+        return "anvil";
+      }
+      if (existsSync(candidate)) return candidate;
+    } catch {
+      /* try next */
+    }
+  }
+  return null;
+}
+
+const ANVIL_BIN = resolveAnvil();
 // anvil default keys 0 (deployer), 2 (A), 3 (B)
 const DEPLOYER = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" as Hex;
 const A_KEY = "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a" as Hex;
@@ -90,7 +114,9 @@ async function waitRpc(rpc: string, tries = 40): Promise<void> {
   throw new Error("anvil did not start");
 }
 
-describe("support 7cf9ee2: player-paid character mint (throwaway anvil)", () => {
+describe("support 7cf9ee2: player-paid character mint (throwaway anvil)", {
+  skip: !ANVIL_BIN,
+}, () => {
   let anvil: ChildProcess | undefined;
   let rpc = "";
   let factory = "";
@@ -99,12 +125,11 @@ describe("support 7cf9ee2: player-paid character mint (throwaway anvil)", () => 
   before(async () => {
     const port = await freePort();
     rpc = "http://127.0.0.1:" + port;
-    anvil = spawn("anvil", ["--port", String(port), "--chain-id", "31337"], {
+    anvil = spawn(ANVIL_BIN!, ["--port", String(port), "--chain-id", "31337"], {
       stdio: ["ignore", "ignore", "pipe"],
     });
     await waitRpc(rpc);
 
-    const { execFileSync } = await import("node:child_process");
     const out = execFileSync(
       "forge",
       [

@@ -1315,7 +1315,13 @@ function CreatePanel() {
         useGame.getState().setPendingCreateEnter(true);
         setCreating(true);
 
-        const finish = (extra?: { tokenId?: string; mintWallet?: string }) => {
+        const finish = (extra?: {
+          tokenId?: string;
+          mintWallet?: string;
+          mintNonce?: string;
+          mintExpiry?: number;
+          mintSignature?: string;
+        }) => {
           send({
             type: "char/create",
             name,
@@ -1323,6 +1329,9 @@ function CreatePanel() {
             gender,
             ...(extra?.tokenId ? { tokenId: extra.tokenId } : {}),
             ...(extra?.mintWallet ? { mintWallet: extra.mintWallet } : {}),
+            ...(extra?.mintNonce ? { mintNonce: extra.mintNonce } : {}),
+            ...(extra?.mintExpiry != null ? { mintExpiry: extra.mintExpiry } : {}),
+            ...(extra?.mintSignature ? { mintSignature: extra.mintSignature } : {}),
           });
           window.setTimeout(() => send({ type: "claim/starter" }), 100);
           setCreating(false);
@@ -1334,34 +1343,48 @@ function CreatePanel() {
         }
 
         // Mint-first: pay native ETH fee, then create the log char bound to that NFT id.
-        // Request a faucet first so local burners can pay on 31337.
-        send({ type: "dev/faucet" });
+        const gameWallet = useGame.getState().wallet;
+        if (!gameWallet) {
+          pushLog("Authenticate before creating a character.");
+          setCreating(false);
+          return;
+        }
+        if (mintCfg.devFaucet) send({ type: "dev/faucet" });
         window.setTimeout(() => {
           void mintCharacterWithWallet({
             mint: mintCfg,
             job: jobIndex < 0 ? 0 : jobIndex,
+            gameWallet,
           }).then((res) => {
             if (!res.ok) {
               pushLog("Character mint: " + res.error);
               setCreating(false);
               return;
             }
-            if (!res.tokenId) {
-              pushLog("Character mint succeeded but no token id was returned.");
-              setCreating(false);
-              return;
-            }
-            pushLog("Paid character mint fee (native ETH). Creating log identity for NFT #" + res.tokenId + "…");
-            finish({ tokenId: res.tokenId, mintWallet: res.payer });
+            pushLog(
+              "Paid character mint fee (native ETH). Creating log identity for NFT #" + res.tokenId + "…",
+            );
+            finish({
+              tokenId: res.tokenId,
+              mintWallet: res.payer,
+              ...(res.mintSignature
+                ? {
+                    mintNonce: res.mintNonce,
+                    mintExpiry: res.mintExpiry,
+                    mintSignature: res.mintSignature,
+                  }
+                : {}),
+            });
           });
-        }, 800);
+        }, mintCfg.devFaucet ? 800 : 0);
       }}
     >
       <p className="boot-sub">Create your adventurer</p>
       {mintCfg ? (
         <p className="boot-sub">
           Character NFT mint fee: {(Number(mintCfg.mintFee) / 1e18).toFixed(4)} ETH (native, paid from your
-          wallet before the character is created).
+          wallet before the character is created)
+          {mintCfg.devFaucet ? ". Local faucet can fund the burner on anvil 31337." : ""}.
         </p>
       ) : null}
       <label className="boot-label">
