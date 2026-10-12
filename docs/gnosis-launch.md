@@ -1,12 +1,12 @@
 # Gnosis official launch runbook
 
-**Dry-run note:** The 2026-10-12 deploy on chain 100 (`deployments/gnosis.json`) was a dry-run mainnet launch. It wired **MockItems** and collapsed roles onto one EOA — do **not** treat it as production. A production server must **never** use that Checkpoint (open `setMinter` on MockItems). Official launch must use this runbook + the hardened `Deploy` script.
+**Dry-run note:** The 2026-10-12 deploy on chain 100 (`deployments/gnosis-dryrun.json`) was a dry-run mainnet launch. It wired **MockItems** and collapsed roles onto one EOA — do **not** treat it as production. A production server must **never** use that Checkpoint (open `setMinter` on MockItems). Official launch must use this runbook + the hardened `Deploy` script. The NETWORK=gnosis profile no longer auto-fills from that file.
 
 ## Dry-run MockItems (never for production)
 
 | Fact | Detail |
 |------|--------|
-| File | `deployments/gnosis.json` (`status: "dry-run-only"`) |
+| File | `deployments/gnosis-dryrun.json` (`status: "dry-run-only"`) |
 | Gap | `CharacterCheckpoint` points at **MockItems** (`contracts.MockItems`) — anyone can `setMinter` |
 | Also wrong | Single EOA held admin + listing + fee + all roles |
 | Server behavior | `applySettlementDeployFile` **refuses** to fill `LOK_NFT` / `LOK_FACTORY` / `LOK_CHECKPOINT` / … from a `dry-run-only` file unless `LOK_ALLOW_DRY_RUN_DEPLOY=1` (inspection only). `MockItems` is never copied into `LOK_ITEMS`. |
@@ -159,4 +159,4 @@ Keys are never in the data dir — only rotate/sweep EOAs separately.
 
 ## Dry-run stuck funds (2026-10-12)
 
-Ephemeral deployer + smoke wallets still hold ~2.15 xDAI; private keys were deleted from the agent VM and could not be recovered. Addresses in `deployments/gnosis.json` → `stuckFunds`. No further admin txs on that deploy unless asked.
+Ephemeral deployer + smoke wallets still hold ~2.15 xDAI; private keys were deleted from the agent VM and could not be recovered. Addresses in `deployments/gnosis-dryrun.json` → `stuckFunds`. No further admin txs on that deploy unless asked.

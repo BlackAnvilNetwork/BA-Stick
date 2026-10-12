@@ -216,7 +216,30 @@ import {
   enqueuePendingCancel,
   startNftTransferAskCancelWatcher,
 } from "./nft-transfer-ask-cancel";
+import { sessionOwnsCharacter, nftOwnerCache } from "./nft-owner-cache";
 import {
+  clearListingOpened,
+  consumeCancelBudget,
+  consumeListBudget,
+  listingMinLifetimeOk,
+  maybeAlertListingLowBalance,
+  noteListingOpened,
+} from "./lok-list-rate";
+import {
+  assertProductionContractsLive,
+  assertProductionEnvShape,
+} from "./production-boot";
+import {
+  WS_AUTH_DEADLINE_MS,
+  WS_MAX_PAYLOAD,
+  clearWsMessageBudget,
+  consumeWsMessage,
+  noteWsConnect,
+  noteWsDisconnect,
+  wsIpExemptFromCaps,
+} from "./ws-limits";
+import {
+  envSettlementChainId,
   refreshSettlementChainIdFromRpc,
   settlementExampleAskHuman,
   settlementUnitSymbol,
@@ -543,10 +566,38 @@ let tick = 0;
 let mobs: Mob[] = spawnSegmentAPack();
 let fieldNodes: FieldNode[] = createPaleHollowNodes();
 
+function kickWalletSessions(wallet: string, reason: string): void {
+  const w = wallet.trim().toLowerCase();
+  if (!w) return;
+  for (const [id, p] of [...players.entries()]) {
+    if (p.wallet?.toLowerCase() !== w && id !== w) continue;
+    try {
+      pushLog(p, reason);
+      send(p.ws, { type: "error", message: reason });
+      p.ws.close(4001, "ownership");
+    } catch {
+      /* ignore */
+    }
+    rememberPlayer(p);
+    players.delete(id);
+    walletToPlayer.delete(id);
+  }
+}
+
 const lok: LokWorld = await (async (): Promise<LokWorld> => {
   try {
     loadLokEnv();
     applySettlementDeployFile();
+    const bootShape = assertProductionEnvShape(process.env);
+    if (!bootShape.ok) {
+      console.error("[bellgrave] FATAL production boot: " + bootShape.error);
+      process.exit(1);
+    }
+    const bootLive = await assertProductionContractsLive(process.env);
+    if (!bootLive.ok) {
+      console.error("[bellgrave] FATAL production contracts: " + bootLive.error);
+      process.exit(1);
+    }
     const world = LokWorld.open(defaultLokDir());
     configureMintClaimNonceStore(pathJoin(defaultLokDir(), "mint-claim-nonces.json"));
     console.log(
@@ -560,7 +611,20 @@ const lok: LokWorld = await (async (): Promise<LokWorld> => {
         notifyAhEscrowFill(fill);
       },
     });
-    startNftTransferAskCancelWatcher(world);
+    startNftTransferAskCancelWatcher(world, {
+      onOwnershipChange: (change) => {
+        if (change.from && change.from !== change.to) {
+          kickWalletSessions(
+            change.from,
+            "Character NFT #" +
+              change.tokenId +
+              " transferred to " +
+              change.to +
+              ". Session control released.",
+          );
+        }
+      },
+    });
     if (ahEscrowAddress() && !listingRoleKey()) {
       console.error(
         "[bellgrave] AhEscrow is configured but LOK_LISTING_KEY is missing. " +
@@ -962,19 +1026,29 @@ function handleLokSendItem(p: Player, to: string, tokenId: number, amount: numbe
     pushLog(p, "Could not open your log identity.");
     return;
   }
-  const dest = resolveSendTarget(p, to, token);
-  if (!dest.ok) {
-    pushLog(p, dest.error);
+  if (!p.wallet || !isEthAddress(p.wallet)) {
+    pushLog(p, "A wallet is required to send items.");
     return;
   }
-  const res = lok.sendInbox(token, dest.tokenId, String(tokenId), String(amount));
-  if (!res.ok) {
-    pushLog(p, res.error);
-    return;
-  }
-  pushLog(p, "Sent " + itemLabel(tokenId) + " x" + amount + " to " + dest.name + ". It is in their Provisioner inbox.");
-  tellToken(dest.tokenId, p.name + " sent you " + itemLabel(tokenId) + " x" + amount + ". Take it from the Provisioner inbox.");
-  send(p.ws, snapshotFor(p));
+  void sessionOwnsCharacter(p.wallet, token).then((owned) => {
+    if (!owned.ok) {
+      pushLog(p, owned.error);
+      return;
+    }
+    const dest = resolveSendTarget(p, to, token);
+    if (!dest.ok) {
+      pushLog(p, dest.error);
+      return;
+    }
+    const res = lok.sendInbox(token, dest.tokenId, String(tokenId), String(amount));
+    if (!res.ok) {
+      pushLog(p, res.error);
+      return;
+    }
+    pushLog(p, "Sent " + itemLabel(tokenId) + " x" + amount + " to " + dest.name + ". It is in their Provisioner inbox.");
+    tellToken(dest.tokenId, p.name + " sent you " + itemLabel(tokenId) + " x" + amount + ". Take it from the Provisioner inbox.");
+    send(p.ws, snapshotFor(p));
+  });
 }
 
 function handleLokSendKek(p: Player, _to: string, _amount: string) {
@@ -1099,9 +1173,18 @@ function handleLokList(
     pushLog(p, "AhEscrow is not configured on this server. Nothing was listed.");
     return;
   }
-  // Rule 2/4: buyAsk pays ownerOf(character) at fill; openAsk no longer freezes a payout.
-  // Still require the NFT to exist before listing so cancel-on-transfer has something to watch.
+  const listBudget = consumeListBudget({ charId: p.charId, wallet: p.wallet });
+  if (!listBudget.ok) {
+    pushLog(p, listBudget.error);
+    return;
+  }
+  // C-1: session wallet must be ownerOf(character). Rule 2/4: buyAsk pays ownerOf at fill.
   void (async () => {
+    const ctrl = await sessionOwnsCharacter(p.wallet!, token);
+    if (!ctrl.ok) {
+      pushLog(p, ctrl.error);
+      return;
+    }
     const owned = await readCharacterNftOwner(token);
     const resolved = resolveListSellerPayout(owned.ok ? owned.holder : null);
     if (!resolved.ok) {
@@ -1109,6 +1192,7 @@ function handleLokList(
       return;
     }
     const ownerAtList = resolved.payout;
+    nftOwnerCache().set(token, ownerAtList, 0);
     const listedAt = Math.floor(Date.now() / 1000);
     const res = lok.ask(token, String(tokenId), String(amount), minPrice, listedAt);
     if (!res.ok || !res.listingId) {
@@ -1116,6 +1200,30 @@ function handleLokList(
       return;
     }
     const listingId = res.listingId;
+    noteListingOpened(listingId);
+    // H-1: alert when LISTING gas is low (best-effort; never blocks the list).
+    try {
+      const cfg = ahEscrowClientConfig();
+      if (cfg && listingRoleKey()) {
+        const { privateKeyToAccount } = await import("viem/accounts");
+        const { createPublicClient, http } = await import("viem");
+        const key = listingRoleKey()!;
+        const acct = privateKeyToAccount((key.startsWith("0x") ? key : "0x" + key) as `0x${string}`);
+        const pub = createPublicClient({
+          chain: {
+            id: envSettlementChainId(),
+            name: "settlement",
+            nativeCurrency: { name: "xDAI", symbol: "xDAI", decimals: 18 },
+            rpcUrls: { default: { http: [cfg.rpcUrl] } },
+          },
+          transport: http(cfg.rpcUrl),
+        });
+        const bal = await pub.getBalance({ address: acct.address });
+        void maybeAlertListingLowBalance({ balanceWei: bal, address: acct.address });
+      }
+    } catch {
+      /* ignore balance probe */
+    }
     const chain = await openAskOnchain({
       listingId,
       sellerTokenId: token,
@@ -1132,6 +1240,7 @@ function handleLokList(
           const pulled = await cancelAskOnchain({ listingId });
           if (pulled.ok && !("alreadyClosed" in pulled && pulled.alreadyClosed)) {
             lok.cancelAsk(listingId, token);
+            clearListingOpened(listingId);
           }
           pushLog(
             p,
@@ -1154,6 +1263,7 @@ function handleLokList(
         return;
       }
       const undone = lok.cancelAsk(listingId, token);
+      clearListingOpened(listingId);
       pushLog(
         p,
         "On-chain ask failed (" +
@@ -1171,6 +1281,7 @@ function handleLokList(
       const pulled = await cancelAskOnchain({ listingId });
       if (pulled.ok && !("alreadyClosed" in pulled && pulled.alreadyClosed)) {
         const undone = lok.cancelAsk(listingId, token);
+        clearListingOpened(listingId);
         if (!undone.ok) {
           enqueuePendingCancel({ listingId, sellerTokenId: token });
         }
@@ -1241,6 +1352,20 @@ function handleLokCancel(p: Player, listingId: string) {
     pushLog(p, "Could not open your log identity.");
     return;
   }
+  if (!p.wallet || !isEthAddress(p.wallet)) {
+    pushLog(p, "A wallet is required to cancel a listing.");
+    return;
+  }
+  const lifetime = listingMinLifetimeOk(listingId);
+  if (!lifetime.ok) {
+    pushLog(p, lifetime.error);
+    return;
+  }
+  const cancelBudget = consumeCancelBudget({ charId: p.charId, wallet: p.wallet });
+  if (!cancelBudget.ok) {
+    pushLog(p, cancelBudget.error);
+    return;
+  }
   const row = lok.view(token).listings.find((l) => l.id === listingId);
   if (!row) {
     pushLog(p, "Unknown listing. Nothing was cancelled.");
@@ -1249,7 +1374,10 @@ function handleLokCancel(p: Player, listingId: string) {
   if (!row.book) {
     const res = lok.cancel(listingId, token);
     if (!res.ok) pushLog(p, res.error);
-    else pushLog(p, "Cancelled listing #" + listingId + ". Escrow returned.");
+    else {
+      clearListingOpened(listingId);
+      pushLog(p, "Cancelled listing #" + listingId + ". Escrow returned.");
+    }
     send(p.ws, snapshotFor(p));
     return;
   }
@@ -1258,7 +1386,14 @@ function handleLokCancel(p: Player, listingId: string) {
     send(p.ws, snapshotFor(p));
     return;
   }
-  void cancelAskOnchain({ listingId }).then((chain) => {
+  void (async () => {
+    const ctrl = await sessionOwnsCharacter(p.wallet!, token);
+    if (!ctrl.ok) {
+      pushLog(p, ctrl.error);
+      send(p.ws, snapshotFor(p));
+      return;
+    }
+    const chain = await cancelAskOnchain({ listingId });
     if (!chain.ok) {
       pushLog(p, "On-chain cancel failed (" + chain.error + "). The log listing was left open.");
       send(p.ws, snapshotFor(p));
@@ -1276,6 +1411,7 @@ function handleLokCancel(p: Player, listingId: string) {
     }
     // neverOpened: pre-AhEscrow book ask — cancel on the log only.
     const res = lok.cancelAsk(listingId, token);
+    clearListingOpened(listingId);
     if (!res.ok) {
       pushLog(
         p,
@@ -1292,7 +1428,7 @@ function handleLokCancel(p: Player, listingId: string) {
       );
     }
     send(p.ws, snapshotFor(p));
-  });
+  })();
 }
 
 function handleLokReclaim(p: Player, listingId: string) {
@@ -1301,11 +1437,32 @@ function handleLokReclaim(p: Player, listingId: string) {
     pushLog(p, "Could not open your log identity.");
     return;
   }
+  if (!p.wallet || !isEthAddress(p.wallet)) {
+    pushLog(p, "A wallet is required to reclaim a listing.");
+    return;
+  }
+  const lifetime = listingMinLifetimeOk(listingId);
+  if (!lifetime.ok) {
+    pushLog(p, lifetime.error);
+    return;
+  }
+  const cancelBudget = consumeCancelBudget({ charId: p.charId, wallet: p.wallet });
+  if (!cancelBudget.ok) {
+    pushLog(p, cancelBudget.error);
+    return;
+  }
   if (!ahEscrowAddress()) {
     pushLog(p, "AhEscrow is not configured; cannot reclaim an on-chain ask safely.");
     return;
   }
-  void cancelAskOnchain({ listingId }).then((chain) => {
+  void (async () => {
+    const ctrl = await sessionOwnsCharacter(p.wallet!, token);
+    if (!ctrl.ok) {
+      pushLog(p, ctrl.error);
+      send(p.ws, snapshotFor(p));
+      return;
+    }
+    const chain = await cancelAskOnchain({ listingId });
     if (!chain.ok) {
       pushLog(p, "On-chain cancel before reclaim failed (" + chain.error + "). Nothing was reclaimed.");
       send(p.ws, snapshotFor(p));
@@ -1320,6 +1477,7 @@ function handleLokReclaim(p: Player, listingId: string) {
       return;
     }
     const res = lok.reclaim(listingId, token, Math.floor(Date.now() / 1000));
+    clearListingOpened(listingId);
     if (!res.ok) pushLog(p, res.error);
     else {
       pushLog(
@@ -1330,13 +1488,17 @@ function handleLokReclaim(p: Player, listingId: string) {
       );
     }
     send(p.ws, snapshotFor(p));
-  });
+  })();
 }
 
 function handleLokNpcSell(p: Player, tokenId: number, amount: number) {
   const token = lokToken(p);
   if (!token) {
     pushLog(p, "Could not open your log identity.");
+    return;
+  }
+  if (!p.wallet || !isEthAddress(p.wallet)) {
+    pushLog(p, "A wallet is required to sell to the Provisioner.");
     return;
   }
   if (!Number.isSafeInteger(amount) || amount < 1) {
@@ -1349,14 +1511,20 @@ function handleLokNpcSell(p: Player, tokenId: number, amount: number) {
     pushLog(p, "That stack has no NPC buyback price yet.");
     return;
   }
-  const res = lok.goldSell(token, String(tokenId), String(amount), String(gold), serverGoldDay());
-  if (!res.ok) {
-    pushLog(p, res.error);
+  void sessionOwnsCharacter(p.wallet, token).then((owned) => {
+    if (!owned.ok) {
+      pushLog(p, owned.error);
+      return;
+    }
+    const res = lok.goldSell(token, String(tokenId), String(amount), String(gold), serverGoldDay());
+    if (!res.ok) {
+      pushLog(p, res.error);
+      send(p.ws, snapshotFor(p));
+      return;
+    }
+    pushLog(p, "Sold " + itemLabel(tokenId) + " x" + amount + " to the Provisioner for " + gold + " gold.");
     send(p.ws, snapshotFor(p));
-    return;
-  }
-  pushLog(p, "Sold " + itemLabel(tokenId) + " x" + amount + " to the Provisioner for " + gold + " gold.");
-  send(p.ws, snapshotFor(p));
+  });
 }
 
 function handleLokTakeInbox(p: Player, tokenId: number, amount: number) {
@@ -4702,11 +4870,18 @@ function onMessage(ws: WebSocket, data: string) {
   }
 
   if (msg.type === "auth/hello") {
-    const sock = ws as WebSocket & { authConnId?: string; authDomain?: string; authIp?: string };
+    const sock = ws as WebSocket & {
+      authConnId?: string;
+      authDomain?: string;
+      authIp?: string;
+      authUri?: string;
+    };
     const challenged = issueAuthChallenge(msg.wallet, {
       connectionId: sock.authConnId,
       domain: sock.authDomain,
+      uri: sock.authUri,
       clientIp: sock.authIp,
+      chainId: envSettlementChainId(),
     });
     if (!challenged.ok) {
       send(ws, { type: "error", message: challenged.error });
@@ -4723,7 +4898,7 @@ function onMessage(ws: WebSocket, data: string) {
   }
 
   if (msg.type === "auth") {
-    const sock = ws as WebSocket & { authConnId?: string };
+    const sock = ws as WebSocket & { authConnId?: string; authDeadline?: ReturnType<typeof setTimeout> };
     void verifyAuthLogin({
       wallet: msg.wallet,
       signature: msg.signature,
@@ -4731,6 +4906,10 @@ function onMessage(ws: WebSocket, data: string) {
       message: msg.message,
       connectionId: sock.authConnId,
     }).then((verified) => {
+      if (sock.authDeadline) {
+        clearTimeout(sock.authDeadline);
+        sock.authDeadline = undefined;
+      }
       if (!verified.ok) {
         send(ws, { type: "error", message: verified.error });
         return;
@@ -5208,10 +5387,26 @@ const httpServer = createServer((req, res) => {
 });
 const wss = new WebSocketServer({
   server: httpServer,
-  verifyClient: (info: { origin: string }) => authVerifyClient(info),
+  maxPayload: WS_MAX_PAYLOAD,
+  verifyClient: (info: { origin: string; req: import("node:http").IncomingMessage }) => {
+    if (!authVerifyClient(info)) return false;
+    const ip = clientAddress(info.req);
+    if (wsIpExemptFromCaps(ip)) return true;
+    const capped = noteWsConnect(ip);
+    if (!capped.ok) return false;
+    (info.req as { __wsIpCounted?: string }).__wsIpCounted = ip;
+    return true;
+  },
 });
 wss.on("connection", (ws, req) => {
-  const sock = ws as WebSocket & { authConnId?: string; authDomain?: string; authIp?: string };
+  const sock = ws as WebSocket & {
+    authConnId?: string;
+    authDomain?: string;
+    authIp?: string;
+    authUri?: string;
+    authDeadline?: ReturnType<typeof setTimeout>;
+    wallet?: string;
+  };
   const originHeader = req.headers.origin;
   const originValue = Array.isArray(originHeader) ? originHeader[0] : originHeader;
   const origin = resolveAuthOrigin(originValue, AUTH_ORIGINS);
@@ -5221,11 +5416,38 @@ wss.on("connection", (ws, req) => {
   }
   sock.authConnId = randomBytes(8).toString("hex");
   sock.authDomain = origin.domain;
+  sock.authUri = origin.origin;
   sock.authIp = clientAddress(req);
-  ws.on("message", (buf) => onMessage(ws, buf.toString()));
+  const countedIp =
+    (req as { __wsIpCounted?: string }).__wsIpCounted ??
+    (wsIpExemptFromCaps(sock.authIp) ? "" : sock.authIp);
+  sock.authDeadline = setTimeout(() => {
+    if (!sock.wallet) {
+      try {
+        ws.close(4002, "auth timeout");
+      } catch {
+        /* ignore */
+      }
+    }
+  }, WS_AUTH_DEADLINE_MS);
+  sock.authDeadline.unref?.();
+  ws.on("message", (buf) => {
+    if (!consumeWsMessage(sock)) {
+      try {
+        ws.close(4029, "rate limit");
+      } catch {
+        /* ignore */
+      }
+      return;
+    }
+    onMessage(ws, buf.toString());
+  });
   ws.on("close", () => {
+    clearWsMessageBudget(sock);
+    if (sock.authDeadline) clearTimeout(sock.authDeadline);
+    if (countedIp) noteWsDisconnect(countedIp);
     if (sock.authConnId) dropAuthConnection(sock.authConnId);
-    const wallet = (ws as WebSocket & { wallet?: string }).wallet;
+    const wallet = sock.wallet;
     if (!wallet) return;
     const p = players.get(wallet);
     // Drop from the live interest set so peers stop rendering ghosts; roster keeps the char.

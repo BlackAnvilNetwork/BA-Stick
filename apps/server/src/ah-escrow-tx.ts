@@ -12,7 +12,9 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { ahEscrowAddress, ahEscrowClientConfig, listingRoleKey } from "./ah-escrow";
+import { openAskPendingStore } from "./open-ask-pending";
 import { withOwnerKeyQueue } from "./owner-tx-queue";
+import { settlementConfirmations } from "./settlement-confirmations";
 
 const AH_ABI = [
   {
@@ -124,8 +126,18 @@ function client(env: NodeJS.ProcessEnv = process.env) {
 async function waitReceipt(
   pub: ReturnType<typeof createPublicClient>,
   hash: Hex,
+  confirmations = 1,
 ): Promise<TransactionReceipt> {
-  return pub.waitForTransactionReceipt({ hash, confirmations: 1 });
+  return pub.waitForTransactionReceipt({
+    hash,
+    confirmations: confirmations >= 1 ? confirmations : 1,
+  });
+}
+
+/** M-2: log escrow release waits for settlement depth (finalized tip / N blocks). */
+function cancelConfirmations(env?: NodeJS.ProcessEnv): number {
+  const n = Number(settlementConfirmations(env));
+  return Number.isFinite(n) && n >= 1 ? n : 1;
 }
 
 export async function readAskOnchain(opts: {
@@ -168,12 +180,17 @@ export async function openAskOnchain(opts: {
   amount: string;
   priceWei: string;
   env?: NodeJS.ProcessEnv;
+  dataDir?: string;
 }): Promise<{ ok: true; hash: Hex } | { ok: false; error: string; chainOpen?: boolean }> {
   return withOwnerKeyQueue(async () => {
     const c = client(opts.env);
     if (!c.ok) return c;
     let hash: Hex | undefined;
     try {
+      const nonce = await c.pub.getTransactionCount({
+        address: c.account.address,
+        blockTag: "pending",
+      });
       hash = await c.wallet.writeContract({
         address: c.escrow,
         abi: AH_ABI,
@@ -187,11 +204,21 @@ export async function openAskOnchain(opts: {
         ],
         account: c.account,
         chain: c.chain,
+        nonce,
       });
-      const receipt = await waitReceipt(c.pub, hash);
+      // M-1: record broadcast before waiting so a stuck receipt cannot be reclaimed as neverOpened.
+      openAskPendingStore(opts.dataDir).set({
+        listingId: opts.listingId,
+        sellerTokenId: opts.sellerTokenId,
+        hash,
+        nonce: String(nonce),
+        broadcastAt: new Date().toISOString(),
+      });
+      const receipt = await waitReceipt(c.pub, hash, 1);
       if (receipt.status !== "success") {
-        return { ok: false, error: "openAsk reverted on-chain." };
+        return { ok: false, error: "openAsk reverted on-chain.", chainOpen: true };
       }
+      openAskPendingStore(opts.dataDir).clear(opts.listingId);
       return { ok: true, hash };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -202,6 +229,7 @@ export async function openAskOnchain(opts: {
           if (i > 0) await new Promise((r) => setTimeout(r, 500 * i));
           const onchain = await readAskOnchain({ listingId: opts.listingId, env: opts.env });
           if (onchain.ok && onchain.ask.open) {
+            openAskPendingStore(opts.dataDir).clear(opts.listingId);
             return {
               ok: false,
               error: msg + " (ask is open on-chain; log listing left open)",
@@ -209,6 +237,7 @@ export async function openAskOnchain(opts: {
             };
           }
           if (onchain.ok && onchain.ask.used && !onchain.ask.open) {
+            openAskPendingStore(opts.dataDir).clear(opts.listingId);
             return {
               ok: false,
               error: msg + " (ask closed on-chain; log listing left open for reconcile)",
@@ -230,21 +259,48 @@ export async function openAskOnchain(opts: {
 export async function cancelAskOnchain(opts: {
   listingId: string;
   env?: NodeJS.ProcessEnv;
+  dataDir?: string;
 }): Promise<
-  | { ok: true; hash: Hex; alreadyClosed?: boolean; neverOpened?: boolean }
+  | { ok: true; hash: Hex; alreadyClosed?: boolean; neverOpened?: boolean; pendingOpen?: boolean }
   | { ok: false; error: string }
 > {
   return withOwnerKeyQueue(async () => {
     const c = client(opts.env);
     if (!c.ok) return c;
 
-    const before = await readAskOnchain({ listingId: opts.listingId, env: opts.env });
+    let before = await readAskOnchain({ listingId: opts.listingId, env: opts.env });
     if (!before.ok) return before;
-    // Pre-AhEscrow (or never successfully opened): cancel on the log only.
+    const pending = openAskPendingStore(opts.dataDir).get(opts.listingId);
+    // M-1: !used is neverOpened only when we never broadcast openAsk for this id.
     if (!before.ask.used) {
-      return { ok: true, hash: "0x" as Hex, neverOpened: true };
+      if (!pending) {
+        return { ok: true, hash: "0x" as Hex, neverOpened: true };
+      }
+      // Broadcast may still be in flight — wait for one confirmation, then re-read.
+      try {
+        await waitReceipt(c.pub, pending.hash as Hex, 1);
+      } catch {
+        /* receipt may fail; still re-check asks() */
+      }
+      const again = await readAskOnchain({ listingId: opts.listingId, env: opts.env });
+      if (!again.ok) return again;
+      if (again.ask.used && !again.ask.open) {
+        openAskPendingStore(opts.dataDir).clear(opts.listingId);
+        return { ok: true, hash: "0x" as Hex, alreadyClosed: true };
+      }
+      if (!again.ask.used) {
+        return {
+          ok: false,
+          error:
+            "openAsk was broadcast (tx " +
+            pending.hash +
+            ") but is not mined yet; refuse reclaim/cancel until the nonce settles",
+        };
+      }
+      before = again;
     }
     if (!before.ask.open) {
+      openAskPendingStore(opts.dataDir).clear(opts.listingId);
       return { ok: true, hash: "0x" as Hex, alreadyClosed: true };
     }
 
@@ -257,18 +313,21 @@ export async function cancelAskOnchain(opts: {
         account: c.account,
         chain: c.chain,
       });
-      const receipt = await waitReceipt(c.pub, hash);
+      const receipt = await waitReceipt(c.pub, hash, cancelConfirmations(opts.env));
       if (receipt.status !== "success") {
         return { ok: false, error: "cancelAsk reverted on-chain." };
       }
+      openAskPendingStore(opts.dataDir).clear(opts.listingId);
       return { ok: true, hash };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (isAskClosedError(msg)) {
+        openAskPendingStore(opts.dataDir).clear(opts.listingId);
         return { ok: true, hash: "0x" as Hex, alreadyClosed: true };
       }
       const again = await readAskOnchain({ listingId: opts.listingId, env: opts.env });
       if (again.ok && !again.ask.open) {
+        openAskPendingStore(opts.dataDir).clear(opts.listingId);
         return { ok: true, hash: "0x" as Hex, alreadyClosed: true };
       }
       return { ok: false, error: msg };

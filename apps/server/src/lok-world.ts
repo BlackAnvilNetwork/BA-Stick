@@ -807,6 +807,31 @@ export class LokWorld {
     this.saveBind();
   }
 
+  /**
+   * Re-bind character control after a finalized NFT Transfer (C-1).
+   * Overwrites an existing wallet binding — unlike write-once bindWallet.
+   */
+  rebindWallet(charId: string, wallet: string): { ok: true; previous: string | null } | { ok: false; error: string } {
+    const owner = wallet.trim().toLowerCase();
+    if (!/^0x[0-9a-f]{40}$/.test(owner)) return { ok: false, error: "Bad wallet." };
+    const row = this.bind.chars.find((c) => c.charId === charId);
+    if (!row) return { ok: false, error: "Unknown character." };
+    const previous = row.wallet?.toLowerCase() ?? null;
+    if (previous === owner) return { ok: true, previous };
+    row.wallet = owner;
+    this.saveBind();
+    return { ok: true, previous };
+  }
+
+  /** Find bind row by NFT token id. */
+  charByTokenId(
+    tokenId: string,
+  ): { charId: string; tokenId: string; name: string; job: number; wallet?: string } | null {
+    const id = tokenId.trim();
+    const row = this.bind.chars.find((c) => c.tokenId === id);
+    return row ? { ...row } : null;
+  }
+
   walletCharCount(wallet: string, exceptCharId?: string): number {
     this.pruneExpiredReservations();
     const owner = wallet.trim().toLowerCase();

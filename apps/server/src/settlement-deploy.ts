@@ -11,6 +11,7 @@ import {
   settlementRpcUrls,
   type NetworkProfile,
 } from "@bellgrave/config";
+import { findDryRunEnvHits, dryRunDeployAllowed, isDryRunAddress } from "./dry-run-denylist";
 import { envSettlementChainId } from "./settlement-chain";
 import { redactRpcUrl } from "./ops-redact";
 
@@ -106,16 +107,44 @@ export function applySettlementDeployFile(env: NodeJS.ProcessEnv = process.env):
   }
 
   const c = parsed.contracts ?? {};
-  fill(env, "LOK_NFT", c.CharacterNFT);
-  fill(env, "LOK_FACTORY", c.CharacterFactory);
-  fill(env, "LOK_AH_ESCROW", c.AhEscrow);
-  fill(env, "LOK_CHECKPOINT", c.CharacterCheckpoint);
-  fill(env, "LOK_RULESETS", c.RulesetRegistry);
-  // Real Items only — never wire dry-run MockItems (key is "Items", not "MockItems").
-  if (c.Items) fill(env, "LOK_ITEMS", c.Items);
+  // M-7: refuse filling (and warn on already-set env) when addresses are the dry-run denylist.
+  const candidateKeys: [string, string | undefined][] = [
+    ["LOK_NFT", c.CharacterNFT],
+    ["LOK_FACTORY", c.CharacterFactory],
+    ["LOK_AH_ESCROW", c.AhEscrow],
+    ["LOK_CHECKPOINT", c.CharacterCheckpoint],
+    ["LOK_RULESETS", c.RulesetRegistry],
+    ["LOK_ITEMS", c.Items],
+  ];
+  const allowDryFill = env.LOK_ALLOW_DRY_RUN_DEPLOY?.trim() === "1";
+  for (const [key, value] of candidateKeys) {
+    if (value && isDryRunAddress(value) && !allowDryFill) {
+      console.error(
+        "[bellgrave] ALERT: refusing " +
+          key +
+          " fill from dry-run denylist address " +
+          value +
+          " (see deployments/gnosis-dryrun.json)",
+      );
+      continue;
+    }
+    if (key === "LOK_ITEMS") {
+      if (c.Items) fill(env, "LOK_ITEMS", c.Items);
+      continue;
+    }
+    fill(env, key, value);
+  }
   if (c.MockItems && !c.Items) {
     console.error(
       "[bellgrave] ALERT: deploy file lists MockItems but no Items — refusing LOK_ITEMS fill.",
+    );
+  }
+  const envHits = findDryRunEnvHits(env);
+  if (envHits.length > 0 && !dryRunDeployAllowed(env)) {
+    console.error(
+      "[bellgrave] ALERT: LOK_* env matches dry-run denylist: " +
+        envHits.map((h) => h.key + "=" + h.address).join(", ") +
+        " — production boot will refuse unless LOK_ALLOW_DRY_RUN_DEPLOY=1 and LOK_DRY_RUN_INSPECT=1 (H-2/M-7).",
     );
   }
 

@@ -20,6 +20,7 @@ import {
 } from "./settlement-rpc";
 import { opsAlert, watcherLagAlertBlocks } from "./ops-log";
 import { redactRpcUrl } from "./ops-redact";
+import { nftOwnerCache } from "./nft-owner-cache";
 import { readWatcherCursor, writeWatcherCursor } from "./watcher-cursor";
 import { defaultLokDir, type LokWorld } from "./lok-world";
 import { writeTextAtomic } from "./lok-vault";
@@ -49,6 +50,8 @@ export type NftTransfer = {
   from: string;
   to: string;
   tokenId: string;
+  /** Block number when present on the log (decimal string). */
+  blockNumber?: string;
 };
 
 export type PendingCancel = {
@@ -62,16 +65,24 @@ export type PendingCancel = {
   ambiguous?: boolean;
 };
 
-export function decodeErc721Transfer(log: { topics?: string[] }): NftTransfer | null {
+export function decodeErc721Transfer(log: {
+  topics?: string[];
+  blockNumber?: string;
+}): NftTransfer | null {
   const topics = log.topics ?? [];
   if (topics.length < 4 || topics[0]?.toLowerCase() !== ERC721_TRANSFER_TOPIC.toLowerCase()) {
     return null;
   }
   try {
+    const blockNumber =
+      log.blockNumber != null && log.blockNumber !== ""
+        ? BigInt(log.blockNumber).toString()
+        : undefined;
     return {
       from: ("0x" + topics[1]!.slice(26)).toLowerCase(),
       to: ("0x" + topics[2]!.slice(26)).toLowerCase(),
       tokenId: BigInt(topics[3]!).toString(),
+      ...(blockNumber ? { blockNumber } : {}),
     };
   } catch {
     return null;
@@ -671,13 +682,23 @@ function defaultClassifyClosed(
   };
 }
 
+export type NftOwnershipChange = {
+  tokenId: string;
+  from: string;
+  to: string;
+  blockNumber: string;
+  charId: string | null;
+};
+
 export function startNftTransferAskCancelWatcher(
-  lok: Pick<LokWorld, "openBookListings" | "cancelAsk">,
+  lok: Pick<LokWorld, "openBookListings" | "cancelAsk" | "charByTokenId" | "rebindWallet">,
   opts?: {
     cursorPath?: string;
     pendingPath?: string;
     dataDir?: string;
     env?: NodeJS.ProcessEnv;
+    /** C-1: after finalized Transfer, update owner cache + rebind + kick sessions. */
+    onOwnershipChange?: (change: NftOwnershipChange) => void | Promise<void>;
   },
 ): void {
   const env = opts?.env ?? process.env;
@@ -740,6 +761,33 @@ export function startNftTransferAskCancelWatcher(
         preferFinalized: preferFinalizedTip(env),
         rpcCall: rpc.asCall(),
         onTransfer: async (xfer) => {
+          const block = xfer.blockNumber ?? "0";
+          nftOwnerCache(dataDir).onTransfer(xfer.tokenId, xfer.to, block);
+          const bound = lok.charByTokenId?.(xfer.tokenId) ?? null;
+          if (bound && typeof lok.rebindWallet === "function") {
+            const reb = lok.rebindWallet(bound.charId, xfer.to);
+            if (reb.ok && reb.previous && reb.previous !== xfer.to) {
+              console.log(
+                "[bellgrave] C-1 rebind char=" +
+                  bound.charId +
+                  " token=" +
+                  xfer.tokenId +
+                  " " +
+                  reb.previous +
+                  " → " +
+                  xfer.to,
+              );
+            }
+          }
+          if (opts?.onOwnershipChange) {
+            await opts.onOwnershipChange({
+              tokenId: xfer.tokenId,
+              from: xfer.from,
+              to: xfer.to,
+              blockNumber: block,
+              charId: bound?.charId ?? null,
+            });
+          }
           const res = await cancelOpenAsksForCharacter(lok, xfer.tokenId, {
             env,
             classifyClosed,
