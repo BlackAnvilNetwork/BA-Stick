@@ -37,7 +37,7 @@ contract MockEezSyncBuy {
 
     /// @notice Pay an ask from the "home" wallet; forwards exact price, refunds excess.
     function syncBuy(uint256 listingId, uint256 buyerTokenId) external payable {
-        (,,,, uint256 priceWei, bool open,) = escrow.asks(listingId);
+        (,,, uint256 priceWei, bool open,) = escrow.asks(listingId);
         if (!open) revert AskClosed();
         if (msg.value < priceWei) revert WrongPrice();
 

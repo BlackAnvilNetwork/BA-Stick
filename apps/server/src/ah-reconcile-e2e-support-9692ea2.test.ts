@@ -36,12 +36,28 @@ const ABI = [
     name: "openAsk",
     stateMutability: "nonpayable",
     inputs: [
-      { name: "a", type: "uint256" },
-      { name: "b", type: "uint256" },
-      { name: "c", type: "address" },
-      { name: "d", type: "uint256" },
-      { name: "e", type: "uint256" },
-      { name: "f", type: "uint256" },
+      { name: "listingId", type: "uint256" },
+      { name: "sellerTokenId", type: "uint256" },
+      { name: "itemId", type: "uint256" },
+      { name: "amount", type: "uint256" },
+      { name: "priceWei", type: "uint256" },
+    ],
+    outputs: [],
+  },
+  {
+    type: "function",
+    name: "characterNft",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "address" }],
+  },
+  {
+    type: "function",
+    name: "setOwner",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "tokenId", type: "uint256" },
+      { name: "owner_", type: "address" },
     ],
     outputs: [],
   },
@@ -117,13 +133,26 @@ describe("support 9692ea2: AskFilled while the server was down", { skip: !canRun
     const pub = createPublicClient({ chain, transport: http(RPC) });
     const lister = createWalletClient({ account: privateKeyToAccount(K0), chain, transport: http(RPC) });
     const buyerW = createWalletClient({ account: privateKeyToAccount(K4), chain, transport: http(RPC) });
+    const nft = (await pub.readContract({
+      address: ESCROW,
+      abi: ABI,
+      functionName: "characterNft",
+    })) as Hex;
+    await pub.waitForTransactionReceipt({
+      hash: await lister.writeContract({
+        address: nft,
+        abi: ABI,
+        functionName: "setOwner",
+        args: [BigInt(seller), "0x00000000000000000000000000000000000000aa"],
+      }),
+    });
     const startBlock = BigInt(String(await rpc("eth_blockNumber", [])));
     for (const id of [idA, idB]) {
       const h = await lister.writeContract({
         address: ESCROW,
         abi: ABI,
         functionName: "openAsk",
-        args: [id, BigInt(seller), "0x00000000000000000000000000000000000000aa", 111n, 1n, 1_000_000_000_000_000n],
+        args: [id, BigInt(seller), 111n, 1n, 1_000_000_000_000_000n],
       });
       await pub.waitForTransactionReceipt({ hash: h });
     }

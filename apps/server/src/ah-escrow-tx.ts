@@ -22,7 +22,6 @@ const AH_ABI = [
     inputs: [
       { name: "listingId", type: "uint256" },
       { name: "sellerTokenId", type: "uint256" },
-      { name: "sellerPayout", type: "address" },
       { name: "itemId", type: "uint256" },
       { name: "amount", type: "uint256" },
       { name: "priceWei", type: "uint256" },
@@ -42,7 +41,6 @@ const AH_ABI = [
     stateMutability: "view",
     inputs: [{ name: "listingId", type: "uint256" }],
     outputs: [
-      { name: "sellerPayout", type: "address" },
       { name: "sellerTokenId", type: "uint256" },
       { name: "itemId", type: "uint256" },
       { name: "amount", type: "uint256" },
@@ -66,7 +64,6 @@ const AH_ABI = [
 const ASK_CLOSED_SELECTOR = "0x756918b7";
 
 export type OnchainAsk = {
-  sellerPayout: string;
   sellerTokenId: string;
   itemId: string;
   amount: string;
@@ -147,13 +144,12 @@ export async function readAskOnchain(opts: {
     return {
       ok: true,
       ask: {
-        sellerPayout: row[0],
-        sellerTokenId: row[1].toString(),
-        itemId: row[2].toString(),
-        amount: row[3].toString(),
-        priceWei: row[4].toString(),
-        open: row[5],
-        used: row[6],
+        sellerTokenId: row[0].toString(),
+        itemId: row[1].toString(),
+        amount: row[2].toString(),
+        priceWei: row[3].toString(),
+        open: row[4],
+        used: row[5],
       },
     };
   } catch (err) {
@@ -168,7 +164,6 @@ function isAskClosedError(msg: string): boolean {
 export async function openAskOnchain(opts: {
   listingId: string;
   sellerTokenId: string;
-  sellerPayout: string;
   itemId: string;
   amount: string;
   priceWei: string;
@@ -177,9 +172,6 @@ export async function openAskOnchain(opts: {
   return withOwnerKeyQueue(async () => {
     const c = client(opts.env);
     if (!c.ok) return c;
-    if (!/^0x[0-9a-fA-F]{40}$/.test(opts.sellerPayout)) {
-      return { ok: false, error: "Seller payout wallet is missing. Nothing was listed on-chain." };
-    }
     let hash: Hex | undefined;
     try {
       hash = await c.wallet.writeContract({
@@ -189,7 +181,6 @@ export async function openAskOnchain(opts: {
         args: [
           BigInt(opts.listingId),
           BigInt(opts.sellerTokenId),
-          opts.sellerPayout as `0x${string}`,
           BigInt(opts.itemId),
           BigInt(opts.amount),
           BigInt(opts.priceWei),

@@ -1,7 +1,7 @@
 import { getItem, npcSellTotalGold, npcSellUnitGold } from "@bellgrave/items";
-import type { InventorySlot, LokItemBalance } from "@bellgrave/protocol";
+import { ahFeeSplit, type InventorySlot, type LokItemBalance } from "@bellgrave/protocol";
 import { useState } from "react";
-import { parseEther } from "viem";
+import { formatEther, parseEther } from "viem";
 import { ItemCatalogDetails, ItemTipHost } from "./itemTip";
 import { send } from "./net";
 
@@ -76,6 +76,21 @@ export function ProvisionerBag({ inventory, logItems, inbox, others }: Props) {
     }
   }
   const priceOk = minPriceWei !== null;
+  const listFeeNote = (() => {
+    if (!minPriceWei) return null;
+    try {
+      const { feeWei, sellerNetWei } = ahFeeSplit(BigInt(minPriceWei));
+      return (
+        "1% marketplace fee (" +
+        formatEther(feeWei) +
+        " ETH) — you receive " +
+        formatEther(sellerNetWei) +
+        " ETH if this ask fills (paid to the character NFT owner)."
+      );
+    } catch {
+      return null;
+    }
+  })();
 
   return (
     <div className="prov-hold">
@@ -140,14 +155,19 @@ export function ProvisionerBag({ inventory, logItems, inbox, others }: Props) {
                     aria-label="Minimum ask"
                     onChange={(e) => setMinPrice(e.target.value)}
                   />
+                  {listFeeNote && <p className="lok-note">{listFeeNote}</p>}
                   <button
                     type="button"
                     className="cmd-pill-tab"
                     disabled={!cell.logAmount || !priceOk}
-                    title={priceOk ? "List the log stack at this minimum." : "Enter a minimum ETH amount greater than 0."}
+                    title={
+                      priceOk
+                        ? "List the log stack at this minimum (1% fee on fill)."
+                        : "Enter a minimum ETH amount greater than 0."
+                    }
                     onClick={() => {
                       if (!cell.logAmount || !minPriceWei) return;
-                      // Seller payout is ownerOf(character) on the server — never client-supplied.
+                      // Seller payout is ownerOf(character) on fill — never client-supplied.
                       send({
                         type: "lok/list",
                         tokenId: cell.tokenId,

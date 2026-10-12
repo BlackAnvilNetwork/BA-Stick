@@ -18,7 +18,13 @@ const SELLER_ADDR = "0x00000000000000000000000000000000000000aa";
 function askFilledLog(o: { listingId: string; buyerTokenId: string; price: string; block: number; tx: string }) {
   return {
     topics: [ASK_FILLED_TOPIC, "0x" + pad(BigInt(o.listingId)), "0x" + addrPad(BUYER_ADDR), "0x" + pad(BigInt(o.buyerTokenId))],
-    data: "0x" + addrPad(SELLER_ADDR) + pad(BigInt(o.price)) + pad(111n) + pad(1n),
+    data:
+      "0x" +
+      addrPad(SELLER_ADDR) +
+      pad(BigInt(o.price)) +
+      pad(BigInt(o.price) / 100n) +
+      pad(111n) +
+      pad(1n),
     blockNumber: "0x" + o.block.toString(16),
     logIndex: "0x0",
     transactionHash: "0x" + o.tx.padStart(64, "0"),

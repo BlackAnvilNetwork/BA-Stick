@@ -388,11 +388,24 @@ export type LokListingView = {
   yours: boolean;
 };
 
+/** Matches AhEscrow.FEE_BPS — 1% of sale price (floor). */
+export const AH_FEE_BPS = 100;
+export const AH_FEE_BPS_DENOM = 10_000;
+
+/** Floor split used by AhEscrow.buyAsk / quoteFee. */
+export function ahFeeSplit(priceWei: bigint): { feeWei: bigint; sellerNetWei: bigint } {
+  if (priceWei < 0n) throw new Error("priceWei must be non-negative");
+  const feeWei = (priceWei * BigInt(AH_FEE_BPS)) / BigInt(AH_FEE_BPS_DENOM);
+  return { feeWei, sellerNetWei: priceWei - feeWei };
+}
+
 /** Browser-reachable AhEscrow config so the client can sign buyAsk. Null when unset. */
 export type AhEscrowClientConfig = {
   address: string;
   rpcUrl: string;
   chainId: number;
+  /** Marketplace fee in basis points (default 100 = 1%). */
+  feeBps?: number;
 };
 
 /** Local / EEZ sync-buy client config (pay from home chain). */

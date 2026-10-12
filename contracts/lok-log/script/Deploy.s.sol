@@ -96,7 +96,8 @@ contract Deploy is Script {
         d.rulesets = RulesetRegistry(
             _proxy(address(new RulesetRegistry()), abi.encodeCall(RulesetRegistry.initialize, (deployer, RULESET_MIN_DELAY)))
         );
-        d.ahEscrow = new AhEscrow(deployer);
+        // Fee recipient defaults to multisig; buyAsk pays ownerOf(sellerTokenId) on the NFT.
+        d.ahEscrow = new AhEscrow(deployer, address(d.nft), payable(c.multisig));
 
         // Batched redeploy: drop CharacterCheckpoint.vault / KekVault once no live chain needs deposit custody.
 

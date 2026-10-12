@@ -33,7 +33,7 @@ describe("support acd4d6f: AskFilled mirror crash window", () => {
     assert.ok(ask.ok && ask.listingId);
     const log = {
       topics: [ASK_FILLED_TOPIC, "0x" + pad(BigInt(ask.listingId!)), "0x" + addrPad("0x00000000000000000000000000000000000000bb"), "0x" + pad(BigInt(buyer))],
-      data: "0x" + addrPad("0x00000000000000000000000000000000000000aa") + pad(500n) + pad(111n) + pad(1n),
+      data: "0x" + addrPad("0x00000000000000000000000000000000000000aa") + pad(500n) + pad(5n) + pad(111n) + pad(1n),
       blockNumber: "0x5",
       logIndex: "0x0",
       transactionHash: "0x" + "c3".padStart(64, "0"),

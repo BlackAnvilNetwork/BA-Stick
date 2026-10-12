@@ -1048,7 +1048,8 @@ function handleLokList(
     pushLog(p, "AhEscrow is not configured on this server. Nothing was listed.");
     return;
   }
-  // Rule 2/4: payout is ownerOf(character) at list time — never a client address.
+  // Rule 2/4: buyAsk pays ownerOf(character) at fill; openAsk no longer freezes a payout.
+  // Still require the NFT to exist before listing so cancel-on-transfer has something to watch.
   void (async () => {
     const owned = await readCharacterNftOwner(token);
     const resolved = resolveListSellerPayout(owned.ok ? owned.holder : null);
@@ -1056,7 +1057,6 @@ function handleLokList(
       pushLog(p, resolved.error);
       return;
     }
-    const payout = resolved.payout;
     const listedAt = Math.floor(Date.now() / 1000);
     const res = lok.ask(token, String(tokenId), String(amount), minPrice, listedAt);
     if (!res.ok || !res.listingId) {
@@ -1067,7 +1067,6 @@ function handleLokList(
     const chain = await openAskOnchain({
       listingId,
       sellerTokenId: token,
-      sellerPayout: payout,
       itemId: String(tokenId),
       amount: String(amount),
       priceWei: minPrice,

@@ -37,12 +37,37 @@ const ESC_ABI = [
     name: "openAsk",
     stateMutability: "nonpayable",
     inputs: [
-      { name: "a", type: "uint256" },
-      { name: "b", type: "uint256" },
-      { name: "c", type: "address" },
-      { name: "d", type: "uint256" },
-      { name: "e", type: "uint256" },
-      { name: "f", type: "uint256" },
+      { name: "listingId", type: "uint256" },
+      { name: "sellerTokenId", type: "uint256" },
+      { name: "itemId", type: "uint256" },
+      { name: "amount", type: "uint256" },
+      { name: "priceWei", type: "uint256" },
+    ],
+    outputs: [],
+  },
+  {
+    type: "function",
+    name: "characterNft",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "address" }],
+  },
+  {
+    type: "function",
+    name: "feeRecipient",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "address" }],
+  },
+] as const;
+const NFT_ABI = [
+  {
+    type: "function",
+    name: "setOwner",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "tokenId", type: "uint256" },
+      { name: "owner_", type: "address" },
     ],
     outputs: [],
   },
@@ -124,6 +149,26 @@ describe("support 8357719: EEZ mock sync buy (throwaway anvil)", { skip: !canRun
     const buyer = privateKeyToAccount(K5);
     const bw = createWalletClient({ account: buyer, chain, transport: http(RPC) });
     const payout = ("0x" + (Date.now().toString(16) + "0".repeat(40)).slice(0, 40)) as Hex;
+    const nft = (await pub.readContract({
+      address: ESCROW,
+      abi: ESC_ABI,
+      functionName: "characterNft",
+    })) as Hex;
+    const feeTo = (await pub.readContract({
+      address: ESCROW,
+      abi: ESC_ABI,
+      functionName: "feeRecipient",
+    })) as Hex;
+    await pub.waitForTransactionReceipt({
+      hash: await lister.writeContract({
+        address: nft,
+        abi: NFT_ABI,
+        functionName: "setOwner",
+        args: [BigInt(s.tokenId), payout],
+      }),
+    });
+    const fee = P / 100n;
+    const sellerNet = P - fee;
     const start = BigInt(String(await rpc("eth_blockNumber", [])));
     for (const id of ids) {
       await pub.waitForTransactionReceipt({
@@ -131,13 +176,14 @@ describe("support 8357719: EEZ mock sync buy (throwaway anvil)", { skip: !canRun
           address: ESCROW,
           abi: ESC_ABI,
           functionName: "openAsk",
-          args: [id, BigInt(s.tokenId), payout, 111n, 1n, P],
+          args: [id, BigInt(s.tokenId), 111n, 1n, P],
         }),
       });
     }
     const bal = async () => ({
       buyer: await pub.getBalance({ address: buyer.address }),
       seller: await pub.getBalance({ address: payout }),
+      fee: await pub.getBalance({ address: feeTo }),
       mock: await pub.getBalance({ address: MOCK }),
     });
     const spend = async (id: bigint, value: bigint) => {
@@ -164,6 +210,7 @@ describe("support 8357719: EEZ mock sync buy (throwaway anvil)", { skip: !canRun
         status,
         buyerNet: before.buyer - after.buyer - gas,
         seller: after.seller - before.seller,
+        fee: after.fee - before.fee,
         mock: after.mock - before.mock,
       };
     };
@@ -183,7 +230,8 @@ describe("support 8357719: EEZ mock sync buy (throwaway anvil)", { skip: !canRun
     });
     const inbox = (lok.view(b.tokenId) as { inbox: { tokenId: number; amount: string }[] }).inbox;
     assert.equal(exact.status, "success");
-    assert.equal(exact.seller, P);
+    assert.equal(exact.seller, sellerNet);
+    assert.equal(exact.fee, fee);
     assert.equal(exact.buyerNet, P);
     assert.equal(again.status, "reverted");
     assert.equal(again.seller, 0n);
@@ -195,7 +243,8 @@ describe("support 8357719: EEZ mock sync buy (throwaway anvil)", { skip: !canRun
     assert.equal(quarantine.list().length, 0);
     assert.deepEqual(lok.openBookListings().map((r) => r.id), [String(ids[2])]);
     assert.equal(excess.status, "success");
-    assert.equal(excess.seller, P);
+    assert.equal(excess.seller, sellerNet);
+    assert.equal(excess.fee, fee);
     assert.equal(excess.buyerNet, P, "excess refunded to buyer");
   });
 });

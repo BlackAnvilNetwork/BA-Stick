@@ -1,5 +1,6 @@
 import { CATALOG, EQUIP_SLOTS, getItem, type EquipSlot, type ItemDef, type ItemKind } from "@bellgrave/items";
 import {
+  AH_FEE_BPS,
   compareAsks,
   MAX_QUANTITY_FILLS,
   planQuantityFills,
@@ -196,10 +197,20 @@ function categoryCount(selected: string, query: string): number {
   return count;
 }
 
-function buyNote(plan: QuantityPlan, qty: number): string {
+function buyNote(plan: QuantityPlan, qty: number, feeBps = AH_FEE_BPS): string {
   if (!Number.isSafeInteger(qty) || qty < 1 || qty > 1_000_000) return "Enter how many to buy.";
   if (plan.fills.length === 0) return "No ask you can buy. Your own listings are skipped.";
   const total = sumPrices(plan.fills);
+  let feeTotal = 0n;
+  let sellerTotal = 0n;
+  for (const fill of plan.fills) {
+    const price = asInt(fill.price);
+    if (price == null) continue;
+    // Mirror AhEscrow.quoteFee (BPS floor). feeBps override is for display only.
+    const feeWei = (price * BigInt(feeBps)) / 10_000n;
+    feeTotal += feeWei;
+    sellerTotal += price - feeWei;
+  }
   const over = BigInt(plan.filled) > BigInt(qty) ? " The last stack is taken whole at its own ask." : "";
   const short = plan.capped
     ? " One buy fills at most " + MAX_QUANTITY_FILLS + " asks, so this click stops after " + plan.filled + ". Buy again for the rest."
@@ -207,11 +218,17 @@ function buyNote(plan: QuantityPlan, qty: number): string {
       ? " The book runs out after " + plan.filled + "."
       : "";
   return (
-    "Total " +
+    "You pay " +
     formatWeiEth(total) +
     " ETH across " +
     plan.fills.length +
-    " asks. Each ask is charged its own price, not a blended rate." +
+    " asks. Marketplace fee " +
+    feeBps / 100 +
+    "% (" +
+    formatWeiEth(feeTotal.toString()) +
+    " ETH); sellers receive " +
+    formatWeiEth(sellerTotal.toString()) +
+    " ETH. Each ask is charged its own price, not a blended rate." +
     over +
     short
   );
@@ -424,14 +441,14 @@ export function AuctionBook({ listings, buyer, ahEscrow, eezSyncBuy }: Props) {
             ))}
             {plan.fills.length > 8 && <li>plus {plan.fills.length - 8} more asks, cheapest first</li>}
           </ul>
-          <p className="lok-note">{buyNote(plan, qty)}</p>
+          <p className="lok-note">{buyNote(plan, qty, ahEscrow?.feeBps ?? AH_FEE_BPS)}</p>
           <p className="lok-note">
             {legacyFills.length > 0
               ? "These asks use a pre-AhEscrow (legacy KEK) price and cannot be paid in ETH. The seller must cancel and relist."
               : eezReady
-                ? "Local EEZ mock: pay from the selected home chain; seller payout is same-batch on AhEscrow."
+                ? "Local EEZ mock: pay from the selected home chain; seller gets 99% (ownerOf at fill), 1% fee to treasury."
                 : ahEscrow
-                  ? "Buys pay ETH from your wallet to AhEscrow. The log only receives the item after AskFilled is confirmed."
+                  ? "Buys pay ETH to AhEscrow. Seller receives 99% at ownerOf(character); 1% marketplace fee. Item lands after AskFilled."
                   : "AhEscrow is not configured on this server (set LOK_AH_ESCROW + LOK_CHAIN_RPC). Buys stay disabled."}
           </p>
           {eezReady && homeOptions.length > 0 ? (

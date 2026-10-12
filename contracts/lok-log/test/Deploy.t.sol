@@ -49,6 +49,9 @@ contract DeployTest is Test {
         assertEq(address(d.checkpoint.items()), address(items));
         assertEq(address(d.checkpoint.vault()), address(0));
         assertTrue(d.ahEscrow.hasRole(d.ahEscrow.LISTING_ROLE(), listing));
+        assertEq(address(d.ahEscrow.characterNft()), address(d.nft));
+        assertEq(d.ahEscrow.feeRecipient(), multisig);
+        assertEq(d.ahEscrow.FEE_BPS(), 100);
         assertTrue(d.rulesets.hasRole(d.rulesets.PROPOSER_ROLE(), proposer));
         assertTrue(d.rulesets.hasRole(d.rulesets.EMERGENCY_ROLE(), multisig));
         assertEq(d.rulesets.minDelay(), 48 hours);

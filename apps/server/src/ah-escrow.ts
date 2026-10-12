@@ -17,8 +17,8 @@ import {
 } from "./lok-ask-filled-quarantine";
 import { defaultLokDir, type LokWorld } from "./lok-world";
 
-/** Keccak of AskFilled(uint256,address,uint256,address,uint256,uint256,uint256). */
-export const ASK_FILLED_TOPIC = "0x4f31be848e37f66bf5ef389ecfd87011d9fbf0c3fcf65dbf46b119f5058564ca";
+/** Keccak of AskFilled(uint256,address,uint256,address,uint256,uint256,uint256,uint256) — includes feeWei. */
+export const ASK_FILLED_TOPIC = "0x7f623940623393c52bf22f242ae3b57d9fbb8e603232b8952a1ad894943a1907";
 
 export const ASK_FILL_CONFIRMATIONS = 2n;
 
@@ -28,6 +28,7 @@ export type AskFilled = {
   buyerTokenId: string;
   sellerPayout: string;
   priceWei: string;
+  feeWei: string;
   itemId: string;
   amount: string;
 };
@@ -61,7 +62,8 @@ export function decodeAskFilled(log: { topics?: string[]; data?: string }): AskF
   const topics = log.topics ?? [];
   if (topics.length < 4 || topics[0]?.toLowerCase() !== ASK_FILLED_TOPIC.toLowerCase()) return null;
   const data = log.data ?? "";
-  if (!data.startsWith("0x") || data.length < 2 + 64 * 4) return null;
+  // sellerPayout, priceWei, feeWei, itemId, amount
+  if (!data.startsWith("0x") || data.length < 2 + 64 * 5) return null;
   try {
     const sellerWord = data.slice(2, 2 + 64);
     const sellerPayout = "0x" + sellerWord.slice(24);
@@ -71,8 +73,9 @@ export function decodeAskFilled(log: { topics?: string[]; data?: string }): AskF
       buyerTokenId: BigInt(topics[3]!).toString(),
       sellerPayout,
       priceWei: BigInt("0x" + data.slice(2 + 64, 2 + 128)).toString(),
-      itemId: BigInt("0x" + data.slice(2 + 128, 2 + 192)).toString(),
-      amount: BigInt("0x" + data.slice(2 + 192, 2 + 256)).toString(),
+      feeWei: BigInt("0x" + data.slice(2 + 128, 2 + 192)).toString(),
+      itemId: BigInt("0x" + data.slice(2 + 192, 2 + 256)).toString(),
+      amount: BigInt("0x" + data.slice(2 + 256, 2 + 320)).toString(),
     };
   } catch {
     return null;
@@ -182,6 +185,7 @@ export function ahEscrowClientConfig(env: NodeJS.ProcessEnv = process.env): {
   address: string;
   rpcUrl: string;
   chainId: number;
+  feeBps: number;
 } | null {
   const address = ahEscrowAddress(env);
   const rpcUrl = (env.LOK_PUBLIC_RPC?.trim() || env.LOK_CHAIN_RPC?.trim() || "").replace(/\/$/, "");
@@ -191,7 +195,11 @@ export function ahEscrowClientConfig(env: NodeJS.ProcessEnv = process.env): {
   if (!/^\d+$/.test(chainRaw)) return null;
   const chainId = Number(chainRaw);
   if (!Number.isSafeInteger(chainId) || chainId <= 0) return null;
-  return { address, rpcUrl, chainId };
+  // Matches AhEscrow.FEE_BPS (redeploy package). Override only for tests.
+  const feeRaw = env.LOK_AH_FEE_BPS?.trim();
+  const feeBps = feeRaw && /^\d+$/.test(feeRaw) ? Number(feeRaw) : 100;
+  if (!Number.isSafeInteger(feeBps) || feeBps < 0 || feeBps > 10_000) return null;
+  return { address, rpcUrl, chainId, feeBps };
 }
 
 export function askFilledCursorPath(dataDir: string): string {

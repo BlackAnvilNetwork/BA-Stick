@@ -17,16 +17,19 @@ import { LokWorld } from "./lok-world";
 
 describe("AhEscrow AskFilled mirror", () => {
   it("topic0 matches the canonical event signature", () => {
-    const topic = keccak256(stringToHex("AskFilled(uint256,address,uint256,address,uint256,uint256,uint256)"));
+    const topic = keccak256(
+      stringToHex("AskFilled(uint256,address,uint256,address,uint256,uint256,uint256,uint256)"),
+    );
     assert.equal(ASK_FILLED_TOPIC.toLowerCase(), topic.toLowerCase());
   });
 
-  it("decodeAskFilled reads indexed topics and data words", () => {
+  it("decodeAskFilled reads indexed topics and data words (incl. feeWei)", () => {
     const listingId = 7n;
     const buyer = "0x00000000000000000000000000000000000000bb";
     const buyerToken = 2n;
     const sellerPayout = "0x00000000000000000000000000000000000000aa";
     const price = 20_000_000_000_000_000n;
+    const fee = 200_000_000_000_000n;
     const itemId = 111n;
     const amount = 3n;
     const pad = (n: bigint) => n.toString(16).padStart(64, "0");
@@ -38,7 +41,7 @@ describe("AhEscrow AskFilled mirror", () => {
         "0x" + addrPad(buyer),
         "0x" + pad(buyerToken),
       ],
-      data: "0x" + addrPad(sellerPayout) + pad(price) + pad(itemId) + pad(amount),
+      data: "0x" + addrPad(sellerPayout) + pad(price) + pad(fee) + pad(itemId) + pad(amount),
     };
     const decoded = decodeAskFilled(log);
     assert.ok(decoded);
@@ -47,6 +50,7 @@ describe("AhEscrow AskFilled mirror", () => {
     assert.equal(decoded!.buyerTokenId, "2");
     assert.equal(decoded!.sellerPayout.toLowerCase(), sellerPayout.toLowerCase());
     assert.equal(decoded!.priceWei, price.toString());
+    assert.equal(decoded!.feeWei, fee.toString());
     assert.equal(decoded!.itemId, "111");
     assert.equal(decoded!.amount, "3");
   });
@@ -77,6 +81,7 @@ describe("AhEscrow AskFilled mirror", () => {
       buyerTokenId: buyer.tokenId,
       sellerPayout: "0x00000000000000000000000000000000000000aa",
       priceWei: "500",
+      feeWei: "5",
       itemId: "111",
       amount: "1",
     };
@@ -114,6 +119,7 @@ describe("AhEscrow AskFilled mirror", () => {
         address: "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707",
         rpcUrl: "http://127.0.0.1:8545",
         chainId: 31337,
+        feeBps: 100,
       },
     );
   });
@@ -126,6 +132,7 @@ describe("AhEscrow AskFilled mirror", () => {
     const buyerToken = 2n;
     const sellerPayout = "0x00000000000000000000000000000000000000aa";
     const price = 500n;
+    const fee = 5n;
     const itemId = 111n;
     const amount = 1n;
     const log = {
@@ -135,7 +142,7 @@ describe("AhEscrow AskFilled mirror", () => {
         "0x" + addrPad(buyer),
         "0x" + pad(buyerToken),
       ],
-      data: "0x" + addrPad(sellerPayout) + pad(price) + pad(itemId) + pad(amount),
+      data: "0x" + addrPad(sellerPayout) + pad(price) + pad(fee) + pad(itemId) + pad(amount),
       blockNumber: "0x5",
       logIndex: "0x0",
       transactionHash: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
