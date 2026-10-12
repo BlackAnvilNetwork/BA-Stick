@@ -36,6 +36,7 @@ Players **never** connect a wallet to the Bellgrave game chain for value. They s
 - Forge tests: ownerOf-at-fill, fee rounding floor, fuzz partition, Deploy wiring.
 - Protocol `ahFeeSplit` + UI fee copy on list and buy.
 - AskFilled topic/decode updated for `feeWei` (server watcher).
+- Transfer-cancel watcher: persisted pending cancels + retry; confirmation depth; skip self-transfers; `alreadyClosed` uses AskCancelled/AskFilled classify (same as boot reconcile); list path re-checks `ownerOf` after `openAsk`.
 
 ### Still needs go-ahead / redeploy / out-of-band
 

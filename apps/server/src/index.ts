@@ -1057,6 +1057,7 @@ function handleLokList(
       pushLog(p, resolved.error);
       return;
     }
+    const ownerAtList = resolved.payout;
     const listedAt = Math.floor(Date.now() / 1000);
     const res = lok.ask(token, String(tokenId), String(amount), minPrice, listedAt);
     if (!res.ok || !res.listingId) {
@@ -1074,6 +1075,22 @@ function handleLokList(
     if (!chain.ok) {
       // N4: if the ask mined despite a receipt/RPC error, keep the log listing.
       if (chain.chainOpen) {
+        // Still re-check ownership — a Transfer may have raced the openAsk.
+        const raced = await readCharacterNftOwner(token);
+        if (!raced.ok || raced.holder !== ownerAtList) {
+          const pulled = await cancelAskOnchain({ listingId });
+          if (pulled.ok && !("alreadyClosed" in pulled && pulled.alreadyClosed)) {
+            lok.cancelAsk(listingId, token);
+          }
+          pushLog(
+            p,
+            "Character NFT owner changed while listing #" +
+              listingId +
+              ". The ask was cancelled.",
+          );
+          send(p.ws, snapshotFor(p));
+          return;
+        }
         pushLog(
           p,
           "On-chain ask open for #" +
@@ -1093,6 +1110,40 @@ function handleLokList(
           "). " +
           (undone.ok ? "The log listing was cancelled." : "The log listing could not be cancelled: " + undone.error),
       );
+      send(p.ws, snapshotFor(p));
+      return;
+    }
+    // List/transfer race: Transfer scanned before this ask was open would miss it.
+    // Re-check ownerOf after openAsk confirms; cancel if ownership changed.
+    const after = await readCharacterNftOwner(token);
+    if (!after.ok || after.holder !== ownerAtList) {
+      const pulled = await cancelAskOnchain({ listingId });
+      if (pulled.ok && !("alreadyClosed" in pulled && pulled.alreadyClosed)) {
+        const undone = lok.cancelAsk(listingId, token);
+        pushLog(
+          p,
+          "Character NFT owner changed while listing #" +
+            listingId +
+            ". " +
+            (undone.ok ? "The ask was cancelled." : "On-chain cancel ok; log cancel failed: " + undone.error),
+        );
+      } else if (!pulled.ok) {
+        pushLog(
+          p,
+          "Character NFT owner changed while listing #" +
+            listingId +
+            ", but cancel failed (" +
+            pulled.error +
+            "). The transfer watcher will retry.",
+        );
+      } else {
+        pushLog(
+          p,
+          "Character NFT owner changed while listing #" +
+            listingId +
+            ". On-chain ask was already closed.",
+        );
+      }
       send(p.ws, snapshotFor(p));
       return;
     }
