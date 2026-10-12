@@ -1,23 +1,13 @@
 /**
- * Reown AppKit wallet modal (injected / EIP-6963 / WalletConnect QR / Coinbase).
- * Uses VITE_WALLETCONNECT_PROJECT_ID as the Reown project id.
- *
- * Networks: Ethereum mainnet (home) + Gnosis 100 / Chiado 10200 from settlement;
- * anvil 31337 only in Vite DEV or VITE_ALLOW_ANVIL_WC.
- *
- * Login/mint use this instead of raw @walletconnect/ethereum-provider (QR-only).
+ * AppKit session helpers for login / mint / pay (viem WalletClient over AppKit provider).
+ * Modal init lives in appkit-config.ts (docs: createAppKit outside React components).
  */
-import { createAppKit, type AppKit } from "@reown/appkit/react";
-import { EthersAdapter } from "@reown/appkit-adapter-ethers";
-import {
-  anvil,
-  gnosis,
-  gnosisChiado,
-  mainnet,
-  type AppKitNetwork,
-} from "@reown/appkit/networks";
+import type { AppKit } from "@reown/appkit/react";
 import { createWalletClient, custom, type Account, type WalletClient } from "viem";
-import { anvilWalletConnectAllowed, defaultRpcUrl, walletConnectProjectId } from "./walletconnect";
+import { appKit, appKitConfigured } from "./appkit-config";
+import { defaultRpcUrl } from "./walletconnect";
+
+export { appKit, appKitConfigured } from "./appkit-config";
 
 export type AppKitSession = {
   account: Account;
@@ -27,83 +17,13 @@ export type AppKitSession = {
   provider: unknown;
 };
 
-let kit: AppKit | null = null;
-
-function appKitNetworks(): [AppKitNetwork, ...AppKitNetwork[]] {
-  const list: AppKitNetwork[] = [mainnet, gnosis, gnosisChiado];
-  if (anvilWalletConnectAllowed()) list.push(anvil);
-  return list as [AppKitNetwork, ...AppKitNetwork[]];
-}
-
-function defaultNetwork(): AppKitNetwork {
-  const raw = import.meta.env.VITE_CHAIN_ID?.trim();
-  const id = raw && /^\d+$/.test(raw) ? Number(raw) : 100;
-  if (id === 1) return mainnet;
-  if (id === 10200) return gnosisChiado;
-  if (id === 31337 && anvilWalletConnectAllowed()) return anvil;
-  return gnosis;
-}
-
-/** True when a Reown project id is present (AppKit can open). */
-export function appKitConfigured(): boolean {
-  return !!walletConnectProjectId();
-}
-
-/**
- * Create (or return) the AppKit singleton. Safe to call from main.tsx so modal UI
- * is ready before the user clicks Connect.
- */
 export function getAppKit(): AppKit | null {
-  if (kit) return kit;
-  const projectId = walletConnectProjectId();
-  if (!projectId) return null;
-
-  const networks = appKitNetworks();
-  const metadata = {
-    name: "Legend of KEK",
-    description: "Bellgrave — Legend of KEK",
-    url: typeof window !== "undefined" ? window.location.origin : "https://legendofkek.com",
-    icons: ["https://legendofkek.com/favicon.ico"],
-  };
-
-  const customRpcUrls = {
-    [`eip155:${mainnet.id}`]: [{ url: defaultRpcUrl(1) }],
-    [`eip155:${gnosis.id}`]: [{ url: defaultRpcUrl(100) }],
-    [`eip155:${gnosisChiado.id}`]: [{ url: defaultRpcUrl(10200) }],
-    ...(anvilWalletConnectAllowed()
-      ? { [`eip155:${anvil.id}`]: [{ url: defaultRpcUrl(31337) }] }
-      : {}),
-  };
-
-  kit = createAppKit({
-    adapters: [new EthersAdapter()],
-    networks,
-    defaultNetwork: defaultNetwork(),
-    projectId,
-    metadata,
-    customRpcUrls,
-    // Full wallet list: EIP-6963 injected, WalletConnect, Coinbase (AppKit defaults).
-    features: {
-      analytics: false,
-      email: false,
-      socials: false,
-      swaps: false,
-      onramp: false,
-    },
-    allWallets: "SHOW",
-    themeMode: "dark",
-  });
-  return kit;
+  return appKit;
 }
 
-/** Eager init for boot — no-op when project id missing. */
+/** @deprecated createAppKit now runs at import of appkit-config; kept for main.tsx. */
 export function initAppKit(): void {
-  try {
-    getAppKit();
-  } catch (err) {
-    console.warn("[bellgrave] AppKit init failed", err);
-    kit = null;
-  }
+  void appKit;
 }
 
 function isAddress(a: unknown): a is `0x${string}` {
@@ -112,7 +32,7 @@ function isAddress(a: unknown): a is `0x${string}` {
 
 /** Open AppKit Connect view and resolve when a wallet account is connected. */
 export async function connectWithAppKit(): Promise<AppKitSession> {
-  const modal = getAppKit();
+  const modal = appKit;
   if (!modal) {
     throw new Error("Reown AppKit is not configured (set VITE_WALLETCONNECT_PROJECT_ID).");
   }
@@ -192,9 +112,9 @@ async function sessionFromModal(modal: AppKit, address: `0x${string}`): Promise<
 }
 
 export async function disconnectAppKit(): Promise<void> {
-  if (!kit) return;
+  if (!appKitConfigured() || !appKit) return;
   try {
-    await kit.disconnect();
+    await appKit.disconnect();
   } catch {
     /* ignore */
   }

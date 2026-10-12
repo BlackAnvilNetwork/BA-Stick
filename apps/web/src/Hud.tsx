@@ -51,6 +51,8 @@ import {
   swapHotbarSlots,
   type HotbarSlots,
 } from "./hotbar";
+import { useAppKit, useAppKitAccount, useAppKitState } from "@reown/appkit/react";
+import { appKitConfigured } from "./appkit-config";
 import {
   checkCharacterNameAvailable,
   isServerAuthed,
@@ -1164,10 +1166,66 @@ export function Hud() {
 }
 
 function WalletConnectButton() {
+  // AppKit hooks require createAppKit (appkit-config). When unset, fall back without hooks.
+  if (appKitConfigured()) return <AppKitConnectButton />;
+  return <FallbackConnectButton />;
+}
+
+/**
+ * Docs path (https://docs.reown.com/appkit/overview): useAppKit().open for the
+ * pre-built modal (EIP-6963 / WalletConnect / Coinbase). Login+sign runs once
+ * useAppKitAccount reports connected (open() alone only shows the modal).
+ */
+function AppKitConnectButton() {
+  const pushLog = useGame((s) => s.pushLog);
+  const { open } = useAppKit();
+  const { address, isConnected } = useAppKitAccount();
+  const { open: modalOpen } = useAppKitState();
+  const [busy, setBusy] = useState(false);
+  const loginStarted = useRef(false);
+
+  useEffect(() => {
+    if (!busy || !isConnected || !address || loginStarted.current) return;
+    loginStarted.current = true;
+    void loginWithWalletConnect().then((res) => {
+      setBusy(false);
+      loginStarted.current = false;
+      if (!res.ok) pushLog("Wallet: " + res.error);
+      else pushLog("Wallet: " + res.address.slice(0, 6) + "…" + res.address.slice(-4));
+    });
+  }, [busy, isConnected, address, pushLog]);
+
+  // User dismissed the modal without connecting.
+  useEffect(() => {
+    if (busy && !modalOpen && !isConnected && !loginStarted.current) {
+      setBusy(false);
+    }
+  }, [busy, modalOpen, isConnected]);
+
+  return (
+    <button
+      type="button"
+      className="boot-primary"
+      disabled={busy}
+      style={{ marginTop: "0.75rem", width: "100%" }}
+      onClick={() => {
+        if (busy) return;
+        setBusy(true);
+        loginStarted.current = false;
+        void open({ view: "Connect" }).catch((err: unknown) => {
+          setBusy(false);
+          pushLog("Wallet: " + (err instanceof Error ? err.message : String(err)));
+        });
+      }}
+    >
+      {busy ? "Opening wallet…" : "Connect Wallet"}
+    </button>
+  );
+}
+
+function FallbackConnectButton() {
   const pushLog = useGame((s) => s.pushLog);
   const [busy, setBusy] = useState(false);
-  // Always visible: missing project id used to return null (no Connect at all).
-  // Without Reown id, injected MetaMask/Rabby still works; otherwise show a disabled hint.
   if (!walletConnectLoginAvailable()) {
     return (
       <button
