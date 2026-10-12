@@ -44,6 +44,8 @@ pub enum GoldError {
     StaleDay,
     BadDay,
     BadId,
+    /// NPC sell amount does not match the engine price table.
+    BadPrice,
 }
 
 fn parse_source(raw: &str) -> Result<&str, GoldError> {
@@ -117,10 +119,8 @@ pub fn debit_spend(state: &mut State, amount: U256) -> Result<(), GoldError> {
 
 /// Burn `qty` of `item_id` and credit `amount` gold under the npc_sell earn cap for `day`.
 ///
-/// TODO(E5): `amount` is server-chosen; only the npc_sell daily cap bounds it.
-/// A per-item NPC price table in the engine (amount <= price(item_id) * qty)
-/// would let a replayer reject an over-paid sell. Until then the price is
-/// server-trusted (see CONTRACTS.md).
+/// `amount` must equal the engine NPC price table (`npc_sell_unit_price * qty`).
+/// A replayer rejects an over- or under-paid sell as `BadPrice`.
 pub fn sell_item(
     state: &mut State,
     item_id: U256,
@@ -137,6 +137,10 @@ pub fn sell_item(
     }
     if qty == U256::ZERO || amount == U256::ZERO {
         return Err(GoldError::ZeroAmount);
+    }
+    let expected = crate::npc_price::npc_sell_total(&item_id, &qty).ok_or(GoldError::BadPrice)?;
+    if amount != expected {
+        return Err(GoldError::BadPrice);
     }
     let next_item = state
         .get(&Key::Item(item_id))

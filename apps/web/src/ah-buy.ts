@@ -36,9 +36,12 @@ export async function buyAsksWithWallet(opts: {
   if (!/^[1-9][0-9]{0,77}$/.test(opts.buyerTokenId)) {
     return { ok: false, error: "Bad buyer character id.", hashes: [] };
   }
+  const hasInjected = typeof window !== "undefined" && !!window.ethereum;
   const session = await getWalletSession({
     chainId: opts.escrow.chainId,
     rpcUrl: opts.escrow.rpcUrl,
+    // Pay with injected wallet when present; declining must not silently use burner funds.
+    allowBurnerFallback: !hasInjected,
   });
   const publicClient = createPublicClient({ transport: http(opts.escrow.rpcUrl) });
   const hashes: Hex[] = [];

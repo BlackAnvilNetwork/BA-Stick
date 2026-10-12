@@ -1,9 +1,10 @@
-import { getItem } from "@bellgrave/items";
+import { getItem, npcSellTotalGold, npcSellUnitGold } from "@bellgrave/items";
 import type { InventorySlot, LokItemBalance } from "@bellgrave/protocol";
 import { useState } from "react";
 import { parseEther } from "viem";
 import { ItemCatalogDetails, ItemTipHost } from "./itemTip";
 import { send } from "./net";
+import { preferredPayoutWallet } from "./wallet";
 
 type Near = { id: string; name: string };
 
@@ -62,6 +63,7 @@ export function ProvisionerBag({ inventory, logItems, inbox, others }: Props) {
   const [inboxKey, setInboxKey] = useState<number | null>(null);
   const [toId, setToId] = useState("");
   const [minPrice, setMinPrice] = useState("");
+  const [sellQty, setSellQty] = useState("1");
   const cells = cellsOf(inventory, logItems);
   const selected = others.find((unit) => unit.id === toId);
   let minPriceWei: string | null = null;
@@ -146,11 +148,13 @@ export function ProvisionerBag({ inventory, logItems, inbox, others }: Props) {
                     title={priceOk ? "List the log stack at this minimum." : "Enter a minimum ETH amount greater than 0."}
                     onClick={() => {
                       if (!cell.logAmount || !minPriceWei) return;
+                      const payout = preferredPayoutWallet();
                       send({
                         type: "lok/list",
                         tokenId: cell.tokenId,
                         amount: Number(cell.logAmount),
                         minPrice: minPriceWei,
+                        ...(payout ? { sellerPayout: payout } : {}),
                       });
                     }}
                   >
@@ -172,17 +176,47 @@ export function ProvisionerBag({ inventory, logItems, inbox, others }: Props) {
                   >
                     Send
                   </button>
+                  <input
+                    value={sellQty}
+                    placeholder="Qty"
+                    aria-label="Sell quantity"
+                    inputMode="numeric"
+                    onChange={(e) => setSellQty(e.target.value.replace(/[^0-9]/g, ""))}
+                  />
                   <button
                     type="button"
                     className="cmd-pill-tab"
                     disabled={!cell.logAmount}
-                    title="Sell the log stack to the Provisioner NPC for gold"
+                    title={
+                      (() => {
+                        const max = Number(cell.logAmount || 0);
+                        const qty = Math.min(max, Math.max(1, Number(sellQty) || 1));
+                        const unit = npcSellUnitGold(cell.tokenId);
+                        const total = npcSellTotalGold(cell.tokenId, qty);
+                        if (unit == null || total == null) return "No NPC buyback price.";
+                        return "Sell " + qty + " for " + total + " gold (" + unit + " each). Confirms before sending.";
+                      })()
+                    }
                     onClick={() => {
                       if (!cell.logAmount) return;
+                      const max = Number(cell.logAmount);
+                      const qty = Math.min(max, Math.max(1, Number(sellQty) || 1));
+                      const total = npcSellTotalGold(cell.tokenId, qty);
+                      if (total == null) return;
+                      const ok = window.confirm(
+                        "Sell " +
+                          cell.name +
+                          " x" +
+                          qty +
+                          " to the Provisioner for " +
+                          total +
+                          " gold? This cannot be undone.",
+                      );
+                      if (!ok) return;
                       send({
                         type: "lok/npcSell",
                         tokenId: cell.tokenId,
-                        amount: Number(cell.logAmount),
+                        amount: qty,
                       });
                     }}
                   >

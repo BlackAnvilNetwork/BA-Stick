@@ -10,9 +10,17 @@ interface ICharacterInit {
     function initCharacter(uint256 tokenId, uint8 startingJob) external;
 }
 
+interface ICharacterNext {
+    function nextTokenId() external view returns (uint256);
+}
+
 /// @title CharacterFactory
-/// @notice Only path that mints a Character NFT and seeds its sheet. Charges an exact ETH mint fee.
-///         Holds MINTER_ROLE on CharacterNFT and FACTORY_ROLE on CharacterState.
+/// @notice Only path that mints a Character NFT and seeds its sheet. Charges an exact **native ETH**
+///         mint fee (same unit as AhEscrow / EEZ `msg.value` — not WETH). Holds MINTER_ROLE on
+///         CharacterNFT and FACTORY_ROLE on CharacterState.
+///
+///         Prefer `createCharacterFor(job, expectedTokenId)` so the chain id matches the log token.
+///         Plain `createCharacter` remains for scripts that do not care about a pre-assigned id.
 contract CharacterFactory is Initializable, AccessControlUpgradeable, UUPSUpgradeable {
     // NOTE: append-only.
     ICharacterMint public nft;
@@ -26,6 +34,7 @@ contract CharacterFactory is Initializable, AccessControlUpgradeable, UUPSUpgrad
 
     error WrongFee();
     error BadJob();
+    error WrongTokenId();
     error WithdrawFailed();
 
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -45,10 +54,25 @@ contract CharacterFactory is Initializable, AccessControlUpgradeable, UUPSUpgrad
 
     function _authorizeUpgrade(address) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
 
+    /// @notice Mint the next id to `msg.sender`. Prefer `createCharacterFor` when the log already
+    ///         assigned a token id so payers cannot claim someone else's character NFT.
     function createCharacter(uint8 startingJob) external payable returns (uint256 tokenId) {
-        if (msg.value != mintFee) revert WrongFee(); // exact: no stuck overpayments
+        if (msg.value != mintFee) revert WrongFee();
         if (!isStartingJob[startingJob]) revert BadJob();
         tokenId = nft.mint(msg.sender);
+        state.initCharacter(tokenId, startingJob);
+        emit CharacterCreated(msg.sender, tokenId, startingJob);
+    }
+
+    /// @notice Mint exactly `expectedTokenId` (must be `nextTokenId + 1`) to `msg.sender`.
+    ///         Binds payment to the log character that already reserved that id.
+    function createCharacterFor(uint8 startingJob, uint256 expectedTokenId) external payable returns (uint256 tokenId) {
+        if (msg.value != mintFee) revert WrongFee();
+        if (!isStartingJob[startingJob]) revert BadJob();
+        uint256 next = ICharacterNext(address(nft)).nextTokenId() + 1;
+        if (expectedTokenId == 0 || expectedTokenId != next) revert WrongTokenId();
+        tokenId = nft.mint(msg.sender);
+        if (tokenId != expectedTokenId) revert WrongTokenId(); // belt + suspenders
         state.initCharacter(tokenId, startingJob);
         emit CharacterCreated(msg.sender, tokenId, startingJob);
     }

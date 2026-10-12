@@ -1297,44 +1297,71 @@ type Appearance = "male" | "female" | "pepeka";
 function CreatePanel() {
   const [job, setJob] = useState<JobId>("time_mage");
   const [gender, setGender] = useState<Appearance>("male");
-  const [mintPending, setMintPending] = useState(false);
+  const [creating, setCreating] = useState(false);
   const characters = useGame((s) => s.characters);
   const pushLog = useGame((s) => s.pushLog);
-  const mintCfg = useGame((s) => s.snapshot?.you?.lok?.characterMint ?? null);
+  const mintCfg = useGame((s) => s.characterMint ?? s.snapshot?.you?.lok?.characterMint ?? null);
   const playableJobs = (Object.keys(JOBS) as JobId[]).filter((j) => JOBS[j].playable);
-
-  useEffect(() => {
-    if (!mintPending || !mintCfg) return;
-    let cancelled = false;
-    const jobIndex = JOB_IDS.indexOf(job);
-    void mintCharacterWithWallet({ mint: mintCfg, job: jobIndex < 0 ? 0 : jobIndex }).then((res) => {
-      if (cancelled) return;
-      setMintPending(false);
-      if (!res.ok) pushLog("Character mint: " + res.error);
-      else pushLog("Paid character mint fee on-chain. Linking NFT…");
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [mintPending, mintCfg, job, pushLog]);
 
   return (
     <form
       className="boot-panel"
       onSubmit={(e: FormEvent<HTMLFormElement>) => {
         e.preventDefault();
+        if (creating) return;
         const fd = new FormData(e.currentTarget);
         const name = String(fd.get("name") || "Chrona").slice(0, 16);
+        const jobIndex = JOB_IDS.indexOf(job);
         useGame.getState().setPendingCreateEnter(true);
-        setMintPending(true);
-        send({ type: "char/create", name, job, gender });
-        window.setTimeout(() => send({ type: "claim/starter" }), 100);
+        setCreating(true);
+
+        const finish = (extra?: { tokenId?: string; mintWallet?: string }) => {
+          send({
+            type: "char/create",
+            name,
+            job,
+            gender,
+            ...(extra?.tokenId ? { tokenId: extra.tokenId } : {}),
+            ...(extra?.mintWallet ? { mintWallet: extra.mintWallet } : {}),
+          });
+          window.setTimeout(() => send({ type: "claim/starter" }), 100);
+          setCreating(false);
+        };
+
+        if (!mintCfg) {
+          finish();
+          return;
+        }
+
+        // Mint-first: pay native ETH fee, then create the log char bound to that NFT id.
+        // Request a faucet first so local burners can pay on 31337.
+        send({ type: "dev/faucet" });
+        window.setTimeout(() => {
+          void mintCharacterWithWallet({
+            mint: mintCfg,
+            job: jobIndex < 0 ? 0 : jobIndex,
+          }).then((res) => {
+            if (!res.ok) {
+              pushLog("Character mint: " + res.error);
+              setCreating(false);
+              return;
+            }
+            if (!res.tokenId) {
+              pushLog("Character mint succeeded but no token id was returned.");
+              setCreating(false);
+              return;
+            }
+            pushLog("Paid character mint fee (native ETH). Creating log identity for NFT #" + res.tokenId + "…");
+            finish({ tokenId: res.tokenId, mintWallet: res.payer });
+          });
+        }, 800);
       }}
     >
       <p className="boot-sub">Create your adventurer</p>
       {mintCfg ? (
         <p className="boot-sub">
-          Character NFT mint fee: {(Number(mintCfg.mintFee) / 1e18).toFixed(4)} ETH (paid from your wallet).
+          Character NFT mint fee: {(Number(mintCfg.mintFee) / 1e18).toFixed(4)} ETH (native, paid from your
+          wallet before the character is created).
         </p>
       ) : null}
       <label className="boot-label">

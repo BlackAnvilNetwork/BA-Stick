@@ -65,7 +65,9 @@ Caveats (do not paper over):
 
 ## Open decisions (unchanged or narrowed)
 
-1. Character creation path (E4) — ETH mint fee vs gold for #2+.
+1. Character creation path (E4) — **native ETH** mint fee via `CharacterFactory`
+   (`msg.value`, same unit as AhEscrow/EEZ — not WETH). Mint-first: pay then
+   spawn with the minted token id (`createCharacterFor` for log-bound retries).
 2. AH fee yes/no and size (WETH if yes).
 3. ~~Stable and chain~~ → **closed: WETH + EEZ**, not USDT0/KEK.
 4. Gold per character or per account.

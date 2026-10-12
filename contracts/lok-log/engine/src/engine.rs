@@ -69,6 +69,8 @@ pub enum EngineError {
     OverAsk,
     /// ChainFill fields disagree with the open ask (item, amount, or seller).
     FillMismatch,
+    /// NPC sell amount does not match the engine price table.
+    BadPrice,
 }
 
 impl fmt::Display for EngineError {
@@ -108,6 +110,7 @@ impl fmt::Display for EngineError {
             Self::ClosedMint => write!(f, "item drop cannot mint"),
             Self::OverAsk => write!(f, "buyer would pay more than the ask"),
             Self::FillMismatch => write!(f, "chain fill does not match the ask"),
+            Self::BadPrice => write!(f, "npc sell price does not match the table"),
         }
     }
 }
@@ -530,5 +533,6 @@ pub(crate) fn gold_err(err: GoldError) -> EngineError {
         GoldError::StaleDay => EngineError::StaleDay,
         GoldError::BadDay => EngineError::BadDay,
         GoldError::BadId => EngineError::BadId,
+        GoldError::BadPrice => EngineError::BadPrice,
     }
 }

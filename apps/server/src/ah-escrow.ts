@@ -372,9 +372,28 @@ export function startAskFilledWatcher(
   timer.unref?.();
 }
 
+let listingKeyWarned = false;
+
+/**
+ * Listing signer for AhEscrow. When AhEscrow is configured, LOK_LISTING_KEY is
+ * required (Deploy.s.sol grants LISTING_ROLE to LISTING/ROTATOR, not the owner).
+ * Falling back to LOK_OWNER_KEY only when AhEscrow is unset (local engine-only).
+ */
 export function listingRoleKey(env: NodeJS.ProcessEnv = process.env): string | null {
-  const key = (env.LOK_LISTING_KEY?.trim() || env.LOK_OWNER_KEY?.trim() || "").trim();
-  return /^0x[0-9a-fA-F]{64}$/.test(key) ? key : null;
+  const listing = env.LOK_LISTING_KEY?.trim() || "";
+  if (/^0x[0-9a-fA-F]{64}$/.test(listing)) return listing;
+  if (ahEscrowAddress(env)) {
+    if (!listingKeyWarned) {
+      listingKeyWarned = true;
+      console.error(
+        "[bellgrave] LOK_LISTING_KEY is required when AhEscrow is configured. " +
+          "LOK_OWNER_KEY does not hold LISTING_ROLE on Deploy-wired chains; openAsk/cancelAsk will fail.",
+      );
+    }
+    return null;
+  }
+  const owner = env.LOK_OWNER_KEY?.trim() || "";
+  return /^0x[0-9a-fA-F]{64}$/.test(owner) ? owner : null;
 }
 
 function cmpHex(a: string | undefined, b: string | undefined): number {

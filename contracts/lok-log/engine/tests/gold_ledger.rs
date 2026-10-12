@@ -173,34 +173,60 @@ fn gold_sell_burns_item_and_credits_under_npc_sell_cap() {
         })
         .unwrap();
 
+    // Item 99 unit price = 40 + (99 % 20) = 59 (npc_price table).
+    let unit = 59u64;
     engine
         .apply(Input::GoldSell {
             token_id: token,
             item_id: item,
             qty: n(2),
-            amount: n(25),
+            amount: n(unit * 2),
             day: 1,
         })
         .unwrap();
     assert_eq!(engine.state().get(&Key::Item(item)), n(1));
-    assert_eq!(engine.state().get(&Key::Gold), n(25));
+    assert_eq!(engine.state().get(&Key::Gold), n(unit * 2));
 
-    let sell_cap = gold_source_cap(GOLD_SOURCE_NPC_SELL);
+    // Wrong price is rejected without burning.
     assert_eq!(
         engine
             .apply(Input::GoldSell {
                 token_id: token,
                 item_id: item,
                 qty: n(1),
-                amount: n(sell_cap),
+                amount: n(unit + 1),
+                day: 1,
+            })
+            .unwrap_err(),
+        EngineError::BadPrice
+    );
+    assert_eq!(engine.state().get(&Key::Item(item)), n(1));
+
+    // Hit the npc_sell daily cap with a correctly priced large sell.
+    let sell_cap = gold_source_cap(GOLD_SOURCE_NPC_SELL);
+    let over_qty = (sell_cap / unit) + 1; // 170 * 59 = 10030 > 10_000
+    engine
+        .apply(Input::BagImport {
+            token_id: token,
+            item_id: item,
+            amount: n(over_qty),
+        })
+        .unwrap();
+    assert_eq!(
+        engine
+            .apply(Input::GoldSell {
+                token_id: token,
+                item_id: item,
+                qty: n(over_qty),
+                amount: n(unit * over_qty),
                 day: 1,
             })
             .unwrap_err(),
         EngineError::EarnCap
     );
-    // Engine rolls back the whole apply, so the last item remains.
-    assert_eq!(engine.state().get(&Key::Item(item)), n(1));
-    assert_eq!(engine.state().get(&Key::Gold), n(25));
+    // Engine rolls back the whole apply.
+    assert_eq!(engine.state().get(&Key::Item(item)), n(1 + over_qty));
+    assert_eq!(engine.state().get(&Key::Gold), n(unit * 2));
 }
 
 #[test]

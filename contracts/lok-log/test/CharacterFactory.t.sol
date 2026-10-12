@@ -36,6 +36,26 @@ contract CharacterFactoryTest is Base {
         assertEq(second, tokenId + 1);
     }
 
+    function test_createCharacterFor_bindsExpectedId() public {
+        uint256 expected = nft.nextTokenId() + 1;
+        vm.prank(other);
+        vm.deal(other, 1 ether);
+        uint256 got = factory.createCharacterFor{value: 0.001 ether}(1, expected);
+        assertEq(got, expected);
+        assertEq(nft.ownerOf(expected), other);
+    }
+
+    function test_createCharacterFor_rejectsWrongId() public {
+        uint256 next = nft.nextTokenId() + 1;
+        vm.prank(other);
+        vm.deal(other, 1 ether);
+        vm.expectRevert(CharacterFactory.WrongTokenId.selector);
+        factory.createCharacterFor{value: 0.001 ether}(1, next + 1);
+        // A skipped payer cannot claim the next id out of order either.
+        vm.expectRevert(CharacterFactory.WrongTokenId.selector);
+        factory.createCharacterFor{value: 0.001 ether}(1, 0);
+    }
+
     function test_onlyFactoryCanMint() public {
         vm.prank(player);
         vm.expectRevert();

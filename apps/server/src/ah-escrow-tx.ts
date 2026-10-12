@@ -186,14 +186,36 @@ export async function openAskOnchain(opts: {
       return { ok: true, hash };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      // Receipt timeout / RPC after broadcast: only roll back the log when the ask is not open.
-      const onchain = await readAskOnchain({ listingId: opts.listingId, env: opts.env });
-      if (onchain.ok && onchain.ask.open) {
-        return {
-          ok: false,
-          error: msg + " (ask is open on-chain; log listing left open)",
-          chainOpen: true,
-        };
+      // Receipt timeout / RPC after broadcast: only roll back when we know the ask is not open.
+      // Retry the recheck; if RPC is still down, keep the log listing (pending) instead of rolling back.
+      for (let i = 0; i < 3; i++) {
+        if (i > 0) await new Promise((r) => setTimeout(r, 500 * i));
+        const onchain = await readAskOnchain({ listingId: opts.listingId, env: opts.env });
+        if (onchain.ok && onchain.ask.open) {
+          return {
+            ok: false,
+            error: msg + " (ask is open on-chain; log listing left open)",
+            chainOpen: true,
+          };
+        }
+        if (onchain.ok && !onchain.ask.open && !onchain.ask.used) {
+          return { ok: false, error: msg, chainOpen: false };
+        }
+        if (onchain.ok && onchain.ask.used && !onchain.ask.open) {
+          // Filled or cancelled while we waited — keep log open for AskFilled / reconcile.
+          return {
+            ok: false,
+            error: msg + " (ask closed on-chain; log listing left open for reconcile)",
+            chainOpen: true,
+          };
+        }
+        if (!onchain.ok && i === 2) {
+          return {
+            ok: false,
+            error: msg + " (could not recheck asks(); log listing left open)",
+            chainOpen: true,
+          };
+        }
       }
       return { ok: false, error: msg, chainOpen: false };
     }

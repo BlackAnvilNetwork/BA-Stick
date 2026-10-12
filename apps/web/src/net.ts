@@ -192,6 +192,7 @@ export function connectSocket() {
             : [];
       g.setCharacters(list);
       g.setHasCharacter(list.length > 0 || msg.hasCharacter);
+      if ("characterMint" in msg) g.setCharacterMint(msg.characterMint ?? null);
       const primary = msg.character ?? list[0] ?? null;
       g.setCharacterPreview(primary);
 

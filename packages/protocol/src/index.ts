@@ -37,6 +37,10 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
     name: z.string().min(2).max(16),
     job: JobId,
     gender: Gender.default("male"),
+    /** On-chain NFT id when mint-first (player already paid createCharacter). */
+    tokenId: z.string().regex(/^[1-9][0-9]{0,77}$/).optional(),
+    /** Wallet that paid the mint fee (may differ from burner auth). */
+    mintWallet: z.string().regex(/^0x[0-9a-fA-F]{40}$/).optional(),
   }),
   z.object({
     type: z.literal("char/enter"),
@@ -78,6 +82,11 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
   }),
   /** Keepalive — client ↔ server heartbeat so AFK tabs stay connected. */
   z.object({ type: z.literal("ping"), t: z.number().optional() }),
+  /** Dev-only anvil ETH faucet (31337). Ignored when faucet is disabled. */
+  z.object({
+    type: z.literal("dev/faucet"),
+    to: z.string().regex(/^0x[0-9a-fA-F]{40}$/).optional(),
+  }),
   /** Invite a player to your party (by wallet / unit id, or exact character name). */
   z.object({ type: z.literal("party/invite"), targetId: z.string().min(1).max(64) }),
   z.object({ type: z.literal("party/accept") }),
@@ -128,6 +137,8 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
     tokenId: z.number().int().positive(),
     amount: z.number().int().positive().max(1_000_000),
     minPrice: z.string().regex(/^[1-9][0-9]{0,18}$/),
+    /** ETH proceeds wallet (injected or burner). Defaults to auth wallet. */
+    sellerPayout: z.string().regex(/^0x[0-9a-fA-F]{40}$/).optional(),
   }),
   z.object({
     type: z.literal("lok/bid"),
@@ -501,6 +512,14 @@ export type ServerMessage =
       characters: CharacterPreview[];
       /** Last-active / primary character — convenience for older clients. */
       character?: CharacterPreview;
+      /** Present when the player should pay createCharacter{value} before char/create. */
+      characterMint?: {
+        factory: string;
+        nft: string;
+        mintFee: string;
+        chainId: number;
+        rpcUrl: string;
+      } | null;
     }
   | { type: "log"; message: string }
   | { type: "pong"; t?: number }

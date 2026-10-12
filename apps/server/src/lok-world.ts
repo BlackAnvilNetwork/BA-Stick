@@ -276,6 +276,7 @@ export class LokWorld {
     name: string,
     job: number,
     wallet?: string,
+    opts?: { tokenId?: string },
   ): { ok: true; tokenId: string } | { ok: false; error: string } {
     const existing = this.tokenFor(charId);
     if (existing) {
@@ -289,7 +290,17 @@ export class LokWorld {
     }
     const claimed = this.claimName(charId, name, owner);
     if (!claimed.ok) return claimed;
-    const tokenId = this.bind.nextToken;
+    const preferred = opts?.tokenId?.trim();
+    let tokenId = this.bind.nextToken;
+    if (preferred) {
+      if (!/^[1-9][0-9]{0,77}$/.test(preferred)) {
+        return { ok: false, error: "Bad character token id." };
+      }
+      if (this.bind.chars.some((c) => c.tokenId === preferred)) {
+        return { ok: false, error: "That character NFT is already bound." };
+      }
+      tokenId = preferred;
+    }
     const res = this.apply({ op: "spawn", tokenId, startingJob: job });
     if (!res.ok) return res;
     this.bind.chars.push({
@@ -300,9 +311,15 @@ export class LokWorld {
       ...(owner ? { wallet: owner } : {}),
     });
     this.bind.reserved = this.bind.reserved.filter((row) => row.charId !== charId);
-    this.bind.nextToken = (BigInt(tokenId) + 1n).toString();
+    const next = BigInt(tokenId) + 1n;
+    if (next > BigInt(this.bind.nextToken)) this.bind.nextToken = next.toString();
     this.saveBind();
     return { ok: true, tokenId };
+  }
+
+  /** Open book listings (AhEscrow asks) for boot reconcile against on-chain `asks()`. */
+  openBookListings(): EngineListing[] {
+    return this.state.listings.filter((row) => row.book === true);
   }
 
   /**

@@ -44,6 +44,14 @@ type GameState = {
   characterPreview: CharacterPreview | null;
   /** True after submitting char/create — next matching snapshot may enter play. */
   pendingCreateEnter: boolean;
+  /** Mint fee config from auth/ok (available before any character snapshot). */
+  characterMint: {
+    factory: string;
+    nft: string;
+    mintFee: string;
+    chainId: number;
+    rpcUrl: string;
+  } | null;
   snapshot: SnapshotMessage | null;
   logs: string[];
   selectedTarget: string | null;
@@ -57,6 +65,7 @@ type GameState = {
   setSelectedCharId: (id: string | null) => void;
   setCharacterPreview: (c: GameState["characterPreview"]) => void;
   setPendingCreateEnter: (v: boolean) => void;
+  setCharacterMint: (c: GameState["characterMint"]) => void;
   setSnapshot: (s: SnapshotMessage) => void;
   clearSnapshot: () => void;
   pushLog: (m: string) => void;
@@ -75,6 +84,7 @@ export const useGame = create<GameState>((set, get) => ({
   selectedCharId: null,
   characterPreview: null,
   pendingCreateEnter: false,
+  characterMint: null,
   snapshot: null,
   logs: [],
   selectedTarget: null,
@@ -88,6 +98,7 @@ export const useGame = create<GameState>((set, get) => ({
   setSelectedCharId: (selectedCharId) => set({ selectedCharId }),
   setCharacterPreview: (characterPreview) => set({ characterPreview }),
   setPendingCreateEnter: (pendingCreateEnter) => set({ pendingCreateEnter }),
+  setCharacterMint: (characterMint) => set({ characterMint }),
   clearSnapshot: () => set({ snapshot: null, selectedTarget: null, explorer: null }),
   setSnapshot: (snapshot) => {
     const prev = get().snapshot;
@@ -117,7 +128,9 @@ export const useGame = create<GameState>((set, get) => ({
     } else {
       selectedTarget = serverTarget;
     }
+    const mint = snapshot.you?.lok?.characterMint;
     set({
+      ...(mint !== undefined ? { characterMint: mint ?? null } : {}),
       snapshot,
       logs: snapshot.log ?? prev?.log ?? get().logs,
       selectedTarget,
