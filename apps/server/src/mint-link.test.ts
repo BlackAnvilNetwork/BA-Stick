@@ -5,8 +5,10 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   characterMintClientConfig,
+  characterMintEnvConfigured,
   linkCharacterNft,
   LOCAL_ANVIL_CHAIN_ID,
+  loadCharacterMintClientConfig,
 } from "./lok-vault";
 
 describe("character mint link helpers", () => {
@@ -17,6 +19,36 @@ describe("character mint link helpers", () => {
       LOK_NFT: "",
     } as NodeJS.ProcessEnv);
     assert.equal(cfg, null);
+  });
+
+  it("loadCharacterMintClientConfig reports disabled when env is incomplete", async () => {
+    const loaded = await loadCharacterMintClientConfig({
+      LOK_CHAIN_RPC: "",
+      LOK_FACTORY: "",
+      LOK_NFT: "",
+    } as NodeJS.ProcessEnv);
+    assert.equal(loaded.status, "disabled");
+  });
+
+  it("characterMintEnvConfigured requires rpc + factory + nft", () => {
+    assert.equal(characterMintEnvConfigured({} as NodeJS.ProcessEnv), false);
+    assert.equal(
+      characterMintEnvConfigured({
+        LOK_CHAIN_RPC: "http://127.0.0.1:8545",
+        LOK_FACTORY: "0x00000000000000000000000000000000000000f1",
+        LOK_NFT: "0x00000000000000000000000000000000000000f2",
+      } as NodeJS.ProcessEnv),
+      true,
+    );
+  });
+
+  it("loadCharacterMintClientConfig fails closed (error) when RPC is unreachable", async () => {
+    const loaded = await loadCharacterMintClientConfig({
+      LOK_CHAIN_RPC: "http://127.0.0.1:1",
+      LOK_FACTORY: "0x00000000000000000000000000000000000000f1",
+      LOK_NFT: "0x00000000000000000000000000000000000000f2",
+    } as NodeJS.ProcessEnv);
+    assert.equal(loaded.status, "error");
   });
 
   it("linkCharacterNft reports not configured without RPC", async () => {

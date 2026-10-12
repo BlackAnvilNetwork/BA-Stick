@@ -41,10 +41,12 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
     tokenId: z.string().regex(/^[1-9][0-9]{0,77}$/).optional(),
     /** Wallet that paid the mint fee (may differ from burner auth). */
     mintWallet: z.string().regex(/^0x[0-9a-fA-F]{40}$/).optional(),
-    /** EIP-191 mint claim when mintWallet !== auth wallet (H1). */
+    /** EIP-191 mint claim when mintWallet !== auth wallet (H1 / L3). */
     mintNonce: z.string().min(8).max(128).optional(),
     mintExpiry: z.number().int().positive().optional(),
     mintSignature: z.string().min(130).max(200).optional(),
+    mintChainId: z.number().int().positive().optional(),
+    mintCharId: z.string().min(1).max(64).optional(),
   }),
   z.object({
     type: z.literal("char/enter"),
@@ -385,6 +387,19 @@ export type AhEscrowClientConfig = {
   chainId: number;
 };
 
+/** Local / EEZ sync-buy client config (pay from home chain). */
+export type EezSyncBuyClientConfig = {
+  syncBuyEnabled: boolean;
+  zoneId: string | null;
+  homeChainId: number | null;
+  homeRpcUrl: string | null;
+  homeLabel: string | null;
+  /** Local MockEezSyncBuy address when testing without a live EEZ zone. */
+  mockSyncBuy: string | null;
+  gameEscrow: string | null;
+  gameChainId: number | null;
+};
+
 export type LokSnapshot = {
   tokenId: string;
   /**
@@ -405,6 +420,8 @@ export type LokSnapshot = {
   chain: "engine-only" | "rpc-unwatched" | "watching";
   /** Present when the server exposes a public RPC + AhEscrow address for wallet buys. */
   ahEscrow?: AhEscrowClientConfig | null;
+  /** Present when EEZ / local mock sync buy is configured. */
+  eezSyncBuy?: EezSyncBuyClientConfig | null;
   /** Present when the player should pay createCharacter{value} for the NFT. */
   characterMint?: {
     factory: string;

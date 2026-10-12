@@ -20,6 +20,8 @@ describe("mint claim (H1)", () => {
     const message = mintClaimMessage({
       tokenId: "1",
       gameWallet: "0x2222222222222222222222222222222222222222",
+      chainId: 31337,
+      charId: "Chrona",
       nonce: "abcd1234",
       expiry,
     });
@@ -28,6 +30,8 @@ describe("mint claim (H1)", () => {
       tokenId: "1",
       gameWallet: "0x2222222222222222222222222222222222222222",
       mintWallet: acct.address,
+      chainId: 31337,
+      charId: "Chrona",
       nonce: "abcd1234",
       expiry,
       signature,

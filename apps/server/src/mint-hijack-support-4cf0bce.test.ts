@@ -8,11 +8,18 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import { privateKeyToAccount, generatePrivateKey } from "viem/accounts";
-import { acceptedMintWallets, mintClaimMessage, verifyMintClaim } from "./mint-claim";
+import {
+  acceptedMintWallets,
+  mintClaimMessage,
+  resetMintClaimNoncesForTests,
+  verifyMintClaim,
+} from "./mint-claim";
 import { LokWorld } from "./lok-world";
 
 const ATTACKER = "0x00000000000000000000000000000000000a77ac";
 const VICTIM_KEY = "0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6" as const;
+const CHAIN = 31337;
+const CHAR = "Chrona";
 
 describe("support 4cf0bce: mintWallet hijack (H1)", () => {
   it("rejects an unproven mintWallet that is not the auth wallet", async () => {
@@ -26,12 +33,15 @@ describe("support 4cf0bce: mintWallet hijack (H1)", () => {
   });
 
   it("accepts mintWallet only with a valid EIP-191 claim from that wallet", async () => {
+    resetMintClaimNoncesForTests();
     const victim = privateKeyToAccount(VICTIM_KEY);
     const nonce = "nonce_abc12345";
     const expiry = Math.floor(Date.now() / 1000) + 600;
     const message = mintClaimMessage({
       tokenId: "7",
       gameWallet: ATTACKER,
+      chainId: CHAIN,
+      charId: CHAR,
       nonce,
       expiry,
     });
@@ -40,6 +50,8 @@ describe("support 4cf0bce: mintWallet hijack (H1)", () => {
       tokenId: "7",
       gameWallet: ATTACKER,
       mintWallet: victim.address,
+      chainId: CHAIN,
+      charId: CHAR,
       nonce,
       expiry,
       signature,
@@ -50,6 +62,8 @@ describe("support 4cf0bce: mintWallet hijack (H1)", () => {
       authWallet: ATTACKER,
       mintWallet: victim.address,
       tokenId: "7",
+      chainId: CHAIN,
+      charId: CHAR,
       mintNonce: nonce,
       mintExpiry: expiry,
       mintSignature: signature,

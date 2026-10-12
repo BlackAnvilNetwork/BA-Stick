@@ -58,6 +58,8 @@ export async function mintCharacterWithWallet(opts: {
   job: number;
   /** Game auth wallet (burner) that will own the log character. */
   gameWallet: string;
+  /** Character name bound into the mint claim (L3). */
+  charId: string;
   tokenId?: string;
 }): Promise<MintResult> {
   if (!Number.isInteger(opts.job) || opts.job < 0 || opts.job > 255) {
@@ -158,12 +160,18 @@ export async function mintCharacterWithWallet(opts: {
       return { ok: true, hash, tokenId, payer };
     }
 
-    // H1: prove mintWallet controls the claim for this game wallet.
+    // H1/L3: prove mintWallet controls the claim for this game wallet + chain + char.
     const mintNonce = freshMintNonce();
     const mintExpiry = Math.floor(Date.now() / 1000) + 10 * 60;
+    const charId = opts.charId.trim();
+    if (!/^[a-zA-Z0-9_-]{1,64}$/.test(charId)) {
+      return { ok: false, error: "Bad character id for mint claim." };
+    }
     const message = mintClaimMessage({
       tokenId,
       gameWallet: game,
+      chainId: opts.mint.chainId,
+      charId,
       nonce: mintNonce,
       expiry: mintExpiry,
     });

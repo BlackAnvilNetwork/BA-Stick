@@ -1,34 +1,45 @@
 # EEZ sync buy (mission gap)
 
 AhEscrow already accepts native `msg.value` from an EOA, Safe, or EEZ
-`CrossChainProxy`. Sync buy from a foreign home-chain is **not wired** in
-`apps/` yet: buys still go through the browser wallet (`ah-buy.ts` /
-EIP-1193 or burner) against the game-chain escrow.
+`CrossChainProxy`. Sync buy from a foreign home-chain is wired for **local
+testing** via `MockEezSyncBuy`; live EEZ zone registration remains out of band.
 
 ## Current local path (done)
 
 1. Client `buyAsksWithWallet` → `AhEscrow.buyAsk{value}` on the game chain.
 2. Server `AskFilled` watcher mirrors items with `chainFill` (txHash + logIndex).
 3. Settlement ETH never credits onto the character log.
-4. Seller payout is the wallet chosen at list time (`sellerPayout`).
+4. Seller payout is the wallet chosen at list time (`sellerPayout`) — **same tx**.
 
-## EEZ sync buy
+## EEZ sync buy (local mock)
 
 | Piece | Status |
 |-------|--------|
 | `AhEscrow.buyAsk{value}` | Done |
 | Browser EIP-1193 / burner buy | Done (`ah-buy.ts`) |
 | Docs + economy notes | Done |
-| Env / config scaffolding (`eez-sync.ts`, `eez-home-chain.ts`) | **Started** — `LOK_EEZ_ZONE_ID`, `LOK_EEZ_HOME_RPC`, `LOK_EEZ_SYNC_BUY` |
-| EEZ zone registration / rollup id | Not started (needs upstream registration) |
-| Client “pay from home chain” picker UI | Stub only (`listHomeChainOptions` empty) |
-| Server recognition of proxy-origin fills | Same AskFilled watcher; no special case yet |
-| Seller home-chain payout in the same batch | Not started |
+| Env / config (`eez-sync.ts`, `eez-home-chain.ts`) | Done — snapshot `eezSyncBuy` |
+| Local zone + `MockEezSyncBuy` | Done — `LOK_EEZ_ZONE_ID` + `LOK_EEZ_MOCK_SYNC_BUY` + `LOK_EEZ_SYNC_BUY=1` |
+| Client “pay from home chain” picker | Done (`listHomeChainOptions` / `buyAsksWithEezSync`) |
+| Same-batch seller payout | Done inside `AhEscrow.buyAsk` (mock forwards value) |
+| Live EEZ CrossChainProxy registration | Not started (needs upstream registration) |
 
-`planEezSyncBuy` returns a clear “not wired” error until registration lands.
+### Local env
 
-Until then, use the local AhEscrow path. Upstream EEZ `periphery/Bridge.sol`
-is test-only and must not be treated as production.
+```bash
+LOK_EEZ_SYNC_BUY=1
+LOK_EEZ_ZONE_ID=local-31337
+LOK_EEZ_MOCK_SYNC_BUY=0x…   # MockEezSyncBuy on the throwaway anvil
+# optional: LOK_EEZ_HOME_RPC / LOK_EEZ_HOME_CHAIN_ID (default = game chain)
+```
+
+`planEezSyncBuy` returns a `local-mock` plan when enabled. Client calls
+`MockEezSyncBuy.syncBuy{value}` which forwards to `AhEscrow.buyAsk`; the seller
+receives ETH in that same transaction.
+
+Upstream EEZ `periphery/Bridge.sol` is test-only and must not be treated as
+production. Do not redeploy the shared anvil for this path — use a throwaway
+anvil for forge / support tests.
 
 ## Fee unit note (character mint)
 

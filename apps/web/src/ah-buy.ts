@@ -3,7 +3,7 @@
  * EIP-1193 when available, else the localStorage burner). The server watches
  * AskFilled and mirrors items via chainFill; this never credits ETH onto the log.
  *
- * EEZ sync buy (CrossChainProxy with msg.value) is not wired yet — see docs.
+ * EEZ / local mock sync buy: see eez-sync-buy.ts + docs/eez-sync-buy.md.
  */
 import { createPublicClient, http, type Hex } from "viem";
 import type { AhEscrowClientConfig } from "@bellgrave/protocol";

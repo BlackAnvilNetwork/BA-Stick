@@ -2,6 +2,8 @@
 export function mintClaimMessage(opts: {
   tokenId: string;
   gameWallet: string;
+  chainId: number;
+  charId: string;
   nonce: string;
   expiry: number;
 }): string {
@@ -9,6 +11,8 @@ export function mintClaimMessage(opts: {
     "Bellgrave character mint claim",
     "tokenId: " + opts.tokenId,
     "gameWallet: " + opts.gameWallet.toLowerCase(),
+    "chainId: " + String(opts.chainId),
+    "charId: " + opts.charId,
     "nonce: " + opts.nonce,
     "expiry: " + String(opts.expiry),
   ].join("\n");

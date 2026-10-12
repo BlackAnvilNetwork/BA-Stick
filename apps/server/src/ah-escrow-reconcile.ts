@@ -4,7 +4,7 @@
  * identical in asks(). Scan AskFilled / AskCancelled logs first (H2).
  */
 import { askFilledQuarantinePath, AskFilledQuarantine } from "./lok-ask-filled-quarantine";
-import { ahEscrowAddress, ASK_FILLED_TOPIC } from "./ah-escrow";
+import { ahEscrowAddress, ASK_FILLED_TOPIC, listingRoleKey } from "./ah-escrow";
 import { readAskOnchain } from "./ah-escrow-tx";
 import { defaultLokDir, type LokWorld } from "./lok-world";
 
@@ -109,6 +109,12 @@ export async function reconcileOpenAsksFromChain(
   const rpc = env.LOK_CHAIN_RPC?.trim();
   const out = { cancelled: [] as string[], waitingFill: [] as string[], skipped: [] as string[] };
   if (!escrow || !rpc) return out;
+  if (!listingRoleKey(env)) {
+    console.warn(
+      "[bellgrave] ask reconcile: LOK_LISTING_KEY is missing. " +
+        "asks() is still read read-only; openAsk/cancelAsk on-chain remain disabled.",
+    );
+  }
 
   const dataDir = opts?.dataDir ?? defaultLokDir();
   const quarantine = opts?.quarantine ?? new AskFilledQuarantine(askFilledQuarantinePath(dataDir));

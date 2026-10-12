@@ -1321,6 +1321,8 @@ function CreatePanel() {
           mintNonce?: string;
           mintExpiry?: number;
           mintSignature?: string;
+          mintChainId?: number;
+          mintCharId?: string;
         }) => {
           send({
             type: "char/create",
@@ -1332,6 +1334,8 @@ function CreatePanel() {
             ...(extra?.mintNonce ? { mintNonce: extra.mintNonce } : {}),
             ...(extra?.mintExpiry != null ? { mintExpiry: extra.mintExpiry } : {}),
             ...(extra?.mintSignature ? { mintSignature: extra.mintSignature } : {}),
+            ...(extra?.mintChainId != null ? { mintChainId: extra.mintChainId } : {}),
+            ...(extra?.mintCharId ? { mintCharId: extra.mintCharId } : {}),
           });
           window.setTimeout(() => send({ type: "claim/starter" }), 100);
           setCreating(false);
@@ -1355,6 +1359,7 @@ function CreatePanel() {
             mint: mintCfg,
             job: jobIndex < 0 ? 0 : jobIndex,
             gameWallet,
+            charId: name,
           }).then((res) => {
             if (!res.ok) {
               pushLog("Character mint: " + res.error);
@@ -1372,6 +1377,8 @@ function CreatePanel() {
                     mintNonce: res.mintNonce,
                     mintExpiry: res.mintExpiry,
                     mintSignature: res.mintSignature,
+                    mintChainId: mintCfg.chainId,
+                    mintCharId: name,
                   }
                 : {}),
             });

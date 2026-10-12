@@ -139,9 +139,36 @@ const FACTORY_ABI = [
   },
 ] as const;
 
-/** Local 31337 faucet: on by default when owner key is set; set LOK_DEV_FAUCET=0 to disable. */
+/** True when RPC/factory/NFT env is set so the player mint path should load. */
+export function characterMintEnvConfigured(envIn: NodeJS.ProcessEnv = process.env): boolean {
+  const env = envOf(envIn);
+  const publicRpc = envIn.LOK_PUBLIC_RPC?.trim() || env.rpc;
+  if (!env.rpc || !env.factory || !env.nft || !publicRpc) return false;
+  return publicRpc.startsWith("http://") || publicRpc.startsWith("https://");
+}
+
+function isLocalAnvilRpc(rpc: string): boolean {
+  try {
+    const u = new URL(rpc);
+    return u.hostname === "127.0.0.1" || u.hostname === "localhost" || u.hostname === "0.0.0.0";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Local 31337 faucet. Enabled only when chain id is explicitly 31337 (LOK_CHAIN_ID)
+ * or, when unset, the RPC is clearly local. Set LOK_DEV_FAUCET=0 to disable.
+ */
 export function devFaucetEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
   if (env.LOK_DEV_FAUCET === "0") return false;
+  const chainRaw = env.LOK_CHAIN_ID?.trim();
+  if (chainRaw) {
+    if (chainRaw !== "31337") return false;
+  } else {
+    const rpc = env.LOK_CHAIN_RPC?.trim() || "";
+    if (!isLocalAnvilRpc(rpc)) return false;
+  }
   if (env.LOK_DEV_FAUCET === "1" || env.NODE_ENV === "development" || env.ALLOW_DEBUG_CHEATS === "1") {
     return true;
   }
@@ -150,6 +177,38 @@ export function devFaucetEnabled(env: NodeJS.ProcessEnv = process.env): boolean 
 
 export function devServerMintEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
   return env.LOK_DEV_SERVER_MINT === "1";
+}
+
+/** Pull revert/data hex from a viem (or similar) error for selector detection. */
+function revertDataHex(err: unknown): string | null {
+  const walk = (v: unknown, depth: number): string | null => {
+    if (depth > 6 || v == null) return null;
+    if (typeof v === "string") {
+      const m = v.match(/\b0x([0-9a-fA-F]*)\b/);
+      if (m && (m[0] === "0x" || m[0].length >= 10)) return m[0].toLowerCase();
+      return null;
+    }
+    if (typeof v !== "object") return null;
+    const o = v as Record<string, unknown>;
+    for (const key of ["data", "raw", "hex"]) {
+      if (typeof o[key] === "string") {
+        const s = (o[key] as string).toLowerCase();
+        if (s === "0x" || /^0x[0-9a-f]+$/.test(s)) return s;
+      }
+    }
+    for (const key of ["cause", "walk", "details", "metaMessages"]) {
+      const inner = walk(o[key], depth + 1);
+      if (inner) return inner;
+    }
+    if (Array.isArray(o.metaMessages)) {
+      for (const line of o.metaMessages) {
+        const inner = walk(line, depth + 1);
+        if (inner) return inner;
+      }
+    }
+    return null;
+  };
+  return walk(err, 0);
 }
 
 export async function factorySupportsCreateFor(
@@ -170,15 +229,23 @@ export async function factorySupportsCreateFor(
     return true;
   } catch (err) {
     const msg = String(err);
-    if (/WrongFee|WrongTokenId|BadJob|0x[0-9a-fA-F]{8}/i.test(msg)) return true;
-    if (/Function "createCharacterFor" not found|does not exist|returned no data|execution reverted/i.test(msg)) {
-      // "execution reverted" alone can mean the fn exists; prefer selector miss phrases.
-      if (/not found|does not exist|no data|abi/i.test(msg) && !/WrongFee|WrongTokenId|BadJob/i.test(msg)) {
-        return false;
-      }
+    // Custom errors from an existing selector prove the method is present.
+    if (/WrongFee|WrongTokenId|BadJob/i.test(msg)) return true;
+    // Empty revert data (0x) / function-not-found → method missing on old factories.
+    // Do NOT match bare 0x[8 hex] — viem messages always include the factory address.
+    const data = revertDataHex(err);
+    if (data === "0x" || data === "0x0") return false;
+    if (
+      /Function "createCharacterFor" not found|does not exist|returned no data|ABI|encoded error details:\s*0x\s*$/i.test(
+        msg,
+      )
+    ) {
+      return false;
     }
-    // Most reverts from an existing function still prove the selector is present.
-    if (/reverted|WrongFee|WrongTokenId/i.test(msg)) return true;
+    if (data && data.length >= 10) {
+      // Non-empty 4-byte selector (or longer) ⇒ function exists and reverted.
+      return true;
+    }
     return false;
   }
 }
@@ -239,18 +306,25 @@ async function chainIdOf(rpc: string): Promise<number> {
   return Number(await pub.getChainId());
 }
 
-/** Browser-reachable mint config so the player can pay createCharacter{value}. */
-export async function characterMintClientConfig(
+export type CharacterMintLoadResult =
+  | { status: "disabled" }
+  | { status: "ready"; config: CharacterMintClientConfig }
+  | { status: "error"; error: string };
+
+/**
+ * Load browser-reachable mint config. Distinguishes "mint off" from "RPC failed"
+ * so boot can fail closed and retry (M-B).
+ */
+export async function loadCharacterMintClientConfig(
   envIn: NodeJS.ProcessEnv = process.env,
   opts?: { logNextTokenId?: string },
-): Promise<CharacterMintClientConfig | null> {
+): Promise<CharacterMintLoadResult> {
+  if (!characterMintEnvConfigured(envIn)) return { status: "disabled" };
   const env = envOf(envIn);
   const publicRpc = envIn.LOK_PUBLIC_RPC?.trim() || env.rpc;
-  if (!env.rpc || !env.factory || !env.nft || !publicRpc) return null;
-  if (!publicRpc.startsWith("http://") && !publicRpc.startsWith("https://")) return null;
   try {
     const chainId = await chainIdOf(env.rpc);
-    if (BigInt(chainId) !== LOCAL_ANVIL_CHAIN_ID) return null;
+    if (BigInt(chainId) !== LOCAL_ANVIL_CHAIN_ID) return { status: "disabled" };
     const pub = publicClient(env.rpc, chainId);
     const fee = await pub.readContract({
       address: env.factory as `0x${string}`,
@@ -271,19 +345,35 @@ export async function characterMintClientConfig(
     }
     const supportsCreateFor = await factorySupportsCreateFor(env.rpc, env.factory, chainId);
     return {
-      factory: env.factory,
-      nft: env.nft,
-      mintFee: fee.toString(),
-      chainId,
-      rpcUrl: publicRpc,
-      supportsCreateFor,
-      suggestedTokenId: suggested.toString(),
-      devFaucet: devFaucetEnabled(envIn),
-      devServerMint: devServerMintEnabled(envIn),
+      status: "ready",
+      config: {
+        factory: env.factory,
+        nft: env.nft,
+        mintFee: fee.toString(),
+        chainId,
+        rpcUrl: publicRpc,
+        supportsCreateFor,
+        suggestedTokenId: suggested.toString(),
+        devFaucet: devFaucetEnabled(envIn),
+        devServerMint: devServerMintEnabled(envIn),
+      },
     };
-  } catch {
-    return null;
+  } catch (err) {
+    return {
+      status: "error",
+      error: err instanceof Error ? err.message : String(err),
+    };
   }
+}
+
+/** Browser-reachable mint config so the player can pay createCharacter{value}. */
+export async function characterMintClientConfig(
+  envIn: NodeJS.ProcessEnv = process.env,
+  opts?: { logNextTokenId?: string },
+): Promise<CharacterMintClientConfig | null> {
+  const loaded = await loadCharacterMintClientConfig(envIn, opts);
+  if (loaded.status === "ready") return loaded.config;
+  return null;
 }
 
 /**
@@ -432,11 +522,23 @@ export async function linkCharacterNftWithRetry(
 
 const faucetLastAt = new Map<string, number>();
 const FAUCET_COOLDOWN_MS = 60_000;
+/** Global faucet payouts in the current window (all wallets). */
+let faucetGlobalWindowStart = 0;
+let faucetGlobalCount = 0;
+const FAUCET_GLOBAL_CAP = 20;
+const FAUCET_GLOBAL_WINDOW_MS = 60_000;
+
+/** Test seam — clear per-wallet + global faucet rate-limit state. */
+export function resetFaucetRateLimitsForTests(): void {
+  faucetLastAt.clear();
+  faucetGlobalWindowStart = 0;
+  faucetGlobalCount = 0;
+}
 
 /**
  * Dev-only native ETH faucet for burners on chain 31337.
- * Default-on when LOK_OWNER_KEY is set (set LOK_DEV_FAUCET=0 to disable).
- * Rate-limited per destination; caller must pass their own verified wallet.
+ * Rate-limited per destination (slot reserved before send) and globally.
+ * Caller must pass their own verified wallet.
  */
 export async function faucetAnvilEth(
   to: string,
@@ -453,36 +555,62 @@ export async function faucetAnvilEth(
       return { ok: false, error: "Faucet can only fund your own verified wallet." };
     }
   }
+  const now = Date.now();
   const last = faucetLastAt.get(dest) ?? 0;
-  if (Date.now() - last < FAUCET_COOLDOWN_MS) {
+  if (now - last < FAUCET_COOLDOWN_MS) {
     return { ok: false, error: "Faucet rate limit: wait before requesting again." };
   }
+  if (now - faucetGlobalWindowStart >= FAUCET_GLOBAL_WINDOW_MS) {
+    faucetGlobalWindowStart = now;
+    faucetGlobalCount = 0;
+  }
+  if (faucetGlobalCount >= FAUCET_GLOBAL_CAP) {
+    return { ok: false, error: "Faucet global rate limit: try again later." };
+  }
+  // Reserve before the transfer so concurrent requests cannot all pass the check (L1).
+  faucetLastAt.set(dest, now);
+  faucetGlobalCount += 1;
   try {
     const chainId = await chainIdOf(env.rpc);
     if (BigInt(chainId) !== LOCAL_ANVIL_CHAIN_ID) {
+      faucetLastAt.delete(dest);
+      faucetGlobalCount = Math.max(0, faucetGlobalCount - 1);
       return { ok: false, error: "Faucet is only available on local chain 31337." };
     }
     const amount = 100_000_000_000_000_000n; // 0.1 ETH — enough for many mint fees
-    return withOwnerKeyQueue(async () => {
-      const account = privateKeyToAccount(env.ownerKey as Hex);
-      const pub = publicClient(env.rpc, chainId);
-      const wallet = createWalletClient({
-        account,
-        chain: chainOf(chainId, env.rpc),
-        transport: http(env.rpc),
+    const releaseReservation = () => {
+      faucetLastAt.delete(dest);
+      faucetGlobalCount = Math.max(0, faucetGlobalCount - 1);
+    };
+    try {
+      return await withOwnerKeyQueue(async () => {
+        const account = privateKeyToAccount(env.ownerKey as Hex);
+        const pub = publicClient(env.rpc, chainId);
+        const wallet = createWalletClient({
+          account,
+          chain: chainOf(chainId, env.rpc),
+          transport: http(env.rpc),
+        });
+        const hash = await wallet.sendTransaction({
+          account,
+          chain: chainOf(chainId, env.rpc),
+          to: dest as `0x${string}`,
+          value: amount,
+        });
+        const receipt = await pub.waitForTransactionReceipt({ hash });
+        if (receipt.status !== "success") {
+          releaseReservation();
+          return { ok: false, error: "Faucet transfer reverted." };
+        }
+        return { ok: true, hash, amountWei: amount.toString() };
       });
-      const hash = await wallet.sendTransaction({
-        account,
-        chain: chainOf(chainId, env.rpc),
-        to: dest as `0x${string}`,
-        value: amount,
-      });
-      const receipt = await pub.waitForTransactionReceipt({ hash });
-      if (receipt.status !== "success") return { ok: false, error: "Faucet transfer reverted." };
-      faucetLastAt.set(dest, Date.now());
-      return { ok: true, hash, amountWei: amount.toString() };
-    });
+    } catch (err) {
+      releaseReservation();
+      return { ok: false, error: "Faucet failed. " + redact(String(err), [env.ownerKey]) };
+    }
   } catch (err) {
+    faucetLastAt.delete(dest);
+    faucetGlobalCount = Math.max(0, faucetGlobalCount - 1);
     return { ok: false, error: "Faucet failed. " + redact(String(err), [env.ownerKey]) };
   }
 }

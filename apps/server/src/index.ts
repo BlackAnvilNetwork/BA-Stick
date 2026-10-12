@@ -193,14 +193,16 @@ import { reconcileOpenAsksFromChain } from "./ah-escrow-reconcile";
 import { cancelAskOnchain, openAskOnchain } from "./ah-escrow-tx";
 import { acceptedMintWallets } from "./mint-claim";
 import {
-  characterMintClientConfig,
+  characterMintEnvConfigured,
   ensureLocalRuleset,
   faucetAnvilEth,
+  loadCharacterMintClientConfig,
   linkCharacterNftWithRetry,
   serverMintCharacterFor,
   verifyCharacterNftOwner,
   type CharacterMintClientConfig,
 } from "./lok-vault";
+import { eezClientConfig } from "./eez-sync";
 import { guardedKekMove, withPlayerCharge } from "./kek-guard";
 import { characterNameKey, normalizeCharacterName } from "./character-name";
 import { randomBytes } from "node:crypto";
@@ -457,6 +459,8 @@ const PORT = Number(process.env.PORT ?? 8787);
 /** Cached at boot — snapshot is sync. null until first load finishes (L5). */
 let cachedCharacterMint: CharacterMintClientConfig | null = null;
 let mintConfigReady = false;
+/** M-B: mint env set but load failed — fail closed until a retry succeeds. */
+let mintConfigLoadFailed = false;
 /** Dev cheats (Max Lv). Off unless ALLOW_DEBUG_CHEATS=1. Not implied by a dev NODE_ENV. */
 const DEBUG_CHEATS_ENABLED = debugCheatsEnabled();
 const players = new Map<string, Player>();
@@ -495,24 +499,54 @@ const lok: LokWorld = await (async (): Promise<LokWorld> => {
     void ensureLocalRuleset().catch(() => {
       console.error("[bellgrave] ruleset check failed");
     });
-    void characterMintClientConfig(process.env, {
-      logNextTokenId: world.nextTokenId(),
-    })
-      .then((cfg) => {
-        cachedCharacterMint = cfg;
-        mintConfigReady = true;
-        if (cfg && !cfg.supportsCreateFor) {
-          console.warn(
-            "[bellgrave] CharacterFactory has no createCharacterFor (pre-4cf0bce deploy). " +
-              "Client uses createCharacter; set LOK_DEV_FAUCET (default on with owner key) or " +
-              "LOK_DEV_SERVER_MINT=1 after a factory upgrade. Do not redeploy the shared anvil ad-hoc.",
-          );
-        }
+    const refreshMintConfig = () => {
+      void loadCharacterMintClientConfig(process.env, {
+        logNextTokenId: world.nextTokenId(),
       })
-      .catch((err) => {
-        mintConfigReady = true;
-        console.error("[bellgrave] character mint config failed", err);
-      });
+        .then((loaded) => {
+          if (loaded.status === "ready") {
+            cachedCharacterMint = loaded.config;
+            mintConfigReady = true;
+            mintConfigLoadFailed = false;
+            if (!loaded.config.supportsCreateFor) {
+              console.warn(
+                "[bellgrave] CharacterFactory has no createCharacterFor (pre-4cf0bce deploy). " +
+                  "Client uses createCharacter; set LOK_DEV_FAUCET (default on with owner key) or " +
+                  "LOK_DEV_SERVER_MINT=1 after a factory upgrade. Do not redeploy the shared anvil ad-hoc.",
+              );
+            }
+            return;
+          }
+          if (loaded.status === "disabled") {
+            cachedCharacterMint = null;
+            mintConfigReady = true;
+            mintConfigLoadFailed = false;
+            return;
+          }
+          // M-B: env configured but RPC/read failed — refuse free creates and retry.
+          cachedCharacterMint = null;
+          mintConfigReady = true;
+          mintConfigLoadFailed = true;
+          console.error(
+            "[bellgrave] character mint config failed (fail-closed until reload): " + loaded.error,
+          );
+          setTimeout(refreshMintConfig, 5_000).unref?.();
+        })
+        .catch((err) => {
+          if (characterMintEnvConfigured(process.env)) {
+            cachedCharacterMint = null;
+            mintConfigReady = true;
+            mintConfigLoadFailed = true;
+            console.error("[bellgrave] character mint config failed (fail-closed until reload)", err);
+            setTimeout(refreshMintConfig, 5_000).unref?.();
+          } else {
+            mintConfigReady = true;
+            mintConfigLoadFailed = false;
+            console.error("[bellgrave] character mint config failed", err);
+          }
+        });
+    };
+    refreshMintConfig();
     return world;
   } catch (err) {
     console.error("[bellgrave] lok log failed to open; refusing to start.", err);
@@ -2347,6 +2381,7 @@ function snapshotFor(p: Player): SnapshotMessage {
         return {
           ...view,
           ahEscrow: ahEscrowClientConfig(),
+          eezSyncBuy: eezClientConfig(),
           characterMint: cachedCharacterMint,
           withdrawDelaySec: null,
           queues: [],
@@ -4554,6 +4589,16 @@ function onMessage(ws: WebSocket, data: string) {
         });
         return;
       }
+      // M-B: factory/NFT env set but config failed to load — never create free.
+      if (mintConfigLoadFailed) {
+        send(ws, {
+          type: "error",
+          message:
+            "Character mint config is unavailable (RPC or factory read failed). " +
+            "Creates are blocked until it reloads. Try again in a moment.",
+        });
+        return;
+      }
       const named = normalizeCharacterName(msg.name);
       if (!named.ok) {
         send(ws, { type: "error", message: named.error });
@@ -4592,10 +4637,28 @@ function onMessage(ws: WebSocket, data: string) {
           });
           return;
         }
+        if (
+          typeof msg.mintWallet === "string" &&
+          msg.mintWallet.toLowerCase() !== wallet.toLowerCase()
+        ) {
+          if (typeof msg.mintChainId === "number" && msg.mintChainId !== cachedCharacterMint.chainId) {
+            send(ws, { type: "error", message: "Mint claim chain id does not match this server." });
+            return;
+          }
+          if (typeof msg.mintCharId === "string" && msg.mintCharId !== named.name) {
+            send(ws, { type: "error", message: "Mint claim char id does not match the character name." });
+            return;
+          }
+        }
         const wallets = await acceptedMintWallets({
           authWallet: wallet,
           mintWallet: typeof msg.mintWallet === "string" ? msg.mintWallet : undefined,
           tokenId: bindToken,
+          chainId:
+            typeof msg.mintChainId === "number"
+              ? msg.mintChainId
+              : cachedCharacterMint.chainId,
+          charId: typeof msg.mintCharId === "string" ? msg.mintCharId : named.name,
           mintNonce: typeof msg.mintNonce === "string" ? msg.mintNonce : undefined,
           mintExpiry: typeof msg.mintExpiry === "number" ? msg.mintExpiry : undefined,
           mintSignature: typeof msg.mintSignature === "string" ? msg.mintSignature : undefined,

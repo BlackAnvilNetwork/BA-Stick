@@ -84,26 +84,44 @@ function chainOf(chainId: number, rpcUrl: string): Chain {
   };
 }
 
-function client(env: NodeJS.ProcessEnv = process.env) {
+/** Read-only public client — no LOK_LISTING_KEY required (boot reconcile / asks()). */
+function readClient(env: NodeJS.ProcessEnv = process.env) {
   const cfg = ahEscrowClientConfig(env);
-  const key = listingRoleKey(env);
   const escrow = ahEscrowAddress(env);
-  if (!cfg || !key || !escrow) {
+  if (!cfg || !escrow) {
+    return { ok: false as const, error: "AhEscrow is not configured." };
+  }
+  const chain = chainOf(cfg.chainId, cfg.rpcUrl);
+  const pub = createPublicClient({
+    chain,
+    transport: http(cfg.rpcUrl),
+  });
+  return { ok: true as const, pub, chain, escrow: escrow as `0x${string}`, cfg };
+}
+
+function client(env: NodeJS.ProcessEnv = process.env) {
+  const base = readClient(env);
+  if (!base.ok) return base;
+  const key = listingRoleKey(env);
+  if (!key) {
     return { ok: false as const, error: "AhEscrow listing signer is not configured." };
   }
   const account = privateKeyToAccount(key as Hex);
-  const chain = chainOf(cfg.chainId, cfg.rpcUrl);
-  const transport = http(cfg.rpcUrl);
+  const transport = http(base.cfg.rpcUrl);
   const wallet = createWalletClient({
     account,
-    chain,
+    chain: base.chain,
     transport,
   });
-  const pub = createPublicClient({
-    chain,
-    transport,
-  });
-  return { ok: true as const, wallet, pub, account, chain, escrow: escrow as `0x${string}`, cfg };
+  return {
+    ok: true as const,
+    wallet,
+    pub: base.pub,
+    account,
+    chain: base.chain,
+    escrow: base.escrow,
+    cfg: base.cfg,
+  };
 }
 
 async function waitReceipt(
@@ -117,7 +135,7 @@ export async function readAskOnchain(opts: {
   listingId: string;
   env?: NodeJS.ProcessEnv;
 }): Promise<{ ok: true; ask: OnchainAsk } | { ok: false; error: string }> {
-  const c = client(opts.env);
+  const c = readClient(opts.env);
   if (!c.ok) return c;
   try {
     const row = await c.pub.readContract({
