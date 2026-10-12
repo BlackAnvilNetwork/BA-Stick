@@ -3,12 +3,17 @@
  * Updated for L3: chainId + charId in the message; nonces are consumed.
  */
 import assert from "node:assert/strict";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, it } from "node:test";
 import { privateKeyToAccount } from "viem/accounts";
 import {
   acceptedMintWallets,
+  configureMintClaimNonceStore,
   consumeMintClaimNonce,
   mintClaimMessage,
+  mintClaimNonceCountForTests,
   resetMintClaimNoncesForTests,
 } from "./mint-claim";
 
@@ -154,5 +159,30 @@ describe("support 9692ea2: mint claim edge cases", () => {
       nonce: "nonce-charxxxx",
     });
     assert.equal((await acceptedMintWallets(args(wrongChar, { charId: CHAR }))).ok, false);
+  });
+
+  it("prunes stale mint-claim nonces from the on-disk store", () => {
+    resetMintClaimNoncesForTests();
+    const dir = mkdtempSync(join(tmpdir(), "mint-nonce-prune-"));
+    const path = join(dir, "mint-claim-nonces.json");
+    const staleAt = Date.now() - 8 * 24 * 60 * 60 * 1000;
+    writeFileSync(
+      path,
+      JSON.stringify({
+        nonces: [
+          { key: MINT.address.toLowerCase() + ":stale-nonce1", at: staleAt },
+          { key: MINT.address.toLowerCase() + ":fresh-nonce1", at: Date.now() },
+          // Legacy string entries are kept (timestamped at load) then persist may rewrite.
+          MINT.address.toLowerCase() + ":legacy-nonce",
+        ],
+      }),
+    );
+    configureMintClaimNonceStore(path);
+    assert.equal(mintClaimNonceCountForTests(), 2, "stale entry dropped; fresh + legacy kept");
+    consumeMintClaimNonce(MINT.address, "another-nonce");
+    const saved = JSON.parse(readFileSync(path, "utf8")) as { nonces: { key: string; at: number }[] };
+    assert.ok(Array.isArray(saved.nonces));
+    assert.ok(saved.nonces.every((n) => typeof n.key === "string" && typeof n.at === "number"));
+    assert.ok(!saved.nonces.some((n) => n.key.endsWith(":stale-nonce1")));
   });
 });

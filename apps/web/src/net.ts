@@ -1,5 +1,6 @@
 ﻿import type { ClientMessage, ServerMessage } from "@bellgrave/protocol";
 import { generatePrivateKey, privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
+import { clearPendingMint, clearPendingMintIfTokenBound } from "./pending-mint";
 import { useGame } from "./state";
 import { setPreferredPayoutWallet } from "./wallet";
 import {
@@ -24,6 +25,12 @@ let visibilityBound = false;
 /** User chose Logout — drop the live session and do not auto-enter the character. */
 let intentionalLogout = false;
 let authInFlight = false;
+let nameCheckWaiter:
+  | {
+      resolve: (r: { ok: true; name: string } | { ok: false; error: string }) => void;
+      timer: ReturnType<typeof setTimeout>;
+    }
+  | null = null;
 
 /** External wallet used for auth challenge signing (injected / WalletConnect). */
 type ExternalAuth = {
@@ -198,6 +205,28 @@ export function walletConnectLoginAvailable(): boolean {
   return walletConnectConfigured();
 }
 
+/** Ask the server whether a character name is free on the global log (before paying mint). */
+export function checkCharacterNameAvailable(
+  name: string,
+): Promise<{ ok: true; name: string } | { ok: false; error: string }> {
+  if (!socket || socket.readyState !== WebSocket.OPEN) {
+    return Promise.resolve({ ok: false, error: "Not connected to the server." });
+  }
+  if (nameCheckWaiter) {
+    clearTimeout(nameCheckWaiter.timer);
+    nameCheckWaiter.resolve({ ok: false, error: "Name check superseded." });
+    nameCheckWaiter = null;
+  }
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      if (nameCheckWaiter?.resolve === resolve) nameCheckWaiter = null;
+      resolve({ ok: false, error: "Name check timed out." });
+    }, 8_000);
+    nameCheckWaiter = { resolve, timer };
+    socket!.send(JSON.stringify({ type: "char/nameCheck", name } satisfies ClientMessage));
+  });
+}
+
 export async function clearExternalWalletAuth(): Promise<void> {
   externalAuth = null;
   await disconnectWalletConnect();
@@ -269,6 +298,10 @@ export function connectSocket() {
       g.setCharacters(list);
       g.setHasCharacter(list.length > 0 || msg.hasCharacter);
       if ("characterMint" in msg) g.setCharacterMint(msg.characterMint ?? null);
+      clearPendingMintIfTokenBound(
+        msg.wallet,
+        list.map((c) => c.tokenId),
+      );
       const primary = msg.character ?? list[0] ?? null;
       g.setCharacterPreview(primary);
 
@@ -309,20 +342,42 @@ export function connectSocket() {
         job: msg.you.job,
         level: msg.you.level,
         gender: msg.you.gender ?? "male",
+        ...(msg.you.lok?.tokenId ? { tokenId: msg.you.lok.tokenId } : {}),
       };
       g.setCharacterPreview(preview);
       g.setSelectedCharId(preview.id);
       g.setHasCharacter(true);
       const others = g.characters.filter((c) => c.id !== preview.id);
-      g.setCharacters([...others, preview]);
+      const nextRoster = [...others, preview];
+      g.setCharacters(nextRoster);
+      if (g.wallet) {
+        clearPendingMintIfTokenBound(
+          g.wallet,
+          nextRoster.map((c) => c.tokenId),
+        );
+        // Successful create: roster updated — drop any pending paid mint for this wallet.
+        if (g.pendingCreateEnter) clearPendingMint(g.wallet);
+      }
       if (g.pendingCreateEnter) {
         g.setPendingCreateEnter(false);
         g.setPhase("play");
+      }
+    } else if (msg.type === "char/nameCheck") {
+      if (nameCheckWaiter) {
+        clearTimeout(nameCheckWaiter.timer);
+        const resolve = nameCheckWaiter.resolve;
+        nameCheckWaiter = null;
+        if (msg.available && msg.name) resolve({ ok: true, name: msg.name });
+        else resolve({ ok: false, error: msg.error ?? "That name is not available." });
       }
     } else if (msg.type === "log") {
       g.pushLog(msg.message);
     } else if (msg.type === "error") {
       authInFlight = false;
+      // M-F: paid NFT already bound — stop reusing it on the next create.
+      if (/already bound/i.test(msg.message) && g.wallet) {
+        clearPendingMint(g.wallet);
+      }
       g.pushLog(`Error: ${msg.message}`);
     } else if (msg.type === "party/invite") {
       g.pushLog(`${msg.fromName} invited you to a party — open Party to accept.`);

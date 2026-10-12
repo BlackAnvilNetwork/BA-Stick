@@ -46,3 +46,15 @@ export function clearPendingMint(gameWallet: string): void {
   if (typeof localStorage === "undefined") return;
   localStorage.removeItem(storageKey(gameWallet));
 }
+
+/** M-F: drop a pending paid mint once its token is bound on the roster. */
+export function clearPendingMintIfTokenBound(
+  gameWallet: string,
+  rosterTokenIds: ReadonlyArray<string | undefined | null>,
+): void {
+  const pending = readPendingMint(gameWallet);
+  if (!pending) return;
+  if (rosterTokenIds.some((id) => id === pending.tokenId)) {
+    clearPendingMint(gameWallet);
+  }
+}

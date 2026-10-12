@@ -2456,16 +2456,21 @@ function accountPreviews(wallet: string): {
   job: JobId;
   level: number;
   gender: "male" | "female" | "pepeka";
+  tokenId?: string;
 }[] {
   const slots = accountRoster.get(wallet);
   if (!slots) return [];
-  return [...slots.values()].map((p) => ({
-    id: p.charId,
-    name: p.name,
-    job: p.job,
-    level: p.level,
-    gender: p.gender ?? "male",
-  }));
+  return [...slots.values()].map((p) => {
+    const tokenId = lok.tokenFor(p.charId);
+    return {
+      id: p.charId,
+      name: p.name,
+      job: p.job,
+      level: p.level,
+      gender: p.gender ?? "male",
+      ...(tokenId ? { tokenId } : {}),
+    };
+  });
 }
 
 function activateCharacter(wallet: string, charId: string, ws: WebSocket): Player | undefined {
@@ -4596,6 +4601,25 @@ function onMessage(ws: WebSocket, data: string) {
     return;
   }
 
+  if (msg.type === "char/nameCheck") {
+    const named = normalizeCharacterName(msg.name);
+    if (!named.ok) {
+      send(ws, { type: "char/nameCheck", available: false, error: named.error });
+      return;
+    }
+    if (lok.nameTaken(named.name) || rosterNameTaken(named.name)) {
+      send(ws, {
+        type: "char/nameCheck",
+        available: false,
+        name: named.name,
+        error: "That name is already on the log. Pick another.",
+      });
+      return;
+    }
+    send(ws, { type: "char/nameCheck", available: true, name: named.name });
+    return;
+  }
+
   if (msg.type === "char/create") {
     void (async () => {
       if (!isEthAddress(wallet)) {
@@ -4625,7 +4649,7 @@ function onMessage(ws: WebSocket, data: string) {
         send(ws, { type: "error", message: named.error });
         return;
       }
-      if (rosterNameTaken(named.name)) {
+      if (lok.nameTaken(named.name) || rosterNameTaken(named.name)) {
         send(ws, { type: "error", message: "That name is already on the log. Pick another." });
         return;
       }

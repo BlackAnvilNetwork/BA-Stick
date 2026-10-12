@@ -265,9 +265,9 @@ export function AuctionBook({ listings, buyer, ahEscrow, eezSyncBuy }: Props) {
           return;
         }
         pushLog(
-          "Submitted " +
+          "Confirmed " +
             res.hashes.length +
-            " EEZ mock sync buy(s). Items land in your Provisioner inbox after AskFilled.",
+            " EEZ mock sync buy(s) on-chain. Items land in your Provisioner inbox after AskFilled.",
         );
         setBuyingId(null);
         return;

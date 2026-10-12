@@ -53,6 +53,11 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
     /** Which roster slot to play; omit to enter the last-active character. */
     characterId: z.string().min(1).optional(),
   }),
+  /** Pre-pay check: is this character name free on the global log? */
+  z.object({
+    type: z.literal("char/nameCheck"),
+    name: z.string().min(2).max(16),
+  }),
   z.object({ type: z.literal("move"), x: z.number(), z: z.number() }),
   z.object({ type: z.literal("engage"), targetId: z.string() }),
   z.object({ type: z.literal("disengage") }),
@@ -511,6 +516,8 @@ export type CharacterPreview = {
   job: JobId;
   level: number;
   gender: Gender;
+  /** Log / NFT token id when bound (used to clear pending paid mints). */
+  tokenId?: string;
 };
 
 export type SpellOffer = {
@@ -554,6 +561,12 @@ export type ServerMessage =
       } | null;
     }
   | { type: "log"; message: string }
+  | {
+      type: "char/nameCheck";
+      available: boolean;
+      name?: string;
+      error?: string;
+    }
   | { type: "pong"; t?: number }
   | { type: "party/invite"; fromId: string; fromName: string; partyId: string; expiresAt: number }
   | {

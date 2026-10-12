@@ -5,6 +5,9 @@ on:
     branches: ["cursor/**", "main"]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   server-anvil:
     runs-on: ubuntu-latest
@@ -17,11 +20,18 @@ jobs:
         with:
           node-version: "22"
           cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
       - uses: foundry-rs/foundry-toolchain@v1
       - name: Install Foundry libs (lib/ is gitignored)
         working-directory: contracts/lok-log
-        run: forge install foundry-rs/forge-std OpenZeppelin/openzeppelin-contracts@v5.4.0 OpenZeppelin/openzeppelin-contracts-upgradeable@v5.4.0 --no-commit
+        # foundry 1.5.1 rejects --no-commit; omit the flag (M-G).
+        run: forge install foundry-rs/forge-std@v1.17.0 OpenZeppelin/openzeppelin-contracts@v5.4.0 OpenZeppelin/openzeppelin-contracts-upgradeable@v5.4.0
       - run: pnpm install --frozen-lockfile
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Engine cargo test
+        working-directory: contracts/lok-log/engine
+        run: cargo test
       - name: Server suite (self-starts throwaway anvil when foundry+libs present)
         run: pnpm --filter @bellgrave/server test
       - name: Forge

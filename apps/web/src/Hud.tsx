@@ -51,7 +51,13 @@ import {
   swapHotbarSlots,
   type HotbarSlots,
 } from "./hotbar";
-import { loginWithWalletConnect, logoutToMenu, send, walletConnectLoginAvailable } from "./net";
+import {
+  checkCharacterNameAvailable,
+  loginWithWalletConnect,
+  logoutToMenu,
+  send,
+  walletConnectLoginAvailable,
+} from "./net";
 import { stopZoneMusic } from "./zoneMusic";
 import { useGame } from "./state";
 // NpcInteractMenu mounts world-anchored under the NPC in WorldScene.
@@ -1389,62 +1395,76 @@ function CreatePanel() {
           setCreating(false);
         };
 
-        if (!mintCfg) {
-          finish();
-          return;
-        }
+        void checkCharacterNameAvailable(name).then((avail) => {
+          if (!avail.ok) {
+            pushLog(avail.error);
+            useGame.getState().setPendingCreateEnter(false);
+            setCreating(false);
+            return;
+          }
 
-        // Mint-first: pay native ETH fee, then create the log char bound to that NFT id.
-        const gameWallet = useGame.getState().wallet;
-        if (!gameWallet) {
-          pushLog("Authenticate before creating a character.");
-          setCreating(false);
-          return;
-        }
-        if (mintCfg.devFaucet) send({ type: "dev/faucet" });
-        window.setTimeout(() => {
-          void mintCharacterWithWallet({
-            mint: mintCfg,
-            job: jobIndex < 0 ? 0 : jobIndex,
-            gameWallet,
-            charId: name,
-            allowReuse: true,
-          }).then((res) => {
-            if (!res.ok) {
-              pushLog("Character mint: " + res.error);
-              setCreating(false);
-              return;
-            }
-            pushLog(
-              (res.reused
-                ? "Reusing already-paid NFT #"
-                : "Paid character mint fee (native ETH). Creating log identity for NFT #") +
-                res.tokenId +
-                "…",
-            );
-            // Clear pending only after the create message is sent; server bind failure can retry.
-            finish({
-              tokenId: res.tokenId,
-              mintWallet: res.payer,
-              ...(res.mintSignature
-                ? {
-                    mintNonce: res.mintNonce,
-                    mintExpiry: res.mintExpiry,
-                    mintSignature: res.mintSignature,
-                    mintChainId: mintCfg.chainId,
-                    mintCharId: res.charId,
-                  }
-                : {}),
-            });
-            // Drop pending once the roster is expected to include this name (best-effort).
-            window.setTimeout(() => {
-              const roster = useGame.getState().characters;
-              if (roster.some((c) => characterNameKey(c.name) === named.key)) {
-                clearPendingMint(gameWallet);
+          if (!mintCfg) {
+            finish();
+            return;
+          }
+
+          // Mint-first: pay native ETH fee, then create the log char bound to that NFT id.
+          const gameWallet = useGame.getState().wallet;
+          if (!gameWallet) {
+            pushLog("Authenticate before creating a character.");
+            useGame.getState().setPendingCreateEnter(false);
+            setCreating(false);
+            return;
+          }
+          if (mintCfg.devFaucet) send({ type: "dev/faucet" });
+          window.setTimeout(() => {
+            void mintCharacterWithWallet({
+              mint: mintCfg,
+              job: jobIndex < 0 ? 0 : jobIndex,
+              gameWallet,
+              charId: name,
+              allowReuse: true,
+            }).then((res) => {
+              if (!res.ok) {
+                pushLog("Character mint: " + res.error);
+                useGame.getState().setPendingCreateEnter(false);
+                setCreating(false);
+                return;
               }
-            }, 1500);
-          });
-        }, mintCfg.devFaucet ? 800 : 0);
+              pushLog(
+                (res.reused
+                  ? "Reusing already-paid NFT #"
+                  : "Paid character mint fee (native ETH). Creating log identity for NFT #") +
+                  res.tokenId +
+                  "…",
+              );
+              finish({
+                tokenId: res.tokenId,
+                mintWallet: res.payer,
+                ...(res.mintSignature
+                  ? {
+                      mintNonce: res.mintNonce,
+                      mintExpiry: res.mintExpiry,
+                      mintSignature: res.mintSignature,
+                      mintChainId: mintCfg.chainId,
+                      mintCharId: res.charId,
+                    }
+                  : {}),
+              });
+              // M-F: also clear if the roster later shows this token (auth refresh / late snapshot).
+              window.setTimeout(() => {
+                const roster = useGame.getState().characters;
+                if (
+                  roster.some(
+                    (c) => c.tokenId === res.tokenId || characterNameKey(c.name) === named.key,
+                  )
+                ) {
+                  clearPendingMint(gameWallet);
+                }
+              }, 1500);
+            });
+          }, mintCfg.devFaucet ? 800 : 0);
+        });
       }}
     >
       <p className="boot-sub">Create your adventurer</p>

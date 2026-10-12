@@ -21,18 +21,35 @@ export type MintClaim = {
   signature: string;
 };
 
-/** Consumed mint-claim nonces (mintWallet:nonce). */
-const usedMintNonces = new Set<string>();
+/** Consumed mint-claim nonces (mintWallet:nonce → consumedAt ms). */
+const usedMintNonces = new Map<string, number>();
 let mintNonceStorePath: string | null = null;
+
+/** Drop entries older than this (claims themselves expire in ≤30 minutes). */
+const NONCE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+/** Hard cap so a busy mint wallet cannot grow the file forever. */
+const NONCE_MAX = 10_000;
 
 function nonceKey(mintWallet: string, nonce: string): string {
   return mintWallet.toLowerCase() + ":" + nonce;
 }
 
+function pruneMintNonces(nowMs: number = Date.now()): void {
+  for (const [key, at] of usedMintNonces) {
+    if (nowMs - at > NONCE_TTL_MS) usedMintNonces.delete(key);
+  }
+  if (usedMintNonces.size <= NONCE_MAX) return;
+  const sorted = [...usedMintNonces.entries()].sort((a, b) => a[1] - b[1]);
+  const drop = sorted.length - NONCE_MAX;
+  for (let i = 0; i < drop; i++) usedMintNonces.delete(sorted[i]![0]);
+}
+
 function persistMintNonces(): void {
   if (!mintNonceStorePath) return;
+  pruneMintNonces();
   const tmp = mintNonceStorePath + ".tmp";
-  writeFileSync(tmp, JSON.stringify({ nonces: [...usedMintNonces] }));
+  const nonces = [...usedMintNonces.entries()].map(([key, at]) => ({ key, at }));
+  writeFileSync(tmp, JSON.stringify({ nonces }));
   renameSync(tmp, mintNonceStorePath);
 }
 
@@ -43,9 +60,21 @@ export function configureMintClaimNonceStore(path: string): void {
   try {
     const parsed = JSON.parse(readFileSync(path, "utf8")) as { nonces?: unknown };
     if (!Array.isArray(parsed.nonces)) return;
+    const now = Date.now();
     for (const n of parsed.nonces) {
-      if (typeof n === "string" && n.includes(":")) usedMintNonces.add(n);
+      if (typeof n === "string" && n.includes(":")) {
+        usedMintNonces.set(n, now);
+      } else if (
+        n &&
+        typeof n === "object" &&
+        typeof (n as { key?: unknown }).key === "string" &&
+        (n as { key: string }).key.includes(":") &&
+        typeof (n as { at?: unknown }).at === "number"
+      ) {
+        usedMintNonces.set((n as { key: string }).key, (n as { at: number }).at);
+      }
     }
+    pruneMintNonces(now);
   } catch {
     /* ignore corrupt store */
   }
@@ -56,8 +85,13 @@ export function resetMintClaimNoncesForTests(): void {
   mintNonceStorePath = null;
 }
 
+/** Test helper: how many consumed nonces are currently retained. */
+export function mintClaimNonceCountForTests(): number {
+  return usedMintNonces.size;
+}
+
 export function consumeMintClaimNonce(mintWallet: string, nonce: string): void {
-  usedMintNonces.add(nonceKey(mintWallet, nonce));
+  usedMintNonces.set(nonceKey(mintWallet, nonce), Date.now());
   persistMintNonces();
 }
 
