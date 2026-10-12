@@ -153,34 +153,55 @@ function isLoopback(addr: string | null | undefined): boolean {
   return a === "127.0.0.1" || a === "::1" || a === "localhost";
 }
 
+/** Gnosis mainnet (or NETWORK=gnosis) — /status must use LOK_OPS_STATUS_TOKEN. */
+export function isProductionOpsEnv(env: NodeJS.ProcessEnv = process.env): boolean {
+  const named = (env.NETWORK ?? env.LOK_NETWORK)?.trim().toLowerCase();
+  if (named === "gnosis") return true;
+  const chain = (env.LOK_CHAIN_ID ?? "").trim();
+  return chain === "100";
+}
+
+function socketRemoteAddress(
+  req: IncomingMessage,
+  override?: string | null,
+): string | null {
+  if (override != null && override !== "") return override;
+  if (req.socket && "remoteAddress" in req.socket) {
+    return (req.socket as { remoteAddress?: string | null }).remoteAddress ?? null;
+  }
+  return null;
+}
+
+function bearerMatches(req: IncomingMessage, token: string): boolean {
+  const auth = req.headers.authorization;
+  if (typeof auth !== "string") return false;
+  const m = /^Bearer\s+(.+)$/i.exec(auth.trim());
+  return !!m && m[1] === token;
+}
+
 /**
- * /status allowed from loopback, or with Bearer token matching LOK_OPS_STATUS_TOKEN.
- * When the token env is set, Bearer is always accepted (including remote).
+ * /status auth:
+ * - Never trusts Host / X-Forwarded-* (spoofable; reverse proxies look local).
+ * - Uses socket remoteAddress only for loopback.
+ * - Production (NETWORK=gnosis / chain 100): LOK_OPS_STATUS_TOKEN required; Bearer only
+ *   (loopback bypass disabled — same-host proxies would otherwise open /status).
+ * - Dev/anvil/chiado: loopback OR matching Bearer when token is set.
  */
 export function statusAuthorized(
   req: IncomingMessage,
   env: NodeJS.ProcessEnv = process.env,
   remoteAddress?: string | null,
 ): boolean {
-  const token = env.LOK_OPS_STATUS_TOKEN?.trim();
-  const auth = req.headers.authorization;
-  if (token && typeof auth === "string") {
-    const m = /^Bearer\s+(.+)$/i.exec(auth.trim());
-    if (m && m[1] === token) return true;
+  const token = env.LOK_OPS_STATUS_TOKEN?.trim() ?? "";
+  const production = isProductionOpsEnv(env);
+
+  if (production) {
+    if (!token) return false;
+    return bearerMatches(req, token);
   }
-  const remote =
-    remoteAddress ??
-    (req.socket && "remoteAddress" in req.socket
-      ? (req.socket as { remoteAddress?: string }).remoteAddress
-      : null);
-  if (isLoopback(remote)) return true;
-  // When Host is localhost and no X-Forwarded-For, treat as local probe (dev).
-  const host = (req.headers.host ?? "").split(":")[0]?.toLowerCase() ?? "";
-  const fwd = req.headers["x-forwarded-for"];
-  if (!fwd && (host === "localhost" || host === "127.0.0.1" || host === "::1")) {
-    return true;
-  }
-  return false;
+
+  if (token && bearerMatches(req, token)) return true;
+  return isLoopback(socketRemoteAddress(req, remoteAddress));
 }
 
 function writeJson(res: ServerResponse, status: number, body: unknown): void {

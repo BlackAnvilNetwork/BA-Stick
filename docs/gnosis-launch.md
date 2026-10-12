@@ -141,7 +141,7 @@ forge script script/DeployChiado.s.sol:DeployChiado --rpc-url "$RPC_URL" --sig "
 
 Same `PORT` as the WebSocket game server (default `8787`).
 
-**`/status` auth:** loopback only, or `Authorization: Bearer $LOK_OPS_STATUS_TOKEN`. RPC URLs are scheme+host (Alchemy keys stripped); `dataDir` is basename only. BigInt tip/cursors serialize as strings.
+**`/status` auth:** socket `remoteAddress` only (never `Host` / forwarded headers). On Gnosis (`NETWORK=gnosis` / chain 100), `LOK_OPS_STATUS_TOKEN` is **required** and only `Authorization: Bearer …` is accepted (loopback bypass off — same-host reverse proxies look local). Dev/anvil: loopback or bearer. RPC URLs are scheme+host; `dataDir` is basename only; BigInt tip/cursors serialize as strings.
 
 **Structured alerts** — stderr JSON lines (`event`: `watcher_lag`, `nft_transfer_cancel_dropped`, `ask_filled_quarantine`). Lag threshold: `LOK_WATCHER_LAG_ALERT_BLOCKS` (default 50). Durable files under `LOK_DATA_DIR`:
 

@@ -132,8 +132,12 @@ describe("ops health + structured alerts", () => {
       lokReady: () => true,
       startedAtMs: Date.now(),
       dataDir: join(dir, "absolute-secret-path"),
-      env: { NETWORK: "gnosis", LOK_CHAIN_ID: "100" },
-      remoteAddress: "127.0.0.1",
+      env: {
+        NETWORK: "gnosis",
+        LOK_CHAIN_ID: "100",
+        LOK_OPS_STATUS_TOKEN: "bigint-test-token",
+      },
+      remoteAddress: "203.0.113.9",
     };
     // basename of a path that may not exist yet — create it
     const { mkdirSync } = await import("node:fs");
@@ -159,8 +163,11 @@ describe("ops health + structured alerts", () => {
     } as unknown as ServerResponse;
     const req = {
       url: "/status",
-      headers: { host: "localhost:8787" },
-      socket: { remoteAddress: "127.0.0.1" },
+      headers: {
+        host: "game.example",
+        authorization: "Bearer bigint-test-token",
+      },
+      socket: { remoteAddress: "203.0.113.9" },
     } as unknown as IncomingMessage;
 
     assert.equal(handleOpsHttp(req, res, deps), true);
@@ -175,11 +182,32 @@ describe("ops health + structured alerts", () => {
     assert.equal(parsed.dataDir, "absolute-secret-path");
   });
 
-  it("/status rejects non-local without bearer; accepts token", async () => {
+  it("/status rejects Host: localhost spoof; production requires bearer token", async () => {
     const dir = mkdtempSync(join(tmpdir(), "lok-ops-"));
+
+    // Spoofed Host must not authorize a remote socket.
+    const spoofReq = {
+      headers: { host: "localhost:8787" },
+      socket: { remoteAddress: "203.0.113.9" },
+    } as unknown as IncomingMessage;
+    assert.equal(
+      statusAuthorized(spoofReq, { NETWORK: "anvil", LOK_CHAIN_ID: "31337" }, "203.0.113.9"),
+      false,
+    );
+
+    // Production without token: deny even loopback (proxy would look local).
+    assert.equal(
+      statusAuthorized(
+        { headers: {}, socket: { remoteAddress: "127.0.0.1" } } as IncomingMessage,
+        { NETWORK: "gnosis", LOK_CHAIN_ID: "100" },
+        "127.0.0.1",
+      ),
+      false,
+    );
+
     const env = {
-      NETWORK: "anvil",
-      LOK_CHAIN_ID: "31337",
+      NETWORK: "gnosis",
+      LOK_CHAIN_ID: "100",
       LOK_OPS_STATUS_TOKEN: "test-token",
     };
     const deps = {
@@ -208,23 +236,26 @@ describe("ops health + structured alerts", () => {
         } as unknown as ServerResponse;
         const req = {
           url: "/status",
-          headers: { host: "game.example", ...headers },
+          headers: { host: "localhost", ...headers },
           socket: { remoteAddress: remote },
         } as unknown as IncomingMessage;
         handleOpsHttp(req, res, { ...deps, remoteAddress: remote });
       });
     }
 
-    assert.equal(statusAuthorized({ headers: {}, socket: { remoteAddress: "203.0.113.9" } } as IncomingMessage, env, "203.0.113.9"), false);
     const denied = await hit({});
     assert.equal(denied.status, 401);
+
+    // Production: loopback alone is not enough — need bearer.
+    const loopDenied = await hit({}, "127.0.0.1");
+    assert.equal(loopDenied.status, 401);
 
     const ok = await hit({ authorization: "Bearer test-token" });
     assert.equal(ok.status, 200);
     assert.equal(JSON.parse(ok.body).ok, true);
   });
 
-  it("handleOpsHttp serves /health /ready /status on loopback", async () => {
+  it("handleOpsHttp serves /health /ready /status on loopback (dev)", async () => {
     const dir = mkdtempSync(join(tmpdir(), "lok-ops-"));
     const deps = {
       lokReady: () => true,

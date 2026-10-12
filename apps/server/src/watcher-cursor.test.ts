@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
@@ -56,5 +56,22 @@ describe("watcher cursor binding", () => {
       0n,
     );
     assert.ok(reasons.some((r) => /address/.test(r)));
+  });
+
+  it("rejects legacy unbound cursor files (no chainId/address)", () => {
+    const dir = mkdtempSync(join(tmpdir(), "lok-cur-"));
+    const path = join(dir, "legacy.json");
+    writeFileSync(path, JSON.stringify({ cursor: "999" }) + "\n");
+    const reasons: string[] = [];
+    assert.equal(
+      readWatcherCursor({
+        path,
+        expectedChainId: 100,
+        expectedAddress: "0x1111111111111111111111111111111111111111",
+        onMismatch: (r) => reasons.push(r),
+      }),
+      0n,
+    );
+    assert.ok(reasons.some((r) => /legacy unbound|missing chainId/i.test(r)));
   });
 });

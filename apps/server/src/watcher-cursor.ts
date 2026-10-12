@@ -25,21 +25,35 @@ export function readWatcherCursor(opts: ReadWatcherCursorOpts): bigint {
   try {
     const parsed = JSON.parse(readFileSync(opts.path, "utf8")) as WatcherCursorFile;
     if (!parsed.cursor || !/^\d+$/.test(parsed.cursor)) return fallback;
-    const addr = (parsed.address ?? "").toLowerCase();
+
+    // Reject legacy unbound cursors — must carry chainId + address matching this deploy.
+    if (parsed.chainId == null || typeof parsed.chainId !== "number") {
+      opts.onMismatch?.(
+        "legacy unbound cursor (missing chainId); resetting to deploy block",
+      );
+      return fallback;
+    }
+    const addr = (parsed.address ?? "").trim().toLowerCase();
+    if (!/^0x[0-9a-f]{40}$/.test(addr)) {
+      opts.onMismatch?.(
+        "legacy unbound cursor (missing address); resetting to deploy block",
+      );
+      return fallback;
+    }
+
     const expect = opts.expectedAddress.toLowerCase();
-    if (parsed.chainId != null && parsed.chainId !== opts.expectedChainId) {
+    if (parsed.chainId !== opts.expectedChainId) {
       opts.onMismatch?.(
         "cursor chainId=" + parsed.chainId + " != " + opts.expectedChainId + "; resetting",
       );
       return fallback;
     }
-    if (addr && expect && addr !== expect) {
+    if (addr !== expect) {
       opts.onMismatch?.(
         "cursor address=" + addr + " != " + expect + "; resetting",
       );
       return fallback;
     }
-    // Legacy cursor without binding: accept once, rewrite will stamp identity.
     return BigInt(parsed.cursor);
   } catch {
     return fallback;

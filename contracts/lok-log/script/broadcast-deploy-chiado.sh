@@ -19,6 +19,17 @@ RPC_URL="${RPC_URL:-${GNOSIS_RPC_URL:-}}"
 : "${ROTATOR:?}"
 : "${PROPOSER:?}"
 
+# scheme://host only — never echo API keys in the path
+redact_rpc() {
+  local u="$1"
+  if [[ "$u" =~ ^(https?://[^/]+) ]]; then
+    echo "${BASH_REMATCH[1]}"
+  else
+    echo "(redacted)"
+  fi
+}
+RPC_LOG="$(redact_rpc "$RPC_URL")"
+
 if [[ "${CONFIRM_BROADCAST:-}" != "1" ]]; then
   echo "broadcast-deploy-chiado: refusing --broadcast (set CONFIRM_BROADCAST=1 after go-ahead)." >&2
   echo "Dry-run instead: forge script script/DeployChiado.s.sol:DeployChiado --rpc-url \"\$RPC_URL\" --sig 'run()' -vv" >&2
@@ -28,7 +39,7 @@ fi
 LOG="$(mktemp)"
 trap 'rm -f "$LOG"' EXIT
 
-echo "[broadcast-deploy-chiado] broadcasting DeployChiado to $RPC_URL"
+echo "[broadcast-deploy-chiado] broadcasting DeployChiado to $RPC_LOG"
 forge script script/DeployChiado.s.sol:DeployChiado \
   --rpc-url "$RPC_URL" \
   --broadcast \
