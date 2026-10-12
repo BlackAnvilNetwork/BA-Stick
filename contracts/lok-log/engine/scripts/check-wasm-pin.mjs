@@ -7,13 +7,16 @@
 //
 // Exit 0 when pkg/lok_engine.wasm matches LOCAL_RULESET_WASM_SHA256 in apps/server/src/lok-vault.ts
 // (and, unless --no-build, the fresh build matches pkg/). Exit 1 on any mismatch.
-// The build is only byte-identical on the same toolchain and host paths: dependency paths are
-// embedded in panic locations, so a different machine can produce a different digest.
+//
+// Builds remapped host/cargo paths so Linux CI and local agents with the same
+// rust-toolchain.toml (1.83.0) produce a byte-identical wasm. Windows may still
+// differ; CI is the source of truth for the pin.
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { copyFileSync, readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { copyFileSync, existsSync, readFileSync, realpathSync } from "node:fs";
+import { dirname, join, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { homedir } from "node:os";
 
 const engine = join(dirname(fileURLToPath(import.meta.url)), "..");
 const repo = join(engine, "..", "..", "..");
@@ -26,17 +29,56 @@ const args = new Set(process.argv.slice(2));
 const pin = /LOCAL_RULESET_WASM_SHA256\s*=\s*"([0-9a-f]{64})"/.exec(readFileSync(vault, "utf8"))?.[1];
 let ok = true;
 
+function abs(path) {
+  try {
+    return existsSync(path) ? realpathSync(path) : path;
+  } catch {
+    return path;
+  }
+}
+
+/** Remap absolute prefixes so panic paths do not embed the checkout / cargo home. */
+function rustflagsForRepro() {
+  const flags = [];
+  const engineAbs = abs(engine).replace(/\\/g, "/");
+  const repoAbs = abs(repo).replace(/\\/g, "/");
+  const cargoHome = abs(process.env.CARGO_HOME || join(homedir(), ".cargo")).replace(/\\/g, "/");
+  const rustupHome = abs(process.env.RUSTUP_HOME || join(homedir(), ".rustup")).replace(/\\/g, "/");
+  // Longest prefixes first.
+  for (const [from, to] of [
+    [engineAbs, "/engine"],
+    [repoAbs, "/repo"],
+    [cargoHome, "/cargo"],
+    [rustupHome, "/rustup"],
+  ]) {
+    if (from && from.length > 1) flags.push(`--remap-path-prefix=${from}=${to}`);
+    // Also map with trailing slash variants cargo sometimes emits.
+    if (from && !from.endsWith("/")) flags.push(`--remap-path-prefix=${from}/=${to}/`);
+  }
+  return flags.join(" ");
+}
+
 if (!args.has("--no-build")) {
+  const remapped = rustflagsForRepro();
+  console.log("remap  " + remapped);
+  execFileSync("cargo", ["clean", "--release", "--target", "wasm32-unknown-unknown"], {
+    cwd: engine,
+    stdio: "inherit",
+    shell: process.platform === "win32",
+  });
   execFileSync("cargo", ["build", "--release", "--lib", "--target", "wasm32-unknown-unknown"], {
     cwd: engine,
     stdio: "inherit",
     shell: process.platform === "win32",
+    env: { ...process.env, RUSTFLAGS: remapped },
   });
   if (args.has("--install")) copyFileSync(built, pkg);
   const fresh = sha(built);
   console.log("built  " + fresh);
   if (fresh !== sha(pkg)) {
-    console.error("MISMATCH: fresh build differs from pkg/lok_engine.wasm (stale bundle or different toolchain/host)");
+    console.error(
+      "MISMATCH: fresh build differs from pkg/lok_engine.wasm (stale bundle or different toolchain)",
+    );
     ok = false;
   }
 }
@@ -45,7 +87,12 @@ const shipped = sha(pkg);
 console.log("pkg    " + shipped);
 console.log("pin    " + (pin ?? "(missing)"));
 if (shipped !== pin) {
-  console.error("MISMATCH: pkg/lok_engine.wasm differs from LOCAL_RULESET_WASM_SHA256 in apps/server/src/lok-vault.ts");
+  console.error(
+    "MISMATCH: pkg/lok_engine.wasm differs from LOCAL_RULESET_WASM_SHA256 in apps/server/src/lok-vault.ts",
+  );
   ok = false;
+}
+if (args.has("--install")) {
+  console.log("install digest (update LOCAL_RULESET_WASM_SHA256 to): " + shipped);
 }
 process.exit(ok ? 0 : 1);
