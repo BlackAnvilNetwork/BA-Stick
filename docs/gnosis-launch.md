@@ -2,6 +2,18 @@
 
 **Dry-run note:** The 2026-10-12 deploy on chain 100 (`deployments/gnosis.json`) was a dry-run mainnet launch. It wired **MockItems** and collapsed roles onto one EOA — do **not** treat it as production. A production server must **never** use that Checkpoint (open `setMinter` on MockItems). Official launch must use this runbook + the hardened `Deploy` script.
 
+## Dry-run MockItems (never for production)
+
+| Fact | Detail |
+|------|--------|
+| File | `deployments/gnosis.json` (`status: "dry-run-only"`) |
+| Gap | `CharacterCheckpoint` points at **MockItems** (`contracts.MockItems`) — anyone can `setMinter` |
+| Also wrong | Single EOA held admin + listing + fee + all roles |
+| Server behavior | `applySettlementDeployFile` **refuses** to fill `LOK_NFT` / `LOK_FACTORY` / `LOK_CHECKPOINT` / … from a `dry-run-only` file unless `LOK_ALLOW_DRY_RUN_DEPLOY=1` (inspection only). `MockItems` is never copied into `LOK_ITEMS`. |
+| Production path | Official `DeployChiado` + real `Items.sol` (or `ITEMS=0x0`), new deploy JSON without `dry-run-only`, set `LOK_DEPLOY_BLOCK`, then start the server |
+
+Do not set `LOK_CHECKPOINT` / `LOK_ITEMS` by hand to the dry-run addresses. Do not run a public game against that Checkpoint.
+
 ## Env profile
 
 | Knob | Values | Effect |

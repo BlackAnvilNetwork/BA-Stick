@@ -59,4 +59,42 @@ describe("applySettlementDeployFile", () => {
     assert.equal(env.LOK_NFT, "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
     assert.equal(env.LOK_AH_ESCROW, undefined);
   });
+
+  it("refuses address fill from dry-run-only deploy files unless opted in", () => {
+    const dir = mkdtempSync(join(tmpdir(), "lok-deploy-"));
+    const path = join(dir, "gnosis-dry.json");
+    writeFileSync(
+      path,
+      JSON.stringify({
+        chainId: 100,
+        status: "dry-run-only",
+        contracts: {
+          CharacterNFT: "0x1111111111111111111111111111111111111111",
+          CharacterFactory: "0x2222222222222222222222222222222222222222",
+          AhEscrow: "0x3333333333333333333333333333333333333333",
+          CharacterCheckpoint: "0x4444444444444444444444444444444444444444",
+          MockItems: "0x6666666666666666666666666666666666666666",
+        },
+      }),
+    );
+    const blocked: NodeJS.ProcessEnv = {
+      LOK_CHAIN_ID: "100",
+      LOK_DEPLOY_JSON: path,
+    };
+    applySettlementDeployFile(blocked);
+    assert.equal(blocked.LOK_NFT, undefined);
+    assert.equal(blocked.LOK_CHECKPOINT, undefined);
+    assert.equal(blocked.LOK_ITEMS, undefined);
+    assert.ok(blocked.LOK_CHAIN_RPC?.includes("gnosis"));
+
+    const allowed: NodeJS.ProcessEnv = {
+      LOK_CHAIN_ID: "100",
+      LOK_DEPLOY_JSON: path,
+      LOK_ALLOW_DRY_RUN_DEPLOY: "1",
+    };
+    applySettlementDeployFile(allowed);
+    assert.equal(allowed.LOK_NFT, "0x1111111111111111111111111111111111111111");
+    assert.equal(allowed.LOK_CHECKPOINT, "0x4444444444444444444444444444444444444444");
+    assert.equal(allowed.LOK_ITEMS, undefined, "MockItems must never become LOK_ITEMS");
+  });
 });

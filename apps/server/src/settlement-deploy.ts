@@ -82,9 +82,25 @@ export function applySettlementDeployFile(env: NodeJS.ProcessEnv = process.env):
   }
 
   if (parsed.status === "dry-run-only") {
+    const allow = env.LOK_ALLOW_DRY_RUN_DEPLOY?.trim() === "1";
+    console.error(
+      "[bellgrave] ALERT: deploy file is dry-run-only (Checkpoint → MockItems with open setMinter; " +
+        "collapsed roles). A production server must NEVER use these addresses. " +
+        "See docs/gnosis-launch.md § Dry-run MockItems.",
+    );
+    if (!allow) {
+      // Still apply RPC/profile so ops probes work; leave LOK_* addresses unset
+      // until an official DeployChiado + real Items is recorded (or opt-in).
+      ensureRpcEnv(env, profile);
+      console.error(
+        "[bellgrave] skipping address fill from " +
+          path +
+          " (set LOK_ALLOW_DRY_RUN_DEPLOY=1 only for explicit dry-run inspection).",
+      );
+      return;
+    }
     console.warn(
-      "[bellgrave] WARNING: deploy file is dry-run-only (MockItems / collapsed roles). " +
-        "Do not point a production server at this Checkpoint. See docs/gnosis-launch.md.",
+      "[bellgrave] LOK_ALLOW_DRY_RUN_DEPLOY=1 — filling addresses from dry-run file (not for production).",
     );
   }
 
@@ -94,8 +110,13 @@ export function applySettlementDeployFile(env: NodeJS.ProcessEnv = process.env):
   fill(env, "LOK_AH_ESCROW", c.AhEscrow);
   fill(env, "LOK_CHECKPOINT", c.CharacterCheckpoint);
   fill(env, "LOK_RULESETS", c.RulesetRegistry);
-  // Real Items only — never wire dry-run MockItems.
+  // Real Items only — never wire dry-run MockItems (key is "Items", not "MockItems").
   if (c.Items) fill(env, "LOK_ITEMS", c.Items);
+  if (c.MockItems && !c.Items) {
+    console.error(
+      "[bellgrave] ALERT: deploy file lists MockItems but no Items — refusing LOK_ITEMS fill.",
+    );
+  }
 
   if (
     parsed.deployBlock != null &&

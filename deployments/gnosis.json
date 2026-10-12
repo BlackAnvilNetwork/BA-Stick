@@ -115,10 +115,12 @@
     "factoryWithdraw": "https://gnosisscan.io/tx/0xf3c8bf107b2d29688c46ac24951678d788550e1bbd8081d3b6554575e3f7520a"
   },
   "status": "dry-run-only",
+  "productionServer": "FORBIDDEN — Checkpoint wires MockItems (open setMinter). Server skips address fill unless LOK_ALLOW_DRY_RUN_DEPLOY=1. See docs/gnosis-launch.md § Dry-run MockItems.",
   "dryRunWarnings": [
-    "MockItems wired at checkpoint \u2014 anyone can setMinter; not production-safe.",
-    "Single EOA held admin+listing+fee+all roles \u2014 official launch requires Safe + distinct server keys.",
-    "Do not send admin txs on this deployment unless explicitly requested."
+    "MockItems wired at checkpoint — anyone can setMinter; not production-safe.",
+    "Single EOA held admin+listing+fee+all roles — official launch requires Safe + distinct server keys.",
+    "Do not send admin txs on this deployment unless explicitly requested.",
+    "Production servers must not set LOK_CHECKPOINT/LOK_ITEMS to these addresses."
   ],
   "stuckFunds": {
     "note": "Sweep blocked: ephemeral private keys deleted from agent VM and not recoverable from forge cache/transcripts. No sweep txs sent.",
