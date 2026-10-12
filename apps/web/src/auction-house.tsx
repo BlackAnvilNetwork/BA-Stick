@@ -5,12 +5,15 @@ import {
   planQuantityFills,
   type AhEscrowClientConfig,
   type AskQuote,
+  type EezSyncBuyClientConfig,
   type LokListingView,
   type QuantityPlan,
 } from "@bellgrave/protocol";
 import { useState } from "react";
 import { formatEther } from "viem";
 import { buyAsksWithWallet } from "./ah-buy";
+import { eezSyncBuyAvailable, listHomeChainOptions } from "./eez-home-chain";
+import { buyAsksWithEezSync } from "./eez-sync-buy";
 import { ItemCatalogDetails, ItemTipHost } from "./itemTip";
 import { send } from "./net";
 import { useGame } from "./state";
@@ -218,9 +221,10 @@ type Props = {
   listings: LokListingView[];
   buyer: string;
   ahEscrow?: AhEscrowClientConfig | null;
+  eezSyncBuy?: EezSyncBuyClientConfig | null;
 };
 
-export function AuctionBook({ listings, buyer, ahEscrow }: Props) {
+export function AuctionBook({ listings, buyer, ahEscrow, eezSyncBuy }: Props) {
   const pushLog = useGame((s) => s.pushLog);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
@@ -228,6 +232,8 @@ export function AuctionBook({ listings, buyer, ahEscrow }: Props) {
   const [buyingId, setBuyingId] = useState<number | null>(null);
   const [qtyText, setQtyText] = useState("1");
   const [paying, setPaying] = useState(false);
+  const homeOptions = listHomeChainOptions(eezSyncBuy);
+  const [homeChainId, setHomeChainId] = useState<number | null>(homeOptions[0]?.chainId ?? null);
   const lines = commodities(listings, query, selected);
   const buying = buyingId == null ? null : commodityById(listings, buyingId);
   const qty = Number(qtyText);
@@ -238,16 +244,42 @@ export function AuctionBook({ listings, buyer, ahEscrow }: Props) {
   const yours = listings.filter((row) => row.yours || row.highBidder === buyer);
   const legacyFills = plan.fills.filter((fill) => isLegacyKekPrice(fill.price));
   const payableFills = plan.fills.filter((fill) => !isLegacyKekPrice(fill.price));
-  const canPay = !!ahEscrow && payableFills.length > 0 && legacyFills.length === 0 && !paying;
+  const eezReady = eezSyncBuyAvailable(eezSyncBuy);
+  const canPay =
+    (!!ahEscrow || eezReady) && payableFills.length > 0 && legacyFills.length === 0 && !paying;
 
   async function payWithEth() {
-    if (!ahEscrow || !buying || payableFills.length === 0 || legacyFills.length > 0 || paying) return;
+    if (!buying || payableFills.length === 0 || legacyFills.length > 0 || paying) return;
     setPaying(true);
     try {
+      const fills = payableFills.map((fill) => ({ listingId: fill.id, priceWei: fill.price }));
+      if (eezReady && eezSyncBuy) {
+        const res = await buyAsksWithEezSync({
+          eez: eezSyncBuy,
+          buyerTokenId: buyer,
+          fills,
+          homeChainId: homeChainId ?? undefined,
+        });
+        if (!res.ok) {
+          pushLog("Error: " + res.error);
+          return;
+        }
+        pushLog(
+          "Submitted " +
+            res.hashes.length +
+            " EEZ mock sync buy(s). Items land in your Provisioner inbox after AskFilled.",
+        );
+        setBuyingId(null);
+        return;
+      }
+      if (!ahEscrow) {
+        pushLog("Error: AhEscrow is not configured.");
+        return;
+      }
       const res = await buyAsksWithWallet({
         escrow: ahEscrow,
         buyerTokenId: buyer,
-        fills: payableFills.map((fill) => ({ listingId: fill.id, priceWei: fill.price })),
+        fills,
       });
       if (!res.ok) {
         pushLog("Error: " + res.error);
@@ -396,10 +428,28 @@ export function AuctionBook({ listings, buyer, ahEscrow }: Props) {
           <p className="lok-note">
             {legacyFills.length > 0
               ? "These asks use a pre-AhEscrow (legacy KEK) price and cannot be paid in ETH. The seller must cancel and relist."
-              : ahEscrow
-                ? "Buys pay ETH from your wallet to AhEscrow. The log only receives the item after AskFilled is confirmed."
-                : "AhEscrow is not configured on this server (set LOK_AH_ESCROW + LOK_CHAIN_RPC). Buys stay disabled."}
+              : eezReady
+                ? "Local EEZ mock: pay from the selected home chain; seller payout is same-batch on AhEscrow."
+                : ahEscrow
+                  ? "Buys pay ETH from your wallet to AhEscrow. The log only receives the item after AskFilled is confirmed."
+                  : "AhEscrow is not configured on this server (set LOK_AH_ESCROW + LOK_CHAIN_RPC). Buys stay disabled."}
           </p>
+          {eezReady && homeOptions.length > 0 ? (
+            <label className="lok-note">
+              Pay from home chain{" "}
+              <select
+                value={homeChainId ?? homeOptions[0]!.chainId}
+                onChange={(e) => setHomeChainId(Number(e.target.value))}
+                aria-label="Home chain for EEZ sync buy"
+              >
+                {homeOptions.map((opt) => (
+                  <option key={opt.chainId} value={opt.chainId}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
           <button
             type="button"
             className="boot-primary"
@@ -407,13 +457,21 @@ export function AuctionBook({ listings, buyer, ahEscrow }: Props) {
             title={
               legacyFills.length > 0
                 ? "Legacy KEK-priced ask — seller must relist"
-                : ahEscrow
-                  ? "Sign buyAsk with your local wallet"
-                  : "AhEscrow not configured"
+                : eezReady
+                  ? "Sign MockEezSyncBuy.syncBuy from your home chain"
+                  : ahEscrow
+                    ? "Sign buyAsk with your local wallet"
+                    : "AhEscrow not configured"
             }
             onClick={() => void payWithEth()}
           >
-            {paying ? "Paying…" : legacyFills.length > 0 ? "Relist required" : "Pay with ETH"}
+            {paying
+              ? "Paying…"
+              : legacyFills.length > 0
+                ? "Relist required"
+                : eezReady
+                  ? "Pay from home chain"
+                  : "Pay with ETH"}
           </button>
           <YourAsks rows={buying.rows.filter((row) => row.yours)} />
         </div>

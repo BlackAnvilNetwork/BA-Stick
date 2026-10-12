@@ -30,12 +30,14 @@ testing** via `MockEezSyncBuy`; live EEZ zone registration remains out of band.
 LOK_EEZ_SYNC_BUY=1
 LOK_EEZ_ZONE_ID=local-31337
 LOK_EEZ_MOCK_SYNC_BUY=0x…   # MockEezSyncBuy on the throwaway anvil
-# optional: LOK_EEZ_HOME_RPC / LOK_EEZ_HOME_CHAIN_ID (default = game chain)
+# Must be LOK_CHAIN_ID=31337 + localhost RPC. Boot verifies mock has code and
+# mock.escrow() == LOK_AH_ESCROW before enabling the client picker.
 ```
 
-`planEezSyncBuy` returns a `local-mock` plan when enabled. Client calls
-`MockEezSyncBuy.syncBuy{value}` which forwards to `AhEscrow.buyAsk`; the seller
-receives ETH in that same transaction.
+`planEezSyncBuy` returns a `local-mock` plan when enabled. The auction HUD
+home-chain picker calls `buyAsksWithEezSync` → `MockEezSyncBuy.syncBuy{value}`
+(exact ask price forwarded; excess refunded to the buyer). Seller payout is
+same-batch inside `AhEscrow.buyAsk`.
 
 Upstream EEZ `periphery/Bridge.sol` is test-only and must not be treated as
 production. Do not redeploy the shared anvil for this path — use a throwaway

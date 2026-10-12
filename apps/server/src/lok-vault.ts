@@ -179,32 +179,26 @@ export function devServerMintEnabled(env: NodeJS.ProcessEnv = process.env): bool
   return env.LOK_DEV_SERVER_MINT === "1";
 }
 
-/** Pull revert/data hex from a viem (or similar) error for selector detection. */
+/**
+ * Pull structured revert `data` from a viem (or similar) error.
+ * Only reads object `.data` / `.raw` fields — never scrapes free-form messages
+ * (those always contain the factory address and would false-positive).
+ */
 function revertDataHex(err: unknown): string | null {
   const walk = (v: unknown, depth: number): string | null => {
-    if (depth > 6 || v == null) return null;
-    if (typeof v === "string") {
-      const m = v.match(/\b0x([0-9a-fA-F]*)\b/);
-      if (m && (m[0] === "0x" || m[0].length >= 10)) return m[0].toLowerCase();
-      return null;
-    }
-    if (typeof v !== "object") return null;
+    if (depth > 8 || v == null || typeof v !== "object") return null;
     const o = v as Record<string, unknown>;
-    for (const key of ["data", "raw", "hex"]) {
+    for (const key of ["data", "raw"]) {
       if (typeof o[key] === "string") {
-        const s = (o[key] as string).toLowerCase();
-        if (s === "0x" || /^0x[0-9a-f]+$/.test(s)) return s;
+        const s = (o[key] as string).toLowerCase().trim();
+        if (s === "0x" || s === "0x0") return "0x";
+        // Revert payload: empty, 4-byte selector, or ABI-encoded error.
+        if (/^0x([0-9a-f]{8})([0-9a-f]{64})*$/.test(s) || /^0x[0-9a-f]{8}$/.test(s)) return s;
       }
     }
-    for (const key of ["cause", "walk", "details", "metaMessages"]) {
+    for (const key of ["cause", "walk", "details", "error", "value"]) {
       const inner = walk(o[key], depth + 1);
       if (inner) return inner;
-    }
-    if (Array.isArray(o.metaMessages)) {
-      for (const line of o.metaMessages) {
-        const inner = walk(line, depth + 1);
-        if (inner) return inner;
-      }
     }
     return null;
   };
@@ -229,22 +223,23 @@ export async function factorySupportsCreateFor(
     return true;
   } catch (err) {
     const msg = String(err);
-    // Custom errors from an existing selector prove the method is present.
+    // Named custom errors prove the selector exists (even when data parse fails).
     if (/WrongFee|WrongTokenId|BadJob/i.test(msg)) return true;
-    // Empty revert data (0x) / function-not-found → method missing on old factories.
-    // Do NOT match bare 0x[8 hex] — viem messages always include the factory address.
+    // Prefer revert data over viem's generic "ABI encoding" prose (M-A).
+    // Do NOT match bare 0x[8 hex] — messages always include the factory address.
     const data = revertDataHex(err);
     if (data === "0x" || data === "0x0") return false;
+    if (data && data.length >= 10) {
+      // Non-empty 4-byte selector (or longer) ⇒ function exists and reverted.
+      return true;
+    }
+    // Only after data inspection: clear function-not-found signals (never bare "ABI").
     if (
-      /Function "createCharacterFor" not found|does not exist|returned no data|ABI|encoded error details:\s*0x\s*$/i.test(
+      /Function "createCharacterFor" not found|returned no data|does not exist on (the )?contract|encoded error details:\s*0x\s*$/i.test(
         msg,
       )
     ) {
       return false;
-    }
-    if (data && data.length >= 10) {
-      // Non-empty 4-byte selector (or longer) ⇒ function exists and reverted.
-      return true;
     }
     return false;
   }

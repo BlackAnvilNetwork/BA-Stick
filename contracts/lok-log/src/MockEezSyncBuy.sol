@@ -5,11 +5,10 @@ import {AhEscrow} from "./AhEscrow.sol";
 
 /// @title MockEezSyncBuy
 /// @notice Local stand-in for an EEZ `CrossChainProxy` sync buy.
-///         Buyer pays this contract (home / same anvil), which forwards
-///         `msg.value` to `AhEscrow.buyAsk` on the game domain in the same
-///         transaction. Seller payout is already same-batch inside AhEscrow
-///         (`sellerPayout.call{value: price}`). Not a production EEZ bridge —
-///         upstream `periphery/Bridge.sol` is test-only too.
+///         Buyer pays this contract (home / same anvil), which forwards the
+///         ask price to `AhEscrow.buyAsk` and refunds any excess to the sender
+///         in the same transaction. Seller payout is already same-batch inside
+///         AhEscrow. Not a production EEZ bridge.
 contract MockEezSyncBuy {
     AhEscrow public immutable escrow;
     /// @dev Opaque zone / rollup id for local registration tests.
@@ -25,6 +24,9 @@ contract MockEezSyncBuy {
 
     error BadAddress();
     error BadId();
+    error WrongPrice();
+    error AskClosed();
+    error TransferFailed();
 
     constructor(AhEscrow escrow_, uint256 zoneId_) {
         if (address(escrow_) == address(0)) revert BadAddress();
@@ -33,12 +35,25 @@ contract MockEezSyncBuy {
         zoneId = zoneId_;
     }
 
-    /// @notice Pay an ask from the "home" wallet; forwards value to AhEscrow.
+    /// @notice Pay an ask from the "home" wallet; forwards exact price, refunds excess.
     function syncBuy(uint256 listingId, uint256 buyerTokenId) external payable {
-        escrow.buyAsk{value: msg.value}(listingId, buyerTokenId);
-        emit SyncBuy(msg.sender, listingId, buyerTokenId, msg.value, zoneId);
+        (,,,, uint256 priceWei, bool open,) = escrow.asks(listingId);
+        if (!open) revert AskClosed();
+        if (msg.value < priceWei) revert WrongPrice();
+
+        uint256 excess = msg.value - priceWei;
+        escrow.buyAsk{value: priceWei}(listingId, buyerTokenId);
+
+        if (excess > 0) {
+            (bool refunded,) = payable(msg.sender).call{value: excess}("");
+            if (!refunded) revert TransferFailed();
+        }
+
+        emit SyncBuy(msg.sender, listingId, buyerTokenId, priceWei, zoneId);
     }
 
-    /// @dev AhEscrow refunds excess `msg.value` to this contract (the buyAsk caller).
-    receive() external payable {}
+    /// @dev Reject naked ETH; payment must go through syncBuy.
+    receive() external payable {
+        revert WrongPrice();
+    }
 }

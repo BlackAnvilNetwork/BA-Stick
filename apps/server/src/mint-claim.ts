@@ -2,8 +2,12 @@
  * EIP-191 proof that mintWallet authorizes binding an NFT to a game auth wallet.
  * Prevents H1: an attacker naming a victim's address as mintWallet.
  *
- * Claims include chainId + charId (defense in depth) and consumed nonces (L3).
+ * Claims include chainId + charId (defense in depth). Nonces are reserved on
+ * verify and consumed only after a successful spawn (so a post-pay create failure
+ * can retry). Optionally persisted under the lok data dir.
  */
+import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { normalizeCharacterName } from "@bellgrave/config";
 import { verifyMessage } from "viem";
 
 export type MintClaim = {
@@ -17,15 +21,44 @@ export type MintClaim = {
   signature: string;
 };
 
-/** Consumed mint-claim nonces (mintWallet:nonce). In-memory; process lifetime. */
+/** Consumed mint-claim nonces (mintWallet:nonce). */
 const usedMintNonces = new Set<string>();
-
-export function resetMintClaimNoncesForTests(): void {
-  usedMintNonces.clear();
-}
+let mintNonceStorePath: string | null = null;
 
 function nonceKey(mintWallet: string, nonce: string): string {
   return mintWallet.toLowerCase() + ":" + nonce;
+}
+
+function persistMintNonces(): void {
+  if (!mintNonceStorePath) return;
+  const tmp = mintNonceStorePath + ".tmp";
+  writeFileSync(tmp, JSON.stringify({ nonces: [...usedMintNonces] }));
+  renameSync(tmp, mintNonceStorePath);
+}
+
+/** Load / attach an on-disk nonce store (boot). Safe to call more than once. */
+export function configureMintClaimNonceStore(path: string): void {
+  mintNonceStorePath = path;
+  if (!existsSync(path)) return;
+  try {
+    const parsed = JSON.parse(readFileSync(path, "utf8")) as { nonces?: unknown };
+    if (!Array.isArray(parsed.nonces)) return;
+    for (const n of parsed.nonces) {
+      if (typeof n === "string" && n.includes(":")) usedMintNonces.add(n);
+    }
+  } catch {
+    /* ignore corrupt store */
+  }
+}
+
+export function resetMintClaimNoncesForTests(): void {
+  usedMintNonces.clear();
+  mintNonceStorePath = null;
+}
+
+export function consumeMintClaimNonce(mintWallet: string, nonce: string): void {
+  usedMintNonces.add(nonceKey(mintWallet, nonce));
+  persistMintNonces();
 }
 
 export function mintClaimMessage(opts: {
@@ -60,8 +93,12 @@ export async function verifyMintClaim(
   if (!Number.isSafeInteger(claim.chainId) || claim.chainId <= 0) {
     return { ok: false, error: "Bad mint claim chain id." };
   }
-  if (!/^[a-zA-Z0-9_-]{1,64}$/.test(claim.charId)) {
-    return { ok: false, error: "Bad mint claim char id." };
+  const named = normalizeCharacterName(claim.charId);
+  if (!named.ok) {
+    return { ok: false, error: "Bad mint claim char id: " + named.error };
+  }
+  if (named.name !== claim.charId) {
+    return { ok: false, error: "Mint claim char id must be the normalized character name." };
   }
   if (!/^[a-zA-Z0-9_-]{8,128}$/.test(claim.nonce)) {
     return { ok: false, error: "Bad mint claim nonce." };
@@ -106,7 +143,7 @@ export async function verifyMintClaim(
  * Resolve which wallets may own the NFT for mint-first create.
  * - Auth wallet always (already signed into the game).
  * - mintWallet only when it equals auth, or when a valid claim signature is provided.
- * On success, the claim nonce is consumed so the same claim cannot be replayed.
+ * Does not consume the nonce — call consumeMintClaimNonce after a successful spawn.
  */
 export async function acceptedMintWallets(opts: {
   authWallet: string;
@@ -117,7 +154,10 @@ export async function acceptedMintWallets(opts: {
   mintNonce?: string;
   mintExpiry?: number;
   mintSignature?: string;
-}): Promise<{ ok: true; wallets: string[] } | { ok: false; error: string }> {
+}): Promise<
+  | { ok: true; wallets: string[]; pendingNonce?: { mintWallet: string; nonce: string } }
+  | { ok: false; error: string }
+> {
   const auth = opts.authWallet.toLowerCase();
   const wallets = new Set<string>([auth]);
   const mint = opts.mintWallet?.trim().toLowerCase();
@@ -147,7 +187,10 @@ export async function acceptedMintWallets(opts: {
     signature: opts.mintSignature,
   });
   if (!verified.ok) return verified;
-  usedMintNonces.add(nonceKey(mint, opts.mintNonce));
   wallets.add(mint);
-  return { ok: true, wallets: [...wallets] };
+  return {
+    ok: true,
+    wallets: [...wallets],
+    pendingNonce: { mintWallet: mint, nonce: opts.mintNonce },
+  };
 }

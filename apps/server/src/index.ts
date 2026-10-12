@@ -191,7 +191,12 @@ import {
 } from "./ah-escrow";
 import { reconcileOpenAsksFromChain } from "./ah-escrow-reconcile";
 import { cancelAskOnchain, openAskOnchain } from "./ah-escrow-tx";
-import { acceptedMintWallets } from "./mint-claim";
+import {
+  acceptedMintWallets,
+  configureMintClaimNonceStore,
+  consumeMintClaimNonce,
+} from "./mint-claim";
+import { join as pathJoin } from "node:path";
 import {
   characterMintEnvConfigured,
   ensureLocalRuleset,
@@ -202,7 +207,7 @@ import {
   verifyCharacterNftOwner,
   type CharacterMintClientConfig,
 } from "./lok-vault";
-import { eezClientConfig } from "./eez-sync";
+import { loadEezClientConfig, type EezSyncBuyClientConfig } from "./eez-sync";
 import { guardedKekMove, withPlayerCharge } from "./kek-guard";
 import { characterNameKey, normalizeCharacterName } from "./character-name";
 import { randomBytes } from "node:crypto";
@@ -461,6 +466,8 @@ let cachedCharacterMint: CharacterMintClientConfig | null = null;
 let mintConfigReady = false;
 /** M-B: mint env set but load failed — fail closed until a retry succeeds. */
 let mintConfigLoadFailed = false;
+/** EEZ sync buy after local gate + on-chain mock verify (M-D). */
+let cachedEezSyncBuy: EezSyncBuyClientConfig | null = null;
 /** Dev cheats (Max Lv). Off unless ALLOW_DEBUG_CHEATS=1. Not implied by a dev NODE_ENV. */
 const DEBUG_CHEATS_ENABLED = debugCheatsEnabled();
 const players = new Map<string, Player>();
@@ -477,6 +484,7 @@ const lok: LokWorld = await (async (): Promise<LokWorld> => {
   try {
     loadLokEnv();
     const world = LokWorld.open(defaultLokDir());
+    configureMintClaimNonceStore(pathJoin(defaultLokDir(), "mint-claim-nonces.json"));
     console.log(
       "[bellgrave] lok log " + world.logPath + " entries=" + world.length + ". " + world.chainNote,
     );
@@ -547,6 +555,19 @@ const lok: LokWorld = await (async (): Promise<LokWorld> => {
         });
     };
     refreshMintConfig();
+    void loadEezClientConfig(process.env)
+      .then((cfg) => {
+        cachedEezSyncBuy = cfg;
+        if (cfg?.syncBuyEnabled) {
+          console.log(
+            "[bellgrave] EEZ local mock sync buy enabled zone=" +
+              (cfg.zoneId ?? "?") +
+              " mock=" +
+              (cfg.mockSyncBuy ?? "?"),
+          );
+        }
+      })
+      .catch((err) => console.error("[bellgrave] EEZ sync buy config failed", err));
     return world;
   } catch (err) {
     console.error("[bellgrave] lok log failed to open; refusing to start.", err);
@@ -2381,7 +2402,7 @@ function snapshotFor(p: Player): SnapshotMessage {
         return {
           ...view,
           ahEscrow: ahEscrowClientConfig(),
-          eezSyncBuy: eezClientConfig(),
+          eezSyncBuy: cachedEezSyncBuy,
           characterMint: cachedCharacterMint,
           withdrawDelaySec: null,
           queues: [],
@@ -4621,6 +4642,7 @@ function onMessage(ws: WebSocket, data: string) {
       // L6: only accept a client tokenId when mint is configured (verified on-chain).
       let bindToken: string | undefined;
       let acceptedWallets = [wallet.toLowerCase()];
+      let pendingMintNonce: { mintWallet: string; nonce: string } | undefined;
       if (cachedCharacterMint) {
         bindToken =
           typeof msg.tokenId === "string" && /^[1-9][0-9]{0,77}$/.test(msg.tokenId)
@@ -4668,6 +4690,7 @@ function onMessage(ws: WebSocket, data: string) {
           return;
         }
         acceptedWallets = wallets.wallets;
+        pendingMintNonce = wallets.pendingNonce;
         const verified = await verifyCharacterNftOwner(bindToken, acceptedWallets);
         if (!verified.ok) {
           if (process.env.LOK_DEV_SERVER_MINT === "1") {
@@ -4710,6 +4733,10 @@ function onMessage(ws: WebSocket, data: string) {
       if (!spawned.ok) {
         send(ws, { type: "error", message: spawned.error });
         return;
+      }
+      // Consume mint-claim nonce only after a successful spawn (retry-safe on failure).
+      if (pendingMintNonce) {
+        consumeMintClaimNonce(pendingMintNonce.mintWallet, pendingMintNonce.nonce);
       }
       const p = createPlayer(wallet, claimed.name, ws, job, gender, charId);
       claimStarter(p);

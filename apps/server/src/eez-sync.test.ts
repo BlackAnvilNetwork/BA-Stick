@@ -3,7 +3,7 @@
  */
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { eezClientConfig, eezZoneConfig, planEezSyncBuy } from "./eez-sync";
+import { eezClientConfig, eezLocalGateOk, eezZoneConfig, planEezSyncBuy } from "./eez-sync";
 
 const ESCROW = "0x00000000000000000000000000000000000000e1";
 const MOCK = "0x00000000000000000000000000000000000000e2";
@@ -19,7 +19,22 @@ describe("eez sync buy (local mock)", () => {
     assert.equal(plan.ok, false);
   });
 
-  it("enables with zone + mock + AhEscrow and plans a local-mock call", () => {
+  it("M-D: stays disabled on mainnet / non-local RPC even with mock env set", () => {
+    const env = {
+      LOK_EEZ_SYNC_BUY: "1",
+      LOK_EEZ_ZONE_ID: "local-31337",
+      LOK_EEZ_MOCK_SYNC_BUY: MOCK,
+      LOK_AH_ESCROW: ESCROW,
+      LOK_CHAIN_RPC: "https://mainnet.example",
+      LOK_CHAIN_ID: "1",
+    } as NodeJS.ProcessEnv;
+    assert.equal(eezLocalGateOk(env), false);
+    assert.equal(eezZoneConfig(env).syncBuyEnabled, false);
+    const client = eezClientConfig(env);
+    assert.ok(!client || client.syncBuyEnabled === false);
+  });
+
+  it("enables with zone + mock + AhEscrow on local 31337 and plans a local-mock call", () => {
     const env = {
       LOK_EEZ_SYNC_BUY: "1",
       LOK_EEZ_ZONE_ID: "local-31337",

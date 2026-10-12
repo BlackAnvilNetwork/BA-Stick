@@ -7,6 +7,7 @@ import { describe, it } from "node:test";
 import { privateKeyToAccount } from "viem/accounts";
 import {
   acceptedMintWallets,
+  consumeMintClaimNonce,
   mintClaimMessage,
   resetMintClaimNoncesForTests,
 } from "./mint-claim";
@@ -115,12 +116,27 @@ describe("support 9692ea2: mint claim edge cases", () => {
     assert.equal(self.ok, true);
     if (self.ok) assert.deepEqual(self.wallets, [MINT.address.toLowerCase()]);
   });
-  it("L3: the same claim nonce is rejected on reuse; wrong chainId/charId fail", async () => {
+  it("L3: nonce is reusable until consume; wrong chainId/charId fail; spaces in names work", async () => {
     resetMintClaimNoncesForTests();
     const c = await claim({ tokenId: "5", gameWallet: GAME, expiry: now() + 300 });
     const first = args(c);
+    const a = await acceptedMintWallets(first);
+    assert.equal(a.ok, true);
+    // Not consumed yet — spawn failure can retry.
     assert.equal((await acceptedMintWallets(first)).ok, true);
-    assert.equal((await acceptedMintWallets(first)).ok, false, "nonce must be single-use");
+    consumeMintClaimNonce(MINT.address, c.nonce);
+    assert.equal((await acceptedMintWallets(first)).ok, false, "consumed nonce must be single-use");
+
+    resetMintClaimNoncesForTests();
+    const spaced = await claim({
+      tokenId: "5",
+      gameWallet: GAME,
+      expiry: now() + 300,
+      charId: "Iron Mage",
+      nonce: "nonce-spaced01",
+    });
+    assert.equal((await acceptedMintWallets(args(spaced))).ok, true);
+
     resetMintClaimNoncesForTests();
     const wrongChain = await claim({
       tokenId: "5",
@@ -129,7 +145,6 @@ describe("support 9692ea2: mint claim edge cases", () => {
       chainId: 1,
       nonce: "nonce-chainxxx",
     });
-    // Signature is over chainId 1; verify with 31337 → fail
     assert.equal((await acceptedMintWallets(args(wrongChain, { chainId: CHAIN }))).ok, false);
     const wrongChar = await claim({
       tokenId: "5",

@@ -3,10 +3,18 @@
  *
  * Production path: home-chain payment → EEZ CrossChainProxy → AhEscrow.buyAsk{value}.
  * Local path: MockEezSyncBuy.syncBuy{value} on the game chain (same seller payout
- * batch inside AhEscrow). Opt-in via LOK_EEZ_SYNC_BUY=1.
+ * batch inside AhEscrow). Opt-in via LOK_EEZ_SYNC_BUY=1. Mock path is gated to
+ * chain 31337 + localhost RPC, and the mock must have code pointing at our escrow.
  */
+import {
+  createPublicClient,
+  http,
+  type Hex,
+} from "viem";
 import type { EezSyncBuyClientConfig } from "@bellgrave/protocol";
 import { ahEscrowAddress, ahEscrowClientConfig } from "./ah-escrow";
+
+export type { EezSyncBuyClientConfig };
 
 export type EezZoneConfig = {
   /** EEZ rollup / zone id once registered (or local mock zone). */
@@ -17,9 +25,19 @@ export type EezZoneConfig = {
   homeLabel: string | null;
   /** Local MockEezSyncBuy when testing without a live EEZ zone. */
   mockSyncBuy: string | null;
-  /** Game-chain AhEscrow already configured separately via LOK_AH_ESCROW. */
+  /** Structurally enabled (env + local gate). On-chain verify is separate. */
   syncBuyEnabled: boolean;
 };
+
+const MOCK_ESCROW_ABI = [
+  {
+    type: "function",
+    name: "escrow",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "address" }],
+  },
+] as const;
 
 function parseChainId(raw: string | undefined, fallback: number | null): number | null {
   const t = raw?.trim();
@@ -29,31 +47,105 @@ function parseChainId(raw: string | undefined, fallback: number | null): number 
   return Number.isSafeInteger(n) && n > 0 ? n : null;
 }
 
+function isLocalAnvilRpc(rpc: string): boolean {
+  try {
+    const u = new URL(rpc);
+    return u.hostname === "127.0.0.1" || u.hostname === "localhost" || u.hostname === "0.0.0.0";
+  } catch {
+    return false;
+  }
+}
+
+/** M-D: mock EEZ only on local anvil 31337. */
+export function eezLocalGateOk(env: NodeJS.ProcessEnv = process.env): boolean {
+  const game = ahEscrowClientConfig(env);
+  const chainId = parseChainId(env.LOK_CHAIN_ID, game?.chainId ?? null);
+  if (chainId !== 31337) return false;
+  const rpc = (env.LOK_PUBLIC_RPC?.trim() || env.LOK_CHAIN_RPC?.trim() || game?.rpcUrl || "").replace(
+    /\/$/,
+    "",
+  );
+  return !!rpc && isLocalAnvilRpc(rpc);
+}
+
 export function eezZoneConfig(env: NodeJS.ProcessEnv = process.env): EezZoneConfig {
   const zoneId = env.LOK_EEZ_ZONE_ID?.trim() || null;
   const homeRpcUrl = env.LOK_EEZ_HOME_RPC?.trim() || null;
   const mockSyncBuy = env.LOK_EEZ_MOCK_SYNC_BUY?.trim() || null;
   const mockOk = !!(mockSyncBuy && /^0x[0-9a-fA-F]{40}$/.test(mockSyncBuy));
   const game = ahEscrowClientConfig(env);
+  const localOk = eezLocalGateOk(env);
   const homeChainId = parseChainId(
     env.LOK_EEZ_HOME_CHAIN_ID,
-    // Local mock defaults home = game chain (same anvil) for end-to-end tests.
-    mockOk && game ? game.chainId : null,
+    mockOk && game && localOk ? game.chainId : null,
   );
-  const homeLabel = env.LOK_EEZ_HOME_LABEL?.trim() || (mockOk ? "Local anvil (mock EEZ)" : null);
+  const homeLabel = env.LOK_EEZ_HOME_LABEL?.trim() || (mockOk && localOk ? "Local anvil (mock EEZ)" : null);
   const syncBuyEnabled =
-    env.LOK_EEZ_SYNC_BUY === "1" && !!zoneId && !!ahEscrowAddress(env) && (mockOk || !!homeRpcUrl);
+    env.LOK_EEZ_SYNC_BUY === "1" &&
+    !!zoneId &&
+    !!ahEscrowAddress(env) &&
+    localOk &&
+    mockOk &&
+    homeChainId === 31337;
   return {
     zoneId,
-    homeRpcUrl: homeRpcUrl || (mockOk && game ? game.rpcUrl : null),
-    homeChainId,
+    homeRpcUrl: homeRpcUrl || (mockOk && game && localOk ? game.rpcUrl : null),
+    homeChainId: syncBuyEnabled ? homeChainId : homeChainId,
     homeLabel,
     mockSyncBuy: mockOk ? mockSyncBuy!.toLowerCase() : null,
     syncBuyEnabled,
   };
 }
 
-/** Snapshot / auth payload for the client home-chain picker. */
+/**
+ * Confirm MockEezSyncBuy has code and `escrow()` equals LOK_AH_ESCROW (M-D).
+ */
+export async function verifyEezMockOnchain(
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<{ ok: true; mock: string; escrow: string } | { ok: false; error: string }> {
+  const z = eezZoneConfig(env);
+  if (!z.syncBuyEnabled || !z.mockSyncBuy || !z.homeRpcUrl || z.homeChainId == null) {
+    return { ok: false, error: "EEZ mock path is not structurally enabled." };
+  }
+  const escrow = ahEscrowAddress(env);
+  if (!escrow) return { ok: false, error: "AhEscrow is not configured." };
+  try {
+    const pub = createPublicClient({
+      transport: http(z.homeRpcUrl),
+      chain: {
+        id: z.homeChainId,
+        name: "Bellgrave Anvil",
+        nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+        rpcUrls: { default: { http: [z.homeRpcUrl] } },
+      },
+    });
+    const code = await pub.getBytecode({ address: z.mockSyncBuy as Hex });
+    if (!code || code === "0x") {
+      return { ok: false, error: "MockEezSyncBuy has no code at " + z.mockSyncBuy };
+    }
+    const pointed = (
+      await pub.readContract({
+        address: z.mockSyncBuy as Hex,
+        abi: MOCK_ESCROW_ABI,
+        functionName: "escrow",
+      })
+    ).toLowerCase();
+    if (pointed !== escrow.toLowerCase()) {
+      return {
+        ok: false,
+        error: "MockEezSyncBuy.escrow is " + pointed + ", expected " + escrow.toLowerCase(),
+      };
+    }
+    return { ok: true, mock: z.mockSyncBuy, escrow: escrow.toLowerCase() };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+/** Sync snapshot helper — does not prove on-chain wiring. Prefer loadEezClientConfig at boot. */
 export function eezClientConfig(env: NodeJS.ProcessEnv = process.env): EezSyncBuyClientConfig | null {
   const z = eezZoneConfig(env);
   if (!z.syncBuyEnabled && !z.zoneId && !z.mockSyncBuy) return null;
@@ -68,6 +160,22 @@ export function eezClientConfig(env: NodeJS.ProcessEnv = process.env): EezSyncBu
     gameEscrow: game?.address ?? ahEscrowAddress(env),
     gameChainId: game?.chainId ?? null,
   };
+}
+
+/** Boot: only expose sync buy after local gate + on-chain mock verify. */
+export async function loadEezClientConfig(
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<EezSyncBuyClientConfig | null> {
+  const base = eezClientConfig(env);
+  if (!base?.syncBuyEnabled) {
+    return base && (base.zoneId || base.mockSyncBuy) ? { ...base, syncBuyEnabled: false } : null;
+  }
+  const verified = await verifyEezMockOnchain(env);
+  if (!verified.ok) {
+    console.warn("[bellgrave] EEZ mock verify failed — sync buy stays disabled: " + verified.error);
+    return { ...base, syncBuyEnabled: false };
+  }
+  return base;
 }
 
 export type EezSyncBuyPlan =
@@ -106,8 +214,11 @@ export function planEezSyncBuy(
       ok: false,
       error:
         "EEZ sync buy is not enabled. Set LOK_EEZ_SYNC_BUY=1, LOK_EEZ_ZONE_ID, and " +
-        "LOK_EEZ_MOCK_SYNC_BUY (local) or LOK_EEZ_HOME_RPC.",
+        "LOK_EEZ_MOCK_SYNC_BUY on local anvil 31337.",
     };
+  }
+  if (!eezLocalGateOk(env)) {
+    return { ok: false, error: "EEZ mock sync buy is only available on local chain 31337." };
   }
   if (!/^[1-9][0-9]{0,77}$/.test(opts.listingId) || !/^[1-9][0-9]{0,77}$/.test(opts.buyerTokenId)) {
     return { ok: false, error: "Bad listing or buyer token id." };

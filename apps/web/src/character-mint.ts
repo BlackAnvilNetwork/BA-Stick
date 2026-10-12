@@ -1,9 +1,12 @@
 /**
  * Player-paid CharacterFactory mint (native ETH fee — same unit as AhEscrow / EEZ).
  * Prefer createCharacterFor when the factory supports it and a suggested id is known.
+ * Validates the character name before paying; can reuse an already-paid unbound NFT (M-C).
  */
+import { normalizeCharacterName } from "@bellgrave/config";
 import { createPublicClient, http, type Hex } from "viem";
 import { freshMintNonce, mintClaimMessage } from "./mint-claim";
+import { clearPendingMint, readPendingMint, writePendingMint } from "./pending-mint";
 import { burnerAccount, getWalletSession } from "./wallet";
 
 const CREATE_FOR_ABI = [
@@ -29,6 +32,16 @@ const CREATE_ABI = [
   },
 ] as const;
 
+const OWNER_ABI = [
+  {
+    type: "function",
+    name: "ownerOf",
+    stateMutability: "view",
+    inputs: [{ name: "tokenId", type: "uint256" }],
+    outputs: [{ type: "address" }],
+  },
+] as const;
+
 export type CharacterMintConfig = {
   factory: string;
   nft: string;
@@ -44,24 +57,55 @@ export type CharacterMintConfig = {
 export type MintResult =
   | {
       ok: true;
-      hash: Hex;
+      hash: Hex | "reuse";
       tokenId: string;
       payer: string;
+      charId: string;
+      reused?: boolean;
       mintNonce?: string;
       mintExpiry?: number;
       mintSignature?: string;
     }
   | { ok: false; error: string };
 
+async function signClaim(opts: {
+  session: Awaited<ReturnType<typeof getWalletSession>>;
+  tokenId: string;
+  gameWallet: string;
+  chainId: number;
+  charId: string;
+}): Promise<{ mintNonce: string; mintExpiry: number; mintSignature: string }> {
+  const mintNonce = freshMintNonce();
+  const mintExpiry = Math.floor(Date.now() / 1000) + 10 * 60;
+  const message = mintClaimMessage({
+    tokenId: opts.tokenId,
+    gameWallet: opts.gameWallet,
+    chainId: opts.chainId,
+    charId: opts.charId,
+    nonce: mintNonce,
+    expiry: mintExpiry,
+  });
+  const mintSignature = await opts.session.client.signMessage({
+    message,
+    account: opts.session.account,
+  });
+  return { mintNonce, mintExpiry, mintSignature };
+}
+
 export async function mintCharacterWithWallet(opts: {
   mint: CharacterMintConfig;
   job: number;
   /** Game auth wallet (burner) that will own the log character. */
   gameWallet: string;
-  /** Character name bound into the mint claim (L3). */
+  /** Character name bound into the mint claim (same rules as server). */
   charId: string;
   tokenId?: string;
+  /** When true, skip payment and reuse a pending unbound NFT if still owned. */
+  allowReuse?: boolean;
 }): Promise<MintResult> {
+  const named = normalizeCharacterName(opts.charId);
+  if (!named.ok) return { ok: false, error: named.error };
+
   if (!Number.isInteger(opts.job) || opts.job < 0 || opts.job > 255) {
     return { ok: false, error: "Bad job for mint." };
   }
@@ -79,8 +123,6 @@ export async function mintCharacterWithWallet(opts: {
   };
   const hasInjected = typeof window !== "undefined" && !!window.ethereum;
   try {
-    // F3: if an extension is present, declining must not silently use the burner for payment.
-    // When there is no extension, the burner is the only wallet (local auth).
     const session = await getWalletSession({
       chainId: opts.mint.chainId,
       rpcUrl: opts.mint.rpcUrl,
@@ -89,6 +131,60 @@ export async function mintCharacterWithWallet(opts: {
     const pub = createPublicClient({
       transport: http(opts.mint.rpcUrl),
     });
+    const payer = session.address.toLowerCase();
+    const game = opts.gameWallet.toLowerCase();
+
+    // M-C: reuse an already-paid unbound NFT when still held by the payer.
+    if (opts.allowReuse !== false) {
+      const pending = readPendingMint(game);
+      if (
+        pending &&
+        pending.chainId === opts.mint.chainId &&
+        pending.factory.toLowerCase() === opts.mint.factory.toLowerCase() &&
+        pending.nft.toLowerCase() === opts.mint.nft.toLowerCase()
+      ) {
+        try {
+          const owner = (
+            await pub.readContract({
+              address: opts.mint.nft as `0x${string}`,
+              abi: OWNER_ABI,
+              functionName: "ownerOf",
+              args: [BigInt(pending.tokenId)],
+            })
+          ).toLowerCase();
+          if (owner === pending.payer.toLowerCase() || owner === payer) {
+            if (payer === game && pending.payer.toLowerCase() === game) {
+              return {
+                ok: true,
+                hash: "reuse",
+                tokenId: pending.tokenId,
+                payer: pending.payer.toLowerCase(),
+                charId: named.name,
+                reused: true,
+              };
+            }
+            const claim = await signClaim({
+              session,
+              tokenId: pending.tokenId,
+              gameWallet: game,
+              chainId: opts.mint.chainId,
+              charId: named.name,
+            });
+            return {
+              ok: true,
+              hash: "reuse",
+              tokenId: pending.tokenId,
+              payer: pending.payer.toLowerCase(),
+              charId: named.name,
+              reused: true,
+              ...claim,
+            };
+          }
+        } catch {
+          clearPendingMint(game);
+        }
+      }
+    }
 
     const expected =
       opts.tokenId && /^[1-9][0-9]{0,77}$/.test(opts.tokenId)
@@ -154,37 +250,31 @@ export async function mintCharacterWithWallet(opts: {
       return { ok: false, error: "Mint succeeded but no token id was returned." };
     }
 
-    const payer = session.address.toLowerCase();
-    const game = opts.gameWallet.toLowerCase();
+    writePendingMint({
+      tokenId,
+      payer,
+      chainId: opts.mint.chainId,
+      factory: opts.mint.factory.toLowerCase(),
+      nft: opts.mint.nft.toLowerCase(),
+      gameWallet: game,
+    });
+
     if (payer === game) {
-      return { ok: true, hash, tokenId, payer };
+      return { ok: true, hash, tokenId, payer, charId: named.name };
     }
 
-    // H1/L3: prove mintWallet controls the claim for this game wallet + chain + char.
-    const mintNonce = freshMintNonce();
-    const mintExpiry = Math.floor(Date.now() / 1000) + 10 * 60;
-    const charId = opts.charId.trim();
-    if (!/^[a-zA-Z0-9_-]{1,64}$/.test(charId)) {
-      return { ok: false, error: "Bad character id for mint claim." };
-    }
-    const message = mintClaimMessage({
+    const claim = await signClaim({
+      session,
       tokenId,
       gameWallet: game,
       chainId: opts.mint.chainId,
-      charId,
-      nonce: mintNonce,
-      expiry: mintExpiry,
+      charId: named.name,
     });
-    const mintSignature = await session.client.signMessage({
-      message,
-      account: session.account,
-    });
-    return { ok: true, hash, tokenId, payer, mintNonce, mintExpiry, mintSignature };
+    return { ok: true, hash, tokenId, payer, charId: named.name, ...claim };
   } catch (err) {
-    // If extension was declined, surface that — do not mint from burner behind the user's back.
     if (hasInjected) {
       try {
-        burnerAccount(); // ensure burner exists for auth, but do not pay with it here
+        burnerAccount();
       } catch {
         /* ignore */
       }
@@ -192,3 +282,5 @@ export async function mintCharacterWithWallet(opts: {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
 }
+
+export { clearPendingMint };

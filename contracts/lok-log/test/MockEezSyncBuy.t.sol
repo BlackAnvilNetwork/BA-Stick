@@ -37,7 +37,6 @@ contract MockEezSyncBuyTest is Test {
         vm.prank(buyerHome);
         mock.syncBuy{value: PRICE}(LISTING, BUYER_TOKEN);
 
-        // Same-batch seller payout (inside AhEscrow.buyAsk).
         assertEq(sellerHome.balance, beforeSeller + PRICE);
         (,,,,, bool open, bool used) = escrow.asks(LISTING);
         assertFalse(open);
@@ -45,7 +44,7 @@ contract MockEezSyncBuyTest is Test {
         assertEq(address(mock).balance, 0);
     }
 
-    function test_syncBuy_refundsExcess_toMockThenBuyerPaysNet() public {
+    function test_syncBuy_refundsExcess_toBuyer() public {
         vm.prank(admin);
         escrow.openAsk(LISTING, SELLER_TOKEN, payable(sellerHome), ITEM, AMOUNT, PRICE);
 
@@ -54,12 +53,20 @@ contract MockEezSyncBuyTest is Test {
         mock.syncBuy{value: PRICE + 0.01 ether}(LISTING, BUYER_TOKEN);
 
         assertEq(sellerHome.balance, PRICE);
-        // Excess is refunded to msg.sender of buyAsk (= mock), so it stays on the mock.
-        assertEq(address(mock).balance, 0.01 ether);
-        assertEq(buyerHome.balance, beforeBuyer - PRICE - 0.01 ether);
+        assertEq(address(mock).balance, 0, "excess must not stay on the mock");
+        assertEq(buyerHome.balance, beforeBuyer - PRICE);
     }
 
-    function test_zoneId_set() public {
+    function test_syncBuy_rejectsShortValue() public {
+        vm.prank(admin);
+        escrow.openAsk(LISTING, SELLER_TOKEN, payable(sellerHome), ITEM, AMOUNT, PRICE);
+
+        vm.prank(buyerHome);
+        vm.expectRevert(MockEezSyncBuy.WrongPrice.selector);
+        mock.syncBuy{value: PRICE - 1}(LISTING, BUYER_TOKEN);
+    }
+
+    function test_zoneId_set() public view {
         assertEq(mock.zoneId(), ZONE);
         assertEq(address(mock.escrow()), address(escrow));
     }

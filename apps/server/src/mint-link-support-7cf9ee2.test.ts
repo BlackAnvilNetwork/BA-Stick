@@ -4,7 +4,6 @@
  */
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess, execFileSync } from "node:child_process";
-import { existsSync } from "node:fs";
 import { createServer } from "node:net";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -12,32 +11,15 @@ import { after, before, describe, it } from "node:test";
 import { createPublicClient, createWalletClient, http, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { linkCharacterNft } from "./lok-vault";
+import { forgeLibsPresent, resolveAnvilBin, resolveForgeBin } from "./support-anvil";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const LOK = join(ROOT, "contracts", "lok-log");
 
-function resolveAnvil(): string | null {
-  for (const candidate of [
-    process.env.ANVIL_PATH,
-    "anvil",
-    join(process.env.HOME || "", ".foundry/bin/anvil"),
-    "/home/ubuntu/.foundry/bin/anvil",
-  ]) {
-    if (!candidate) continue;
-    try {
-      if (candidate === "anvil") {
-        execFileSync("anvil", ["--version"], { stdio: "ignore" });
-        return "anvil";
-      }
-      if (existsSync(candidate)) return candidate;
-    } catch {
-      /* try next */
-    }
-  }
-  return null;
-}
-
-const ANVIL_BIN = resolveAnvil();
+const ANVIL_BIN = resolveAnvilBin();
+const FORGE_BIN = resolveForgeBin();
+/** Skip cleanly when foundry libs are not checked out (no hard fail). */
+const SKIP_MINT_ANVIL = !ANVIL_BIN || !FORGE_BIN || !forgeLibsPresent(LOK);
 // anvil default keys 0 (deployer), 2 (A), 3 (B)
 const DEPLOYER = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" as Hex;
 const A_KEY = "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a" as Hex;
@@ -115,7 +97,7 @@ async function waitRpc(rpc: string, tries = 40): Promise<void> {
 }
 
 describe("support 7cf9ee2: player-paid character mint (throwaway anvil)", {
-  skip: !ANVIL_BIN,
+  skip: SKIP_MINT_ANVIL,
 }, () => {
   let anvil: ChildProcess | undefined;
   let rpc = "";
@@ -131,7 +113,7 @@ describe("support 7cf9ee2: player-paid character mint (throwaway anvil)", {
     await waitRpc(rpc);
 
     const out = execFileSync(
-      "forge",
+      FORGE_BIN!,
       [
         "script",
         "script/MintFixture.s.sol:MintFixture",

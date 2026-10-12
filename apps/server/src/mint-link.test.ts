@@ -6,6 +6,7 @@ import { describe, it } from "node:test";
 import {
   characterMintClientConfig,
   characterMintEnvConfigured,
+  factorySupportsCreateFor,
   linkCharacterNft,
   LOCAL_ANVIL_CHAIN_ID,
   loadCharacterMintClientConfig,
@@ -64,4 +65,15 @@ describe("character mint link helpers", () => {
   it("LOCAL_ANVIL_CHAIN_ID is 31337", () => {
     assert.equal(LOCAL_ANVIL_CHAIN_ID, 31337n);
   });
+
+  it("M-A: factorySupportsCreateFor does not treat connection errors / address hex as support", async () => {
+    // Unreachable RPC → no structured revert data → false (must not scrape factory address from text).
+    const missing = await factorySupportsCreateFor(
+      "http://127.0.0.1:1",
+      "0x00000000000000000000000000000000000000f1",
+      31337,
+    );
+    assert.equal(missing, false);
+  });
 });
+

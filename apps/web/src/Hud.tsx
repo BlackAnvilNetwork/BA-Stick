@@ -16,8 +16,8 @@ import {
   type AbilityId as CombatAbilityId,
   type JobId,
 } from "@bellgrave/combat";
-import { mintCharacterWithWallet } from "./character-mint";
-import { ITEM } from "@bellgrave/config";
+import { clearPendingMint, mintCharacterWithWallet } from "./character-mint";
+import { ITEM, normalizeCharacterName, characterNameKey } from "@bellgrave/config";
 import { getItem } from "@bellgrave/items";
 import type { AbilityId, UnitSnapshot } from "@bellgrave/protocol";
 import { useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent } from "react";
@@ -1310,7 +1310,18 @@ function CreatePanel() {
         e.preventDefault();
         if (creating) return;
         const fd = new FormData(e.currentTarget);
-        const name = String(fd.get("name") || "Chrona").slice(0, 16);
+        const rawName = String(fd.get("name") || "Chrona");
+        // M-C: same name rules as the server, before any payment.
+        const named = normalizeCharacterName(rawName);
+        if (!named.ok) {
+          pushLog(named.error);
+          return;
+        }
+        const name = named.name;
+        if (characters.some((c) => characterNameKey(c.name) === named.key)) {
+          pushLog("That name is already on your roster. Pick another.");
+          return;
+        }
         const jobIndex = JOB_IDS.indexOf(job);
         useGame.getState().setPendingCreateEnter(true);
         setCreating(true);
@@ -1360,6 +1371,7 @@ function CreatePanel() {
             job: jobIndex < 0 ? 0 : jobIndex,
             gameWallet,
             charId: name,
+            allowReuse: true,
           }).then((res) => {
             if (!res.ok) {
               pushLog("Character mint: " + res.error);
@@ -1367,8 +1379,13 @@ function CreatePanel() {
               return;
             }
             pushLog(
-              "Paid character mint fee (native ETH). Creating log identity for NFT #" + res.tokenId + "…",
+              (res.reused
+                ? "Reusing already-paid NFT #"
+                : "Paid character mint fee (native ETH). Creating log identity for NFT #") +
+                res.tokenId +
+                "…",
             );
+            // Clear pending only after the create message is sent; server bind failure can retry.
             finish({
               tokenId: res.tokenId,
               mintWallet: res.payer,
@@ -1378,10 +1395,17 @@ function CreatePanel() {
                     mintExpiry: res.mintExpiry,
                     mintSignature: res.mintSignature,
                     mintChainId: mintCfg.chainId,
-                    mintCharId: name,
+                    mintCharId: res.charId,
                   }
                 : {}),
             });
+            // Drop pending once the roster is expected to include this name (best-effort).
+            window.setTimeout(() => {
+              const roster = useGame.getState().characters;
+              if (roster.some((c) => characterNameKey(c.name) === named.key)) {
+                clearPendingMint(gameWallet);
+              }
+            }, 1500);
           });
         }, mintCfg.devFaucet ? 800 : 0);
       }}

@@ -1,0 +1,28 @@
+name: support-anvil
+
+on:
+  push:
+    branches: ["cursor/**", "main"]
+  pull_request:
+
+jobs:
+  server-anvil:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.12.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+      - uses: foundry-rs/foundry-toolchain@v1
+      - run: pnpm install --frozen-lockfile
+      - name: Server suite (self-starts throwaway anvil when foundry+libs present)
+        run: pnpm --filter @bellgrave/server test
+      - name: Forge
+        working-directory: contracts/lok-log
+        run: forge test
