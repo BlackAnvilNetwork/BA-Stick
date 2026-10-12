@@ -145,7 +145,7 @@ async function completeSignedAuth(msg: Extract<ServerMessage, { type: "auth/chal
       wallet = account.address;
       signature = await account.signMessage({ message: msg.message });
     }
-    authedWallet = wallet.toLowerCase();
+    // Do not set authedWallet until auth/ok — signing alone is not a server session.
     socket.send(
       JSON.stringify({
         type: "auth",
@@ -158,6 +158,7 @@ async function completeSignedAuth(msg: Extract<ServerMessage, { type: "auth/chal
   } catch {
     useGame.getState().pushLog("Error: Could not sign the login challenge.");
     authInFlight = false;
+    authedWallet = null;
   }
 }
 
@@ -215,7 +216,7 @@ export function checkCharacterNameAvailable(
   if (!socket || socket.readyState !== WebSocket.OPEN) {
     return Promise.resolve({ ok: false, error: "Not connected to the server." });
   }
-  if (!authedWallet) {
+  if (!isServerAuthed()) {
     return Promise.resolve({ ok: false, error: "Sign in before checking names." });
   }
   if (nameCheckWaiter) {
@@ -293,6 +294,7 @@ export function connectSocket() {
     }
     if (msg.type === "auth/ok") {
       authInFlight = false;
+      authedWallet = msg.wallet.toLowerCase();
       g.setWallet(msg.wallet);
       g.setPendingCreateEnter(false);
       const list =
@@ -379,8 +381,15 @@ export function connectSocket() {
     } else if (msg.type === "log") {
       g.pushLog(msg.message);
     } else if (msg.type === "error") {
-      authInFlight = false;
-      if (nameCheckWaiter) {
+      if (authInFlight) {
+        authInFlight = false;
+        authedWallet = null;
+      }
+      // Only resolve a pending nameCheck on errors that are replies to that request path.
+      if (
+        nameCheckWaiter &&
+        /Authenticate first|signed wallet first|Too many name checks/i.test(msg.message)
+      ) {
         clearTimeout(nameCheckWaiter.timer);
         const resolve = nameCheckWaiter.resolve;
         nameCheckWaiter = null;

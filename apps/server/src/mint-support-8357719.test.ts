@@ -24,6 +24,7 @@ const MINT = privateKeyToAccount("0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca8
 const GAME = "0x1111111111111111111111111111111111111111";
 const ENV_RPC = process.env.LOK_SUPPORT_RPC ?? "";
 const ENV_NEW = process.env.LOK_SUPPORT_NEW_FACTORY ?? "";
+const canRunFactory = !!(ENV_RPC && ENV_NEW) || supportAnvilAvailable;
 
 async function args(o: { chainId: number; charId: string; tokenId?: string; nonce?: string }) {
   const expiry = Math.floor(Date.now() / 1000) + 300;
@@ -75,8 +76,10 @@ describe("support 8357719: mint claim L3 + M-A", () => {
     const r = await acceptedMintWallets(a);
     assert.equal(r.ok, true, "claim for a legal name is rejected after the fee was paid: " + JSON.stringify(r));
   });
-  it("SUPPORT-FAIL: factorySupportsCreateFor is true for a factory that has createCharacterFor", async () => {
-    assert.ok(RPC && NEW_FACTORY, "MintFixture not ready (need foundry+libs or LOK_SUPPORT_*)");
+  it("SUPPORT-FAIL: factorySupportsCreateFor is true for a factory that has createCharacterFor", {
+    skip: !canRunFactory,
+  }, async () => {
+    assert.ok(RPC && NEW_FACTORY, "MintFixture missing addresses");
     assert.equal(await factorySupportsCreateFor(RPC, NEW_FACTORY, 31337), true);
   });
 });

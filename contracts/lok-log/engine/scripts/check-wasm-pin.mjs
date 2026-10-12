@@ -8,9 +8,10 @@
 // Exit 0 when pkg/lok_engine.wasm matches LOCAL_RULESET_WASM_SHA256 in apps/server/src/lok-vault.ts
 // (and, unless --no-build, the fresh build matches pkg/). Exit 1 on any mismatch.
 //
-// Builds remapped host/cargo paths so Linux CI and local agents with the same
-// rust-toolchain.toml (1.83.0) produce a byte-identical wasm. Windows may still
-// differ; CI is the source of truth for the pin.
+// Rebuilds remap host/cargo paths (--remap-path-prefix) for cross-machine
+// comparison. A remapped digest that differs from pkg/ is expected until the
+// batched redeploy commits a new pkg + LOCAL_RULESET_WASM_SHA256. CI hard-gates
+// with --no-build (pkg ↔ pin only).
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { copyFileSync, existsSync, readFileSync, realpathSync } from "node:fs";

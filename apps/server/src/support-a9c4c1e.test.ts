@@ -89,8 +89,8 @@ describe("support a9c4c1e", () => {
     configureMintClaimNonceStore(store);
     assert.equal((await acceptedMintWallets(a)).ok, false, "rejected after restart (persisted)");
   });
-  it("M-A: an old factory without createCharacterFor reports false", async () => {
-    assert.ok(canRunOnChain && RPC && OLD, "throwaway anvil fixture not ready");
+  it("M-A: an old factory without createCharacterFor reports false", { skip: !canRunOnChain }, async () => {
+    assert.ok(RPC && OLD, "anvil fixture missing addresses");
     assert.equal(await factorySupportsCreateFor(RPC, OLD, 31337), false);
   });
   it("M-D: mock path is off for chain 1 / non-local RPC", () => {
@@ -114,8 +114,10 @@ describe("support a9c4c1e", () => {
       );
     }
   });
-  it("M-D: on-chain verify accepts the real mock and rejects a mock for another escrow / no code", async () => {
-    assert.ok(canRunOnChain && RPC && ESCROW && MOCK, "throwaway anvil fixture not ready");
+  it("M-D: on-chain verify accepts the real mock and rejects a mock for another escrow / no code", {
+    skip: !canRunOnChain,
+  }, async () => {
+    assert.ok(RPC && ESCROW && MOCK, "anvil fixture missing addresses");
     const env = {
       LOK_EEZ_SYNC_BUY: "1",
       LOK_EEZ_ZONE_ID: "z",
