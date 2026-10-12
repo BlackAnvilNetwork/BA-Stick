@@ -9,7 +9,7 @@ import { appendFileSync, existsSync, mkdtempSync, readdirSync, readFileSync, wri
 import { hostname, tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { acquireDataDirLock, DATA_DIR_LOCK_FILE, dataDirLockedByOther, readDataDirLock } from "./data-dir-lock";
+import { acquireDataDirLock, DATA_DIR_LOCK_FILE, dataDirLockedByOther, LOCK_FRESH_MS, readDataDirLock } from "./data-dir-lock";
 import { LokWorld, MAX_FILLS_PER_BUY_MESSAGE } from "./lok-world";
 
 function tmp(prefix: string): string {
@@ -158,6 +158,31 @@ test("the UI quantity plan uses the server's per-message fill cap", () => {
   const small = planQuantityFills(asks, "buyer", 7, 3);
   assert.equal(small.fills.length, 3);
   assert.equal(small.capped, undefined);
+});
+
+// ---------------------------------------------------------------- follow-ups from the #210 review
+
+test("an empty or unparseable lock younger than LOCK_FRESH_MS is held, not taken over", () => {
+  for (const content of ["", '{"pid":']) {
+    const dir = tmp("lok-lock-fresh-");
+    const path = join(dir, DATA_DIR_LOCK_FILE);
+    writeFileSync(path, content);
+    assert.ok(dataDirLockedByOther(dir), "a just-created lock counts as held");
+    assert.throws(() => acquireDataDirLock(dir, {}), /still being written/);
+    assert.throws(() => LokWorld.open(dir, undefined, {}), /still being written/);
+    assert.equal(readFileSync(path, "utf8"), content, "the owner's lock file is left in place");
+    assert.equal(existsSync(join(dir, "lok-world.json")), false, "a refused open must not write the log");
+  }
+});
+
+test("an empty lock older than LOCK_FRESH_MS is stale and taken over", () => {
+  const dir = tmp("lok-lock-old-empty-");
+  const path = join(dir, DATA_DIR_LOCK_FILE);
+  writeFileSync(path, "");
+  const later = Date.now() + LOCK_FRESH_MS + 1_000;
+  assert.equal(dataDirLockedByOther(dir, later), null);
+  acquireDataDirLock(dir, {}, () => later);
+  assert.equal(readDataDirLock(dir)?.pid, process.pid);
 });
 
 // ---------------------------------------------------------------- vault play path removed (withdraw queue / deposit watcher gone)
