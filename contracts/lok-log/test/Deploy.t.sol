@@ -30,25 +30,21 @@ contract DeployTest is Test {
         assertTrue(d.nft.hasRole(admin, multisig));
         assertTrue(d.factory.hasRole(admin, multisig));
         assertTrue(d.rulesets.hasRole(admin, multisig));
-        assertTrue(d.vault.hasRole(admin, multisig));
         assertFalse(d.checkpoint.hasRole(admin, address(s)));
         assertFalse(d.nft.hasRole(admin, address(s)));
         assertFalse(d.factory.hasRole(admin, address(s)));
         assertFalse(d.rulesets.hasRole(admin, address(s)));
-        assertFalse(d.vault.hasRole(admin, address(s)));
 
-        // wiring
+        // wiring (no KekVault — play path is AhEscrow; vault returns on batched redeploy if needed)
         assertTrue(d.nft.hasRole(d.nft.MINTER_ROLE(), address(d.factory)));
         assertTrue(d.checkpoint.hasRole(d.checkpoint.FACTORY_ROLE(), address(d.factory)));
         assertTrue(d.checkpoint.hasRole(d.checkpoint.NFT_ROLE(), address(d.nft)));
-        assertTrue(d.vault.hasRole(d.vault.BRIDGE_ROLE(), address(d.checkpoint)));
         assertEq(address(d.checkpoint.rulesets()), address(d.rulesets));
         assertEq(address(d.checkpoint.items()), address(items));
-        assertEq(address(d.checkpoint.vault()), address(d.vault));
+        assertEq(address(d.checkpoint.vault()), address(0));
         assertTrue(d.rulesets.hasRole(d.rulesets.PROPOSER_ROLE(), proposer));
         assertTrue(d.rulesets.hasRole(d.rulesets.EMERGENCY_ROLE(), multisig));
         assertEq(d.rulesets.minDelay(), 48 hours);
-        assertEq(d.vault.withdrawDelay(), 24 hours);
         assertEq(d.factory.mintFee(), 0.001 ether);
 
         // the checkpoint contract still has to be made a minter of the items contract by the items admin

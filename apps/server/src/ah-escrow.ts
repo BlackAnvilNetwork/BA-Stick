@@ -156,14 +156,7 @@ export function applyAskFilled(
   }
 
   const reason = reasonFromEngineError(res.error);
-  if (
-    reason === "unknown-listing" ||
-    reason === "self-transfer" ||
-    reason === "not-spawned" ||
-    reason === "fill-mismatch" ||
-    reason === "over-ask" ||
-    reason === "unprocessable"
-  ) {
+  if (reason) {
     return { ok: false, kind: "quarantine", error: res.error, reason };
   }
   return { ok: false, kind: "halt", error: res.error };
@@ -172,18 +165,7 @@ export function applyAskFilled(
 /** @deprecated use applyAskFilled result kinds; kept for older tests that only check ok. */
 export function classifyAskFilledFailure(error: string): "replay" | "quarantine" | "other" {
   if (/already mirrored|already (applied|consumed)/i.test(error)) return "replay";
-  const reason = reasonFromEngineError(error);
-  if (
-    reason === "unknown-listing" ||
-    reason === "self-transfer" ||
-    reason === "not-spawned" ||
-    reason === "fill-mismatch" ||
-    reason === "over-ask" ||
-    reason === "unprocessable"
-  ) {
-    return "quarantine";
-  }
-  return "other";
+  return reasonFromEngineError(error) ? "quarantine" : "other";
 }
 
 export function ahEscrowAddress(env: NodeJS.ProcessEnv = process.env): string | null {

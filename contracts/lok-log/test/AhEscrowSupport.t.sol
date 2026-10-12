@@ -70,7 +70,7 @@ contract AhEscrowSupportTest is Test {
         vm.prank(buyer);
         vm.expectRevert(AhEscrow.TransferFailed.selector);
         escrow.buyAsk{value: PRICE}(LISTING, BUYER_TOKEN);
-        (,,,,, bool open) = escrow.asks(LISTING + 1);
+        (,,,,, bool open,) = escrow.asks(LISTING + 1);
         assertTrue(open);
     }
 

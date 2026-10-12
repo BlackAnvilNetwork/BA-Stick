@@ -94,16 +94,21 @@ test("a failed craft spend rolls the reserved materials back", async () => {
 
 test("guardedKekMove serializes two moves on the same token", async () => {
   let balance = 100;
+  const order: number[] = [];
   const first = guardedKekMove("t1", async () => {
     await Promise.resolve();
     balance -= 40;
+    order.push(1);
     return balance;
   });
   const second = guardedKekMove("t1", async () => {
     balance -= 25;
+    order.push(2);
     return balance;
   });
   const [a, b] = await Promise.all([first, second]);
-  assert.equal(a + b, 135);
+  assert.deepEqual(order, [1, 2]);
+  assert.equal(a, 60);
+  assert.equal(b, 35);
   assert.equal(balance, 35);
 });
