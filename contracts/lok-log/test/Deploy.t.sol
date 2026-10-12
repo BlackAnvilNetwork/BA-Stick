@@ -251,13 +251,20 @@ contract DeployTest is Test {
         s.validateConfig(c);
 
         DummySafe safe = new DummySafe();
+        DummySafe timelock = new DummySafe();
         c.admin = address(safe);
         c.emergency = address(safe);
         c.guardian = address(safe);
+        c.timelock = address(timelock);
         s.validateConfig(c);
 
         safe.setThreshold(1);
         vm.expectRevert(abi.encodeWithSelector(Deploy.BadConfig.selector, "admin Safe threshold < 2"));
+        s.validateConfig(c);
+
+        safe.setThreshold(2);
+        c.timelock = address(0);
+        vm.expectRevert(abi.encodeWithSelector(Deploy.BadConfig.selector, "TIMELOCK required on Gnosis (chain 100)"));
         s.validateConfig(c);
     }
 

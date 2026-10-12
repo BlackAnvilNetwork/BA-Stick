@@ -147,14 +147,10 @@ contract RulesetRegistryTest is Test {
     }
 
     function test_initialize_rejectsBelowMinDelay() public {
+        // Deploy impl first — expectRevert must attach to the proxy initialize, not the constructor.
+        RulesetRegistry impl = new RulesetRegistry();
         vm.expectRevert(RulesetRegistry.DelayTooShort.selector);
-        RulesetRegistry(
-            address(
-                new ERC1967Proxy(
-                    address(new RulesetRegistry()), abi.encodeCall(RulesetRegistry.initialize, (admin, 0))
-                )
-            )
-        );
+        new ERC1967Proxy(address(impl), abi.encodeCall(RulesetRegistry.initialize, (admin, 0)));
     }
 
     function test_upgrade_adminOnly_andPreservesState() public {

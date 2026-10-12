@@ -118,7 +118,20 @@ forge script script/DeployChiado.s.sol:DeployChiado --rpc-url "$RPC_URL" --sig "
    `rulesets.propose(rulesetHash, delay, uri)` with `delay >= minDelay` (typically `48 hours`).
 2. Wait until `activatesAt` (propose time + delay). Do **not** point production checkpoints at the hash before activation.
 3. Engine wasm pin must match the proposed ruleset (see `LOCAL_RULESET_WASM_SHA256` / pin tests). For mainnet, propose a **new** hash bound to the audited wasm.
-4. Emergency role (Safe) can cancel a pending ruleset if needed.
+4. Admin Safe (DEFAULT_ADMIN_ROLE) can cancel a pending ruleset via `RulesetRegistry.cancel` (not the EMERGENCY role — L-3).
+
+## Incident playbook
+
+1. **Pause (GUARDIAN Safe)**  
+   - `AhEscrow.pause()` — blocks `openAsk` / `buyAsk` (cancels still work).  
+   - `CharacterFactory.pause()` — blocks `createCharacterFor`.  
+   - Optional: `CharacterCheckpoint.pause()` / `revokeAllSigners()` if checkpoint abuse.
+2. **Mass-cancel open asks** — LISTING key: `AhEscrow.cancelAsks(uint256[] ids)` (or server NFT-transfer / reconcile path). Do not leave asks buyable while paused for open.
+3. **LISTING key compromise** — admin Safe `revokeRole(LISTING_ROLE, old)`; grant a new listing EOA; rotate `LOK_LISTING_KEY` on the host; never reuse the leaked key.
+4. **ROTATOR / PROPOSER compromise** — revoke on Checkpoint / RulesetRegistry; rotate server keys; re-fund new EOAs with minimal xDAI.
+5. **Stuck `openAsk` (mempool / pause revert)** — server stores pending hash+nonce under `open-ask-pending.json`. Use `replacePendingOpenAsk` (same-nonce self-tx or cancel) or wait until the LISTING nonce advances, then reclaim/cancel on the log. Quarantined AskFilled fills: treasury refund procedure (document the fill listingId + buyer tx on the ops channel; Safe sends xDAI to buyer).
+6. **Upgrade / setMinDelay** — only via TimelockController (`upgradeAuthority`); never set `minDelay` below 1 day. On chain 100, `TIMELOCK` is required at deploy.
+7. **Unpause** — DEFAULT_ADMIN Safe after the incident is contained (`unpause` on AhEscrow / Factory).
 
 ## Post-deploy checklist
 

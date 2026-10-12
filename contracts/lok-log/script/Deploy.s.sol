@@ -166,6 +166,11 @@ contract Deploy is Script {
         if (c.timelock != address(0) && c.timelock.code.length == 0) {
             revert BadConfig("timelock must be a contract");
         }
+        // Gnosis mainnet: TimelockController is required so upgrades cannot be immediate.
+        if (block.chainid == 100) {
+            if (c.timelock == address(0)) revert BadConfig("TIMELOCK required on Gnosis (chain 100)");
+            if (c.timelock.code.length == 0) revert BadConfig("timelock must be a contract");
+        }
 
         // Optional: if ADMIN looks like a Safe, require threshold >= 2.
         try ISafeThreshold(c.admin).getThreshold() returns (uint256 threshold) {
