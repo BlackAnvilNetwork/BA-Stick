@@ -1,3 +1,4 @@
+import { explorerTxUrl } from "@bellgrave/config";
 import { CATALOG, EQUIP_SLOTS, getItem, type EquipSlot, type ItemDef, type ItemKind } from "@bellgrave/items";
 import {
   AH_FEE_BPS,
@@ -76,7 +77,8 @@ function formatUnit(priceWei: bigint, amount: bigint): string {
   return formatEther(priceWei / amount);
 }
 
-function formatWeiEth(wei: string): string {
+/** Format wei as human decimal (settlement-neutral — xDAI on Gnosis, ETH on anvil). */
+function formatWeiHuman(wei: string): string {
   if (!/^\d+$/.test(wei)) return wei;
   try {
     return formatEther(BigInt(wei));
@@ -220,7 +222,7 @@ function buyNote(plan: QuantityPlan, qty: number, feeBps = AH_FEE_BPS, symbol = 
       : "";
   return (
     "You pay " +
-    formatWeiEth(total) +
+    formatWeiHuman(total) +
     " " +
     symbol +
     " across " +
@@ -228,11 +230,11 @@ function buyNote(plan: QuantityPlan, qty: number, feeBps = AH_FEE_BPS, symbol = 
     " asks. Marketplace fee " +
     feeBps / 100 +
     "% (" +
-    formatWeiEth(feeTotal.toString()) +
+    formatWeiHuman(feeTotal.toString()) +
     " " +
     symbol +
     "); sellers receive " +
-    formatWeiEth(sellerTotal.toString()) +
+    formatWeiHuman(sellerTotal.toString()) +
     " " +
     symbol +
     ". Each ask is charged its own price, not a blended rate." +
@@ -273,7 +275,7 @@ export function AuctionBook({ listings, buyer, ahEscrow, eezSyncBuy }: Props) {
   const canPay =
     (!!ahEscrow || eezReady) && payableFills.length > 0 && legacyFills.length === 0 && !paying;
 
-  async function payWithEth() {
+  async function paySettlement() {
     if (!buying || payableFills.length === 0 || legacyFills.length > 0 || paying) return;
     setPaying(true);
     try {
@@ -289,10 +291,14 @@ export function AuctionBook({ listings, buyer, ahEscrow, eezSyncBuy }: Props) {
           pushLog("Error: " + res.error);
           return;
         }
+        const eezChain =
+          eezSyncBuy.homeChainId ?? eezSyncBuy.gameChainId ?? ahEscrow?.chainId ?? 0;
+        const links = res.hashes.map((h) => explorerTxUrl(eezChain, h)).filter(Boolean);
         pushLog(
           "Confirmed " +
             res.hashes.length +
-            " EEZ mock sync buy(s) on-chain. Items land in your Provisioner inbox after AskFilled.",
+            " EEZ mock sync buy(s) on-chain. Items land in your Provisioner inbox after AskFilled." +
+            (links.length ? " " + links.join(" ") : ""),
         );
         setBuyingId(null);
         return;
@@ -310,10 +316,14 @@ export function AuctionBook({ listings, buyer, ahEscrow, eezSyncBuy }: Props) {
         pushLog("Error: " + res.error);
         return;
       }
+      const links = res.hashes.map((h) => explorerTxUrl(ahEscrow.chainId, h)).filter(Boolean);
       pushLog(
         "Submitted " +
           res.hashes.length +
-          " AhEscrow buy(s). Items land in your Provisioner inbox after the server sees AskFilled.",
+          " AhEscrow buy(s) (" +
+          unit +
+          "). Items land in your Provisioner inbox after the server sees AskFilled." +
+          (links.length ? " " + links.join(" ") : ""),
       );
       setBuyingId(null);
     } finally {
@@ -444,7 +454,7 @@ export function AuctionBook({ listings, buyer, ahEscrow, eezSyncBuy }: Props) {
           <ul className="prov-fills">
             {plan.fills.slice(0, 8).map((fill) => (
               <li key={fill.id}>
-                x{fill.amount} at {formatWeiEth(fill.price)} {unit}
+                x{fill.amount} at {formatWeiHuman(fill.price)} {unit}
               </li>
             ))}
             {plan.fills.length > 8 && <li>plus {plan.fills.length - 8} more asks, cheapest first</li>}
@@ -492,7 +502,7 @@ export function AuctionBook({ listings, buyer, ahEscrow, eezSyncBuy }: Props) {
                     ? "Sign buyAsk with your local wallet"
                     : "AhEscrow not configured"
             }
-            onClick={() => void payWithEth()}
+            onClick={() => void paySettlement()}
           >
             {paying
               ? "Paying…"
@@ -532,7 +542,7 @@ function YourAsks({
             {row.book
               ? isLegacyKekPrice(row.minPrice)
                 ? " ask " + row.minPrice + " (legacy KEK — relist)"
-                : " ask " + formatWeiEth(row.minPrice) + " " + unit
+                : " ask " + formatWeiHuman(row.minPrice) + " " + unit
               : " legacy auction"}
           </span>
           {row.yours && (

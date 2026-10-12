@@ -20,6 +20,8 @@ interface ImportMetaEnv {
   readonly VITE_ALLOW_ANVIL_WC?: string;
   /** Home / login chain id (default 100 Gnosis). Use 31337 for local anvil mint pay. */
   readonly VITE_CHAIN_ID?: string;
+  /** Named settlement profile: gnosis | chiado | anvil (see @bellgrave/config NETWORK_PROFILES). */
+  readonly VITE_NETWORK?: string;
 }
 
 interface ImportMeta {

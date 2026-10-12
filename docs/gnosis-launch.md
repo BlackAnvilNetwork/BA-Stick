@@ -67,6 +67,17 @@ GNOSIS_RPC_URL=https://rpc.gnosischain.com ./script/simulate-deploy-gnosis-fork.
 
 Uses placeholder distinct role addresses (`SIM_*` overridable). Confirms role guards + 1 xDAI mint fee path on a live fork tip. No mainnet txs.
 
+### Fork e2e: mint (1 xDAI) + AH list/buy
+
+Automated test (local anvil fork only; never broadcasts to public RPCs):
+
+```bash
+# optional: GNOSIS_RPC_URL=https://rpc.gnosischain.com
+pnpm --filter @bellgrave/server exec tsx --test src/gnosis-fork-mint-ah.test.ts
+```
+
+Deploys `GnosisForkMintAhFixture` onto the fork, mints two characters at **1 xDAI**, `openAsk` + `buyAsk`, and asserts gnosisscan URL shaping. Web unit coverage: `pnpm --filter @bellgrave/web test` (AppKit/xDAI labels + explorer links).
+
 ### Simulation against your filled `.env.gnosis` (still no broadcast)
 
 ```bash

@@ -215,8 +215,101 @@ export function deployAhEscrowFixture(rpc: string): string {
   return m[1]!;
 }
 
+/** Public Gnosis RPC for `anvil --fork-url` (never broadcast to this URL). */
+export function gnosisForkUrl(): string | null {
+  const raw = (process.env.GNOSIS_RPC_URL ?? process.env.FORK_URL ?? "").trim();
+  if (raw) return raw;
+  // Default public endpoint — tests skip only when anvil/forge missing.
+  return "https://rpc.gnosischain.com";
+}
+
+export type GnosisForkAnvil = ThrowawayAnvil & { forkUrl: string; chainId: number };
+
+/**
+ * Local anvil forked from Gnosis tip (chain id stays 100).
+ * All broadcasts must use the returned local `rpc` — never the fork URL.
+ */
+export async function startGnosisForkAnvil(opts?: {
+  forkUrl?: string;
+}): Promise<GnosisForkAnvil> {
+  const bin = resolveAnvilBin();
+  if (!bin) throw new Error("anvil not found");
+  const forkUrl = (opts?.forkUrl ?? gnosisForkUrl())?.trim();
+  if (!forkUrl) throw new Error("GNOSIS_RPC_URL / FORK_URL required for Gnosis fork");
+  const port = await freePort();
+  const rpc = "http://127.0.0.1:" + port;
+  const proc = spawn(bin, ["--fork-url", forkUrl, "--port", String(port)], {
+    stdio: ["ignore", "ignore", "pipe"],
+  });
+  await waitRpc(rpc, 80);
+  return {
+    rpc,
+    proc,
+    forkUrl,
+    chainId: 100,
+    stop: () => {
+      proc.kill("SIGTERM");
+    },
+  };
+}
+
+export type GnosisForkMintAh = {
+  nft: string;
+  factory: string;
+  escrow: string;
+  mintFeeWei: bigint;
+};
+
+/** Deploy 1 xDAI mint factory + AhEscrow onto a local Gnosis fork RPC. */
+export function deployGnosisForkMintAhFixture(
+  rpc: string,
+  privateKey: string = SUPPORT_ANVIL_K0,
+): GnosisForkMintAh {
+  const forge = resolveForgeBin();
+  if (!forge) throw new Error("forge not found");
+  if (!forgeLibsPresent()) throw new Error("contracts/lok-log/lib missing");
+  if (!/^https?:\/\/127\.0\.0\.1:\d+\/?$/.test(rpc) && !/^https?:\/\/localhost:\d+\/?$/.test(rpc)) {
+    throw new Error("deployGnosisForkMintAhFixture refuses non-local RPC: " + rpc);
+  }
+  const pk = privateKey.startsWith("0x") ? privateKey : "0x" + privateKey;
+  const out = execFileSync(
+    forge,
+    [
+      "script",
+      "script/GnosisForkMintAhFixture.s.sol:GnosisForkMintAhFixture",
+      "--rpc-url",
+      rpc,
+      "--private-key",
+      pk,
+      "--broadcast",
+      "-vv",
+    ],
+    {
+      cwd: SUPPORT_LOK,
+      encoding: "utf8",
+      env: { ...process.env, FOUNDRY_DISABLE_NIGHTLY_WARNING: "1" },
+      maxBuffer: 16 * 1024 * 1024,
+    },
+  );
+  const nftMatch = /NFT\s+(0x[a-fA-F0-9]{40})/.exec(out);
+  const factoryMatch = /FACTORY\s+(0x[a-fA-F0-9]{40})/.exec(out);
+  const escrowMatch = /ESCROW\s+(0x[a-fA-F0-9]{40})/.exec(out);
+  if (!nftMatch || !factoryMatch || !escrowMatch) {
+    throw new Error("GnosisForkMintAhFixture did not print NFT/FACTORY/ESCROW\n" + out.slice(-1200));
+  }
+  return {
+    nft: nftMatch[1]!,
+    factory: factoryMatch[1]!,
+    escrow: escrowMatch[1]!,
+    mintFeeWei: 10n ** 18n,
+  };
+}
+
 export const supportAnvilAvailable = !!(
   resolveAnvilBin() &&
   resolveForgeBin() &&
   forgeLibsPresent()
 );
+
+/** Foundry + reachable fork URL for Gnosis fork e2e (broadcasts stay on local anvil). */
+export const gnosisForkAvailable = supportAnvilAvailable && !!gnosisForkUrl();

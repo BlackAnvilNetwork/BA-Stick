@@ -17,7 +17,7 @@ import {
   type JobId,
 } from "@bellgrave/combat";
 import { clearPendingMint, mintCharacterWithWallet } from "./character-mint";
-import { ITEM, normalizeCharacterName, characterNameKey } from "@bellgrave/config";
+import { ITEM, normalizeCharacterName, characterNameKey, explorerTxUrl } from "@bellgrave/config";
 import { getItem } from "@bellgrave/items";
 import type { AbilityId, UnitSnapshot } from "@bellgrave/protocol";
 import { useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent } from "react";
@@ -1511,15 +1511,23 @@ function CreatePanel() {
                 setCreating(false);
                 return;
               }
-              pushLog(
-                (res.reused
-                  ? "Reusing already-paid NFT #"
-                  : "Paid character mint fee (native " +
-                      (mintCfg.currency?.symbol ?? "ETH") +
-                      "). Creating log identity for NFT #") +
-                  res.tokenId +
-                  "…",
-              );
+              {
+                const unit = mintCfg.currency?.symbol ?? "xDAI";
+                const txLink =
+                  !res.reused && res.hash && res.hash !== "reuse"
+                    ? explorerTxUrl(mintCfg.chainId, res.hash)
+                    : "";
+                pushLog(
+                  (res.reused
+                    ? "Reusing already-paid NFT #"
+                    : "Paid character mint fee (native " +
+                        unit +
+                        "). Creating log identity for NFT #") +
+                    res.tokenId +
+                    "…" +
+                    (txLink ? " " + txLink : ""),
+                );
+              }
               finish({
                 tokenId: res.tokenId,
                 mintWallet: res.payer,
@@ -1553,7 +1561,9 @@ function CreatePanel() {
       {mintCfg ? (
         <p className="boot-sub">
           Character NFT mint fee: {(Number(mintCfg.mintFee) / 1e18).toFixed(4)}{" "}
-          {mintCfg.currency?.symbol ?? "ETH"} (native, paid from your
+          {mintCfg.currency?.symbol ??
+            (mintCfg.chainId === 100 || mintCfg.chainId === 10200 ? "xDAI" : "ETH")}{" "}
+          (native, paid from your
           wallet before the character is created)
           {mintCfg.devFaucet ? ". Local faucet can fund the burner on anvil 31337." : ""}.
         </p>

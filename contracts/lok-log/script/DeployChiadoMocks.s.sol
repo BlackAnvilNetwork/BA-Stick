@@ -17,6 +17,6 @@ contract DeployChiadoMocks is Script {
         vm.stopBroadcast();
         console.log("MockItems", items);
         console.log("MockKEK  ", kek);
-        console.log("WARNING: anvil-only mocks — do not wire on 100/10200");
+        console.log("WARNING: anvil-only mocks - do not wire on 100/10200");
     }
 }

@@ -1,6 +1,7 @@
 /**
  * MetaMask / EIP-1193 injected connect + sign — works without WalletConnect project id.
  */
+import { settlementCurrency } from "@bellgrave/config";
 import { createWalletClient, custom, type Account, type EIP1193Provider } from "viem";
 import { defaultRpcUrl } from "./walletconnect";
 
@@ -50,13 +51,14 @@ export async function connectInjectedWallet(opts?: {
     } catch (err) {
       const code = (err as { code?: number })?.code;
       if (code === 4902 || code === -32603) {
+        const cur = settlementCurrency(opts.chainId);
         await ethereum.request({
           method: "wallet_addEthereumChain",
           params: [
             {
               chainId: hexId,
-              chainName: "Settlement",
-              nativeCurrency: { name: "xDAI", symbol: "xDAI", decimals: 18 },
+              chainName: cur.name,
+              nativeCurrency: { name: cur.name, symbol: cur.symbol, decimals: cur.decimals },
               rpcUrls: [opts.rpcUrl],
             },
           ],
@@ -75,12 +77,13 @@ export async function connectInjectedWallet(opts?: {
   }
 
   const rpcUrl = opts?.rpcUrl ?? defaultRpcUrl(chainId);
+  const cur = settlementCurrency(chainId);
   const client = createWalletClient({
     account: address,
     chain: {
       id: chainId,
-      name: String(chainId),
-      nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+      name: cur.name,
+      nativeCurrency: { name: cur.name, symbol: cur.symbol, decimals: cur.decimals },
       rpcUrls: { default: { http: [rpcUrl] } },
     },
     transport: custom(ethereum as EIP1193Provider),
