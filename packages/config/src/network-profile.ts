@@ -36,7 +36,8 @@ export const NETWORK_PROFILES: Record<NetworkName, NetworkProfile> = {
     ],
     explorer: "https://gnosisscan.io",
     blockscout: "https://gnosis.blockscout.com",
-    confirmations: 2,
+    /** ~30 blocks (~2.5m); watchers prefer `finalized` when the RPC supports it. */
+    confirmations: 30,
     deployFile: "deployments/gnosis.json",
     currency: SETTLEMENT_BY_CHAIN[100]!,
   },
@@ -49,7 +50,7 @@ export const NETWORK_PROFILES: Record<NetworkName, NetworkProfile> = {
     ],
     explorer: "https://gnosis-chiado.blockscout.com",
     blockscout: "https://gnosis-chiado.blockscout.com",
-    confirmations: 2,
+    confirmations: 30,
     deployFile: "deployments/chiado.json",
     currency: SETTLEMENT_BY_CHAIN[10200]!,
   },

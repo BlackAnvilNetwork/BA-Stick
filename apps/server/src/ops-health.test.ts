@@ -2,21 +2,50 @@ import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, it } from "node:test";
+import { afterEach, describe, it } from "node:test";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { ASK_FILLED_QUARANTINE_FILE } from "./lok-ask-filled-quarantine";
 import { NFT_TRANSFER_DROPPED_FILE } from "./nft-transfer-ask-cancel";
-import { buildOpsStatus, handleOpsHttp } from "./ops-health";
+import {
+  buildOpsStatus,
+  handleOpsHttp,
+  redactSettlementRpcStats,
+  statusAuthorized,
+} from "./ops-health";
 import { opsAlert, resetOpsAlertsForTests, watcherLagAlertBlocks } from "./ops-log";
+import { jsonStringifySafe, redactDataDir, redactRpcUrl } from "./ops-redact";
+import {
+  resetSettlementRpcForTests,
+  RotatingJsonRpc,
+  setSettlementRpcForTests,
+} from "./settlement-rpc";
 
 describe("ops health + structured alerts", () => {
+  afterEach(() => {
+    resetOpsAlertsForTests();
+    resetSettlementRpcForTests();
+  });
+
   it("watcherLagAlertBlocks defaults to 50 and reads LOK_WATCHER_LAG_ALERT_BLOCKS", () => {
     assert.equal(watcherLagAlertBlocks({}), 50n);
     assert.equal(watcherLagAlertBlocks({ LOK_WATCHER_LAG_ALERT_BLOCKS: "12" }), 12n);
   });
 
+  it("redacts RPC URLs to scheme+host", () => {
+    assert.equal(
+      redactRpcUrl("https://eth-mainnet.g.alchemy.com/v2/SECRET_KEY_HERE"),
+      "https://eth-mainnet.g.alchemy.com",
+    );
+    assert.equal(redactDataDir("/var/lib/bellgrave/prod-data"), "prod-data");
+  });
+
+  it("jsonStringifySafe serializes BigInt without throwing", () => {
+    const s = jsonStringifySafe({ tip: 42n, nested: { c: 7n } });
+    assert.equal(JSON.parse(s).tip, "42");
+    assert.equal(JSON.parse(s).nested.c, "7");
+  });
+
   it("opsAlert writes JSON ring and dedupes lag keys", () => {
-    resetOpsAlertsForTests();
     opsAlert({
       level: "alert",
       event: "watcher_lag",
@@ -44,7 +73,6 @@ describe("ops health + structured alerts", () => {
   });
 
   it("buildOpsStatus counts dropped cancels and quarantine files", () => {
-    resetOpsAlertsForTests();
     const dir = mkdtempSync(join(tmpdir(), "lok-ops-"));
     writeFileSync(
       join(dir, NFT_TRANSFER_DROPPED_FILE),
@@ -88,14 +116,122 @@ describe("ops health + structured alerts", () => {
     assert.equal(status.alerts.askFilledQuarantine, 1);
   });
 
-  it("handleOpsHttp serves /health /ready /status", async () => {
-    resetOpsAlertsForTests();
+  it("/status serializes populated tipBlock + cursors (BigInt) without crashing", async () => {
+    const client = new RotatingJsonRpc([
+      "https://eth-mainnet.g.alchemy.com/v2/SUPER_SECRET_KEY",
+      "https://rpc.gnosischain.com",
+    ]);
+    client.stats.tipBlock = 12_345_678n;
+    client.noteCursor("askFilled", 12_345_600n);
+    client.noteCursor("nftTransfer", 12_345_550n);
+    client.stats.lastError = "HTTP 429 from https://eth-mainnet.g.alchemy.com/v2/SUPER_SECRET_KEY";
+    setSettlementRpcForTests(client);
+
+    const dir = mkdtempSync(join(tmpdir(), "lok-ops-"));
+    const deps = {
+      lokReady: () => true,
+      startedAtMs: Date.now(),
+      dataDir: join(dir, "absolute-secret-path"),
+      env: { NETWORK: "gnosis", LOK_CHAIN_ID: "100" },
+      remoteAddress: "127.0.0.1",
+    };
+    // basename of a path that may not exist yet — create it
+    const { mkdirSync } = await import("node:fs");
+    mkdirSync(deps.dataDir, { recursive: true });
+
+    const view = redactSettlementRpcStats(client.stats);
+    assert.ok(view);
+    assert.equal(view.url, "https://eth-mainnet.g.alchemy.com");
+    assert.ok(!view.urls.some((u) => u.includes("SECRET")));
+    assert.ok(!view.lastError?.includes("SECRET"));
+    assert.equal(view.tipBlock, "12345678");
+    assert.equal(view.cursors.askFilled, "12345600");
+
+    let status = 0;
+    let body = "";
+    const res = {
+      writeHead(code: number) {
+        status = code;
+      },
+      end(chunk?: string) {
+        body = chunk ?? "";
+      },
+    } as unknown as ServerResponse;
+    const req = {
+      url: "/status",
+      headers: { host: "localhost:8787" },
+      socket: { remoteAddress: "127.0.0.1" },
+    } as unknown as IncomingMessage;
+
+    assert.equal(handleOpsHttp(req, res, deps), true);
+    assert.equal(status, 200);
+    // Must not throw / must parse — this is the HIGH repro.
+    const parsed = JSON.parse(body);
+    assert.equal(parsed.ok, true);
+    assert.equal(parsed.rpc.tipBlock, "12345678");
+    assert.equal(parsed.rpc.cursors.askFilled, "12345600");
+    assert.equal(parsed.rpc.url, "https://eth-mainnet.g.alchemy.com");
+    assert.ok(!JSON.stringify(parsed).includes("SECRET"));
+    assert.equal(parsed.dataDir, "absolute-secret-path");
+  });
+
+  it("/status rejects non-local without bearer; accepts token", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "lok-ops-"));
+    const env = {
+      NETWORK: "anvil",
+      LOK_CHAIN_ID: "31337",
+      LOK_OPS_STATUS_TOKEN: "test-token",
+    };
+    const deps = {
+      lokReady: () => true,
+      startedAtMs: Date.now(),
+      dataDir: dir,
+      env,
+      remoteAddress: "203.0.113.9",
+    };
+
+    async function hit(
+      headers: Record<string, string>,
+      remote = "203.0.113.9",
+    ): Promise<{ status: number; body: string }> {
+      return new Promise((resolve) => {
+        let statusCode = 0;
+        let body = "";
+        const res = {
+          writeHead(code: number) {
+            statusCode = code;
+          },
+          end(chunk?: string) {
+            body = chunk ?? "";
+            resolve({ status: statusCode, body });
+          },
+        } as unknown as ServerResponse;
+        const req = {
+          url: "/status",
+          headers: { host: "game.example", ...headers },
+          socket: { remoteAddress: remote },
+        } as unknown as IncomingMessage;
+        handleOpsHttp(req, res, { ...deps, remoteAddress: remote });
+      });
+    }
+
+    assert.equal(statusAuthorized({ headers: {}, socket: { remoteAddress: "203.0.113.9" } } as IncomingMessage, env, "203.0.113.9"), false);
+    const denied = await hit({});
+    assert.equal(denied.status, 401);
+
+    const ok = await hit({ authorization: "Bearer test-token" });
+    assert.equal(ok.status, 200);
+    assert.equal(JSON.parse(ok.body).ok, true);
+  });
+
+  it("handleOpsHttp serves /health /ready /status on loopback", async () => {
     const dir = mkdtempSync(join(tmpdir(), "lok-ops-"));
     const deps = {
       lokReady: () => true,
       startedAtMs: Date.now(),
       dataDir: dir,
       env: { NETWORK: "anvil", LOK_CHAIN_ID: "31337" },
+      remoteAddress: "127.0.0.1",
     };
 
     async function hit(path: string): Promise<{ status: number; body: string }> {
@@ -111,7 +247,11 @@ describe("ops health + structured alerts", () => {
             resolve({ status, body });
           },
         } as unknown as ServerResponse;
-        const req = { url: path, headers: { host: "localhost" } } as IncomingMessage;
+        const req = {
+          url: path,
+          headers: { host: "localhost" },
+          socket: { remoteAddress: "127.0.0.1" },
+        } as unknown as IncomingMessage;
         assert.equal(handleOpsHttp(req, res, deps), true);
       });
     }

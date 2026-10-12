@@ -123,8 +123,16 @@ export async function startThrowawayAnvil(): Promise<ThrowawayAnvil> {
   };
 }
 
+/** Refuse forge --broadcast against anything but loopback (never public/mainnet RPCs). */
+export function assertLocalRpc(rpc: string): void {
+  if (!/^https?:\/\/(127\.0\.0\.1|localhost):\d+\/?$/i.test(rpc.trim())) {
+    throw new Error("support fixture refuses non-local RPC: " + rpc);
+  }
+}
+
 /** Deploy AhEscrow with deployer (= key 0) holding LISTING_ROLE. */
 export function deployMintFixture(rpc: string): { nft: string; factory: string } {
+  assertLocalRpc(rpc);
   const forge = resolveForgeBin();
   if (!forge) throw new Error("forge not found");
   if (!forgeLibsPresent()) throw new Error("contracts/lok-log/lib missing");
@@ -156,6 +164,7 @@ export function deployMintFixture(rpc: string): { nft: string; factory: string }
 
 /** Deploy MockEezSyncBuy wired to an AhEscrow on the same anvil. */
 export function deployMockEezSyncBuy(rpc: string, escrow: string, zoneId = 31337): string {
+  assertLocalRpc(rpc);
   const forge = resolveForgeBin();
   if (!forge) throw new Error("forge not found");
   if (!forgeLibsPresent()) throw new Error("contracts/lok-log/lib missing");
@@ -189,6 +198,7 @@ export function deployMockEezSyncBuy(rpc: string, escrow: string, zoneId = 31337
 }
 
 export function deployAhEscrowFixture(rpc: string): string {
+  assertLocalRpc(rpc);
   const forge = resolveForgeBin();
   if (!forge) throw new Error("forge not found");
   if (!forgeLibsPresent()) throw new Error("contracts/lok-log/lib missing");
@@ -265,12 +275,10 @@ export function deployGnosisForkMintAhFixture(
   rpc: string,
   privateKey: string = SUPPORT_ANVIL_K0,
 ): GnosisForkMintAh {
+  assertLocalRpc(rpc);
   const forge = resolveForgeBin();
   if (!forge) throw new Error("forge not found");
   if (!forgeLibsPresent()) throw new Error("contracts/lok-log/lib missing");
-  if (!/^https?:\/\/127\.0\.0\.1:\d+\/?$/.test(rpc) && !/^https?:\/\/localhost:\d+\/?$/.test(rpc)) {
-    throw new Error("deployGnosisForkMintAhFixture refuses non-local RPC: " + rpc);
-  }
   const pk = privateKey.startsWith("0x") ? privateKey : "0x" + privateKey;
   const out = execFileSync(
     forge,
@@ -311,5 +319,24 @@ export const supportAnvilAvailable = !!(
   forgeLibsPresent()
 );
 
-/** Foundry + reachable fork URL for Gnosis fork e2e (broadcasts stay on local anvil). */
+/** Probe public fork URL once (skip suite when unreachable — do not fail CI). */
+export async function gnosisForkRpcReachable(forkUrl?: string): Promise<boolean> {
+  const url = (forkUrl ?? gnosisForkUrl())?.trim();
+  if (!url) return false;
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_chainId", params: [] }),
+      signal: AbortSignal.timeout(8_000),
+    });
+    if (!res.ok) return false;
+    const body = (await res.json()) as { result?: string };
+    return typeof body.result === "string" && body.result.length > 0;
+  } catch {
+    return false;
+  }
+}
+
+/** Foundry present for Gnosis fork e2e (broadcasts stay on local anvil). */
 export const gnosisForkAvailable = supportAnvilAvailable && !!gnosisForkUrl();

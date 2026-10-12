@@ -44,7 +44,7 @@ describe("applySettlementDeployFile", () => {
     const env: NodeJS.ProcessEnv = { NETWORK: "gnosis" };
     applySettlementDeployFile(env);
     assert.equal(env.LOK_CHAIN_ID, "100");
-    assert.equal(env.LOK_CONFIRMATIONS, "2");
+    assert.equal(env.LOK_CONFIRMATIONS, "30");
     assert.equal(env.LOK_EXPLORER, "https://gnosisscan.io");
     assert.ok(env.LOK_CHAIN_RPC?.includes("gnosis"));
   });

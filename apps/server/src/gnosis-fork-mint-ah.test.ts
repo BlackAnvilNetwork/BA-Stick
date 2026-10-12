@@ -21,10 +21,21 @@ import { explorerTxUrl, settlementCurrency } from "@bellgrave/config";
 import {
   deployGnosisForkMintAhFixture,
   gnosisForkAvailable,
+  gnosisForkRpcReachable,
   startGnosisForkAnvil,
   type GnosisForkAnvil,
   type GnosisForkMintAh,
 } from "./support-anvil";
+
+let forkRpcOk = false;
+if (gnosisForkAvailable) {
+  forkRpcOk = await gnosisForkRpcReachable();
+  if (!forkRpcOk) {
+    console.warn(
+      "[gnosis-fork-mint-ah] public fork RPC unreachable — skipping suite (not a failure)",
+    );
+  }
+}
 
 const ABI = parseAbi([
   "function mintFee() view returns (uint256)",
@@ -52,7 +63,7 @@ async function fundEoa(rpc: string, address: string, wei = 10n ** 22n): Promise<
 }
 
 describe("gnosis fork: 1 xDAI mint + AH list/buy", {
-  skip: !gnosisForkAvailable,
+  skip: !gnosisForkAvailable || !forkRpcOk,
 }, () => {
   let fork: GnosisForkAnvil | undefined;
   let deployed: GnosisForkMintAh | undefined;

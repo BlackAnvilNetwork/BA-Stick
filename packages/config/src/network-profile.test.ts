@@ -29,7 +29,7 @@ describe("network profiles", () => {
     const env: Record<string, string | undefined> = { NETWORK: "gnosis" };
     applyNetworkProfileEnv(env);
     assert.equal(env.LOK_CHAIN_ID, "100");
-    assert.equal(env.LOK_CONFIRMATIONS, "2");
+    assert.equal(env.LOK_CONFIRMATIONS, "30");
     assert.ok(env.LOK_CHAIN_RPC?.includes("gnosis"));
     assert.ok(env.LOK_CHAIN_RPC_URLS?.includes(","));
     assert.equal(env.LOK_EXPLORER, "https://gnosisscan.io");

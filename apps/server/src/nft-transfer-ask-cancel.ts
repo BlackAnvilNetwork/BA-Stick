@@ -10,14 +10,17 @@ import { join } from "node:path";
 import { ahEscrowAddress, listingRoleKey } from "./ah-escrow";
 import { classifyClosedAsk, type ReconcileRpc } from "./ah-escrow-reconcile";
 import { cancelAskOnchain, readAskOnchain } from "./ah-escrow-tx";
-import { settlementConfirmations } from "./settlement-confirmations";
+import { preferFinalizedTip, settlementConfirmations } from "./settlement-confirmations";
 import { settlementChainId } from "./settlement-chain";
 import {
   settlementRpc,
+  settlementSafeHead,
   watcherLagBlocks,
   watcherStartBlock,
 } from "./settlement-rpc";
 import { opsAlert, watcherLagAlertBlocks } from "./ops-log";
+import { redactRpcUrl } from "./ops-redact";
+import { readWatcherCursor, writeWatcherCursor } from "./watcher-cursor";
 import { defaultLokDir, type LokWorld } from "./lok-world";
 import { writeTextAtomic } from "./lok-vault";
 
@@ -83,7 +86,19 @@ export function nftTransferPendingPath(dataDir: string): string {
   return join(dataDir, "nft-transfer-pending-cancels.json");
 }
 
-function readCursor(path: string): bigint {
+function readCursor(
+  path: string,
+  opts?: { expectedChainId: number; expectedAddress: string },
+): bigint {
+  if (opts) {
+    return readWatcherCursor({
+      path,
+      expectedChainId: opts.expectedChainId,
+      expectedAddress: opts.expectedAddress,
+      onMismatch: (reason) =>
+        console.warn("[bellgrave] NFT transfer " + reason + " — falling back to deploy block"),
+    });
+  }
   if (!existsSync(path)) return 0n;
   try {
     const raw = JSON.parse(readFileSync(path, "utf8")) as { cursor?: string };
@@ -94,7 +109,15 @@ function readCursor(path: string): bigint {
   return 0n;
 }
 
-function writeCursor(path: string, cursor: bigint): void {
+function writeCursor(
+  path: string,
+  cursor: bigint,
+  opts?: { chainId: number; address: string },
+): void {
+  if (opts) {
+    writeWatcherCursor({ path, cursor, chainId: opts.chainId, address: opts.address });
+    return;
+  }
   writeTextAtomic(path, JSON.stringify({ cursor: cursor.toString() }, null, 2) + "\n");
 }
 
@@ -194,9 +217,10 @@ export function persistPendingThenCursor(
   cursorPath: string,
   pending: PendingCancel[],
   cursor: bigint,
+  cursorMeta?: { chainId: number; address: string },
 ): PendingCancel[] {
   const merged = writePendingCancelsMerging(pendingPath, pending);
-  writeCursor(cursorPath, cursor);
+  writeCursor(cursorPath, cursor, cursorMeta);
   return merged;
 }
 
@@ -575,11 +599,15 @@ export async function scanNftTransfers(opts: {
   confirmations?: bigint;
   /** When cursor is 0, begin here (deploy block) instead of tip. */
   startBlock?: bigint;
+  preferFinalized?: boolean;
 }): Promise<{ cursor: bigint }> {
   const confirmations = opts.confirmations ?? NFT_TRANSFER_CONFIRMATIONS;
-  const latestHex = (await opts.rpcCall("eth_blockNumber", [])) as string;
-  const latest = BigInt(latestHex);
-  const safeHead = latest > confirmations ? latest - confirmations : 0n;
+  const head = await settlementSafeHead({
+    rpcCall: opts.rpcCall,
+    confirmations,
+    preferFinalized: opts.preferFinalized === true,
+  });
+  const safeHead = head.safeHead;
   const start = opts.startBlock ?? 0n;
   // cursor 0 = never scanned: backfill from deploy block (not tip — tip skips history).
   let from = opts.cursor === 0n ? start : opts.cursor + 1n;
@@ -665,24 +693,27 @@ export function startNftTransferAskCancelWatcher(
   const droppedPath = nftTransferDroppedPath(dataDir);
   const confirmations = settlementConfirmations(env);
   const startBlock = watcherStartBlock(env);
+  const chainId = settlementChainId(env);
   console.log(
     "[bellgrave] NFT transfer ask-cancel watcher rpc=" +
-      rpc.currentUrl() +
+      redactRpcUrl(rpc.currentUrl()) +
       " fallbacks=" +
       Math.max(0, rpc.urls.length - 1) +
       " nft=" +
       nft +
       " chain=" +
-      settlementChainId(env) +
+      chainId +
       " confirmations=" +
       confirmations.toString() +
+      " finalized=" +
+      preferFinalizedTip(env) +
       " startBlock=" +
       startBlock.toString() +
       " droppedAlerts=" +
       droppedPath,
   );
 
-  let cursor = readCursor(cursorPath);
+  let cursor = readCursor(cursorPath, { expectedChainId: chainId, expectedAddress: nft });
   let pending = readPendingCancels(pendingPath);
   let busy = false;
   const classifyClosed = defaultClassifyClosed(env, rpc.currentUrl());
@@ -706,6 +737,7 @@ export function startNftTransferAskCancelWatcher(
         nft,
         confirmations,
         startBlock,
+        preferFinalized: preferFinalizedTip(env),
         rpcCall: rpc.asCall(),
         onTransfer: async (xfer) => {
           const res = await cancelOpenAsksForCharacter(lok, xfer.tokenId, {
@@ -744,7 +776,10 @@ export function startNftTransferAskCancelWatcher(
         });
       }
       // Re-read+merge pending, then cursor — concurrent list-race enqueues survive this write.
-      pending = persistPendingThenCursor(pendingPath, cursorPath, pending, cursor);
+      pending = persistPendingThenCursor(pendingPath, cursorPath, pending, cursor, {
+        chainId,
+        address: nft,
+      });
     } catch (err) {
       console.error("[bellgrave] NFT transfer ask-cancel watcher", err);
       try {

@@ -3,6 +3,7 @@
  * Used by AhEscrow AskFilled + NFT Transfer watchers (and later health).
  */
 import { settlementRpcUrls } from "@bellgrave/config";
+import { redactRpcText, redactRpcUrl } from "./ops-redact";
 
 export type SettlementRpcCall = (method: string, params: unknown[]) => Promise<unknown>;
 
@@ -75,7 +76,11 @@ export class RotatingJsonRpc {
     this.stats.rotations += 1;
     this.stats.url = this.currentUrl();
     console.warn(
-      "[bellgrave] settlement RPC rotate → " + this.stats.url + " (" + reason + ")",
+      "[bellgrave] settlement RPC rotate → " +
+        redactRpcUrl(this.stats.url) +
+        " (" +
+        redactRpcText(reason) +
+        ")",
     );
   }
 
@@ -100,7 +105,8 @@ export class RotatingJsonRpc {
       } catch (err) {
         lastErr = err;
         this.stats.failures += 1;
-        this.stats.lastError = err instanceof Error ? err.message : String(err);
+        const raw = err instanceof Error ? err.message : String(err);
+        this.stats.lastError = redactRpcText(raw);
         const retryable = isRetryableRpcError(err);
         if (!retryable || attempt === this.maxRetries) break;
         this.rotate(this.stats.lastError);
@@ -122,7 +128,7 @@ async function postJsonRpc(url: string, method: string, params: unknown[]): Prom
     body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
     signal: AbortSignal.timeout(20_000),
   });
-  if (!res.ok) throw new Error("HTTP " + res.status + " from " + url);
+  if (!res.ok) throw new Error("HTTP " + res.status + " from " + redactRpcUrl(url));
   const body = (await res.json()) as { result?: unknown; error?: { message?: string; code?: number } };
   if (body.error) {
     const msg = body.error.message || "rpc error";
@@ -183,6 +189,41 @@ export function watcherLagBlocks(opts: {
   return safe - opts.cursor;
 }
 
+/**
+ * Reorg-safe head for watchers.
+ * On Gnosis / Chiado prefer `finalized`; fall back to tip − confirmations (~30).
+ */
+export async function settlementSafeHead(opts: {
+  rpcCall: SettlementRpcCall;
+  confirmations: bigint;
+  preferFinalized?: boolean;
+}): Promise<{ tip: bigint; safeHead: bigint; source: "finalized" | "confirmations" }> {
+  const tipHex = String(await opts.rpcCall("eth_blockNumber", []));
+  const tip = BigInt(tipHex);
+  if (opts.preferFinalized !== false) {
+    try {
+      const block = (await opts.rpcCall("eth_getBlockByNumber", ["finalized", false])) as {
+        number?: string;
+      } | null;
+      if (block?.number) {
+        const finalized = BigInt(block.number);
+        if (shared) shared.stats.tipBlock = tip;
+        return { tip, safeHead: finalized, source: "finalized" };
+      }
+    } catch {
+      /* finalized unsupported — use confirmations */
+    }
+  }
+  if (shared) shared.stats.tipBlock = tip;
+  const safeHead = tip > opts.confirmations ? tip - opts.confirmations : 0n;
+  return { tip, safeHead, source: "confirmations" };
+}
+
 export function settlementRpcStats(): SettlementRpcStats | null {
   return shared ? { ...shared.stats, cursors: { ...shared.stats.cursors } } : null;
+}
+
+/** Test seam — inject a shared client with populated tip/cursors. */
+export function setSettlementRpcForTests(client: RotatingJsonRpc | null): void {
+  shared = client;
 }

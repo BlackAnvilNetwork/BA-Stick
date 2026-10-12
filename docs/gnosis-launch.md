@@ -98,14 +98,15 @@ set -a && source .env.gnosis && set +a   # gitignored; no secrets in git
 
 forge script script/DeployChiado.s.sol:DeployChiado --rpc-url "$RPC_URL" --sig "run()"
 
-# Broadcast only with go-ahead
-# forge script script/DeployChiado.s.sol:DeployChiado --rpc-url "$RPC_URL" --broadcast --slow --sig "run()"
+# Broadcast only with go-ahead (wrapper refuses unless CONFIRM_BROADCAST=1)
+# CONFIRM_BROADCAST=1 ./script/broadcast-deploy-chiado.sh
+# CONFIRM_BROADCAST=1 VERIFY=1 ./script/broadcast-deploy-chiado.sh   # + Sourcify/Blockscout
 
-# Verify implementations (from Deploy console logs)
-NFT_IMPL=0x... CHECKPOINT_IMPL=0x... FACTORY_IMPL=0x... RULESETS_IMPL=0x... \
-AH_ESCROW=0x... DEPLOYER=0x... NFT_PROXY=0x... FEE_RECIPIENT=0x... \
-CHAIN_ID=100 VERIFIERS="sourcify blockscout" \
-  ./script/verify-deploy.sh
+# Or manual verify (from Deploy console logs)
+# NFT_IMPL=0x... CHECKPOINT_IMPL=0x... FACTORY_IMPL=0x... RULESETS_IMPL=0x... \
+# AH_ESCROW=0x... DEPLOYER=0x... NFT_PROXY=0x... FEE_RECIPIENT=0x... \
+# CHAIN_ID=100 VERIFIERS="sourcify blockscout" \
+#   ./script/verify-deploy.sh
 ```
 
 ## Ruleset proposal (48h timelock)
@@ -127,7 +128,7 @@ CHAIN_ID=100 VERIFIERS="sourcify blockscout" \
 5. Sourcify/Blockscout green on all four impls + AhEscrow (+ Items).
 6. Fund listing/rotator with minimal xDAI; sweep leftovers to treasury after ops.
 7. Server: copy `apps/server/.env.gnosis.example` → `.env.local` (`NETWORK=gnosis`, `LOK_LISTING_KEY`, `LOK_DEPLOY_BLOCK`). Blank `LOK_NFT`/`LOK_FACTORY`/`LOK_AH_ESCROW` fill from deploy JSON **only after official deploy** — never the dry-run MockItems Checkpoint. Web: `VITE_WALLETCONNECT_PROJECT_ID` + `VITE_NETWORK=gnosis` (or `VITE_CHAIN_ID=100`).
-8. Confirmations: profile default 2 blocks (~10s); override with `LOK_CONFIRMATIONS`. RPC fallbacks: `LOK_CHAIN_RPC_URLS` (comma list from the gnosis profile).
+8. Confirmations: profile default **30** blocks (~2.5m) on Gnosis/Chiado; watchers prefer `eth_getBlockByNumber("finalized")` when the RPC supports it (`LOK_USE_FINALIZED=0` to disable). Override with `LOK_CONFIRMATIONS`. RPC fallbacks: `LOK_CHAIN_RPC_URLS`.
 
 ## Ops (production server)
 
@@ -135,9 +136,11 @@ CHAIN_ID=100 VERIFIERS="sourcify blockscout" \
 |-------|-----|---------|
 | Liveness | `GET /health` | Process up (always 200 when listening) |
 | Readiness | `GET /ready` | Lok data dir open; RPC not stuck in hard fail |
-| Status | `GET /status` | JSON: network, RPC stats, watcher lags, dropped-cancel + quarantine counts, recent structured alerts |
+| Status | `GET /status` | JSON: network, **redacted** RPC hosts, watcher lags, dropped-cancel + quarantine counts, recent structured alerts |
 
 Same `PORT` as the WebSocket game server (default `8787`).
+
+**`/status` auth:** loopback only, or `Authorization: Bearer $LOK_OPS_STATUS_TOKEN`. RPC URLs are scheme+host (Alchemy keys stripped); `dataDir` is basename only. BigInt tip/cursors serialize as strings.
 
 **Structured alerts** — stderr JSON lines (`event`: `watcher_lag`, `nft_transfer_cancel_dropped`, `ask_filled_quarantine`). Lag threshold: `LOK_WATCHER_LAG_ALERT_BLOCKS` (default 50). Durable files under `LOK_DATA_DIR`:
 

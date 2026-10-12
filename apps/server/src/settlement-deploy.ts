@@ -12,6 +12,7 @@ import {
   type NetworkProfile,
 } from "@bellgrave/config";
 import { envSettlementChainId } from "./settlement-chain";
+import { redactRpcUrl } from "./ops-redact";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -144,7 +145,7 @@ export function applySettlementDeployFile(env: NodeJS.ProcessEnv = process.env):
       " escrow=" +
       (env.LOK_AH_ESCROW ?? "") +
       " rpc=" +
-      (env.LOK_CHAIN_RPC ?? ""),
+      redactRpcUrl(env.LOK_CHAIN_RPC ?? ""),
   );
 }
 

@@ -6,10 +6,11 @@
 import { settlementCurrencyView } from "@bellgrave/config";
 import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { settlementConfirmations } from "./settlement-confirmations";
+import { preferFinalizedTip, settlementConfirmations } from "./settlement-confirmations";
 import { settlementChainId } from "./settlement-chain";
 import {
   settlementRpc,
+  settlementSafeHead,
   watcherLagBlocks,
   watcherStartBlock,
 } from "./settlement-rpc";
@@ -24,6 +25,8 @@ import {
   type QuarantinedAskFill,
 } from "./lok-ask-filled-quarantine";
 import { opsAlert, watcherLagAlertBlocks } from "./ops-log";
+import { redactRpcUrl } from "./ops-redact";
+import { readWatcherCursor, writeWatcherCursor } from "./watcher-cursor";
 import { defaultLokDir, type LokWorld } from "./lok-world";
 
 /**
@@ -223,7 +226,19 @@ export function askFilledCursorPath(dataDir: string): string {
   return join(dataDir, "lok-ask-filled-cursor.json");
 }
 
-export function readAskFilledCursor(path: string): bigint {
+export function readAskFilledCursor(
+  path: string,
+  opts?: { expectedChainId?: number; expectedAddress?: string },
+): bigint {
+  if (opts?.expectedChainId != null && opts.expectedAddress) {
+    return readWatcherCursor({
+      path,
+      expectedChainId: opts.expectedChainId,
+      expectedAddress: opts.expectedAddress,
+      onMismatch: (reason) =>
+        console.warn("[bellgrave] AskFilled " + reason + " — falling back to deploy block"),
+    });
+  }
   if (!existsSync(path)) return 0n;
   try {
     const parsed = JSON.parse(readFileSync(path, "utf8")) as { cursor?: string };
@@ -234,7 +249,15 @@ export function readAskFilledCursor(path: string): bigint {
   }
 }
 
-export function writeAskFilledCursor(path: string, cursor: bigint): void {
+export function writeAskFilledCursor(
+  path: string,
+  cursor: bigint,
+  opts?: { chainId: number; address: string },
+): void {
+  if (opts) {
+    writeWatcherCursor({ path, cursor, chainId: opts.chainId, address: opts.address });
+    return;
+  }
   const tmp = path + ".tmp";
   writeFileSync(tmp, JSON.stringify({ cursor: cursor.toString() }));
   renameSync(tmp, path);
@@ -250,11 +273,16 @@ export async function scanAskFilled(opts: {
   confirmations?: bigint;
   /** When cursor is 0, begin here (deploy block) instead of genesis. */
   startBlock?: bigint;
+  /** Prefer eth_getBlockByNumber("finalized") as safe head (Gnosis). */
+  preferFinalized?: boolean;
 }): Promise<{ cursor: bigint }> {
   const confirmations = opts.confirmations ?? ASK_FILL_CONFIRMATIONS;
-  const latest = BigInt(String(await opts.rpcCall("eth_blockNumber", [])));
-  if (latest < confirmations) return { cursor: opts.cursor };
-  const safeHead = latest - confirmations;
+  const head = await settlementSafeHead({
+    rpcCall: opts.rpcCall,
+    confirmations,
+    preferFinalized: opts.preferFinalized === true,
+  });
+  const safeHead = head.safeHead;
   if (safeHead < opts.cursor) return { cursor: opts.cursor };
 
   // Page getLogs in 2k-block chunks so L2 RPCs with range limits still work.
@@ -340,21 +368,27 @@ export function startAskFilledWatcher(
   }
   const confirmations = settlementConfirmations(env);
   const startBlock = watcherStartBlock(env);
+  const chainId = settlementChainId(env);
   console.log(
     "[bellgrave] AhEscrow watcher rpc=" +
-      rpc.currentUrl() +
+      redactRpcUrl(rpc.currentUrl()) +
       " fallbacks=" +
       Math.max(0, rpc.urls.length - 1) +
       " escrow=" +
       escrow +
       " chain=" +
-      settlementChainId(env) +
+      chainId +
       " confirmations=" +
       confirmations.toString() +
+      " finalized=" +
+      preferFinalizedTip(env) +
       " startBlock=" +
       startBlock.toString(),
   );
-  let cursor = readAskFilledCursor(cursorPath);
+  let cursor = readAskFilledCursor(cursorPath, {
+    expectedChainId: chainId,
+    expectedAddress: escrow,
+  });
   let busy = false;
   let haltedLogged = false;
   const tick = async () => {
@@ -367,6 +401,7 @@ export function startAskFilledWatcher(
         quarantine,
         confirmations,
         startBlock,
+        preferFinalized: preferFinalizedTip(env),
         rpcCall: rpc.asCall(),
         apply: (fill, fillKey, log) => {
           const beforeSeller = lok.listingOf(fill.listingId)?.seller;
@@ -402,7 +437,7 @@ export function startAskFilledWatcher(
         },
       });
       cursor = next.cursor;
-      writeAskFilledCursor(cursorPath, cursor);
+      writeAskFilledCursor(cursorPath, cursor, { chainId, address: escrow });
       rpc.noteCursor("askFilled", cursor);
       const lag = watcherLagBlocks({
         tip: rpc.stats.tipBlock,
