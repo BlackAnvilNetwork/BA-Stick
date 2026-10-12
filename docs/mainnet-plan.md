@@ -86,7 +86,7 @@ Example AH list placeholder: **1 xDAI** on Gnosis/Chiado; **0.001 ETH** on anvil
 
 - `AhEscrow`: immutable `characterNft`, `feeRecipient`, `FEE_BPS = 100`; `buyAsk` pays `ownerOf` then 1% fee (**native value**).
 - Forge tests + UI fee copy; AskFilled `feeWei` decode.
-- Transfer-cancel watcher: pending retries (persist-before-cursor, backoff/cap/alert), confirmations, skip self-transfers, AskCancelled classify, list re-checks `ownerOf` after `openAsk` and queues failed cancels.
+- Transfer-cancel watcher: pending retries (re-read+merge before write, persist-before-cursor, backoff/cap), confirmations, skip self-transfers, AskCancelled classify, list re-checks `ownerOf` after `openAsk` and queues failed cancels. Max-attempt drops are appended to `nft-transfer-cancel-dropped.json` (ops alert file) plus console ALERT.
 - Per-chain currency labels / defaults (`xDAI` vs `ETH`); WalletConnect optionalChains from `SETTLEMENT_BY_CHAIN`.
 - Chiado deploy script + `.env.chiado.example` (**not broadcast**).
 - **Pre-fee AskFilled topic:** intentionally **not** watched. The feeWei (8-arg) topic is the only watcher. Acceptable while nothing is deployed on Chiado/Gnosis; drain/cancel any pre-fee asks before a future upgrade that replaces a live escrow.
@@ -97,10 +97,12 @@ Example AH list placeholder: **1 xDAI** on Gnosis/Chiado; **0.001 ETH** on anvil
 
 ### Still needs go-ahead / redeploy / out-of-band
 
+- **Chiado broadcast go-ahead** from the user (code side ready per support re-test of 9432083+).
+- **Multisig + fee recipient addresses** (DeployChiado `MULTISIG` / AhEscrow fee recipient).
 - Chiado (then Gnosis 100) deploy of the package in §4.
 - EEZ wiring against public Chiado rollup0 (see §2).
 - Production WalletConnect project id.
-- Confirm mint fee (**1 xDAI** proposed) and decision **(7)** redeploy timing + multisig holder.
+- Decision **(7)** redeploy timing.
 
 ---
 

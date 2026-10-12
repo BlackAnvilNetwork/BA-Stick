@@ -11,10 +11,14 @@ import {
   ERC721_TRANSFER_TOPIC,
   NFT_TRANSFER_CONFIRMATIONS,
   PENDING_CANCEL_MAX_ATTEMPTS,
+  mergePendingCancelLists,
+  nftTransferDroppedPath,
+  readDroppedPendingCancels,
   readPendingCancels,
   retryPendingCancels,
   scanNftTransfers,
   writePendingCancels,
+  writePendingCancelsMerging,
   type PendingCancel,
 } from "./nft-transfer-ask-cancel";
 
@@ -198,6 +202,7 @@ describe("pending cancel persist + retry", () => {
   });
 
   it("backs off ambiguous cancels and drops after the attempt cap", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "lok-nft-cap-"));
     const open = new Map([
       ["9", { id: "9", seller: "7", itemId: "1", amount: "1", highBidder: null, highBid: "0", book: true }],
     ]);
@@ -212,6 +217,7 @@ describe("pending cancel persist + retry", () => {
     for (let i = 0; i < PENDING_CANCEL_MAX_ATTEMPTS; i++) {
       const res = await retryPendingCancels(lok, remaining, {
         now,
+        dataDir: dir,
         cancelOnchain: async () => ({ ok: true, alreadyClosed: true }),
         classifyClosed: async () => ({ action: "skip" as const }),
       });
@@ -223,28 +229,62 @@ describe("pending cancel persist + retry", () => {
     }
     const capped = await retryPendingCancels(lok, remaining, {
       now,
+      dataDir: dir,
       cancelOnchain: async () => ({ ok: true, alreadyClosed: true }),
       classifyClosed: async () => ({ action: "skip" as const }),
     });
     assert.deepEqual(capped.remaining, []);
     assert.deepEqual(capped.dropped, ["9"]);
+    const dropped = readDroppedPendingCancels(nftTransferDroppedPath(dir));
+    assert.equal(dropped.length, 1);
+    assert.equal(dropped[0]!.listingId, "9");
   });
 
   it("enqueuePendingCancel merges into the watcher pending file", () => {
     const dir = mkdtempSync(join(tmpdir(), "lok-nft-enqueue-"));
     const path = join(dir, "pending.json");
     writePendingCancels(path, [{ listingId: "1", sellerTokenId: "7" }]);
-    enqueuePendingCancel({ listingId: "2", sellerTokenId: "8" }, { pendingPath: path });
+    enqueuePendingCancel({ listingId: "2", sellerTokenId: "8" }, { pendingPath: path, dataDir: dir });
     const rows = readPendingCancels(path);
     assert.equal(rows.length, 2);
     assert.ok(rows.some((r) => r.listingId === "2" && (r.attempts ?? 0) >= 1));
   });
 
-  it("bumpPendingCancel returns null past the cap", () => {
+  it("writePendingCancelsMerging keeps concurrent enqueues", () => {
+    const dir = mkdtempSync(join(tmpdir(), "lok-nft-merge-"));
+    const path = join(dir, "pending.json");
+    // Watcher is about to write remaining=[1]; list-race already wrote [2].
+    writePendingCancels(path, [{ listingId: "2", sellerTokenId: "8", attempts: 1 }]);
+    const merged = writePendingCancelsMerging(path, [
+      { listingId: "1", sellerTokenId: "7", attempts: 3, nextRetryAtMs: 9_000 },
+    ]);
+    assert.equal(merged.length, 2);
+    assert.ok(merged.some((r) => r.listingId === "1" && r.attempts === 3));
+    assert.ok(merged.some((r) => r.listingId === "2" && r.attempts === 1));
+    assert.deepEqual(
+      mergePendingCancelLists(
+        [{ listingId: "9", sellerTokenId: "1", attempts: 2 }],
+        [{ listingId: "9", sellerTokenId: "1", attempts: 5, ambiguous: true }],
+      )[0],
+      { listingId: "9", sellerTokenId: "1", attempts: 5, ambiguous: true },
+    );
+  });
+
+  it("bumpPendingCancel records a durable ops drop past the cap", () => {
+    const dir = mkdtempSync(join(tmpdir(), "lok-nft-drop-"));
     assert.equal(
-      bumpPendingCancel({ listingId: "1", sellerTokenId: "7", attempts: PENDING_CANCEL_MAX_ATTEMPTS }),
+      bumpPendingCancel(
+        { listingId: "1", sellerTokenId: "7", attempts: PENDING_CANCEL_MAX_ATTEMPTS, ambiguous: true },
+        { dataDir: dir },
+      ),
       null,
     );
+    const dropped = readDroppedPendingCancels(nftTransferDroppedPath(dir));
+    assert.equal(dropped.length, 1);
+    assert.equal(dropped[0]!.listingId, "1");
+    assert.equal(dropped[0]!.reason, "max-attempts");
+    assert.equal(dropped[0]!.ambiguous, true);
+    assert.equal(dropped[0]!.attempts, PENDING_CANCEL_MAX_ATTEMPTS + 1);
   });
 });
 

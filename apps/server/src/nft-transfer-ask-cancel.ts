@@ -128,22 +128,56 @@ export function readPendingCancels(path: string): PendingCancel[] {
   }
 }
 
-export function writePendingCancels(path: string, pending: PendingCancel[]): void {
-  const unique: PendingCancel[] = [];
-  const seen = new Set<string>();
-  for (const row of pending) {
-    if (seen.has(row.listingId)) continue;
-    seen.add(row.listingId);
-    const next: PendingCancel = {
-      listingId: row.listingId,
-      sellerTokenId: row.sellerTokenId,
-    };
-    if (row.attempts != null) next.attempts = row.attempts;
-    if (row.nextRetryAtMs != null) next.nextRetryAtMs = row.nextRetryAtMs;
-    if (row.ambiguous) next.ambiguous = true;
-    unique.push(next);
+function normalizePendingRow(row: PendingCancel): PendingCancel {
+  const next: PendingCancel = {
+    listingId: row.listingId,
+    sellerTokenId: row.sellerTokenId,
+  };
+  if (row.attempts != null) next.attempts = row.attempts;
+  if (row.nextRetryAtMs != null) next.nextRetryAtMs = row.nextRetryAtMs;
+  if (row.ambiguous) next.ambiguous = true;
+  return next;
+}
+
+/** Prefer higher attempts (then later nextRetryAtMs); OR ambiguous flags. */
+export function pickRicherPendingCancel(a: PendingCancel, b: PendingCancel): PendingCancel {
+  const aAtt = a.attempts ?? 0;
+  const bAtt = b.attempts ?? 0;
+  let richer: PendingCancel;
+  if (bAtt > aAtt) richer = b;
+  else if (aAtt > bAtt) richer = a;
+  else richer = (b.nextRetryAtMs ?? 0) > (a.nextRetryAtMs ?? 0) ? b : a;
+  return normalizePendingRow({
+    ...richer,
+    ambiguous: a.ambiguous === true || b.ambiguous === true || richer.ambiguous === true,
+  });
+}
+
+/** Union pending lists by listingId (keeps the richer row). */
+export function mergePendingCancelLists(...lists: PendingCancel[][]): PendingCancel[] {
+  const map = new Map<string, PendingCancel>();
+  for (const list of lists) {
+    for (const row of list) {
+      const prev = map.get(row.listingId);
+      map.set(row.listingId, prev ? pickRicherPendingCancel(prev, row) : normalizePendingRow(row));
+    }
   }
+  return [...map.values()];
+}
+
+export function writePendingCancels(path: string, pending: PendingCancel[]): void {
+  const unique = mergePendingCancelLists(pending);
   writeTextAtomic(path, JSON.stringify({ pending: unique }, null, 2) + "\n");
+}
+
+/**
+ * Re-read disk and merge before write so a concurrent list-race enqueue is not lost.
+ * Returns the merged list that was written.
+ */
+export function writePendingCancelsMerging(path: string, pending: PendingCancel[]): PendingCancel[] {
+  const merged = mergePendingCancelLists(pending, readPendingCancels(path));
+  writePendingCancels(path, merged);
+  return merged;
 }
 
 /** Persist pending before cursor so a crash cannot lose newly queued cancels. */
@@ -152,14 +186,96 @@ export function persistPendingThenCursor(
   cursorPath: string,
   pending: PendingCancel[],
   cursor: bigint,
-): void {
-  writePendingCancels(pendingPath, pending);
+): PendingCancel[] {
+  const merged = writePendingCancelsMerging(pendingPath, pending);
   writeCursor(cursorPath, cursor);
+  return merged;
+}
+
+export const NFT_TRANSFER_DROPPED_FILE = "nft-transfer-cancel-dropped.json";
+
+export type DroppedPendingCancel = {
+  listingId: string;
+  sellerTokenId: string;
+  attempts: number;
+  ambiguous?: boolean;
+  droppedAt: string;
+  reason: "max-attempts";
+};
+
+export function nftTransferDroppedPath(dataDir: string): string {
+  return join(dataDir, NFT_TRANSFER_DROPPED_FILE);
+}
+
+export function readDroppedPendingCancels(path: string): DroppedPendingCancel[] {
+  if (!existsSync(path)) return [];
+  try {
+    const raw = JSON.parse(readFileSync(path, "utf8")) as { dropped?: unknown[] };
+    if (!Array.isArray(raw.dropped)) return [];
+    const out: DroppedPendingCancel[] = [];
+    for (const row of raw.dropped) {
+      if (!row || typeof row !== "object") continue;
+      const r = row as Record<string, unknown>;
+      const listingId = String(r.listingId ?? "");
+      const sellerTokenId = String(r.sellerTokenId ?? "");
+      if (!/^[1-9][0-9]{0,77}$/.test(listingId) || !/^[1-9][0-9]{0,77}$/.test(sellerTokenId)) {
+        continue;
+      }
+      const attempts = typeof r.attempts === "number" ? r.attempts : PENDING_CANCEL_MAX_ATTEMPTS + 1;
+      const droppedAt = typeof r.droppedAt === "string" ? r.droppedAt : new Date(0).toISOString();
+      out.push({
+        listingId,
+        sellerTokenId,
+        attempts,
+        droppedAt,
+        reason: "max-attempts",
+        ...(r.ambiguous === true ? { ambiguous: true } : {}),
+      });
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Append a max-attempts drop to the ops alert file and log ALERT.
+ * Durable so ops can see drops without scraping console (same idea as AskFilled quarantine).
+ */
+export function recordDroppedPendingCancel(
+  row: PendingCancel,
+  opts?: { droppedPath?: string; dataDir?: string; attempts?: number; now?: Date },
+): DroppedPendingCancel {
+  const dataDir = opts?.dataDir ?? defaultLokDir();
+  const path = opts?.droppedPath ?? nftTransferDroppedPath(dataDir);
+  const attempts = opts?.attempts ?? (row.attempts ?? 0) + 1;
+  const entry: DroppedPendingCancel = {
+    listingId: row.listingId,
+    sellerTokenId: row.sellerTokenId,
+    attempts,
+    droppedAt: (opts?.now ?? new Date()).toISOString(),
+    reason: "max-attempts",
+    ...(row.ambiguous ? { ambiguous: true } : {}),
+  };
+  const existing = readDroppedPendingCancels(path).filter((d) => d.listingId !== entry.listingId);
+  writeTextAtomic(path, JSON.stringify({ dropped: existing.concat([entry]) }, null, 2) + "\n");
+  console.error(
+    "[bellgrave] ALERT: NFT transfer pending cancel dropped after " +
+      entry.attempts +
+      " attempts listing#" +
+      entry.listingId +
+      " char=" +
+      entry.sellerTokenId +
+      (entry.ambiguous ? " (ambiguous closed-ask)" : "") +
+      " — recorded in " +
+      path,
+  );
+  return entry;
 }
 
 /**
  * Queue a cancel for the transfer watcher (e.g. list/transfer race).
- * Merges into the on-disk pending file immediately.
+ * Re-reads disk and merges so it cannot clobber an in-flight watcher write.
  */
 export function enqueuePendingCancel(
   row: PendingCancel,
@@ -167,8 +283,6 @@ export function enqueuePendingCancel(
 ): void {
   const dataDir = opts?.dataDir ?? defaultLokDir();
   const pendingPath = opts?.pendingPath ?? nftTransferPendingPath(dataDir);
-  const existing = readPendingCancels(pendingPath);
-  const without = existing.filter((p) => p.listingId !== row.listingId);
   const bumped =
     bumpPendingCancel(
       {
@@ -177,29 +291,51 @@ export function enqueuePendingCancel(
         attempts: 0,
         ambiguous: row.ambiguous,
       },
-      { ambiguous: row.ambiguous },
-    ) ?? row;
-  writePendingCancels(pendingPath, without.concat([bumped]));
+      { ambiguous: row.ambiguous, dataDir, recordDrop: false },
+    ) ?? normalizePendingRow(row);
+  writePendingCancelsMerging(pendingPath, [bumped]);
 }
 
 /**
- * Increment attempt counter and schedule backoff. Returns null when capped (alert + drop).
+ * Increment attempt counter and schedule backoff. Returns null when capped (alert + drop file).
  */
 export function bumpPendingCancel(
   row: PendingCancel,
-  opts?: { ambiguous?: boolean; now?: number },
+  opts?: {
+    ambiguous?: boolean;
+    now?: number;
+    dataDir?: string;
+    droppedPath?: string;
+    /** When false, skip durable drop recording (enqueue first bump). Default true. */
+    recordDrop?: boolean;
+  },
 ): PendingCancel | null {
   const attempts = (row.attempts ?? 0) + 1;
   if (attempts > PENDING_CANCEL_MAX_ATTEMPTS) {
-    console.error(
-      "[bellgrave] ALERT: NFT transfer pending cancel dropped after " +
-        attempts +
-        " attempts listing#" +
-        row.listingId +
-        " char=" +
-        row.sellerTokenId +
-        (row.ambiguous || opts?.ambiguous ? " (ambiguous closed-ask)" : ""),
-    );
+    if (opts?.recordDrop !== false) {
+      recordDroppedPendingCancel(
+        {
+          listingId: row.listingId,
+          sellerTokenId: row.sellerTokenId,
+          attempts: row.attempts,
+          ambiguous: opts?.ambiguous === true || row.ambiguous === true,
+        },
+        {
+          dataDir: opts?.dataDir,
+          droppedPath: opts?.droppedPath,
+          attempts,
+        },
+      );
+    } else {
+      console.error(
+        "[bellgrave] ALERT: NFT transfer pending cancel dropped after " +
+          attempts +
+          " attempts listing#" +
+          row.listingId +
+          " char=" +
+          row.sellerTokenId,
+      );
+    }
     return null;
   }
   const exp = Math.min(Math.max(attempts - 1, 0), 8);
@@ -355,7 +491,11 @@ export async function cancelOpenAsksForCharacter(
 export async function retryPendingCancels(
   lok: Pick<LokWorld, "openBookListings" | "cancelAsk">,
   pending: PendingCancel[],
-  opts?: Parameters<typeof cancelOpenAsksForCharacter>[2] & { now?: number },
+  opts?: Parameters<typeof cancelOpenAsksForCharacter>[2] & {
+    now?: number;
+    dataDir?: string;
+    droppedPath?: string;
+  },
 ): Promise<{ remaining: PendingCancel[]; cancelled: string[]; dropped: string[] }> {
   const now = opts?.now ?? Date.now();
   const stillOpen = new Set(lok.openBookListings().map((r) => r.id));
@@ -396,7 +536,12 @@ export async function retryPendingCancels(
           attempts: prior?.attempts ?? 0,
           ambiguous: p.ambiguous || prior?.ambiguous,
         },
-        { ambiguous: p.ambiguous === true, now },
+        {
+          ambiguous: p.ambiguous === true,
+          now,
+          dataDir: opts?.dataDir,
+          droppedPath: opts?.droppedPath,
+        },
       );
       if (bumped) remaining.push(bumped);
       else dropped.push(p.listingId);
@@ -496,13 +641,16 @@ export function startNftTransferAskCancelWatcher(
   const dataDir = opts?.dataDir ?? defaultLokDir();
   const cursorPath = opts?.cursorPath ?? nftTransferCursorPath(dataDir);
   const pendingPath = opts?.pendingPath ?? nftTransferPendingPath(dataDir);
+  const droppedPath = nftTransferDroppedPath(dataDir);
   console.log(
     "[bellgrave] NFT transfer ask-cancel watcher rpc=" +
       rpc +
       " nft=" +
       nft +
       " confirmations=" +
-      NFT_TRANSFER_CONFIRMATIONS.toString(),
+      NFT_TRANSFER_CONFIRMATIONS.toString() +
+      " droppedAlerts=" +
+      droppedPath,
   );
 
   let cursor = readCursor(cursorPath);
@@ -516,7 +664,12 @@ export function startNftTransferAskCancelWatcher(
     try {
       // Reload disk pending each tick so list-race enqueues are picked up.
       pending = readPendingCancels(pendingPath);
-      const retried = await retryPendingCancels(lok, pending, { env, classifyClosed });
+      const retried = await retryPendingCancels(lok, pending, {
+        env,
+        classifyClosed,
+        dataDir,
+        droppedPath,
+      });
       pending = retried.remaining;
 
       const next = await scanNftTransfers({
@@ -529,19 +682,22 @@ export function startNftTransferAskCancelWatcher(
             classifyClosed,
           });
           for (const p of res.pending) {
-            const bumped = bumpPendingCancel(p, { ambiguous: p.ambiguous === true });
+            const bumped = bumpPendingCancel(p, {
+              ambiguous: p.ambiguous === true,
+              dataDir,
+              droppedPath,
+            });
             if (bumped) pending = pending.filter((x) => x.listingId !== bumped.listingId).concat([bumped]);
           }
         },
       });
       cursor = next.cursor;
-      // Pending first, then cursor — crash between them re-scans transfers (idempotent)
-      // but never loses newly queued cancels.
-      persistPendingThenCursor(pendingPath, cursorPath, pending, cursor);
+      // Re-read+merge pending, then cursor — concurrent list-race enqueues survive this write.
+      pending = persistPendingThenCursor(pendingPath, cursorPath, pending, cursor);
     } catch (err) {
       console.error("[bellgrave] NFT transfer ask-cancel watcher", err);
       try {
-        writePendingCancels(pendingPath, pending);
+        pending = writePendingCancelsMerging(pendingPath, pending);
       } catch {
         /* ignore */
       }
