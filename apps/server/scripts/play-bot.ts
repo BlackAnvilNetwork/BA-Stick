@@ -807,7 +807,9 @@ class PlayBot {
   private connect(): Promise<void> {
     assertLocalWs(this.wsUrl);
     return new Promise((resolveReady, reject) => {
-      const ws = new WebSocket(this.wsUrl);
+      const ws = new WebSocket(this.wsUrl, {
+        headers: { Origin: "http://127.0.0.1:5173" },
+      });
       this.ws = ws;
       const fail = (err: Error) => {
         if (!this.ready) reject(err);
