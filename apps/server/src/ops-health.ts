@@ -6,6 +6,7 @@
  * Authorization: Bearer $LOK_OPS_STATUS_TOKEN.
  * RPC URLs and absolute data paths are redacted.
  */
+import { timingSafeEqual } from "node:crypto";
 import { existsSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { networkProfile, resolveNetworkName } from "@bellgrave/config";
@@ -157,12 +158,12 @@ function isLoopback(addr: string | null | undefined): boolean {
   return a === "127.0.0.1" || a === "::1" || a === "localhost";
 }
 
-/** Gnosis mainnet (or NETWORK=gnosis) — /status must use LOK_OPS_STATUS_TOKEN. */
+/** Gnosis / Chiado (or NETWORK=gnosis|chiado) — /status must use LOK_OPS_STATUS_TOKEN. */
 export function isProductionOpsEnv(env: NodeJS.ProcessEnv = process.env): boolean {
   const named = (env.NETWORK ?? env.LOK_NETWORK)?.trim().toLowerCase();
-  if (named === "gnosis") return true;
+  if (named === "gnosis" || named === "chiado") return true;
   const chain = (env.LOK_CHAIN_ID ?? "").trim();
-  return chain === "100";
+  return chain === "100" || chain === "10200";
 }
 
 function socketRemoteAddress(
@@ -176,20 +177,28 @@ function socketRemoteAddress(
   return null;
 }
 
-function bearerMatches(req: IncomingMessage, token: string): boolean {
+/** Constant-time Bearer compare (length mismatch still runs a dummy equal). */
+export function bearerMatches(req: IncomingMessage, token: string): boolean {
   const auth = req.headers.authorization;
   if (typeof auth !== "string") return false;
   const m = /^Bearer\s+(.+)$/i.exec(auth.trim());
-  return !!m && m[1] === token;
+  if (!m) return false;
+  const provided = Buffer.from(m[1] ?? "");
+  const expected = Buffer.from(token);
+  if (provided.length !== expected.length) {
+    timingSafeEqual(expected, expected);
+    return false;
+  }
+  return timingSafeEqual(provided, expected);
 }
 
 /**
  * /status auth:
  * - Never trusts Host / X-Forwarded-* (spoofable; reverse proxies look local).
  * - Uses socket remoteAddress only for loopback.
- * - Production (NETWORK=gnosis / chain 100): LOK_OPS_STATUS_TOKEN required; Bearer only
- *   (loopback bypass disabled — same-host proxies would otherwise open /status).
- * - Dev/anvil/chiado: loopback OR matching Bearer when token is set.
+ * - Production (NETWORK=gnosis|chiado / chain 100|10200): LOK_OPS_STATUS_TOKEN required;
+ *   Bearer only (loopback bypass disabled — same-host proxies would otherwise open /status).
+ * - Dev/anvil: loopback OR matching Bearer when token is set.
  */
 export function statusAuthorized(
   req: IncomingMessage,
@@ -208,6 +217,10 @@ export function statusAuthorized(
   return isLoopback(socketRemoteAddress(req, remoteAddress));
 }
 
+function opsErrorText(err: unknown): string {
+  return redactRpcText(err instanceof Error ? err.message : String(err));
+}
+
 function writeJson(res: ServerResponse, status: number, body: unknown): void {
   try {
     res.writeHead(status, { "content-type": "application/json" });
@@ -215,12 +228,7 @@ function writeJson(res: ServerResponse, status: number, body: unknown): void {
   } catch (err) {
     try {
       res.writeHead(500, { "content-type": "application/json" });
-      res.end(
-        JSON.stringify({
-          ok: false,
-          error: err instanceof Error ? err.message : String(err),
-        }),
-      );
+      res.end(JSON.stringify({ ok: false, error: opsErrorText(err) }));
     } catch {
       /* socket already gone */
     }
@@ -326,25 +334,20 @@ export function handleOpsHttp(
             env,
             dataDir: deps.dataDir,
           });
-          writeJson(res, out.ok ? 200 : 400, out);
+          if (out.ok) {
+            writeJson(res, 200, out);
+          } else {
+            writeJson(res, 400, { ok: false, error: redactRpcText(out.error) });
+          }
         } catch (err) {
-          writeJson(res, 400, {
-            ok: false,
-            error: err instanceof Error ? err.message : String(err),
-          });
+          writeJson(res, 400, { ok: false, error: opsErrorText(err) });
         }
       })();
       return true;
     }
   } catch (err) {
-    console.error(
-      "[bellgrave] ops http error",
-      err instanceof Error ? err.message : err,
-    );
-    writeJson(res, 500, {
-      ok: false,
-      error: err instanceof Error ? err.message : String(err),
-    });
+    console.error("[bellgrave] ops http error", opsErrorText(err));
+    writeJson(res, 500, { ok: false, error: opsErrorText(err) });
     return true;
   }
 

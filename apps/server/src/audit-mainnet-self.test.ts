@@ -27,14 +27,24 @@ import {
 import { LokWorld } from "./lok-world";
 import { resetNftOwnerCacheForTests, sessionOwnsCharacter } from "./nft-owner-cache";
 import { decodeErc721Transfer, ERC721_TRANSFER_TOPIC } from "./nft-transfer-ask-cancel";
+import { ASK_CANCELLED_TOPIC } from "./ah-escrow";
 import {
   ASK_CLOSED_SELECTOR,
   CANCEL_FINALITY_TIMEOUT_MS,
+  cancelReceiptProvesAskCancelled,
+  decideRecordedCancelReceipt,
 } from "./ah-escrow-tx";
 import {
   CancelTxRecordStore,
   resetCancelTxRecordForTests,
 } from "./cancel-tx-record";
+import {
+  MIGRATE_CONCURRENCY,
+  MIGRATE_RPC_TIMEOUT_MS,
+  migrateCharacterWalletsToNftOwners,
+} from "./nft-wallet-migrate";
+import { isProductionOpsEnv } from "./ops-health";
+import { redactRpcText } from "./ops-redact";
 import {
   OpenAskPendingStore,
   resetOpenAskPendingForTests,
@@ -204,6 +214,107 @@ describe("MED cancel finality + AskClosed selector", () => {
     assert.equal(store.get("77")?.hash, hash);
     store.clear("77");
     assert.equal(store.get("77"), null);
+  });
+
+  it("reverted cancelAsk receipt must not release log escrow on retry", () => {
+    const listingId = "99";
+    const topic1 = ("0x" + BigInt(listingId).toString(16).padStart(64, "0")) as `0x${string}`;
+    const escrow = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
+
+    const reverted = {
+      status: "reverted" as const,
+      logs: [
+        {
+          address: escrow,
+          topics: [ASK_CANCELLED_TOPIC as `0x${string}`, topic1],
+          data: "0x" as `0x${string}`,
+        },
+      ],
+    };
+    assert.equal(cancelReceiptProvesAskCancelled(reverted, listingId, escrow), false);
+    assert.equal(decideRecordedCancelReceipt(reverted, listingId, escrow).decision, "notOurCancel");
+
+    const successNoEvent = {
+      status: "success" as const,
+      logs: [] as { address: string; topics: `0x${string}`[]; data: `0x${string}` }[],
+    };
+    assert.equal(cancelReceiptProvesAskCancelled(successNoEvent, listingId, escrow), false);
+    assert.equal(
+      decideRecordedCancelReceipt(successNoEvent, listingId, escrow).decision,
+      "notOurCancel",
+    );
+
+    const cancelled = {
+      status: "success" as const,
+      logs: [
+        {
+          address: escrow,
+          topics: [ASK_CANCELLED_TOPIC as `0x${string}`, topic1],
+          data: "0x" as `0x${string}`,
+        },
+      ],
+    };
+    assert.equal(cancelReceiptProvesAskCancelled(cancelled, listingId, escrow), true);
+    assert.equal(
+      decideRecordedCancelReceipt(cancelled, listingId, escrow).decision,
+      "serverCancelled",
+    );
+
+    // Simulate revert → clear record → retry must not treat as serverCancelled.
+    resetCancelTxRecordForTests();
+    const dir = mkdtempSync(join(tmpdir(), "cancel-rev-"));
+    const store = new CancelTxRecordStore(join(dir, "cancel-ask-txs.json"));
+    store.set(listingId, "0x" + "cd".repeat(32));
+    assert.ok(store.get(listingId));
+    if (decideRecordedCancelReceipt(reverted, listingId, escrow).decision === "notOurCancel") {
+      store.clear(listingId);
+    }
+    assert.equal(store.get(listingId), null, "reverted cancel clears record; retry cannot release");
+  });
+});
+
+describe("ops auth + migration lows", () => {
+  it("treats Chiado like prod for ops auth", () => {
+    assert.equal(isProductionOpsEnv({ NETWORK: "chiado", LOK_CHAIN_ID: "10200" }), true);
+    assert.equal(isProductionOpsEnv({ LOK_CHAIN_ID: "10200" }), true);
+    assert.equal(isProductionOpsEnv({ NETWORK: "anvil", LOK_CHAIN_ID: "31337" }), false);
+  });
+
+  it("scrubs RPC URLs from ops error text", () => {
+    const scrubbed = redactRpcText(
+      "RPC at https://eth-mainnet.g.alchemy.com/v2/SECRET_KEY_HERE failed",
+    );
+    assert.match(scrubbed, /https:\/\/eth-mainnet\.g\.alchemy\.com/);
+    assert.doesNotMatch(scrubbed, /SECRET_KEY/);
+  });
+
+  it("boot migration uses bounded concurrency and RPC timeout", async () => {
+    assert.ok(MIGRATE_CONCURRENCY >= 2);
+    assert.ok(MIGRATE_RPC_TIMEOUT_MS <= 15_000);
+    let maxInFlight = 0;
+    let inFlight = 0;
+    const chars = Array.from({ length: 20 }, (_, i) => ({
+      charId: "c" + i,
+      tokenId: String(i + 1),
+      wallet: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    }));
+    const lok = {
+      boundChars: () => chars,
+      rebindWallet: () => ({ ok: true as const, previous: chars[0]!.wallet }),
+    };
+    await migrateCharacterWalletsToNftOwners(lok, {
+      concurrency: 4,
+      rpcTimeoutMs: 200,
+      readOwner: async () => {
+        inFlight += 1;
+        maxInFlight = Math.max(maxInFlight, inFlight);
+        await new Promise((r) => setTimeout(r, 20));
+        inFlight -= 1;
+        return { ok: true as const, holder: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" };
+      },
+    });
+    assert.ok(maxInFlight <= 4, "concurrency capped, got " + maxInFlight);
+    assert.ok(maxInFlight >= 2, "actually parallelized");
   });
 });
 

@@ -4,13 +4,16 @@
  * identical in asks(). Scan AskFilled / AskCancelled logs first (H2).
  */
 import { askFilledQuarantinePath, AskFilledQuarantine } from "./lok-ask-filled-quarantine";
-import { ahEscrowAddress, ASK_FILLED_TOPIC, listingRoleKey } from "./ah-escrow";
+import {
+  ahEscrowAddress,
+  ASK_CANCELLED_TOPIC,
+  ASK_FILLED_TOPIC,
+  listingRoleKey,
+} from "./ah-escrow";
 import { readAskOnchain } from "./ah-escrow-tx";
 import { defaultLokDir, type LokWorld } from "./lok-world";
 
-/** Keccak of AskCancelled(uint256). */
-export const ASK_CANCELLED_TOPIC =
-  "0x5ab6d218303bd8dc01c2c5e812dcbbadcfc2eb5b1fb91111e0b0ae87888ac568";
+export { ASK_CANCELLED_TOPIC };
 
 export type ReconcileDecision =
   | { action: "skip"; reason: string }

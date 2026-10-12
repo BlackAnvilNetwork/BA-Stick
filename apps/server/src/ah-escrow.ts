@@ -39,6 +39,10 @@ import { defaultLokDir, type LokWorld } from "./lok-world";
  */
 export const ASK_FILLED_TOPIC = "0x7f623940623393c52bf22f242ae3b57d9fbb8e603232b8952a1ad894943a1907";
 
+/** Keccak of AskCancelled(uint256). */
+export const ASK_CANCELLED_TOPIC =
+  "0x5ab6d218303bd8dc01c2c5e812dcbbadcfc2eb5b1fb91111e0b0ae87888ac568";
+
 /** @deprecated Prefer settlementConfirmations(env). Kept for tests / callers. */
 export const ASK_FILL_CONFIRMATIONS = 2n;
 

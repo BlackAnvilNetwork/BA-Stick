@@ -9,6 +9,7 @@ import { NFT_TRANSFER_DROPPED_FILE } from "./nft-transfer-ask-cancel";
 import {
   buildOpsStatus,
   handleOpsHttp,
+  isProductionOpsEnv,
   redactSettlementRpcStats,
   statusAuthorized,
 } from "./ops-health";
@@ -205,6 +206,28 @@ describe("ops health + structured alerts", () => {
       false,
     );
 
+    // Chiado is production for ops auth (no loopback bypass).
+    assert.equal(isProductionOpsEnv({ NETWORK: "chiado", LOK_CHAIN_ID: "10200" }), true);
+    assert.equal(
+      statusAuthorized(
+        { headers: {}, socket: { remoteAddress: "127.0.0.1" } } as IncomingMessage,
+        { NETWORK: "chiado", LOK_CHAIN_ID: "10200" },
+        "127.0.0.1",
+      ),
+      false,
+    );
+    assert.equal(
+      statusAuthorized(
+        {
+          headers: { authorization: "Bearer chiado-token" },
+          socket: { remoteAddress: "127.0.0.1" },
+        } as IncomingMessage,
+        { NETWORK: "chiado", LOK_CHAIN_ID: "10200", LOK_OPS_STATUS_TOKEN: "chiado-token" },
+        "127.0.0.1",
+      ),
+      true,
+    );
+
     const env = {
       NETWORK: "gnosis",
       LOK_CHAIN_ID: "100",
@@ -378,5 +401,59 @@ describe("ops health + structured alerts", () => {
     assert.equal(ok.status, 200);
     assert.equal(JSON.parse(ok.body).ok, true);
     assert.equal(calledWith, "42");
+  });
+
+  it("ops replace errors scrub RPC URLs", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "lok-ops-"));
+    const deps = {
+      lokReady: () => true,
+      startedAtMs: Date.now(),
+      dataDir: dir,
+      env: {
+        NETWORK: "gnosis",
+        LOK_CHAIN_ID: "100",
+        LOK_OPS_STATUS_TOKEN: "ops-secret",
+      },
+      remoteAddress: "203.0.113.9",
+      replacePendingOpenAsk: async () => ({
+        ok: false as const,
+        error: "RPC https://gnosis.example/v2/SECRET_KEY_HERE timed out",
+      }),
+    };
+    const result = await new Promise<{ status: number; body: string }>((resolve) => {
+      let statusCode = 0;
+      let body = "";
+      const res = {
+        writeHead(code: number) {
+          statusCode = code;
+        },
+        end(chunk?: string) {
+          body = chunk ?? "";
+          resolve({ status: statusCode, body });
+        },
+      } as unknown as ServerResponse;
+      const listeners: Record<string, Array<(...args: unknown[]) => void>> = {};
+      const req = {
+        url: "/ops/replace-open-ask",
+        method: "POST",
+        headers: { host: "localhost", authorization: "Bearer ops-secret" },
+        socket: { remoteAddress: "203.0.113.9" },
+        on(event: string, cb: (...args: unknown[]) => void) {
+          (listeners[event] ??= []).push(cb);
+          return req;
+        },
+        destroy() {},
+      } as unknown as IncomingMessage;
+      assert.equal(handleOpsHttp(req, res, deps), true);
+      queueMicrotask(() => {
+        for (const cb of listeners.data ?? []) cb(Buffer.from('{"listingId":"7"}'));
+        for (const cb of listeners.end ?? []) cb();
+      });
+    });
+    assert.equal(result.status, 400);
+    const parsed = JSON.parse(result.body);
+    assert.equal(parsed.ok, false);
+    assert.doesNotMatch(parsed.error, /SECRET_KEY/);
+    assert.match(parsed.error, /gnosis\.example/);
   });
 });
