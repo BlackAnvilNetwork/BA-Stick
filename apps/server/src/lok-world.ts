@@ -115,18 +115,18 @@ export function chainModeFromEnv(env: NodeJS.ProcessEnv = process.env): {
   if (!rpc) {
     return {
       chain: "engine-only",
-      note: "No LOK_CHAIN_RPC. KEK deposits, KEK withdrawals, and item exports stay engine events; Robinhood L2 is not queried and nothing is submitted.",
+      note: "No LOK_CHAIN_RPC. ETH (settlement) deposits/withdrawals and item exports stay engine events; no chain is queried and nothing is submitted.",
     };
   }
   if (env.LOK_CHECKPOINT?.trim()) {
     return {
       chain: "watching",
-      note: "Watching the checkpoint for KEK deposits. A withdrawal queues on the vault and waits out its delay. Spendable KEK is debited only after that queue exists.",
+      note: "Watching the checkpoint for ETH/WETH vault deposits. A withdrawal queues on the vault and waits out its delay. Spendable settlement ETH is debited only after that queue exists.",
     };
   }
   return {
     chain: "rpc-unwatched",
-    note: "LOK_CHAIN_RPC is set, but no KekVault watcher or withdrawal transaction is wired. Deposits, withdrawals, and exports still only append the per-character logs.",
+    note: "LOK_CHAIN_RPC is set, but no vault watcher or withdrawal transaction is wired. Deposits, withdrawals, and exports still only append the per-character logs.",
   };
 }
 
@@ -767,9 +767,11 @@ export class LokWorld {
         return { tokenId: id, amount: row.amount };
       })
       .filter((row): row is { tokenId: number; amount: string } => row != null);
+    const settlement = me?.kek ?? "0";
     return {
       tokenId,
-      kek: me?.kek ?? "0",
+      kek: settlement,
+      eth: settlement,
       gold: me?.gold ?? "0",
       items,
       inbox,

@@ -6,8 +6,8 @@ Product direction for the gold/stable epic. Settlement asset is **WETH**, funded
 
 | Role | Asset | Where it lives |
 |------|--------|----------------|
-| Training, crafting, respec, NPC shops, gold sinks | **Gold** | Log only (`Key` + earn/spend events). No token, no vault. |
-| Auction house, player sends of settlement, PvP bounties | **WETH** (18 decimals) | Escrow / settle on the game rollup; player ETH stays on L1 (or home rollup) until an EEZ sync call moves value for that action. |
+| Training, crafting, respec, NPC shops, gold sinks | **Gold** | Log only (`GoldEarn` / `GoldSpend` / `GoldSell`). No token, no vault. |
+| Auction house, player sends, PvP bounties | **ETH / WETH** (18 decimals) | Log settlement balance (engine still names the key/events `Kek` for replay). Product UI and vault path are ETH. EEZ funds escrow without a long-lived deposit UX. |
 
 - No new game token.
 - No USDT0 / Robinhood-KEK as the AH unit.

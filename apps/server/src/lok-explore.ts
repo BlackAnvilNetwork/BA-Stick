@@ -114,8 +114,8 @@ function describe(entry: RawEntry, logTokenId: string, nameOf: (tokenId: string)
     }
     case "depositKek": {
       character = who(token) || owner;
-      text = `${character} deposited ${amount} KEK`;
-      bits.push("kek");
+      text = `${character} deposited ${amount} ETH`;
+      bits.push("eth", "kek");
       break;
     }
     case "importItem": {
@@ -130,8 +130,8 @@ function describe(entry: RawEntry, logTokenId: string, nameOf: (tokenId: string)
     }
     case "withdrawKek": {
       character = who(token) || owner;
-      text = `${character} withdrew ${amount} KEK`;
-      bits.push("kek");
+      text = `${character} withdrew ${amount} ETH`;
+      bits.push("eth", "kek");
       break;
     }
     case "spendKek": {
@@ -170,8 +170,8 @@ function describe(entry: RawEntry, logTokenId: string, nameOf: (tokenId: string)
       const from = field(input, "from");
       const to = field(input, "to");
       character = who(from) || from || owner;
-      text = `${character} sent ${amount} KEK to ${who(to) || to}`;
-      bits.push("kek", who(from), who(to));
+      text = `${character} sent ${amount} ETH to ${who(to) || to}`;
+      bits.push("eth", "kek", who(from), who(to));
       break;
     }
     case "list": {
@@ -184,8 +184,8 @@ function describe(entry: RawEntry, logTokenId: string, nameOf: (tokenId: string)
     case "bid": {
       const bidder = field(input, "bidder");
       character = who(bidder) || bidder || owner;
-      text = `${character} bid ${amount} KEK on #${field(input, "listingId")}`;
-      bits.push("kek", who(bidder));
+      text = `${character} bid ${amount} ETH on #${field(input, "listingId")}`;
+      bits.push("eth", "kek", who(bidder));
       break;
     }
     case "cancel": {
@@ -243,15 +243,15 @@ function describe(entry: RawEntry, logTokenId: string, nameOf: (tokenId: string)
     case "ask": {
       const seller = field(input, "seller");
       character = who(seller) || seller || owner;
-      text = `${character} asked ${field(input, "minPrice")} KEK for ${item} x${amount} (#${field(input, "listingId")})`;
+      text = `${character} asked ${field(input, "minPrice")} ETH for ${item} x${amount} (#${field(input, "listingId")})`;
       bits.push(who(seller));
       break;
     }
     case "fill": {
       const bidder = field(input, "bidder");
       character = who(bidder) || bidder || owner;
-      text = `${character} bought ${item} for ${amount} KEK (#${field(input, "listingId")})`;
-      bits.push("kek", who(bidder));
+      text = `${character} bought ${item} for ${amount} ETH (#${field(input, "listingId")})`;
+      bits.push("eth", "kek", who(bidder));
       break;
     }
     case "cancelAsk":

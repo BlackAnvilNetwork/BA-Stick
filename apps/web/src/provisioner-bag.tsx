@@ -124,7 +124,7 @@ export function ProvisionerBag({ inventory, logItems, inbox, others }: Props) {
                   </button>
                   <input
                     value={minPrice}
-                    placeholder="Minimum KEK"
+                    placeholder="Minimum ETH"
                     aria-label="Minimum ask"
                     onChange={(e) => setMinPrice(e.target.value)}
                   />

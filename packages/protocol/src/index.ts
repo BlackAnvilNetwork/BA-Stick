@@ -359,8 +359,14 @@ export type LokListingView = {
 
 export type LokSnapshot = {
   tokenId: string;
+  /**
+   * Settlement balance for AH bids/asks and player sends (ETH/WETH wei on the log).
+   * Engine event names still say Kek for replay; product unit is ETH.
+   */
   kek: string;
-  /** In-game gold (log-only). Trainer / craft / respec spend this, not KEK. */
+  /** Same as `kek` — preferred client field for AH / sends (ETH). */
+  eth?: string;
+  /** In-game gold (log-only). Trainer / craft / respec spend this, not ETH. */
   gold?: string;
   items: LokItemBalance[];
   /** Provisioner inbox. Sends, sales, cancels, and reclaims land here, not in the bag. */

@@ -178,7 +178,7 @@ function buyNote(plan: QuantityPlan, qty: number): string {
     : plan.short
       ? " The book runs out after " + plan.filled + "."
       : "";
-  return "Total " + total + " KEK across " + plan.fills.length + " asks. Each ask is charged its own price, not a blended rate." + over + short;
+  return "Total " + total + " ETH across " + plan.fills.length + " asks. Each ask is charged its own price, not a blended rate." + over + short;
 }
 
 type Props = { listings: LokListingView[]; buyer: string };
@@ -277,7 +277,7 @@ export function AuctionBook({ listings, buyer }: Props) {
               >
                 <span className="prov-name">{line.name}</span>
                 <span className="prov-qty">{line.total} listed</span>
-                <span className="prov-ask">{line.unit === "none" ? "none" : line.unit + " KEK each"}</span>
+                <span className="prov-ask">{line.unit === "none" ? "none" : line.unit + " ETH each"}</span>
               </button>
             </ItemTipHost>
           ))}
@@ -321,7 +321,7 @@ export function AuctionBook({ listings, buyer }: Props) {
           <ul className="prov-fills">
             {plan.fills.slice(0, 8).map((fill) => (
               <li key={fill.id}>
-                x{fill.amount} at {fill.price} KEK
+                x{fill.amount} at {fill.price} ETH
               </li>
             ))}
             {plan.fills.length > 8 && <li>plus {plan.fills.length - 8} more asks, cheapest first</li>}
@@ -358,7 +358,7 @@ function YourAsks({ rows, showSettle }: { rows: LokListingView[]; showSettle?: b
         <div className="prov-yours-line" key={row.id}>
           <span>
             {itemName(row.itemId)} x{row.amount}
-            {row.book ? " ask " + row.minPrice + " KEK" : " legacy"}
+            {row.book ? " ask " + row.minPrice + " ETH" : " legacy"}
           </span>
           {row.yours && (
             <button type="button" className="cmd-pill-tab" onClick={() => send({ type: "lok/cancel", listingId: row.id })}>
