@@ -11,7 +11,8 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "gen": "python ../../scripts/build-item-catalog.py",
-    "test": "tsx --test src/chain-ids.test.ts"
+    "test": "tsx --test src/chain-ids.test.ts src/exportable-slugs.test.ts",
+    "print-seed": "tsx -e \"import { itemsSeedSlugsCsv } from './src/exportable-slugs.ts'; console.log(itemsSeedSlugsCsv())\""
   },
   "dependencies": {
     "viem": "^2.57.2"

@@ -29,12 +29,20 @@ On chainid ≠ 31337 the script **reverts** if listing/rotator/proposer are not 
 
 - Pass a **real access-controlled** `Items` ERC-1155 as `ITEMS`, **or** `ITEMS=0x000…000` (imports/exports stay off via `NotConfigured`).
 - **Never** run `DeployChiadoMocks` / wire `MockItems` / `MockKEK` on 100 or 10200. Those mocks expose open `setMinter`. The deploy script calls `isBellgraveTestMock()` and reverts on non-anvil if a mock is passed.
-- Deploy Items (no broadcast until go-ahead):
+- Craft / catalog: off-chain defs stay on small-int ids + slugs (`@bellgrave/items` craft + catalog). Chain export/import/AH use `chainFungibleId(slug)` (= `ItemIds.fungible`). Launch seed = all `kind: "base"` mats (`EXPORTABLE_BASE_SLUGS`, ~65 slugs).
+- Print seed CSV:
   ```bash
-  # ADMIN=Safe … optional CHECKPOINT=… ITEMS_SEED_SLUGS=pale-dust,iron-ore
-  forge script script/DeployItems.s.sol:DeployItems --rpc-url "$RPC_URL" --sig "run()"
+  pnpm --filter @bellgrave/items print-seed
   ```
-- After Items + character stack: Safe `items.grantRole(MINTER_ROLE, checkpoint)` (if not set at deploy), `checkpoint.setItems(items)`, then `registerFungible(slug, uri, 0)` for each exportable catalog slug (or `ITEMS_SEED_SLUGS`). New items later = registrar only — **no Items redeploy**. Chain ids = `ItemIds.fungible(slug)` (see `@bellgrave/items` `chainFungibleId`).
+- Simulate DeployItems (anvil or any RPC; **no broadcast**):
+  ```bash
+  # start anvil in another shell if needed: anvil
+  ADMIN=0x…A1 CHECKPOINT=0x…C1 ./contracts/lok-log/script/simulate-deploy-items.sh
+  # or:
+  # ITEMS_SEED_SLUGS="$(pnpm --filter @bellgrave/items print-seed)" \
+  #   forge script script/DeployItems.s.sol:DeployItems --rpc-url "$RPC_URL" --sig "run()"
+  ```
+- After Items + character stack (broadcast only with go-ahead): Safe `items.grantRole(MINTER_ROLE, checkpoint)` (if not set at deploy), `checkpoint.setItems(items)`, then `registerFungible` for any later slugs. **No Items redeploy** for new types.
 
 ## Mint fee
 

@@ -36,6 +36,13 @@ export {
 } from "./craft";
 export { npcSellUnitGold, npcSellTotalGold } from "./npc-sell";
 export { chainFungibleId, chainUniqueId, chainFungibleIdHex } from "./chain-ids";
+export {
+  EXPORTABLE_BASE_SLUGS,
+  catalogIdToChainFungibleId,
+  exportableFungibles,
+  itemsSeedSlugsCsv,
+  type ExportableFungible,
+} from "./exportable-slugs";
 
 import { CATALOG_BY_ID } from "./catalog.generated";
 import { EQUIP_SLOTS, type Equipment, type EquipSlot, type ItemDef, type ItemStats } from "./types";
