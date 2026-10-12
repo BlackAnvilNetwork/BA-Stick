@@ -1,6 +1,9 @@
 /**
  * Serialized AhEscrow txs via viem (no private key on the cast argv).
  * Shares the owner-key queue with lok-vault so listing + mint never nonce-collide.
+ *
+ * Queue holds only broadcast + 1 confirmation. Finality waits run outside the queue
+ * so cancel/reclaim cannot starve openAsk (re-test #2).
  */
 import {
   createPublicClient,
@@ -51,19 +54,9 @@ const AH_ABI = [
       { name: "used", type: "bool" },
     ],
   },
-  { type: "error", name: "AskClosed", inputs: [] },
-  { type: "error", name: "AskExists", inputs: [] },
-  { type: "error", name: "BadAmount", inputs: [] },
-  { type: "error", name: "BadAddress", inputs: [] },
-  { type: "error", name: "BadId", inputs: [] },
-  { type: "error", name: "WrongPrice", inputs: [] },
-  { type: "error", name: "Unauthorized", inputs: [] },
-  { type: "error", name: "TransferFailed", inputs: [] },
-  { type: "error", name: "Reentrant", inputs: [] },
 ] as const;
 
-/** AskClosed() selector — kept as a fallback if a client strips error names. */
-const ASK_CLOSED_SELECTOR = "0x756918b7";
+const ASK_CLOSED_SELECTOR = "0x2d47378f"; // AskClosed()
 
 export type OnchainAsk = {
   sellerTokenId: string;
@@ -74,28 +67,21 @@ export type OnchainAsk = {
   used: boolean;
 };
 
-function chainOf(chainId: number, rpcUrl: string): Chain {
-  return {
-    id: chainId,
-    name: chainId === 31337 ? "Bellgrave Anvil" : "Bellgrave",
-    nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
-    rpcUrls: { default: { http: [rpcUrl] } },
-  };
-}
-
-/** Read-only public client — no LOK_LISTING_KEY required (boot reconcile / asks()). */
 function readClient(env: NodeJS.ProcessEnv = process.env) {
   const cfg = ahEscrowClientConfig(env);
-  const escrow = ahEscrowAddress(env);
-  if (!cfg || !escrow) {
-    return { ok: false as const, error: "AhEscrow is not configured." };
+  if (!cfg) {
+    return { ok: false as const, error: "AhEscrow client is not configured." };
   }
-  const chain = chainOf(cfg.chainId, cfg.rpcUrl);
-  const pub = createPublicClient({
-    chain,
-    transport: http(cfg.rpcUrl),
-  });
-  return { ok: true as const, pub, chain, escrow: escrow as `0x${string}`, cfg };
+  const escrow = ahEscrowAddress(env);
+  if (!escrow) return { ok: false as const, error: "AhEscrow address missing." };
+  const chain: Chain = {
+    id: cfg.chainId,
+    name: "settlement",
+    nativeCurrency: { name: "xDAI", symbol: "xDAI", decimals: 18 },
+    rpcUrls: { default: { http: [cfg.rpcUrl] } },
+  };
+  const pub = createPublicClient({ chain, transport: http(cfg.rpcUrl) });
+  return { ok: true as const, pub, escrow: escrow as `0x${string}`, cfg, chain };
 }
 
 function client(env: NodeJS.ProcessEnv = process.env) {
@@ -134,7 +120,6 @@ async function waitReceipt(
   });
 }
 
-/** M-2: log escrow release waits for settlement depth (finalized tip / N blocks). */
 function cancelConfirmations(env?: NodeJS.ProcessEnv): number {
   const n = Number(settlementConfirmations(env));
   return Number.isFinite(n) && n >= 1 ? n : 1;
@@ -171,6 +156,145 @@ export async function readAskOnchain(opts: {
 
 function isAskClosedError(msg: string): boolean {
   return /AskClosed|ask closed/i.test(msg) || msg.toLowerCase().includes(ASK_CLOSED_SELECTOR);
+}
+
+/**
+ * Resolve a stuck openAsk pending record (reverted / replaced / dropped).
+ * Returns neverOpened when the broadcast did not leave an open ask.
+ */
+async function resolvePendingOpenAsk(opts: {
+  listingId: string;
+  env?: NodeJS.ProcessEnv;
+  dataDir?: string;
+  pub: ReturnType<typeof createPublicClient>;
+  listingAddress: `0x${string}`;
+}): Promise<
+  | { action: "neverOpened" }
+  | { action: "alreadyClosed" }
+  | { action: "open" }
+  | { action: "wait"; error: string }
+> {
+  const store = openAskPendingStore(opts.dataDir);
+  const pending = store.get(opts.listingId);
+  if (!pending) return { action: "neverOpened" };
+
+  let receipt: TransactionReceipt | null = null;
+  try {
+    receipt = await opts.pub.getTransactionReceipt({ hash: pending.hash as Hex });
+  } catch {
+    receipt = null;
+  }
+
+  if (receipt) {
+    if (receipt.status === "reverted") {
+      store.clear(opts.listingId);
+      return { action: "neverOpened" };
+    }
+    // Mined successfully — ask should be used/open (or already filled/cancelled).
+    const onchain = await readAskOnchain({ listingId: opts.listingId, env: opts.env });
+    if (!onchain.ok) return { action: "wait", error: onchain.error };
+    store.clear(opts.listingId);
+    if (onchain.ask.open) return { action: "open" };
+    if (onchain.ask.used) return { action: "alreadyClosed" };
+    return { action: "neverOpened" };
+  }
+
+  // No receipt yet — if the LISTING nonce has moved past the broadcast nonce, the tx was dropped/replaced.
+  try {
+    const minedNonce = await opts.pub.getTransactionCount({
+      address: opts.listingAddress,
+      blockTag: "latest",
+    });
+    if (minedNonce > BigInt(pending.nonce)) {
+      store.clear(opts.listingId);
+      const onchain = await readAskOnchain({ listingId: opts.listingId, env: opts.env });
+      if (onchain.ok && onchain.ask.open) return { action: "open" };
+      if (onchain.ok && onchain.ask.used) return { action: "alreadyClosed" };
+      return { action: "neverOpened" };
+    }
+  } catch (err) {
+    return {
+      action: "wait",
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+
+  return {
+    action: "wait",
+    error:
+      "openAsk was broadcast (tx " +
+      pending.hash +
+      ") but is not mined yet; refuse reclaim/cancel until the nonce settles (ops: replace/cancel same nonce or wait)",
+  };
+}
+
+/**
+ * Same-nonce replacement: cancel an open ask, or a no-op self-transfer if the openAsk never mined.
+ * Used when a pending openAsk is stuck in the mempool.
+ */
+export async function replacePendingOpenAsk(opts: {
+  listingId: string;
+  env?: NodeJS.ProcessEnv;
+  dataDir?: string;
+}): Promise<{ ok: true; hash: Hex; cleared: boolean } | { ok: false; error: string }> {
+  return withOwnerKeyQueue(async () => {
+    const c = client(opts.env);
+    if (!c.ok) return c;
+    const pending = openAskPendingStore(opts.dataDir).get(opts.listingId);
+    if (!pending) return { ok: false, error: "No pending openAsk for this listing." };
+    const resolved = await resolvePendingOpenAsk({
+      listingId: opts.listingId,
+      env: opts.env,
+      dataDir: opts.dataDir,
+      pub: c.pub,
+      listingAddress: c.account.address,
+    });
+    if (resolved.action === "neverOpened") {
+      return { ok: true, hash: "0x" as Hex, cleared: true };
+    }
+    if (resolved.action === "alreadyClosed") {
+      return { ok: true, hash: "0x" as Hex, cleared: true };
+    }
+    if (resolved.action === "open") {
+      // Ask is open — cancel it (1 conf inside queue).
+      try {
+        const hash = await c.wallet.writeContract({
+          address: c.escrow,
+          abi: AH_ABI,
+          functionName: "cancelAsk",
+          args: [BigInt(opts.listingId)],
+          account: c.account,
+          chain: c.chain,
+        });
+        const receipt = await waitReceipt(c.pub, hash, 1);
+        if (receipt.status !== "success") {
+          return { ok: false, error: "replacement cancelAsk reverted" };
+        }
+        openAskPendingStore(opts.dataDir).clear(opts.listingId);
+        return { ok: true, hash, cleared: true };
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : String(err) };
+      }
+    }
+    // Still in mempool at the same nonce — replace with a 0-value self send to clear the nonce.
+    try {
+      const hash = await c.wallet.sendTransaction({
+        account: c.account,
+        chain: c.chain,
+        to: c.account.address,
+        value: 0n,
+        nonce: Number(pending.nonce),
+      });
+      const receipt = await waitReceipt(c.pub, hash, 1);
+      openAskPendingStore(opts.dataDir).clear(opts.listingId);
+      if (receipt.status !== "success") {
+        return { ok: false, error: "nonce-replacement tx reverted" };
+      }
+      return { ok: true, hash, cleared: true };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  });
 }
 
 export async function openAskOnchain(opts: {
@@ -216,7 +340,9 @@ export async function openAskOnchain(opts: {
       });
       const receipt = await waitReceipt(c.pub, hash, 1);
       if (receipt.status !== "success") {
-        return { ok: false, error: "openAsk reverted on-chain.", chainOpen: true };
+        // Reverted (e.g. paused): clear pending and undo log listing (chainOpen:false).
+        openAskPendingStore(opts.dataDir).clear(opts.listingId);
+        return { ok: false, error: "openAsk reverted on-chain.", chainOpen: false };
       }
       openAskPendingStore(opts.dataDir).clear(opts.listingId);
       return { ok: true, hash };
@@ -244,6 +370,16 @@ export async function openAskOnchain(opts: {
               chainOpen: true,
             };
           }
+          // Mined but reverted → treat as not open.
+          try {
+            const receipt = await c.pub.getTransactionReceipt({ hash });
+            if (receipt.status === "reverted") {
+              openAskPendingStore(opts.dataDir).clear(opts.listingId);
+              return { ok: false, error: msg + " (openAsk reverted)", chainOpen: false };
+            }
+          } catch {
+            /* still pending */
+          }
         }
         return {
           ok: false,
@@ -264,44 +400,44 @@ export async function cancelAskOnchain(opts: {
   | { ok: true; hash: Hex; alreadyClosed?: boolean; neverOpened?: boolean; pendingOpen?: boolean }
   | { ok: false; error: string }
 > {
-  return withOwnerKeyQueue(async () => {
-    const c = client(opts.env);
+  const env = opts.env;
+  // Phase 1 (inside queue): resolve pending openAsk, broadcast cancel, wait 1 confirmation.
+  const phase1 = await withOwnerKeyQueue(async () => {
+    const c = client(env);
     if (!c.ok) return c;
 
-    let before = await readAskOnchain({ listingId: opts.listingId, env: opts.env });
+    let before = await readAskOnchain({ listingId: opts.listingId, env });
     if (!before.ok) return before;
     const pending = openAskPendingStore(opts.dataDir).get(opts.listingId);
-    // M-1: !used is neverOpened only when we never broadcast openAsk for this id.
+
     if (!before.ask.used) {
       if (!pending) {
-        return { ok: true, hash: "0x" as Hex, neverOpened: true };
+        return { ok: true as const, hash: "0x" as Hex, neverOpened: true as const };
       }
-      // Broadcast may still be in flight — wait for one confirmation, then re-read.
-      try {
-        await waitReceipt(c.pub, pending.hash as Hex, 1);
-      } catch {
-        /* receipt may fail; still re-check asks() */
+      const resolved = await resolvePendingOpenAsk({
+        listingId: opts.listingId,
+        env,
+        dataDir: opts.dataDir,
+        pub: c.pub,
+        listingAddress: c.account.address,
+      });
+      if (resolved.action === "neverOpened") {
+        return { ok: true as const, hash: "0x" as Hex, neverOpened: true as const };
       }
-      const again = await readAskOnchain({ listingId: opts.listingId, env: opts.env });
-      if (!again.ok) return again;
-      if (again.ask.used && !again.ask.open) {
-        openAskPendingStore(opts.dataDir).clear(opts.listingId);
-        return { ok: true, hash: "0x" as Hex, alreadyClosed: true };
+      if (resolved.action === "alreadyClosed") {
+        return { ok: true as const, hash: "0x" as Hex, alreadyClosed: true as const };
       }
-      if (!again.ask.used) {
-        return {
-          ok: false,
-          error:
-            "openAsk was broadcast (tx " +
-            pending.hash +
-            ") but is not mined yet; refuse reclaim/cancel until the nonce settles",
-        };
+      if (resolved.action === "wait") {
+        return { ok: false as const, error: resolved.error };
       }
-      before = again;
+      // open — fall through to cancel
+      before = await readAskOnchain({ listingId: opts.listingId, env });
+      if (!before.ok) return before;
     }
+
     if (!before.ask.open) {
       openAskPendingStore(opts.dataDir).clear(opts.listingId);
-      return { ok: true, hash: "0x" as Hex, alreadyClosed: true };
+      return { ok: true as const, hash: "0x" as Hex, alreadyClosed: true as const };
     }
 
     try {
@@ -313,24 +449,66 @@ export async function cancelAskOnchain(opts: {
         account: c.account,
         chain: c.chain,
       });
-      const receipt = await waitReceipt(c.pub, hash, cancelConfirmations(opts.env));
+      const receipt = await waitReceipt(c.pub, hash, 1);
       if (receipt.status !== "success") {
-        return { ok: false, error: "cancelAsk reverted on-chain." };
+        return { ok: false as const, error: "cancelAsk reverted on-chain." };
       }
       openAskPendingStore(opts.dataDir).clear(opts.listingId);
-      return { ok: true, hash };
+      return {
+        ok: true as const,
+        hash,
+        needsFinality: true as const,
+        rpcUrl: c.cfg.rpcUrl,
+        chainId: c.cfg.chainId,
+      };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (isAskClosedError(msg)) {
         openAskPendingStore(opts.dataDir).clear(opts.listingId);
-        return { ok: true, hash: "0x" as Hex, alreadyClosed: true };
+        return { ok: true as const, hash: "0x" as Hex, alreadyClosed: true as const };
       }
-      const again = await readAskOnchain({ listingId: opts.listingId, env: opts.env });
+      const again = await readAskOnchain({ listingId: opts.listingId, env });
       if (again.ok && !again.ask.open) {
         openAskPendingStore(opts.dataDir).clear(opts.listingId);
-        return { ok: true, hash: "0x" as Hex, alreadyClosed: true };
+        return { ok: true as const, hash: "0x" as Hex, alreadyClosed: true as const };
       }
-      return { ok: false, error: msg };
+      return { ok: false as const, error: msg };
     }
   });
+
+  if (!phase1.ok) return phase1;
+  if (!("needsFinality" in phase1) || !phase1.needsFinality || phase1.hash === "0x") {
+    return {
+      ok: true,
+      hash: phase1.hash,
+      alreadyClosed: "alreadyClosed" in phase1 ? phase1.alreadyClosed : undefined,
+      neverOpened: "neverOpened" in phase1 ? phase1.neverOpened : undefined,
+    };
+  }
+
+  // Phase 2 (outside queue): wait for settlement depth before caller releases log escrow.
+  const depth = cancelConfirmations(env);
+  if (depth > 1) {
+    try {
+      const pub = createPublicClient({
+        chain: {
+          id: phase1.chainId,
+          name: "settlement",
+          nativeCurrency: { name: "xDAI", symbol: "xDAI", decimals: 18 },
+          rpcUrls: { default: { http: [phase1.rpcUrl] } },
+        },
+        transport: http(phase1.rpcUrl),
+      });
+      await waitReceipt(pub, phase1.hash, depth);
+    } catch (err) {
+      return {
+        ok: false,
+        error:
+          "cancelAsk mined but finality wait failed: " +
+          (err instanceof Error ? err.message : String(err)) +
+          " — log escrow not released yet",
+      };
+    }
+  }
+  return { ok: true, hash: phase1.hash };
 }

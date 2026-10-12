@@ -13,9 +13,11 @@ import {
   dryRunDeployAllowed,
 } from "./dry-run-denylist";
 import {
+  GLOBAL_LISTING_TX_MAX_PER_HOUR,
   LIST_MAX_PER_CHAR_PER_HOUR,
   MIN_LISTING_LIFETIME_MS,
   consumeCancelBudget,
+  consumeGlobalListingTxBudget,
   consumeListBudget,
   listingMinLifetimeOk,
   maybeAlertListingLowBalance,
@@ -61,13 +63,13 @@ describe("C-1 NFT owner cache + rebind", () => {
     const denied = await sessionOwnsCharacter(
       "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
       "7",
-      { dataDir: dir, env: {} },
+      { dataDir: dir, env: {}, preferLive: false },
     );
     assert.equal(denied.ok, false);
     const allowed = await sessionOwnsCharacter(
       "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "7",
-      { dataDir: dir, env: {} },
+      { dataDir: dir, env: {}, preferLive: false },
     );
     assert.equal(allowed.ok, true);
   });
@@ -140,6 +142,39 @@ describe("H-1 list/cancel rate limits", () => {
       now: Date.now() + 100,
     });
     assert.equal(deduped, false);
+  });
+
+  it("enforces a persisted global LISTING tx budget", () => {
+    resetListRateForTests();
+    const dir = mkdtempSync(join(tmpdir(), "list-budget-"));
+    const now = 5_000_000;
+    for (let i = 0; i < GLOBAL_LISTING_TX_MAX_PER_HOUR; i++) {
+      assert.equal(consumeGlobalListingTxBudget({ now, dataDir: dir }).ok, true);
+    }
+    assert.equal(consumeGlobalListingTxBudget({ now, dataDir: dir }).ok, false);
+    // New hour window
+    assert.equal(
+      consumeGlobalListingTxBudget({ now: now + 3_600_000 + 1, dataDir: dir }).ok,
+      true,
+    );
+  });
+});
+
+describe("M-1 openAsk revert clears pending", () => {
+  it("clears pending record so cancel can treat as neverOpened", () => {
+    resetOpenAskPendingForTests();
+    const dir = mkdtempSync(join(tmpdir(), "open-ask-rev-"));
+    const store = new OpenAskPendingStore(join(dir, "open-ask-pending.json"));
+    store.set({
+      listingId: "42",
+      sellerTokenId: "7",
+      hash: "0x" + "cd".repeat(32),
+      nonce: "9",
+      broadcastAt: new Date().toISOString(),
+    });
+    assert.equal(store.has("42"), true);
+    store.clear("42");
+    assert.equal(store.has("42"), false);
   });
 });
 

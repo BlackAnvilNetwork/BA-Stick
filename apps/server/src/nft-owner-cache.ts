@@ -105,11 +105,17 @@ export async function resolveCharacterController(
 export async function sessionOwnsCharacter(
   sessionWallet: string,
   tokenId: string,
-  opts?: { env?: NodeJS.ProcessEnv; dataDir?: string },
+  opts?: { env?: NodeJS.ProcessEnv; dataDir?: string; preferLive?: boolean },
 ): Promise<{ ok: true; owner: string } | { ok: false; error: string }> {
   const w = sessionWallet.trim().toLowerCase();
   if (!/^0x[0-9a-f]{40}$/.test(w)) return { ok: false, error: "Bad session wallet." };
-  const ctrl = await resolveCharacterController(tokenId, opts);
+  // Value-moving actions should preferLive so a pre-finality Transfer cannot leave
+  // the seller in control for ~30 blocks (re-test #5).
+  const ctrl = await resolveCharacterController(tokenId, {
+    env: opts?.env,
+    dataDir: opts?.dataDir,
+    preferLive: opts?.preferLive !== false,
+  });
   if (!ctrl.ok) return ctrl;
   if (ctrl.owner !== w) {
     return {

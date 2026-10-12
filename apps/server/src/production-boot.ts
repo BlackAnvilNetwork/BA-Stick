@@ -3,10 +3,14 @@
  * Missing contracts or dry-run addresses → refuse to listen.
  */
 import { createPublicClient, http, parseAbi } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
 import { findDryRunEnvHits, dryRunDeployAllowed } from "./dry-run-denylist";
 import { listingRoleKey, ahEscrowAddress } from "./ah-escrow";
 import { characterMintEnvConfigured } from "./lok-vault";
 import { envSettlementChainId } from "./settlement-chain";
+
+/** Pinned production LISTING EOA (docs/gnosis-launch.md). */
+export const PINNED_GNOSIS_LISTING_ADDRESS = "0xbfa29a6ee3d1188aa0a9e0c783e5da620b859e76";
 
 export type ProductionBootResult =
   | { ok: true }
@@ -90,7 +94,7 @@ export async function assertProductionContractsLive(
   const escrow = (env.LOK_AH_ESCROW?.trim() || ahEscrowAddress(env)) as `0x${string}`;
   const rpc = (env.LOK_CHAIN_RPC?.trim() || env.LOK_PUBLIC_RPC!.trim()) as string;
   const listing = listingRoleKey(env);
-  const chainId = Number(env.LOK_CHAIN_ID || "100");
+  const chainId = envSettlementChainId(env);
 
   try {
     const pub = createPublicClient({
@@ -140,10 +144,23 @@ export async function assertProductionContractsLive(
           abi: ESCROW_ABI,
           functionName: "LISTING_ROLE",
         });
-        const { privateKeyToAccount } = await import("viem/accounts");
         const acct = privateKeyToAccount(
           (listing.startsWith("0x") ? listing : "0x" + listing) as `0x${string}`,
         );
+        const named = (env.NETWORK ?? env.LOK_NETWORK)?.trim().toLowerCase();
+        if (
+          (named === "gnosis" || chainId === 100) &&
+          acct.address.toLowerCase() !== PINNED_GNOSIS_LISTING_ADDRESS
+        ) {
+          return {
+            ok: false,
+            error:
+              "LOK_LISTING_KEY address " +
+              acct.address +
+              " != pinned Gnosis LISTING " +
+              PINNED_GNOSIS_LISTING_ADDRESS,
+          };
+        }
         const ok = await pub.readContract({
           address: escrow,
           abi: ESCROW_ABI,

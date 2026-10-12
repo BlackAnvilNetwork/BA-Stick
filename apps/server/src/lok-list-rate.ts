@@ -1,7 +1,10 @@
 /**
  * Per-character / per-wallet rate limits for lok/list, lok/cancel, lok/reclaim (H-1).
- * Also enforces a minimum listing lifetime before cancel.
+ * Also enforces a minimum listing lifetime before cancel and a global LISTING gas budget.
  */
+import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { defaultLokDir } from "./lok-world";
 import { opsAlert } from "./ops-log";
 
 type Bucket = { count: number; resetAt: number };
@@ -18,10 +21,61 @@ export const LIST_MAX_PER_CHAR_PER_HOUR = 10;
 export const LIST_MAX_PER_WALLET_PER_HOUR = 30;
 export const CANCEL_MAX_PER_CHAR_PER_HOUR = 10;
 export const CANCEL_MAX_PER_WALLET_PER_HOUR = 30;
+/** Cap LISTING key txs (list+cancel+reclaim) across all wallets — persisted. */
+export const GLOBAL_LISTING_TX_MAX_PER_HOUR = 120;
 /** Minimum time a listing must stay open before cancel/reclaim (ms). */
 export const MIN_LISTING_LIFETIME_MS = 60_000;
 
 const HOUR = 3_600_000;
+const GLOBAL_BUDGET_FILE = "listing-tx-budget.json";
+
+type GlobalBudget = { count: number; resetAt: number };
+
+function globalBudgetPath(dataDir = defaultLokDir()): string {
+  return join(dataDir, GLOBAL_BUDGET_FILE);
+}
+
+function readGlobalBudget(dataDir?: string): GlobalBudget {
+  const path = globalBudgetPath(dataDir);
+  if (!existsSync(path)) return { count: 0, resetAt: 0 };
+  try {
+    const raw = JSON.parse(readFileSync(path, "utf8")) as GlobalBudget;
+    if (typeof raw.count === "number" && typeof raw.resetAt === "number") return raw;
+  } catch {
+    /* fresh */
+  }
+  return { count: 0, resetAt: 0 };
+}
+
+function writeGlobalBudget(row: GlobalBudget, dataDir?: string): void {
+  const path = globalBudgetPath(dataDir);
+  const tmp = path + ".tmp";
+  writeFileSync(tmp, JSON.stringify(row, null, 2) + "\n");
+  renameSync(tmp, path);
+}
+
+export function consumeGlobalListingTxBudget(opts?: {
+  now?: number;
+  dataDir?: string;
+  max?: number;
+}): { ok: true } | { ok: false; error: string } {
+  const now = opts?.now ?? Date.now();
+  const max = opts?.max ?? GLOBAL_LISTING_TX_MAX_PER_HOUR;
+  let row = readGlobalBudget(opts?.dataDir);
+  if (now >= row.resetAt) row = { count: 0, resetAt: now + HOUR };
+  if (row.count >= max) {
+    return {
+      ok: false,
+      error:
+        "Global listing gas budget exhausted (max " +
+        max +
+        " LISTING txs/h). Try again later.",
+    };
+  }
+  row.count += 1;
+  writeGlobalBudget(row, opts?.dataDir);
+  return { ok: true };
+}
 
 function consume(map: Map<string, Bucket>, key: string, max: number, now: number, windowMs = HOUR): boolean {
   const row = map.get(key);
@@ -63,8 +117,11 @@ export function consumeListBudget(opts: {
   charId: string;
   wallet: string;
   now?: number;
+  dataDir?: string;
 }): { ok: true } | { ok: false; error: string } {
   const now = opts.now ?? Date.now();
+  const global = consumeGlobalListingTxBudget({ now, dataDir: opts.dataDir });
+  if (!global.ok) return global;
   if (!consume(listByChar, opts.charId, LIST_MAX_PER_CHAR_PER_HOUR, now)) {
     return { ok: false, error: "List rate limit: too many listings for this character (max " + LIST_MAX_PER_CHAR_PER_HOUR + "/h)." };
   }
@@ -78,8 +135,11 @@ export function consumeCancelBudget(opts: {
   charId: string;
   wallet: string;
   now?: number;
+  dataDir?: string;
 }): { ok: true } | { ok: false; error: string } {
   const now = opts.now ?? Date.now();
+  const global = consumeGlobalListingTxBudget({ now, dataDir: opts.dataDir });
+  if (!global.ok) return global;
   if (!consume(cancelByChar, opts.charId, CANCEL_MAX_PER_CHAR_PER_HOUR, now)) {
     return { ok: false, error: "Cancel rate limit: too many cancels for this character (max " + CANCEL_MAX_PER_CHAR_PER_HOUR + "/h)." };
   }
