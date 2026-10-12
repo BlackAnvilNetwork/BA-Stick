@@ -10,6 +10,8 @@ interface ImportMetaEnv {
   readonly VITE_ANVIL_RPC_URL?: string;
   /** Reachable anvil RPC for mobile WalletConnect (LAN IP, ngrok, etc.). */
   readonly VITE_ANVIL_PUBLIC_RPC_URL?: string;
+  /** When "1", allow WalletConnect optionalChains to include anvil 31337 outside Vite DEV. */
+  readonly VITE_ALLOW_ANVIL_WC?: string;
   /** Target chain id (default 4663 Robinhood). Use 31337 for local preview mint pay. */
   readonly VITE_CHAIN_ID?: string;
 }

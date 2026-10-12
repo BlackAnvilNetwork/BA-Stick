@@ -148,7 +148,10 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
     tokenId: z.number().int().positive(),
     amount: z.number().int().positive().max(1_000_000),
     minPrice: z.string().regex(/^[1-9][0-9]{0,18}$/),
-    /** ETH proceeds wallet (injected or burner). Defaults to auth wallet. */
+    /**
+     * Ignored by the server. Proceeds always go to ownerOf(character) at list
+     * time (mainnet rule 2/4). Kept optional for older clients.
+     */
     sellerPayout: z.string().regex(/^0x[0-9a-fA-F]{40}$/).optional(),
   }),
   z.object({

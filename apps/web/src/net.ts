@@ -179,7 +179,12 @@ export async function loginWithWalletConnect(opts?: {
     return { ok: false, error: "Bad VITE_CHAIN_ID for WalletConnect." };
   }
   try {
-    const session = await connectWalletConnect({ chainId, rpcUrl });
+    // Rule 5: login is sign-only — do not force a chain switch.
+    const session = await connectWalletConnect({
+      chainId,
+      rpcUrl,
+      switchChain: false,
+    });
     setPreferredPayoutWallet(session.address);
     externalAuth = {
       address: session.address,

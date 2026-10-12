@@ -4,7 +4,6 @@ import { useState } from "react";
 import { parseEther } from "viem";
 import { ItemCatalogDetails, ItemTipHost } from "./itemTip";
 import { send } from "./net";
-import { preferredPayoutWallet } from "./wallet";
 
 type Near = { id: string; name: string };
 
@@ -148,13 +147,12 @@ export function ProvisionerBag({ inventory, logItems, inbox, others }: Props) {
                     title={priceOk ? "List the log stack at this minimum." : "Enter a minimum ETH amount greater than 0."}
                     onClick={() => {
                       if (!cell.logAmount || !minPriceWei) return;
-                      const payout = preferredPayoutWallet();
+                      // Seller payout is ownerOf(character) on the server — never client-supplied.
                       send({
                         type: "lok/list",
                         tokenId: cell.tokenId,
                         amount: Number(cell.logAmount),
                         minPrice: minPriceWei,
-                        ...(payout ? { sellerPayout: payout } : {}),
                       });
                     }}
                   >

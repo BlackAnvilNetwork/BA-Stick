@@ -203,10 +203,13 @@ import {
   faucetAnvilEth,
   loadCharacterMintClientConfig,
   linkCharacterNftWithRetry,
+  readCharacterNftOwner,
+  resolveListSellerPayout,
   serverMintCharacterFor,
   verifyCharacterNftOwner,
   type CharacterMintClientConfig,
 } from "./lok-vault";
+import { startNftTransferAskCancelWatcher } from "./nft-transfer-ask-cancel";
 import { loadEezClientConfig, type EezSyncBuyClientConfig } from "./eez-sync";
 import { guardedKekMove, withPlayerCharge } from "./kek-guard";
 import { characterNameKey, normalizeCharacterName } from "./character-name";
@@ -542,6 +545,7 @@ const lok: LokWorld = await (async (): Promise<LokWorld> => {
         notifyAhEscrowFill(fill);
       },
     });
+    startNftTransferAskCancelWatcher(world);
     if (ahEscrowAddress() && !listingRoleKey()) {
       console.error(
         "[bellgrave] AhEscrow is configured but LOK_LISTING_KEY is missing. " +
@@ -1014,7 +1018,7 @@ function handleLokList(
   tokenId: number,
   amount: number,
   minPrice: string,
-  sellerPayout?: string,
+  _clientSellerPayout?: string,
 ) {
   const token = lokToken(p);
   if (!token) {
@@ -1040,27 +1044,34 @@ function handleLokList(
     pushLog(p, "A wallet is required to list for ETH. Nothing was listed.");
     return;
   }
-  const payout =
-    sellerPayout && isEthAddress(sellerPayout) ? sellerPayout.toLowerCase() : p.wallet.toLowerCase();
   if (!ahEscrowAddress()) {
     pushLog(p, "AhEscrow is not configured on this server. Nothing was listed.");
     return;
   }
-  const listedAt = Math.floor(Date.now() / 1000);
-  const res = lok.ask(token, String(tokenId), String(amount), minPrice, listedAt);
-  if (!res.ok || !res.listingId) {
-    pushLog(p, res.ok ? "Listing id missing." : res.error);
-    return;
-  }
-  const listingId = res.listingId;
-  void openAskOnchain({
-    listingId,
-    sellerTokenId: token,
-    sellerPayout: payout,
-    itemId: String(tokenId),
-    amount: String(amount),
-    priceWei: minPrice,
-  }).then((chain) => {
+  // Rule 2/4: payout is ownerOf(character) at list time — never a client address.
+  void (async () => {
+    const owned = await readCharacterNftOwner(token);
+    const resolved = resolveListSellerPayout(owned.ok ? owned.holder : null);
+    if (!resolved.ok) {
+      pushLog(p, resolved.error);
+      return;
+    }
+    const payout = resolved.payout;
+    const listedAt = Math.floor(Date.now() / 1000);
+    const res = lok.ask(token, String(tokenId), String(amount), minPrice, listedAt);
+    if (!res.ok || !res.listingId) {
+      pushLog(p, res.ok ? "Listing id missing." : res.error);
+      return;
+    }
+    const listingId = res.listingId;
+    const chain = await openAskOnchain({
+      listingId,
+      sellerTokenId: token,
+      sellerPayout: payout,
+      itemId: String(tokenId),
+      amount: String(amount),
+      priceWei: minPrice,
+    });
     if (!chain.ok) {
       // N4: if the ask mined despite a receipt/RPC error, keep the log listing.
       if (chain.chainOpen) {
@@ -1099,7 +1110,7 @@ function handleLokList(
         " wei ETH on AhEscrow. The auction house is holding the item.",
     );
     send(p.ws, snapshotFor(p));
-  });
+  })();
 }
 
 function handleLokBuy(p: Player, _itemId: number, _qty?: number) {

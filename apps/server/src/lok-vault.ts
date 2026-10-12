@@ -687,16 +687,19 @@ export async function serverMintCharacterFor(
   }
 }
 
-/** Verify the player already owns tokenId on-chain (mint-first create). */
-export async function verifyCharacterNftOwner(
+/**
+ * Read `ownerOf(tokenId)` for AH list payout / transfer cancel.
+ * Client-supplied payout addresses are never used (mainnet rule 2/4).
+ */
+export async function readCharacterNftOwner(
   tokenId: string,
-  wallets: string[],
   envIn: NodeJS.ProcessEnv = process.env,
 ): Promise<{ ok: true; holder: string } | VaultErr> {
   const env = envOf(envIn);
   if (!env.rpc || !env.nft) return { ok: false, error: "Character NFT is not configured." };
-  const accepted = new Set(wallets.filter(isAddress).map((w) => w.toLowerCase()));
-  if (accepted.size === 0) return { ok: false, error: "No wallet to verify against." };
+  if (!/^[1-9][0-9]{0,77}$/.test(tokenId)) {
+    return { ok: false, error: "Bad character token id." };
+  }
   try {
     const chainId = await chainIdOf(env.rpc);
     const pub = publicClient(env.rpc, chainId);
@@ -708,8 +711,8 @@ export async function verifyCharacterNftOwner(
         args: [BigInt(tokenId)],
       })
     ).toLowerCase();
-    if (!accepted.has(holder)) {
-      return { ok: false, error: "NFT #" + tokenId + " is held by " + holder + ", not your wallet." };
+    if (!isAddress(holder)) {
+      return { ok: false, error: "Character NFT owner is not a valid address." };
     }
     return { ok: true, holder };
   } catch (err) {
@@ -719,6 +722,39 @@ export async function verifyCharacterNftOwner(
       error: "NFT #" + tokenId + " is not on-chain yet. " + redact(String(err), []),
     };
   }
+}
+
+/**
+ * AH list payout: always `ownerOf(character)` at list time.
+ * Ignores any client-supplied sellerPayout / preferred payout wallet.
+ */
+export function resolveListSellerPayout(ownerOf: string | null | undefined): {
+  ok: true;
+  payout: string;
+} | { ok: false; error: string } {
+  if (!ownerOf || !isAddress(ownerOf)) {
+    return {
+      ok: false,
+      error: "Character NFT owner could not be read. Nothing was listed.",
+    };
+  }
+  return { ok: true, payout: ownerOf.toLowerCase() };
+}
+
+/** Verify the player already owns tokenId on-chain (mint-first create). */
+export async function verifyCharacterNftOwner(
+  tokenId: string,
+  wallets: string[],
+  envIn: NodeJS.ProcessEnv = process.env,
+): Promise<{ ok: true; holder: string } | VaultErr> {
+  const accepted = new Set(wallets.filter(isAddress).map((w) => w.toLowerCase()));
+  if (accepted.size === 0) return { ok: false, error: "No wallet to verify against." };
+  const owned = await readCharacterNftOwner(tokenId, envIn);
+  if (!owned.ok) return owned;
+  if (!accepted.has(owned.holder)) {
+    return { ok: false, error: "NFT #" + tokenId + " is held by " + owned.holder + ", not your wallet." };
+  }
+  return { ok: true, holder: owned.holder };
 }
 
 export async function ensureLocalRuleset(envIn: NodeJS.ProcessEnv = process.env): Promise<void> {
