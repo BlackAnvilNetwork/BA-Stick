@@ -169,6 +169,47 @@ function asItemId(raw: string): number | null {
   return Number.isSafeInteger(n) ? n : null;
 }
 
+function normalizeFillKey(fillKey: string): string {
+  return fillKey.trim().toLowerCase();
+}
+
+/** Build fillKeys from ChainFill entries already on the engine document. */
+export function collectChainFillKeys(logText: string): Set<string> {
+  const keys = new Set<string>();
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(logText);
+  } catch {
+    return keys;
+  }
+  if (!parsed || typeof parsed !== "object") return keys;
+  const characters = (parsed as { characters?: unknown }).characters;
+  if (!Array.isArray(characters)) return keys;
+  for (const row of characters) {
+    if (!row || typeof row !== "object") continue;
+    const entries = (row as { entries?: unknown }).entries;
+    if (!Array.isArray(entries)) continue;
+    for (const entry of entries) {
+      if (!entry || typeof entry !== "object") continue;
+      const input = (entry as { input?: unknown }).input;
+      if (!input || typeof input !== "object") continue;
+      const body = input as { type?: unknown; txHash?: unknown; logIndex?: unknown };
+      if (body.type !== "chainFill") continue;
+      if (typeof body.txHash !== "string" || !body.txHash.startsWith("0x")) continue;
+      let idx: string;
+      if (typeof body.logIndex === "number" && Number.isFinite(body.logIndex)) {
+        idx = String(body.logIndex);
+      } else if (typeof body.logIndex === "string" && /^\d+$/.test(body.logIndex)) {
+        idx = body.logIndex;
+      } else {
+        continue;
+      }
+      keys.add(normalizeFillKey(body.txHash + "-" + idx));
+    }
+  }
+  return keys;
+}
+
 /**
  * One hash chain per character. The wasm engine accepts or rejects every move.
  * Deposit credits KEK the caller already holds in custody. It does not mint.
@@ -186,6 +227,8 @@ export class LokWorld {
   /** Custody nonces observed by the server. Not loaded from the client and not a chain watcher. */
   private custody = new Map<string, CustodyInbound>();
   private chainFills = new Map<string, ChainFillInbound>();
+  /** fillKeys already journaled as ChainFill (txHash-logIndex). Source of truth for AskFilled replay. */
+  private appliedChainFillKeys = new Set<string>();
   /** Bytes of lok-world.jsonl already folded into the snapshot. */
   private journalBytes = 0;
   /** Accepted events since the snapshot on disk was rewritten. */
@@ -213,6 +256,7 @@ export class LokWorld {
     this.replayJournal(cursor);
     this.bind = this.readBind();
     this.refresh();
+    this.appliedChainFillKeys = collectChainFillKeys(this.logDocument());
     this.reconcileBind();
     this.pruneExpiredReservations();
     if (!existsSync(this.logPath)) this.snapshotLog();
@@ -491,8 +535,21 @@ export class LokWorld {
       txHash: noted.txHash,
       logIndex: noted.logIndex,
     });
-    if (res.ok) this.chainFills.delete(fillKey);
+    if (res.ok) {
+      this.chainFills.delete(fillKey);
+      this.appliedChainFillKeys.add(normalizeFillKey(fillKey));
+    }
     return res;
+  }
+
+  /** True when a ChainFill with this fillKey (txHash-logIndex) is already on the log. */
+  hasChainFill(fillKey: string): boolean {
+    return this.appliedChainFillKeys.has(normalizeFillKey(fillKey));
+  }
+
+  /** All journaled ChainFill fillKeys (source of truth for AskFilled replay). */
+  chainFillKeys(): ReadonlySet<string> {
+    return this.appliedChainFillKeys;
   }
 
   goldPaidRespec(tokenId: string, amount: string, nodeIds: string[]): LokResult {

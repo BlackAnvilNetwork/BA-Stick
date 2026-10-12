@@ -149,6 +149,12 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
     tokenId: z.number().int().positive(),
     amount: z.number().int().positive().max(1_000_000),
   }),
+  /** Sell a log stack to the Provisioner NPC for gold (server-priced). */
+  z.object({
+    type: z.literal("lok/npcSell"),
+    tokenId: z.number().int().positive(),
+    amount: z.number().int().positive().max(1_000_000),
+  }),
   z.object({
     type: z.literal("lok/cancel"),
     listingId: z.string().regex(/^[1-9][0-9]{0,18}$/),
@@ -384,6 +390,14 @@ export type LokSnapshot = {
   chain: "engine-only" | "rpc-unwatched" | "watching";
   /** Present when the server exposes a public RPC + AhEscrow address for wallet buys. */
   ahEscrow?: AhEscrowClientConfig | null;
+  /** Present when the player should pay createCharacter{value} for the NFT. */
+  characterMint?: {
+    factory: string;
+    nft: string;
+    mintFee: string;
+    chainId: number;
+    rpcUrl: string;
+  } | null;
   withdrawDelaySec: number | null;
   queues: { id: string; amount: string; availableAt: number }[];
 };
@@ -441,7 +455,7 @@ export type SnapshotMessage = {
     freeStatPoints: number;
     /** Allocated free attribute points. */
     freeStats: { str: number; dex: number; vit: number; agi: number; int: number; mnd: number };
-    /** Hash-chained lok balances. KEK is deposit-only. */
+    /** Hash-chained lok balances. Settlement Key::Kek is historical; new AH pays on-chain. */
     lok?: LokSnapshot;
   };
   units: UnitSnapshot[];

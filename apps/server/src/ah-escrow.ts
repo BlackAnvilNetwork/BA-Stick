@@ -12,6 +12,7 @@ import {
   askFilledQuarantinePath,
   MirroredFills,
   reasonFromEngineError,
+  type AskFillQuarantineReason,
   type QuarantinedAskFill,
 } from "./lok-ask-filled-quarantine";
 import { defaultLokDir, type LokWorld } from "./lok-world";
@@ -53,7 +54,7 @@ type RpcLog = {
 
 export type ApplyAskFilledResult =
   | { ok: true; kind: "applied" | "replay" }
-  | { ok: false; kind: "quarantine"; error: string; reason: ReturnType<typeof reasonFromEngineError> }
+  | { ok: false; kind: "quarantine"; error: string; reason: AskFillQuarantineReason }
   | { ok: false; kind: "halt"; error: string };
 
 export function decodeAskFilled(log: { topics?: string[]; data?: string }): AskFilled | null {
@@ -109,21 +110,25 @@ function parseLogIndex(fillKey: string, log?: RpcLog): string {
 }
 
 /**
- * Mirror an AskFilled into the log. Replay only when this exact fillKey was
- * already mirrored. Unknown listing / self-buy / not spawned / mismatch →
- * quarantine (caller persists). Transient/unexpected → halt.
+ * Mirror an AskFilled into the log. Replay when this fillKey is already in the
+ * log (ChainFill tx+index) or in the optional mirrored-key cache. Unknown
+ * listing / self-buy / not spawned / mismatch → quarantine. Transient → halt.
  */
 export function applyAskFilled(
-  lok: Pick<LokWorld, "noteChainFill" | "chainFill" | "listingOf">,
+  lok: Pick<LokWorld, "noteChainFill" | "chainFill" | "listingOf" | "hasChainFill">,
   fill: AskFilled,
   fillKey: string,
   opts?: {
+    /** Optional cache only — source of truth is the log's ChainFill entries. */
     mirrored?: MirroredFills;
     log?: RpcLog;
   },
 ): ApplyAskFilledResult {
   const mirrored = opts?.mirrored;
-  if (mirrored?.has(fillKey)) return { ok: true, kind: "replay" };
+  if (mirrored?.has(fillKey) || lok.hasChainFill(fillKey)) {
+    mirrored?.add(fillKey);
+    return { ok: true, kind: "replay" };
+  }
 
   const listing = lok.listingOf(fill.listingId);
   if (!listing) {
@@ -274,7 +279,7 @@ export async function scanAskFilled(opts: {
 export type AskFilledApplied = AskFilled & { sellerTokenId?: string };
 
 export function startAskFilledWatcher(
-  lok: Pick<LokWorld, "noteChainFill" | "chainFill" | "listingOf">,
+  lok: Pick<LokWorld, "noteChainFill" | "chainFill" | "listingOf" | "hasChainFill" | "chainFillKeys">,
   opts?: {
     cursorPath?: string;
     dataDir?: string;
@@ -290,6 +295,8 @@ export function startAskFilledWatcher(
   const cursorPath = opts?.cursorPath ?? askFilledCursorPath(dataDir);
   const quarantine = new AskFilledQuarantine(askFilledQuarantinePath(dataDir));
   const mirrored = new MirroredFills(askFilledMirroredPath(dataDir));
+  // Side file is a cache: warm it from ChainFill entries already on the log.
+  for (const key of lok.chainFillKeys()) mirrored.add(key);
   if (quarantine.list().length > 0) {
     console.error(
       "[bellgrave] ALERT " +

@@ -1,5 +1,6 @@
 import {
   JOBS,
+  JOB_IDS,
   SUBJOB_UNLOCK_LEVEL,
   abilityCategory,
   abilityIconUrl,
@@ -15,6 +16,7 @@ import {
   type AbilityId as CombatAbilityId,
   type JobId,
 } from "@bellgrave/combat";
+import { mintCharacterWithWallet } from "./character-mint";
 import { ITEM } from "@bellgrave/config";
 import { getItem } from "@bellgrave/items";
 import type { AbilityId, UnitSnapshot } from "@bellgrave/protocol";
@@ -1295,8 +1297,27 @@ type Appearance = "male" | "female" | "pepeka";
 function CreatePanel() {
   const [job, setJob] = useState<JobId>("time_mage");
   const [gender, setGender] = useState<Appearance>("male");
+  const [mintPending, setMintPending] = useState(false);
   const characters = useGame((s) => s.characters);
+  const pushLog = useGame((s) => s.pushLog);
+  const mintCfg = useGame((s) => s.snapshot?.you?.lok?.characterMint ?? null);
   const playableJobs = (Object.keys(JOBS) as JobId[]).filter((j) => JOBS[j].playable);
+
+  useEffect(() => {
+    if (!mintPending || !mintCfg) return;
+    let cancelled = false;
+    const jobIndex = JOB_IDS.indexOf(job);
+    void mintCharacterWithWallet({ mint: mintCfg, job: jobIndex < 0 ? 0 : jobIndex }).then((res) => {
+      if (cancelled) return;
+      setMintPending(false);
+      if (!res.ok) pushLog("Character mint: " + res.error);
+      else pushLog("Paid character mint fee on-chain. Linking NFT…");
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [mintPending, mintCfg, job, pushLog]);
+
   return (
     <form
       className="boot-panel"
@@ -1305,11 +1326,17 @@ function CreatePanel() {
         const fd = new FormData(e.currentTarget);
         const name = String(fd.get("name") || "Chrona").slice(0, 16);
         useGame.getState().setPendingCreateEnter(true);
+        setMintPending(true);
         send({ type: "char/create", name, job, gender });
         window.setTimeout(() => send({ type: "claim/starter" }), 100);
       }}
     >
       <p className="boot-sub">Create your adventurer</p>
+      {mintCfg ? (
+        <p className="boot-sub">
+          Character NFT mint fee: {(Number(mintCfg.mintFee) / 1e18).toFixed(4)} ETH (paid from your wallet).
+        </p>
+      ) : null}
       <label className="boot-label">
         Character name
         <input name="name" defaultValue="Chrona" maxLength={16} className="boot-input" />

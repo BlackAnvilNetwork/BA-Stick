@@ -1,8 +1,9 @@
 /**
  * Serialized AhEscrow txs via viem (no private key on the cast argv).
- * One queue per listing key so concurrent list/cancel don't nonce-collide.
+ * Shares the owner-key queue with lok-vault so listing + mint never nonce-collide.
  */
 import {
+  createPublicClient,
   createWalletClient,
   http,
   type Chain,
@@ -11,6 +12,7 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { ahEscrowAddress, ahEscrowClientConfig, listingRoleKey } from "./ah-escrow";
+import { withOwnerKeyQueue } from "./owner-tx-queue";
 
 const AH_ABI = [
   {
@@ -34,18 +36,44 @@ const AH_ABI = [
     inputs: [{ name: "listingId", type: "uint256" }],
     outputs: [],
   },
+  {
+    type: "function",
+    name: "asks",
+    stateMutability: "view",
+    inputs: [{ name: "listingId", type: "uint256" }],
+    outputs: [
+      { name: "sellerPayout", type: "address" },
+      { name: "sellerTokenId", type: "uint256" },
+      { name: "itemId", type: "uint256" },
+      { name: "amount", type: "uint256" },
+      { name: "priceWei", type: "uint256" },
+      { name: "open", type: "bool" },
+      { name: "used", type: "bool" },
+    ],
+  },
+  { type: "error", name: "AskClosed", inputs: [] },
+  { type: "error", name: "AskExists", inputs: [] },
+  { type: "error", name: "BadAmount", inputs: [] },
+  { type: "error", name: "BadAddress", inputs: [] },
+  { type: "error", name: "BadId", inputs: [] },
+  { type: "error", name: "WrongPrice", inputs: [] },
+  { type: "error", name: "Unauthorized", inputs: [] },
+  { type: "error", name: "TransferFailed", inputs: [] },
+  { type: "error", name: "Reentrant", inputs: [] },
 ] as const;
 
-let queue: Promise<unknown> = Promise.resolve();
+/** AskClosed() selector — kept as a fallback if a client strips error names. */
+const ASK_CLOSED_SELECTOR = "0x756918b7";
 
-function enqueue<T>(fn: () => Promise<T>): Promise<T> {
-  const run = queue.then(fn, fn);
-  queue = run.then(
-    () => undefined,
-    () => undefined,
-  );
-  return run;
-}
+export type OnchainAsk = {
+  sellerPayout: string;
+  sellerTokenId: string;
+  itemId: string;
+  amount: string;
+  priceWei: string;
+  open: boolean;
+  used: boolean;
+};
 
 function chainOf(chainId: number, rpcUrl: string): Chain {
   return {
@@ -65,29 +93,58 @@ function client(env: NodeJS.ProcessEnv = process.env) {
   }
   const account = privateKeyToAccount(key as Hex);
   const chain = chainOf(cfg.chainId, cfg.rpcUrl);
+  const transport = http(cfg.rpcUrl);
   const wallet = createWalletClient({
     account,
     chain,
-    transport: http(cfg.rpcUrl),
+    transport,
   });
-  return { ok: true as const, wallet, account, chain, escrow: escrow as `0x${string}`, cfg };
+  const pub = createPublicClient({
+    chain,
+    transport,
+  });
+  return { ok: true as const, wallet, pub, account, chain, escrow: escrow as `0x${string}`, cfg };
 }
 
 async function waitReceipt(
-  wallet: ReturnType<typeof createWalletClient>,
+  pub: ReturnType<typeof createPublicClient>,
   hash: Hex,
 ): Promise<TransactionReceipt> {
-  // viem public actions aren't on wallet client by default in all setups — poll eth_getTransactionReceipt.
-  const rpc = wallet.transport;
-  void rpc;
-  const { createPublicClient, http: httpTransport } = await import("viem");
-  const cfg = ahEscrowClientConfig();
-  if (!cfg) throw new Error("missing rpc");
-  const pub = createPublicClient({
-    chain: chainOf(cfg.chainId, cfg.rpcUrl),
-    transport: httpTransport(cfg.rpcUrl),
-  });
   return pub.waitForTransactionReceipt({ hash, confirmations: 1 });
+}
+
+export async function readAskOnchain(opts: {
+  listingId: string;
+  env?: NodeJS.ProcessEnv;
+}): Promise<{ ok: true; ask: OnchainAsk } | { ok: false; error: string }> {
+  const c = client(opts.env);
+  if (!c.ok) return c;
+  try {
+    const row = await c.pub.readContract({
+      address: c.escrow,
+      abi: AH_ABI,
+      functionName: "asks",
+      args: [BigInt(opts.listingId)],
+    });
+    return {
+      ok: true,
+      ask: {
+        sellerPayout: row[0],
+        sellerTokenId: row[1].toString(),
+        itemId: row[2].toString(),
+        amount: row[3].toString(),
+        priceWei: row[4].toString(),
+        open: row[5],
+        used: row[6],
+      },
+    };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+function isAskClosedError(msg: string): boolean {
+  return /AskClosed|ask closed/i.test(msg) || msg.toLowerCase().includes(ASK_CLOSED_SELECTOR);
 }
 
 export async function openAskOnchain(opts: {
@@ -98,15 +155,16 @@ export async function openAskOnchain(opts: {
   amount: string;
   priceWei: string;
   env?: NodeJS.ProcessEnv;
-}): Promise<{ ok: true; hash: Hex } | { ok: false; error: string }> {
-  return enqueue(async () => {
+}): Promise<{ ok: true; hash: Hex } | { ok: false; error: string; chainOpen?: boolean }> {
+  return withOwnerKeyQueue(async () => {
     const c = client(opts.env);
     if (!c.ok) return c;
     if (!/^0x[0-9a-fA-F]{40}$/.test(opts.sellerPayout)) {
       return { ok: false, error: "Seller payout wallet is missing. Nothing was listed on-chain." };
     }
+    let hash: Hex | undefined;
     try {
-      const hash = await c.wallet.writeContract({
+      hash = await c.wallet.writeContract({
         address: c.escrow,
         abi: AH_ABI,
         functionName: "openAsk",
@@ -121,13 +179,23 @@ export async function openAskOnchain(opts: {
         account: c.account,
         chain: c.chain,
       });
-      const receipt = await waitReceipt(c.wallet, hash);
+      const receipt = await waitReceipt(c.pub, hash);
       if (receipt.status !== "success") {
         return { ok: false, error: "openAsk reverted on-chain." };
       }
       return { ok: true, hash };
     } catch (err) {
-      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+      const msg = err instanceof Error ? err.message : String(err);
+      // Receipt timeout / RPC after broadcast: only roll back the log when the ask is not open.
+      const onchain = await readAskOnchain({ listingId: opts.listingId, env: opts.env });
+      if (onchain.ok && onchain.ask.open) {
+        return {
+          ok: false,
+          error: msg + " (ask is open on-chain; log listing left open)",
+          chainOpen: true,
+        };
+      }
+      return { ok: false, error: msg, chainOpen: false };
     }
   });
 }
@@ -135,10 +203,24 @@ export async function openAskOnchain(opts: {
 export async function cancelAskOnchain(opts: {
   listingId: string;
   env?: NodeJS.ProcessEnv;
-}): Promise<{ ok: true; hash: Hex; alreadyClosed?: boolean } | { ok: false; error: string }> {
-  return enqueue(async () => {
+}): Promise<
+  | { ok: true; hash: Hex; alreadyClosed?: boolean; neverOpened?: boolean }
+  | { ok: false; error: string }
+> {
+  return withOwnerKeyQueue(async () => {
     const c = client(opts.env);
     if (!c.ok) return c;
+
+    const before = await readAskOnchain({ listingId: opts.listingId, env: opts.env });
+    if (!before.ok) return before;
+    // Pre-AhEscrow (or never successfully opened): cancel on the log only.
+    if (!before.ask.used) {
+      return { ok: true, hash: "0x" as Hex, neverOpened: true };
+    }
+    if (!before.ask.open) {
+      return { ok: true, hash: "0x" as Hex, alreadyClosed: true };
+    }
+
     try {
       const hash = await c.wallet.writeContract({
         address: c.escrow,
@@ -148,14 +230,18 @@ export async function cancelAskOnchain(opts: {
         account: c.account,
         chain: c.chain,
       });
-      const receipt = await waitReceipt(c.wallet, hash);
+      const receipt = await waitReceipt(c.pub, hash);
       if (receipt.status !== "success") {
         return { ok: false, error: "cancelAsk reverted on-chain." };
       }
       return { ok: true, hash };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      if (/AskClosed|ask closed/i.test(msg)) {
+      if (isAskClosedError(msg)) {
+        return { ok: true, hash: "0x" as Hex, alreadyClosed: true };
+      }
+      const again = await readAskOnchain({ listingId: opts.listingId, env: opts.env });
+      if (again.ok && !again.ask.open) {
         return { ok: true, hash: "0x" as Hex, alreadyClosed: true };
       }
       return { ok: false, error: msg };

@@ -187,7 +187,12 @@ import {
   type AskFilledApplied,
 } from "./ah-escrow";
 import { cancelAskOnchain, openAskOnchain } from "./ah-escrow-tx";
-import { ensureLocalRuleset, linkCharacterNft } from "./lok-vault";
+import {
+  characterMintClientConfig,
+  ensureLocalRuleset,
+  linkCharacterNft,
+  type CharacterMintClientConfig,
+} from "./lok-vault";
 import { guardedKekMove, withPlayerCharge } from "./kek-guard";
 import { characterNameKey, normalizeCharacterName } from "./character-name";
 import { randomBytes } from "node:crypto";
@@ -441,13 +446,15 @@ type Mob = {
 };
 
 const PORT = Number(process.env.PORT ?? 8787);
+/** Cached at boot — snapshot is sync. */
+let cachedCharacterMint: CharacterMintClientConfig | null = null;
 /** Dev cheats (Max Lv). Off unless ALLOW_DEBUG_CHEATS=1. Not implied by a dev NODE_ENV. */
 const DEBUG_CHEATS_ENABLED = debugCheatsEnabled();
 const players = new Map<string, Player>();
 const walletToPlayer = new Map<string, string>();
 /** Per-wallet character roster — live progress objects (same refs as active when online). */
 const accountRoster = new Map<string, Map<string, Player>>();
-/** Unlimited roster until onchain KEK mint gating. */
+/** Unlimited roster until onchain mint-fee gating is enforced. */
 let tick = 0;
 /** Pale Hollow Segment A field mobs. */
 let mobs: Mob[] = spawnSegmentAPack();
@@ -469,6 +476,9 @@ const lok: LokWorld = await (async (): Promise<LokWorld> => {
     if (moved > 0) console.log("[bellgrave] moved " + moved + " log item stack(s) into character bags");
     void ensureLocalRuleset().catch(() => {
       console.error("[bellgrave] ruleset check failed");
+    });
+    void characterMintClientConfig().then((cfg) => {
+      cachedCharacterMint = cfg;
     });
     return world;
   } catch (err) {
@@ -873,6 +883,16 @@ function handleLokList(p: Player, tokenId: number, amount: number, minPrice: str
     pushLog(p, "Enter a minimum price greater than 0 (ETH). Nothing was listed.");
     return;
   }
+  // Reject KEK-era unit sizes mistaken for wei (live #7 was 5000). Floor = 1 gwei.
+  try {
+    if (BigInt(minPrice) < 1_000_000_000n) {
+      pushLog(p, "Ask price is below 1 gwei. Enter an ETH price (e.g. 0.001). Nothing was listed.");
+      return;
+    }
+  } catch {
+    pushLog(p, "Enter a minimum price greater than 0 (ETH). Nothing was listed.");
+    return;
+  }
   if (!p.wallet || !isEthAddress(p.wallet)) {
     pushLog(p, "A wallet is required to list for ETH. Nothing was listed.");
     return;
@@ -897,6 +917,19 @@ function handleLokList(p: Player, tokenId: number, amount: number, minPrice: str
     priceWei: minPrice,
   }).then((chain) => {
     if (!chain.ok) {
+      // N4: if the ask mined despite a receipt/RPC error, keep the log listing.
+      if (chain.chainOpen) {
+        pushLog(
+          p,
+          "On-chain ask open for #" +
+            listingId +
+            " but confirmation failed (" +
+            chain.error +
+            "). The log listing was left open.",
+        );
+        send(p.ws, snapshotFor(p));
+        return;
+      }
       const undone = lok.cancelAsk(listingId, token);
       pushLog(
         p,
@@ -971,11 +1004,22 @@ function handleLokCancel(p: Player, listingId: string) {
       send(p.ws, snapshotFor(p));
       return;
     }
+    // neverOpened: pre-AhEscrow book ask — cancel on the log only.
     const res = lok.cancelAsk(listingId, token);
     if (!res.ok) {
-      pushLog(p, "On-chain ask cancelled, but the log cancel failed: " + res.error);
+      pushLog(
+        p,
+        chain.neverOpened
+          ? "Log cancel failed: " + res.error
+          : "On-chain ask cancelled, but the log cancel failed: " + res.error,
+      );
     } else {
-      pushLog(p, "Cancelled listing #" + listingId + ". The stack is in your Provisioner inbox.");
+      pushLog(
+        p,
+        chain.neverOpened
+          ? "Cancelled pre-AhEscrow listing #" + listingId + ". The stack is in your Provisioner inbox."
+          : "Cancelled listing #" + listingId + ". The stack is in your Provisioner inbox.",
+      );
     }
     send(p.ws, snapshotFor(p));
   });
@@ -1007,9 +1051,53 @@ function handleLokReclaim(p: Player, listingId: string) {
     }
     const res = lok.reclaim(listingId, token, Math.floor(Date.now() / 1000));
     if (!res.ok) pushLog(p, res.error);
-    else pushLog(p, "Reclaimed listing #" + listingId + " into your Provisioner inbox.");
+    else {
+      pushLog(
+        p,
+        chain.neverOpened
+          ? "Reclaimed pre-AhEscrow listing #" + listingId + " into your Provisioner inbox."
+          : "Reclaimed listing #" + listingId + " into your Provisioner inbox.",
+      );
+    }
     send(p.ws, snapshotFor(p));
   });
+}
+
+/** NPC buyback: ~10% of craft gold cost (min 1) until E5 price sheet. */
+function npcSellUnitGold(itemId: number): number {
+  const def = getItem(itemId);
+  const craft = def?.recipe?.gold ?? 0;
+  if (craft > 0) return Math.max(1, Math.floor(craft / 10));
+  if (def?.kind === "filler" || def?.kind === "bait") return 1;
+  if (def?.kind === "base") return 2;
+  if (def?.kind === "intermediate") return 5;
+  return 8;
+}
+
+function handleLokNpcSell(p: Player, tokenId: number, amount: number) {
+  const token = lokToken(p);
+  if (!token) {
+    pushLog(p, "Could not open your log identity.");
+    return;
+  }
+  if (!Number.isSafeInteger(amount) || amount < 1) {
+    pushLog(p, "Enter a positive amount to sell.");
+    return;
+  }
+  const unit = npcSellUnitGold(tokenId);
+  const gold = unit * amount;
+  if (!Number.isSafeInteger(gold) || gold < 1) {
+    pushLog(p, "That stack has no NPC buyback price yet.");
+    return;
+  }
+  const res = lok.goldSell(token, String(tokenId), String(amount), String(gold), serverGoldDay());
+  if (!res.ok) {
+    pushLog(p, res.error);
+    send(p.ws, snapshotFor(p));
+    return;
+  }
+  pushLog(p, "Sold " + itemLabel(tokenId) + " x" + amount + " to the Provisioner for " + gold + " gold.");
+  send(p.ws, snapshotFor(p));
 }
 
 function handleLokTakeInbox(p: Player, tokenId: number, amount: number) {
@@ -2229,6 +2317,7 @@ function snapshotFor(p: Player): SnapshotMessage {
         return {
           ...view,
           ahEscrow: ahEscrowClientConfig(),
+          characterMint: cachedCharacterMint,
           withdrawDelaySec: null,
           queues: [],
         };
@@ -4454,7 +4543,16 @@ function onMessage(ws: WebSocket, data: string) {
     if (minted) {
       void linkCharacterNft(minted, JOB_IDS.indexOf(job), wallet).then((res) => {
         if (p.ws.readyState !== p.ws.OPEN) return;
-        pushLog(p, res.ok ? "Linked character NFT #" + res.tokenId + " on the local checkpoint." : res.error);
+        if (res.ok) {
+          pushLog(p, "Linked character NFT #" + res.tokenId + " on the local checkpoint.");
+        } else if (res.needsPlayerMint) {
+          pushLog(
+            p,
+            "Pay the character mint fee from your wallet (createCharacter), then the NFT will link. " + res.error,
+          );
+        } else {
+          pushLog(p, res.error);
+        }
         send(p.ws, snapshotFor(p));
       }).catch((err) => console.error("[bellgrave] character NFT link failed", err));
     }
@@ -4633,6 +4731,9 @@ function onMessage(ws: WebSocket, data: string) {
       break;
     case "lok/takeInbox":
       handleLokTakeInbox(p, msg.tokenId, msg.amount);
+      break;
+    case "lok/npcSell":
+      handleLokNpcSell(p, msg.tokenId, msg.amount);
       break;
     case "lok/settle":
       handleLokSettle(p, msg.listingId);

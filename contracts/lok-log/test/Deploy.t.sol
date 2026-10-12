@@ -9,13 +9,16 @@ contract DeployTest is Test {
     function test_deployScript_wiresAndHandsOver() public {
         address multisig = makeAddr("multisig");
         address proposer = makeAddr("proposer");
+        address rotator = makeAddr("rotator");
+        address listing = makeAddr("listing");
         MockItems items = new MockItems();
         Deploy s = new Deploy();
         Deploy.Config memory c = Deploy.Config({
             multisig: multisig,
-            rotator: makeAddr("rotator"),
+            rotator: rotator,
             guardian: makeAddr("guardian"),
             proposer: proposer,
+            listing: listing,
             items: address(items),
             kek: address(new MockKEK()),
             baseURI: "ipfs://x/",
@@ -30,18 +33,22 @@ contract DeployTest is Test {
         assertTrue(d.nft.hasRole(admin, multisig));
         assertTrue(d.factory.hasRole(admin, multisig));
         assertTrue(d.rulesets.hasRole(admin, multisig));
+        assertTrue(d.ahEscrow.hasRole(d.ahEscrow.DEFAULT_ADMIN_ROLE(), multisig));
         assertFalse(d.checkpoint.hasRole(admin, address(s)));
         assertFalse(d.nft.hasRole(admin, address(s)));
         assertFalse(d.factory.hasRole(admin, address(s)));
         assertFalse(d.rulesets.hasRole(admin, address(s)));
+        assertFalse(d.ahEscrow.hasRole(d.ahEscrow.DEFAULT_ADMIN_ROLE(), address(s)));
+        assertFalse(d.ahEscrow.hasRole(d.ahEscrow.LISTING_ROLE(), address(s)));
 
-        // wiring (no KekVault — play path is AhEscrow; vault returns on batched redeploy if needed)
+        // wiring (no KekVault — AhEscrow is the AH payment path)
         assertTrue(d.nft.hasRole(d.nft.MINTER_ROLE(), address(d.factory)));
         assertTrue(d.checkpoint.hasRole(d.checkpoint.FACTORY_ROLE(), address(d.factory)));
         assertTrue(d.checkpoint.hasRole(d.checkpoint.NFT_ROLE(), address(d.nft)));
         assertEq(address(d.checkpoint.rulesets()), address(d.rulesets));
         assertEq(address(d.checkpoint.items()), address(items));
         assertEq(address(d.checkpoint.vault()), address(0));
+        assertTrue(d.ahEscrow.hasRole(d.ahEscrow.LISTING_ROLE(), listing));
         assertTrue(d.rulesets.hasRole(d.rulesets.PROPOSER_ROLE(), proposer));
         assertTrue(d.rulesets.hasRole(d.rulesets.EMERGENCY_ROLE(), multisig));
         assertEq(d.rulesets.minDelay(), 48 hours);

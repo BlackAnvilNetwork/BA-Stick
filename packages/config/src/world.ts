@@ -509,7 +509,7 @@ function hubNpcs(cityId: CityId, prefix: string): CityNpcDef[] {
       id: `${prefix}-trainer`,
       name: "Trainer",
       role: "spell_trainer",
-      blurb: "Sells job abilities for deposited KEK (500–10000). Dust is no longer the spend currency.",
+      blurb: "Sells job abilities for gold (500–10000 by unlock level).",
     },
     {
       id: `${prefix}-crafter`,
@@ -521,7 +521,7 @@ function hubNpcs(cityId: CityId, prefix: string): CityNpcDef[] {
       id: `${prefix}-vendor`,
       name: "Provisioner",
       role: "vendor",
-      blurb: "Buys junk and sells basic supplies.",
+      blurb: "Buys log stacks for gold; lists and sends on the ledger.",
     },
   ];
 }

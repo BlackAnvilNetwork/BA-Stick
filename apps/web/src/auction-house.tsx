@@ -80,6 +80,16 @@ function formatWeiEth(wei: string): string {
   }
 }
 
+/** Pre-AhEscrow book asks stored KEK units in minPrice (e.g. 5000). Not payable in ETH. */
+function isLegacyKekPrice(wei: string): boolean {
+  if (!/^\d+$/.test(wei)) return true;
+  try {
+    return BigInt(wei) < 1_000_000_000n; // below 1 gwei
+  } catch {
+    return true;
+  }
+}
+
 function lowestUnit(rows: LokListingView[]): string {
   let best: { price: bigint; amount: bigint } | null = null;
   for (const row of rows) {
@@ -226,16 +236,18 @@ export function AuctionBook({ listings, buyer, ahEscrow }: Props) {
       ? planQuantityFills(buying.rows.map(quoteOf), buyer, buying.itemId, qty)
       : { fills: [], filled: "0", short: true };
   const yours = listings.filter((row) => row.yours || row.highBidder === buyer);
-  const canPay = !!ahEscrow && plan.fills.length > 0 && !paying;
+  const legacyFills = plan.fills.filter((fill) => isLegacyKekPrice(fill.price));
+  const payableFills = plan.fills.filter((fill) => !isLegacyKekPrice(fill.price));
+  const canPay = !!ahEscrow && payableFills.length > 0 && legacyFills.length === 0 && !paying;
 
   async function payWithEth() {
-    if (!ahEscrow || !buying || plan.fills.length === 0 || paying) return;
+    if (!ahEscrow || !buying || payableFills.length === 0 || legacyFills.length > 0 || paying) return;
     setPaying(true);
     try {
       const res = await buyAsksWithWallet({
         escrow: ahEscrow,
         buyerTokenId: buyer,
-        fills: plan.fills.map((fill) => ({ listingId: fill.id, priceWei: fill.price })),
+        fills: payableFills.map((fill) => ({ listingId: fill.id, priceWei: fill.price })),
       });
       if (!res.ok) {
         pushLog("Error: " + res.error);
@@ -382,18 +394,26 @@ export function AuctionBook({ listings, buyer, ahEscrow }: Props) {
           </ul>
           <p className="lok-note">{buyNote(plan, qty)}</p>
           <p className="lok-note">
-            {ahEscrow
-              ? "Buys pay ETH from your wallet to AhEscrow. The log only receives the item after AskFilled is confirmed."
-              : "AhEscrow is not configured on this server (set LOK_AH_ESCROW + LOK_CHAIN_RPC). Buys stay disabled."}
+            {legacyFills.length > 0
+              ? "These asks use a pre-AhEscrow (legacy KEK) price and cannot be paid in ETH. The seller must cancel and relist."
+              : ahEscrow
+                ? "Buys pay ETH from your wallet to AhEscrow. The log only receives the item after AskFilled is confirmed."
+                : "AhEscrow is not configured on this server (set LOK_AH_ESCROW + LOK_CHAIN_RPC). Buys stay disabled."}
           </p>
           <button
             type="button"
             className="boot-primary"
             disabled={!canPay}
-            title={ahEscrow ? "Sign buyAsk with your local wallet" : "AhEscrow not configured"}
+            title={
+              legacyFills.length > 0
+                ? "Legacy KEK-priced ask — seller must relist"
+                : ahEscrow
+                  ? "Sign buyAsk with your local wallet"
+                  : "AhEscrow not configured"
+            }
             onClick={() => void payWithEth()}
           >
-            {paying ? "Paying…" : "Pay with ETH"}
+            {paying ? "Paying…" : legacyFills.length > 0 ? "Relist required" : "Pay with ETH"}
           </button>
           <YourAsks rows={buying.rows.filter((row) => row.yours)} />
         </div>
@@ -414,7 +434,11 @@ function YourAsks({ rows, showSettle }: { rows: LokListingView[]; showSettle?: b
         <div className="prov-yours-line" key={row.id}>
           <span>
             {itemName(row.itemId)} x{row.amount}
-            {row.book ? " ask " + formatWeiEth(row.minPrice) + " ETH" : " legacy"}
+            {row.book
+              ? isLegacyKekPrice(row.minPrice)
+                ? " ask " + row.minPrice + " (legacy KEK — relist)"
+                : " ask " + formatWeiEth(row.minPrice) + " ETH"
+              : " legacy auction"}
           </span>
           {row.yours && (
             <button type="button" className="cmd-pill-tab" onClick={() => send({ type: "lok/cancel", listingId: row.id })}>

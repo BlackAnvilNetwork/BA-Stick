@@ -1,14 +1,13 @@
 /**
- * Client-signed AhEscrow.buyAsk — pays ETH from the local browser wallet.
- * The server watches AskFilled and mirrors items via chainFill; this never
- * credits ETH onto the character log.
+ * Client-signed AhEscrow.buyAsk — pays ETH from the browser wallet (injected
+ * EIP-1193 when available, else the localStorage burner). The server watches
+ * AskFilled and mirrors items via chainFill; this never credits ETH onto the log.
+ *
+ * EEZ sync buy (CrossChainProxy with msg.value) is not wired yet — see docs.
  */
-import { createPublicClient, createWalletClient, http, type Chain, type Hex } from "viem";
-import { generatePrivateKey, privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
+import { createPublicClient, http, type Hex } from "viem";
 import type { AhEscrowClientConfig } from "@bellgrave/protocol";
-
-const PK_KEY = "bellgrave.walletKey";
-const WALLET_KEY = "bellgrave.wallet";
+import { getWalletSession } from "./wallet";
 
 const BUY_ASK_ABI = [
   {
@@ -22,27 +21,6 @@ const BUY_ASK_ABI = [
     outputs: [],
   },
 ] as const;
-
-function localAccount(): PrivateKeyAccount {
-  let key = localStorage.getItem(PK_KEY);
-  const existingWallet = localStorage.getItem(WALLET_KEY);
-  if (!key || !existingWallet || !/^0x[0-9a-fA-F]{40}$/.test(existingWallet)) {
-    key = generatePrivateKey();
-    localStorage.setItem(PK_KEY, key);
-  }
-  const account = privateKeyToAccount(key as `0x${string}`);
-  localStorage.setItem(WALLET_KEY, account.address);
-  return account;
-}
-
-function chainOf(cfg: AhEscrowClientConfig): Chain {
-  return {
-    id: cfg.chainId,
-    name: cfg.chainId === 31337 ? "Bellgrave Anvil" : "Bellgrave",
-    nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
-    rpcUrls: { default: { http: [cfg.rpcUrl] } },
-  };
-}
 
 export type BuyAskFill = {
   listingId: string;
@@ -58,15 +36,11 @@ export async function buyAsksWithWallet(opts: {
   if (!/^[1-9][0-9]{0,77}$/.test(opts.buyerTokenId)) {
     return { ok: false, error: "Bad buyer character id.", hashes: [] };
   }
-  const account = localAccount();
-  const chain = chainOf(opts.escrow);
-  const transport = http(opts.escrow.rpcUrl);
-  const client = createWalletClient({
-    account,
-    chain,
-    transport,
+  const session = await getWalletSession({
+    chainId: opts.escrow.chainId,
+    rpcUrl: opts.escrow.rpcUrl,
   });
-  const publicClient = createPublicClient({ chain, transport });
+  const publicClient = createPublicClient({ transport: http(opts.escrow.rpcUrl) });
   const hashes: Hex[] = [];
   for (const fill of opts.fills) {
     if (!/^[1-9][0-9]{0,77}$/.test(fill.listingId)) {
@@ -80,14 +54,19 @@ export async function buyAsksWithWallet(opts: {
     }
     if (value <= 0n) return { ok: false, error: "Ask price must be greater than 0.", hashes };
     try {
-      const hash = await client.writeContract({
+      const hash = await session.client.writeContract({
         address: opts.escrow.address as `0x${string}`,
         abi: BUY_ASK_ABI,
         functionName: "buyAsk",
         args: [BigInt(fill.listingId), BigInt(opts.buyerTokenId)],
         value,
-        chain,
-        account,
+        account: session.account,
+        chain: {
+          id: opts.escrow.chainId,
+          name: "Bellgrave",
+          nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+          rpcUrls: { default: { http: [opts.escrow.rpcUrl] } },
+        },
       });
       const receipt = await publicClient.waitForTransactionReceipt({ hash });
       if (receipt.status === "reverted") {

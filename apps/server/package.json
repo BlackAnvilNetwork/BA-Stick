@@ -8,7 +8,7 @@
     "start": "tsx src/index.ts",
     "typecheck": "tsc --noEmit",
     "lok:replay-ask-filled": "tsx scripts/lok-replay-ask-filled.ts",
-    "test": "tsx --test src/lok-world.test.ts src/lok-chain.test.ts src/lok-vault.test.ts src/lok-ruleset-pin.test.ts src/ah-escrow.test.ts src/ah-escrow-support.test.ts src/exp-and-starter.test.ts src/kek-guard.test.ts src/player-progress.test.ts src/debug-cheats.test.ts src/wallet-auth.test.ts src/gather-channel.test.ts src/mob-steer.test.ts src/engage-range.test.ts src/support-job.test.ts src/gear-combat.test.ts src/tim-metronome.test.ts src/skill-tree-cost.test.ts src/dot-credit.test.ts src/audit-2026-10-05.test.ts"
+    "test": "tsx --test src/lok-world.test.ts src/lok-chain.test.ts src/lok-vault.test.ts src/lok-ruleset-pin.test.ts src/ah-escrow.test.ts src/ah-escrow-support.test.ts src/ah-escrow-support-acd4d6f.test.ts src/owner-tx-queue.test.ts src/exp-and-starter.test.ts src/kek-guard.test.ts src/player-progress.test.ts src/debug-cheats.test.ts src/wallet-auth.test.ts src/gather-channel.test.ts src/mob-steer.test.ts src/engage-range.test.ts src/support-job.test.ts src/gear-combat.test.ts src/tim-metronome.test.ts src/skill-tree-cost.test.ts src/dot-credit.test.ts src/audit-2026-10-05.test.ts"
   },
   "dependencies": {
     "@bellgrave/combat": "workspace:*",

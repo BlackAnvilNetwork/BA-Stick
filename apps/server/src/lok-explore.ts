@@ -114,8 +114,8 @@ function describe(entry: RawEntry, logTokenId: string, nameOf: (tokenId: string)
     }
     case "depositKek": {
       character = who(token) || owner;
-      text = `${character} deposited ${amount} ETH`;
-      bits.push("eth", "kek");
+      text = `${character} deposited ${amount} legacy KEK`;
+      bits.push("kek", "legacy");
       break;
     }
     case "importItem": {
@@ -130,14 +130,14 @@ function describe(entry: RawEntry, logTokenId: string, nameOf: (tokenId: string)
     }
     case "withdrawKek": {
       character = who(token) || owner;
-      text = `${character} withdrew ${amount} ETH`;
-      bits.push("eth", "kek");
+      text = `${character} withdrew ${amount} legacy KEK`;
+      bits.push("kek", "legacy");
       break;
     }
     case "spendKek": {
       character = who(token) || owner;
-      text = `${character} spent ${amount} KEK`;
-      bits.push("kek");
+      text = `${character} spent ${amount} legacy KEK`;
+      bits.push("kek", "legacy");
       break;
     }
     case "goldEarn": {
@@ -170,8 +170,8 @@ function describe(entry: RawEntry, logTokenId: string, nameOf: (tokenId: string)
       const from = field(input, "from");
       const to = field(input, "to");
       character = who(from) || from || owner;
-      text = `${character} sent ${amount} ETH to ${who(to) || to}`;
-      bits.push("eth", "kek", who(from), who(to));
+      text = `${character} sent ${amount} legacy KEK to ${who(to) || to}`;
+      bits.push("kek", "legacy", who(from), who(to));
       break;
     }
     case "list": {
@@ -184,8 +184,8 @@ function describe(entry: RawEntry, logTokenId: string, nameOf: (tokenId: string)
     case "bid": {
       const bidder = field(input, "bidder");
       character = who(bidder) || bidder || owner;
-      text = `${character} bid ${amount} ETH on #${field(input, "listingId")}`;
-      bits.push("eth", "kek", who(bidder));
+      text = `${character} bid ${amount} legacy KEK on #${field(input, "listingId")}`;
+      bits.push("kek", "legacy", who(bidder));
       break;
     }
     case "cancel": {
@@ -243,15 +243,23 @@ function describe(entry: RawEntry, logTokenId: string, nameOf: (tokenId: string)
     case "ask": {
       const seller = field(input, "seller");
       character = who(seller) || seller || owner;
-      text = `${character} asked ${field(input, "minPrice")} ETH for ${item} x${amount} (#${field(input, "listingId")})`;
-      bits.push(who(seller));
+      const minPrice = field(input, "minPrice");
+      // Pre-economy asks stored KEK units; AhEscrow asks store wei (≥1 gwei).
+      let priceLabel = minPrice + " wei ETH";
+      try {
+        if (minPrice && BigInt(minPrice) < 1_000_000_000n) priceLabel = minPrice + " legacy KEK";
+      } catch {
+        /* keep wei label */
+      }
+      text = `${character} asked ${priceLabel} for ${item} x${amount} (#${field(input, "listingId")})`;
+      bits.push(who(seller), "legacy");
       break;
     }
     case "fill": {
       const bidder = field(input, "bidder");
       character = who(bidder) || bidder || owner;
-      text = `${character} bought ${item} for ${amount} ETH (#${field(input, "listingId")})`;
-      bits.push("eth", "kek", who(bidder));
+      text = `${character} bought ${item} for ${amount} legacy KEK (#${field(input, "listingId")})`;
+      bits.push("kek", "legacy", who(bidder));
       break;
     }
     case "cancelAsk":

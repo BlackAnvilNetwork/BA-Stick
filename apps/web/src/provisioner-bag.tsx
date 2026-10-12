@@ -175,6 +175,22 @@ export function ProvisionerBag({ inventory, logItems, inbox, others }: Props) {
                   <button
                     type="button"
                     className="cmd-pill-tab"
+                    disabled={!cell.logAmount}
+                    title="Sell the log stack to the Provisioner NPC for gold"
+                    onClick={() => {
+                      if (!cell.logAmount) return;
+                      send({
+                        type: "lok/npcSell",
+                        tokenId: cell.tokenId,
+                        amount: Number(cell.logAmount),
+                      });
+                    }}
+                  >
+                    Sell for gold
+                  </button>
+                  <button
+                    type="button"
+                    className="cmd-pill-tab"
                     disabled={cell.bagAmount < 1}
                     onClick={() => send({ type: "item/discard", tokenId: cell.tokenId, starter: cell.starter })}
                   >

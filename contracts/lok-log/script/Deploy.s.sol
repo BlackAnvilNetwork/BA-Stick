@@ -7,8 +7,9 @@ import {CharacterNFT} from "../src/CharacterNFT.sol";
 import {CharacterCheckpoint} from "../src/CharacterCheckpoint.sol";
 import {CharacterFactory} from "../src/CharacterFactory.sol";
 import {RulesetRegistry} from "../src/RulesetRegistry.sol";
+import {AhEscrow} from "../src/AhEscrow.sol";
 // KekVault.sol + CharacterCheckpoint.vault stay until a batched redeploy drops custody deposits.
-// Play path uses AhEscrow only; this script does not deploy or wire a vault.
+// Play path AH uses AhEscrow (deployed and granted LISTING_ROLE here).
 
 /// Deploys the log-model character stack behind UUPS proxies, wires roles, then hands admin to the multisig.
 /// The deployer is the temporary admin and renounces at the end. Items (ERC-1155) and KEK (ERC-20) are external:
@@ -16,6 +17,7 @@ import {RulesetRegistry} from "../src/RulesetRegistry.sol";
 ///
 ///   forge script script/Deploy.s.sol --rpc-url $RPC --broadcast --sig "run()"
 ///   env: MULTISIG, ROTATOR, GUARDIAN, PROPOSER, ITEMS, KEK, BASE_URI
+///   optional: LISTING (EOA that signs openAsk/cancelAsk; defaults to ROTATOR)
 ///
 /// After running, the multisig must still:
 ///   1. items.setMinter(checkpoint, true)            (checkpoint mints exports and burns imports)
@@ -30,6 +32,7 @@ contract Deploy is Script {
         address rotator;
         address guardian;
         address proposer;
+        address listing;
         address items;
         address kek;
         string baseURI;
@@ -41,6 +44,7 @@ contract Deploy is Script {
         CharacterCheckpoint checkpoint;
         CharacterFactory factory;
         RulesetRegistry rulesets;
+        AhEscrow ahEscrow;
     }
 
     function run() external returns (Deployed memory d) {
@@ -49,6 +53,7 @@ contract Deploy is Script {
             rotator: vm.envAddress("ROTATOR"),
             guardian: vm.envAddress("GUARDIAN"),
             proposer: vm.envAddress("PROPOSER"),
+            listing: vm.envOr("LISTING", address(0)),
             items: vm.envAddress("ITEMS"),
             kek: vm.envAddress("KEK"),
             baseURI: vm.envString("BASE_URI"),
@@ -61,6 +66,7 @@ contract Deploy is Script {
         console.log("CharacterCheckpoint ", address(d.checkpoint));
         console.log("CharacterFactory    ", address(d.factory));
         console.log("RulesetRegistry     ", address(d.rulesets));
+        console.log("AhEscrow            ", address(d.ahEscrow));
     }
 
     function _proxy(address impl, bytes memory init) internal returns (address) {
@@ -90,6 +96,7 @@ contract Deploy is Script {
         d.rulesets = RulesetRegistry(
             _proxy(address(new RulesetRegistry()), abi.encodeCall(RulesetRegistry.initialize, (deployer, RULESET_MIN_DELAY)))
         );
+        d.ahEscrow = new AhEscrow(deployer);
 
         // Batched redeploy: drop CharacterCheckpoint.vault / KekVault once no live chain needs deposit custody.
 
@@ -103,15 +110,23 @@ contract Deploy is Script {
         d.rulesets.grantRole(d.rulesets.PROPOSER_ROLE(), c.proposer);
         d.rulesets.grantRole(d.rulesets.EMERGENCY_ROLE(), c.multisig);
 
+        // AhEscrow listing role for the server EOA that opens/cancels asks
+        address listing = c.listing == address(0) ? c.rotator : c.listing;
+        d.ahEscrow.grantRole(d.ahEscrow.LISTING_ROLE(), listing);
+
         // hand over: multisig becomes admin everywhere, deployer renounces
         bytes32 admin = d.nft.DEFAULT_ADMIN_ROLE();
         d.nft.grantRole(admin, c.multisig);
         d.checkpoint.grantRole(admin, c.multisig);
         d.factory.grantRole(admin, c.multisig);
         d.rulesets.grantRole(admin, c.multisig);
+        d.ahEscrow.grantRole(d.ahEscrow.DEFAULT_ADMIN_ROLE(), c.multisig);
         d.nft.renounceRole(admin, deployer);
         d.checkpoint.renounceRole(admin, deployer);
         d.factory.renounceRole(admin, deployer);
         d.rulesets.renounceRole(admin, deployer);
+        // Revoke listing before admin — revokeRole requires DEFAULT_ADMIN_ROLE.
+        d.ahEscrow.revokeRole(d.ahEscrow.LISTING_ROLE(), deployer);
+        d.ahEscrow.revokeRole(d.ahEscrow.DEFAULT_ADMIN_ROLE(), deployer);
     }
 }
