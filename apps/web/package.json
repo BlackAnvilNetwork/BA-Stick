@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test src/pay-wallet.test.ts src/ah-buy.test.ts src/eez-sync-buy.test.ts"
   },
   "dependencies": {
     "@bellgrave/combat": "workspace:*",
@@ -31,11 +32,13 @@
     "zustand": "^5.0.3"
   },
   "devDependencies": {
+    "@types/node": "^22.13.10",
     "@types/react": "^19.0.12",
     "@types/react-dom": "^19.0.4",
     "@types/three": "^0.174.0",
     "@vitejs/plugin-react": "^4.3.4",
     "sharp": "^0.35.4",
+    "tsx": "^4.19.3",
     "typescript": "^5.8.2",
     "vite": "^6.2.2"
   }

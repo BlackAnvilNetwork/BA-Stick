@@ -8,13 +8,7 @@
  */
 import { createAppKit, type AppKit } from "@reown/appkit/react";
 import { EthersAdapter } from "@reown/appkit-adapter-ethers";
-import {
-  anvil,
-  gnosis,
-  gnosisChiado,
-  mainnet,
-  type AppKitNetwork,
-} from "@reown/appkit/networks";
+import { anvil, gnosis, gnosisChiado, type AppKitNetwork } from "@reown/appkit/networks";
 import { anvilWalletConnectAllowed, defaultRpcUrl, walletConnectProjectId } from "./walletconnect";
 
 /** Reown WalletGuide listing ids — order is respected on the Connect main view. */
@@ -22,8 +16,12 @@ const RABBY_WALLET_ID = "18388be9ac2d02726dbac9777c96efaac06d744b2f6d580fccdd412
 const METAMASK_WALLET_ID = "c57ca95b47569778a828d19178114f4db188b89b763c899ba0be274e97267d96";
 const COINBASE_WALLET_ID = "d0ca99ff52b99abc48743dad0f7fc891e041be73574f7fac4afe5d4bb83845c8";
 
+/**
+ * Settlement networks only (Gnosis / Chiado / optional anvil).
+ * Ethereum mainnet omitted — not needed for Gnosis settlement; EEZ ETH home can return later.
+ */
 function appKitNetworks(): [AppKitNetwork, ...AppKitNetwork[]] {
-  const list: AppKitNetwork[] = [mainnet, gnosis, gnosisChiado];
+  const list: AppKitNetwork[] = [gnosis, gnosisChiado];
   if (anvilWalletConnectAllowed()) list.push(anvil);
   return list as [AppKitNetwork, ...AppKitNetwork[]];
 }
@@ -31,7 +29,6 @@ function appKitNetworks(): [AppKitNetwork, ...AppKitNetwork[]] {
 function defaultNetwork(): AppKitNetwork {
   const raw = import.meta.env.VITE_CHAIN_ID?.trim();
   const id = raw && /^\d+$/.test(raw) ? Number(raw) : 100;
-  if (id === 1) return mainnet;
   if (id === 10200) return gnosisChiado;
   if (id === 31337 && anvilWalletConnectAllowed()) return anvil;
   return gnosis;
@@ -60,7 +57,6 @@ export function ensureAppKit(): AppKit | null {
         icons: ["https://legendofkek.com/favicon.ico"],
       },
       customRpcUrls: {
-        [`eip155:${mainnet.id}`]: [{ url: defaultRpcUrl(1) }],
         [`eip155:${gnosis.id}`]: [{ url: defaultRpcUrl(100) }],
         [`eip155:${gnosisChiado.id}`]: [{ url: defaultRpcUrl(10200) }],
         ...(anvilWalletConnectAllowed()
@@ -87,10 +83,13 @@ export function ensureAppKit(): AppKit | null {
   return kit;
 }
 
-/** Eager init when this module is imported from main.tsx. */
-ensureAppKit();
-
-export const appKit: AppKit | null = ensureAppKit();
+/**
+ * Eager init in the browser only — node tests import ah-buy without Vite env.
+ * main.tsx also imports this module so the modal is ready before Connect.
+ */
+if (typeof window !== "undefined") {
+  ensureAppKit();
+}
 
 export function appKitConfigured(): boolean {
   return ensureAppKit() != null;

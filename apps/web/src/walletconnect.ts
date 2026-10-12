@@ -58,7 +58,8 @@ export function walletConnectChainIds(): number[] {
 export const WALLETCONNECT_CHAIN_IDS = [100, 10200, 4663, 31337] as const;
 
 export function walletConnectProjectId(): string | null {
-  const id = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID?.trim();
+  const env = (import.meta as { env?: Record<string, string | undefined> }).env;
+  const id = env?.VITE_WALLETCONNECT_PROJECT_ID?.trim();
   return id && id.length >= 8 ? id : null;
 }
 

@@ -1,12 +1,15 @@
 /**
  * Local EEZ sync buy via MockEezSyncBuy.syncBuy{value}.
  * Seller payout is already same-transaction inside AhEscrow.buyAsk.
+ * Wallet routing matches ah-buy / character-mint (AppKit, never burner when configured).
  */
 import { settlementCurrency } from "@bellgrave/config";
 import { createPublicClient, http, type Hex } from "viem";
 import type { EezSyncBuyClientConfig } from "@bellgrave/protocol";
-import { getWalletSession } from "./wallet";
+import { appKitConfigured } from "./appkit";
 import { eezSyncBuyAvailable, selectedHomeChain } from "./eez-home-chain";
+import { hasInjectedWallet, payWalletSessionOpts } from "./pay-wallet";
+import { getWalletSession, type WalletSession } from "./wallet";
 
 const SYNC_BUY_ABI = [
   {
@@ -31,6 +34,8 @@ export async function buyAsksWithEezSync(opts: {
   buyerTokenId: string;
   fills: EezBuyFill[];
   homeChainId?: number;
+  getSession?: typeof getWalletSession;
+  forceWalletFlags?: { hasInjected: boolean; appKitConfigured: boolean };
 }): Promise<{ ok: true; hashes: Hex[] } | { ok: false; error: string; hashes: Hex[] }> {
   if (!opts.fills.length) return { ok: false, error: "No asks to buy.", hashes: [] };
   if (!eezSyncBuyAvailable(opts.eez) || !opts.eez.mockSyncBuy) {
@@ -42,19 +47,41 @@ export async function buyAsksWithEezSync(opts: {
   const home = selectedHomeChain(opts.eez, opts.homeChainId);
   if (!home) return { ok: false, error: "No home chain configured for sync buy.", hashes: [] };
 
-  const hasInjected = typeof window !== "undefined" && !!window.ethereum;
-  const session = await getWalletSession({
-    chainId: home.chainId,
-    rpcUrl: home.rpcUrl,
-    allowBurnerFallback: !hasInjected,
-  });
+  const flags =
+    opts.forceWalletFlags ??
+    ({
+      hasInjected: hasInjectedWallet(),
+      appKitConfigured: appKitConfigured(),
+    } as const);
+  const sessionOpts = payWalletSessionOpts(flags);
+  let session: WalletSession;
+  try {
+    session = await (opts.getSession ?? getWalletSession)({
+      chainId: home.chainId,
+      rpcUrl: home.rpcUrl,
+      allowBurnerFallback: sessionOpts.allowBurnerFallback,
+      preferWalletConnect: sessionOpts.preferWalletConnect,
+    });
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+      hashes: [],
+    };
+  }
+  if (session.source === "burner" && flags.appKitConfigured) {
+    return {
+      ok: false,
+      error: "Refusing to pay with local burner while Reown AppKit is configured. Connect a wallet.",
+      hashes: [],
+    };
+  }
   const publicClient = createPublicClient({ transport: http(home.rpcUrl) });
   const hashes: Hex[] = [];
   const cur = settlementCurrency(home.chainId);
   const chain = {
     id: home.chainId,
     name: home.label,
-    // Native unit for the home chain the player pays from (ETH / xDAI / …).
     nativeCurrency: { name: cur.name, symbol: cur.symbol, decimals: cur.decimals },
     rpcUrls: { default: { http: [home.rpcUrl] } },
   };

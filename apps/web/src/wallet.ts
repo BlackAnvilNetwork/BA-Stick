@@ -170,7 +170,10 @@ export async function getWalletSession(opts: {
 
   if (opts.preferWalletConnect) {
     if (appKitConfigured()) {
-      const ak = await connectWithAppKit();
+      const ak = await connectWithAppKit({
+        chainId: opts.chainId,
+        rpcUrl: opts.rpcUrl,
+      });
       setPreferredPayoutWallet(ak.address);
       return {
         account: ak.account,

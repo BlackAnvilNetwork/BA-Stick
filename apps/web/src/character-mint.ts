@@ -7,8 +7,9 @@ import { normalizeCharacterName, settlementCurrency } from "@bellgrave/config";
 import { createPublicClient, http, type Hex } from "viem";
 import { freshMintNonce, mintClaimMessage } from "./mint-claim";
 import { clearPendingMint, readPendingMint, writePendingMint } from "./pending-mint";
+import { appKitConfigured } from "./appkit";
+import { hasInjectedWallet, payWalletSessionOpts } from "./pay-wallet";
 import { burnerAccount, getWalletSession } from "./wallet";
-import { walletConnectConfigured } from "./walletconnect";
 
 const CREATE_FOR_ABI = [
   {
@@ -123,13 +124,17 @@ export async function mintCharacterWithWallet(opts: {
     nativeCurrency: { name: cur.name, symbol: cur.symbol, decimals: cur.decimals },
     rpcUrls: { default: { http: [opts.mint.rpcUrl] } },
   };
-  const hasInjected = typeof window !== "undefined" && !!window.ethereum;
+  const hasInjected = hasInjectedWallet();
+  const sessionFlags = payWalletSessionOpts({
+    hasInjected,
+    appKitConfigured: appKitConfigured(),
+  });
   try {
     const session = await getWalletSession({
       chainId: opts.mint.chainId,
       rpcUrl: opts.mint.rpcUrl,
-      allowBurnerFallback: !hasInjected && !walletConnectConfigured(),
-      preferWalletConnect: walletConnectConfigured() && !hasInjected,
+      allowBurnerFallback: sessionFlags.allowBurnerFallback,
+      preferWalletConnect: sessionFlags.preferWalletConnect,
     });
     const pub = createPublicClient({
       transport: http(opts.mint.rpcUrl),
