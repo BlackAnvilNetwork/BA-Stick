@@ -66,7 +66,8 @@
       "buyAsk": "0x8af89ce01b7e1d735d7c91f5d1829507968a0d76e4db2301180ae71c8b849b7f",
       "mintBuyer": "0x1dff954b96aae4f63fc33dd8e41181c7fe419507f6a6957007ffffadf128375f",
       "mintSeller": "0xfd138f12ae76022835f6d199986b87f798d6eabe0af868d9033c75d2cd12a7df"
-    }
+    },
+    "factoryWithdraw": "0xf3c8bf107b2d29688c46ac24951678d788550e1bbd8081d3b6554575e3f7520a"
   },
   "smoke": {
     "chainId": 100,
@@ -110,7 +111,8 @@
     "openAsk": "https://gnosisscan.io/tx/0xbd100777bf2696a4fdd59e9c4f5f6ee71318ac1a391314245fbe6dbff796eb24",
     "buyAsk": "https://gnosisscan.io/tx/0x8af89ce01b7e1d735d7c91f5d1829507968a0d76e4db2301180ae71c8b849b7f",
     "deployFirst": "https://gnosisscan.io/tx/0x737a3dc0a1aba757aaf503eab606d71431fbc689d95214a4a0469c059d3ff314",
-    "deployLast": "https://gnosisscan.io/tx/0xf6f61e9326a769cc4d9dbee9733cf392cae113abfccab92cb286410fba127899"
+    "deployLast": "https://gnosisscan.io/tx/0xf6f61e9326a769cc4d9dbee9733cf392cae113abfccab92cb286410fba127899",
+    "factoryWithdraw": "https://gnosisscan.io/tx/0xf3c8bf107b2d29688c46ac24951678d788550e1bbd8081d3b6554575e3f7520a"
   },
   "status": "dry-run-only",
   "dryRunWarnings": [
@@ -139,5 +141,18 @@
     "stuckTotalXdaiApprox": "2.151",
     "sweepTxHashes": []
   },
-  "officialLaunch": "See docs/gnosis-launch.md \u2014 hardened Deploy rejects mocks off-anvil and requires distinct roles."
+  "officialLaunch": "See docs/gnosis-launch.md \u2014 hardened Deploy rejects mocks off-anvil and requires distinct roles.",
+  "factoryWithdraw": {
+    "note": "User-approved 2026-10-12: sole mainnet admin tx \u2014 CharacterFactory.withdraw to admin (mint fees).",
+    "approvedAt": "2026-10-12",
+    "txHash": "0xf3c8bf107b2d29688c46ac24951678d788550e1bbd8081d3b6554575e3f7520a",
+    "factory": "0xcE70705322A10C3c85363AD067743923F5E5E8F2",
+    "to": "0x08cDab8b049D2A42125C3A2bf1bF1E2f619C4e01",
+    "recoveredWei": "2000000000000000000",
+    "recoveredXdai": "2.0",
+    "factoryBalanceBeforeWei": "2000000000000000000",
+    "factoryBalanceAfterWei": "0",
+    "verifiedAt": "2026-10-12T18:53:03Z",
+    "explorer": "https://gnosisscan.io/tx/0xf3c8bf107b2d29688c46ac24951678d788550e1bbd8081d3b6554575e3f7520a"
+  }
 }
