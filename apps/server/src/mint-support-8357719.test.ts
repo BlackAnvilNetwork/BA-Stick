@@ -7,7 +7,12 @@ import { describe, it } from "node:test";
 import { privateKeyToAccount } from "viem/accounts";
 import { normalizeCharacterName } from "./character-name";
 import { factorySupportsCreateFor } from "./lok-vault";
-import { acceptedMintWallets, mintClaimMessage, resetMintClaimNoncesForTests } from "./mint-claim";
+import {
+  acceptedMintWallets,
+  consumeMintClaimNonce,
+  mintClaimMessage,
+  resetMintClaimNoncesForTests,
+} from "./mint-claim";
 
 const MINT = privateKeyToAccount("0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a");
 const GAME = "0x1111111111111111111111111111111111111111";
@@ -23,12 +28,15 @@ async function args(o: { chainId: number; charId: string; tokenId?: string; nonc
 }
 
 describe("support 8357719: mint claim L3 + M-A", () => {
-  it("the same claim is rejected the second time", async () => {
+  it("a claim is reusable until spawn consumes the nonce, then rejected", async () => {
     resetMintClaimNoncesForTests();
     const a = await args({ chainId: 31337, charId: "Chrona" });
-    assert.equal((await acceptedMintWallets(a)).ok, true);
-    const second = await acceptedMintWallets(a);
-    assert.equal(second.ok, false);
+    const first = await acceptedMintWallets(a);
+    assert.equal(first.ok, true);
+    assert.equal((await acceptedMintWallets(a)).ok, true, "retry before spawn still works");
+    if (!first.ok || !first.pendingNonce) throw new Error("expected pending nonce");
+    consumeMintClaimNonce(first.pendingNonce.mintWallet, first.pendingNonce.nonce);
+    assert.equal((await acceptedMintWallets(a)).ok, false, "rejected after spawn consume");
   });
   it("a claim signed for chain 1 does not verify as chain 31337", async () => {
     const a = await args({ chainId: 1, charId: "Chrona" });
