@@ -1,21 +1,37 @@
-# Mainnet plan (PR #212 → EEZ / home-chain players)
+# Mainnet plan (PR #212 → Ethereum L1 settlement)
 
 **Status:** planning + redeploy-ready escrow/app work; **no deploy / no merge** without go-ahead.  
 **Hard stops:** no merge to `main`; no shared-anvil or mainnet redeploy without explicit user go-ahead.  
 **Credentials:** operator keys / `PRIVATE_KEY` / WalletConnect project ids live in gitignored `.env` only — never commit.
 
-Players **never** connect a wallet to the Bellgrave game chain for value. They stay on Ethereum or other **home chains**. All value moves through **EEZ**. The game chain still hosts character NFTs, AhEscrow, and checkpoints; the **server / listing relayer** pays game-chain gas.
+## Settlement domain (locked)
+
+**Ethereum mainnet (L1)** is Bellgrave’s settlement domain. These live on L1:
+
+| Contract / surface | On L1 |
+|--------------------|-------|
+| `CharacterNFT` | yes |
+| `CharacterFactory` (mint fee) | yes |
+| `AhEscrow` (AH pay / 1% fee) | yes |
+| Item exports (checkpoint → ERC-1155 mint to `ownerOf`) | yes |
+| `CharacterCheckpoint` + `RulesetRegistry` | yes |
+
+Players with an **Ethereum home wallet** for v1 never leave L1 for mint or buy: those are **plain same-chain txs**. They do **not** need EEZ. EEZ is reserved for **future L2 home chains** that must reach L1 escrow/mint without a vault deposit.
+
+The **game log** (items, gold, character progress) stays on the **server** and is **anchored** to L1 via signed checkpoints (see §3c).
+
+---
 
 ## Design rules (locked)
 
-| # | Rule |
-|---|------|
-| 1 | Character creation reads the connected address, takes the ETH fee on the **home chain through EEZ**, and mints the character NFT to that address. |
-| 2 | An auction listing’s seller is the **current `ownerOf(character)`**, read at listing time. An owner change **cancels** open listings (cancel-only; no rebind). |
-| 3 | Buys are paid on the buyer’s home chain through EEZ to escrow; the seller is paid at the character’s **current owner** address **at fill**. |
-| 4 | Claims and payouts always go to `ownerOf(character)` at claim time — **never** a client-supplied address. |
-| 5 | Login is a **signed message** from the owner address with **no chain switch**. WalletConnect **31337** is **dev-only**. |
-| 6 | Item exports mint to the **owner** address. |
+| # | Rule | v1 (Ethereum home) | Later (L2 home) |
+|---|------|--------------------|-----------------|
+| 1 | Character creation reads the connected address, takes the ETH mint fee, mints NFT to that address | **Same-chain** `createCharacterFor{value}` on L1 | EEZ sync `value` → L1 factory |
+| 2 | Listing seller = current `ownerOf(character)`; owner change **cancels** open listings (cancel-only) | unchanged | unchanged |
+| 3 | Buys paid from buyer’s home; seller paid at **current `ownerOf`** at fill | **Same-chain** `buyAsk{value}` on L1 | EEZ sync → L1 `AhEscrow` |
+| 4 | Claims / payouts → `ownerOf(character)` at claim time — never client-supplied | unchanged | unchanged |
+| 5 | Login = signed message, **no chain switch**; WC 31337 **dev-only** | unchanged | unchanged |
+| 6 | Item exports mint to the **owner** address | L1 checkpoint | unchanged |
 
 ---
 
@@ -23,71 +39,113 @@ Players **never** connect a wallet to the Bellgrave game chain for value. They s
 
 | Rule | Status | Notes |
 |------|--------|--------|
-| **1** Mint via EEZ | **PARTIAL** | Game-chain mint-first today. Live EEZ home-chain fee + mint still needs zone registration (redeploy/integration). |
-| **2** List / owner change | **APP DONE** | List ignores client payout; NFT `Transfer` cancels open asks. Cancel-only is **locked**. |
-| **3** Buy home + pay current owner | **CONTRACT READY** / live EEZ pending | Redeploy-ready `AhEscrow.buyAsk` pays `ownerOf(sellerTokenId)` + 1% fee. Live EEZ sync buy still out of band. |
-| **4** Claims → `ownerOf` | **OK** (checkpoint) + AH via (3) | Checkpoint exports already use `ownerOf`. AH fill uses `ownerOf` after redeploy. |
-| **5** Login no switch; 31337 dev-only | **APP DONE** | WC sign-only; anvil WC gated. |
+| **1** Mint | **PARTIAL** | Mint-first on configured chain today. Point contracts + client at **L1**; no EEZ for v1 Ethereum-home. |
+| **2** List / owner change | **APP DONE** | `ownerOf` at list; Transfer cancel-only + pending retry. |
+| **3** Buy + pay current owner | **CONTRACT READY** | Redeploy-ready `buyAsk` → `ownerOf` + 1% fee. v1 = direct L1 `buyAsk`; EEZ mock stays for future L2 tests. |
+| **4** Claims → `ownerOf` | **OK** | Checkpoint + AH fill. |
+| **5** Login / WC | **APP DONE** | Sign-only; 31337 gated. |
 | **6** Export → owner | **OK** | Unchanged. |
 
 ### App / contract work in this branch (not deployed)
 
-- `AhEscrow`: immutable `characterNft`, `feeRecipient`, `FEE_BPS = 100` (1%), `buyAsk` pays `ownerOf` then fee; `openAsk` no longer stores a payout address.
-- Forge tests: ownerOf-at-fill, fee rounding floor, fuzz partition, Deploy wiring.
+- `AhEscrow`: immutable `characterNft`, `feeRecipient`, `FEE_BPS = 100`; `buyAsk` pays `ownerOf` then 1% fee; no frozen payout in `openAsk`.
+- Forge tests: ownerOf-at-fill, fee rounding, Deploy wiring.
 - Protocol `ahFeeSplit` + UI fee copy on list and buy.
-- AskFilled topic/decode updated for `feeWei` (server watcher).
-- Transfer-cancel watcher: persisted pending cancels + retry; confirmation depth; skip self-transfers; `alreadyClosed` uses AskCancelled/AskFilled classify (same as boot reconcile); list path re-checks `ownerOf` after `openAsk`.
+- Transfer-cancel watcher: pending cancels + retry; confirmations; skip self-transfers; AskCancelled classify; list re-checks `ownerOf` after `openAsk`.
 
 ### Still needs go-ahead / redeploy / out-of-band
 
-- Real EEZ zones + CrossChainProxy (mint fee + AH buy); **Ethereum mainnet home only for v1**.
-- Batched redeploy of escrow (+ NFT factory / vault drop / wasm pin as listed below).
-- Production WalletConnect project id (separate from preview).
+- Batched L1 redeploy of the package in §4.
+- Production WalletConnect project id.
+- Decision **(7)** redeploy timing + multisig holder.
 
 ---
 
-## 2. Real EEZ integration
+## 2. EEZ — when it applies
 
-Local path today: `MockEezSyncBuy` on 31337 (`docs/eez-sync-buy.md`). Production path:
+| Phase | Player home | Mint / AH buy path |
+|-------|-------------|--------------------|
+| **v1** | Ethereum mainnet | **Plain L1 txs** to factory / `AhEscrow`. **No EEZ.** |
+| **Later** | EEZ-zone L2s | EEZ sync `value` into the **same** L1 contracts. |
 
-1. **Zones** — Register Bellgrave game domain + **Ethereum mainnet** as the only player home chain for v1. Other EEZ L2s later.
-2. **Proxies** — First-party entrypoints only (`AhEscrow.buyAsk`, factory mint). Upstream `periphery/Bridge.sol` stays **test-only**.
-3. **Proven outcomes** — Prefer proven sync batches: ask filled + seller paid + fee paid + item mirrored (`AskFilled` → `chainFill`) in one atomic success, or full revert.
-4. **Price / refund policy**  
-   - **Exact-price preferred** for client-built sync calls (`value == priceWei`).  
-   - **Pull-refund allowed** when a proxy overshoots (`msg.value > priceWei` → refund excess to `msg.sender`).  
-   - Underpay always reverts (`WrongPrice`).
-5. **Mint UX (locked)** — **Player-signed home sync tx only** for v1. No intent+relayer path yet.
+Local `MockEezSyncBuy` on 31337 remains a throwaway stand-in for the L2 path — not a v1 production dependency.
+
+Upstream `periphery/Bridge.sol` stays **test-only**. Price policy unchanged: exact-price preferred; pull-refund on overshoot; underpay reverts.
 
 ---
 
-## 3. Relayer / gas model (game chain)
+## 3. Relayer / gas model (all L1)
 
-| Who pays | What |
-|----------|------|
-| **Player (Ethereum mainnet)** | Mint fee, AH buy `value`, home-chain gas for the EEZ sync tx. |
-| **Server listing key (`LOK_LISTING_KEY`)** | Game-chain `openAsk` / `cancelAsk` (and transfer-driven cancels). |
-| **Server rotator / checkpoint signers** | Checkpoint submit gas (existing model). |
-| **Players** | **Do not** need game-chain ETH for play, login, or listing. |
+### 3a. Who pays what (v1)
+
+| Who | Pays |
+|-----|------|
+| **Player (L1)** | Mint fee + mint gas; AH `buyAsk` value + buy gas; login is sign-only (no gas). |
+| **Server `LOK_LISTING_KEY`** | L1 `openAsk` / `cancelAsk` / transfer-driven cancels. |
+| **Server rotator / checkpoint submitter** | L1 `checkpoint(...)` gas. |
+| **Players** | Do **not** need a separate “game chain” — settlement **is** L1. Listing today is server-paid so players need no listing gas. |
+
+### 3b. Rough L1 gas (forge averages on current AhEscrow / Checkpoint)
+
+Measured execution gas (not including L1 base fee / priority fee volatility):
+
+| Call | ~gas (forge) | At 20 gwei, ETH≈$2.5k (illustrative) |
+|------|--------------|--------------------------------------|
+| `openAsk` | ~138k | ~$6.9 |
+| `cancelAsk` | ~30k | ~$1.5 |
+| `buyAsk` (player-paid) | ~80–130k | ~$4–6.5 + sale value |
+| `checkpoint` (median) | ~70k (wide range; exports inflate) | ~$3.5 (can spike) |
+
+**Ops load (order of magnitude):**  
+100 lists/day ≈ 14M gas ≈ **~$0.7k/mo** at 20 gwei if ETH is $2.5k — or **several $k/mo** if gas is hot. Transfer cancels and reclaim cancels add ~30k each. Checkpoints scale with how often the server commits character ranges (exports make them expensive).
+
+These USD figures are **illustrative only**; treat them as a planning band, not a quote.
+
+### 3c. Where the game log and checkpoints anchor
+
+| Layer | Location | Role |
+|-------|----------|------|
+| **Character log** (items, gold, asks, fills) | **Server data dir** (`lok-world` journal + wasm engine) | Authoritative for gameplay. |
+| **Checkpoint** | **Ethereum L1** `CharacterCheckpoint` | Commits log roots / exports / inbound consumption so the chain can mint exports and verify progress. |
+| **AH / mint value** | **Ethereum L1** factory + `AhEscrow` | Funds never credit the log. |
+
+v1: one domain — L1 holds NFTs, escrow, and checkpoint anchors; the server holds the mutable log and pays L1 gas to open/cancel asks and to submit checkpoints.
+
+### 3d. `ownerOf` reads stay cheap for the server
+
+`ownerOf` is an **`eth_call`** (view): **no L1 gas**, only RPC latency/rate limits. Used at list time, after `openAsk` (race check), at fill inside `buyAsk` (on-chain, paid by the buyer’s tx), and by the Transfer watcher (log scan + view calls). Safe to call often; bottleneck is RPC quota, not ETH.
+
+---
+
+## 3e. Ways to cut server L1 gas (tradeoffs for the user)
+
+| Option | Idea | Saves | Tradeoffs |
+|--------|------|-------|-----------|
+| **A. Status quo** | Server `LISTING_ROLE` opens/cancels every ask immediately | — | Predictable UX; **server pays all list/cancel gas** on L1. |
+| **B. Seller-signed listing, opened lazily at buy** | Seller signs an EIP-712 ask; first buyer (or relayer) submits `openAsk`+`buyAsk` (or a combined entrypoint) | Almost all `openAsk` gas moves off the server (or into the buyer’s tx) | More contract surface; cancel/expiry must be signature-aware; Transfer-cancel must invalidate signed asks off-chain; worse “browse live book” unless the server still indexes intents. |
+| **C. Seller pays `openAsk`** | Seller’s wallet submits `openAsk` (or server sponsors only when seller deposits a listing bond) | Shifts gas to sellers | Needs wallet UX + L1 ETH in the seller wallet; breaks “list with one click while on any chain” for L2-era players. |
+| **D. Batch open/cancel** | Multicall / batch `openAsk`/`cancelAsk` in one tx | Amortizes base fee across N asks | Complexity; failure atomicity; Transfer-cancel still may need per-id cancels. |
+| **E. Fewer checkpoints / export-gated** | Checkpoint only when exporting or on a slow cadence | Cuts rotator gas | Longer unanchored log window; export UX must trigger a checkpoint. |
+| **F. Keep server-paid lists for v1, revisit at L2** | Ship A now; design B when EEZ L2 homes appear | Lowest short-term eng cost | Accept L1 listing OpEx until volume forces a change. |
+
+**Recommendation to discuss:** ship **F** for v1 (server-paid immediate lists on L1) with metering/alerts on the listing key; prototype **B** before L2 homes if list volume or gas spikes. Ask through Grok Bot which option to lock.
 
 ---
 
 ## 4. Redeploy package (batched — needs go-ahead)
 
-Do **not** run until the user approves. One wipe window:
+Do **not** run until the user approves. Target: **Ethereum mainnet**.
 
 | Piece | Action |
 |-------|--------|
-| **AhEscrow** | Fresh deploy with `(admin, characterNft, feeRecipient)`; `LISTING_ROLE` to listing EOA; fee recipient = multisig (admin can `setFeeRecipient`). `buyAsk` pays `ownerOf(sellerTokenId)` + 1% fee. |
-| **CharacterFactory** | New proxy with `createCharacterFor`; mint fee in native ETH; EEZ-callable mint path when ready. |
-| **CharacterNFT / Checkpoint** | Redeploy or upgrade per Deploy.s.sol; **drop KekVault / deposit custody** wiring for new play. |
-| **RulesetRegistry** | Propose **new** ruleset hash after wasm bump; wait timelock; accept. |
-| **Reproducible wasm** | Remapped rebuild; commit `pkg/lok_engine.wasm` + `LOCAL_RULESET_WASM_SHA256` + `LOCAL_RULESET_HASH` together. |
-| **Historical ItemDrop allowlist** | Keep `HISTORICAL_ITEM_DROP_MAX_SEQ` for wipe/replay. |
-| **Env / clients** | Point `LOK_*` + Vite env at new addresses; production WC project id; disable `LOK_DEV_*` on mainnet. |
-| **EEZ** | Zone IDs for Bellgrave + Ethereum mainnet; mock flag off. |
-
-Deploy script baseline: `contracts/lok-log/script/Deploy.s.sol`.
+| **AhEscrow** | Deploy with `(admin, characterNft, feeRecipient)`; `LISTING_ROLE`; fee recipient = multisig; `buyAsk` → `ownerOf` + 1%. |
+| **CharacterFactory** | `createCharacterFor`; native ETH mint fee on L1. |
+| **CharacterNFT / Checkpoint** | Per Deploy.s.sol; drop KekVault custody for new play. |
+| **RulesetRegistry** | New ruleset after wasm bump; timelock; accept. |
+| **Reproducible wasm** | Remapped rebuild; pin `LOCAL_RULESET_WASM_SHA256` + `LOCAL_RULESET_HASH`. |
+| **Historical ItemDrop allowlist** | Keep `HISTORICAL_ITEM_DROP_MAX_SEQ`. |
+| **Env / clients** | `LOK_CHAIN_ID=1`, L1 RPCs, production WC project id; disable `LOK_DEV_*`. |
+| **EEZ** | **Not required for v1.** Keep mock path for future L2 work only. |
 
 ---
 
@@ -97,29 +155,30 @@ Deploy script baseline: `contracts/lok-log/script/Deploy.s.sol`.
 
 | # | Decision |
 |---|----------|
-| 1 | **AH fill payout:** `buyAsk` pays `ownerOf(sellerTokenId)` (NFT wired into escrow). Redeploy package. |
-| 2 | **Owner change:** **cancel-only** (app Transfer watcher). No rebind / auto-relist. |
-| 3 | **Home chains:** **Ethereum mainnet only** for v1; L2s later. |
-| 4 | **Mint UX:** **player-signed home sync tx only**; no intent+relayer for v1. |
-| 5 | **AH fee:** **1%** of sale price in ETH, taken in escrow at fill (`fee = price * 100 / 10000` floor); seller gets the rest; fee → `feeRecipient` (multisig/admin). Show in UI before buy and list; rounding covered by forge + `ahFeeSplit` tests. |
-| 8 | **WalletConnect:** use a **separate production project id** (not the preview `.env` id). |
+| 1 | **AH fill payout:** `buyAsk` pays `ownerOf(sellerTokenId)`. |
+| 2 | **Owner change:** **cancel-only**. |
+| 3 | **Home chains (v1):** Ethereum mainnet only; L2s later. |
+| 4 | **Mint UX:** player-signed tx only (v1 = L1 same-chain; no intent+relayer). |
+| 5 | **AH fee:** 1% floor in escrow at fill; UI shows it; fee → multisig/admin recipient. |
+| **6** | **Settlement domain:** **Ethereum mainnet.** NFT, factory, AhEscrow, exports, checkpoints on L1. v1 Ethereum-home mint/buy = **same-chain** (no EEZ). EEZ only for future L2 homes. |
+| 8 | **WalletConnect:** separate production project id. |
 
 ### Still TBD (ask through Grok Bot when needed)
 
 | # | Open |
 |---|------|
-| **6** | **Settlement chain:** which chain id / RPC is Bellgrave’s game domain for NFT + escrow? |
 | **7** | **Redeploy timing** and **who holds the MULTISIG**? |
+| **Gas cut** | Confirm v1 listing model: **F** (server-paid) vs **B/C/D** above. |
 
 ---
 
 ## 6. Verification checklist (before asking to redeploy)
 
-- [x] Rules 2/4/5 app paths (list ignores client payout; WC login no switch; 31337 gated).
-- [x] Transfer → cancel asks (unit tests).
-- [x] Escrow `ownerOf` + 1% fee forge tests (incl. rounding).
-- [x] UI fee display on list + buy.
-- [ ] Mock EEZ e2e green on throwaway anvil after ABI change.
-- [ ] `check-wasm-pin.mjs --no-build` matches committed pin (no surprise bump).
-- [ ] User explicit go-ahead for merge and for redeploy (separate).
-- [ ] Settlement chain (6) + multisig/timing (7) answered.
+- [x] Rules 2/4/5 app paths.
+- [x] Transfer → cancel (pending retry, confirmations, self-transfer skip).
+- [x] Escrow `ownerOf` + 1% fee forge tests + UI fee display.
+- [x] Plan reflects L1 settlement + same-chain v1 (this revision).
+- [ ] `check-wasm-pin.mjs --no-build` matches committed pin.
+- [ ] User go-ahead for merge and for L1 redeploy (separate).
+- [ ] Decision **(7)** multisig + timing answered.
+- [ ] Listing gas model (**F** vs alternatives) confirmed.
