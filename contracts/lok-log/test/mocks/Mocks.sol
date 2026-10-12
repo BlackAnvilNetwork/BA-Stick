@@ -9,6 +9,11 @@ import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 contract MockKEK is ERC20 {
     constructor() ERC20("KEK", "KEK") {}
 
+    /// @dev Detected by Deploy on non-anvil chains — must never be wired on 100/10200.
+    function isBellgraveTestMock() external pure returns (bool) {
+        return true;
+    }
+
     function mint(address to, uint256 amt) external {
         _mint(to, amt);
     }
@@ -21,6 +26,12 @@ contract MockItems is ERC1155 {
         minters[msg.sender] = true;
     }
 
+    /// @dev Detected by Deploy on non-anvil chains — must never be wired on 100/10200.
+    function isBellgraveTestMock() external pure returns (bool) {
+        return true;
+    }
+
+    /// @notice Intentionally open — local anvil only. Deploy rejects this on other chains.
     function setMinter(address m, bool ok) external {
         minters[m] = ok;
     }

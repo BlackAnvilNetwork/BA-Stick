@@ -3,20 +3,24 @@ pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
 import {Deploy} from "../script/Deploy.s.sol";
+import {AhEscrow} from "../src/AhEscrow.sol";
 import {MockKEK, MockItems} from "./mocks/Mocks.sol";
 
 contract DeployTest is Test {
     function test_deployScript_wiresAndHandsOver() public {
-        address multisig = makeAddr("multisig");
+        address admin = makeAddr("admin");
+        address feeRecipient = makeAddr("fee");
         address proposer = makeAddr("proposer");
         address rotator = makeAddr("rotator");
         address listing = makeAddr("listing");
         MockItems items = new MockItems();
         Deploy s = new Deploy();
         Deploy.Config memory c = Deploy.Config({
-            multisig: multisig,
+            admin: admin,
+            emergency: admin,
+            guardian: admin,
+            feeRecipient: feeRecipient,
             rotator: rotator,
-            guardian: makeAddr("guardian"),
             proposer: proposer,
             listing: listing,
             items: address(items),
@@ -24,24 +28,21 @@ contract DeployTest is Test {
             baseURI: "ipfs://x/",
             mintFee: 0.001 ether
         });
-        // the script contract executes the calls, so it is the temporary admin
         Deploy.Deployed memory d = s.deploy(c, address(s));
 
-        bytes32 admin = d.checkpoint.DEFAULT_ADMIN_ROLE();
-        // admin handed over everywhere, deployer fully renounced
-        assertTrue(d.checkpoint.hasRole(admin, multisig));
-        assertTrue(d.nft.hasRole(admin, multisig));
-        assertTrue(d.factory.hasRole(admin, multisig));
-        assertTrue(d.rulesets.hasRole(admin, multisig));
-        assertTrue(d.ahEscrow.hasRole(d.ahEscrow.DEFAULT_ADMIN_ROLE(), multisig));
-        assertFalse(d.checkpoint.hasRole(admin, address(s)));
-        assertFalse(d.nft.hasRole(admin, address(s)));
-        assertFalse(d.factory.hasRole(admin, address(s)));
-        assertFalse(d.rulesets.hasRole(admin, address(s)));
+        bytes32 adminRole = d.checkpoint.DEFAULT_ADMIN_ROLE();
+        assertTrue(d.checkpoint.hasRole(adminRole, admin));
+        assertTrue(d.nft.hasRole(adminRole, admin));
+        assertTrue(d.factory.hasRole(adminRole, admin));
+        assertTrue(d.rulesets.hasRole(adminRole, admin));
+        assertTrue(d.ahEscrow.hasRole(d.ahEscrow.DEFAULT_ADMIN_ROLE(), admin));
+        assertFalse(d.checkpoint.hasRole(adminRole, address(s)));
+        assertFalse(d.nft.hasRole(adminRole, address(s)));
+        assertFalse(d.factory.hasRole(adminRole, address(s)));
+        assertFalse(d.rulesets.hasRole(adminRole, address(s)));
         assertFalse(d.ahEscrow.hasRole(d.ahEscrow.DEFAULT_ADMIN_ROLE(), address(s)));
         assertFalse(d.ahEscrow.hasRole(d.ahEscrow.LISTING_ROLE(), address(s)));
 
-        // wiring (no KekVault — AhEscrow is the AH payment path)
         assertTrue(d.nft.hasRole(d.nft.MINTER_ROLE(), address(d.factory)));
         assertTrue(d.checkpoint.hasRole(d.checkpoint.FACTORY_ROLE(), address(d.factory)));
         assertTrue(d.checkpoint.hasRole(d.checkpoint.NFT_ROLE(), address(d.nft)));
@@ -50,18 +51,18 @@ contract DeployTest is Test {
         assertEq(address(d.checkpoint.vault()), address(0));
         assertTrue(d.ahEscrow.hasRole(d.ahEscrow.LISTING_ROLE(), listing));
         assertEq(address(d.ahEscrow.characterNft()), address(d.nft));
-        assertEq(d.ahEscrow.feeRecipient(), multisig);
+        assertEq(d.ahEscrow.feeRecipient(), feeRecipient);
         assertEq(d.ahEscrow.FEE_BPS(), 100);
         assertTrue(d.rulesets.hasRole(d.rulesets.PROPOSER_ROLE(), proposer));
-        assertTrue(d.rulesets.hasRole(d.rulesets.EMERGENCY_ROLE(), multisig));
+        assertTrue(d.rulesets.hasRole(d.rulesets.EMERGENCY_ROLE(), admin));
         assertEq(d.rulesets.minDelay(), 48 hours);
         assertEq(d.factory.mintFee(), 0.001 ether);
+        assertTrue(d.nftImpl != address(0));
+        assertTrue(address(d.ahEscrow) != address(0));
 
-        // the checkpoint contract still has to be made a minter of the items contract by the items admin
         assertFalse(items.minters(address(d.checkpoint)));
 
-        // multisig finishes setup, a player can then create a character end to end
-        vm.prank(multisig);
+        vm.prank(admin);
         d.factory.setStartingJob(1, true);
         address p = makeAddr("p");
         vm.deal(p, 1 ether);
@@ -71,29 +72,127 @@ contract DeployTest is Test {
         assertEq(d.checkpoint.level(id), 1);
     }
 
-    /// When multisig == deployer, renounce must not leave zero admins.
-    function test_deployScript_sameMultisigKeepsAdmin() public {
-        MockItems items = new MockItems();
+    function test_deployScript_itemsZeroLeavesImportsOff() public {
+        Deploy s = new Deploy();
+        address admin = makeAddr("admin");
+        Deploy.Config memory c = Deploy.Config({
+            admin: admin,
+            emergency: admin,
+            guardian: admin,
+            feeRecipient: makeAddr("fee"),
+            rotator: makeAddr("rotator"),
+            proposer: makeAddr("proposer"),
+            listing: makeAddr("listing"),
+            items: address(0),
+            kek: address(0),
+            baseURI: "ipfs://x/",
+            mintFee: 1 ether
+        });
+        Deploy.Deployed memory d = s.deploy(c, address(s));
+        assertEq(address(d.checkpoint.items()), address(0));
+    }
+
+    function test_deployScript_sameAdminAsDeployerKeepsAdmin_onAnvil() public {
         Deploy s = new Deploy();
         address deployer = address(s);
+        // Anvil allows overlapping roles for local convenience.
         Deploy.Config memory c = Deploy.Config({
-            multisig: deployer,
-            rotator: deployer,
+            admin: deployer,
+            emergency: deployer,
             guardian: deployer,
+            feeRecipient: deployer,
+            rotator: deployer,
             proposer: deployer,
             listing: deployer,
-            items: address(items),
+            items: address(new MockItems()),
             kek: address(new MockKEK()),
             baseURI: "ipfs://x/",
             mintFee: 1 ether
         });
         Deploy.Deployed memory d = s.deploy(c, deployer);
-        bytes32 admin = d.nft.DEFAULT_ADMIN_ROLE();
-        assertTrue(d.nft.hasRole(admin, deployer));
-        assertTrue(d.factory.hasRole(admin, deployer));
-        assertTrue(d.ahEscrow.hasRole(d.ahEscrow.DEFAULT_ADMIN_ROLE(), deployer));
+        bytes32 adminRole = d.nft.DEFAULT_ADMIN_ROLE();
+        assertTrue(d.nft.hasRole(adminRole, deployer));
         assertTrue(d.ahEscrow.hasRole(d.ahEscrow.LISTING_ROLE(), deployer));
-        assertEq(d.ahEscrow.feeRecipient(), deployer);
-        assertEq(d.factory.mintFee(), 1 ether);
+    }
+
+    function test_rejectMocksOnNonAnvil() public {
+        Deploy s = new Deploy();
+        MockItems items = new MockItems();
+        MockKEK kek = new MockKEK();
+        s.rejectMocksOnNonAnvil(address(items), address(kek));
+
+        vm.chainId(100);
+        vm.expectRevert(abi.encodeWithSelector(Deploy.MockWiredOnNonAnvil.selector, address(items)));
+        s.rejectMocksOnNonAnvil(address(items), address(0));
+
+        vm.expectRevert(abi.encodeWithSelector(Deploy.MockWiredOnNonAnvil.selector, address(kek)));
+        s.rejectMocksOnNonAnvil(address(0), address(kek));
+
+        s.rejectMocksOnNonAnvil(address(0), address(0));
+    }
+
+    function test_validateConfig_requiresDistinctServerKeys_onMainnet() public {
+        Deploy s = new Deploy();
+        address admin = makeAddr("admin");
+        address rotator = makeAddr("rotator");
+        Deploy.Config memory c = Deploy.Config({
+            admin: admin,
+            emergency: admin,
+            guardian: admin,
+            feeRecipient: makeAddr("fee"),
+            rotator: rotator,
+            proposer: makeAddr("proposer"),
+            listing: rotator,
+            items: address(0),
+            kek: address(0),
+            baseURI: "ipfs://x/",
+            mintFee: 1 ether
+        });
+        vm.chainId(100);
+        vm.expectRevert(abi.encodeWithSelector(Deploy.BadConfig.selector, "listing/rotator/proposer must be distinct"));
+        s.validateConfig(c);
+    }
+
+    function test_validateConfig_feeRecipientDistinctFromAdmin_onMainnet() public {
+        Deploy s = new Deploy();
+        address admin = makeAddr("admin");
+        Deploy.Config memory c = Deploy.Config({
+            admin: admin,
+            emergency: admin,
+            guardian: admin,
+            feeRecipient: admin,
+            rotator: makeAddr("rotator"),
+            proposer: makeAddr("proposer"),
+            listing: makeAddr("listing"),
+            items: address(0),
+            kek: address(0),
+            baseURI: "ipfs://x/",
+            mintFee: 1 ether
+        });
+        vm.chainId(100);
+        vm.expectRevert(abi.encodeWithSelector(Deploy.BadConfig.selector, "feeRecipient must be distinct from admin Safe"));
+        s.validateConfig(c);
+    }
+
+    function test_deployOnMainnetChainId_rejectsMockItems() public {
+        Deploy s = new Deploy();
+        address admin = makeAddr("admin");
+        address mockItems = address(new MockItems());
+        Deploy.Config memory c = Deploy.Config({
+            admin: admin,
+            emergency: admin,
+            guardian: admin,
+            feeRecipient: makeAddr("fee"),
+            rotator: makeAddr("rotator"),
+            proposer: makeAddr("proposer"),
+            listing: makeAddr("listing"),
+            items: mockItems,
+            kek: address(0),
+            baseURI: "ipfs://x/",
+            mintFee: 1 ether
+        });
+        vm.chainId(100);
+        vm.expectRevert(abi.encodeWithSelector(Deploy.MockWiredOnNonAnvil.selector, mockItems));
+        s.deploy(c, address(s));
     }
 }

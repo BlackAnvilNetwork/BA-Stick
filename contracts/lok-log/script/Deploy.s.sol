@@ -11,26 +11,40 @@ import {AhEscrow} from "../src/AhEscrow.sol";
 // KekVault.sol + CharacterCheckpoint.vault stay until a batched redeploy drops custody deposits.
 // Play path AH uses AhEscrow (deployed and granted LISTING_ROLE here).
 
-/// Deploys the log-model character stack behind UUPS proxies, wires roles, then hands admin to the multisig.
-/// The deployer is the temporary admin and renounces at the end. Items (ERC-1155) and KEK (ERC-20) are external:
-/// pass their addresses in.
+/// Deploys the log-model character stack behind UUPS proxies, wires roles, then hands admin to the Safe.
+/// The deployer is the temporary admin and renounces at the end (when deployer != admin).
+///
+/// Role separation (official launch):
+///   ADMIN / EMERGENCY / GUARDIAN → Safe multisig (may be the same Safe)
+///   LISTING / ROTATOR / PROPOSER → distinct server EOAs
+///   FEE_RECIPIENT → distinct treasury (not a server key, not the Safe)
+///
+/// Items: pass a real access-controlled ERC-1155, or address(0) to leave imports/exports off.
+/// Never pass MockItems/MockKEK on chainid != 31337 (guarded).
 ///
 ///   forge script script/Deploy.s.sol --rpc-url $RPC --broadcast --sig "run()"
-///   env: MULTISIG, ROTATOR, GUARDIAN, PROPOSER, ITEMS, KEK, BASE_URI
-///   optional: LISTING (EOA that signs openAsk/cancelAsk; defaults to ROTATOR)
+///   env: ADMIN, FEE_RECIPIENT, ROTATOR, GUARDIAN, PROPOSER, LISTING, BASE_URI
+///        optional: EMERGENCY (default ADMIN), ITEMS (default 0), KEK (default 0), MINT_FEE
 ///
-/// After running, the multisig must still:
-///   1. items.setMinter(checkpoint, true)            (checkpoint mints exports and burns imports)
+/// After running, the Safe must still:
+///   1. items.setMinter(checkpoint, true)            (if ITEMS != 0)
 ///   2. factory.setStartingJob(job, true)            (per starting job)
-///   3. proposer: rulesets.propose(hash, delay, uri) (first ruleset; wait out the timelock)
+///   3. proposer: rulesets.propose(hash, delay, uri) (first ruleset; wait out the 48h timelock)
 ///   4. rotator service: checkpoint.addSigner(sessionKey, expiry)
+/// Then verify implementations (see script/verify-deploy.sh + docs/gnosis-launch.md).
 contract Deploy is Script {
     uint64 constant RULESET_MIN_DELAY = 48 hours;
+    uint256 constant ANVIL_CHAIN_ID = 31337;
+
+    error BadConfig(string reason);
+    error MockWiredOnNonAnvil(address mock);
 
     struct Config {
-        address multisig;
-        address rotator;
+        address admin;
+        address emergency;
         address guardian;
+        address feeRecipient;
+        address rotator;
         address proposer;
         address listing;
         address items;
@@ -45,63 +59,127 @@ contract Deploy is Script {
         CharacterFactory factory;
         RulesetRegistry rulesets;
         AhEscrow ahEscrow;
+        address nftImpl;
+        address checkpointImpl;
+        address factoryImpl;
+        address rulesetsImpl;
     }
 
     function run() external virtual returns (Deployed memory d) {
-        Config memory c = Config({
-            multisig: vm.envAddress("MULTISIG"),
-            rotator: vm.envAddress("ROTATOR"),
-            guardian: vm.envAddress("GUARDIAN"),
-            proposer: vm.envAddress("PROPOSER"),
-            listing: vm.envOr("LISTING", address(0)),
-            items: vm.envAddress("ITEMS"),
-            kek: vm.envAddress("KEK"),
-            baseURI: vm.envString("BASE_URI"),
-            // Override with MINT_FEE (wei). Default 0.001 ETH for anvil; Chiado uses DeployChiado (1 xDAI).
-            mintFee: vm.envOr("MINT_FEE", uint256(0.001 ether))
-        });
+        Config memory c = loadConfig();
         vm.startBroadcast();
         d = deploy(c, msg.sender);
         vm.stopBroadcast();
-        console.log("CharacterNFT        ", address(d.nft));
-        console.log("CharacterCheckpoint ", address(d.checkpoint));
-        console.log("CharacterFactory    ", address(d.factory));
-        console.log("RulesetRegistry     ", address(d.rulesets));
-        console.log("AhEscrow            ", address(d.ahEscrow));
-        console.log("mintFee (wei)       ", c.mintFee);
+        _logDeployed(d, c);
+    }
+
+    function loadConfig() public view returns (Config memory c) {
+        // Prefer ADMIN; MULTISIG is a back-compat alias.
+        address admin;
+        try vm.envAddress("ADMIN") returns (address a) {
+            admin = a;
+        } catch {
+            admin = vm.envAddress("MULTISIG");
+        }
+        c = Config({
+            admin: admin,
+            emergency: vm.envOr("EMERGENCY", admin),
+            guardian: vm.envOr("GUARDIAN", admin),
+            feeRecipient: vm.envAddress("FEE_RECIPIENT"),
+            rotator: vm.envAddress("ROTATOR"),
+            proposer: vm.envAddress("PROPOSER"),
+            listing: vm.envAddress("LISTING"),
+            items: vm.envOr("ITEMS", address(0)),
+            kek: vm.envOr("KEK", address(0)),
+            baseURI: vm.envString("BASE_URI"),
+            mintFee: vm.envOr("MINT_FEE", uint256(0.001 ether))
+        });
     }
 
     function _proxy(address impl, bytes memory init) internal returns (address) {
         return address(new ERC1967Proxy(impl, init));
     }
 
+    /// Reject MockItems / MockKEK outside local anvil.
+    function rejectMocksOnNonAnvil(address items, address kek) public view {
+        if (block.chainid == ANVIL_CHAIN_ID) return;
+        if (items != address(0) && _isBellgraveTestMock(items)) revert MockWiredOnNonAnvil(items);
+        if (kek != address(0) && _isBellgraveTestMock(kek)) revert MockWiredOnNonAnvil(kek);
+    }
+
+    function _isBellgraveTestMock(address target) internal view returns (bool) {
+        (bool ok, bytes memory ret) = target.staticcall(abi.encodeWithSignature("isBellgraveTestMock()"));
+        if (!ok || ret.length < 32) return false;
+        return abi.decode(ret, (bool));
+    }
+
+    /// Distinctness rules for official launch. Anvil may reuse addresses for convenience.
+    function validateConfig(Config memory c) public view {
+        if (c.admin == address(0)) revert BadConfig("admin=0");
+        if (c.emergency == address(0)) revert BadConfig("emergency=0");
+        if (c.guardian == address(0)) revert BadConfig("guardian=0");
+        if (c.feeRecipient == address(0)) revert BadConfig("feeRecipient=0");
+        if (c.listing == address(0)) revert BadConfig("listing=0");
+        if (c.rotator == address(0)) revert BadConfig("rotator=0");
+        if (c.proposer == address(0)) revert BadConfig("proposer=0");
+        if (bytes(c.baseURI).length == 0) revert BadConfig("baseURI empty");
+
+        rejectMocksOnNonAnvil(c.items, c.kek);
+
+        if (block.chainid == ANVIL_CHAIN_ID) return;
+
+        // Server keys must be pairwise distinct and not the Safe / fee recipient.
+        if (c.listing == c.rotator || c.listing == c.proposer || c.rotator == c.proposer) {
+            revert BadConfig("listing/rotator/proposer must be distinct");
+        }
+        if (c.listing == c.admin || c.rotator == c.admin || c.proposer == c.admin) {
+            revert BadConfig("server keys must not equal admin Safe");
+        }
+        if (c.listing == c.feeRecipient || c.rotator == c.feeRecipient || c.proposer == c.feeRecipient) {
+            revert BadConfig("server keys must not equal feeRecipient");
+        }
+        if (c.feeRecipient == c.admin) revert BadConfig("feeRecipient must be distinct from admin Safe");
+        // emergency/guardian may equal admin (same Safe). They must not be server keys.
+        if (c.emergency == c.listing || c.emergency == c.rotator || c.emergency == c.proposer) {
+            revert BadConfig("emergency must not be a server key");
+        }
+        if (c.guardian == c.listing || c.guardian == c.rotator || c.guardian == c.proposer) {
+            revert BadConfig("guardian must not be a server key");
+        }
+    }
+
     /// `deployer` is the account executing the calls (temporary admin).
     function deploy(Config memory c, address deployer) public returns (Deployed memory d) {
+        validateConfig(c);
+
+        address nftImpl = address(new CharacterNFT());
+        address checkpointImpl = address(new CharacterCheckpoint());
+        address factoryImpl = address(new CharacterFactory());
+        address rulesetsImpl = address(new RulesetRegistry());
+        d.nftImpl = nftImpl;
+        d.checkpointImpl = checkpointImpl;
+        d.factoryImpl = factoryImpl;
+        d.rulesetsImpl = rulesetsImpl;
+
         d.nft = CharacterNFT(
-            _proxy(
-                address(new CharacterNFT()),
-                abi.encodeCall(CharacterNFT.initialize, (deployer, "Legend of Kek Character", "LOKC", c.baseURI))
-            )
+            _proxy(nftImpl, abi.encodeCall(CharacterNFT.initialize, (deployer, "Legend of Kek Character", "LOKC", c.baseURI)))
         );
         d.checkpoint = CharacterCheckpoint(
             _proxy(
-                address(new CharacterCheckpoint()),
+                checkpointImpl,
                 abi.encodeCall(CharacterCheckpoint.initialize, (deployer, address(d.nft), c.rotator, c.guardian))
             )
         );
         d.factory = CharacterFactory(
             _proxy(
-                address(new CharacterFactory()),
+                factoryImpl,
                 abi.encodeCall(CharacterFactory.initialize, (deployer, address(d.nft), address(d.checkpoint), c.mintFee))
             )
         );
         d.rulesets = RulesetRegistry(
-            _proxy(address(new RulesetRegistry()), abi.encodeCall(RulesetRegistry.initialize, (deployer, RULESET_MIN_DELAY)))
+            _proxy(rulesetsImpl, abi.encodeCall(RulesetRegistry.initialize, (deployer, RULESET_MIN_DELAY)))
         );
-        // Fee recipient defaults to multisig; buyAsk pays ownerOf(sellerTokenId) on the NFT.
-        d.ahEscrow = new AhEscrow(deployer, address(d.nft), payable(c.multisig));
-
-        // Batched redeploy: drop CharacterCheckpoint.vault / KekVault once no live chain needs deposit custody.
+        d.ahEscrow = new AhEscrow(deployer, address(d.nft), payable(c.feeRecipient));
 
         // wiring
         d.nft.setState(address(d.checkpoint));
@@ -109,35 +187,48 @@ contract Deploy is Script {
         d.checkpoint.grantRole(d.checkpoint.FACTORY_ROLE(), address(d.factory));
         d.checkpoint.grantRole(d.checkpoint.NFT_ROLE(), address(d.nft));
         d.checkpoint.setRulesets(address(d.rulesets));
+        // address(0) leaves importItem/export off (NotConfigured). Never wire mocks off-anvil.
         d.checkpoint.setItems(c.items);
         d.rulesets.grantRole(d.rulesets.PROPOSER_ROLE(), c.proposer);
-        d.rulesets.grantRole(d.rulesets.EMERGENCY_ROLE(), c.multisig);
+        d.rulesets.grantRole(d.rulesets.EMERGENCY_ROLE(), c.emergency);
+        d.ahEscrow.grantRole(d.ahEscrow.LISTING_ROLE(), c.listing);
 
-        // AhEscrow listing role for the server EOA that opens/cancels asks
-        address listing = c.listing == address(0) ? c.rotator : c.listing;
-        d.ahEscrow.grantRole(d.ahEscrow.LISTING_ROLE(), listing);
-
-        // Hand over admin to multisig. If multisig == deployer, do NOT renounce
+        // Hand over admin to Safe. If admin == deployer, do NOT renounce
         // (grant+renounce on the same address would leave zero admins).
-        bytes32 admin = d.nft.DEFAULT_ADMIN_ROLE();
-        if (c.multisig != deployer) {
-            d.nft.grantRole(admin, c.multisig);
-            d.checkpoint.grantRole(admin, c.multisig);
-            d.factory.grantRole(admin, c.multisig);
-            d.rulesets.grantRole(admin, c.multisig);
-            d.ahEscrow.grantRole(d.ahEscrow.DEFAULT_ADMIN_ROLE(), c.multisig);
-            d.nft.renounceRole(admin, deployer);
-            d.checkpoint.renounceRole(admin, deployer);
-            d.factory.renounceRole(admin, deployer);
-            d.rulesets.renounceRole(admin, deployer);
-            // Revoke listing before admin — revokeRole requires DEFAULT_ADMIN_ROLE.
-            if (listing != deployer) {
+        bytes32 adminRole = d.nft.DEFAULT_ADMIN_ROLE();
+        if (c.admin != deployer) {
+            d.nft.grantRole(adminRole, c.admin);
+            d.checkpoint.grantRole(adminRole, c.admin);
+            d.factory.grantRole(adminRole, c.admin);
+            d.rulesets.grantRole(adminRole, c.admin);
+            d.ahEscrow.grantRole(d.ahEscrow.DEFAULT_ADMIN_ROLE(), c.admin);
+            d.nft.renounceRole(adminRole, deployer);
+            d.checkpoint.renounceRole(adminRole, deployer);
+            d.factory.renounceRole(adminRole, deployer);
+            d.rulesets.renounceRole(adminRole, deployer);
+            if (c.listing != deployer) {
                 d.ahEscrow.revokeRole(d.ahEscrow.LISTING_ROLE(), deployer);
             }
             d.ahEscrow.revokeRole(d.ahEscrow.DEFAULT_ADMIN_ROLE(), deployer);
-        } else if (listing != deployer) {
-            // Deployer keeps admin (= multisig); drop temporary LISTING if unused.
+        } else if (c.listing != deployer) {
             d.ahEscrow.revokeRole(d.ahEscrow.LISTING_ROLE(), deployer);
         }
+    }
+
+    function _logDeployed(Deployed memory d, Config memory c) internal view {
+        console.log("CharacterNFT        ", address(d.nft));
+        console.log("CharacterCheckpoint ", address(d.checkpoint));
+        console.log("CharacterFactory    ", address(d.factory));
+        console.log("RulesetRegistry     ", address(d.rulesets));
+        console.log("AhEscrow            ", address(d.ahEscrow));
+        console.log("nftImpl             ", d.nftImpl);
+        console.log("checkpointImpl      ", d.checkpointImpl);
+        console.log("factoryImpl         ", d.factoryImpl);
+        console.log("rulesetsImpl        ", d.rulesetsImpl);
+        console.log("admin               ", c.admin);
+        console.log("feeRecipient        ", c.feeRecipient);
+        console.log("listing             ", c.listing);
+        console.log("items               ", c.items);
+        console.log("mintFee (wei)       ", c.mintFee);
     }
 }
