@@ -2,6 +2,7 @@
  * Shared wallet helper: prefer EIP-1193 (injected) when available, else the
  * localStorage burner used for auth. Requests chain switch/add; does not
  * silently fall back to the burner when the user declines the extension.
+ * WalletConnect sessions (when configured) are preferred over the burner for pay.
  */
 import {
   createWalletClient,
@@ -12,6 +13,7 @@ import {
   type WalletClient,
 } from "viem";
 import { generatePrivateKey, privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
+import { activeWalletConnectProvider, connectWalletConnect } from "./walletconnect";
 
 const PK_KEY = "bellgrave.walletKey";
 const WALLET_KEY = "bellgrave.wallet";
@@ -42,7 +44,7 @@ export type WalletSession = {
   account: Account;
   address: `0x${string}`;
   client: WalletClient;
-  source: "injected" | "burner";
+  source: "injected" | "burner" | "walletconnect";
 };
 
 function chainOf(chainId: number, rpcUrl: string): Chain {
@@ -104,8 +106,8 @@ export function preferredPayoutWallet(): `0x${string}` | null {
 }
 
 /**
- * Prefer window.ethereum when available. If the user declines connect/switch,
- * throws (or returns burner only when `allowBurnerFallback` is true).
+ * Prefer window.ethereum when available, then an active WalletConnect session,
+ * then (optionally) open WalletConnect, else the burner when allowed.
  */
 export async function getWalletSession(opts: {
   chainId: number;
@@ -113,6 +115,8 @@ export async function getWalletSession(opts: {
   preferInjected?: boolean;
   /** When false (default for pay flows), declining the extension does not fall back to burner. */
   allowBurnerFallback?: boolean;
+  /** Open the WalletConnect modal when no injected wallet is present. */
+  preferWalletConnect?: boolean;
 }): Promise<WalletSession> {
   const chain = chainOf(opts.chainId, opts.rpcUrl);
   const prefer = opts.preferInjected !== false;
@@ -134,12 +138,39 @@ export async function getWalletSession(opts: {
         return { account: address as unknown as Account, address, client, source: "injected" };
       }
       if (!allowBurner) {
-        throw new Error("No injected account selected. Connect your wallet or use the burner explicitly.");
+        throw new Error("No injected account selected. Connect your wallet or use WalletConnect.");
       }
     } catch (err) {
       if (!allowBurner) throw err;
-      /* fall through to burner only when explicitly allowed */
+      /* fall through */
     }
+  }
+
+  const existing = activeWalletConnectProvider();
+  if (existing?.accounts?.[0]) {
+    const address = existing.accounts[0] as `0x${string}`;
+    setPreferredPayoutWallet(address);
+    const client = createWalletClient({
+      account: address,
+      chain,
+      transport: custom(existing),
+    });
+    return { account: address as unknown as Account, address, client, source: "walletconnect" };
+  }
+
+  if (opts.preferWalletConnect) {
+    const wc = await connectWalletConnect({ chainId: opts.chainId, rpcUrl: opts.rpcUrl });
+    setPreferredPayoutWallet(wc.address);
+    return {
+      account: wc.account,
+      address: wc.address,
+      client: wc.client,
+      source: "walletconnect",
+    };
+  }
+
+  if (!allowBurner) {
+    throw new Error("Connect an injected wallet or WalletConnect to pay.");
   }
   const account = burnerAccount();
   setPreferredPayoutWallet(account.address);

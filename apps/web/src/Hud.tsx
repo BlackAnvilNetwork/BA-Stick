@@ -51,7 +51,7 @@ import {
   swapHotbarSlots,
   type HotbarSlots,
 } from "./hotbar";
-import { logoutToMenu, send } from "./net";
+import { loginWithWalletConnect, logoutToMenu, send, walletConnectLoginAvailable } from "./net";
 import { stopZoneMusic } from "./zoneMusic";
 import { useGame } from "./state";
 // NpcInteractMenu mounts world-anchored under the NPC in WorldScene.
@@ -1156,6 +1156,31 @@ export function Hud() {
   );
 }
 
+function WalletConnectButton() {
+  const pushLog = useGame((s) => s.pushLog);
+  const [busy, setBusy] = useState(false);
+  if (!walletConnectLoginAvailable()) return null;
+  return (
+    <button
+      type="button"
+      className="boot-primary"
+      disabled={busy}
+      style={{ marginTop: "0.75rem", width: "100%" }}
+      onClick={() => {
+        if (busy) return;
+        setBusy(true);
+        void loginWithWalletConnect().then((res) => {
+          setBusy(false);
+          if (!res.ok) pushLog("WalletConnect: " + res.error);
+          else pushLog("WalletConnect: " + res.address.slice(0, 6) + "…" + res.address.slice(-4));
+        });
+      }}
+    >
+      {busy ? "Opening WalletConnect…" : "Connect Wallet"}
+    </button>
+  );
+}
+
 export function BootScreens() {
   const phase = useGame((s) => s.phase);
   const connected = useGame((s) => s.connected);
@@ -1171,13 +1196,25 @@ export function BootScreens() {
         <div className="boot-card">
           <h1 className="boot-brand">Legend of KEK</h1>
           {!connected || phase === "boot" || phase === "auth" ? (
-            <p className="boot-sub">{connected ? "Signing in…" : "Connecting to server…"}</p>
+            <>
+              <p className="boot-sub">{connected ? "Signing in…" : "Connecting to server…"}</p>
+              {connected ? <WalletConnectButton /> : null}
+            </>
           ) : phase === "create" ? (
-            <CreatePanel />
+            <>
+              <WalletConnectButton />
+              <CreatePanel />
+            </>
           ) : phase === "select" || hasCharacter ? (
-            <SelectPanel preview={characterPreview} />
+            <>
+              <WalletConnectButton />
+              <SelectPanel preview={characterPreview} />
+            </>
           ) : (
-            <CreatePanel />
+            <>
+              <WalletConnectButton />
+              <CreatePanel />
+            </>
           )}
         </div>
       </div>

@@ -17,6 +17,7 @@
     "@react-three/drei": "^10.0.5",
     "@react-three/fiber": "^9.1.2",
     "@react-three/postprocessing": "3.0.4",
+    "@walletconnect/ethereum-provider": "^2.26.0",
     "@wolffo/three-fire": "1.4.0",
     "postprocessing": "^6.39.5",
     "react": "^19.0.0",

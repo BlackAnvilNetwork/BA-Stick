@@ -1,6 +1,12 @@
 ﻿import type { ClientMessage, ServerMessage } from "@bellgrave/protocol";
 import { generatePrivateKey, privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
 import { useGame } from "./state";
+import { setPreferredPayoutWallet } from "./wallet";
+import {
+  connectWalletConnect,
+  disconnectWalletConnect,
+  walletConnectConfigured,
+} from "./walletconnect";
 
 const WS_URL = import.meta.env.VITE_WS_URL ?? "ws://localhost:8787";
 const HEARTBEAT_MS = 20_000;
@@ -18,6 +24,13 @@ let visibilityBound = false;
 /** User chose Logout — drop the live session and do not auto-enter the character. */
 let intentionalLogout = false;
 let authInFlight = false;
+
+/** External wallet used for auth challenge signing (injected / WalletConnect). */
+type ExternalAuth = {
+  address: `0x${string}`;
+  signMessage: (message: string) => Promise<string>;
+};
+let externalAuth: ExternalAuth | null = null;
 
 function clearHeartbeat() {
   if (heartbeatTimer) {
@@ -87,15 +100,22 @@ export function mockWallet(): string {
   return localAccount().address;
 }
 
-function tryAutoAuth() {
+function beginAuthHello(address: `0x${string}`) {
   if (!socket || socket.readyState !== WebSocket.OPEN) return;
   if (authInFlight) return;
-  const account = localAccount();
-  const w = account.address.toLowerCase();
+  const w = address.toLowerCase();
   if (authedWallet === w && useGame.getState().wallet) return;
   authInFlight = true;
-  useGame.getState().setWallet(account.address);
-  socket.send(JSON.stringify({ type: "auth/hello", wallet: account.address } satisfies ClientMessage));
+  useGame.getState().setWallet(address);
+  socket.send(JSON.stringify({ type: "auth/hello", wallet: address } satisfies ClientMessage));
+}
+
+function tryAutoAuth() {
+  if (externalAuth) {
+    beginAuthHello(externalAuth.address);
+    return;
+  }
+  beginAuthHello(localAccount().address);
 }
 
 async function completeSignedAuth(msg: Extract<ServerMessage, { type: "auth/challenge" }>) {
@@ -104,18 +124,26 @@ async function completeSignedAuth(msg: Extract<ServerMessage, { type: "auth/chal
     return;
   }
   try {
-    const account = localAccount();
-    if (account.address.toLowerCase() !== msg.wallet.toLowerCase()) {
-      useGame.getState().pushLog("Error: Wallet mismatch on login challenge.");
-      authInFlight = false;
-      return;
+    let signature: string;
+    let wallet: `0x${string}`;
+    if (externalAuth && externalAuth.address.toLowerCase() === msg.wallet.toLowerCase()) {
+      wallet = externalAuth.address;
+      signature = await externalAuth.signMessage(msg.message);
+    } else {
+      const account = localAccount();
+      if (account.address.toLowerCase() !== msg.wallet.toLowerCase()) {
+        useGame.getState().pushLog("Error: Wallet mismatch on login challenge.");
+        authInFlight = false;
+        return;
+      }
+      wallet = account.address;
+      signature = await account.signMessage({ message: msg.message });
     }
-    const signature = await account.signMessage({ message: msg.message });
-    authedWallet = account.address.toLowerCase();
+    authedWallet = wallet.toLowerCase();
     socket.send(
       JSON.stringify({
         type: "auth",
-        wallet: account.address,
+        wallet,
         signature,
         nonce: msg.nonce,
         message: msg.message,
@@ -125,6 +153,54 @@ async function completeSignedAuth(msg: Extract<ServerMessage, { type: "auth/chal
     useGame.getState().pushLog("Error: Could not sign the login challenge.");
     authInFlight = false;
   }
+}
+
+/** Open WalletConnect, then re-auth as that wallet (replaces burner session). */
+export async function loginWithWalletConnect(opts?: {
+  chainId?: number;
+  rpcUrl?: string;
+}): Promise<{ ok: true; address: string } | { ok: false; error: string }> {
+  if (!walletConnectConfigured()) {
+    return { ok: false, error: "WalletConnect is not configured (VITE_WALLETCONNECT_PROJECT_ID)." };
+  }
+  const chainId = opts?.chainId ?? Number(import.meta.env.VITE_CHAIN_ID ?? "4663");
+  const rpcUrl =
+    opts?.rpcUrl ??
+    import.meta.env.VITE_RPC_URL?.trim() ??
+    "https://rpc.mainnet.chain.robinhood.com";
+  if (!Number.isSafeInteger(chainId) || chainId <= 0) {
+    return { ok: false, error: "Bad VITE_CHAIN_ID for WalletConnect." };
+  }
+  try {
+    const session = await connectWalletConnect({ chainId, rpcUrl });
+    setPreferredPayoutWallet(session.address);
+    externalAuth = {
+      address: session.address,
+      signMessage: async (message) =>
+        session.client.signMessage({ message, account: session.account }),
+    };
+    authedWallet = null;
+    authInFlight = false;
+    useGame.getState().setWallet(session.address);
+    useGame.getState().pushLog("WalletConnect connected. Signing in…");
+    if (socket?.readyState === WebSocket.OPEN) {
+      beginAuthHello(session.address);
+    } else {
+      connectSocket();
+    }
+    return { ok: true, address: session.address };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export function walletConnectLoginAvailable(): boolean {
+  return walletConnectConfigured();
+}
+
+export async function clearExternalWalletAuth(): Promise<void> {
+  externalAuth = null;
+  await disconnectWalletConnect();
 }
 
 function bindVisibility() {
@@ -278,6 +354,7 @@ export function logoutToMenu() {
   intentionalLogout = true;
   resumeCharId = null;
   clearResumeStorage();
+  void clearExternalWalletAuth();
   if (reconnectTimer) {
     clearTimeout(reconnectTimer);
     reconnectTimer = null;
