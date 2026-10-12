@@ -215,36 +215,40 @@ export async function mintCharacterWithWallet(opts: {
     let hash: Hex | undefined;
     let tokenId: string | undefined;
 
-    const useCreateFor = !!expected && opts.mint.supportsCreateFor !== false;
-    if (useCreateFor && expected) {
-      try {
-        hash = await session.client.writeContract({
-          address: opts.mint.factory as `0x${string}`,
-          abi: CREATE_FOR_ABI,
-          functionName: "createCharacterFor",
-          args: [opts.job, BigInt(expected)],
-          value: fee,
-          account: session.account,
-          chain,
-        });
-        tokenId = expected;
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        if (!/createCharacterFor|WrongTokenId|not found/i.test(msg)) throw err;
-        hash = undefined;
-        tokenId = undefined;
-      }
+    // L-6: plain createCharacter is disabled on-chain — mint only via createCharacterFor.
+    if (!expected) {
+      return {
+        ok: false,
+        error:
+          "Character mint needs a reserved token id (createCharacterFor). Refresh and try again.",
+      };
     }
-    if (!hash) {
+    if (opts.mint.supportsCreateFor === false) {
+      return {
+        ok: false,
+        error:
+          "This CharacterFactory does not support createCharacterFor. Upgrade the factory before minting.",
+      };
+    }
+    try {
       hash = await session.client.writeContract({
         address: opts.mint.factory as `0x${string}`,
-        abi: CREATE_ABI,
-        functionName: "createCharacter",
-        args: [opts.job],
+        abi: CREATE_FOR_ABI,
+        functionName: "createCharacterFor",
+        args: [opts.job, BigInt(expected)],
         value: fee,
         account: session.account,
         chain,
       });
+      tokenId = expected;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return {
+        ok: false,
+        error: /WrongTokenId/i.test(msg)
+          ? "Token id was taken — refresh the character sheet and mint again."
+          : msg,
+      };
     }
 
     const receipt = await pub.waitForTransactionReceipt({ hash });

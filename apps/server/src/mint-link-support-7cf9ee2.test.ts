@@ -206,7 +206,7 @@ describe("support 7cf9ee2: player-paid character mint (throwaway anvil)", {
     assert.equal(linkB.ok, true);
   });
 
-  it("legacy createCharacter still mints next id (scripts only)", async () => {
+  it("legacy createCharacter is disabled (L-6)", async () => {
     const chain = {
       id: 31337,
       name: "anvil",
@@ -221,20 +221,16 @@ describe("support 7cf9ee2: player-paid character mint (throwaway anvil)", {
       functionName: "mintFee",
     });
     const wa = createWalletClient({ account: a, chain, transport: http(rpc) });
-    const hash = await wa.writeContract({
-      address: factory as Hex,
-      abi: CREATE,
-      functionName: "createCharacter",
-      args: [0],
-      value: fee,
-    });
-    await pub.waitForTransactionReceipt({ hash });
-    const owner3 = await pub.readContract({
-      address: nft as Hex,
-      abi: OWNER,
-      functionName: "ownerOf",
-      args: [3n],
-    });
-    assert.equal(owner3.toLowerCase(), a.address.toLowerCase());
+    await assert.rejects(
+      () =>
+        wa.writeContract({
+          address: factory as Hex,
+          abi: CREATE,
+          functionName: "createCharacter",
+          args: [0],
+          value: fee,
+        }),
+      /CreateCharacterDisabled|0x7462bebc|reverted/i,
+    );
   });
 });

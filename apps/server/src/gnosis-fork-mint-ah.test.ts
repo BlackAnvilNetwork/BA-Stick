@@ -39,7 +39,7 @@ if (gnosisForkAvailable) {
 
 const ABI = parseAbi([
   "function mintFee() view returns (uint256)",
-  "function createCharacter(uint8 startingJob) payable returns (uint256)",
+  "function createCharacterFor(uint8 startingJob, uint256 expectedTokenId) payable returns (uint256)",
   "function ownerOf(uint256 tokenId) view returns (address)",
   "function nextTokenId() view returns (uint256)",
   "function openAsk(uint256 listingId, uint256 sellerTokenId, uint256 itemId, uint256 amount, uint256 priceWei)",
@@ -136,15 +136,16 @@ describe("gnosis fork: 1 xDAI mint + AH list/buy", {
       functionName: "nextTokenId",
     });
 
+    const sellerExpected = nextBefore + 1n;
     const mintSeller = await sellerW.writeContract({
       address: deployed.factory as Hex,
       abi: ABI,
-      functionName: "createCharacter",
-      args: [0],
+      functionName: "createCharacterFor",
+      args: [0, sellerExpected],
       value: fee,
     });
     await pub.waitForTransactionReceipt({ hash: mintSeller });
-    const sellerToken = (nextBefore + 1n).toString();
+    const sellerToken = sellerExpected.toString();
     assert.equal(
       (
         await pub.readContract({
@@ -159,15 +160,16 @@ describe("gnosis fork: 1 xDAI mint + AH list/buy", {
     const explorerMint = explorerTxUrl(100, mintSeller);
     assert.match(explorerMint, /^https:\/\/gnosisscan\.io\/tx\/0x/);
 
+    const buyerExpected = nextBefore + 2n;
     const mintBuyer = await buyerW.writeContract({
       address: deployed.factory as Hex,
       abi: ABI,
-      functionName: "createCharacter",
-      args: [1],
+      functionName: "createCharacterFor",
+      args: [1, buyerExpected],
       value: fee,
     });
     await pub.waitForTransactionReceipt({ hash: mintBuyer });
-    const buyerToken = (nextBefore + 2n).toString();
+    const buyerToken = buyerExpected.toString();
     assert.equal(
       (
         await pub.readContract({
