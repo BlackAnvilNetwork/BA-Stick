@@ -1,6 +1,6 @@
 /**
  * Player-paid CharacterFactory mint (native settlement fee — same unit as AhEscrow / EEZ).
- * Prefer createCharacterFor when the factory supports it and a suggested id is known.
+ * Uses createCharacterFor only (plain createCharacter is disabled on-chain — L-6).
  * Validates the character name before paying; can reuse an already-paid unbound NFT (M-C).
  */
 import { normalizeCharacterName, settlementCurrency } from "@bellgrave/config";
@@ -21,16 +21,6 @@ const CREATE_FOR_ABI = [
       { name: "startingJob", type: "uint8" },
       { name: "expectedTokenId", type: "uint256" },
     ],
-    outputs: [{ type: "uint256" }],
-  },
-] as const;
-
-const CREATE_ABI = [
-  {
-    type: "function",
-    name: "createCharacter",
-    stateMutability: "payable",
-    inputs: [{ name: "startingJob", type: "uint8" }],
     outputs: [{ type: "uint256" }],
   },
 ] as const;
