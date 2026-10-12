@@ -38,4 +38,7 @@ contract MockEezSyncBuy {
         escrow.buyAsk{value: msg.value}(listingId, buyerTokenId);
         emit SyncBuy(msg.sender, listingId, buyerTokenId, msg.value, zoneId);
     }
+
+    /// @dev AhEscrow refunds excess `msg.value` to this contract (the buyAsk caller).
+    receive() external payable {}
 }
