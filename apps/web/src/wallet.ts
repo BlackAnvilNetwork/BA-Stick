@@ -13,7 +13,11 @@ import {
   type WalletClient,
 } from "viem";
 import { generatePrivateKey, privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
-import { activeWalletConnectProvider, connectWalletConnect } from "./walletconnect";
+import {
+  activeWalletConnectProvider,
+  connectWalletConnect,
+  ensureWalletConnectChain,
+} from "./walletconnect";
 
 const PK_KEY = "bellgrave.walletKey";
 const WALLET_KEY = "bellgrave.wallet";
@@ -148,6 +152,7 @@ export async function getWalletSession(opts: {
 
   const existing = activeWalletConnectProvider();
   if (existing?.accounts?.[0]) {
+    await ensureWalletConnectChain(opts.chainId, opts.rpcUrl);
     const address = existing.accounts[0] as `0x${string}`;
     setPreferredPayoutWallet(address);
     const client = createWalletClient({

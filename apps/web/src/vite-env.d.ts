@@ -6,7 +6,9 @@ interface ImportMetaEnv {
   readonly VITE_WALLETCONNECT_PROJECT_ID?: string;
   /** Public RPC for WalletConnect / pay flows (e.g. Robinhood mainnet). */
   readonly VITE_RPC_URL?: string;
-  /** Target chain id (default 4663 Robinhood). */
+  /** Anvil RPC when WalletConnect also approves chain 31337 (defaults to 127.0.0.1:8545). */
+  readonly VITE_ANVIL_RPC_URL?: string;
+  /** Target chain id (default 4663 Robinhood). Use 31337 for local preview mint pay. */
   readonly VITE_CHAIN_ID?: string;
 }
 

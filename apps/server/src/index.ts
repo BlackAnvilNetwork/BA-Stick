@@ -474,6 +474,23 @@ const players = new Map<string, Player>();
 const walletToPlayer = new Map<string, string>();
 /** Per-wallet character roster — live progress objects (same refs as active when online). */
 const accountRoster = new Map<string, Map<string, Player>>();
+/** Per-wallet char/nameCheck budget (limits global name enumeration). */
+const nameCheckBudget = new Map<string, { count: number; resetAt: number }>();
+const NAME_CHECK_MAX_PER_MIN = 30;
+
+function consumeNameCheckBudget(wallet: string): boolean {
+  const key = wallet.toLowerCase();
+  const now = Date.now();
+  const row = nameCheckBudget.get(key);
+  if (!row || now >= row.resetAt) {
+    nameCheckBudget.set(key, { count: 1, resetAt: now + 60_000 });
+    return true;
+  }
+  if (row.count >= NAME_CHECK_MAX_PER_MIN) return false;
+  row.count += 1;
+  return true;
+}
+
 /** Unlimited roster until onchain mint-fee gating is enforced. */
 let tick = 0;
 /** Pale Hollow Segment A field mobs. */
@@ -4602,6 +4619,22 @@ function onMessage(ws: WebSocket, data: string) {
   }
 
   if (msg.type === "char/nameCheck") {
+    if (!isEthAddress(wallet)) {
+      send(ws, {
+        type: "char/nameCheck",
+        available: false,
+        error: "Authenticate with a signed wallet first.",
+      });
+      return;
+    }
+    if (!consumeNameCheckBudget(wallet)) {
+      send(ws, {
+        type: "char/nameCheck",
+        available: false,
+        error: "Too many name checks. Wait a moment.",
+      });
+      return;
+    }
     const named = normalizeCharacterName(msg.name);
     if (!named.ok) {
       send(ws, { type: "char/nameCheck", available: false, error: named.error });

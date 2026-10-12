@@ -173,8 +173,8 @@ export async function loginWithWalletConnect(opts?: {
   const chainId = opts?.chainId ?? Number(import.meta.env.VITE_CHAIN_ID ?? "4663");
   const rpcUrl =
     opts?.rpcUrl ??
-    import.meta.env.VITE_RPC_URL?.trim() ??
-    "https://rpc.mainnet.chain.robinhood.com";
+    (import.meta.env.VITE_RPC_URL?.trim() ||
+      "https://rpc.mainnet.chain.robinhood.com");
   if (!Number.isSafeInteger(chainId) || chainId <= 0) {
     return { ok: false, error: "Bad VITE_CHAIN_ID for WalletConnect." };
   }

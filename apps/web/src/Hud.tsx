@@ -1395,6 +1395,12 @@ function CreatePanel() {
           setCreating(false);
         };
 
+        if (!useGame.getState().wallet) {
+          pushLog("Authenticate before creating a character.");
+          useGame.getState().setPendingCreateEnter(false);
+          setCreating(false);
+          return;
+        }
         void checkCharacterNameAvailable(name).then((avail) => {
           if (!avail.ok) {
             pushLog(avail.error);
