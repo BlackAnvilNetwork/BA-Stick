@@ -5,6 +5,7 @@
  * Login (rule 5): connect + sign only — no forced chain switch.
  * Chain 31337 is optional only in Vite DEV or when VITE_ALLOW_ANVIL_WC=1.
  */
+import { settlementCurrency } from "@bellgrave/config";
 import { EthereumProvider } from "@walletconnect/ethereum-provider";
 import {
   createWalletClient,
@@ -51,10 +52,19 @@ export function walletConnectConfigured(): boolean {
 }
 
 function chainOf(chainId: number, rpcUrl: string): Chain {
+  const cur = settlementCurrency(chainId);
+  const name =
+    chainId === 31337
+      ? "Bellgrave Anvil"
+      : chainId === 4663
+        ? "Robinhood Chain"
+        : chainId === 100 || chainId === 10200
+          ? cur.name
+          : "Bellgrave";
   return {
     id: chainId,
-    name: chainId === 31337 ? "Bellgrave Anvil" : chainId === 4663 ? "Robinhood Chain" : "Bellgrave",
-    nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+    name,
+    nativeCurrency: { name: cur.name, symbol: cur.symbol, decimals: cur.decimals },
     rpcUrls: { default: { http: [rpcUrl] } },
   };
 }
@@ -97,8 +107,15 @@ async function ensureProviderChain(
     throw new Error("WalletConnect anvil (31337) is disabled outside local preview.");
   }
   const hexId = "0x" + chainId.toString(16);
+  const cur = settlementCurrency(chainId);
   const chainName =
-    chainId === 31337 ? "Bellgrave Anvil" : chainId === 4663 ? "Robinhood Chain" : "Bellgrave";
+    chainId === 31337
+      ? "Bellgrave Anvil"
+      : chainId === 4663
+        ? "Robinhood Chain"
+        : chainId === 100 || chainId === 10200
+          ? cur.name
+          : "Bellgrave";
   try {
     await wc.request({
       method: "wallet_switchEthereumChain",
@@ -115,7 +132,7 @@ async function ensureProviderChain(
       {
         chainId: hexId,
         chainName,
-        nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+        nativeCurrency: { name: cur.name, symbol: cur.symbol, decimals: cur.decimals },
         rpcUrls: [rpcUrl],
       },
     ],

@@ -1415,7 +1415,7 @@ function CreatePanel() {
             return;
           }
 
-          // Mint-first: pay native ETH fee, then create the log char bound to that NFT id.
+          // Mint-first: pay native settlement fee, then create the log char bound to that NFT id.
           const gameWallet = useGame.getState().wallet;
           if (!gameWallet) {
             pushLog("Authenticate before creating a character.");
@@ -1441,7 +1441,9 @@ function CreatePanel() {
               pushLog(
                 (res.reused
                   ? "Reusing already-paid NFT #"
-                  : "Paid character mint fee (native ETH). Creating log identity for NFT #") +
+                  : "Paid character mint fee (native " +
+                      (mintCfg.currency?.symbol ?? "ETH") +
+                      "). Creating log identity for NFT #") +
                   res.tokenId +
                   "…",
               );
@@ -1477,7 +1479,8 @@ function CreatePanel() {
       <p className="boot-sub">Create your adventurer</p>
       {mintCfg ? (
         <p className="boot-sub">
-          Character NFT mint fee: {(Number(mintCfg.mintFee) / 1e18).toFixed(4)} ETH (native, paid from your
+          Character NFT mint fee: {(Number(mintCfg.mintFee) / 1e18).toFixed(4)}{" "}
+          {mintCfg.currency?.symbol ?? "ETH"} (native, paid from your
           wallet before the character is created)
           {mintCfg.devFaucet ? ". Local faucet can fund the burner on anvil 31337." : ""}.
         </p>

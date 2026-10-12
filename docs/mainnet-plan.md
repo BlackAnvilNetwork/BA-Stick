@@ -1,37 +1,73 @@
-# Mainnet plan (PR #212 → MegaETH settlement)
+# Mainnet plan (PR #212 → Gnosis settlement)
 
 **Status:** planning + redeploy-ready escrow/app work; **no deploy / no merge** without go-ahead.  
-**Hard stops:** no merge to `main`; no shared-anvil / MegaETH redeploy without explicit user go-ahead.  
+**Hard stops:** no merge to `main`; no Chiado / Gnosis redeploy without explicit user go-ahead.  
 **Credentials:** operator keys / `PRIVATE_KEY` / WalletConnect project ids live in gitignored `.env` only — never commit.
 
 ## Settlement domain (locked)
 
-**MegaETH** is Bellgrave’s settlement domain. These contracts live on MegaETH:
+**Gnosis Chain** is Bellgrave’s settlement domain (mainnet later). Real EEZ testing targets **Gnosis Chiado**.
 
-| Contract / surface | On MegaETH |
-|--------------------|------------|
+| Network | Chain ID | Role |
+|---------|----------|------|
+| Gnosis Chain | **100** | Production settlement (later) |
+| Gnosis Chiado | **10200** | Testnet settlement + EEZ L1 |
+| EEZ Rollup 0 L2 (Chiado) | **10201** | Public EEZ composer path |
+| Local anvil | **31337** | Dev only |
+
+These contracts live on the **settlement chain** (Chiado now / Gnosis 100 later):
+
+| Contract / surface | On Gnosis / Chiado |
+|--------------------|--------------------|
 | `CharacterNFT` | yes |
 | `CharacterFactory` (mint fee) | yes |
 | `AhEscrow` (AH pay / 1% fee) | yes |
 | Item exports (checkpoint → ERC-1155 mint to `ownerOf`) | yes |
 | `CharacterCheckpoint` + `RulesetRegistry` | yes |
 
-**v1 player home chain = Ethereum mainnet.** Players stay on Ethereum for login (sign-only) and for paying mint fees / AH buys. Value reaches MegaETH via **EEZ if/when MegaETH is an EEZ zone**, otherwise via a **bridge + sponsored MegaETH tx** fallback. **No player wallet needs MegaETH** (no chain switch for login, mint, or buy).
+**v1 player home chain = Ethereum mainnet.** Players stay on Ethereum for login (sign-only). Value reaches Gnosis via **EEZ** (Chiado path first). **No player wallet needs to connect to the game/settlement chain** for login.
 
-Server keys pay **MegaETH gas** for `openAsk` / `cancelAsk` / transfer-cancels / checkpoints — gas is cheap on MegaETH (base fee ≈ 0.001 gwei).
+Server keys pay **settlement-chain gas in native xDAI** for `openAsk` / `cancelAsk` / transfer-cancels / checkpoints — xDAI gas on Gnosis/Chiado is cheap.
+
+---
+
+## Currency (locked): native xDAI on Gnosis
+
+**Decision:** use **native xDAI** on Gnosis / Chiado for now. Mint fee, AH ask prices, and the **1% marketplace fee** are all `msg.value` in native settlement currency.
+
+| Concern | Choice |
+|---------|--------|
+| Token | Native `msg.value` only — **no WETH, no wrap, no approve** |
+| Escrow / factory | Stay native-value (unchanged ABI shape) |
+| UI label | **xDAI** on chain 100 / 10200; **ETH** on 31337 |
+| Decimals | 18 (same as ETH) |
+| Later ETH via EEZ | Point settlement at an ETH-native zone or retarget labels; **no contract rewrite** for currency unit |
+
+Per-chain config lives in `@bellgrave/config` (`SETTLEMENT_BY_CHAIN`) and is exposed on snapshot `ahEscrow.currency` / `characterMint.currency`.
+
+### Mint fee recommendation — **flag for product**
+
+| Chain | Default mint fee | Rough USD |
+|-------|------------------|-----------|
+| Chiado / Gnosis (100, 10200) | **1 xDAI** (`10^18` wei) | ≈ **$1.00** |
+| Anvil (31337) | 0.001 ETH | ~$2–4 (varies) |
+
+**Rationale:** xDAI tracks $1, so **1 xDAI** is a clear, dollar-ish character fee and is in the same ballpark as the old 0.001 ETH local default without forcing players to think in fractional ETH. Override at deploy with `MINT_FEE` (wei). **Please confirm or override** before Chiado broadcast.
+
+Example AH list placeholder: **1 xDAI** on Gnosis/Chiado; **0.001 ETH** on anvil.
 
 ---
 
 ## Design rules (locked)
 
-| # | Rule | v1 (Ethereum home → MegaETH settle) |
+| # | Rule | v1 (Ethereum home → Gnosis settle) |
 |---|------|-------------------------------------|
-| 1 | Character creation reads connected address, takes ETH fee, mints NFT to that address | Fee paid **from Ethereum**; NFT minted on **MegaETH** to that address (EEZ sync or bridge+sponsor) |
-| 2 | Listing seller = `ownerOf(character)`; owner change **cancels** open listings | Unchanged (MegaETH NFT + Transfer watcher) |
-| 3 | Buys paid from buyer’s home; seller paid at **current `ownerOf`** at fill | Pay **from Ethereum**; `buyAsk` on **MegaETH** pays `ownerOf` + 1% fee |
+| 1 | Character creation reads connected address, takes native fee, mints NFT to that address | Fee in **native settlement currency** (xDAI on Gnosis); NFT minted on settlement chain to that address (EEZ sync) |
+| 2 | Listing seller = `ownerOf(character)`; owner change **cancels** open listings | Unchanged (settlement NFT + Transfer watcher) |
+| 3 | Buys paid from buyer’s home; seller paid at **current `ownerOf`** at fill | Pay via EEZ into settlement `buyAsk`; pays `ownerOf` + 1% fee in **native xDAI** |
 | 4 | Claims / payouts → `ownerOf` at claim time — never client-supplied | Unchanged |
-| 5 | Login = signed message, **no chain switch**; WC 31337 **dev-only** | Wallet stays on Ethereum (or whatever home); **never required to add MegaETH** |
-| 6 | Item exports mint to the **owner** address | On MegaETH via checkpoint |
+| 5 | Login = signed message, **no chain switch**; WC 31337 **dev-only** | Wallet stays on Ethereum (or home); **never required to add Gnosis for login** |
+| 6 | Item exports mint to the **owner** address | On settlement chain via checkpoint |
 
 ---
 
@@ -39,172 +75,109 @@ Server keys pay **MegaETH gas** for `openAsk` / `cancelAsk` / transfer-cancels /
 
 | Rule | Status | Notes |
 |------|--------|--------|
-| **1** Mint from Ethereum → MegaETH | **PARTIAL** | Mint-first on configured chain today. Need MegaETH deploy + EEZ or bridge+sponsor path so the payer never switches to MegaETH. |
-| **2** List / owner change | **APP DONE** | `ownerOf` at list; Transfer cancel-only + pending retry (MegaETH RPC). |
-| **3** Buy from Ethereum → MegaETH | **CONTRACT READY** / path pending | Redeploy-ready `buyAsk` → `ownerOf` + 1% fee on MegaETH. Client/sponsor path from Ethereum TBD (EEZ or bridge). |
+| **1** Mint → Gnosis / Chiado | **PARTIAL** | Native-value factory ready. Need Chiado deploy + EEZ path so the payer can stay on Ethereum home. |
+| **2** List / owner change | **APP DONE** | `ownerOf` at list; Transfer cancel-only + pending retry. |
+| **3** Buy → settlement | **CONTRACT READY** / path pending | Redeploy-ready `buyAsk` → `ownerOf` + 1% in native value. EEZ sync buy from Ethereum TBD. |
 | **4** Claims → `ownerOf` | **OK** | Checkpoint + AH fill. |
-| **5** Login / WC | **APP DONE** | Sign-only; no MegaETH in required chains. |
+| **5** Login / WC | **APP DONE** | Sign-only; settlement chain not required for login. |
 | **6** Export → owner | **OK** | Unchanged. |
 
 ### App / contract work in this branch (not deployed)
 
-- `AhEscrow`: immutable `characterNft`, `feeRecipient`, `FEE_BPS = 100`; `buyAsk` pays `ownerOf` then 1% fee.
+- `AhEscrow`: immutable `characterNft`, `feeRecipient`, `FEE_BPS = 100`; `buyAsk` pays `ownerOf` then 1% fee (**native value**).
 - Forge tests + UI fee copy; AskFilled `feeWei` decode.
 - Transfer-cancel watcher: pending retries, confirmations, skip self-transfers, AskCancelled classify, list re-checks `ownerOf` after `openAsk`.
+- Per-chain currency labels / defaults (`xDAI` vs `ETH`).
+- Chiado deploy script + `.env.chiado.example` (**not broadcast**).
 
 ### Still needs go-ahead / redeploy / out-of-band
 
-- MegaETH deploy of the package in §4.
-- EEZ registration **or** bridge+sponsor wiring (see §2).
+- Chiado (then Gnosis 100) deploy of the package in §4.
+- EEZ wiring against public Chiado rollup0 (see §2).
 - Production WalletConnect project id.
-- Decision **(7)** redeploy timing + multisig holder.
+- Confirm mint fee (**1 xDAI** proposed) and decision **(7)** redeploy timing + multisig holder.
 
 ---
 
-## 2. EEZ support for MegaETH — check + fallback
+## 2. EEZ on Chiado — what’s live
 
-### What EEZ requires
+Public EEZ work targets **Gnosis Chiado**, not Ethereum mainnet L1 alone.
 
-[eez-core-protocol](https://github.com/eez-association/eez-core-protocol) only sync-composes **registered EEZ rollups** in the same economic zone (deterministic `CrossChainProxy`, proven batches, native ETH `value`). It is **not** a general bridge to arbitrary L2s. Upstream is early / unaudited; live public path today is roughly **Chiado testnet Rollup 0**, not production MegaETH.
-
-### Does EEZ support MegaETH today?
-
-| Check | Finding (as of this plan) |
-|-------|---------------------------|
-| MegaETH listed as EEZ Alliance / registered zone | **No** — not in published alliance/member lists; no public MegaETH rollup id in EEZ docs |
-| Sync calls Eth ↔ MegaETH with proven outcomes | **Not available** publicly |
-| Proven atomic fill (Eth pay → MegaETH `buyAsk` / mint in one sync window) | **Blocked** until MegaETH is an EEZ zone with a live composer/prover |
-
-**Verdict:** treat EEZ→MegaETH as **aspirational / out of band**. Do **not** block MegaETH redeploy on EEZ readiness.
-
-### Fallback when EEZ does not support MegaETH
-
-Constraint: **player wallets must not need MegaETH**.
-
-| Step | Who | Where |
-|------|-----|--------|
-| 1. Player signs mint/buy intent (and/or pays escrow on Ethereum) | Player | Ethereum |
-| 2. ETH moved Eth → MegaETH | Bridge (e.g. official MegaETH bridge / rabbithole) + **server/relayer** | Eth → MegaETH |
-| 3. `createCharacterFor` / `buyAsk` submitted | **Server listing/relayer key** (sponsors MegaETH gas) | MegaETH |
-| 4. NFT / fill / fee land; item mirrored via `AskFilled` → `chainFill` | Contracts + watcher | MegaETH + server log |
-
-Tradeoffs vs EEZ: not atomic with the Ethereum payment in one proven sync window; need bridge finality + reconciliation; more custody/ops in the relayer. Prefer EEZ if MegaETH ever joins; ship fallback so v1 can launch on MegaETH without waiting.
-
-Local `MockEezSyncBuy` on 31337 remains a **dev stand-in** for a future sync path — not a MegaETH production dependency.
-
-Price policy (either path): exact-price preferred; pull-refund on overshoot; underpay reverts.
-
----
-
-## 3. MegaETH chain parameters + watchers
-
-### 3a. Network (verify against [MegaETH docs](https://docs.megaeth.com/user-guide/connect) before deploy)
-
-| | Mainnet | Testnet |
-|--|---------|---------|
-| **Chain ID** | **4326** (`0x10e6`) | **6343** (`0x18c7`) |
-| **RPC** | `https://mainnet.megaeth.com/rpc` | `https://carrot.megaeth.com/rpc` |
-| **WS** | `wss://mainnet.megaeth.com/ws` | `wss://carrot.megaeth.com/ws` |
-| **Native gas** | ETH, 18 decimals | same |
-| **Base fee** | ≈ **0.001 gwei** (adjustment effectively disabled) | same |
-| **Block time** | Mini-blocks ≈ **10ms**; EVM blocks ≈ **1s** | same |
-
-Env target after redeploy: `LOK_CHAIN_ID=4326`, `LOK_CHAIN_RPC` / `LOK_PUBLIC_RPC` → MegaETH mainnet (or testnet for dry run).
-
-### 3b. Finality and reorg depth (for AskFilled / Transfer watchers)
-
-| Layer | Meaning |
-|-------|---------|
-| **Mini-block / `latest`** | Sequencer **preconfirmation** (~10ms). Signed commitment; **not** L1 finality. |
-| **EVM block** | Sealed ~1s; still MegaETH-local until posted. |
-| **L1-finalized** | Full finality once the containing batch/anchor is finalized on Ethereum. L1 reorgs can roll back MegaETH state (rare but documented — apps must handle rollbacks). |
-
-**Watcher policy (recommended):**
-
-- Do **not** treat mini-block tip as final for irreversible log effects (`chainFill`, permanent cancel).
-- Scan / apply using **EVM block** numbers with a confirmation lag, then optionally tighten to an L1-safe tag when the RPC exposes one.
-- Current code defaults (`ASK_FILL_CONFIRMATIONS = 2`, `NFT_TRANSFER_CONFIRMATIONS = 2`) are fine for anvil; on MegaETH raise to a depth that survives short reorgs / RPC skew — **start at ≥ 12 EVM blocks (~12s)** for production, and revisit once an L1-finalized/safe block tag is wired.
-- Pending-cancel retries already cover “preconfirm then rollback then reappear” better than cursor-only advance.
-
-### 3c. Gas model (server on MegaETH)
-
-| Who | Pays |
-|-----|------|
-| **Player (Ethereum)** | Mint/buy **value** (via EEZ or bridge escrow) + Ethereum gas for the Eth-side tx / intent. **No MegaETH gas.** |
-| **Server `LOK_LISTING_KEY`** | MegaETH `openAsk` / `cancelAsk` / transfer-cancels (~138k / ~30k gas — **cheap** at 0.001 gwei). |
-| **Server rotator / checkpoint** | MegaETH `checkpoint` gas (also cheap). |
-| **Relayer (fallback path)** | MegaETH mint/`buyAsk` gas when sponsoring; bridge fees as applicable. |
-
-No separate L1-gas-reduction program: MegaETH fees make server-paid listing/cancel/checkpoint the default v1 model.
-
-### 3d. Wallets never need MegaETH
-
-| Flow | Player wallet chain |
-|------|---------------------|
-| Login | Home (Ethereum) — **sign only**, no switch |
-| Mint / AH buy | Ethereum payment / intent; MegaETH execution by EEZ proxy or server sponsor |
-| List | In-game only; server opens ask on MegaETH |
-| WalletConnect optionalChains | Ethereum (+ Robinhood/dev as today); **do not require** 4326 for play |
-
-`ownerOf` and other reads are `eth_call` against MegaETH RPC — **no gas**, server-side only.
-
-### 3e. Where the game log anchors
-
-| Layer | Location |
-|-------|----------|
-| Character log (items, gold, asks) | **Server** |
-| Checkpoint / NFT / escrow / exports | **MegaETH** |
-| Player funds (v1) | **Ethereum** until EEZ/bridge moves value into MegaETH escrow/mint |
-
----
-
-## 4. Redeploy package (batched — needs go-ahead)
-
-Do **not** run until the user approves. Target: **MegaETH** (testnet dry-run optional).
-
-| Piece | Action |
+| Piece | Detail |
 |-------|--------|
-| **AhEscrow** | Deploy with `(admin, characterNft, feeRecipient)`; `LISTING_ROLE`; 1% fee; `buyAsk` → `ownerOf`. |
-| **CharacterFactory** | `createCharacterFor`; native ETH mint fee on MegaETH. |
-| **CharacterNFT / Checkpoint** | Per Deploy.s.sol; drop KekVault custody for new play. |
-| **RulesetRegistry** | New ruleset after wasm bump; timelock; accept. |
-| **Reproducible wasm** | Remapped rebuild; pin hash + wasm sha256. |
-| **Historical ItemDrop allowlist** | Keep `HISTORICAL_ITEM_DROP_MAX_SEQ`. |
-| **Env / clients** | `LOK_CHAIN_ID=4326`, MegaETH RPCs, production WC id; disable `LOK_DEV_*`. |
-| **EEZ / bridge** | Prefer EEZ when MegaETH is a zone; else ship bridge+sponsor. Mock EEZ stays local-only. |
+| L1 | Chiado **10200** |
+| L2 (Rollup 0) | **10201** |
+| Stack | `eez-core-protocol` / `eez-rollup0`: `CrossChainProxy`, sequencer, composer (`eez_composerInfo`) |
+| Value | Sync batches forward **native value** — on Chiado L1 that is **xDAI**; when EEZ later settles in ETH zones, the same native-value contracts accept ETH without a rewrite |
+
+**v1 play path:** exercise mint + `buyAsk` through EEZ on Chiado before Gnosis mainnet. Local anvil keeps ETH labels for 31337.
+
+### Relayer / gas model
+
+| Actor | Pays | Unit |
+|-------|------|------|
+| Player (home) | Mint fee / AH price via EEZ sync | Home ETH → settles as native on Chiado/Gnosis |
+| Server listing / cancel / checkpoint keys | Settlement gas | **xDAI** on 100 / 10200 |
+| Fee recipient (multisig) | Receives 1% of fills | Native xDAI |
+
+Fund operator keys with Chiado xDAI before any smoke test. Do **not** put player ETH onto the game chain.
 
 ---
 
-## 5. Decisions
+## 3. Gnosis chain IDs, RPC, finality
 
-### Locked (user via Grok Bot)
+| | Gnosis mainnet | Chiado |
+|--|----------------|--------|
+| Chain ID | 100 | 10200 |
+| Native | xDAI | xDAI (test) |
+| Typical RPC | `https://rpc.gnosischain.com` | `https://rpc.chiado.gnosis.gateway.fm` (or public Chiado RPC) |
+| Explorer | https://gnosisscan.io | https://gnosis-chiado.blockscout.com |
+| Block time | ~5s | ~5s |
+| Watcher depth | Prefer `safe` / `finalized` tags; confirm ≥2 behind tip (current Transfer watcher uses `latest - 2`) | same |
+| Env | `LOK_CHAIN_ID=100` | `LOK_CHAIN_ID=10200` |
 
-| # | Decision |
-|---|----------|
-| 1 | **AH fill payout:** `buyAsk` pays `ownerOf(sellerTokenId)`. |
-| 2 | **Owner change:** **cancel-only**. |
-| 3 | **Home chains (v1):** Ethereum mainnet; L2 homes later. |
-| 4 | **Mint UX:** player-signed from home; no intent+relayer **required** for EEZ path; fallback may use sponsor/relayer so wallet stays off MegaETH. |
-| 5 | **AH fee:** 1% floor in escrow; UI shows it; fee → multisig/admin. |
-| **6** | **Settlement domain:** **MegaETH** (NFT, factory, AhEscrow, exports, checkpoints). Players stay on Ethereum; value via EEZ **or** bridge if EEZ lacks MegaETH. |
-| 8 | **WalletConnect:** separate production project id. |
-
-### Still TBD (ask through Grok Bot when needed)
-
-| # | Open |
-|---|------|
-| **7** | **Redeploy timing** and **who holds the MULTISIG**? |
-| **EEZ vs bridge** | Confirm fallback sponsor/bridge vendor for Eth→MegaETH until EEZ supports MegaETH. |
-| **Watcher depth** | Confirm production confirmation count / L1-safe tag on MegaETH RPC. |
+Server: `LOK_CHAIN_RPC` (operator) + `LOK_PUBLIC_RPC` (browser-reachable). Currency symbol comes from chain id via `settlementCurrency(chainId)`.
 
 ---
 
-## 6. Verification checklist (before asking to redeploy)
+## 4. Redeploy package (Chiado first)
 
-- [x] Rules 2/4/5 app paths + transfer-cancel hardening + escrow fee/`ownerOf`.
-- [x] Plan reflects **MegaETH** settlement + Ethereum home + EEZ/bridge fallback (this revision).
-- [ ] MegaETH testnet dry-run of Deploy + mint + `buyAsk` + watchers.
-- [ ] `check-wasm-pin.mjs --no-build` matches committed pin.
-- [ ] User go-ahead for merge and for MegaETH redeploy (separate).
-- [ ] Decision **(7)** multisig + timing answered.
-- [ ] EEZ registration status re-checked; bridge+sponsor path specified if still unsupported.
+Order (forge `Deploy` / `DeployChiado`; see `docs/chiado-deploy.md`):
+
+1. `CharacterNFT` (UUPS)
+2. `CharacterCheckpoint` (UUPS)
+3. `CharacterFactory` with `MINT_FEE` (**default 1 ether = 1 xDAI** on Chiado)
+4. `RulesetRegistry` (UUPS)
+5. `AhEscrow(admin, nft, feeRecipient)` — fee to multisig; `FEE_BPS = 100`
+6. Roles: factory minter on NFT; listing role on escrow; items minter on checkpoint; starting jobs; first ruleset propose
+
+**Post-deploy env (server):** `LOK_CHAIN_ID`, `LOK_CHAIN_RPC`, `LOK_PUBLIC_RPC`, `LOK_AH_ESCROW`, `LOK_CHARACTER_NFT`, `LOK_CHARACTER_FACTORY`, `LOK_LISTING_KEY` (xDAI-funded), WalletConnect **production** project id.
+
+**Do not broadcast** until user go-ahead.
+
+---
+
+## 5. Locked decisions / still open
+
+| # | Topic | Status |
+|---|-------|--------|
+| 1 | AH payout → `ownerOf` at fill | **Locked** |
+| 2 | Owner change → cancel-only | **Locked** |
+| 3 | Home = Ethereum mainnet v1 | **Locked** |
+| 4 | Mint UX = player-signed home sync (EEZ) | **Locked** (path TBD) |
+| 5 | AH fee = 1% floor to multisig/admin | **Locked** |
+| 6 | Settlement = **Gnosis** (Chiado test) | **Locked** |
+| — | Currency = **native xDAI** on Gnosis | **Locked** |
+| — | Mint fee default **1 xDAI** | **Proposed — confirm** |
+| 7 | Redeploy timing + multisig | **Open** |
+| 8 | WC production project id | **Locked** (out-of-band) |
+
+---
+
+## 6. Do-nots
+
+- Do **not** merge this branch without go-ahead.
+- Do **not** deploy to Chiado or Gnosis without go-ahead.
+- Do **not** introduce WETH wrap/approve for AH or mint on Gnosis.
+- Do **not** require players to add Gnosis for login.
+- Do **not** commit secrets or production WC project ids.

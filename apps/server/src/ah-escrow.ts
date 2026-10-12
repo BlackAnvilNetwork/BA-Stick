@@ -3,6 +3,7 @@
  * mirror into the log as chainFill (items only). Permanently unapplyable fills
  * are quarantined (#214 policy) so one bad fill cannot freeze AH for everyone.
  */
+import { settlementCurrencyView } from "@bellgrave/config";
 import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
@@ -186,6 +187,7 @@ export function ahEscrowClientConfig(env: NodeJS.ProcessEnv = process.env): {
   rpcUrl: string;
   chainId: number;
   feeBps: number;
+  currency: ReturnType<typeof settlementCurrencyView>;
 } | null {
   const address = ahEscrowAddress(env);
   const rpcUrl = (env.LOK_PUBLIC_RPC?.trim() || env.LOK_CHAIN_RPC?.trim() || "").replace(/\/$/, "");
@@ -199,7 +201,7 @@ export function ahEscrowClientConfig(env: NodeJS.ProcessEnv = process.env): {
   const feeRaw = env.LOK_AH_FEE_BPS?.trim();
   const feeBps = feeRaw && /^\d+$/.test(feeRaw) ? Number(feeRaw) : 100;
   if (!Number.isSafeInteger(feeBps) || feeBps < 0 || feeBps > 10_000) return null;
-  return { address, rpcUrl, chainId, feeBps };
+  return { address, rpcUrl, chainId, feeBps, currency: settlementCurrencyView(chainId) };
 }
 
 export function askFilledCursorPath(dataDir: string): string {

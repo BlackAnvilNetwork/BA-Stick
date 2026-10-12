@@ -399,6 +399,16 @@ export function ahFeeSplit(priceWei: bigint): { feeWei: bigint; sellerNetWei: bi
   return { feeWei, sellerNetWei: priceWei - feeWei };
 }
 
+/** Native settlement currency exposed to the client (label + defaults). */
+export type SettlementCurrencyView = {
+  chainId: number;
+  symbol: string;
+  name: string;
+  decimals: number;
+  defaultMintFeeWei: string;
+  exampleAskHuman: string;
+};
+
 /** Browser-reachable AhEscrow config so the client can sign buyAsk. Null when unset. */
 export type AhEscrowClientConfig = {
   address: string;
@@ -406,6 +416,8 @@ export type AhEscrowClientConfig = {
   chainId: number;
   /** Marketplace fee in basis points (default 100 = 1%). */
   feeBps?: number;
+  /** Native unit for ask prices / fee display (xDAI on Gnosis, ETH on anvil). */
+  currency?: SettlementCurrencyView;
 };
 
 /** Local / EEZ sync-buy client config (pay from home chain). */
@@ -457,6 +469,8 @@ export type LokSnapshot = {
     /** Dev faucet / server-mint hints for local 31337. */
     devFaucet?: boolean;
     devServerMint?: boolean;
+    /** Native mint-fee unit label (xDAI / ETH). */
+    currency?: SettlementCurrencyView;
   } | null;
   withdrawDelaySec: number | null;
   queues: { id: string; amount: string; availableAt: number }[];

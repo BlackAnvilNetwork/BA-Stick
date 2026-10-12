@@ -1,9 +1,9 @@
 /**
- * Player-paid CharacterFactory mint (native ETH fee — same unit as AhEscrow / EEZ).
+ * Player-paid CharacterFactory mint (native settlement fee — same unit as AhEscrow / EEZ).
  * Prefer createCharacterFor when the factory supports it and a suggested id is known.
  * Validates the character name before paying; can reuse an already-paid unbound NFT (M-C).
  */
-import { normalizeCharacterName } from "@bellgrave/config";
+import { normalizeCharacterName, settlementCurrency } from "@bellgrave/config";
 import { createPublicClient, http, type Hex } from "viem";
 import { freshMintNonce, mintClaimMessage } from "./mint-claim";
 import { clearPendingMint, readPendingMint, writePendingMint } from "./pending-mint";
@@ -115,10 +115,11 @@ export async function mintCharacterWithWallet(opts: {
   } catch {
     return { ok: false, error: "Bad mint fee." };
   }
+  const cur = settlementCurrency(opts.mint.chainId);
   const chain = {
     id: opts.mint.chainId,
-    name: "Bellgrave",
-    nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+    name: cur.name,
+    nativeCurrency: { name: cur.name, symbol: cur.symbol, decimals: cur.decimals },
     rpcUrls: { default: { http: [opts.mint.rpcUrl] } },
   };
   const hasInjected = typeof window !== "undefined" && !!window.ethereum;

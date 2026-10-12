@@ -17,6 +17,7 @@ import { eezSyncBuyAvailable, listHomeChainOptions } from "./eez-home-chain";
 import { buyAsksWithEezSync } from "./eez-sync-buy";
 import { ItemCatalogDetails, ItemTipHost } from "./itemTip";
 import { send } from "./net";
+import { settlementSymbol } from "./settlement-label";
 import { useGame } from "./state";
 
 const WEEK_SEC = 7 * 24 * 60 * 60;
@@ -84,7 +85,7 @@ function formatWeiEth(wei: string): string {
   }
 }
 
-/** Pre-AhEscrow book asks stored KEK units in minPrice (e.g. 5000). Not payable in ETH. */
+/** Pre-AhEscrow book asks stored KEK units in minPrice (e.g. 5000). Not payable in native value. */
 function isLegacyKekPrice(wei: string): boolean {
   if (!/^\d+$/.test(wei)) return true;
   try {
@@ -197,7 +198,7 @@ function categoryCount(selected: string, query: string): number {
   return count;
 }
 
-function buyNote(plan: QuantityPlan, qty: number, feeBps = AH_FEE_BPS): string {
+function buyNote(plan: QuantityPlan, qty: number, feeBps = AH_FEE_BPS, symbol = "ETH"): string {
   if (!Number.isSafeInteger(qty) || qty < 1 || qty > 1_000_000) return "Enter how many to buy.";
   if (plan.fills.length === 0) return "No ask you can buy. Your own listings are skipped.";
   const total = sumPrices(plan.fills);
@@ -220,15 +221,21 @@ function buyNote(plan: QuantityPlan, qty: number, feeBps = AH_FEE_BPS): string {
   return (
     "You pay " +
     formatWeiEth(total) +
-    " ETH across " +
+    " " +
+    symbol +
+    " across " +
     plan.fills.length +
     " asks. Marketplace fee " +
     feeBps / 100 +
     "% (" +
     formatWeiEth(feeTotal.toString()) +
-    " ETH); sellers receive " +
+    " " +
+    symbol +
+    "); sellers receive " +
     formatWeiEth(sellerTotal.toString()) +
-    " ETH. Each ask is charged its own price, not a blended rate." +
+    " " +
+    symbol +
+    ". Each ask is charged its own price, not a blended rate." +
     over +
     short
   );
@@ -251,6 +258,7 @@ export function AuctionBook({ listings, buyer, ahEscrow, eezSyncBuy }: Props) {
   const [paying, setPaying] = useState(false);
   const homeOptions = listHomeChainOptions(eezSyncBuy);
   const [homeChainId, setHomeChainId] = useState<number | null>(homeOptions[0]?.chainId ?? null);
+  const unit = settlementSymbol(ahEscrow?.currency, ahEscrow?.chainId);
   const lines = commodities(listings, query, selected);
   const buying = buyingId == null ? null : commodityById(listings, buyingId);
   const qty = Number(qtyText);
@@ -392,7 +400,7 @@ export function AuctionBook({ listings, buyer, ahEscrow, eezSyncBuy }: Props) {
               >
                 <span className="prov-name">{line.name}</span>
                 <span className="prov-qty">{line.total} listed</span>
-                <span className="prov-ask">{line.unit === "none" ? "none" : line.unit + " ETH each"}</span>
+                <span className="prov-ask">{line.unit === "none" ? "none" : line.unit + " " + unit + " each"}</span>
               </button>
             </ItemTipHost>
           ))}
@@ -436,19 +444,23 @@ export function AuctionBook({ listings, buyer, ahEscrow, eezSyncBuy }: Props) {
           <ul className="prov-fills">
             {plan.fills.slice(0, 8).map((fill) => (
               <li key={fill.id}>
-                x{fill.amount} at {formatWeiEth(fill.price)} ETH
+                x{fill.amount} at {formatWeiEth(fill.price)} {unit}
               </li>
             ))}
             {plan.fills.length > 8 && <li>plus {plan.fills.length - 8} more asks, cheapest first</li>}
           </ul>
-          <p className="lok-note">{buyNote(plan, qty, ahEscrow?.feeBps ?? AH_FEE_BPS)}</p>
+          <p className="lok-note">{buyNote(plan, qty, ahEscrow?.feeBps ?? AH_FEE_BPS, unit)}</p>
           <p className="lok-note">
             {legacyFills.length > 0
-              ? "These asks use a pre-AhEscrow (legacy KEK) price and cannot be paid in ETH. The seller must cancel and relist."
+              ? "These asks use a pre-AhEscrow (legacy KEK) price and cannot be paid in " +
+                unit +
+                ". The seller must cancel and relist."
               : eezReady
                 ? "Local EEZ mock: pay from the selected home chain; seller gets 99% (ownerOf at fill), 1% fee to treasury."
                 : ahEscrow
-                  ? "Buys pay ETH to AhEscrow. Seller receives 99% at ownerOf(character); 1% marketplace fee. Item lands after AskFilled."
+                  ? "Buys pay " +
+                    unit +
+                    " to AhEscrow. Seller receives 99% at ownerOf(character); 1% marketplace fee. Item lands after AskFilled."
                   : "AhEscrow is not configured on this server (set LOK_AH_ESCROW + LOK_CHAIN_RPC). Buys stay disabled."}
           </p>
           {eezReady && homeOptions.length > 0 ? (
@@ -488,19 +500,27 @@ export function AuctionBook({ listings, buyer, ahEscrow, eezSyncBuy }: Props) {
                 ? "Relist required"
                 : eezReady
                   ? "Pay from home chain"
-                  : "Pay with ETH"}
+                  : "Pay with " + unit}
           </button>
-          <YourAsks rows={buying.rows.filter((row) => row.yours)} />
+          <YourAsks rows={buying.rows.filter((row) => row.yours)} unit={unit} />
         </div>
       )}
       <div className="cmd-section-label">Your listings</div>
       {yours.length === 0 && <p className="lok-note">You have nothing listed.</p>}
-      {yours.length > 0 && <YourAsks rows={yours} showSettle />}
+      {yours.length > 0 && <YourAsks rows={yours} showSettle unit={unit} />}
     </div>
   );
 }
 
-function YourAsks({ rows, showSettle }: { rows: LokListingView[]; showSettle?: boolean }) {
+function YourAsks({
+  rows,
+  showSettle,
+  unit = "ETH",
+}: {
+  rows: LokListingView[];
+  showSettle?: boolean;
+  unit?: string;
+}) {
   if (rows.length === 0) return <p className="lok-note">None of these asks are yours.</p>;
   const now = Date.now() / 1000;
   return (
@@ -512,7 +532,7 @@ function YourAsks({ rows, showSettle }: { rows: LokListingView[]; showSettle?: b
             {row.book
               ? isLegacyKekPrice(row.minPrice)
                 ? " ask " + row.minPrice + " (legacy KEK — relist)"
-                : " ask " + formatWeiEth(row.minPrice) + " ETH"
+                : " ask " + formatWeiEth(row.minPrice) + " " + unit
               : " legacy auction"}
           </span>
           {row.yours && (

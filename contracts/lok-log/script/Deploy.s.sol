@@ -47,7 +47,7 @@ contract Deploy is Script {
         AhEscrow ahEscrow;
     }
 
-    function run() external returns (Deployed memory d) {
+    function run() external virtual returns (Deployed memory d) {
         Config memory c = Config({
             multisig: vm.envAddress("MULTISIG"),
             rotator: vm.envAddress("ROTATOR"),
@@ -57,7 +57,8 @@ contract Deploy is Script {
             items: vm.envAddress("ITEMS"),
             kek: vm.envAddress("KEK"),
             baseURI: vm.envString("BASE_URI"),
-            mintFee: 0.001 ether
+            // Override with MINT_FEE (wei). Default 0.001 ETH for anvil; Chiado uses DeployChiado (1 xDAI).
+            mintFee: vm.envOr("MINT_FEE", uint256(0.001 ether))
         });
         vm.startBroadcast();
         d = deploy(c, msg.sender);
@@ -67,6 +68,7 @@ contract Deploy is Script {
         console.log("CharacterFactory    ", address(d.factory));
         console.log("RulesetRegistry     ", address(d.rulesets));
         console.log("AhEscrow            ", address(d.ahEscrow));
+        console.log("mintFee (wei)       ", c.mintFee);
     }
 
     function _proxy(address impl, bytes memory init) internal returns (address) {

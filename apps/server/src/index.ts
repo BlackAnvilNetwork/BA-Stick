@@ -86,6 +86,7 @@ import {
   paleHollowMoveMul,
   paleHollowPlaceOnDryLand,
   paleHollowWalkable,
+  settlementCurrency,
 } from "@bellgrave/config";
 import {
   SHINY_CLONE_COUNT,
@@ -796,17 +797,47 @@ function tellToken(tokenId: string, message: string) {
   }
 }
 
+/** Native settlement unit label from LOK_CHAIN_ID (xDAI on Gnosis/Chiado, ETH on anvil). */
+function settlementUnit(): string {
+  const raw = process.env.LOK_CHAIN_ID?.trim() || "31337";
+  const id = /^\d+$/.test(raw) ? Number(raw) : 31337;
+  return settlementCurrency(Number.isSafeInteger(id) ? id : 31337).symbol;
+}
+
+function settlementExampleAsk(): string {
+  const raw = process.env.LOK_CHAIN_ID?.trim() || "31337";
+  const id = /^\d+$/.test(raw) ? Number(raw) : 31337;
+  return settlementCurrency(Number.isSafeInteger(id) ? id : 31337).exampleAskHuman;
+}
+
 /** After AhEscrow AskFilled → chainFill: notify buyer/seller and refresh snapshots. */
 function notifyAhEscrowFill(fill: AskFilledApplied) {
   const item = itemLabel(Number(fill.itemId));
+  const unit = settlementUnit();
   tellToken(
     fill.buyerTokenId,
-    "Bought " + item + " x" + fill.amount + " for " + fill.priceWei + " ETH on-chain. It is in your Provisioner inbox.",
+    "Bought " +
+      item +
+      " x" +
+      fill.amount +
+      " for " +
+      fill.priceWei +
+      " wei " +
+      unit +
+      " on-chain. It is in your Provisioner inbox.",
   );
   if (fill.sellerTokenId && fill.sellerTokenId !== fill.buyerTokenId) {
     tellToken(
       fill.sellerTokenId,
-      "Your " + item + " ask #" + fill.listingId + " sold for " + fill.priceWei + " ETH (paid on-chain).",
+      "Your " +
+        item +
+        " ask #" +
+        fill.listingId +
+        " sold for " +
+        fill.priceWei +
+        " wei " +
+        unit +
+        " (paid on-chain).",
     );
   }
   broadcastSnapshots();
@@ -996,7 +1027,9 @@ function refuseFundCustody(p: Player, action: string) {
   pushLog(
     p,
     action +
-      " is closed. The log does not hold ETH — auction house and PvP pay on-chain via EEZ. Nothing was changed.",
+      " is closed. The log does not hold " +
+      settlementUnit() +
+      " — auction house and PvP pay on-chain via EEZ. Nothing was changed.",
   );
   send(p.ws, snapshotFor(p));
 }
@@ -1026,22 +1059,30 @@ function handleLokList(
     return;
   }
   // minPrice is wei (client parseEther). Cap length so we stay under uint256.
+  const unit = settlementUnit();
   if (!/^[1-9][0-9]{0,76}$/.test(minPrice)) {
-    pushLog(p, "Enter a minimum price greater than 0 (ETH). Nothing was listed.");
+    pushLog(p, "Enter a minimum price greater than 0 (" + unit + "). Nothing was listed.");
     return;
   }
   // Reject KEK-era unit sizes mistaken for wei (live #7 was 5000). Floor = 1 gwei.
   try {
     if (BigInt(minPrice) < 1_000_000_000n) {
-      pushLog(p, "Ask price is below 1 gwei. Enter an ETH price (e.g. 0.001). Nothing was listed.");
+      pushLog(
+        p,
+        "Ask price is below 1 gwei. Enter a " +
+          unit +
+          " price (e.g. " +
+          settlementExampleAsk() +
+          "). Nothing was listed.",
+      );
       return;
     }
   } catch {
-    pushLog(p, "Enter a minimum price greater than 0 (ETH). Nothing was listed.");
+    pushLog(p, "Enter a minimum price greater than 0 (" + unit + "). Nothing was listed.");
     return;
   }
   if (!p.wallet || !isEthAddress(p.wallet)) {
-    pushLog(p, "A wallet is required to list for ETH. Nothing was listed.");
+    pushLog(p, "A wallet is required to list for " + unit + ". Nothing was listed.");
     return;
   }
   if (!ahEscrowAddress()) {
@@ -1157,7 +1198,9 @@ function handleLokList(
         listingId +
         " for " +
         minPrice +
-        " wei ETH on AhEscrow. The auction house is holding the item.",
+        " wei " +
+        settlementUnit() +
+        " on AhEscrow. The auction house is holding the item.",
     );
     send(p.ws, snapshotFor(p));
   })();
@@ -4803,7 +4846,9 @@ function onMessage(ws: WebSocket, data: string) {
           send(ws, {
             type: "error",
             message:
-              "Pay the character mint fee (native ETH) first, then create with the minted token id." +
+              "Pay the character mint fee (native " +
+              (cachedCharacterMint.currency?.symbol ?? settlementUnit()) +
+              ") first, then create with the minted token id." +
               (cachedCharacterMint.devFaucet
                 ? " Dev faucet is available (dev/faucet)."
                 : " Set LOK_DEV_FAUCET=1 or LOK_DEV_SERVER_MINT=1 for local testing."),

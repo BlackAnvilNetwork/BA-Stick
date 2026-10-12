@@ -52,6 +52,7 @@ export async function buyAsksWithEezSync(opts: {
   const chain = {
     id: home.chainId,
     name: home.label,
+    // Home-chain pay unit (ETH on Ethereum); settlement side is still native xDAI/ETH via EEZ.
     nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
     rpcUrls: { default: { http: [home.rpcUrl] } },
   };

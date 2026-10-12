@@ -55,6 +55,14 @@ type GameState = {
     suggestedTokenId?: string;
     devFaucet?: boolean;
     devServerMint?: boolean;
+    currency?: {
+      chainId: number;
+      symbol: string;
+      name: string;
+      decimals: number;
+      defaultMintFeeWei: string;
+      exampleAskHuman: string;
+    };
   } | null;
   snapshot: SnapshotMessage | null;
   logs: string[];

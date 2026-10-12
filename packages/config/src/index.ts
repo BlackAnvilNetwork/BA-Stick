@@ -1,5 +1,14 @@
 export { characterNameKey, normalizeCharacterName } from "./character-name";
 
+export {
+  SETTLEMENT_BY_CHAIN,
+  isSettlementChain,
+  settlementCurrency,
+  settlementCurrencyView,
+  type SettlementCurrency,
+} from "./settlement";
+
+/** @deprecated Prefer settlement chain ids (100 / 10200 / 31337). Kept for legacy imports. */
 export const CHAIN_ID = 4663;
 export const TICK_HZ = 20;
 export const TICK_MS = 1000 / TICK_HZ;

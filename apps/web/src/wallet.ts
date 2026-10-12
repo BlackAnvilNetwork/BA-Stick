@@ -4,6 +4,7 @@
  * silently fall back to the burner when the user declines the extension.
  * WalletConnect sessions (when configured) are preferred over the burner for pay.
  */
+import { settlementCurrency } from "@bellgrave/config";
 import {
   createWalletClient,
   custom,
@@ -52,10 +53,11 @@ export type WalletSession = {
 };
 
 function chainOf(chainId: number, rpcUrl: string): Chain {
+  const cur = settlementCurrency(chainId);
   return {
     id: chainId,
-    name: chainId === 31337 ? "Bellgrave Anvil" : "Bellgrave",
-    nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+    name: chainId === 31337 ? "Bellgrave Anvil" : cur.name,
+    nativeCurrency: { name: cur.name, symbol: cur.symbol, decimals: cur.decimals },
     rpcUrls: { default: { http: [rpcUrl] } },
   };
 }
@@ -82,8 +84,11 @@ async function ensureInjectedChain(
     params: [
       {
         chainId: hexId,
-        chainName: chainId === 31337 ? "Bellgrave Anvil" : "Bellgrave",
-        nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+        chainName: chainId === 31337 ? "Bellgrave Anvil" : settlementCurrency(chainId).name,
+        nativeCurrency: (() => {
+          const cur = settlementCurrency(chainId);
+          return { name: cur.name, symbol: cur.symbol, decimals: cur.decimals };
+        })(),
         rpcUrls: [rpcUrl],
       },
     ],

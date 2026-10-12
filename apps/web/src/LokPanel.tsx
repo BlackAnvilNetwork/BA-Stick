@@ -48,8 +48,8 @@ export function LokPanel({ you, onClose }: Props) {
         </button>
       </div>
       <p className="lok-note">
-        The log tracks your character and items only. Auction house and PvP pay ETH on-chain via EEZ — there is no
-        in-game deposit or spendable ETH balance.
+        The log tracks your character and items only. Auction house and PvP pay native settlement currency
+        on-chain via EEZ — there is no in-game deposit or spendable balance.
       </p>
 
       <AuctionBook

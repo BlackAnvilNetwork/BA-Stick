@@ -1,10 +1,12 @@
 /**
- * Client-signed AhEscrow.buyAsk — pays ETH from the browser wallet (injected
- * EIP-1193 when available, else the localStorage burner). The server watches
- * AskFilled and mirrors items via chainFill; this never credits ETH onto the log.
+ * Client-signed AhEscrow.buyAsk — pays native settlement value from the browser
+ * wallet (injected EIP-1193 when available, else the localStorage burner). The
+ * server watches AskFilled and mirrors items via chainFill; this never credits
+ * native value onto the log.
  *
  * EEZ / local mock sync buy: see eez-sync-buy.ts + docs/eez-sync-buy.md.
  */
+import { settlementCurrency } from "@bellgrave/config";
 import { createPublicClient, http, type Hex } from "viem";
 import type { AhEscrowClientConfig } from "@bellgrave/protocol";
 import { getWalletSession } from "./wallet";
@@ -64,12 +66,15 @@ export async function buyAsksWithWallet(opts: {
         args: [BigInt(fill.listingId), BigInt(opts.buyerTokenId)],
         value,
         account: session.account,
-        chain: {
-          id: opts.escrow.chainId,
-          name: "Bellgrave",
-          nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
-          rpcUrls: { default: { http: [opts.escrow.rpcUrl] } },
-        },
+        chain: (() => {
+          const cur = settlementCurrency(opts.escrow.chainId);
+          return {
+            id: opts.escrow.chainId,
+            name: cur.name,
+            nativeCurrency: { name: cur.name, symbol: cur.symbol, decimals: cur.decimals },
+            rpcUrls: { default: { http: [opts.escrow.rpcUrl] } },
+          };
+        })(),
       });
       const receipt = await publicClient.waitForTransactionReceipt({ hash });
       if (receipt.status === "reverted") {

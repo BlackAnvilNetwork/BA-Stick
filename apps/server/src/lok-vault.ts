@@ -2,6 +2,7 @@
  * Local ruleset propose + character NFT link. Writes go through viem on the
  * shared owner-key queue (no private key on the cast argv).
  */
+import { isSettlementChain, settlementCurrencyView } from "@bellgrave/config";
 import { createPublicClient, createWalletClient, http, type Chain, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { renameSync, writeFileSync } from "node:fs";
@@ -34,6 +35,7 @@ export type CharacterMintClientConfig = {
   suggestedTokenId: string;
   devFaucet: boolean;
   devServerMint: boolean;
+  currency: ReturnType<typeof settlementCurrencyView>;
 };
 
 type Env = {
@@ -319,7 +321,10 @@ export async function loadCharacterMintClientConfig(
   const publicRpc = envIn.LOK_PUBLIC_RPC?.trim() || env.rpc;
   try {
     const chainId = await chainIdOf(env.rpc);
-    if (BigInt(chainId) !== LOCAL_ANVIL_CHAIN_ID) return { status: "disabled" };
+    // Anvil + configured settlement chains (Gnosis 100 / Chiado 10200). Others stay off.
+    if (BigInt(chainId) !== LOCAL_ANVIL_CHAIN_ID && !isSettlementChain(chainId)) {
+      return { status: "disabled" };
+    }
     const pub = publicClient(env.rpc, chainId);
     const fee = await pub.readContract({
       address: env.factory as `0x${string}`,
@@ -349,8 +354,9 @@ export async function loadCharacterMintClientConfig(
         rpcUrl: publicRpc,
         supportsCreateFor,
         suggestedTokenId: suggested.toString(),
-        devFaucet: devFaucetEnabled(envIn),
-        devServerMint: devServerMintEnabled(envIn),
+        devFaucet: BigInt(chainId) === LOCAL_ANVIL_CHAIN_ID && devFaucetEnabled(envIn),
+        devServerMint: BigInt(chainId) === LOCAL_ANVIL_CHAIN_ID && devServerMintEnabled(envIn),
+        currency: settlementCurrencyView(chainId),
       },
     };
   } catch (err) {

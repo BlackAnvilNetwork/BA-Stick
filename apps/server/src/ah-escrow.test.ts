@@ -120,7 +120,23 @@ describe("AhEscrow AskFilled mirror", () => {
         rpcUrl: "http://127.0.0.1:8545",
         chainId: 31337,
         feeBps: 100,
+        currency: {
+          chainId: 31337,
+          symbol: "ETH",
+          name: "Ether",
+          decimals: 18,
+          defaultMintFeeWei: "1000000000000000",
+          exampleAskHuman: "0.001",
+        },
       },
+    );
+    assert.equal(
+      ahEscrowClientConfig({
+        LOK_AH_ESCROW: "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707",
+        LOK_CHAIN_RPC: "https://rpc.chiado.gnosis.gateway.fm",
+        LOK_CHAIN_ID: "10200",
+      })?.currency.symbol,
+      "xDAI",
     );
   });
 

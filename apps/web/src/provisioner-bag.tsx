@@ -4,6 +4,8 @@ import { useState } from "react";
 import { formatEther, parseEther } from "viem";
 import { ItemCatalogDetails, ItemTipHost } from "./itemTip";
 import { send } from "./net";
+import { settlementExampleAsk, settlementSymbol } from "./settlement-label";
+import { useGame } from "./state";
 
 type Near = { id: string; name: string };
 
@@ -63,6 +65,9 @@ export function ProvisionerBag({ inventory, logItems, inbox, others }: Props) {
   const [toId, setToId] = useState("");
   const [minPrice, setMinPrice] = useState("");
   const [sellQty, setSellQty] = useState("1");
+  const ahEscrow = useGame((s) => s.snapshot?.you?.lok?.ahEscrow ?? null);
+  const unit = settlementSymbol(ahEscrow?.currency, ahEscrow?.chainId);
+  const exampleAsk = settlementExampleAsk(ahEscrow?.currency, ahEscrow?.chainId);
   const cells = cellsOf(inventory, logItems);
   const selected = others.find((unit) => unit.id === toId);
   let minPriceWei: string | null = null;
@@ -83,9 +88,13 @@ export function ProvisionerBag({ inventory, logItems, inbox, others }: Props) {
       return (
         "1% marketplace fee (" +
         formatEther(feeWei) +
-        " ETH) — you receive " +
+        " " +
+        unit +
+        ") — you receive " +
         formatEther(sellerNetWei) +
-        " ETH if this ask fills (paid to the character NFT owner)."
+        " " +
+        unit +
+        " if this ask fills (paid to the character NFT owner)."
       );
     } catch {
       return null;
@@ -151,7 +160,7 @@ export function ProvisionerBag({ inventory, logItems, inbox, others }: Props) {
                   </button>
                   <input
                     value={minPrice}
-                    placeholder="Minimum ETH"
+                    placeholder={"Minimum " + unit + " (e.g. " + exampleAsk + ")"}
                     aria-label="Minimum ask"
                     onChange={(e) => setMinPrice(e.target.value)}
                   />
@@ -163,7 +172,7 @@ export function ProvisionerBag({ inventory, logItems, inbox, others }: Props) {
                     title={
                       priceOk
                         ? "List the log stack at this minimum (1% fee on fill)."
-                        : "Enter a minimum ETH amount greater than 0."
+                        : "Enter a minimum " + unit + " amount greater than 0."
                     }
                     onClick={() => {
                       if (!cell.logAmount || !minPriceWei) return;
