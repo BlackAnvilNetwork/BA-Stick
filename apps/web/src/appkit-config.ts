@@ -9,7 +9,12 @@
 import { createAppKit, type AppKit } from "@reown/appkit/react";
 import { EthersAdapter } from "@reown/appkit-adapter-ethers";
 import { anvil, gnosis, gnosisChiado, type AppKitNetwork } from "@reown/appkit/networks";
-import { anvilWalletConnectAllowed, defaultRpcUrl, walletConnectProjectId } from "./walletconnect";
+import {
+  anvilWalletConnectAllowed,
+  defaultRpcUrl,
+  viteSettlementChainId,
+  walletConnectProjectId,
+} from "./walletconnect";
 
 /** Reown WalletGuide listing ids — order is respected on the Connect main view. */
 const RABBY_WALLET_ID = "18388be9ac2d02726dbac9777c96efaac06d744b2f6d580fccdd4127a6d01fd1";
@@ -27,8 +32,7 @@ function appKitNetworks(): [AppKitNetwork, ...AppKitNetwork[]] {
 }
 
 function defaultNetwork(): AppKitNetwork {
-  const raw = import.meta.env.VITE_CHAIN_ID?.trim();
-  const id = raw && /^\d+$/.test(raw) ? Number(raw) : 100;
+  const id = viteSettlementChainId();
   if (id === 10200) return gnosisChiado;
   if (id === 31337 && anvilWalletConnectAllowed()) return anvil;
   return gnosis;

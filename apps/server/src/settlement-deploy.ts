@@ -1,10 +1,16 @@
 /**
- * Fill blank LOK_* address/RPC env from deployments/*.json when targeting
- * Gnosis (100) or Chiado (10200). Never copies MockItems / MockKEK.
+ * Fill blank LOK_* address/RPC env from NETWORK profile + deployments/*.json
+ * when targeting Gnosis (100) or Chiado (10200). Never copies MockItems / MockKEK.
  */
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  applyNetworkProfileEnv,
+  networkProfile,
+  settlementRpcUrls,
+  type NetworkProfile,
+} from "@bellgrave/config";
 import { envSettlementChainId } from "./settlement-chain";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -13,18 +19,14 @@ type DeployFile = {
   chainId?: number;
   contracts?: Record<string, string>;
   rpcUrl?: string;
+  /** First contract-creation block — watchers backfill from here when set. */
+  deployBlock?: number;
+  status?: string;
 };
 
-function defaultDeployPath(chainId: number): string {
-  if (chainId === 100) return join(here, "../../../deployments/gnosis.json");
-  if (chainId === 10200) return join(here, "../../../deployments/chiado.json");
-  return "";
-}
-
-function defaultPublicRpc(chainId: number): string {
-  if (chainId === 100) return "https://rpc.gnosischain.com";
-  if (chainId === 10200) return "https://rpc.chiado.gnosis.gateway.fm";
-  return "";
+function defaultDeployPath(profile: NetworkProfile): string {
+  if (!profile.deployFile) return "";
+  return join(here, "../../../", profile.deployFile);
 }
 
 function fill(env: NodeJS.ProcessEnv, key: string, value: string | undefined): void {
@@ -34,25 +36,24 @@ function fill(env: NodeJS.ProcessEnv, key: string, value: string | undefined): v
 }
 
 /**
- * When LOK_CHAIN_ID is 100/10200, load contract addresses from the deploy JSON
- * into empty LOK_NFT / LOK_FACTORY / LOK_AH_ESCROW / LOK_CHECKPOINT / LOK_RULESETS.
+ * Apply NETWORK / LOK_NETWORK profile (chain id, RPC list, confirmations, explorers),
+ * then load contract addresses from the deploy JSON into empty LOK_* keys.
+ *
  * Skips MockItems/MockKEK. Optional LOK_DEPLOY_JSON overrides the path.
- * Local 31337 is untouched (no file load).
+ * Local anvil is profile-only (no deploy file required).
  */
 export function applySettlementDeployFile(env: NodeJS.ProcessEnv = process.env): void {
+  const profile = applyNetworkProfileEnv(env as Record<string, string | undefined>);
   const chainId = envSettlementChainId(env);
-  if (chainId !== 100 && chainId !== 10200) return;
 
-  const path = env.LOK_DEPLOY_JSON?.trim() || defaultDeployPath(chainId);
+  if (chainId !== 100 && chainId !== 10200) {
+    // Anvil / unknown: profile may have filled RPC; nothing else to load.
+    return;
+  }
+
+  const path = env.LOK_DEPLOY_JSON?.trim() || defaultDeployPath(profile);
   if (!path || !existsSync(path)) {
-    // Still fill public RPC defaults when addresses are set manually.
-    if (!env.LOK_CHAIN_RPC?.trim()) {
-      const rpc = defaultPublicRpc(chainId);
-      if (rpc) env.LOK_CHAIN_RPC = rpc;
-    }
-    if (!env.LOK_PUBLIC_RPC?.trim() && env.LOK_CHAIN_RPC?.trim()) {
-      env.LOK_PUBLIC_RPC = env.LOK_CHAIN_RPC;
-    }
+    ensureRpcEnv(env, profile);
     return;
   }
 
@@ -64,6 +65,7 @@ export function applySettlementDeployFile(env: NodeJS.ProcessEnv = process.env):
       "[bellgrave] failed to parse deploy file " + path + ":",
       err instanceof Error ? err.message : err,
     );
+    ensureRpcEnv(env, profile);
     return;
   }
 
@@ -75,7 +77,15 @@ export function applySettlementDeployFile(env: NodeJS.ProcessEnv = process.env):
         chainId +
         "; skipping address fill",
     );
+    ensureRpcEnv(env, profile);
     return;
+  }
+
+  if (parsed.status === "dry-run-only") {
+    console.warn(
+      "[bellgrave] WARNING: deploy file is dry-run-only (MockItems / collapsed roles). " +
+        "Do not point a production server at this Checkpoint. See docs/gnosis-launch.md.",
+    );
   }
 
   const c = parsed.contracts ?? {};
@@ -87,22 +97,50 @@ export function applySettlementDeployFile(env: NodeJS.ProcessEnv = process.env):
   // Real Items only — never wire dry-run MockItems.
   if (c.Items) fill(env, "LOK_ITEMS", c.Items);
 
-  if (!env.LOK_CHAIN_RPC?.trim()) {
-    const rpc = parsed.rpcUrl?.trim() || defaultPublicRpc(chainId);
-    if (rpc) env.LOK_CHAIN_RPC = rpc;
-  }
-  if (!env.LOK_PUBLIC_RPC?.trim() && env.LOK_CHAIN_RPC?.trim()) {
-    env.LOK_PUBLIC_RPC = env.LOK_CHAIN_RPC;
+  if (
+    parsed.deployBlock != null &&
+    Number.isSafeInteger(parsed.deployBlock) &&
+    parsed.deployBlock > 0 &&
+    !env.LOK_DEPLOY_BLOCK?.trim()
+  ) {
+    env.LOK_DEPLOY_BLOCK = String(parsed.deployBlock);
   }
 
+  if (!env.LOK_CHAIN_RPC?.trim() && parsed.rpcUrl?.trim()) {
+    env.LOK_CHAIN_RPC = parsed.rpcUrl.trim();
+  }
+  ensureRpcEnv(env, profile);
+
   console.log(
-    "[bellgrave] settlement deploy file " +
+    "[bellgrave] settlement profile=" +
+      profile.name +
+      " deploy=" +
       path +
       " chain=" +
       chainId +
       " nft=" +
       (env.LOK_NFT ?? "") +
       " escrow=" +
-      (env.LOK_AH_ESCROW ?? ""),
+      (env.LOK_AH_ESCROW ?? "") +
+      " rpc=" +
+      (env.LOK_CHAIN_RPC ?? ""),
   );
+}
+
+function ensureRpcEnv(env: NodeJS.ProcessEnv, profile: NetworkProfile): void {
+  const urls = settlementRpcUrls(env as Record<string, string | undefined>);
+  if (!env.LOK_CHAIN_RPC_URLS?.trim() && urls.length > 1) {
+    env.LOK_CHAIN_RPC_URLS = urls.join(",");
+  }
+  if (!env.LOK_CHAIN_RPC?.trim()) {
+    env.LOK_CHAIN_RPC = urls[0] || profile.rpcUrls[0] || "";
+  }
+  if (!env.LOK_PUBLIC_RPC?.trim() && env.LOK_CHAIN_RPC?.trim()) {
+    env.LOK_PUBLIC_RPC = env.LOK_CHAIN_RPC;
+  }
+}
+
+/** Active profile for the current env (after apply). */
+export function activeNetworkProfile(env: NodeJS.ProcessEnv = process.env): NetworkProfile {
+  return networkProfile(env as Record<string, string | undefined>);
 }

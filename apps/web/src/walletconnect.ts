@@ -5,7 +5,15 @@
  *
  * Chain 31337 is optional only in Vite DEV or when VITE_ALLOW_ANVIL_WC=1.
  */
-import { SETTLEMENT_BY_CHAIN, settlementCurrency } from "@bellgrave/config";
+import {
+  SETTLEMENT_BY_CHAIN,
+  explorerAddressUrl,
+  explorerTxUrl,
+  networkProfile,
+  networkProfileByChainId,
+  resolveNetworkName,
+  settlementCurrency,
+} from "@bellgrave/config";
 import { EthereumProvider } from "@walletconnect/ethereum-provider";
 import {
   createWalletClient,
@@ -85,6 +93,23 @@ function chainOf(chainId: number, rpcUrl: string): Chain {
   };
 }
 
+/** Vite settlement profile (VITE_NETWORK) → chain id. */
+export function viteSettlementChainId(): number {
+  const named = resolveNetworkName({
+    VITE_NETWORK: import.meta.env.VITE_NETWORK,
+    VITE_CHAIN_ID: import.meta.env.VITE_CHAIN_ID,
+  });
+  return networkProfile(named).chainId;
+}
+
+/** Fallback RPC list for a settlement chain (profile order). */
+export function settlementRpcFallbacks(chainId: number): string[] {
+  const profile = networkProfileByChainId(chainId);
+  return profile ? [...profile.rpcUrls] : [];
+}
+
+export { explorerAddressUrl, explorerTxUrl };
+
 /** Default public RPC when env is blank or unset. */
 export function defaultRpcUrl(chainId: number): string {
   if (chainId === 31337) {
@@ -92,7 +117,7 @@ export function defaultRpcUrl(chainId: number): string {
     return (
       import.meta.env.VITE_ANVIL_PUBLIC_RPC_URL?.trim() ||
       import.meta.env.VITE_ANVIL_RPC_URL?.trim() ||
-      "http://127.0.0.1:8545"
+      networkProfile("anvil").rpcUrls[0]!
     );
   }
   if (chainId === 1) {
@@ -108,17 +133,17 @@ export function defaultRpcUrl(chainId: number): string {
     return (
       import.meta.env.VITE_GNOSIS_RPC_URL?.trim() ||
       import.meta.env.VITE_RPC_URL?.trim() ||
-      "https://rpc.gnosischain.com"
+      networkProfile("gnosis").rpcUrls[0]!
     );
   }
   if (chainId === 10200) {
     return (
       import.meta.env.VITE_CHIADO_RPC_URL?.trim() ||
       import.meta.env.VITE_RPC_URL?.trim() ||
-      "https://rpc.chiado.gnosis.gateway.fm"
+      networkProfile("chiado").rpcUrls[0]!
     );
   }
-  return import.meta.env.VITE_RPC_URL?.trim() || "http://127.0.0.1:8545";
+  return import.meta.env.VITE_RPC_URL?.trim() || networkProfile("anvil").rpcUrls[0]!;
 }
 
 function buildWalletConnectRpcMap(primaryChainId: number, primaryRpcUrl: string): Record<number, string> {

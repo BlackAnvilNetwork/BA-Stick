@@ -13,6 +13,7 @@ describe("applySettlementDeployFile", () => {
       path,
       JSON.stringify({
         chainId: 100,
+        deployBlock: 42_000_000,
         contracts: {
           CharacterNFT: "0x1111111111111111111111111111111111111111",
           CharacterFactory: "0x2222222222222222222222222222222222222222",
@@ -35,14 +36,26 @@ describe("applySettlementDeployFile", () => {
     assert.equal(env.LOK_ITEMS, "0x7777777777777777777777777777777777777777");
     assert.equal(env.LOK_CHECKPOINT, "0x4444444444444444444444444444444444444444");
     assert.ok(env.LOK_CHAIN_RPC?.includes("gnosis"));
+    assert.equal(env.LOK_DEPLOY_BLOCK, "42000000");
+    assert.ok(env.LOK_CHAIN_RPC_URLS?.includes(","));
   });
 
-  it("does not override existing env or touch 31337", () => {
+  it("NETWORK=gnosis selects chain 100 + confirmations + explorer without LOK_CHAIN_ID", () => {
+    const env: NodeJS.ProcessEnv = { NETWORK: "gnosis" };
+    applySettlementDeployFile(env);
+    assert.equal(env.LOK_CHAIN_ID, "100");
+    assert.equal(env.LOK_CONFIRMATIONS, "2");
+    assert.equal(env.LOK_EXPLORER, "https://gnosisscan.io");
+    assert.ok(env.LOK_CHAIN_RPC?.includes("gnosis"));
+  });
+
+  it("does not override existing env on anvil", () => {
     const env: NodeJS.ProcessEnv = {
-      LOK_CHAIN_ID: "31337",
+      NETWORK: "anvil",
       LOK_NFT: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     };
     applySettlementDeployFile(env);
+    assert.equal(env.LOK_CHAIN_ID, "31337");
     assert.equal(env.LOK_NFT, "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
     assert.equal(env.LOK_AH_ESCROW, undefined);
   });

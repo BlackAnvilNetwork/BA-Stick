@@ -1,6 +1,15 @@
 # Gnosis official launch runbook
 
-**Dry-run note:** The 2026-10-12 deploy on chain 100 (`deployments/gnosis.json`) was a dry-run mainnet launch. It wired **MockItems** and collapsed roles onto one EOA — do **not** treat it as production. Official launch must use this runbook + the hardened `Deploy` script.
+**Dry-run note:** The 2026-10-12 deploy on chain 100 (`deployments/gnosis.json`) was a dry-run mainnet launch. It wired **MockItems** and collapsed roles onto one EOA — do **not** treat it as production. A production server must **never** use that Checkpoint (open `setMinter` on MockItems). Official launch must use this runbook + the hardened `Deploy` script.
+
+## Env profile
+
+| Knob | Values | Effect |
+|------|--------|--------|
+| `NETWORK` / `LOK_NETWORK` (server) | `gnosis` \| `chiado` \| `anvil` | Fills blank `LOK_CHAIN_ID`, RPC list, confirmations, explorers |
+| `VITE_NETWORK` (web) | same | Selects AppKit default chain + RPC defaults |
+
+Profiles live in `@bellgrave/config` (`NETWORK_PROFILES`). Explicit `LOK_*` / `VITE_*` always win.
 
 **Hard stops:** no broadcast without go-ahead; no merge without go-ahead; no admin txs on the dry-run deployment unless explicitly requested.
 
@@ -69,8 +78,8 @@ CHAIN_ID=100 VERIFIERS="sourcify blockscout" \
 4. Ruleset propose + 48h wait.
 5. Sourcify/Blockscout green on all four impls + AhEscrow (+ Items).
 6. Fund listing/rotator with minimal xDAI; sweep leftovers to treasury after ops.
-7. Server: copy `apps/server/.env.gnosis.example` → `.env.local` (`LOK_CHAIN_ID=100`, `LOK_LISTING_KEY`). Blank `LOK_NFT`/`LOK_FACTORY`/`LOK_AH_ESCROW` fill from `deployments/gnosis.json`. Web: `VITE_WALLETCONNECT_PROJECT_ID` + `VITE_CHAIN_ID=100`.
-8. Confirmations: default 2 blocks (~10s); override with `LOK_CONFIRMATIONS`.
+7. Server: copy `apps/server/.env.gnosis.example` → `.env.local` (`NETWORK=gnosis`, `LOK_LISTING_KEY`). Blank `LOK_NFT`/`LOK_FACTORY`/`LOK_AH_ESCROW` fill from `deployments/gnosis.json`. Web: `VITE_WALLETCONNECT_PROJECT_ID` + `VITE_NETWORK=gnosis` (or `VITE_CHAIN_ID=100`).
+8. Confirmations: profile default 2 blocks (~10s); override with `LOK_CONFIRMATIONS`. RPC fallbacks: `LOK_CHAIN_RPC_URLS` (comma list from the gnosis profile).
 
 ## Dry-run stuck funds (2026-10-12)
 
