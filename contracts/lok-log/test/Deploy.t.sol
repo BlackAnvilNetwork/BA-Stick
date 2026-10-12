@@ -70,4 +70,30 @@ contract DeployTest is Test {
         assertEq(d.nft.ownerOf(id), p);
         assertEq(d.checkpoint.level(id), 1);
     }
+
+    /// When multisig == deployer, renounce must not leave zero admins.
+    function test_deployScript_sameMultisigKeepsAdmin() public {
+        MockItems items = new MockItems();
+        Deploy s = new Deploy();
+        address deployer = address(s);
+        Deploy.Config memory c = Deploy.Config({
+            multisig: deployer,
+            rotator: deployer,
+            guardian: deployer,
+            proposer: deployer,
+            listing: deployer,
+            items: address(items),
+            kek: address(new MockKEK()),
+            baseURI: "ipfs://x/",
+            mintFee: 1 ether
+        });
+        Deploy.Deployed memory d = s.deploy(c, deployer);
+        bytes32 admin = d.nft.DEFAULT_ADMIN_ROLE();
+        assertTrue(d.nft.hasRole(admin, deployer));
+        assertTrue(d.factory.hasRole(admin, deployer));
+        assertTrue(d.ahEscrow.hasRole(d.ahEscrow.DEFAULT_ADMIN_ROLE(), deployer));
+        assertTrue(d.ahEscrow.hasRole(d.ahEscrow.LISTING_ROLE(), deployer));
+        assertEq(d.ahEscrow.feeRecipient(), deployer);
+        assertEq(d.factory.mintFee(), 1 ether);
+    }
 }

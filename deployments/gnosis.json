@@ -1,0 +1,115 @@
+{
+  "network": "gnosis",
+  "chainId": 100,
+  "explorer": "https://gnosisscan.io",
+  "blockscout": "https://gnosis.blockscout.com",
+  "deployedAt": "2026-10-12T08:40:20.614097+00:00",
+  "mintFeeWei": "1000000000000000000",
+  "mintFee": "1 xDAI",
+  "admin": "0x08cDab8b049D2A42125C3A2bf1bF1E2f619C4e01",
+  "feeRecipient": "0x08cDab8b049D2A42125C3A2bf1bF1E2f619C4e01",
+  "listingRole": "0x08cDab8b049D2A42125C3A2bf1bF1E2f619C4e01",
+  "deployerEphemeral": "0xdAE27140DEE2e44FFF75e5618069d335284FEc6c",
+  "contracts": {
+    "CharacterNFT": "0xf4BAb9B8Cb8bc3d9340ee73447009Da77DC95663",
+    "CharacterCheckpoint": "0xa185dd8d09BD83CeebadBE4Fa1cA8E90babcdD0b",
+    "CharacterFactory": "0xcE70705322A10C3c85363AD067743923F5E5E8F2",
+    "RulesetRegistry": "0x785e42614BBd49910B4b15A0eb55E21e94B74BEf",
+    "AhEscrow": "0xB48031d00e27FF94bD3C677D2f4D6948f365478c",
+    "MockItems": "0x63A3c15d4098C28Fbd8771f17Bb6f8Ab34472235",
+    "MockKEK": "0x4156ACFC09838d8f55A4044720cB67B2e0FC98e7"
+  },
+  "roles": {
+    "DEFAULT_ADMIN_ROLE": "0x08cDab8b049D2A42125C3A2bf1bF1E2f619C4e01",
+    "LISTING_ROLE": "0x08cDab8b049D2A42125C3A2bf1bF1E2f619C4e01",
+    "deployerRolesDropped": true
+  },
+  "transactions": {
+    "mockItemsKek": [
+      "0xf22bf94a5ca6c1ef2e22e403b940c5aa6ea6ca490d7911be3b33eb3539de800e",
+      "0xbad098d765eabb4e3f6dc2bc27041c49cced22b2385480a6f70059f0a656b4fc"
+    ],
+    "deployPackage": [
+      "0x737a3dc0a1aba757aaf503eab606d71431fbc689d95214a4a0469c059d3ff314",
+      "0xe3cb7bd8e71029beb1a16a30458a603aca39655cbd841df251c5a330577c5440",
+      "0xc61ada141d06a34ffb442c0d3b38d48ac459b0cbc98b6af58f41c3985808d060",
+      "0xc1873580d0814cf321d66b44d7c4d573091ca0cb14fcb9c4f351405e09380938",
+      "0x7e0e1cc56294eadedaa63d28ba99dc6b7f18112d9f9b9c60898efc31bce08e43",
+      "0xf14133965c14f0f3be93be6b65a43788d2a65c195b02b08e72861f84387e789f",
+      "0x81ce30aa5960e1d75f40262bb6d7445232d9674059ae824502097748da404641",
+      "0x28465dd03e5ed92db9efda6f43e263093a66c9288a6d83ee9cc030e9c17465f2",
+      "0x18e1e7b20e1d924153054b2d91c88c45b71a0a2e20f5b1daeb42bc1190cbcea0",
+      "0x47e524edf306c589adc38adb09dbb956194b93261678e45f30e43180b279912f",
+      "0xb0d455716729573f95616d2b6ff074f182eef126f64c24abf8a57ca22b657169",
+      "0x80c472445d2012e8ac7f585ee1aeb69678d5a64b3756cc9c1f05c82d241d9166",
+      "0xf62150f0b9500911610aa5f3f15bc5c12e6817c19ef000270902b8ffecdda621",
+      "0xfd0d7383ec9e900d4f65889574c2335778082e8e1e6f350bf430fdb589e81953",
+      "0x39c56ea86bfb355340940c78f33ec6686f2c4fea28edceb9e57c761c05a9d193",
+      "0x747cbf437fabf7829417c8d805f63d28491b4125f92898d5d7d97deb82b4a17e",
+      "0xfe840f5e39bd2c3cf632a27b6626cfc1e42c5342979fea9926f7107250caab2b",
+      "0x8d8515e89db57ca30d692dd6c8e84872b6d83095679913da7fe76e44a16cbb56",
+      "0xa143aebaf2a972bbc4761293d0dde1f512c6da3baa88035e445c7d7fc8cc06cb",
+      "0x0bf2240bce14202bb85dcf41b900699b9b1ceccb83e8b38d85c7ea5dd5bc50d2",
+      "0x3c55320752734ba8850736dc3b9293b9b9c6f45be3622b5adb33c21b09d6f8c6",
+      "0xd956a3bb5363893e53e46ed67af242fc02c372b6078027f7efac9ecb9b152545",
+      "0x4743daa5ce24f58f1c47a4003b0898f6b3cbdf65d89584711cd63145a87f2c79",
+      "0x269a0f63ad26a396d3f5f1a38d51f51fec6fe4a4ce254089499dd7e1e1ba7e30",
+      "0x15105e25d02af7710ff533c928aebc6db9a217bfe54f4771d5ba18287fe979f0",
+      "0x357e1346d66702214018aa7162554dfc848a38f6f0aa305dc382b7a5e8e76954",
+      "0xf1561f71e7c4250b9ac075a5dad5f9c517610d89b3bcbc57aa9ab696f5538d0d",
+      "0x0094404b7158be6951bafc1f7acd31a933d54962c8ca1551dfc749637d1143bb",
+      "0xf6f61e9326a769cc4d9dbee9733cf392cae113abfccab92cb286410fba127899"
+    ],
+    "setStartingJob1": "0x8729d8e08e3fdb929f4aecfe3bb31a9b8fe7891858a3fbb23b58b68f7099f37f",
+    "smoke": {
+      "openAsk": "0xbd100777bf2696a4fdd59e9c4f5f6ee71318ac1a391314245fbe6dbff796eb24",
+      "buyAsk": "0x8af89ce01b7e1d735d7c91f5d1829507968a0d76e4db2301180ae71c8b849b7f",
+      "mintBuyer": "0x1dff954b96aae4f63fc33dd8e41181c7fe419507f6a6957007ffffadf128375f",
+      "mintSeller": "0xfd138f12ae76022835f6d199986b87f798d6eabe0af868d9033c75d2cd12a7df"
+    }
+  },
+  "smoke": {
+    "chainId": 100,
+    "seller": "0x2C17728f7754a6AD85567e5c5713f4D147eE3aDA",
+    "buyer": "0xF0748E3EA968d248Cd3A119D5953923108259e19",
+    "sellerTokenId": 1,
+    "buyerTokenId": 2,
+    "listingId": 1,
+    "priceWei": "1000000000000000000",
+    "expectedFeeWei": "10000000000000000",
+    "expectedSellerNetWei": "990000000000000000",
+    "adminDeltaWei": "9999999998753482",
+    "sellerDeltaWei": "990000000000000000",
+    "buyerDeltaWei": "-1000000000000658620",
+    "sellerNetExact": true,
+    "adminReceivedAtLeastFeeMinusGas": true
+  },
+  "abandonedFirstAttempt": {
+    "note": "First broadcast used MULTISIG==deployer; Deploy renounced admin/listing from the only account. Fixed Deploy.s.sol and redeployed from an ephemeral deployer. Do not use these addresses.",
+    "CharacterNFT": "0x3985D24e1AA023abA32bB464231D7137b17A84FA",
+    "CharacterCheckpoint": "0x59fD1d4127c8eaFf32578950Ae25D937F51AA691",
+    "CharacterFactory": "0xc4fe5568B4DD6aEAF0E5C0888A0C813Bb7878364",
+    "RulesetRegistry": "0xda2971668718CE665757e29a1c8E8e06aaEEba67",
+    "AhEscrow": "0x6426AaDB8c1Ba0A31177C68e6c2F51A69B7233a2"
+  },
+  "verification": {
+    "AhEscrow": {
+      "sourcifyJob": "e8caec50-9dec-4a7b-9697-939285d446af",
+      "sourcifyUrl": "https://sourcify.dev/server/verify-ui/jobs/e8caec50-9dec-4a7b-9697-939285d446af"
+    },
+    "note": "Blockscout forge verifier API shape failed; Sourcify job submitted for AhEscrow."
+  },
+  "explorerLinks": {
+    "CharacterNFT": "https://gnosisscan.io/address/0xf4BAb9B8Cb8bc3d9340ee73447009Da77DC95663",
+    "CharacterCheckpoint": "https://gnosisscan.io/address/0xa185dd8d09BD83CeebadBE4Fa1cA8E90babcdD0b",
+    "CharacterFactory": "https://gnosisscan.io/address/0xcE70705322A10C3c85363AD067743923F5E5E8F2",
+    "RulesetRegistry": "https://gnosisscan.io/address/0x785e42614BBd49910B4b15A0eb55E21e94B74BEf",
+    "AhEscrow": "https://gnosisscan.io/address/0xB48031d00e27FF94bD3C677D2f4D6948f365478c",
+    "mintSeller": "https://gnosisscan.io/tx/0xfd138f12ae76022835f6d199986b87f798d6eabe0af868d9033c75d2cd12a7df",
+    "mintBuyer": "https://gnosisscan.io/tx/0x1dff954b96aae4f63fc33dd8e41181c7fe419507f6a6957007ffffadf128375f",
+    "openAsk": "https://gnosisscan.io/tx/0xbd100777bf2696a4fdd59e9c4f5f6ee71318ac1a391314245fbe6dbff796eb24",
+    "buyAsk": "https://gnosisscan.io/tx/0x8af89ce01b7e1d735d7c91f5d1829507968a0d76e4db2301180ae71c8b849b7f",
+    "deployFirst": "https://gnosisscan.io/tx/0x737a3dc0a1aba757aaf503eab606d71431fbc689d95214a4a0469c059d3ff314",
+    "deployLast": "https://gnosisscan.io/tx/0xf6f61e9326a769cc4d9dbee9733cf392cae113abfccab92cb286410fba127899"
+  }
+}

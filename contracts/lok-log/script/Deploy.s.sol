@@ -117,19 +117,27 @@ contract Deploy is Script {
         address listing = c.listing == address(0) ? c.rotator : c.listing;
         d.ahEscrow.grantRole(d.ahEscrow.LISTING_ROLE(), listing);
 
-        // hand over: multisig becomes admin everywhere, deployer renounces
+        // Hand over admin to multisig. If multisig == deployer, do NOT renounce
+        // (grant+renounce on the same address would leave zero admins).
         bytes32 admin = d.nft.DEFAULT_ADMIN_ROLE();
-        d.nft.grantRole(admin, c.multisig);
-        d.checkpoint.grantRole(admin, c.multisig);
-        d.factory.grantRole(admin, c.multisig);
-        d.rulesets.grantRole(admin, c.multisig);
-        d.ahEscrow.grantRole(d.ahEscrow.DEFAULT_ADMIN_ROLE(), c.multisig);
-        d.nft.renounceRole(admin, deployer);
-        d.checkpoint.renounceRole(admin, deployer);
-        d.factory.renounceRole(admin, deployer);
-        d.rulesets.renounceRole(admin, deployer);
-        // Revoke listing before admin — revokeRole requires DEFAULT_ADMIN_ROLE.
-        d.ahEscrow.revokeRole(d.ahEscrow.LISTING_ROLE(), deployer);
-        d.ahEscrow.revokeRole(d.ahEscrow.DEFAULT_ADMIN_ROLE(), deployer);
+        if (c.multisig != deployer) {
+            d.nft.grantRole(admin, c.multisig);
+            d.checkpoint.grantRole(admin, c.multisig);
+            d.factory.grantRole(admin, c.multisig);
+            d.rulesets.grantRole(admin, c.multisig);
+            d.ahEscrow.grantRole(d.ahEscrow.DEFAULT_ADMIN_ROLE(), c.multisig);
+            d.nft.renounceRole(admin, deployer);
+            d.checkpoint.renounceRole(admin, deployer);
+            d.factory.renounceRole(admin, deployer);
+            d.rulesets.renounceRole(admin, deployer);
+            // Revoke listing before admin — revokeRole requires DEFAULT_ADMIN_ROLE.
+            if (listing != deployer) {
+                d.ahEscrow.revokeRole(d.ahEscrow.LISTING_ROLE(), deployer);
+            }
+            d.ahEscrow.revokeRole(d.ahEscrow.DEFAULT_ADMIN_ROLE(), deployer);
+        } else if (listing != deployer) {
+            // Deployer keeps admin (= multisig); drop temporary LISTING if unused.
+            d.ahEscrow.revokeRole(d.ahEscrow.LISTING_ROLE(), deployer);
+        }
     }
 }
