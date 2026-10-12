@@ -13,15 +13,20 @@ Profiles live in `@bellgrave/config` (`NETWORK_PROFILES`). Explicit `LOK_*` / `V
 
 **Hard stops:** no broadcast without go-ahead; no merge without go-ahead; no admin txs on the dry-run deployment unless explicitly requested.
 
-## Role separation (required)
+## Addresses / keys you must supply
 
-| Role | Who | Env |
-|------|-----|-----|
-| `ADMIN` (+ default `EMERGENCY`, `GUARDIAN`) | Safe multisig | `ADMIN` (optional `EMERGENCY` / `GUARDIAN`, default = ADMIN) |
-| `FEE_RECIPIENT` | Treasury (distinct from Safe + server keys) | `FEE_RECIPIENT` |
-| `LISTING` | Server EOA (`openAsk` / `cancelAsk`) | `LISTING` |
-| `ROTATOR` | Server EOA (checkpoint signers) | `ROTATOR` |
-| `PROPOSER` | Server EOA (ruleset proposes) | `PROPOSER` |
+Copy `contracts/lok-log/.env.gnosis.example` → `.env.gnosis` (gitignored).
+
+| You supply | Role | Env var | Notes |
+|------------|------|---------|-------|
+| **Safe multisig address** | Admin (+ emergency/guardian default) | `ADMIN` | Optional `EMERGENCY` / `GUARDIAN` if split |
+| **Treasury address** | Fee recipient | `FEE_RECIPIENT` | ≠ Safe, ≠ server EOAs |
+| **Listing EOA address + key** | AhEscrow `LISTING_ROLE` | `LISTING` + server `LOK_LISTING_KEY` | Fund minimal xDAI for gas; sweep after ops |
+| **Rotator EOA address + key** | Checkpoint signers | `ROTATOR` | Distinct from listing/proposer |
+| **Proposer EOA address + key** | Ruleset propose | `PROPOSER` | Distinct from listing/rotator |
+| **Deployer EOA key** | One-shot broadcast | `PRIVATE_KEY` | Ephemeral; fund minimal; sweep before delete |
+| **Items address** (or `0x0`) | ERC-1155 exports | `ITEMS` | Real `Items.sol` from DeployItems — never MockItems |
+| Public Gnosis RPC | Read/sim | `RPC_URL` / `GNOSIS_RPC_URL` | Profile defaults exist |
 
 On chainid ≠ 31337 the script **reverts** if listing/rotator/proposer are not pairwise distinct, or if any equals admin or feeRecipient, or if feeRecipient equals admin.
 
@@ -51,11 +56,23 @@ On chainid ≠ 31337 the script **reverts** if listing/rotator/proposer are not 
 
 ## Deploy + verify
 
+### Fork dry-run (recommended before go-ahead)
+
+Spins up `anvil --fork-url` against Gnosis and runs `DeployChiado` **without `--broadcast`**:
+
+```bash
+cd contracts/lok-log
+GNOSIS_RPC_URL=https://rpc.gnosischain.com ./script/simulate-deploy-gnosis-fork.sh
+```
+
+Uses placeholder distinct role addresses (`SIM_*` overridable). Confirms role guards + 1 xDAI mint fee path on a live fork tip. No mainnet txs.
+
+### Simulation against your filled `.env.gnosis` (still no broadcast)
+
 ```bash
 cd contracts/lok-log
 set -a && source .env.gnosis && set +a   # gitignored; no secrets in git
 
-# Simulation first
 forge script script/DeployChiado.s.sol:DeployChiado --rpc-url "$RPC_URL" --sig "run()"
 
 # Broadcast only with go-ahead
