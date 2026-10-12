@@ -328,11 +328,11 @@ export function AuctionBook({ listings, buyer }: Props) {
           </ul>
           <p className="lok-note">{buyNote(plan, qty)}</p>
           <p className="lok-note">
-            Buys pay ETH on-chain via EEZ in one transaction. There is no in-game deposit or log ETH balance —
-            wallet pay lands next.
+            Buys pay ETH on-chain through AhEscrow (EEZ sync from your home chain). There is no in-game deposit —
+            the log only receives the item after the chain fill.
           </p>
-          <button type="button" className="boot-primary" disabled title="EEZ on-chain buy is not wired yet">
-            Pay with ETH (coming)
+          <button type="button" className="boot-primary" disabled title="Wallet EEZ buyAsk path not wired in the client yet">
+            Pay with ETH (wallet)
           </button>
           <YourAsks rows={buying.rows.filter((row) => row.yours)} />
         </div>

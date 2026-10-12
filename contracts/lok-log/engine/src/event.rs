@@ -107,6 +107,15 @@ pub enum Input {
     /// `day` is server-stamped like GoldEarn. Price tables are ruleset content (E3); the amount
     /// is part of the event payload the server appends.
     GoldSell { token_id: U256, item_id: U256, qty: U256, amount: U256, day: u64 },
+    /// On-chain AhEscrow fill mirrored into the log. Moves the ask's stack into the buyer's
+    /// inbox. Does **not** debit or credit settlement ETH/`Key::Kek` — payment already settled
+    /// on-chain. `price_wei` must equal the ask's `min_price` so the mirror cannot disagree
+    /// with the escrow receipt. Appended only by the server after a trusted `AskFilled`.
+    ChainFill {
+        listing_id: U256,
+        buyer: U256,
+        price_wei: U256,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -332,6 +341,12 @@ Input::CancelAsk { listing_id, seller } => {
             buf.u256(qty);
             buf.u256(amount);
             buf.u64(*day);
+        }
+        Input::ChainFill { listing_id, buyer, price_wei } => {
+            buf.b256(&domain(b"LOK_CHAIN_FILL_V1"));
+            buf.u256(listing_id);
+            buf.u256(buyer);
+            buf.u256(price_wei);
         }
     }
     keccak256(&buf.bytes)

@@ -469,6 +469,16 @@ impl World {
         self.apply(Input::Buy { bidder, item_id, listing_id: chosen.id })
     }
 
+    /// Mirror an AhEscrow on-chain fill: item to buyer inbox, no Kek/ETH on the log.
+    pub fn append_chain_fill(
+        &mut self,
+        listing_id: U256,
+        buyer: U256,
+        price_wei: U256,
+    ) -> Result<AppliedEvent, EngineError> {
+        self.apply(Input::ChainFill { listing_id, buyer, price_wei })
+    }
+
     pub fn append_cancel_ask(&mut self, listing_id: U256, seller: U256) -> Result<AppliedEvent, EngineError> {
         self.apply(Input::CancelAsk { listing_id, seller })
     }
@@ -1105,6 +1115,26 @@ impl World {
                 touch.insert(*bidder);
                 touch.insert(chosen.seller);
             }
+            Input::ChainFill { listing_id, buyer, price_wei } => {
+                if *price_wei == U256::ZERO {
+                    return Err(EngineError::ZeroAmount);
+                }
+                let listing = self.listings.get(listing_id).ok_or(EngineError::UnknownListing)?;
+                if !listing.book {
+                    return Err(EngineError::UnknownListing);
+                }
+                if listing.seller == *buyer {
+                    return Err(EngineError::SelfTransfer);
+                }
+                if *price_wei != listing.min_price {
+                    return Err(EngineError::OverAsk);
+                }
+                if !self.characters.contains_key(buyer) || !self.characters.contains_key(&listing.seller) {
+                    return Err(EngineError::NotSpawned);
+                }
+                touch.insert(*buyer);
+                touch.insert(listing.seller);
+            }
             Input::CancelAsk { listing_id, seller } => {
                 let listing = self.listings.get(listing_id).ok_or(EngineError::UnknownListing)?;
                 if !listing.book {
@@ -1323,6 +1353,9 @@ impl World {
                 self.fill(*bidder, *item_id, *amount, *listing_id, touch)
             }
             Input::Buy { bidder, item_id, listing_id } => self.buy(*bidder, *item_id, *listing_id, touch),
+            Input::ChainFill { listing_id, buyer, price_wei } => {
+                self.chain_fill(*listing_id, *buyer, *price_wei, touch)
+            }
             Input::CancelAsk { listing_id, seller } => self.cancel_ask(*listing_id, *seller, touch),
             Input::ReclaimAsk { listing_id, seller, now } => self.reclaim_ask(*listing_id, *seller, *now, touch),
             Input::SendInbox { from, to, item_id, amount } => {
@@ -1904,6 +1937,31 @@ impl World {
             return Err(EngineError::NoAsk);
         }
         self.pay_ask(bidder, &chosen, chosen.min_price, touch)?;
+        self.listings.remove(&listing_id);
+        Ok(())
+    }
+
+    /// Item-only ask fill after AhEscrow paid the seller on-chain.
+    fn chain_fill(
+        &mut self,
+        listing_id: U256,
+        buyer: U256,
+        price_wei: U256,
+        touch: &BTreeSet<U256>,
+    ) -> Result<(), EngineError> {
+        let listing = self.listings.get(&listing_id).cloned().ok_or(EngineError::UnknownListing)?;
+        if !listing.book {
+            return Err(EngineError::UnknownListing);
+        }
+        if listing.seller == buyer {
+            return Err(EngineError::SelfTransfer);
+        }
+        if price_wei != listing.min_price {
+            return Err(EngineError::OverAsk);
+        }
+        if touch.contains(&buyer) {
+            self.credit_inbox(buyer, listing.item_id, listing.amount)?;
+        }
         self.listings.remove(&listing_id);
         Ok(())
     }

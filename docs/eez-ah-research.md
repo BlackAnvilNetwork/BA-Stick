@@ -161,10 +161,10 @@ Gold stays log-only for training/craft — EEZ does not need to touch it.
 
 **Locked:** no player vault deposit/withdraw/send-ETH. Log = game; chain = funds.
 
-**Phase 0 (now):** Gold sinks; refuse client deposit/withdraw/send-ETH/log-balance buy/bid; docs lock EEZ-only pay.
+**Phase 0:** Gold sinks; refuse client deposit/withdraw/send-ETH/log-balance buy/bid; docs lock EEZ-only pay.
 
-**Phase 1 — first-party `AhEscrow` on game domain:**  
-`buyAsk{value}` / `fillAsk{value}` keyed by buyer proxy; item out on log; ETH never enters the log as a balance. Mirror fill **item** effects with new events if needed.
+**Phase 1 (in progress) — first-party `AhEscrow`:**  
+`AhEscrow.sol` `openAsk` / `buyAsk{value}` / `cancelAsk`; pays seller immediately; emits `AskFilled`. Engine `ChainFill` mirrors **items only** (no `Key::Kek`). Server `ah-escrow.ts` decodes fills and applies `chainFill` after a noted on-chain receipt. EEZ sync call from L1 still to wire.
 
 **Phase 2 — EEZ sync buy from L1 (or home rollup):**  
 Client “Pay from Ethereum”; unwrap WETH if needed; one sync call with value.

@@ -101,6 +101,14 @@ export type CustodyInbound =
   | { kind: "depositKek"; tokenId: string; nonce: string; amount: string }
   | { kind: "importItem"; tokenId: string; nonce: string; itemId: string; amount: string };
 
+/** AhEscrow AskFilled the server already saw. Client messages cannot invent these. */
+export type ChainFillInbound = {
+  listingId: string;
+  buyerTokenId: string;
+  priceWei: string;
+  fillKey: string;
+};
+
 const here = dirname(fileURLToPath(import.meta.url));
 
 export function defaultLokDir(): string {
@@ -115,18 +123,18 @@ export function chainModeFromEnv(env: NodeJS.ProcessEnv = process.env): {
   if (!rpc) {
     return {
       chain: "engine-only",
-      note: "No LOK_CHAIN_RPC. ETH (settlement) deposits/withdrawals and item exports stay engine events; no chain is queried and nothing is submitted.",
+      note: "No LOK_CHAIN_RPC. The log governs items and gold only — no vault deposit path. AH pays ETH on-chain via AhEscrow / EEZ when configured.",
     };
   }
-  if (env.LOK_CHECKPOINT?.trim()) {
+  if (env.LOK_AH_ESCROW?.trim() || env.LOK_CHECKPOINT?.trim()) {
     return {
       chain: "watching",
-      note: "Watching the checkpoint for ETH/WETH vault deposits. A withdrawal queues on the vault and waits out its delay. Spendable settlement ETH is debited only after that queue exists.",
+      note: "Chain endpoint set. Player vault deposit/withdraw is closed. AhEscrow AskFilled events mirror item fills into the log (no spendable ETH on the log).",
     };
   }
   return {
     chain: "rpc-unwatched",
-    note: "LOK_CHAIN_RPC is set, but no vault watcher or withdrawal transaction is wired. Deposits, withdrawals, and exports still only append the per-character logs.",
+    note: "LOK_CHAIN_RPC is set, but AhEscrow is not configured. Vault deposit/withdraw stay closed; AH ETH pay is not live on this server.",
   };
 }
 
@@ -172,6 +180,7 @@ export class LokWorld {
   private state: EngineState = { characters: [], listings: [] };
   /** Custody nonces observed by the server. Not loaded from the client and not a chain watcher. */
   private custody = new Map<string, CustodyInbound>();
+  private chainFills = new Map<string, ChainFillInbound>();
   /** Bytes of lok-world.jsonl already folded into the snapshot. */
   private journalBytes = 0;
   /** Accepted events since the snapshot on disk was rewritten. */
@@ -254,6 +263,11 @@ export class LokWorld {
    */
   noteCustodyInbound(inbound: CustodyInbound): void {
     this.custody.set(this.custodyKey(inbound.tokenId, inbound.nonce), inbound);
+  }
+
+  /** Remember an AhEscrow AskFilled before mirroring items via chainFill. */
+  noteChainFill(inbound: ChainFillInbound): void {
+    this.chainFills.set(inbound.fillKey, inbound);
   }
 
   /** Log image of a vault deposit. Credits only a nonce this server already recorded. Never a mint. */
@@ -446,6 +460,25 @@ export class LokWorld {
     const left = BigInt(this.kekOf(bidder) || "0");
     const price = (buyerKek - left).toString();
     return { ...bought, price };
+  }
+
+  /**
+   * Mirror an on-chain AhEscrow fill into the log (items only). Requires a prior
+   * noteChainFill for the same fillKey. Does not credit or debit settlement ETH.
+   */
+  chainFill(listingId: string, buyer: string, priceWei: string, fillKey: string): LokResult {
+    const noted = this.chainFills.get(fillKey);
+    if (
+      !noted ||
+      noted.listingId !== listingId ||
+      noted.buyerTokenId !== buyer ||
+      noted.priceWei !== priceWei
+    ) {
+      return { ok: false, error: "AhEscrow fill is not a recorded on-chain fill" };
+    }
+    const res = this.apply({ op: "chainFill", listingId, buyer, priceWei });
+    if (res.ok) this.chainFills.delete(fillKey);
+    return res;
   }
 
   /**

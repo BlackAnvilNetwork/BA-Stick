@@ -59,8 +59,8 @@ Caveats (do not paper over):
 1. **Docs / CONTRACTS.md** — this file; unlock KEK-as-spend; lock gold + WETH + EEZ (done).
 2. **E1 gold ledger** — engine `GoldEarn` / `GoldSpend` / `GoldSell` with daily caps; trainer, craft, and respec spend gold; harvest credits a placeholder gold faucet (tune in E5).
 3. **Game-side WETH escrow** — first-party contracts: bid/list/PvP stake hold WETH; settle pays seller / winner. Prefer WETH ERC-20 on the game rollup for AH book math; wrap native `value` from EEZ calls at the edge.
-4. **EEZ wiring** — register Bellgrave rollup (or host AH/PvP contracts where EEZ can target them); client builds sync calls so L1 ETH funds escrow without a pre-deposit. Do not depend on upstream periphery Bridge for production.
-5. **Engine log** — item list/cancel/fill mirrors only (plus gold). No spendable ETH balance on the log for new play. Client cannot invent custody.
+4. **AhEscrow + EEZ** — `AhEscrow.sol` `buyAsk{value}` (done); register Bellgrave rollup and client sync calls so L1 ETH funds the fill. Do not depend on upstream periphery Bridge.
+5. **Engine log** — `chainFill` mirrors item inbox only after a trusted `AskFilled` (done). No spendable ETH on the log. Client cannot invent custody.
 6. **Anvil / EEZ e2e** — sync buy with `value` → item to buyer / ETH to seller; golden replay of gold + historical KEK fixtures on a fresh wipe.
 
 ## Open decisions (unchanged or narrowed)

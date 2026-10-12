@@ -28,15 +28,15 @@ const SAMPLE = {
   data: "0x0000000000000000000000000000000000000000000000000000000000004e20000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266",
 };
 
-test("chain mode stays engine-only until an rpc is set, and watching needs a checkpoint", () => {
+test("chain mode stays engine-only until an rpc is set; watching needs AhEscrow or checkpoint", () => {
   assert.equal(chainModeFromEnv({}).chain, "engine-only");
   assert.equal(chainModeFromEnv({ LOK_CHAIN_RPC: "http://127.0.0.1:8545" }).chain, "rpc-unwatched");
   const watching = chainModeFromEnv({
     LOK_CHAIN_RPC: "http://127.0.0.1:8545",
-    LOK_CHECKPOINT: "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707",
+    LOK_AH_ESCROW: "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707",
   });
   assert.equal(watching.chain, "watching");
-  assert.match(watching.note, /queues on the vault/i);
+  assert.match(watching.note, /AhEscrow|no spendable ETH/i);
 });
 
 test("a vault deposit log credits the character once and a replay does not", () => {

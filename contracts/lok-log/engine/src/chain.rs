@@ -514,6 +514,11 @@ pub(crate) fn parse_input(value: &serde_json::Value) -> Result<Input, String> {
             amount: req_u256(value, "amount")?,
             day: req_u64(value, "day")?,
         }),
+        "chainFill" => Ok(Input::ChainFill {
+            listing_id: req_u256(value, "listingId")?,
+            buyer: req_u256(value, "buyer")?,
+            price_wei: req_u256(value, "priceWei")?,
+        }),
         other => Err(format!("unknown input type {other}")),
     }
 }
@@ -731,6 +736,12 @@ Input::CancelAsk { listing_id, seller } => serde_json::json!({
             "qty": s(qty),
             "amount": s(amount),
             "day": day,
+        }),
+        Input::ChainFill { listing_id, buyer, price_wei } => serde_json::json!({
+            "type": "chainFill",
+            "listingId": s(listing_id),
+            "buyer": s(buyer),
+            "priceWei": s(price_wei),
         }),
     }
 }

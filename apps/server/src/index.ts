@@ -200,6 +200,7 @@ import { endClaim, guardedKekMove, guardedWithdraw, prepareClaim, readWithdrawIn
 import { characterNameKey, normalizeCharacterName } from "./character-name";
 import { randomBytes } from "node:crypto";
 import { authAllowlist, authVerifyClient, clientAddress, dropAuthConnection, issueAuthChallenge, resolveAuthOrigin, verifyAuthLogin, isEthAddress } from "./wallet-auth";
+import { ahEscrowAddress, openAskCastArgs } from "./ah-escrow";
 import { defaultLokDir, LokWorld } from "./lok-world";
 import { readPlayerProgress, reconcileCharacterProgress, playerProgressPath, rememberLedger, chargeSkillRespec, RESPEC_KEK_COST, shouldChargeForAbility, type PlayerProgress } from "./player-progress";
 import { debugCheatsEnabled } from "./debug-cheats";
@@ -912,6 +913,40 @@ function handleLokList(p: Player, tokenId: number, amount: number, minPrice: str
   if (!res.ok) {
     pushLog(p, res.error);
     return;
+  }
+  const escrow = ahEscrowAddress();
+  const rpc = process.env.LOK_CHAIN_RPC?.trim();
+  const key = process.env.LOK_OWNER_KEY?.trim() || process.env.LOK_LISTING_KEY?.trim();
+  if (escrow && rpc && key && res.listingId && p.wallet) {
+    void import("node:child_process")
+      .then(({ execFile }) => {
+        const args = openAskCastArgs(
+          escrow,
+          res.listingId!,
+          token,
+          p.wallet,
+          String(tokenId),
+          String(amount),
+          minPrice,
+          rpc,
+          key,
+        );
+        execFile("cast", args, { timeout: 60_000 }, (err) => {
+          if (err) {
+            console.error("[bellgrave] AhEscrow openAsk failed for listing", res.listingId, err.message);
+            pushLog(
+              p,
+              "Listed #" +
+                res.listingId +
+                " on the log, but the on-chain ask could not be opened yet. Buyers cannot pay ETH until it is registered.",
+            );
+            send(p.ws, snapshotFor(p));
+          }
+        });
+      })
+      .catch(() => {
+        /* cast optional */
+      });
   }
   pushLog(
     p,

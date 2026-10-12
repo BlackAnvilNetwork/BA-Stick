@@ -231,7 +231,8 @@ impl Engine {
             | Input::CancelAsk { .. }
             | Input::ReclaimAsk { .. }
             | Input::SendInbox { .. }
-            | Input::TakeInbox { .. } => Err(EngineError::NotOnCharacterLog),
+            | Input::TakeInbox { .. }
+            | Input::ChainFill { .. } => Err(EngineError::NotOnCharacterLog),
             Input::LevelUp { token_id, level } => self.apply_level(*token_id, *level),
             Input::LearnAbility { token_id, ability_id } => self.learn(*token_id, ability_id),
             Input::Craft { token_id, item_id, amount } => self.note_craft(*token_id, *item_id, *amount),
