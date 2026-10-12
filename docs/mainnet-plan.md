@@ -1,37 +1,37 @@
-# Mainnet plan (PR #212 → Ethereum L1 settlement)
+# Mainnet plan (PR #212 → MegaETH settlement)
 
 **Status:** planning + redeploy-ready escrow/app work; **no deploy / no merge** without go-ahead.  
-**Hard stops:** no merge to `main`; no shared-anvil or mainnet redeploy without explicit user go-ahead.  
+**Hard stops:** no merge to `main`; no shared-anvil / MegaETH redeploy without explicit user go-ahead.  
 **Credentials:** operator keys / `PRIVATE_KEY` / WalletConnect project ids live in gitignored `.env` only — never commit.
 
 ## Settlement domain (locked)
 
-**Ethereum mainnet (L1)** is Bellgrave’s settlement domain. These live on L1:
+**MegaETH** is Bellgrave’s settlement domain. These contracts live on MegaETH:
 
-| Contract / surface | On L1 |
-|--------------------|-------|
+| Contract / surface | On MegaETH |
+|--------------------|------------|
 | `CharacterNFT` | yes |
 | `CharacterFactory` (mint fee) | yes |
 | `AhEscrow` (AH pay / 1% fee) | yes |
 | Item exports (checkpoint → ERC-1155 mint to `ownerOf`) | yes |
 | `CharacterCheckpoint` + `RulesetRegistry` | yes |
 
-Players with an **Ethereum home wallet** for v1 never leave L1 for mint or buy: those are **plain same-chain txs**. They do **not** need EEZ. EEZ is reserved for **future L2 home chains** that must reach L1 escrow/mint without a vault deposit.
+**v1 player home chain = Ethereum mainnet.** Players stay on Ethereum for login (sign-only) and for paying mint fees / AH buys. Value reaches MegaETH via **EEZ if/when MegaETH is an EEZ zone**, otherwise via a **bridge + sponsored MegaETH tx** fallback. **No player wallet needs MegaETH** (no chain switch for login, mint, or buy).
 
-The **game log** (items, gold, character progress) stays on the **server** and is **anchored** to L1 via signed checkpoints (see §3c).
+Server keys pay **MegaETH gas** for `openAsk` / `cancelAsk` / transfer-cancels / checkpoints — gas is cheap on MegaETH (base fee ≈ 0.001 gwei).
 
 ---
 
 ## Design rules (locked)
 
-| # | Rule | v1 (Ethereum home) | Later (L2 home) |
-|---|------|--------------------|-----------------|
-| 1 | Character creation reads the connected address, takes the ETH mint fee, mints NFT to that address | **Same-chain** `createCharacterFor{value}` on L1 | EEZ sync `value` → L1 factory |
-| 2 | Listing seller = current `ownerOf(character)`; owner change **cancels** open listings (cancel-only) | unchanged | unchanged |
-| 3 | Buys paid from buyer’s home; seller paid at **current `ownerOf`** at fill | **Same-chain** `buyAsk{value}` on L1 | EEZ sync → L1 `AhEscrow` |
-| 4 | Claims / payouts → `ownerOf(character)` at claim time — never client-supplied | unchanged | unchanged |
-| 5 | Login = signed message, **no chain switch**; WC 31337 **dev-only** | unchanged | unchanged |
-| 6 | Item exports mint to the **owner** address | L1 checkpoint | unchanged |
+| # | Rule | v1 (Ethereum home → MegaETH settle) |
+|---|------|-------------------------------------|
+| 1 | Character creation reads connected address, takes ETH fee, mints NFT to that address | Fee paid **from Ethereum**; NFT minted on **MegaETH** to that address (EEZ sync or bridge+sponsor) |
+| 2 | Listing seller = `ownerOf(character)`; owner change **cancels** open listings | Unchanged (MegaETH NFT + Transfer watcher) |
+| 3 | Buys paid from buyer’s home; seller paid at **current `ownerOf`** at fill | Pay **from Ethereum**; `buyAsk` on **MegaETH** pays `ownerOf` + 1% fee |
+| 4 | Claims / payouts → `ownerOf` at claim time — never client-supplied | Unchanged |
+| 5 | Login = signed message, **no chain switch**; WC 31337 **dev-only** | Wallet stays on Ethereum (or whatever home); **never required to add MegaETH** |
+| 6 | Item exports mint to the **owner** address | On MegaETH via checkpoint |
 
 ---
 
@@ -39,113 +39,139 @@ The **game log** (items, gold, character progress) stays on the **server** and i
 
 | Rule | Status | Notes |
 |------|--------|--------|
-| **1** Mint | **PARTIAL** | Mint-first on configured chain today. Point contracts + client at **L1**; no EEZ for v1 Ethereum-home. |
-| **2** List / owner change | **APP DONE** | `ownerOf` at list; Transfer cancel-only + pending retry. |
-| **3** Buy + pay current owner | **CONTRACT READY** | Redeploy-ready `buyAsk` → `ownerOf` + 1% fee. v1 = direct L1 `buyAsk`; EEZ mock stays for future L2 tests. |
+| **1** Mint from Ethereum → MegaETH | **PARTIAL** | Mint-first on configured chain today. Need MegaETH deploy + EEZ or bridge+sponsor path so the payer never switches to MegaETH. |
+| **2** List / owner change | **APP DONE** | `ownerOf` at list; Transfer cancel-only + pending retry (MegaETH RPC). |
+| **3** Buy from Ethereum → MegaETH | **CONTRACT READY** / path pending | Redeploy-ready `buyAsk` → `ownerOf` + 1% fee on MegaETH. Client/sponsor path from Ethereum TBD (EEZ or bridge). |
 | **4** Claims → `ownerOf` | **OK** | Checkpoint + AH fill. |
-| **5** Login / WC | **APP DONE** | Sign-only; 31337 gated. |
+| **5** Login / WC | **APP DONE** | Sign-only; no MegaETH in required chains. |
 | **6** Export → owner | **OK** | Unchanged. |
 
 ### App / contract work in this branch (not deployed)
 
-- `AhEscrow`: immutable `characterNft`, `feeRecipient`, `FEE_BPS = 100`; `buyAsk` pays `ownerOf` then 1% fee; no frozen payout in `openAsk`.
-- Forge tests: ownerOf-at-fill, fee rounding, Deploy wiring.
-- Protocol `ahFeeSplit` + UI fee copy on list and buy.
-- Transfer-cancel watcher: pending cancels + retry; confirmations; skip self-transfers; AskCancelled classify; list re-checks `ownerOf` after `openAsk`.
+- `AhEscrow`: immutable `characterNft`, `feeRecipient`, `FEE_BPS = 100`; `buyAsk` pays `ownerOf` then 1% fee.
+- Forge tests + UI fee copy; AskFilled `feeWei` decode.
+- Transfer-cancel watcher: pending retries, confirmations, skip self-transfers, AskCancelled classify, list re-checks `ownerOf` after `openAsk`.
 
 ### Still needs go-ahead / redeploy / out-of-band
 
-- Batched L1 redeploy of the package in §4.
+- MegaETH deploy of the package in §4.
+- EEZ registration **or** bridge+sponsor wiring (see §2).
 - Production WalletConnect project id.
 - Decision **(7)** redeploy timing + multisig holder.
 
 ---
 
-## 2. EEZ — when it applies
+## 2. EEZ support for MegaETH — check + fallback
 
-| Phase | Player home | Mint / AH buy path |
-|-------|-------------|--------------------|
-| **v1** | Ethereum mainnet | **Plain L1 txs** to factory / `AhEscrow`. **No EEZ.** |
-| **Later** | EEZ-zone L2s | EEZ sync `value` into the **same** L1 contracts. |
+### What EEZ requires
 
-Local `MockEezSyncBuy` on 31337 remains a throwaway stand-in for the L2 path — not a v1 production dependency.
+[eez-core-protocol](https://github.com/eez-association/eez-core-protocol) only sync-composes **registered EEZ rollups** in the same economic zone (deterministic `CrossChainProxy`, proven batches, native ETH `value`). It is **not** a general bridge to arbitrary L2s. Upstream is early / unaudited; live public path today is roughly **Chiado testnet Rollup 0**, not production MegaETH.
 
-Upstream `periphery/Bridge.sol` stays **test-only**. Price policy unchanged: exact-price preferred; pull-refund on overshoot; underpay reverts.
+### Does EEZ support MegaETH today?
+
+| Check | Finding (as of this plan) |
+|-------|---------------------------|
+| MegaETH listed as EEZ Alliance / registered zone | **No** — not in published alliance/member lists; no public MegaETH rollup id in EEZ docs |
+| Sync calls Eth ↔ MegaETH with proven outcomes | **Not available** publicly |
+| Proven atomic fill (Eth pay → MegaETH `buyAsk` / mint in one sync window) | **Blocked** until MegaETH is an EEZ zone with a live composer/prover |
+
+**Verdict:** treat EEZ→MegaETH as **aspirational / out of band**. Do **not** block MegaETH redeploy on EEZ readiness.
+
+### Fallback when EEZ does not support MegaETH
+
+Constraint: **player wallets must not need MegaETH**.
+
+| Step | Who | Where |
+|------|-----|--------|
+| 1. Player signs mint/buy intent (and/or pays escrow on Ethereum) | Player | Ethereum |
+| 2. ETH moved Eth → MegaETH | Bridge (e.g. official MegaETH bridge / rabbithole) + **server/relayer** | Eth → MegaETH |
+| 3. `createCharacterFor` / `buyAsk` submitted | **Server listing/relayer key** (sponsors MegaETH gas) | MegaETH |
+| 4. NFT / fill / fee land; item mirrored via `AskFilled` → `chainFill` | Contracts + watcher | MegaETH + server log |
+
+Tradeoffs vs EEZ: not atomic with the Ethereum payment in one proven sync window; need bridge finality + reconciliation; more custody/ops in the relayer. Prefer EEZ if MegaETH ever joins; ship fallback so v1 can launch on MegaETH without waiting.
+
+Local `MockEezSyncBuy` on 31337 remains a **dev stand-in** for a future sync path — not a MegaETH production dependency.
+
+Price policy (either path): exact-price preferred; pull-refund on overshoot; underpay reverts.
 
 ---
 
-## 3. Relayer / gas model (all L1)
+## 3. MegaETH chain parameters + watchers
 
-### 3a. Who pays what (v1)
+### 3a. Network (verify against [MegaETH docs](https://docs.megaeth.com/user-guide/connect) before deploy)
+
+| | Mainnet | Testnet |
+|--|---------|---------|
+| **Chain ID** | **4326** (`0x10e6`) | **6343** (`0x18c7`) |
+| **RPC** | `https://mainnet.megaeth.com/rpc` | `https://carrot.megaeth.com/rpc` |
+| **WS** | `wss://mainnet.megaeth.com/ws` | `wss://carrot.megaeth.com/ws` |
+| **Native gas** | ETH, 18 decimals | same |
+| **Base fee** | ≈ **0.001 gwei** (adjustment effectively disabled) | same |
+| **Block time** | Mini-blocks ≈ **10ms**; EVM blocks ≈ **1s** | same |
+
+Env target after redeploy: `LOK_CHAIN_ID=4326`, `LOK_CHAIN_RPC` / `LOK_PUBLIC_RPC` → MegaETH mainnet (or testnet for dry run).
+
+### 3b. Finality and reorg depth (for AskFilled / Transfer watchers)
+
+| Layer | Meaning |
+|-------|---------|
+| **Mini-block / `latest`** | Sequencer **preconfirmation** (~10ms). Signed commitment; **not** L1 finality. |
+| **EVM block** | Sealed ~1s; still MegaETH-local until posted. |
+| **L1-finalized** | Full finality once the containing batch/anchor is finalized on Ethereum. L1 reorgs can roll back MegaETH state (rare but documented — apps must handle rollbacks). |
+
+**Watcher policy (recommended):**
+
+- Do **not** treat mini-block tip as final for irreversible log effects (`chainFill`, permanent cancel).
+- Scan / apply using **EVM block** numbers with a confirmation lag, then optionally tighten to an L1-safe tag when the RPC exposes one.
+- Current code defaults (`ASK_FILL_CONFIRMATIONS = 2`, `NFT_TRANSFER_CONFIRMATIONS = 2`) are fine for anvil; on MegaETH raise to a depth that survives short reorgs / RPC skew — **start at ≥ 12 EVM blocks (~12s)** for production, and revisit once an L1-finalized/safe block tag is wired.
+- Pending-cancel retries already cover “preconfirm then rollback then reappear” better than cursor-only advance.
+
+### 3c. Gas model (server on MegaETH)
 
 | Who | Pays |
 |-----|------|
-| **Player (L1)** | Mint fee + mint gas; AH `buyAsk` value + buy gas; login is sign-only (no gas). |
-| **Server `LOK_LISTING_KEY`** | L1 `openAsk` / `cancelAsk` / transfer-driven cancels. |
-| **Server rotator / checkpoint submitter** | L1 `checkpoint(...)` gas. |
-| **Players** | Do **not** need a separate “game chain” — settlement **is** L1. Listing today is server-paid so players need no listing gas. |
+| **Player (Ethereum)** | Mint/buy **value** (via EEZ or bridge escrow) + Ethereum gas for the Eth-side tx / intent. **No MegaETH gas.** |
+| **Server `LOK_LISTING_KEY`** | MegaETH `openAsk` / `cancelAsk` / transfer-cancels (~138k / ~30k gas — **cheap** at 0.001 gwei). |
+| **Server rotator / checkpoint** | MegaETH `checkpoint` gas (also cheap). |
+| **Relayer (fallback path)** | MegaETH mint/`buyAsk` gas when sponsoring; bridge fees as applicable. |
 
-### 3b. Rough L1 gas (forge averages on current AhEscrow / Checkpoint)
+No separate L1-gas-reduction program: MegaETH fees make server-paid listing/cancel/checkpoint the default v1 model.
 
-Measured execution gas (not including L1 base fee / priority fee volatility):
+### 3d. Wallets never need MegaETH
 
-| Call | ~gas (forge) | At 20 gwei, ETH≈$2.5k (illustrative) |
-|------|--------------|--------------------------------------|
-| `openAsk` | ~138k | ~$6.9 |
-| `cancelAsk` | ~30k | ~$1.5 |
-| `buyAsk` (player-paid) | ~80–130k | ~$4–6.5 + sale value |
-| `checkpoint` (median) | ~70k (wide range; exports inflate) | ~$3.5 (can spike) |
+| Flow | Player wallet chain |
+|------|---------------------|
+| Login | Home (Ethereum) — **sign only**, no switch |
+| Mint / AH buy | Ethereum payment / intent; MegaETH execution by EEZ proxy or server sponsor |
+| List | In-game only; server opens ask on MegaETH |
+| WalletConnect optionalChains | Ethereum (+ Robinhood/dev as today); **do not require** 4326 for play |
 
-**Ops load (order of magnitude):**  
-100 lists/day ≈ 14M gas ≈ **~$0.7k/mo** at 20 gwei if ETH is $2.5k — or **several $k/mo** if gas is hot. Transfer cancels and reclaim cancels add ~30k each. Checkpoints scale with how often the server commits character ranges (exports make them expensive).
+`ownerOf` and other reads are `eth_call` against MegaETH RPC — **no gas**, server-side only.
 
-These USD figures are **illustrative only**; treat them as a planning band, not a quote.
+### 3e. Where the game log anchors
 
-### 3c. Where the game log and checkpoints anchor
-
-| Layer | Location | Role |
-|-------|----------|------|
-| **Character log** (items, gold, asks, fills) | **Server data dir** (`lok-world` journal + wasm engine) | Authoritative for gameplay. |
-| **Checkpoint** | **Ethereum L1** `CharacterCheckpoint` | Commits log roots / exports / inbound consumption so the chain can mint exports and verify progress. |
-| **AH / mint value** | **Ethereum L1** factory + `AhEscrow` | Funds never credit the log. |
-
-v1: one domain — L1 holds NFTs, escrow, and checkpoint anchors; the server holds the mutable log and pays L1 gas to open/cancel asks and to submit checkpoints.
-
-### 3d. `ownerOf` reads stay cheap for the server
-
-`ownerOf` is an **`eth_call`** (view): **no L1 gas**, only RPC latency/rate limits. Used at list time, after `openAsk` (race check), at fill inside `buyAsk` (on-chain, paid by the buyer’s tx), and by the Transfer watcher (log scan + view calls). Safe to call often; bottleneck is RPC quota, not ETH.
-
----
-
-## 3e. Ways to cut server L1 gas (tradeoffs for the user)
-
-| Option | Idea | Saves | Tradeoffs |
-|--------|------|-------|-----------|
-| **A. Status quo** | Server `LISTING_ROLE` opens/cancels every ask immediately | — | Predictable UX; **server pays all list/cancel gas** on L1. |
-| **B. Seller-signed listing, opened lazily at buy** | Seller signs an EIP-712 ask; first buyer (or relayer) submits `openAsk`+`buyAsk` (or a combined entrypoint) | Almost all `openAsk` gas moves off the server (or into the buyer’s tx) | More contract surface; cancel/expiry must be signature-aware; Transfer-cancel must invalidate signed asks off-chain; worse “browse live book” unless the server still indexes intents. |
-| **C. Seller pays `openAsk`** | Seller’s wallet submits `openAsk` (or server sponsors only when seller deposits a listing bond) | Shifts gas to sellers | Needs wallet UX + L1 ETH in the seller wallet; breaks “list with one click while on any chain” for L2-era players. |
-| **D. Batch open/cancel** | Multicall / batch `openAsk`/`cancelAsk` in one tx | Amortizes base fee across N asks | Complexity; failure atomicity; Transfer-cancel still may need per-id cancels. |
-| **E. Fewer checkpoints / export-gated** | Checkpoint only when exporting or on a slow cadence | Cuts rotator gas | Longer unanchored log window; export UX must trigger a checkpoint. |
-| **F. Keep server-paid lists for v1, revisit at L2** | Ship A now; design B when EEZ L2 homes appear | Lowest short-term eng cost | Accept L1 listing OpEx until volume forces a change. |
-
-**Recommendation to discuss:** ship **F** for v1 (server-paid immediate lists on L1) with metering/alerts on the listing key; prototype **B** before L2 homes if list volume or gas spikes. Ask through Grok Bot which option to lock.
+| Layer | Location |
+|-------|----------|
+| Character log (items, gold, asks) | **Server** |
+| Checkpoint / NFT / escrow / exports | **MegaETH** |
+| Player funds (v1) | **Ethereum** until EEZ/bridge moves value into MegaETH escrow/mint |
 
 ---
 
 ## 4. Redeploy package (batched — needs go-ahead)
 
-Do **not** run until the user approves. Target: **Ethereum mainnet**.
+Do **not** run until the user approves. Target: **MegaETH** (testnet dry-run optional).
 
 | Piece | Action |
 |-------|--------|
-| **AhEscrow** | Deploy with `(admin, characterNft, feeRecipient)`; `LISTING_ROLE`; fee recipient = multisig; `buyAsk` → `ownerOf` + 1%. |
-| **CharacterFactory** | `createCharacterFor`; native ETH mint fee on L1. |
+| **AhEscrow** | Deploy with `(admin, characterNft, feeRecipient)`; `LISTING_ROLE`; 1% fee; `buyAsk` → `ownerOf`. |
+| **CharacterFactory** | `createCharacterFor`; native ETH mint fee on MegaETH. |
 | **CharacterNFT / Checkpoint** | Per Deploy.s.sol; drop KekVault custody for new play. |
 | **RulesetRegistry** | New ruleset after wasm bump; timelock; accept. |
-| **Reproducible wasm** | Remapped rebuild; pin `LOCAL_RULESET_WASM_SHA256` + `LOCAL_RULESET_HASH`. |
+| **Reproducible wasm** | Remapped rebuild; pin hash + wasm sha256. |
 | **Historical ItemDrop allowlist** | Keep `HISTORICAL_ITEM_DROP_MAX_SEQ`. |
-| **Env / clients** | `LOK_CHAIN_ID=1`, L1 RPCs, production WC project id; disable `LOK_DEV_*`. |
-| **EEZ** | **Not required for v1.** Keep mock path for future L2 work only. |
+| **Env / clients** | `LOK_CHAIN_ID=4326`, MegaETH RPCs, production WC id; disable `LOK_DEV_*`. |
+| **EEZ / bridge** | Prefer EEZ when MegaETH is a zone; else ship bridge+sponsor. Mock EEZ stays local-only. |
 
 ---
 
@@ -157,10 +183,10 @@ Do **not** run until the user approves. Target: **Ethereum mainnet**.
 |---|----------|
 | 1 | **AH fill payout:** `buyAsk` pays `ownerOf(sellerTokenId)`. |
 | 2 | **Owner change:** **cancel-only**. |
-| 3 | **Home chains (v1):** Ethereum mainnet only; L2s later. |
-| 4 | **Mint UX:** player-signed tx only (v1 = L1 same-chain; no intent+relayer). |
-| 5 | **AH fee:** 1% floor in escrow at fill; UI shows it; fee → multisig/admin recipient. |
-| **6** | **Settlement domain:** **Ethereum mainnet.** NFT, factory, AhEscrow, exports, checkpoints on L1. v1 Ethereum-home mint/buy = **same-chain** (no EEZ). EEZ only for future L2 homes. |
+| 3 | **Home chains (v1):** Ethereum mainnet; L2 homes later. |
+| 4 | **Mint UX:** player-signed from home; no intent+relayer **required** for EEZ path; fallback may use sponsor/relayer so wallet stays off MegaETH. |
+| 5 | **AH fee:** 1% floor in escrow; UI shows it; fee → multisig/admin. |
+| **6** | **Settlement domain:** **MegaETH** (NFT, factory, AhEscrow, exports, checkpoints). Players stay on Ethereum; value via EEZ **or** bridge if EEZ lacks MegaETH. |
 | 8 | **WalletConnect:** separate production project id. |
 
 ### Still TBD (ask through Grok Bot when needed)
@@ -168,17 +194,17 @@ Do **not** run until the user approves. Target: **Ethereum mainnet**.
 | # | Open |
 |---|------|
 | **7** | **Redeploy timing** and **who holds the MULTISIG**? |
-| **Gas cut** | Confirm v1 listing model: **F** (server-paid) vs **B/C/D** above. |
+| **EEZ vs bridge** | Confirm fallback sponsor/bridge vendor for Eth→MegaETH until EEZ supports MegaETH. |
+| **Watcher depth** | Confirm production confirmation count / L1-safe tag on MegaETH RPC. |
 
 ---
 
 ## 6. Verification checklist (before asking to redeploy)
 
-- [x] Rules 2/4/5 app paths.
-- [x] Transfer → cancel (pending retry, confirmations, self-transfer skip).
-- [x] Escrow `ownerOf` + 1% fee forge tests + UI fee display.
-- [x] Plan reflects L1 settlement + same-chain v1 (this revision).
+- [x] Rules 2/4/5 app paths + transfer-cancel hardening + escrow fee/`ownerOf`.
+- [x] Plan reflects **MegaETH** settlement + Ethereum home + EEZ/bridge fallback (this revision).
+- [ ] MegaETH testnet dry-run of Deploy + mint + `buyAsk` + watchers.
 - [ ] `check-wasm-pin.mjs --no-build` matches committed pin.
-- [ ] User go-ahead for merge and for L1 redeploy (separate).
+- [ ] User go-ahead for merge and for MegaETH redeploy (separate).
 - [ ] Decision **(7)** multisig + timing answered.
-- [ ] Listing gas model (**F** vs alternatives) confirmed.
+- [ ] EEZ registration status re-checked; bridge+sponsor path specified if still unsupported.
