@@ -802,48 +802,8 @@ function handleLokSendItem(p: Player, to: string, tokenId: number, amount: numbe
   send(p.ws, snapshotFor(p));
 }
 
-function handleLokSendKek(p: Player, to: string, amount: string) {
-  const token = lokToken(p);
-  if (!token) {
-    pushLog(p, "Could not open your log identity.");
-    return;
-  }
-  const dest = resolveSendTarget(p, to, token);
-  if (!dest.ok) {
-    pushLog(p, dest.error);
-    return;
-  }
-  void guardedKekMove(token, async () => {
-    const gate = await vaultClaimBlocked();
-    if (gate.blocked) {
-      pushLog(p, gate.error);
-      send(p.ws, snapshotFor(p));
-      return;
-    }
-    let free = 0n;
-    let cost = 0n;
-    try {
-      free = BigInt(lok.kekOf(token)) - reservedOf(token);
-      cost = BigInt(amount);
-    } catch {
-      pushLog(p, "Bad KEK amount. Nothing was sent.");
-      send(p.ws, snapshotFor(p));
-      return;
-    }
-    if (free < cost) {
-      pushLog(p, "Need " + amount + " KEK (you have " + free.toString() + " spendable). Nothing was sent.");
-      send(p.ws, snapshotFor(p));
-      return;
-    }
-    const res = lok.sendKek(token, dest.tokenId, amount);
-    if (!res.ok) pushLog(p, res.error);
-    else {
-      sinkOrMove({ kind: "reassign", fromId: token, toId: dest.tokenId, amount });
-      pushLog(p, "Sent " + amount + " KEK to " + dest.name + ".");
-      tellToken(dest.tokenId, p.name + " sent you " + amount + " KEK.");
-    }
-    send(p.ws, snapshotFor(p));
-  }).catch(() => failAction(p, "KEK send"));
+function handleLokSendKek(p: Player, _to: string, _amount: string) {
+  refuseFundCustody(p, "Send ETH");
 }
 
 function failAction(p: Player, label: string): void {
@@ -916,73 +876,25 @@ function earnLogGold(p: Player, source: string, amount: number): void {
   if (!res.ok) pushLog(p, "Gold was not written to your log: " + res.error);
 }
 
-function handleLokDeposit(p: Player, amount: string) {
-  const token = lokToken(p);
-  if (!token) {
-    pushLog(p, "Could not open your log identity.");
-    return;
-  }
-  void depositKekOnchain(token, amount).then((res) => {
-    if (!res.ok) pushLog(p, res.error);
-    else {
-      pushLog(
-        p,
-        "Submitted a MockKEK deposit of " + amount + ". The watcher credits it when the nonce is applied. Nothing was minted.",
-      );
-    }
-    send(p.ws, snapshotFor(p));
-  }).catch(() => failAction(p, "KEK deposit"));
+function refuseFundCustody(p: Player, action: string) {
+  pushLog(
+    p,
+    action +
+      " is closed. The log does not hold ETH — auction house and PvP pay on-chain via EEZ. Nothing was changed.",
+  );
+  send(p.ws, snapshotFor(p));
 }
 
-function handleLokWithdrawKek(p: Player, amount: string) {
-  const token = lokToken(p);
-  if (!token) {
-    pushLog(p, "Could not open your log identity.");
-    return;
-  }
-  void guardedWithdraw({
-    token,
-    amount,
-    balanceOf: () => lok.kekOf(token),
-    noteIntent: (intent) => upsertWithdrawIntent(withdrawIntentPath(defaultLokDir()), intent),
-    clearIntent: () => removeWithdrawIntent(withdrawIntentPath(defaultLokDir()), token),
-    debit: () => ({ ok: true as const }),
-    queue: () => queuePlayerWithdrawal(p, token, amount),
-    confirm: (id) => vaultWithdrawalMatches(id, token, amount),
-  }).then((res) => {
-    if (!res.ok) pushLog(p, res.error);
-    else {
-      const delay = vaultDelaySec();
-      const wait = delay ? Math.round(delay / 3600) + "h" : "the vault delay";
-      pushLog(
-        p,
-        "Queued vault withdrawal #" + res.id + " for " + amount + " KEK. It is not paid out before " + wait + ". That KEK was reserved before the vault call and debited once the queue existed.",
-      );
-    }
-    send(p.ws, snapshotFor(p));
-  }).catch(() => failAction(p, "KEK withdrawal"));
+function handleLokDeposit(p: Player, _amount: string) {
+  refuseFundCustody(p, "Deposit");
 }
 
-function handleLokClaim(p: Player, id: string) {
-  const token = lokToken(p);
-  if (!token) {
-    pushLog(p, "Could not open your log identity.");
-    return;
-  }
-  const row = withdrawalById(id);
-  const gate = prepareClaim(token, row && row.status === "pending" ? row : undefined, Date.now());
-  if (!gate.ok) {
-    pushLog(p, gate.error);
-    return;
-  }
-  void claimQueuedWithdrawal(id)
-    .then((res) => {
-      if (!res.ok) pushLog(p, res.error);
-      else pushLog(p, "Claimed vault withdrawal #" + id + ". It was already debited from spendable KEK when it was queued.");
-      send(p.ws, snapshotFor(p));
-    })
-    .catch(() => failAction(p, "KEK claim"))
-    .finally(() => endClaim(token));
+function handleLokWithdrawKek(p: Player, _amount: string) {
+  refuseFundCustody(p, "Withdrawal");
+}
+
+function handleLokClaim(p: Player, _id: string) {
+  refuseFundCustody(p, "Vault claim");
 }
 
 function handleLokList(p: Player, tokenId: number, amount: number, minPrice: string) {
@@ -1003,7 +915,15 @@ function handleLokList(p: Player, tokenId: number, amount: number, minPrice: str
   }
   pushLog(
     p,
-    "Listed " + itemLabel(tokenId) + " x" + amount + " as #" + res.listingId + " for at least " + minPrice + " KEK. The auction house is holding it.",
+    "Listed " +
+      itemLabel(tokenId) +
+      " x" +
+      amount +
+      " as #" +
+      res.listingId +
+      " for at least " +
+      minPrice +
+      " ETH (paid on-chain via EEZ when filled). The auction house is holding the item.",
   );
   send(p.ws, snapshotFor(p));
 }
@@ -1056,32 +976,8 @@ function noteQuantityBuy(
   pushLog(p, head + charged + " The stacks are in your Provisioner inbox." + why);
 }
 
-function handleLokBuy(p: Player, itemId: number, qty?: number) {
-  const token = lokToken(p);
-  if (!token) {
-    pushLog(p, "Could not open your log identity.");
-    return;
-  }
-  void guardedKekMove(token, async () => {
-    // A buy moves vault claims (seller credit, buyer debit) and enqueues a
-    // reassign, so it waits on the same gate as sendKek, spend, and respec.
-    const gate = await vaultClaimBlocked();
-    if (gate.blocked) {
-      pushLog(p, gate.error);
-      send(p.ws, snapshotFor(p));
-      return;
-    }
-    if (qty == null) {
-      const res = lok.buy(token, String(itemId));
-      if (!res.ok) pushLog(p, res.error);
-      else noteBuy(p, token, itemId, res);
-    } else {
-      const res = await lok.buyQuantity(token, String(itemId), qty);
-      if (!res.ok) pushLog(p, res.error);
-      else noteQuantityBuy(p, token, itemId, res);
-    }
-    send(p.ws, snapshotFor(p));
-  }).catch(() => failAction(p, "KEK buy"));
+function handleLokBuy(p: Player, _itemId: number, _qty?: number) {
+  refuseFundCustody(p, "Log-balance buy");
 }
 
 async function queuePlayerWithdrawal(p: Player, token: string, amount: string) {
@@ -1133,37 +1029,8 @@ async function queuePlayerWithdrawal(p: Player, token: string, amount: string) {
   return res;
 }
 
-function handleLokBid(p: Player, itemId: number, amount: string) {
-  const token = lokToken(p);
-  if (!token) {
-    pushLog(p, "Could not open your log identity.");
-    return;
-  }
-  void guardedKekMove(token, async () => {
-    const gate = await vaultClaimBlocked();
-    if (gate.blocked) {
-      pushLog(p, gate.error);
-      send(p.ws, snapshotFor(p));
-      return;
-    }
-    let free = 0n;
-    let cost = 0n;
-    try {
-      free = BigInt(lok.kekOf(token)) - reservedOf(token);
-      cost = BigInt(amount);
-    } catch {
-      pushLog(p, "Bad KEK amount. Nothing was bid.");
-      return;
-    }
-    if (free < cost) {
-      pushLog(p, "Need " + amount + " KEK (you have " + free.toString() + " spendable). Nothing was bid.");
-      return;
-    }
-    const res = lok.fill(token, String(itemId), amount);
-    if (!res.ok) pushLog(p, res.error);
-    else noteBuy(p, token, itemId, res);
-    send(p.ws, snapshotFor(p));
-  }).catch(() => failAction(p, "KEK bid"));
+function handleLokBid(p: Player, _itemId: number, _amount: string) {
+  refuseFundCustody(p, "Log-balance bid");
 }
 
 function handleLokCancel(p: Player, listingId: string) {

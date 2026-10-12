@@ -110,21 +110,20 @@ User signs “buy listing X max price P from chain H.” Relayer/composer builds
 
 Static cross-chain quote of book → modal “Pay 0.02 ETH from Ethereum” → mutable sync fill. Slightly more clicks; clearer for first-time users; still no vault.
 
-### D. Hybrid for non-EEZ WETH
+### D. Outside the EEZ zone (no deposit fallback)
 
 | Player funds | Path |
 |--------------|------|
 | ETH on EEZ home (L1 / zone rollup) | A / B sync buy |
 | WETH on EEZ home | Unwrap helper in the same batch, then A |
-| WETH / ETH **outside** the zone | Classic deposit into vault (today’s path), or wait until that chain joins EEZ |
+| WETH / ETH **outside** the zone | Player moves ETH onto a zone chain themselves (wallet/bridge of their choice). **We do not offer a game vault deposit.** |
 
-Do not promise “any chain’s WETH” without saying the zone boundary.
+### E. What not to build
 
-### E. What not to build as the default
-
-- **Park then play:** deposit → wait watcher → bid (current KEK vault story). Keep only as fallback D.
+- **Park then play:** deposit → watcher → bid. **Removed.** The log does not custody player ETH.
+- **Deposit fallback for “other chains.”** **Removed.** Zone membership (or the player bridging in) is the gate.
 - **Pretend periphery Bridge is production.** Own `AhEscrow` that accepts `value` from proxies.
-- **Reinterpret old `bid`/`depositKek` meaning** for WETH without new events or a wipe — use wipe + ruleset bump; keep Kek names for replay of fixtures.
+- **Reinterpret old `bid`/`depositKek` meaning** — wipe + ruleset bump; Kek names stay for replay only.
 
 ---
 
@@ -152,20 +151,23 @@ Gold stays log-only for training/craft — EEZ does not need to touch it.
 | Proxy `msg.sender` | Auth and character binding must understand proxies; never assume EOA == `msg.sender` on G. |
 | Static ≠ value | Price checks can be static; payment cannot. |
 | Gas / nesting cost | Deep L1↔L2↔L1 hops get expensive; keep buy path to one hop when possible. |
-| Unaudited / flux | Feature-flag EEZ buys; keep deposit fallback until zone + contracts are production. |
+| Unaudited / flux | Feature-flag EEZ buys until zone + `AhEscrow` are production; do **not** re-enable vault deposit while waiting. |
 | L2 funding inventory | Node/circuit policy for pooled ETH — ops concern when Bellgrave is the L2. |
+| Log must not hold spendable ETH | AH/PvP payment never credits `Key::Kek` for new play; item escrow and gold stay on the log. |
 
 ---
 
 ## 7. Recommended Bellgrave shape
 
-**Phase 0 (now):** Gold sinks + ETH labels on AH; engine settlement key still `Kek` for replay. Document EEZ (this file).
+**Locked:** no player vault deposit/withdraw/send-ETH. Log = game; chain = funds.
+
+**Phase 0 (now):** Gold sinks; refuse client deposit/withdraw/send-ETH/log-balance buy/bid; docs lock EEZ-only pay.
 
 **Phase 1 — first-party `AhEscrow` on game domain:**  
-`buyAsk{value}` / `fillAsk{value}` keyed by buyer proxy; item out, ETH to seller escrow or immediate payout. Server mirrors fills into the log with **new** events if meaning diverges from old bid/fill.
+`buyAsk{value}` / `fillAsk{value}` keyed by buyer proxy; item out on log; ETH never enters the log as a balance. Mirror fill **item** effects with new events if needed.
 
 **Phase 2 — EEZ sync buy from L1 (or home rollup):**  
-Client “Pay from Ethereum”; unwrap WETH if needed; one sync call with value. Deposit UI demoted to “Other chains.”
+Client “Pay from Ethereum”; unwrap WETH if needed; one sync call with value.
 
 **Phase 3 — seller home payout + PvP stakes** in the same batch model.
 
@@ -185,8 +187,8 @@ Client “Pay from Ethereum”; unwrap WETH if needed; one sync call with value.
 
 ## 9. Done when (EEZ AH slice)
 
-- Research accepted (this doc).  
+- Research accepted; **deposit path removed** from product (this doc + CONTRACTS.md).  
 - `AhEscrow` accepts native ETH from EEZ proxies and settles an ask atomically.  
-- Client can complete a buy from L1 ETH without a prior vault deposit (devnet).  
-- Fallback deposit path remains for non-zone funds.  
-- Log + ruleset updated without reinterpreting historical KEK events.
+- Client can complete a buy from L1 ETH with **no** vault deposit (devnet).  
+- Log never holds a spendable settlement balance for new play.  
+- Ruleset/wipe without reinterpreting historical KEK events.

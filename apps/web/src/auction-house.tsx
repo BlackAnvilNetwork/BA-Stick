@@ -327,17 +327,12 @@ export function AuctionBook({ listings, buyer }: Props) {
             {plan.fills.length > 8 && <li>plus {plan.fills.length - 8} more asks, cheapest first</li>}
           </ul>
           <p className="lok-note">{buyNote(plan, qty)}</p>
-          <button
-            type="button"
-            className="boot-primary"
-            disabled={plan.fills.length === 0}
-            onClick={() => {
-              if (!Number.isSafeInteger(qty) || qty < 1 || qty > 1_000_000 || plan.fills.length === 0) return;
-              send({ type: "lok/buy", itemId: buying.itemId, qty });
-              setBuyingId(null);
-            }}
-          >
-            Confirm purchase
+          <p className="lok-note">
+            Buys pay ETH on-chain via EEZ in one transaction. There is no in-game deposit or log ETH balance —
+            wallet pay lands next.
+          </p>
+          <button type="button" className="boot-primary" disabled title="EEZ on-chain buy is not wired yet">
+            Pay with ETH (coming)
           </button>
           <YourAsks rows={buying.rows.filter((row) => row.yours)} />
         </div>
