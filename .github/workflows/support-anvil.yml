@@ -10,8 +10,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: recursive
       - uses: pnpm/action-setup@v4
         with:
           version: 10.12.4
@@ -20,6 +18,9 @@ jobs:
           node-version: "22"
           cache: pnpm
       - uses: foundry-rs/foundry-toolchain@v1
+      - name: Install Foundry libs (lib/ is gitignored)
+        working-directory: contracts/lok-log
+        run: forge install foundry-rs/forge-std OpenZeppelin/openzeppelin-contracts@v5.4.0 OpenZeppelin/openzeppelin-contracts-upgradeable@v5.4.0 --no-commit
       - run: pnpm install --frozen-lockfile
       - name: Server suite (self-starts throwaway anvil when foundry+libs present)
         run: pnpm --filter @bellgrave/server test
