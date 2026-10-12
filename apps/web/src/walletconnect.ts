@@ -5,7 +5,7 @@
  * Login (rule 5): connect + sign only — no forced chain switch.
  * Chain 31337 is optional only in Vite DEV or when VITE_ALLOW_ANVIL_WC=1.
  */
-import { settlementCurrency } from "@bellgrave/config";
+import { SETTLEMENT_BY_CHAIN, settlementCurrency } from "@bellgrave/config";
 import { EthereumProvider } from "@walletconnect/ethereum-provider";
 import {
   createWalletClient,
@@ -34,13 +34,28 @@ export function anvilWalletConnectAllowed(): boolean {
   );
 }
 
-/** Chains the game may use (Robinhood mainnet; anvil only when allowed). */
-export function walletConnectChainIds(): readonly number[] {
-  return anvilWalletConnectAllowed() ? ([4663, 31337] as const) : ([4663] as const);
+/**
+ * Chains WalletConnect sessions may approve for pay/mint.
+ * Built from SETTLEMENT_BY_CHAIN (100 / 10200 / 31337) plus VITE_CHAIN_ID (home).
+ * Anvil (31337) is omitted unless local WC anvil is allowed.
+ */
+export function walletConnectChainIds(): number[] {
+  const ids = new Set<number>();
+  for (const key of Object.keys(SETTLEMENT_BY_CHAIN)) {
+    const id = Number(key);
+    if (Number.isSafeInteger(id) && id > 0) ids.add(id);
+  }
+  const viteRaw = import.meta.env.VITE_CHAIN_ID?.trim();
+  if (viteRaw && /^\d+$/.test(viteRaw)) {
+    const viteId = Number(viteRaw);
+    if (Number.isSafeInteger(viteId) && viteId > 0) ids.add(viteId);
+  }
+  if (!anvilWalletConnectAllowed()) ids.delete(31337);
+  return [...ids].sort((a, b) => a - b);
 }
 
-/** @deprecated Use walletConnectChainIds() — 31337 is no longer always included. */
-export const WALLETCONNECT_CHAIN_IDS = [4663, 31337] as const;
+/** @deprecated Use walletConnectChainIds() — list is dynamic from SETTLEMENT_BY_CHAIN. */
+export const WALLETCONNECT_CHAIN_IDS = [100, 10200, 4663, 31337] as const;
 
 export function walletConnectProjectId(): string | null {
   const id = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID?.trim();
@@ -83,6 +98,20 @@ export function defaultRpcUrl(chainId: number): string {
     return (
       import.meta.env.VITE_RPC_URL?.trim() ||
       "https://rpc.mainnet.chain.robinhood.com"
+    );
+  }
+  if (chainId === 100) {
+    return (
+      import.meta.env.VITE_GNOSIS_RPC_URL?.trim() ||
+      import.meta.env.VITE_RPC_URL?.trim() ||
+      "https://rpc.gnosischain.com"
+    );
+  }
+  if (chainId === 10200) {
+    return (
+      import.meta.env.VITE_CHIADO_RPC_URL?.trim() ||
+      import.meta.env.VITE_RPC_URL?.trim() ||
+      "https://rpc.chiado.gnosis.gateway.fm"
     );
   }
   return import.meta.env.VITE_RPC_URL?.trim() || "http://127.0.0.1:8545";
@@ -179,10 +208,17 @@ export async function connectWalletConnect(opts: {
   }
   const rpcMap = buildWalletConnectRpcMap(opts.chainId, opts.rpcUrl);
   const optionalChains = walletConnectChainIds();
+  // EthereumProvider requires a non-empty tuple; settlement table always supplies ≥1.
+  const optionalTuple: [number, ...number[]] =
+    optionalChains.length === 0
+      ? [opts.chainId]
+      : optionalChains.length === 1
+        ? [optionalChains[0]!]
+        : (optionalChains as [number, ...number[]]);
   if (!provider) {
     provider = await EthereumProvider.init({
       projectId,
-      optionalChains: optionalChains.length === 1 ? [optionalChains[0]!] : (optionalChains as [number, ...number[]]),
+      optionalChains: optionalTuple,
       showQrModal: true,
       rpcMap,
       metadata: {

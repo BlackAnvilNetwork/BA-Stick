@@ -4,14 +4,18 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import {
+  bumpPendingCancel,
   cancelOpenAsksForCharacter,
   decodeErc721Transfer,
+  enqueuePendingCancel,
   ERC721_TRANSFER_TOPIC,
   NFT_TRANSFER_CONFIRMATIONS,
+  PENDING_CANCEL_MAX_ATTEMPTS,
   readPendingCancels,
   retryPendingCancels,
   scanNftTransfers,
   writePendingCancels,
+  type PendingCancel,
 } from "./nft-transfer-ask-cancel";
 
 function padAddr(addr: string): string {
@@ -157,16 +161,31 @@ describe("pending cancel persist + retry", () => {
       },
     };
     const first = await retryPendingCancels(lok, [{ listingId: "9", sellerTokenId: "7" }], {
+      now: 1_000,
       cancelOnchain: async () => {
         attempts += 1;
         return attempts === 1 ? { ok: false, error: "busy" } : { ok: true };
       },
     });
     assert.equal(attempts, 1);
-    assert.deepEqual(first.remaining, [{ listingId: "9", sellerTokenId: "7" }]);
+    assert.equal(first.remaining.length, 1);
+    assert.equal(first.remaining[0]!.listingId, "9");
+    assert.equal(first.remaining[0]!.attempts, 1);
+    assert.ok((first.remaining[0]!.nextRetryAtMs ?? 0) > 1_000);
     assert.equal(open.has("9"), true);
 
+    // Still deferred — not due yet.
+    const deferred = await retryPendingCancels(lok, first.remaining, {
+      now: 1_001,
+      cancelOnchain: async () => {
+        throw new Error("should not retry before nextRetryAtMs");
+      },
+    });
+    assert.equal(deferred.remaining.length, 1);
+    assert.equal(attempts, 1);
+
     const second = await retryPendingCancels(lok, first.remaining, {
+      now: first.remaining[0]!.nextRetryAtMs!,
       cancelOnchain: async () => {
         attempts += 1;
         return { ok: true };
@@ -176,6 +195,56 @@ describe("pending cancel persist + retry", () => {
     assert.deepEqual(second.remaining, []);
     assert.deepEqual(second.cancelled, ["9"]);
     assert.equal(open.has("9"), false);
+  });
+
+  it("backs off ambiguous cancels and drops after the attempt cap", async () => {
+    const open = new Map([
+      ["9", { id: "9", seller: "7", itemId: "1", amount: "1", highBidder: null, highBid: "0", book: true }],
+    ]);
+    const lok = {
+      openBookListings: () => [...open.values()],
+      cancelAsk: () => {
+        throw new Error("should not cancel when ambiguous");
+      },
+    };
+    let remaining: PendingCancel[] = [{ listingId: "9", sellerTokenId: "7", ambiguous: true }];
+    let now = 0;
+    for (let i = 0; i < PENDING_CANCEL_MAX_ATTEMPTS; i++) {
+      const res = await retryPendingCancels(lok, remaining, {
+        now,
+        cancelOnchain: async () => ({ ok: true, alreadyClosed: true }),
+        classifyClosed: async () => ({ action: "skip" as const }),
+      });
+      assert.equal(res.remaining.length, 1);
+      assert.equal(res.remaining[0]!.attempts, i + 1);
+      assert.equal(res.remaining[0]!.ambiguous, true);
+      remaining = res.remaining;
+      now = remaining[0]!.nextRetryAtMs!;
+    }
+    const capped = await retryPendingCancels(lok, remaining, {
+      now,
+      cancelOnchain: async () => ({ ok: true, alreadyClosed: true }),
+      classifyClosed: async () => ({ action: "skip" as const }),
+    });
+    assert.deepEqual(capped.remaining, []);
+    assert.deepEqual(capped.dropped, ["9"]);
+  });
+
+  it("enqueuePendingCancel merges into the watcher pending file", () => {
+    const dir = mkdtempSync(join(tmpdir(), "lok-nft-enqueue-"));
+    const path = join(dir, "pending.json");
+    writePendingCancels(path, [{ listingId: "1", sellerTokenId: "7" }]);
+    enqueuePendingCancel({ listingId: "2", sellerTokenId: "8" }, { pendingPath: path });
+    const rows = readPendingCancels(path);
+    assert.equal(rows.length, 2);
+    assert.ok(rows.some((r) => r.listingId === "2" && (r.attempts ?? 0) >= 1));
+  });
+
+  it("bumpPendingCancel returns null past the cap", () => {
+    assert.equal(
+      bumpPendingCancel({ listingId: "1", sellerTokenId: "7", attempts: PENDING_CANCEL_MAX_ATTEMPTS }),
+      null,
+    );
   });
 });
 

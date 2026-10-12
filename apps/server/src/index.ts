@@ -86,7 +86,6 @@ import {
   paleHollowMoveMul,
   paleHollowPlaceOnDryLand,
   paleHollowWalkable,
-  settlementCurrency,
 } from "@bellgrave/config";
 import {
   SHINY_CLONE_COUNT,
@@ -210,7 +209,15 @@ import {
   verifyCharacterNftOwner,
   type CharacterMintClientConfig,
 } from "./lok-vault";
-import { startNftTransferAskCancelWatcher } from "./nft-transfer-ask-cancel";
+import {
+  enqueuePendingCancel,
+  startNftTransferAskCancelWatcher,
+} from "./nft-transfer-ask-cancel";
+import {
+  refreshSettlementChainIdFromRpc,
+  settlementExampleAskHuman,
+  settlementUnitSymbol,
+} from "./settlement-chain";
 import { loadEezClientConfig, type EezSyncBuyClientConfig } from "./eez-sync";
 import { guardedKekMove, withPlayerCharge } from "./kek-guard";
 import { characterNameKey, normalizeCharacterName } from "./character-name";
@@ -541,6 +548,9 @@ const lok: LokWorld = await (async (): Promise<LokWorld> => {
     console.log(
       "[bellgrave] lok log " + world.logPath + " entries=" + world.length + ". " + world.chainNote,
     );
+    void refreshSettlementChainIdFromRpc(process.env).catch((err) =>
+      console.warn("[bellgrave] settlement chain id refresh failed", err),
+    );
     startAskFilledWatcher(world, {
       onFilled: (fill) => {
         notifyAhEscrowFill(fill);
@@ -797,17 +807,13 @@ function tellToken(tokenId: string, message: string) {
   }
 }
 
-/** Native settlement unit label from LOK_CHAIN_ID (xDAI on Gnosis/Chiado, ETH on anvil). */
+/** Native settlement unit label — prefers RPC eth_chainId cache, else LOK_CHAIN_ID. */
 function settlementUnit(): string {
-  const raw = process.env.LOK_CHAIN_ID?.trim() || "31337";
-  const id = /^\d+$/.test(raw) ? Number(raw) : 31337;
-  return settlementCurrency(Number.isSafeInteger(id) ? id : 31337).symbol;
+  return settlementUnitSymbol();
 }
 
 function settlementExampleAsk(): string {
-  const raw = process.env.LOK_CHAIN_ID?.trim() || "31337";
-  const id = /^\d+$/.test(raw) ? Number(raw) : 31337;
-  return settlementCurrency(Number.isSafeInteger(id) ? id : 31337).exampleAskHuman;
+  return settlementExampleAskHuman();
 }
 
 /** After AhEscrow AskFilled → chainFill: notify buyer/seller and refresh snapshots. */
@@ -1161,28 +1167,39 @@ function handleLokList(
       const pulled = await cancelAskOnchain({ listingId });
       if (pulled.ok && !("alreadyClosed" in pulled && pulled.alreadyClosed)) {
         const undone = lok.cancelAsk(listingId, token);
+        if (!undone.ok) {
+          enqueuePendingCancel({ listingId, sellerTokenId: token });
+        }
         pushLog(
           p,
           "Character NFT owner changed while listing #" +
             listingId +
             ". " +
-            (undone.ok ? "The ask was cancelled." : "On-chain cancel ok; log cancel failed: " + undone.error),
+            (undone.ok
+              ? "The ask was cancelled."
+              : "On-chain cancel ok; log cancel failed: " +
+                undone.error +
+                ". Queued for the transfer-cancel watcher to retry."),
         );
       } else if (!pulled.ok) {
+        enqueuePendingCancel({ listingId, sellerTokenId: token });
         pushLog(
           p,
           "Character NFT owner changed while listing #" +
             listingId +
             ", but cancel failed (" +
             pulled.error +
-            "). The transfer watcher will retry.",
+            "). Queued for the transfer-cancel watcher to retry.",
         );
       } else {
+        // On-chain already closed — if log cancel was needed it would be in the cancel branch.
+        // Still queue so ambiguous closed-asks get classified on the next watcher tick.
+        enqueuePendingCancel({ listingId, sellerTokenId: token, ambiguous: true });
         pushLog(
           p,
           "Character NFT owner changed while listing #" +
             listingId +
-            ". On-chain ask was already closed.",
+            ". On-chain ask was already closed; queued for watcher classify/retry.",
         );
       }
       send(p.ws, snapshotFor(p));

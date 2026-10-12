@@ -6,6 +6,7 @@
 import { settlementCurrencyView } from "@bellgrave/config";
 import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { settlementChainId } from "./settlement-chain";
 import {
   alertAskFilledQuarantine,
   AskFilledQuarantine,
@@ -18,7 +19,14 @@ import {
 } from "./lok-ask-filled-quarantine";
 import { defaultLokDir, type LokWorld } from "./lok-world";
 
-/** Keccak of AskFilled(uint256,address,uint256,address,uint256,uint256,uint256,uint256) — includes feeWei. */
+/**
+ * Keccak of AskFilled(uint256,address,uint256,address,uint256,uint256,uint256,uint256) — includes feeWei.
+ *
+ * Pre-fee escrow used a 7-arg AskFilled (no feeWei) with a different topic. We intentionally do
+ * **not** watch that legacy topic: nothing is deployed on Chiado/Gnosis yet, and openAsk against
+ * an old escrow would revert on ABI mismatch. Drain/cancel any old asks before a future upgrade
+ * if a pre-fee deployment ever exists. See docs/mainnet-plan.md.
+ */
 export const ASK_FILLED_TOPIC = "0x7f623940623393c52bf22f242ae3b57d9fbb8e603232b8952a1ad894943a1907";
 
 export const ASK_FILL_CONFIRMATIONS = 2n;
@@ -193,9 +201,8 @@ export function ahEscrowClientConfig(env: NodeJS.ProcessEnv = process.env): {
   const rpcUrl = (env.LOK_PUBLIC_RPC?.trim() || env.LOK_CHAIN_RPC?.trim() || "").replace(/\/$/, "");
   if (!address || !rpcUrl) return null;
   if (!/^https?:\/\//i.test(rpcUrl) && !rpcUrl.startsWith("ws")) return null;
-  const chainRaw = env.LOK_CHAIN_ID?.trim() || "31337";
-  if (!/^\d+$/.test(chainRaw)) return null;
-  const chainId = Number(chainRaw);
+  // Prefer RPC-cached eth_chainId (boot refresh); fall back to LOK_CHAIN_ID.
+  const chainId = settlementChainId(env);
   if (!Number.isSafeInteger(chainId) || chainId <= 0) return null;
   // Matches AhEscrow.FEE_BPS (redeploy package). Override only for tests.
   const feeRaw = env.LOK_AH_FEE_BPS?.trim();

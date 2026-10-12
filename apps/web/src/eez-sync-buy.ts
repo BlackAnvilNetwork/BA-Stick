@@ -2,6 +2,7 @@
  * Local EEZ sync buy via MockEezSyncBuy.syncBuy{value}.
  * Seller payout is already same-transaction inside AhEscrow.buyAsk.
  */
+import { settlementCurrency } from "@bellgrave/config";
 import { createPublicClient, http, type Hex } from "viem";
 import type { EezSyncBuyClientConfig } from "@bellgrave/protocol";
 import { getWalletSession } from "./wallet";
@@ -49,11 +50,12 @@ export async function buyAsksWithEezSync(opts: {
   });
   const publicClient = createPublicClient({ transport: http(home.rpcUrl) });
   const hashes: Hex[] = [];
+  const cur = settlementCurrency(home.chainId);
   const chain = {
     id: home.chainId,
     name: home.label,
-    // Home-chain pay unit (ETH on Ethereum); settlement side is still native xDAI/ETH via EEZ.
-    nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+    // Native unit for the home chain the player pays from (ETH / xDAI / …).
+    nativeCurrency: { name: cur.name, symbol: cur.symbol, decimals: cur.decimals },
     rpcUrls: { default: { http: [home.rpcUrl] } },
   };
 

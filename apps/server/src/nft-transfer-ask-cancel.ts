@@ -20,6 +20,12 @@ export const ERC721_TRANSFER_TOPIC =
 /** Scan this many blocks behind tip so a reorg cannot hide a Transfer. */
 export const NFT_TRANSFER_CONFIRMATIONS = 2n;
 
+/** Drop ambiguous/failed cancels after this many attempts (with backoff). */
+export const PENDING_CANCEL_MAX_ATTEMPTS = 20;
+
+/** Base delay for attempt 1; doubles each attempt up to 2^8. */
+export const PENDING_CANCEL_BASE_DELAY_MS = 5_000;
+
 type RpcLog = {
   topics?: string[];
   data?: string;
@@ -37,6 +43,12 @@ export type NftTransfer = {
 export type PendingCancel = {
   listingId: string;
   sellerTokenId: string;
+  /** Consecutive failed / ambiguous attempts (0 = never tried from disk yet). */
+  attempts?: number;
+  /** Earliest time to retry; omit/0 = due now. */
+  nextRetryAtMs?: number;
+  /** Last failure was ambiguous closed-ask classification. */
+  ambiguous?: boolean;
 };
 
 export function decodeErc721Transfer(log: { topics?: string[] }): NftTransfer | null {
@@ -78,23 +90,37 @@ function writeCursor(path: string, cursor: bigint): void {
   writeTextAtomic(path, JSON.stringify({ cursor: cursor.toString() }, null, 2) + "\n");
 }
 
+function parsePendingRow(row: unknown): PendingCancel | null {
+  if (!row || typeof row !== "object") return null;
+  const r = row as Record<string, unknown>;
+  const listingId = String(r.listingId ?? "");
+  const sellerTokenId = String(r.sellerTokenId ?? "");
+  if (!/^[1-9][0-9]{0,77}$/.test(listingId) || !/^[1-9][0-9]{0,77}$/.test(sellerTokenId)) {
+    return null;
+  }
+  const out: PendingCancel = { listingId, sellerTokenId };
+  if (typeof r.attempts === "number" && Number.isSafeInteger(r.attempts) && r.attempts >= 0) {
+    out.attempts = r.attempts;
+  }
+  if (typeof r.nextRetryAtMs === "number" && Number.isSafeInteger(r.nextRetryAtMs) && r.nextRetryAtMs >= 0) {
+    out.nextRetryAtMs = r.nextRetryAtMs;
+  }
+  if (r.ambiguous === true) out.ambiguous = true;
+  return out;
+}
+
 export function readPendingCancels(path: string): PendingCancel[] {
   if (!existsSync(path)) return [];
   try {
-    const raw = JSON.parse(readFileSync(path, "utf8")) as { pending?: PendingCancel[] };
+    const raw = JSON.parse(readFileSync(path, "utf8")) as { pending?: unknown[] };
     if (!Array.isArray(raw.pending)) return [];
     const out: PendingCancel[] = [];
     const seen = new Set<string>();
     for (const row of raw.pending) {
-      if (!row || typeof row !== "object") continue;
-      const listingId = String(row.listingId ?? "");
-      const sellerTokenId = String(row.sellerTokenId ?? "");
-      if (!/^[1-9][0-9]{0,77}$/.test(listingId) || !/^[1-9][0-9]{0,77}$/.test(sellerTokenId)) {
-        continue;
-      }
-      if (seen.has(listingId)) continue;
-      seen.add(listingId);
-      out.push({ listingId, sellerTokenId });
+      const parsed = parsePendingRow(row);
+      if (!parsed || seen.has(parsed.listingId)) continue;
+      seen.add(parsed.listingId);
+      out.push(parsed);
     }
     return out;
   } catch {
@@ -108,9 +134,84 @@ export function writePendingCancels(path: string, pending: PendingCancel[]): voi
   for (const row of pending) {
     if (seen.has(row.listingId)) continue;
     seen.add(row.listingId);
-    unique.push({ listingId: row.listingId, sellerTokenId: row.sellerTokenId });
+    const next: PendingCancel = {
+      listingId: row.listingId,
+      sellerTokenId: row.sellerTokenId,
+    };
+    if (row.attempts != null) next.attempts = row.attempts;
+    if (row.nextRetryAtMs != null) next.nextRetryAtMs = row.nextRetryAtMs;
+    if (row.ambiguous) next.ambiguous = true;
+    unique.push(next);
   }
   writeTextAtomic(path, JSON.stringify({ pending: unique }, null, 2) + "\n");
+}
+
+/** Persist pending before cursor so a crash cannot lose newly queued cancels. */
+export function persistPendingThenCursor(
+  pendingPath: string,
+  cursorPath: string,
+  pending: PendingCancel[],
+  cursor: bigint,
+): void {
+  writePendingCancels(pendingPath, pending);
+  writeCursor(cursorPath, cursor);
+}
+
+/**
+ * Queue a cancel for the transfer watcher (e.g. list/transfer race).
+ * Merges into the on-disk pending file immediately.
+ */
+export function enqueuePendingCancel(
+  row: PendingCancel,
+  opts?: { pendingPath?: string; dataDir?: string },
+): void {
+  const dataDir = opts?.dataDir ?? defaultLokDir();
+  const pendingPath = opts?.pendingPath ?? nftTransferPendingPath(dataDir);
+  const existing = readPendingCancels(pendingPath);
+  const without = existing.filter((p) => p.listingId !== row.listingId);
+  const bumped =
+    bumpPendingCancel(
+      {
+        listingId: row.listingId,
+        sellerTokenId: row.sellerTokenId,
+        attempts: 0,
+        ambiguous: row.ambiguous,
+      },
+      { ambiguous: row.ambiguous },
+    ) ?? row;
+  writePendingCancels(pendingPath, without.concat([bumped]));
+}
+
+/**
+ * Increment attempt counter and schedule backoff. Returns null when capped (alert + drop).
+ */
+export function bumpPendingCancel(
+  row: PendingCancel,
+  opts?: { ambiguous?: boolean; now?: number },
+): PendingCancel | null {
+  const attempts = (row.attempts ?? 0) + 1;
+  if (attempts > PENDING_CANCEL_MAX_ATTEMPTS) {
+    console.error(
+      "[bellgrave] ALERT: NFT transfer pending cancel dropped after " +
+        attempts +
+        " attempts listing#" +
+        row.listingId +
+        " char=" +
+        row.sellerTokenId +
+        (row.ambiguous || opts?.ambiguous ? " (ambiguous closed-ask)" : ""),
+    );
+    return null;
+  }
+  const exp = Math.min(Math.max(attempts - 1, 0), 8);
+  const delay = PENDING_CANCEL_BASE_DELAY_MS * 2 ** exp;
+  const now = opts?.now ?? Date.now();
+  return {
+    listingId: row.listingId,
+    sellerTokenId: row.sellerTokenId,
+    attempts,
+    nextRetryAtMs: now + delay,
+    ambiguous: opts?.ambiguous === true || row.ambiguous === true ? true : undefined,
+  };
 }
 
 function nftAddress(env: NodeJS.ProcessEnv): string | null {
@@ -219,8 +320,8 @@ export async function cancelOpenAsksForCharacter(
       } else if (decision.action === "wait-fill") {
         out.skipped.push(row.id);
       } else {
-        // Ambiguous closed ask — retry classify later (covers crash before log cancel).
-        out.pending.push({ listingId: row.id, sellerTokenId });
+        // Ambiguous closed ask — retry classify later with backoff (covers crash before log cancel).
+        out.pending.push({ listingId: row.id, sellerTokenId, ambiguous: true });
       }
       continue;
     }
@@ -254,30 +355,54 @@ export async function cancelOpenAsksForCharacter(
 export async function retryPendingCancels(
   lok: Pick<LokWorld, "openBookListings" | "cancelAsk">,
   pending: PendingCancel[],
-  opts?: Parameters<typeof cancelOpenAsksForCharacter>[2],
-): Promise<{ remaining: PendingCancel[]; cancelled: string[] }> {
+  opts?: Parameters<typeof cancelOpenAsksForCharacter>[2] & { now?: number },
+): Promise<{ remaining: PendingCancel[]; cancelled: string[]; dropped: string[] }> {
+  const now = opts?.now ?? Date.now();
   const stillOpen = new Set(lok.openBookListings().map((r) => r.id));
-  const bySeller = new Map<string, string[]>();
+  const bySeller = new Map<string, PendingCancel[]>();
   const remaining: PendingCancel[] = [];
   const cancelled: string[] = [];
+  const dropped: string[] = [];
 
+  const due: PendingCancel[] = [];
   for (const row of pending) {
     if (!stillOpen.has(row.listingId)) continue; // already gone from the book
+    if (row.nextRetryAtMs != null && row.nextRetryAtMs > now) {
+      remaining.push(row);
+      continue;
+    }
+    due.push(row);
     const list = bySeller.get(row.sellerTokenId) ?? [];
-    list.push(row.listingId);
+    list.push(row);
     bySeller.set(row.sellerTokenId, list);
   }
 
-  for (const [sellerTokenId, listingIds] of bySeller) {
+  const priorById = new Map(due.map((r) => [r.listingId, r]));
+
+  for (const [sellerTokenId, rows] of bySeller) {
+    const listingIds = rows.map((r) => r.listingId);
     const res = await cancelOpenAsksForCharacter(lok, sellerTokenId, {
       ...opts,
       listingIds,
     });
     cancelled.push(...res.cancelled);
-    remaining.push(...res.pending);
     // skipped (wait-fill) are intentionally dropped from pending
+    for (const p of res.pending) {
+      const prior = priorById.get(p.listingId);
+      const bumped = bumpPendingCancel(
+        {
+          listingId: p.listingId,
+          sellerTokenId: p.sellerTokenId,
+          attempts: prior?.attempts ?? 0,
+          ambiguous: p.ambiguous || prior?.ambiguous,
+        },
+        { ambiguous: p.ambiguous === true, now },
+      );
+      if (bumped) remaining.push(bumped);
+      else dropped.push(p.listingId);
+    }
   }
-  return { remaining, cancelled };
+  return { remaining, cancelled, dropped };
 }
 
 export async function scanNftTransfers(opts: {
@@ -389,6 +514,8 @@ export function startNftTransferAskCancelWatcher(
     if (busy) return;
     busy = true;
     try {
+      // Reload disk pending each tick so list-race enqueues are picked up.
+      pending = readPendingCancels(pendingPath);
       const retried = await retryPendingCancels(lok, pending, { env, classifyClosed });
       pending = retried.remaining;
 
@@ -401,12 +528,16 @@ export function startNftTransferAskCancelWatcher(
             env,
             classifyClosed,
           });
-          pending = pending.concat(res.pending);
+          for (const p of res.pending) {
+            const bumped = bumpPendingCancel(p, { ambiguous: p.ambiguous === true });
+            if (bumped) pending = pending.filter((x) => x.listingId !== bumped.listingId).concat([bumped]);
+          }
         },
       });
       cursor = next.cursor;
-      writeCursor(cursorPath, cursor);
-      writePendingCancels(pendingPath, pending);
+      // Pending first, then cursor — crash between them re-scans transfers (idempotent)
+      // but never loses newly queued cancels.
+      persistPendingThenCursor(pendingPath, cursorPath, pending, cursor);
     } catch (err) {
       console.error("[bellgrave] NFT transfer ask-cancel watcher", err);
       try {

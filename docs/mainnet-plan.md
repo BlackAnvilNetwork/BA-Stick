@@ -86,9 +86,14 @@ Example AH list placeholder: **1 xDAI** on Gnosis/Chiado; **0.001 ETH** on anvil
 
 - `AhEscrow`: immutable `characterNft`, `feeRecipient`, `FEE_BPS = 100`; `buyAsk` pays `ownerOf` then 1% fee (**native value**).
 - Forge tests + UI fee copy; AskFilled `feeWei` decode.
-- Transfer-cancel watcher: pending retries, confirmations, skip self-transfers, AskCancelled classify, list re-checks `ownerOf` after `openAsk`.
-- Per-chain currency labels / defaults (`xDAI` vs `ETH`).
+- Transfer-cancel watcher: pending retries (persist-before-cursor, backoff/cap/alert), confirmations, skip self-transfers, AskCancelled classify, list re-checks `ownerOf` after `openAsk` and queues failed cancels.
+- Per-chain currency labels / defaults (`xDAI` vs `ETH`); WalletConnect optionalChains from `SETTLEMENT_BY_CHAIN`.
 - Chiado deploy script + `.env.chiado.example` (**not broadcast**).
+- **Pre-fee AskFilled topic:** intentionally **not** watched. The feeWei (8-arg) topic is the only watcher. Acceptable while nothing is deployed on Chiado/Gnosis; drain/cancel any pre-fee asks before a future upgrade that replaces a live escrow.
+
+### Mint fee (locked)
+
+**1 xDAI** (`MINT_FEE=1e18`) on Gnosis / Chiado — confirmed.
 
 ### Still needs go-ahead / redeploy / out-of-band
 

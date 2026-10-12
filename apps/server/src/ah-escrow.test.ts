@@ -107,7 +107,9 @@ describe("AhEscrow AskFilled mirror", () => {
     assert.equal(classifyAskFilledFailure("rpc timeout"), "other");
   });
 
-  it("ahEscrowClientConfig needs address + http rpc + chain id", () => {
+  it("ahEscrowClientConfig needs address + http rpc + chain id", async () => {
+    const { setCachedSettlementChainId } = await import("./settlement-chain");
+    setCachedSettlementChainId(null);
     assert.equal(ahEscrowClientConfig({}), null);
     assert.deepEqual(
       ahEscrowClientConfig({
