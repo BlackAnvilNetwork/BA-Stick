@@ -211,6 +211,8 @@ contract AhEscrow is Pausable {
         if (!ask.open) revert AskClosed();
         if (buyerTokenId == ask.sellerTokenId) revert BadId();
         if (msg.value < ask.priceWei) revert WrongPrice();
+        // L-4: buyerTokenId must exist (ownerOf reverts for unminted ids).
+        characterNft.ownerOf(buyerTokenId);
 
         uint256 price = ask.priceWei;
         uint256 itemId = ask.itemId;

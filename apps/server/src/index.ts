@@ -627,9 +627,20 @@ const lok: LokWorld = await (async (): Promise<LokWorld> => {
         }
       },
     });
-    void migrateCharacterWalletsToNftOwners(world).catch((err) =>
-      console.error("[bellgrave] C-1 wallet migration failed", err),
-    );
+    // Block sessions until C-1 rebind finishes (no pre-migration logins).
+    try {
+      const migrated = await migrateCharacterWalletsToNftOwners(world);
+      console.log(
+        "[bellgrave] C-1 wallet migration checked=" +
+          migrated.checked +
+          " rebound=" +
+          migrated.rebound +
+          " errors=" +
+          migrated.errors.length,
+      );
+    } catch (err) {
+      console.error("[bellgrave] C-1 wallet migration failed", err);
+    }
     startListingBalanceProbe();
     if (ahEscrowAddress() && !listingRoleKey()) {
       console.error(
@@ -1179,16 +1190,16 @@ function handleLokList(
     pushLog(p, "AhEscrow is not configured on this server. Nothing was listed.");
     return;
   }
-  const listBudget = consumeListBudget({ charId: p.charId, wallet: p.wallet });
-  if (!listBudget.ok) {
-    pushLog(p, listBudget.error);
-    return;
-  }
-  // C-1: session wallet must be ownerOf(character). Rule 2/4: buyAsk pays ownerOf at fill.
+  // Ownership + per-char/wallet first; global LISTING budget is charged in openAskOnchain.
   void (async () => {
     const ctrl = await sessionOwnsCharacter(p.wallet!, token);
     if (!ctrl.ok) {
       pushLog(p, ctrl.error);
+      return;
+    }
+    const listBudget = consumeListBudget({ charId: p.charId, wallet: p.wallet! });
+    if (!listBudget.ok) {
+      pushLog(p, listBudget.error);
       return;
     }
     const owned = await readCharacterNftOwner(token);
@@ -1366,20 +1377,22 @@ function handleLokCancel(p: Player, listingId: string) {
     pushLog(p, lifetime.error);
     return;
   }
-  const cancelBudget = consumeCancelBudget({ charId: p.charId, wallet: p.wallet });
-  if (!cancelBudget.ok) {
-    pushLog(p, cancelBudget.error);
-    return;
-  }
   const row = lok.view(token).listings.find((l) => l.id === listingId);
   if (!row) {
     pushLog(p, "Unknown listing. Nothing was cancelled.");
     return;
   }
+  // Ownership + listing exist first; global budget charged only in cancelAskOnchain broadcast.
   void (async () => {
     const ctrl = await sessionOwnsCharacter(p.wallet!, token, { preferLive: true });
     if (!ctrl.ok) {
       pushLog(p, ctrl.error);
+      send(p.ws, snapshotFor(p));
+      return;
+    }
+    const cancelBudget = consumeCancelBudget({ charId: p.charId, wallet: p.wallet! });
+    if (!cancelBudget.ok) {
+      pushLog(p, cancelBudget.error);
       send(p.ws, snapshotFor(p));
       return;
     }
@@ -1406,7 +1419,7 @@ function handleLokCancel(p: Player, listingId: string) {
       send(p.ws, snapshotFor(p));
       return;
     }
-    if (chain.alreadyClosed) {
+    if (chain.alreadyClosed && !chain.serverCancelled) {
       pushLog(
         p,
         "On-chain ask #" +
@@ -1416,7 +1429,7 @@ function handleLokCancel(p: Player, listingId: string) {
       send(p.ws, snapshotFor(p));
       return;
     }
-    // neverOpened: pre-AhEscrow book ask — cancel on the log only.
+    // neverOpened / serverCancelled: cancel on the log.
     const res = lok.cancelAsk(listingId, token);
     clearListingOpened(listingId);
     if (!res.ok) {
@@ -1453,11 +1466,6 @@ function handleLokReclaim(p: Player, listingId: string) {
     pushLog(p, lifetime.error);
     return;
   }
-  const cancelBudget = consumeCancelBudget({ charId: p.charId, wallet: p.wallet });
-  if (!cancelBudget.ok) {
-    pushLog(p, cancelBudget.error);
-    return;
-  }
   if (!ahEscrowAddress()) {
     pushLog(p, "AhEscrow is not configured; cannot reclaim an on-chain ask safely.");
     return;
@@ -1469,6 +1477,12 @@ function handleLokReclaim(p: Player, listingId: string) {
       send(p.ws, snapshotFor(p));
       return;
     }
+    const cancelBudget = consumeCancelBudget({ charId: p.charId, wallet: p.wallet! });
+    if (!cancelBudget.ok) {
+      pushLog(p, cancelBudget.error);
+      send(p.ws, snapshotFor(p));
+      return;
+    }
     pushLog(p, "Reclaim pending for listing #" + listingId + " (waiting for finality)…");
     send(p.ws, snapshotFor(p));
     const chain = await cancelAskOnchain({ listingId });
@@ -1477,7 +1491,7 @@ function handleLokReclaim(p: Player, listingId: string) {
       send(p.ws, snapshotFor(p));
       return;
     }
-    if (chain.alreadyClosed) {
+    if (chain.alreadyClosed && !chain.serverCancelled) {
       pushLog(
         p,
         "On-chain ask #" + listingId + " was already closed (likely filled). Waiting for AskFilled; nothing reclaimed on the log.",
@@ -5157,25 +5171,14 @@ function onMessage(ws: WebSocket, data: string) {
         }
       }
 
-      const charId = `c_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
-      const claimed = lok.claimName(charId, named.name, wallet);
-      if (!claimed.ok) {
-        send(ws, { type: "error", message: claimed.error });
-        return;
-      }
-      // Bind control to the live NFT owner (not a separate burner / mint wallet).
+      // Resolve NFT owner before claiming the name so a wrong-wallet create cannot burn the name.
       let bindWallet = wallet.toLowerCase();
       if (bindToken) {
         const owned = await readCharacterNftOwner(bindToken);
         if (owned.ok) {
           const holder = owned.holder.toLowerCase();
           nftOwnerCache().set(bindToken, holder, 0);
-          if (
-            (isProductionSettlementChain(process.env) ||
-              cachedCharacterMint?.chainId === 100 ||
-              cachedCharacterMint?.chainId === 10200) &&
-            holder !== bindWallet
-          ) {
+          if (holder !== bindWallet) {
             send(ws, {
               type: "error",
               message:
@@ -5189,6 +5192,12 @@ function onMessage(ws: WebSocket, data: string) {
           }
           bindWallet = holder;
         }
+      }
+      const charId = `c_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+      const claimed = lok.claimName(charId, named.name, bindWallet);
+      if (!claimed.ok) {
+        send(ws, { type: "error", message: claimed.error });
+        return;
       }
       const spawned = lok.spawn(charId, claimed.name, jobIndex < 0 ? 0 : jobIndex, bindWallet, {
         ...(bindToken ? { tokenId: bindToken } : {}),

@@ -129,7 +129,7 @@ forge script script/DeployChiado.s.sol:DeployChiado --rpc-url "$RPC_URL" --sig "
 2. **Mass-cancel open asks** — LISTING key: `AhEscrow.cancelAsks(uint256[] ids)` (or server NFT-transfer / reconcile path). Do not leave asks buyable while paused for open.
 3. **LISTING key compromise** — admin Safe `revokeRole(LISTING_ROLE, old)`; grant a new listing EOA; rotate `LOK_LISTING_KEY` on the host; never reuse the leaked key.
 4. **ROTATOR / PROPOSER compromise** — revoke on Checkpoint / RulesetRegistry; rotate server keys; re-fund new EOAs with minimal xDAI.
-5. **Stuck `openAsk` (mempool / pause revert)** — server stores pending hash+nonce under `open-ask-pending.json`. Use `replacePendingOpenAsk` (same-nonce self-tx or cancel) or wait until the LISTING nonce advances, then reclaim/cancel on the log. Quarantined AskFilled fills: treasury refund procedure (document the fill listingId + buyer tx on the ops channel; Safe sends xDAI to buyer).
+5. **Stuck `openAsk` (mempool / pause revert)** — server stores pending hash+nonce under `open-ask-pending.json`. Ops: `POST /ops/replace-open-ask` with `Authorization: Bearer $LOK_OPS_STATUS_TOKEN` and JSON `{"listingId":"<id>"}` (fee-bumped same-nonce self-tx or cancelAsk). Or wait until the LISTING nonce advances, then reclaim/cancel on the log. Quarantined AskFilled fills: treasury refund procedure (document the fill listingId + buyer tx on the ops channel; Safe sends xDAI to buyer).
 6. **Upgrade / setMinDelay** — only via TimelockController (`upgradeAuthority`); never set `minDelay` below 1 day. On chain 100, `TIMELOCK` is required at deploy.
 7. **Unpause** — DEFAULT_ADMIN Safe after the incident is contained (`unpause` on AhEscrow / Factory).
 
@@ -151,10 +151,11 @@ forge script script/DeployChiado.s.sol:DeployChiado --rpc-url "$RPC_URL" --sig "
 | Liveness | `GET /health` | Process up (always 200 when listening) |
 | Readiness | `GET /ready` | Lok data dir open; RPC not stuck in hard fail |
 | Status | `GET /status` | JSON: network, **redacted** RPC hosts, watcher lags, dropped-cancel + quarantine counts, recent structured alerts |
+| Replace stuck openAsk | `POST /ops/replace-open-ask` | Body `{"listingId":"…"}`; fee-bumped same-nonce replace or cancelAsk (same auth as `/status`) |
 
 Same `PORT` as the WebSocket game server (default `8787`).
 
-**`/status` auth:** socket `remoteAddress` only (never `Host` / forwarded headers). On Gnosis (`NETWORK=gnosis` / chain 100), `LOK_OPS_STATUS_TOKEN` is **required** and only `Authorization: Bearer …` is accepted (loopback bypass off — same-host reverse proxies look local). Dev/anvil: loopback or bearer. RPC URLs are scheme+host; `dataDir` is basename only; BigInt tip/cursors serialize as strings.
+**`/status` / ops auth:** socket `remoteAddress` only (never `Host` / forwarded headers). On Gnosis (`NETWORK=gnosis` / chain 100), `LOK_OPS_STATUS_TOKEN` is **required** and only `Authorization: Bearer …` is accepted (loopback bypass off — same-host reverse proxies look local). Dev/anvil: loopback or bearer. RPC URLs are scheme+host; `dataDir` is basename only; BigInt tip/cursors serialize as strings.
 
 **Structured alerts** — stderr JSON lines (`event`: `watcher_lag`, `nft_transfer_cancel_dropped`, `ask_filled_quarantine`). Lag threshold: `LOK_WATCHER_LAG_ALERT_BLOCKS` (default 50). Durable files under `LOK_DATA_DIR`:
 

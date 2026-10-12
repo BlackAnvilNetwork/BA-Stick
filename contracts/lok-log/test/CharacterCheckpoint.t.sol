@@ -509,15 +509,21 @@ contract CharacterCheckpointTest is Base {
         assertEq(cp.logIndex(tokenId), 0, "checkpoint rolled back");
     }
 
+    /// L-7: with vault=0, deposit / reassign / sink / kekOut all revert NotConfigured.
     function test_kek_vaultUnconfigured() public {
         vm.prank(admin);
         cp.setVault(address(0));
         CharacterCheckpoint.Checkpoint memory c = _next();
         c.kekOut = 1 ether;
         _expectRevert(c, CharacterCheckpoint.NotConfigured.selector);
-        vm.prank(player);
+        vm.startPrank(player);
         vm.expectRevert(CharacterCheckpoint.NotConfigured.selector);
         cp.depositKek(tokenId, 1 ether);
+        vm.expectRevert(CharacterCheckpoint.NotConfigured.selector);
+        cp.reassignKek(tokenId, tokenId + 1, 1 ether);
+        vm.expectRevert(CharacterCheckpoint.NotConfigured.selector);
+        cp.sinkKek(tokenId, 1 ether);
+        vm.stopPrank();
     }
 
     // ============================================================== transfers

@@ -2,12 +2,14 @@
  * HTTP ops probes: /health (liveness), /ready (data dir + optional RPC), /status (JSON).
  * Served on the same PORT as the WebSocket game server.
  *
- * /status is restricted to loopback or Authorization: Bearer $LOK_OPS_STATUS_TOKEN.
+ * /status and mutating ops POSTs are restricted to loopback or
+ * Authorization: Bearer $LOK_OPS_STATUS_TOKEN.
  * RPC URLs and absolute data paths are redacted.
  */
 import { existsSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { networkProfile, resolveNetworkName } from "@bellgrave/config";
+import { replacePendingOpenAsk } from "./ah-escrow-tx";
 import {
   AskFilledQuarantine,
   askFilledQuarantinePath,
@@ -38,6 +40,8 @@ export type OpsHealthDeps = {
   env?: NodeJS.ProcessEnv;
   /** Override remote address for tests (req.socket.remoteAddress). */
   remoteAddress?: string | null;
+  /** Override replacePendingOpenAsk for unit tests. */
+  replacePendingOpenAsk?: typeof replacePendingOpenAsk;
 };
 
 export type OpsRpcStatusView = {
@@ -223,6 +227,36 @@ function writeJson(res: ServerResponse, status: number, body: unknown): void {
   }
 }
 
+function readJsonBody(req: IncomingMessage, maxBytes = 4096): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    let size = 0;
+    req.on("data", (chunk: Buffer | string) => {
+      const buf = typeof chunk === "string" ? Buffer.from(chunk) : chunk;
+      size += buf.length;
+      if (size > maxBytes) {
+        reject(new Error("body too large"));
+        req.destroy();
+        return;
+      }
+      chunks.push(buf);
+    });
+    req.on("end", () => {
+      const raw = Buffer.concat(chunks).toString("utf8").trim();
+      if (!raw) {
+        resolve({});
+        return;
+      }
+      try {
+        resolve(JSON.parse(raw) as unknown);
+      } catch {
+        reject(new Error("invalid JSON body"));
+      }
+    });
+    req.on("error", reject);
+  });
+}
+
 export function handleOpsHttp(
   req: IncomingMessage,
   res: ServerResponse,
@@ -259,6 +293,47 @@ export function handleOpsHttp(
         return true;
       }
       writeJson(res, 200, buildOpsStatus(deps));
+      return true;
+    }
+
+    // Stuck openAsk mempool / pause: fee-bumped same-nonce replace or cancelAsk.
+    if (pathname === "/ops/replace-open-ask") {
+      const method = (req.method ?? "GET").toUpperCase();
+      if (method !== "POST") {
+        writeJson(res, 405, { ok: false, error: "POST required" });
+        return true;
+      }
+      if (!statusAuthorized(req, env, deps.remoteAddress)) {
+        writeJson(res, 401, { ok: false, error: "unauthorized" });
+        return true;
+      }
+      void (async () => {
+        try {
+          const body = (await readJsonBody(req)) as { listingId?: unknown };
+          const listingId =
+            typeof body.listingId === "string"
+              ? body.listingId.trim()
+              : typeof body.listingId === "number"
+                ? String(body.listingId)
+                : "";
+          if (!/^[1-9][0-9]{0,77}$/.test(listingId)) {
+            writeJson(res, 400, { ok: false, error: "listingId required" });
+            return;
+          }
+          const replace = deps.replacePendingOpenAsk ?? replacePendingOpenAsk;
+          const out = await replace({
+            listingId,
+            env,
+            dataDir: deps.dataDir,
+          });
+          writeJson(res, out.ok ? 200 : 400, out);
+        } catch (err) {
+          writeJson(res, 400, {
+            ok: false,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      })();
       return true;
     }
   } catch (err) {

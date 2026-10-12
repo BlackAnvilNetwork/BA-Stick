@@ -27,6 +27,7 @@ contract AhEscrowTest is Test {
     function setUp() public {
         nft = new MockOwnerNft();
         nft.setOwner(SELLER_TOKEN, seller);
+        nft.setOwner(BUYER_TOKEN, buyer);
         escrow = new AhEscrow(admin, address(nft), payable(feeTo));
         bytes32 guardianRole = escrow.GUARDIAN_ROLE();
         vm.prank(admin);
@@ -90,6 +91,14 @@ contract AhEscrowTest is Test {
         vm.prank(buyer);
         vm.expectRevert(AhEscrow.WrongPrice.selector);
         escrow.buyAsk{value: PRICE - 1}(LISTING, BUYER_TOKEN);
+    }
+
+    /// L-4: unminted buyerTokenId must revert (ownerOf missing).
+    function test_buyAsk_rejectsMissingBuyerToken() public {
+        _open(LISTING, PRICE);
+        vm.prank(buyer);
+        vm.expectRevert(MockOwnerNft.MissingOwner.selector);
+        escrow.buyAsk{value: PRICE}(LISTING, 999);
     }
 
     function test_cannotDoubleFill() public {

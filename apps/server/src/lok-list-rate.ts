@@ -113,15 +113,16 @@ export function listingMinLifetimeOk(
   };
 }
 
+/**
+ * Per-char / per-wallet only. Charge `consumeGlobalListingTxBudget` immediately
+ * before a real LISTING broadcast — never on refused / neverOpened paths.
+ */
 export function consumeListBudget(opts: {
   charId: string;
   wallet: string;
   now?: number;
-  dataDir?: string;
 }): { ok: true } | { ok: false; error: string } {
   const now = opts.now ?? Date.now();
-  const global = consumeGlobalListingTxBudget({ now, dataDir: opts.dataDir });
-  if (!global.ok) return global;
   if (!consume(listByChar, opts.charId, LIST_MAX_PER_CHAR_PER_HOUR, now)) {
     return { ok: false, error: "List rate limit: too many listings for this character (max " + LIST_MAX_PER_CHAR_PER_HOUR + "/h)." };
   }
@@ -135,11 +136,8 @@ export function consumeCancelBudget(opts: {
   charId: string;
   wallet: string;
   now?: number;
-  dataDir?: string;
 }): { ok: true } | { ok: false; error: string } {
   const now = opts.now ?? Date.now();
-  const global = consumeGlobalListingTxBudget({ now, dataDir: opts.dataDir });
-  if (!global.ok) return global;
   if (!consume(cancelByChar, opts.charId, CANCEL_MAX_PER_CHAR_PER_HOUR, now)) {
     return { ok: false, error: "Cancel rate limit: too many cancels for this character (max " + CANCEL_MAX_PER_CHAR_PER_HOUR + "/h)." };
   }

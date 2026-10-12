@@ -28,6 +28,14 @@ import { LokWorld } from "./lok-world";
 import { resetNftOwnerCacheForTests, sessionOwnsCharacter } from "./nft-owner-cache";
 import { decodeErc721Transfer, ERC721_TRANSFER_TOPIC } from "./nft-transfer-ask-cancel";
 import {
+  ASK_CLOSED_SELECTOR,
+  CANCEL_FINALITY_TIMEOUT_MS,
+} from "./ah-escrow-tx";
+import {
+  CancelTxRecordStore,
+  resetCancelTxRecordForTests,
+} from "./cancel-tx-record";
+import {
   OpenAskPendingStore,
   resetOpenAskPendingForTests,
 } from "./open-ask-pending";
@@ -46,6 +54,7 @@ import {
   wsIpExemptFromCaps,
   WS_MSG_LIMIT,
 } from "./ws-limits";
+import { keccak256, toBytes } from "viem";
 
 function padAddr(addr: string): string {
   return "0x" + addr.replace(/^0x/, "").toLowerCase().padStart(64, "0");
@@ -157,6 +166,44 @@ describe("H-1 list/cancel rate limits", () => {
       consumeGlobalListingTxBudget({ now: now + 3_600_000 + 1, dataDir: dir }).ok,
       true,
     );
+  });
+
+  it("per-char list/cancel budgets do not charge the global LISTING budget", () => {
+    resetListRateForTests();
+    const dir = mkdtempSync(join(tmpdir(), "list-budget-sep-"));
+    const now = 6_000_000;
+    const wallet = "0xcccccccccccccccccccccccccccccccccccccccc";
+    for (let i = 0; i < LIST_MAX_PER_CHAR_PER_HOUR; i++) {
+      assert.equal(consumeListBudget({ charId: "sep", wallet, now }).ok, true);
+    }
+    // Global budget still fully available (charged only at broadcast).
+    for (let i = 0; i < GLOBAL_LISTING_TX_MAX_PER_HOUR; i++) {
+      assert.equal(consumeGlobalListingTxBudget({ now, dataDir: dir }).ok, true);
+    }
+    assert.equal(consumeGlobalListingTxBudget({ now, dataDir: dir }).ok, false);
+  });
+});
+
+describe("MED cancel finality + AskClosed selector", () => {
+  it("AskClosed selector is keccak(AskClosed())[0:4]", () => {
+    const expected = keccak256(toBytes("AskClosed()")).slice(0, 10);
+    assert.equal(ASK_CLOSED_SELECTOR, "0x756918b7");
+    assert.equal(ASK_CLOSED_SELECTOR, expected);
+  });
+
+  it("cancel finality timeout covers ~30 Gnosis blocks", () => {
+    assert.ok(CANCEL_FINALITY_TIMEOUT_MS >= 900_000);
+  });
+
+  it("records server cancelAsk hashes for retry release", () => {
+    resetCancelTxRecordForTests();
+    const dir = mkdtempSync(join(tmpdir(), "cancel-tx-"));
+    const store = new CancelTxRecordStore(join(dir, "cancel-ask-txs.json"));
+    const hash = "0x" + "ab".repeat(32);
+    store.set("77", hash);
+    assert.equal(store.get("77")?.hash, hash);
+    store.clear("77");
+    assert.equal(store.get("77"), null);
   });
 });
 

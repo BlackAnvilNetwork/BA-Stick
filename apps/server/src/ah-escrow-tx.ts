@@ -15,6 +15,8 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { ahEscrowAddress, ahEscrowClientConfig, listingRoleKey } from "./ah-escrow";
+import { cancelTxRecordStore } from "./cancel-tx-record";
+import { consumeGlobalListingTxBudget } from "./lok-list-rate";
 import { openAskPendingStore } from "./open-ask-pending";
 import { withOwnerKeyQueue } from "./owner-tx-queue";
 import { settlementConfirmations } from "./settlement-confirmations";
@@ -54,9 +56,19 @@ const AH_ABI = [
       { name: "used", type: "bool" },
     ],
   },
+  { type: "error", name: "AskClosed" },
+  { type: "error", name: "AskExists" },
+  { type: "error", name: "BadAmount" },
+  { type: "error", name: "BadId" },
+  { type: "error", name: "Unauthorized" },
+  { type: "error", name: "EnforcedPause" },
 ] as const;
 
-const ASK_CLOSED_SELECTOR = "0x2d47378f"; // AskClosed()
+/** keccak256("AskClosed()")[0:4] */
+export const ASK_CLOSED_SELECTOR = "0x756918b7";
+
+/** Finality wait for cancel must cover ~30 Gnosis blocks (~2.5m) + slack. */
+export const CANCEL_FINALITY_TIMEOUT_MS = 900_000;
 
 export type OnchainAsk = {
   sellerTokenId: string;
@@ -113,10 +125,12 @@ async function waitReceipt(
   pub: ReturnType<typeof createPublicClient>,
   hash: Hex,
   confirmations = 1,
+  timeoutMs?: number,
 ): Promise<TransactionReceipt> {
   return pub.waitForTransactionReceipt({
     hash,
     confirmations: confirmations >= 1 ? confirmations : 1,
+    ...(timeoutMs != null ? { timeout: timeoutMs } : {}),
   });
 }
 
@@ -258,6 +272,8 @@ export async function replacePendingOpenAsk(opts: {
     if (resolved.action === "open") {
       // Ask is open — cancel it (1 conf inside queue).
       try {
+        const budget = consumeGlobalListingTxBudget({ dataDir: opts.dataDir });
+        if (!budget.ok) return budget;
         const hash = await c.wallet.writeContract({
           address: c.escrow,
           abi: AH_ABI,
@@ -271,19 +287,41 @@ export async function replacePendingOpenAsk(opts: {
           return { ok: false, error: "replacement cancelAsk reverted" };
         }
         openAskPendingStore(opts.dataDir).clear(opts.listingId);
+        cancelTxRecordStore(opts.dataDir).set(opts.listingId, hash);
         return { ok: true, hash, cleared: true };
       } catch (err) {
         return { ok: false, error: err instanceof Error ? err.message : String(err) };
       }
     }
-    // Still in mempool at the same nonce — replace with a 0-value self send to clear the nonce.
+    // Still in mempool at the same nonce — replace with a fee-bumped 0-value self send.
     try {
+      let maxFeePerGas: bigint | undefined;
+      let maxPriorityFeePerGas: bigint | undefined;
+      try {
+        const stuck = await c.pub.getTransaction({ hash: pending.hash as Hex });
+        if (stuck.maxFeePerGas != null) maxFeePerGas = (stuck.maxFeePerGas * 1125n) / 1000n;
+        if (stuck.maxPriorityFeePerGas != null) {
+          maxPriorityFeePerGas = (stuck.maxPriorityFeePerGas * 1125n) / 1000n;
+        }
+      } catch {
+        /* bump from pending fee if available */
+      }
+      if (maxFeePerGas == null || maxPriorityFeePerGas == null) {
+        const fees = await c.pub.estimateFeesPerGas();
+        maxFeePerGas = maxFeePerGas ?? ((fees.maxFeePerGas ?? 1n) * 1125n) / 1000n;
+        maxPriorityFeePerGas =
+          maxPriorityFeePerGas ?? ((fees.maxPriorityFeePerGas ?? 1n) * 1125n) / 1000n;
+      }
+      const budget = consumeGlobalListingTxBudget({ dataDir: opts.dataDir });
+      if (!budget.ok) return budget;
       const hash = await c.wallet.sendTransaction({
         account: c.account,
         chain: c.chain,
         to: c.account.address,
         value: 0n,
         nonce: Number(pending.nonce),
+        maxFeePerGas,
+        maxPriorityFeePerGas,
       });
       const receipt = await waitReceipt(c.pub, hash, 1);
       openAskPendingStore(opts.dataDir).clear(opts.listingId);
@@ -309,6 +347,8 @@ export async function openAskOnchain(opts: {
   return withOwnerKeyQueue(async () => {
     const c = client(opts.env);
     if (!c.ok) return c;
+    const budget = consumeGlobalListingTxBudget({ dataDir: opts.dataDir });
+    if (!budget.ok) return budget;
     let hash: Hex | undefined;
     try {
       const nonce = await c.pub.getTransactionCount({
@@ -397,10 +437,45 @@ export async function cancelAskOnchain(opts: {
   env?: NodeJS.ProcessEnv;
   dataDir?: string;
 }): Promise<
-  | { ok: true; hash: Hex; alreadyClosed?: boolean; neverOpened?: boolean; pendingOpen?: boolean }
+  | {
+      ok: true;
+      hash: Hex;
+      alreadyClosed?: boolean;
+      /** This server's own cancelAsk mined — safe to release log escrow (not a fill). */
+      serverCancelled?: boolean;
+      neverOpened?: boolean;
+      pendingOpen?: boolean;
+    }
   | { ok: false; error: string }
 > {
   const env = opts.env;
+  const cancels = cancelTxRecordStore(opts.dataDir);
+
+  // Retry path: we already broadcast cancelAsk; finish finality + release.
+  const prior = cancels.get(opts.listingId);
+  if (prior && /^0x[0-9a-fA-F]{64}$/.test(prior.hash)) {
+    const c = readClient(env);
+    if (c.ok) {
+      try {
+        const depth = cancelConfirmations(env);
+        await waitReceipt(c.pub, prior.hash as Hex, depth > 1 ? depth : 1, CANCEL_FINALITY_TIMEOUT_MS);
+        cancels.clear(opts.listingId);
+        openAskPendingStore(opts.dataDir).clear(opts.listingId);
+        return { ok: true, hash: prior.hash as Hex, serverCancelled: true };
+      } catch (err) {
+        return {
+          ok: false,
+          error:
+            "server cancelAsk " +
+            prior.hash +
+            " finality wait failed: " +
+            (err instanceof Error ? err.message : String(err)) +
+            " — retry; log escrow not released yet",
+        };
+      }
+    }
+  }
+
   // Phase 1 (inside queue): resolve pending openAsk, broadcast cancel, wait 1 confirmation.
   const phase1 = await withOwnerKeyQueue(async () => {
     const c = client(env);
@@ -425,6 +500,17 @@ export async function cancelAskOnchain(opts: {
         return { ok: true as const, hash: "0x" as Hex, neverOpened: true as const };
       }
       if (resolved.action === "alreadyClosed") {
+        const recorded = cancels.get(opts.listingId);
+        if (recorded) {
+          return {
+            ok: true as const,
+            hash: recorded.hash as Hex,
+            serverCancelled: true as const,
+            needsFinality: true as const,
+            rpcUrl: c.cfg.rpcUrl,
+            chainId: c.cfg.chainId,
+          };
+        }
         return { ok: true as const, hash: "0x" as Hex, alreadyClosed: true as const };
       }
       if (resolved.action === "wait") {
@@ -437,8 +523,22 @@ export async function cancelAskOnchain(opts: {
 
     if (!before.ask.open) {
       openAskPendingStore(opts.dataDir).clear(opts.listingId);
+      const recorded = cancels.get(opts.listingId);
+      if (recorded) {
+        return {
+          ok: true as const,
+          hash: recorded.hash as Hex,
+          serverCancelled: true as const,
+          needsFinality: true as const,
+          rpcUrl: c.cfg.rpcUrl,
+          chainId: c.cfg.chainId,
+        };
+      }
       return { ok: true as const, hash: "0x" as Hex, alreadyClosed: true as const };
     }
+
+    const budget = consumeGlobalListingTxBudget({ dataDir: opts.dataDir });
+    if (!budget.ok) return budget;
 
     try {
       const hash = await c.wallet.writeContract({
@@ -449,6 +549,8 @@ export async function cancelAskOnchain(opts: {
         account: c.account,
         chain: c.chain,
       });
+      // Record before finality so a timeout retry can release the log.
+      cancels.set(opts.listingId, hash);
       const receipt = await waitReceipt(c.pub, hash, 1);
       if (receipt.status !== "success") {
         return { ok: false as const, error: "cancelAsk reverted on-chain." };
@@ -457,6 +559,7 @@ export async function cancelAskOnchain(opts: {
       return {
         ok: true as const,
         hash,
+        serverCancelled: true as const,
         needsFinality: true as const,
         rpcUrl: c.cfg.rpcUrl,
         chainId: c.cfg.chainId,
@@ -465,11 +568,33 @@ export async function cancelAskOnchain(opts: {
       const msg = err instanceof Error ? err.message : String(err);
       if (isAskClosedError(msg)) {
         openAskPendingStore(opts.dataDir).clear(opts.listingId);
+        const recorded = cancels.get(opts.listingId);
+        if (recorded) {
+          return {
+            ok: true as const,
+            hash: recorded.hash as Hex,
+            serverCancelled: true as const,
+            needsFinality: true as const,
+            rpcUrl: c.cfg.rpcUrl,
+            chainId: c.cfg.chainId,
+          };
+        }
         return { ok: true as const, hash: "0x" as Hex, alreadyClosed: true as const };
       }
       const again = await readAskOnchain({ listingId: opts.listingId, env });
       if (again.ok && !again.ask.open) {
         openAskPendingStore(opts.dataDir).clear(opts.listingId);
+        const recorded = cancels.get(opts.listingId);
+        if (recorded) {
+          return {
+            ok: true as const,
+            hash: recorded.hash as Hex,
+            serverCancelled: true as const,
+            needsFinality: true as const,
+            rpcUrl: c.cfg.rpcUrl,
+            chainId: c.cfg.chainId,
+          };
+        }
         return { ok: true as const, hash: "0x" as Hex, alreadyClosed: true as const };
       }
       return { ok: false as const, error: msg };
@@ -482,33 +607,36 @@ export async function cancelAskOnchain(opts: {
       ok: true,
       hash: phase1.hash,
       alreadyClosed: "alreadyClosed" in phase1 ? phase1.alreadyClosed : undefined,
+      serverCancelled: "serverCancelled" in phase1 ? phase1.serverCancelled : undefined,
       neverOpened: "neverOpened" in phase1 ? phase1.neverOpened : undefined,
     };
   }
 
   // Phase 2 (outside queue): wait for settlement depth before caller releases log escrow.
   const depth = cancelConfirmations(env);
-  if (depth > 1) {
-    try {
-      const pub = createPublicClient({
-        chain: {
-          id: phase1.chainId,
-          name: "settlement",
-          nativeCurrency: { name: "xDAI", symbol: "xDAI", decimals: 18 },
-          rpcUrls: { default: { http: [phase1.rpcUrl] } },
-        },
-        transport: http(phase1.rpcUrl),
-      });
-      await waitReceipt(pub, phase1.hash, depth);
-    } catch (err) {
-      return {
-        ok: false,
-        error:
-          "cancelAsk mined but finality wait failed: " +
-          (err instanceof Error ? err.message : String(err)) +
-          " — log escrow not released yet",
-      };
-    }
+  try {
+    const pub = createPublicClient({
+      chain: {
+        id: phase1.chainId,
+        name: "settlement",
+        nativeCurrency: { name: "xDAI", symbol: "xDAI", decimals: 18 },
+        rpcUrls: { default: { http: [phase1.rpcUrl] } },
+      },
+      transport: http(phase1.rpcUrl),
+    });
+    await waitReceipt(pub, phase1.hash, depth > 1 ? depth : 1, CANCEL_FINALITY_TIMEOUT_MS);
+    cancels.clear(opts.listingId);
+  } catch (err) {
+    // Keep cancel-tx record so retry releases via serverCancelled path.
+    return {
+      ok: false,
+      error:
+        "cancelAsk mined (" +
+        phase1.hash +
+        ") but finality wait failed: " +
+        (err instanceof Error ? err.message : String(err)) +
+        " — retry; log escrow not released yet",
+    };
   }
-  return { ok: true, hash: phase1.hash };
+  return { ok: true, hash: phase1.hash, serverCancelled: true };
 }

@@ -38,6 +38,7 @@ contract AhEscrowSupportTest is Test {
     function setUp() public {
         nft = new MockOwnerNft();
         nft.setOwner(SELLER_TOKEN, seller);
+        nft.setOwner(BUYER_TOKEN, buyer);
         escrow = new AhEscrow(admin, address(nft), payable(feeTo));
         vm.deal(buyer, 10 ether);
     }
@@ -69,6 +70,7 @@ contract AhEscrowSupportTest is Test {
     function test_reentrantPayoutCannotDoubleFill() public {
         ReenterPayout evil = new ReenterPayout(escrow);
         nft.setOwner(SELLER_TOKEN, address(evil));
+        nft.setOwner(99, buyer); // ReenterPayout uses buyerTokenId 99
         _open(LISTING, PRICE);
         _open(LISTING + 1, PRICE);
         evil.arm(LISTING + 1);

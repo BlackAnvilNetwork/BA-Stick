@@ -300,4 +300,83 @@ describe("ops health + structured alerts", () => {
     assert.equal(parsed.network, "anvil");
     assert.equal(parsed.ready, true);
   });
+
+  it("POST /ops/replace-open-ask requires auth and wires replacePendingOpenAsk", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "lok-ops-"));
+    let calledWith: string | null = null;
+    const deps = {
+      lokReady: () => true,
+      startedAtMs: Date.now(),
+      dataDir: dir,
+      env: {
+        NETWORK: "gnosis",
+        LOK_CHAIN_ID: "100",
+        LOK_OPS_STATUS_TOKEN: "ops-secret",
+      },
+      remoteAddress: "203.0.113.9",
+      replacePendingOpenAsk: async (opts: { listingId: string }) => {
+        calledWith = opts.listingId;
+        return { ok: true as const, hash: ("0x" + "11".repeat(32)) as `0x${string}`, cleared: true };
+      },
+    };
+
+    async function hit(opts: {
+      auth?: string;
+      body?: string;
+      method?: string;
+    }): Promise<{ status: number; body: string }> {
+      return new Promise((resolve) => {
+        let statusCode = 0;
+        let body = "";
+        const res = {
+          writeHead(code: number) {
+            statusCode = code;
+          },
+          end(chunk?: string) {
+            body = chunk ?? "";
+            resolve({ status: statusCode, body });
+          },
+        } as unknown as ServerResponse;
+        const listeners: Record<string, Array<(...args: unknown[]) => void>> = {};
+        const req = {
+          url: "/ops/replace-open-ask",
+          method: opts.method ?? "POST",
+          headers: {
+            host: "localhost",
+            ...(opts.auth ? { authorization: opts.auth } : {}),
+          },
+          socket: { remoteAddress: "203.0.113.9" },
+          on(event: string, cb: (...args: unknown[]) => void) {
+            (listeners[event] ??= []).push(cb);
+            return req;
+          },
+          destroy() {},
+        } as unknown as IncomingMessage;
+        assert.equal(handleOpsHttp(req, res, deps), true);
+        queueMicrotask(() => {
+          if (opts.body != null) {
+            for (const cb of listeners.data ?? []) cb(Buffer.from(opts.body));
+          }
+          for (const cb of listeners.end ?? []) cb();
+        });
+      });
+    }
+
+    const denied = await hit({ body: '{"listingId":"42"}' });
+    assert.equal(denied.status, 401);
+
+    const badMethod = await hit({
+      auth: "Bearer ops-secret",
+      method: "GET",
+    });
+    assert.equal(badMethod.status, 405);
+
+    const ok = await hit({
+      auth: "Bearer ops-secret",
+      body: '{"listingId":"42"}',
+    });
+    assert.equal(ok.status, 200);
+    assert.equal(JSON.parse(ok.body).ok, true);
+    assert.equal(calledWith, "42");
+  });
 });
