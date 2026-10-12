@@ -12,6 +12,11 @@ import { classifyClosedAsk, type ReconcileRpc } from "./ah-escrow-reconcile";
 import { cancelAskOnchain, readAskOnchain } from "./ah-escrow-tx";
 import { settlementConfirmations } from "./settlement-confirmations";
 import { settlementChainId } from "./settlement-chain";
+import {
+  settlementRpc,
+  watcherLagBlocks,
+  watcherStartBlock,
+} from "./settlement-rpc";
 import { defaultLokDir, type LokWorld } from "./lok-world";
 import { writeTextAtomic } from "./lok-vault";
 
@@ -559,12 +564,16 @@ export async function scanNftTransfers(opts: {
   onTransfer: (xfer: NftTransfer) => Promise<void>;
   /** Blocks behind tip (default NFT_TRANSFER_CONFIRMATIONS). */
   confirmations?: bigint;
+  /** When cursor is 0, begin here (deploy block) instead of tip. */
+  startBlock?: bigint;
 }): Promise<{ cursor: bigint }> {
   const confirmations = opts.confirmations ?? NFT_TRANSFER_CONFIRMATIONS;
   const latestHex = (await opts.rpcCall("eth_blockNumber", [])) as string;
   const latest = BigInt(latestHex);
   const safeHead = latest > confirmations ? latest - confirmations : 0n;
-  let from = opts.cursor === 0n ? (safeHead > 0n ? safeHead : 0n) : opts.cursor + 1n;
+  const start = opts.startBlock ?? 0n;
+  // cursor 0 = never scanned: backfill from deploy block (not tip — tip skips history).
+  let from = opts.cursor === 0n ? start : opts.cursor + 1n;
   if (from > safeHead) return { cursor: opts.cursor };
 
   const page = 2_000n;
@@ -635,25 +644,31 @@ export function startNftTransferAskCancelWatcher(
   },
 ): void {
   const env = opts?.env ?? process.env;
-  const rpc = env.LOK_CHAIN_RPC?.trim();
   const nft = nftAddress(env);
-  if (!rpc || !nft) return;
+  if (!nft) return;
   if (!ahEscrowAddress(env)) return;
+  if (!(env.LOK_CHAIN_RPC?.trim() || env.LOK_CHAIN_RPC_URLS?.trim())) return;
 
+  const rpc = settlementRpc(env);
   const dataDir = opts?.dataDir ?? defaultLokDir();
   const cursorPath = opts?.cursorPath ?? nftTransferCursorPath(dataDir);
   const pendingPath = opts?.pendingPath ?? nftTransferPendingPath(dataDir);
   const droppedPath = nftTransferDroppedPath(dataDir);
   const confirmations = settlementConfirmations(env);
+  const startBlock = watcherStartBlock(env);
   console.log(
     "[bellgrave] NFT transfer ask-cancel watcher rpc=" +
-      rpc +
+      rpc.currentUrl() +
+      " fallbacks=" +
+      Math.max(0, rpc.urls.length - 1) +
       " nft=" +
       nft +
       " chain=" +
       settlementChainId(env) +
       " confirmations=" +
       confirmations.toString() +
+      " startBlock=" +
+      startBlock.toString() +
       " droppedAlerts=" +
       droppedPath,
   );
@@ -661,7 +676,7 @@ export function startNftTransferAskCancelWatcher(
   let cursor = readCursor(cursorPath);
   let pending = readPendingCancels(pendingPath);
   let busy = false;
-  const classifyClosed = defaultClassifyClosed(env, rpc);
+  const classifyClosed = defaultClassifyClosed(env, rpc.currentUrl());
 
   const tick = async () => {
     if (busy) return;
@@ -681,7 +696,8 @@ export function startNftTransferAskCancelWatcher(
         cursor,
         nft,
         confirmations,
-        rpcCall: (method, params) => jsonRpc(rpc, method, params),
+        startBlock,
+        rpcCall: rpc.asCall(),
         onTransfer: async (xfer) => {
           const res = await cancelOpenAsksForCharacter(lok, xfer.tokenId, {
             env,
@@ -698,6 +714,22 @@ export function startNftTransferAskCancelWatcher(
         },
       });
       cursor = next.cursor;
+      rpc.noteCursor("nftTransfer", cursor);
+      const lag = watcherLagBlocks({
+        tip: rpc.stats.tipBlock,
+        cursor,
+        confirmations,
+      });
+      if (lag > 50n) {
+        console.error(
+          "[bellgrave] ALERT NFT transfer watcher lag=" +
+            lag.toString() +
+            " blocks tip=" +
+            (rpc.stats.tipBlock?.toString() ?? "?") +
+            " cursor=" +
+            cursor.toString(),
+        );
+      }
       // Re-read+merge pending, then cursor — concurrent list-race enqueues survive this write.
       pending = persistPendingThenCursor(pendingPath, cursorPath, pending, cursor);
     } catch (err) {

@@ -9,6 +9,11 @@ import { join } from "node:path";
 import { settlementConfirmations } from "./settlement-confirmations";
 import { settlementChainId } from "./settlement-chain";
 import {
+  settlementRpc,
+  watcherLagBlocks,
+  watcherStartBlock,
+} from "./settlement-rpc";
+import {
   alertAskFilledQuarantine,
   AskFilledQuarantine,
   askFilledMirroredPath,
@@ -242,6 +247,8 @@ export async function scanAskFilled(opts: {
   quarantine?: AskFilledQuarantine;
   /** Blocks behind tip (default ASK_FILL_CONFIRMATIONS / settlementConfirmations). */
   confirmations?: bigint;
+  /** When cursor is 0, begin here (deploy block) instead of genesis. */
+  startBlock?: bigint;
 }): Promise<{ cursor: bigint }> {
   const confirmations = opts.confirmations ?? ASK_FILL_CONFIRMATIONS;
   const latest = BigInt(String(await opts.rpcCall("eth_blockNumber", [])));
@@ -251,7 +258,9 @@ export async function scanAskFilled(opts: {
 
   // Page getLogs in 2k-block chunks so L2 RPCs with range limits still work.
   const PAGE = 2000n;
-  let from = opts.cursor;
+  const start = opts.startBlock ?? 0n;
+  let from = opts.cursor === 0n ? start : opts.cursor;
+  if (from > safeHead) return { cursor: opts.cursor };
   let cursor = safeHead + 1n;
   while (from <= safeHead) {
     const to = from + PAGE - 1n > safeHead ? safeHead : from + PAGE - 1n;
@@ -310,9 +319,11 @@ export function startAskFilledWatcher(
   },
 ): void {
   const env = opts?.env ?? process.env;
-  const rpc = env.LOK_CHAIN_RPC?.trim();
   const escrow = ahEscrowAddress(env);
-  if (!rpc || !escrow) return;
+  if (!escrow) return;
+  const urls = (env.LOK_CHAIN_RPC?.trim() || env.LOK_CHAIN_RPC_URLS?.trim() || "").length > 0;
+  if (!urls) return;
+  const rpc = settlementRpc(env);
   const dataDir = opts?.dataDir ?? defaultLokDir();
   const cursorPath = opts?.cursorPath ?? askFilledCursorPath(dataDir);
   const quarantine = new AskFilledQuarantine(askFilledQuarantinePath(dataDir));
@@ -327,15 +338,20 @@ export function startAskFilledWatcher(
     );
   }
   const confirmations = settlementConfirmations(env);
+  const startBlock = watcherStartBlock(env);
   console.log(
     "[bellgrave] AhEscrow watcher rpc=" +
-      rpc +
+      rpc.currentUrl() +
+      " fallbacks=" +
+      Math.max(0, rpc.urls.length - 1) +
       " escrow=" +
       escrow +
       " chain=" +
       settlementChainId(env) +
       " confirmations=" +
-      confirmations.toString(),
+      confirmations.toString() +
+      " startBlock=" +
+      startBlock.toString(),
   );
   let cursor = readAskFilledCursor(cursorPath);
   let busy = false;
@@ -349,7 +365,8 @@ export function startAskFilledWatcher(
         escrow,
         quarantine,
         confirmations,
-        rpcCall: (method, params) => jsonRpc(rpc, method, params),
+        startBlock,
+        rpcCall: rpc.asCall(),
         apply: (fill, fillKey, log) => {
           const beforeSeller = lok.listingOf(fill.listingId)?.seller;
           const res = applyAskFilled(lok, fill, fillKey, { mirrored, log });
@@ -385,6 +402,22 @@ export function startAskFilledWatcher(
       });
       cursor = next.cursor;
       writeAskFilledCursor(cursorPath, cursor);
+      rpc.noteCursor("askFilled", cursor);
+      const lag = watcherLagBlocks({
+        tip: rpc.stats.tipBlock,
+        cursor,
+        confirmations,
+      });
+      if (lag > 50n) {
+        console.error(
+          "[bellgrave] ALERT AskFilled watcher lag=" +
+            lag.toString() +
+            " blocks tip=" +
+            (rpc.stats.tipBlock?.toString() ?? "?") +
+            " cursor=" +
+            cursor.toString(),
+        );
+      }
     } catch (err) {
       console.error("[bellgrave] AhEscrow watcher", err);
     } finally {

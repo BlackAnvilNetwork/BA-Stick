@@ -335,4 +335,28 @@ describe("scanNftTransfers", () => {
     // safeHead = 100; cursor 100 → from=101 > safeHead → unchanged
     assert.equal(next.cursor, 100n);
   });
+
+  it("backfills from startBlock when cursor is 0 (not tip)", async () => {
+    const ranges: Array<{ from: string; to: string }> = [];
+    const next = await scanNftTransfers({
+      cursor: 0n,
+      startBlock: 90n,
+      nft: "0x00000000000000000000000000000000000000ff",
+      confirmations: 2n,
+      rpcCall: async (method, params) => {
+        if (method === "eth_blockNumber") return "0x66"; // 102 → safeHead 100
+        if (method === "eth_getLogs") {
+          const q = params[0] as { fromBlock: string; toBlock: string };
+          ranges.push({ from: q.fromBlock, to: q.toBlock });
+          return [];
+        }
+        throw new Error(method);
+      },
+      onTransfer: async () => {
+        /* none */
+      },
+    });
+    assert.equal(ranges[0]?.from, "0x5a"); // 90
+    assert.equal(next.cursor, 100n);
+  });
 });
