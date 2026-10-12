@@ -124,6 +124,70 @@ export async function startThrowawayAnvil(): Promise<ThrowawayAnvil> {
 }
 
 /** Deploy AhEscrow with deployer (= key 0) holding LISTING_ROLE. */
+export function deployMintFixture(rpc: string): { nft: string; factory: string } {
+  const forge = resolveForgeBin();
+  if (!forge) throw new Error("forge not found");
+  if (!forgeLibsPresent()) throw new Error("contracts/lok-log/lib missing");
+  const out = execFileSync(
+    forge,
+    [
+      "script",
+      "script/MintFixture.s.sol:MintFixture",
+      "--rpc-url",
+      rpc,
+      "--private-key",
+      SUPPORT_ANVIL_K0,
+      "--broadcast",
+      "-vv",
+    ],
+    {
+      cwd: SUPPORT_LOK,
+      encoding: "utf8",
+      env: { ...process.env, FOUNDRY_DISABLE_NIGHTLY_WARNING: "1" },
+    },
+  );
+  const nftMatch = /NFT\s+(0x[a-fA-F0-9]{40})/.exec(out);
+  const factoryMatch = /FACTORY\s+(0x[a-fA-F0-9]{40})/.exec(out);
+  if (!nftMatch || !factoryMatch) {
+    throw new Error("MintFixture did not print NFT/FACTORY\n" + out.slice(-800));
+  }
+  return { nft: nftMatch[1]!, factory: factoryMatch[1]! };
+}
+
+/** Deploy MockEezSyncBuy wired to an AhEscrow on the same anvil. */
+export function deployMockEezSyncBuy(rpc: string, escrow: string, zoneId = 31337): string {
+  const forge = resolveForgeBin();
+  if (!forge) throw new Error("forge not found");
+  if (!forgeLibsPresent()) throw new Error("contracts/lok-log/lib missing");
+  if (zoneId !== 31337) throw new Error("EezMockFixture only supports zoneId 31337");
+  const out = execFileSync(
+    forge,
+    [
+      "script",
+      "script/EezMockFixture.s.sol:EezMockFixture",
+      "--rpc-url",
+      rpc,
+      "--private-key",
+      SUPPORT_ANVIL_K0,
+      "--broadcast",
+      "-vv",
+    ],
+    {
+      cwd: SUPPORT_LOK,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        FOUNDRY_DISABLE_NIGHTLY_WARNING: "1",
+        ETH_RPC_URL: rpc,
+        EEZ_ESCROW: escrow,
+      },
+    },
+  );
+  const m = /MOCK\s+(0x[a-fA-F0-9]{40})/.exec(out);
+  if (!m) throw new Error("EezMockFixture did not print MOCK\n" + out.slice(-800));
+  return m[1]!;
+}
+
 export function deployAhEscrowFixture(rpc: string): string {
   const forge = resolveForgeBin();
   if (!forge) throw new Error("forge not found");

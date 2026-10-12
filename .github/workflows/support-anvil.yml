@@ -21,6 +21,8 @@ jobs:
           node-version: "22"
           cache: pnpm
       - uses: dtolnay/rust-toolchain@stable
+      - name: Install wasm32 target
+        run: rustup target add wasm32-unknown-unknown
       - uses: foundry-rs/foundry-toolchain@v1
       - name: Install Foundry libs (lib/ is gitignored)
         working-directory: contracts/lok-log
@@ -32,6 +34,8 @@ jobs:
       - name: Engine cargo test
         working-directory: contracts/lok-log/engine
         run: cargo test
+      - name: Verify engine wasm pin (rebuild + diff pkg)
+        run: node contracts/lok-log/engine/scripts/check-wasm-pin.mjs
       - name: Server suite (self-starts throwaway anvil when foundry+libs present)
         run: pnpm --filter @bellgrave/server test
       - name: Forge

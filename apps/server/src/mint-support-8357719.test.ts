@@ -3,7 +3,7 @@
  * The factory case needs LOK_SUPPORT_RPC + LOK_SUPPORT_NEW_FACTORY (MintFixture on a throwaway anvil).
  */
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { after, before, describe, it } from "node:test";
 import { privateKeyToAccount } from "viem/accounts";
 import { normalizeCharacterName } from "./character-name";
 import { factorySupportsCreateFor } from "./lok-vault";
@@ -13,11 +13,17 @@ import {
   mintClaimMessage,
   resetMintClaimNoncesForTests,
 } from "./mint-claim";
+import {
+  deployMintFixture,
+  startThrowawayAnvil,
+  supportAnvilAvailable,
+  type ThrowawayAnvil,
+} from "./support-anvil";
 
 const MINT = privateKeyToAccount("0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a");
 const GAME = "0x1111111111111111111111111111111111111111";
-const RPC = process.env.LOK_SUPPORT_RPC ?? "";
-const NEW_FACTORY = process.env.LOK_SUPPORT_NEW_FACTORY ?? "";
+const ENV_RPC = process.env.LOK_SUPPORT_RPC ?? "";
+const ENV_NEW = process.env.LOK_SUPPORT_NEW_FACTORY ?? "";
 
 async function args(o: { chainId: number; charId: string; tokenId?: string; nonce?: string }) {
   const expiry = Math.floor(Date.now() / 1000) + 300;
@@ -28,6 +34,22 @@ async function args(o: { chainId: number; charId: string; tokenId?: string; nonc
 }
 
 describe("support 8357719: mint claim L3 + M-A", () => {
+  let owned: ThrowawayAnvil | undefined;
+  let RPC = ENV_RPC;
+  let NEW_FACTORY = ENV_NEW;
+
+  before(async () => {
+    if (ENV_RPC && ENV_NEW) return;
+    if (!supportAnvilAvailable) return;
+    owned = await startThrowawayAnvil();
+    RPC = owned.rpc;
+    NEW_FACTORY = deployMintFixture(RPC).factory;
+  });
+
+  after(() => {
+    owned?.stop();
+  });
+
   it("a claim is reusable until spawn consumes the nonce, then rejected", async () => {
     resetMintClaimNoncesForTests();
     const a = await args({ chainId: 31337, charId: "Chrona" });
@@ -53,7 +75,8 @@ describe("support 8357719: mint claim L3 + M-A", () => {
     const r = await acceptedMintWallets(a);
     assert.equal(r.ok, true, "claim for a legal name is rejected after the fee was paid: " + JSON.stringify(r));
   });
-  it("SUPPORT-FAIL: factorySupportsCreateFor is true for a factory that has createCharacterFor", { skip: !RPC || !NEW_FACTORY }, async () => {
+  it("SUPPORT-FAIL: factorySupportsCreateFor is true for a factory that has createCharacterFor", async () => {
+    assert.ok(RPC && NEW_FACTORY, "MintFixture not ready (need foundry+libs or LOK_SUPPORT_*)");
     assert.equal(await factorySupportsCreateFor(RPC, NEW_FACTORY, 31337), true);
   });
 });

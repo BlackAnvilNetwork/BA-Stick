@@ -474,21 +474,53 @@ const players = new Map<string, Player>();
 const walletToPlayer = new Map<string, string>();
 /** Per-wallet character roster — live progress objects (same refs as active when online). */
 const accountRoster = new Map<string, Map<string, Player>>();
-/** Per-wallet char/nameCheck budget (limits global name enumeration). */
-const nameCheckBudget = new Map<string, { count: number; resetAt: number }>();
-const NAME_CHECK_MAX_PER_MIN = 30;
+/** char/nameCheck rate limits (wallet + IP; maps are pruned each consume). */
+const nameCheckBudgetByWallet = new Map<string, { count: number; resetAt: number }>();
+const nameCheckBudgetByIp = new Map<string, { count: number; resetAt: number }>();
+const NAME_CHECK_MAX_PER_WALLET_PER_MIN = 30;
+const NAME_CHECK_MAX_PER_IP_PER_MIN = 120;
+const NAME_CHECK_BUDGET_MAP_MAX = 5000;
 
-function consumeNameCheckBudget(wallet: string): boolean {
-  const key = wallet.toLowerCase();
-  const now = Date.now();
-  const row = nameCheckBudget.get(key);
+function pruneNameCheckBudget(map: Map<string, { count: number; resetAt: number }>, now: number): void {
+  for (const [key, row] of map) {
+    if (now >= row.resetAt) map.delete(key);
+  }
+  if (map.size <= NAME_CHECK_BUDGET_MAP_MAX) return;
+  const sorted = [...map.entries()].sort((a, b) => a[1].resetAt - b[1].resetAt);
+  const drop = sorted.length - NAME_CHECK_BUDGET_MAP_MAX;
+  for (let i = 0; i < drop; i++) map.delete(sorted[i]![0]);
+}
+
+function consumeRateBucket(
+  map: Map<string, { count: number; resetAt: number }>,
+  key: string,
+  maxPerMin: number,
+  now: number,
+): boolean {
+  const row = map.get(key);
   if (!row || now >= row.resetAt) {
-    nameCheckBudget.set(key, { count: 1, resetAt: now + 60_000 });
+    map.set(key, { count: 1, resetAt: now + 60_000 });
     return true;
   }
-  if (row.count >= NAME_CHECK_MAX_PER_MIN) return false;
+  if (row.count >= maxPerMin) return false;
   row.count += 1;
   return true;
+}
+
+function consumeNameCheckBudget(wallet: string, clientIp: string | undefined): boolean {
+  const now = Date.now();
+  pruneNameCheckBudget(nameCheckBudgetByWallet, now);
+  pruneNameCheckBudget(nameCheckBudgetByIp, now);
+  const ip = clientIp?.trim();
+  if (ip && !consumeRateBucket(nameCheckBudgetByIp, ip, NAME_CHECK_MAX_PER_IP_PER_MIN, now)) {
+    return false;
+  }
+  return consumeRateBucket(
+    nameCheckBudgetByWallet,
+    wallet.toLowerCase(),
+    NAME_CHECK_MAX_PER_WALLET_PER_MIN,
+    now,
+  );
 }
 
 /** Unlimited roster until onchain mint-fee gating is enforced. */
@@ -4627,7 +4659,8 @@ function onMessage(ws: WebSocket, data: string) {
       });
       return;
     }
-    if (!consumeNameCheckBudget(wallet)) {
+    const sock = ws as WebSocket & { authIp?: string };
+    if (!consumeNameCheckBudget(wallet, sock.authIp)) {
       send(ws, {
         type: "char/nameCheck",
         available: false,

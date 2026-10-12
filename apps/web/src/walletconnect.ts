@@ -45,7 +45,12 @@ function chainOf(chainId: number, rpcUrl: string): Chain {
 /** Default public RPC when env is blank or unset. */
 export function defaultRpcUrl(chainId: number): string {
   if (chainId === 31337) {
-    return import.meta.env.VITE_ANVIL_RPC_URL?.trim() || "http://127.0.0.1:8545";
+    // Phone wallets cannot reach 127.0.0.1 — set VITE_ANVIL_PUBLIC_RPC_URL (e.g. LAN IP / tunnel).
+    return (
+      import.meta.env.VITE_ANVIL_PUBLIC_RPC_URL?.trim() ||
+      import.meta.env.VITE_ANVIL_RPC_URL?.trim() ||
+      "http://127.0.0.1:8545"
+    );
   }
   if (chainId === 4663) {
     return (

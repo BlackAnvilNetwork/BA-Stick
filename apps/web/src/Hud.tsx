@@ -53,6 +53,7 @@ import {
 } from "./hotbar";
 import {
   checkCharacterNameAvailable,
+  isServerAuthed,
   loginWithWalletConnect,
   logoutToMenu,
   send,
@@ -1395,8 +1396,8 @@ function CreatePanel() {
           setCreating(false);
         };
 
-        if (!useGame.getState().wallet) {
-          pushLog("Authenticate before creating a character.");
+        if (!isServerAuthed()) {
+          pushLog("Sign in before creating a character.");
           useGame.getState().setPendingCreateEnter(false);
           setCreating(false);
           return;

@@ -113,7 +113,6 @@ function beginAuthHello(address: `0x${string}`) {
   const w = address.toLowerCase();
   if (authedWallet === w && useGame.getState().wallet) return;
   authInFlight = true;
-  useGame.getState().setWallet(address);
   socket.send(JSON.stringify({ type: "auth/hello", wallet: address } satisfies ClientMessage));
 }
 
@@ -188,7 +187,6 @@ export async function loginWithWalletConnect(opts?: {
     };
     authedWallet = null;
     authInFlight = false;
-    useGame.getState().setWallet(session.address);
     useGame.getState().pushLog("WalletConnect connected. Signing in…");
     if (socket?.readyState === WebSocket.OPEN) {
       beginAuthHello(session.address);
@@ -205,12 +203,20 @@ export function walletConnectLoginAvailable(): boolean {
   return walletConnectConfigured();
 }
 
+/** True after the server has accepted signed auth (auth/ok). */
+export function isServerAuthed(): boolean {
+  return authedWallet !== null;
+}
+
 /** Ask the server whether a character name is free on the global log (before paying mint). */
 export function checkCharacterNameAvailable(
   name: string,
 ): Promise<{ ok: true; name: string } | { ok: false; error: string }> {
   if (!socket || socket.readyState !== WebSocket.OPEN) {
     return Promise.resolve({ ok: false, error: "Not connected to the server." });
+  }
+  if (!authedWallet) {
+    return Promise.resolve({ ok: false, error: "Sign in before checking names." });
   }
   if (nameCheckWaiter) {
     clearTimeout(nameCheckWaiter.timer);
@@ -374,6 +380,12 @@ export function connectSocket() {
       g.pushLog(msg.message);
     } else if (msg.type === "error") {
       authInFlight = false;
+      if (nameCheckWaiter) {
+        clearTimeout(nameCheckWaiter.timer);
+        const resolve = nameCheckWaiter.resolve;
+        nameCheckWaiter = null;
+        resolve({ ok: false, error: msg.message });
+      }
       // M-F: paid NFT already bound — stop reusing it on the next create.
       if (/already bound/i.test(msg.message) && g.wallet) {
         clearPendingMint(g.wallet);
