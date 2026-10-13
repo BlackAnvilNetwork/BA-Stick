@@ -84,12 +84,22 @@ function listingIdTopic(listingId: string): Hex {
   return ("0x" + BigInt(listingId).toString(16).padStart(64, "0")) as Hex;
 }
 
+/** Minimal receipt shape for AskCancelled checks (avoids full viem Log required fields in tests). */
+export type AskCancelReceiptView = {
+  status: TransactionReceipt["status"];
+  logs: readonly {
+    address: string;
+    topics: readonly (string | null | undefined)[];
+    data?: string;
+  }[];
+};
+
 /**
  * True only when the receipt succeeded and contains AskCancelled(listingId).
  * Reverted cancels (race with buyAsk / Unauthorized) must not release log escrow.
  */
 export function cancelReceiptProvesAskCancelled(
-  receipt: Pick<TransactionReceipt, "status" | "logs">,
+  receipt: AskCancelReceiptView,
   listingId: string,
   escrow?: string,
 ): boolean {
@@ -111,7 +121,7 @@ export type RecordedCancelDecision =
   | { decision: "notOurCancel" };
 
 export function decideRecordedCancelReceipt(
-  receipt: Pick<TransactionReceipt, "status" | "logs">,
+  receipt: AskCancelReceiptView,
   listingId: string,
   escrow?: string,
 ): RecordedCancelDecision {
@@ -197,12 +207,13 @@ export async function readAskOnchain(opts: {
   const c = readClient(opts.env);
   if (!c.ok) return c;
   try {
-    const row = await c.pub.readContract({
+    // viem's inferred return can widen to unknown under some TS configs; asks() is fixed.
+    const row = (await c.pub.readContract({
       address: c.escrow,
       abi: AH_ABI,
       functionName: "asks",
       args: [BigInt(opts.listingId)],
-    });
+    })) as readonly [bigint, bigint, bigint, bigint, boolean, boolean];
     return {
       ok: true,
       ask: {
