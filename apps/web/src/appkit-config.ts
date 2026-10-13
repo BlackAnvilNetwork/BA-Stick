@@ -58,13 +58,8 @@ export function ensureAppKit(): AppKit | null {
       metadata: {
         name: "Black Anvil",
         description: "Black Anvil",
-<<<<<<< HEAD
         url: typeof window !== "undefined" ? window.location.origin : "https://blackanvil.gg",
         icons: ["https://blackanvil.gg/favicon.ico"],
-=======
-        url: typeof window !== "undefined" ? window.location.origin : "https://legendofkek.com",
-        icons: ["https://legendofkek.com/favicon.ico"],
->>>>>>> 6d6b622 (feat(web): Black Anvil rebrand — UI pack, iron/bronze HUD, strings)
       },
       customRpcUrls: {
         [`eip155:${gnosis.id}`]: [{ url: defaultRpcUrl(100) }],

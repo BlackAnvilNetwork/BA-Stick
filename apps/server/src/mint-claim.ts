@@ -105,10 +105,7 @@ export function mintClaimMessage(opts: {
 }): string {
   return [
     "Black Anvil character mint claim",
-<<<<<<< HEAD
     "URI: https://blackanvil.gg",
-=======
->>>>>>> 6d6b622 (feat(web): Black Anvil rebrand — UI pack, iron/bronze HUD, strings)
     "tokenId: " + opts.tokenId,
     "gameWallet: " + opts.gameWallet.toLowerCase(),
     "chainId: " + String(opts.chainId),
