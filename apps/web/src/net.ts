@@ -316,7 +316,7 @@ export function connectSocket() {
   socket.addEventListener("open", () => {
     opened = true;
     useGame.getState().setConnected(true);
-    useGame.getState().pushLog("Connected to Bellgrave server.");
+    useGame.getState().pushLog("Connected to Black Anvil server.");
     startHeartbeat();
     tryAutoAuth();
   });
