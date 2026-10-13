@@ -23,6 +23,23 @@ const CREATE_FOR_ABI = [
     ],
     outputs: [{ type: "uint256" }],
   },
+  {
+    type: "function",
+    name: "isStartingJob",
+    stateMutability: "view",
+    inputs: [{ name: "job", type: "uint8" }],
+    outputs: [{ type: "bool" }],
+  },
+] as const;
+
+const NFT_NEXT_ABI = [
+  {
+    type: "function",
+    name: "nextTokenId",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "uint256" }],
+  },
 ] as const;
 
 const OWNER_ABI = [
@@ -43,9 +60,27 @@ export type CharacterMintConfig = {
   rpcUrl: string;
   supportsCreateFor?: boolean;
   suggestedTokenId?: string;
+  startingJobs?: number[];
   devFaucet?: boolean;
   devServerMint?: boolean;
 };
+
+function mintRevertHint(err: unknown): string {
+  const msg = err instanceof Error ? err.message : String(err);
+  if (/BadJob|0xb02810cc/i.test(msg)) {
+    return "That job is not enabled as a starting job on CharacterFactory (BadJob).";
+  }
+  if (/WrongTokenId|0x749aeece/i.test(msg)) {
+    return "Token id was taken or out of sync with the chain — refresh and mint again.";
+  }
+  if (/WrongFee|0x9a0833b6/i.test(msg)) {
+    return "Mint fee does not match the factory mintFee (WrongFee).";
+  }
+  if (/simulation failed|39000/i.test(msg)) {
+    return "Wallet simulation failed (often BadJob or WrongTokenId). " + msg;
+  }
+  return msg;
+}
 
 export type MintResult =
   | {
@@ -193,14 +228,33 @@ export async function mintCharacterWithWallet(opts: {
       }
     }
 
-    const expected =
-      opts.tokenId && /^[1-9][0-9]{0,77}$/.test(opts.tokenId)
-        ? opts.tokenId
-        : opts.mint.supportsCreateFor &&
-            opts.mint.suggestedTokenId &&
-            /^[1-9][0-9]{0,77}$/.test(opts.mint.suggestedTokenId)
-          ? opts.mint.suggestedTokenId
-          : undefined;
+    if (opts.mint.supportsCreateFor === false) {
+      return {
+        ok: false,
+        error:
+          "This CharacterFactory does not support createCharacterFor. Upgrade the factory before minting.",
+      };
+    }
+
+    // Always prefer live on-chain next id (server suggestions can lag / log-inflate).
+    let expected: string | undefined =
+      opts.tokenId && /^[1-9][0-9]{0,77}$/.test(opts.tokenId) ? opts.tokenId : undefined;
+    try {
+      const next = await pub.readContract({
+        address: opts.mint.nft as `0x${string}`,
+        abi: NFT_NEXT_ABI,
+        functionName: "nextTokenId",
+      });
+      expected = (next + 1n).toString();
+    } catch {
+      if (
+        !expected &&
+        opts.mint.suggestedTokenId &&
+        /^[1-9][0-9]{0,77}$/.test(opts.mint.suggestedTokenId)
+      ) {
+        expected = opts.mint.suggestedTokenId;
+      }
+    }
 
     let hash: Hex | undefined;
     let tokenId: string | undefined;
@@ -213,11 +267,11 @@ export async function mintCharacterWithWallet(opts: {
           "Character mint needs a reserved token id (createCharacterFor). Refresh and try again.",
       };
     }
-    if (opts.mint.supportsCreateFor === false) {
+    const allowed = opts.mint.startingJobs;
+    if (Array.isArray(allowed) && allowed.length > 0 && !allowed.includes(opts.job)) {
       return {
         ok: false,
-        error:
-          "This CharacterFactory does not support createCharacterFor. Upgrade the factory before minting.",
+        error: `Job index ${opts.job} is not an enabled starting job (allowed: ${allowed.join(", ")}).`,
       };
     }
     try {
@@ -232,13 +286,7 @@ export async function mintCharacterWithWallet(opts: {
       });
       tokenId = expected;
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      return {
-        ok: false,
-        error: /WrongTokenId/i.test(msg)
-          ? "Token id was taken — refresh the character sheet and mint again."
-          : msg,
-      };
+      return { ok: false, error: mintRevertHint(err) };
     }
 
     const receipt = await pub.waitForTransactionReceipt({ hash });

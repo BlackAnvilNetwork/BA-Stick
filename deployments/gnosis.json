@@ -92,6 +92,15 @@
       "0xf8d9ed80137d4ca46bf704c8b21f169e93c8e884ba49edd4b3596e1e50d10f11"
     ],
     "setStartingJob1": "0x72743ccafca1b7b75d19ea57da2f43f3fd6a562a1f7d376cc667f4de530bd3b2",
+    "setStartingJobs": {
+      "0_time_mage": "0xf2e02b119663227e060bcef46067080c85aefe06a702c7843fedccde8d20f42f",
+      "2_rogue": "0xda6e510577a247fa4aef4c9bc160957779fdc37fa3865dceab2b49f4ea0ddc80",
+      "3_cleric": "0xd43e8aca48e391b7387d69bc26f7edc5e015fea5d7959952dbc92925a1792b18",
+      "4_sorcerer": "0xf9bb09596fb623e559cbe395161efc4942cffa7689c456c8d73bd66cc64cc6b8",
+      "5_fighter": "0x9cd87249a32fc1425bfe6d7160de7b3d29deb81c6a9ece9b759f64ed262cbc6a",
+      "6_battle_mage": "0xa1db183fc60bbdb1bb5abe35654bb60bc898e8d1c203305ac8a49af5bb9f05ce",
+      "note": "Admin 0x08cD…4e01 setStartingJob(j,true) for j≠1 on 2026-10-13. Job 1 (knight) was already enabled at deploy (setStartingJob1). On-chain isStartingJob(0..6) all true after these txs."
+    },
     "proposeRuleset": "0x42ff771bdb11a59b50b99b37e61ce268b2586810613a71b27ae210fa3319d00b"
   },
   "ruleset": {

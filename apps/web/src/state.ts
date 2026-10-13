@@ -53,6 +53,7 @@ type GameState = {
     rpcUrl: string;
     supportsCreateFor?: boolean;
     suggestedTokenId?: string;
+    startingJobs?: number[];
     devFaucet?: boolean;
     devServerMint?: boolean;
     currency?: {

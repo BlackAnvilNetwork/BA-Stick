@@ -36,7 +36,13 @@ export type CharacterMintClientConfig = {
   chainId: number;
   rpcUrl: string;
   supportsCreateFor: boolean;
+  /**
+   * On-chain next NFT id (`nextTokenId + 1`). createCharacterFor requires this exact id —
+   * never inflate from the local log bind counter (WrongTokenId / wallet sim fails).
+   */
   suggestedTokenId: string;
+  /** Job indexes with factory.isStartingJob(job) == true. */
+  startingJobs: number[];
   devFaucet: boolean;
   devServerMint: boolean;
   currency: ReturnType<typeof settlementCurrencyView>;
@@ -128,6 +134,13 @@ const FACTORY_ABI = [
   },
   {
     type: "function",
+    name: "isStartingJob",
+    stateMutability: "view",
+    inputs: [{ name: "job", type: "uint8" }],
+    outputs: [{ type: "bool" }],
+  },
+  {
+    type: "function",
     name: "createCharacterFor",
     stateMutability: "payable",
     inputs: [
@@ -144,6 +157,32 @@ const FACTORY_ABI = [
     outputs: [{ type: "uint256" }],
   },
 ] as const;
+
+/** Job indexes the factory currently accepts as starting jobs (0–15 probed). */
+export async function readStartingJobs(
+  rpc: string,
+  factory: string,
+  chainId: number,
+  maxJob = 15,
+): Promise<number[]> {
+  const pub = publicClient(rpc, chainId);
+  const addr = factory as `0x${string}`;
+  const out: number[] = [];
+  for (let job = 0; job <= maxJob; job++) {
+    try {
+      const ok = await pub.readContract({
+        address: addr,
+        abi: FACTORY_ABI,
+        functionName: "isStartingJob",
+        args: [job],
+      });
+      if (ok) out.push(job);
+    } catch {
+      break;
+    }
+  }
+  return out;
+}
 
 /** True when RPC/factory/NFT env is set so the player mint path should load. */
 export function characterMintEnvConfigured(envIn: NodeJS.ProcessEnv = process.env): boolean {
@@ -340,14 +379,19 @@ export async function loadCharacterMintClientConfig(
       abi: NFT_ABI,
       functionName: "nextTokenId",
     });
-    const chainSuggested = next + 1n;
-    let suggested = chainSuggested;
+    // createCharacterFor requires expectedTokenId == on-chain next+1.
+    const suggested = next + 1n;
     const logNext = opts?.logNextTokenId?.trim();
     if (logNext && /^[1-9][0-9]{0,77}$/.test(logNext)) {
       const logN = BigInt(logNext);
-      if (logN > suggested) suggested = logN;
+      if (logN !== suggested) {
+        console.warn(
+          `[bellgrave] mint suggestedTokenId chain=${suggested} log=${logN} — using chain id`,
+        );
+      }
     }
     const supportsCreateFor = await factorySupportsCreateFor(env.rpc, env.factory, chainId);
+    const startingJobs = await readStartingJobs(env.rpc, env.factory, chainId);
     return {
       status: "ready",
       config: {
@@ -358,6 +402,7 @@ export async function loadCharacterMintClientConfig(
         rpcUrl: publicRpc,
         supportsCreateFor,
         suggestedTokenId: suggested.toString(),
+        startingJobs,
         devFaucet: BigInt(chainId) === LOCAL_ANVIL_CHAIN_ID && devFaucetEnabled(envIn),
         devServerMint: BigInt(chainId) === LOCAL_ANVIL_CHAIN_ID && devServerMintEnabled(envIn),
         currency: settlementCurrencyView(chainId),

@@ -464,8 +464,10 @@ export type LokSnapshot = {
     rpcUrl: string;
     /** False on factories deployed before createCharacterFor. */
     supportsCreateFor?: boolean;
-    /** Suggested next token id (max of chain next and log bind counter). */
+    /** On-chain next NFT id (`nextTokenId + 1`) for createCharacterFor. */
     suggestedTokenId?: string;
+    /** Job indexes enabled via factory.isStartingJob. */
+    startingJobs?: number[];
     /** Dev faucet / server-mint hints for local 31337. */
     devFaucet?: boolean;
     devServerMint?: boolean;
@@ -586,6 +588,7 @@ export type ServerMessage =
         rpcUrl: string;
         supportsCreateFor?: boolean;
         suggestedTokenId?: string;
+        startingJobs?: number[];
         devFaucet?: boolean;
         devServerMint?: boolean;
       } | null;

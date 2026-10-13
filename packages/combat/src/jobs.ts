@@ -1,4 +1,4 @@
-/** Bellgrave jobs — TIM is fully playable; others selectable later via Job Master. */
+/** Black Anvil jobs — all seven are playable at create + Job Master (Gnosis setStartingJob 0–6). */
 
 export const JOB_IDS = [
   "time_mage",
