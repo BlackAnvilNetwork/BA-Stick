@@ -11,16 +11,17 @@ import { withOwnerKeyQueue } from "./owner-tx-queue";
 /**
  * sha256 of the checked-in engine bundle (contracts/lok-log/engine/pkg/lok_engine.wasm).
  * lok-ruleset-pin.test.ts fails when the checked-in wasm drifts from it. When the engine changes:
- * rebuild with contracts/lok-log/engine/scripts/check-wasm-pin.mjs --install, update this pin
- * (LOCAL_RULESET_HASH derives automatically), and do not propose a mainnet ruleset until review
- * HIGH items for this engine change have landed.
+ * rebuild with contracts/lok-log/engine/scripts/check-wasm-pin.mjs --install and update this pin
+ * (LOCAL_RULESET_HASH derives automatically). This pin is also the Gnosis mainnet ruleset wasm
+ * (see deployments/gnosis.json on #221 — proposed tx 0x42ff771b…, activatesAt 1792037555).
+ * Do not bump without a new RulesetRegistry propose.
  */
 export const LOCAL_RULESET_WASM_SHA256 = "6577236dc54fc3fb63e8542326e8414f90bafdb6093fa484af47985ef70e8e2e";
 
 /**
- * Local-anvil-only ruleset id derived from the wasm pin:
- * `keccak256(utf8(LOCAL_RULESET_WASM_SHA256))`. Not a mainnet proposal — mainnet must use an
- * explicit propose after HIGH replay gates are fixed.
+ * Ruleset id derived from the wasm pin: `keccak256(utf8(LOCAL_RULESET_WASM_SHA256))`.
+ * Same value used for local anvil acceptance and the Gnosis propose recorded in
+ * deployments/gnosis.json (`0x609dbdea…949cdc`).
  */
 export const LOCAL_RULESET_HASH = keccak256(toBytes(LOCAL_RULESET_WASM_SHA256));
 
