@@ -1,0 +1,61 @@
+import assert from "node:assert/strict";
+import { afterEach, before, test } from "node:test";
+import {
+  UI_SETTINGS_KEY,
+  applyUiSettings,
+  loadUiSettings,
+  saveUiSettings,
+  type UiSettings,
+} from "./uiSettings";
+
+const store = new Map<string, string>();
+
+before(() => {
+  const localStorageMock = {
+    getItem: (k: string) => store.get(k) ?? null,
+    setItem: (k: string, v: string) => {
+      store.set(k, String(v));
+    },
+    removeItem: (k: string) => {
+      store.delete(k);
+    },
+  };
+  Object.defineProperty(globalThis, "localStorage", {
+    value: localStorageMock,
+    configurable: true,
+  });
+  const root = { dataset: {} as Record<string, string>, style: { setProperty() {} } };
+  Object.defineProperty(globalThis, "document", {
+    value: { documentElement: root },
+    configurable: true,
+  });
+});
+
+afterEach(() => {
+  store.clear();
+  (document.documentElement.dataset as Record<string, string>).uiLayout = "";
+  (document.documentElement.dataset as Record<string, string>).uiColor = "";
+  (document.documentElement.dataset as Record<string, string>).uiFont = "";
+});
+
+test("loadUiSettings defaults layout to regular", () => {
+  const s = loadUiSettings();
+  assert.equal(s.layout, "regular");
+  assert.equal(s.color, "gold");
+});
+
+test("loadUiSettings accepts mobile layout and rejects junk", () => {
+  saveUiSettings({ color: "gold", font: "cinzel", layout: "mobile" });
+  assert.equal(loadUiSettings().layout, "mobile");
+  localStorage.setItem(UI_SETTINGS_KEY, JSON.stringify({ layout: "tablet", color: "gold" }));
+  const s = loadUiSettings();
+  assert.equal(s.layout, "regular");
+  assert.equal(s.color, "gold");
+});
+
+test("applyUiSettings sets data-ui-layout", () => {
+  const next: UiSettings = { color: "ember", font: "verdana", layout: "mobile" };
+  applyUiSettings(next);
+  assert.equal(document.documentElement.dataset.uiLayout, "mobile");
+  assert.equal(document.documentElement.dataset.uiColor, "ember");
+});

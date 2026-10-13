@@ -33,12 +33,16 @@ import {
   UI_COLOR_OPTIONS,
   UI_FONT_OPTIONS,
   UI_FONT_STACKS,
+  UI_LAYOUT_OPTIONS,
   loadUiSettings,
   persistAndApplyUiSettings,
   type UiColorId,
   type UiFontId,
+  type UiLayoutId,
   type UiSettings,
 } from "./uiSettings";
+import { MobileArcadeControls } from "./MobileArcadeControls";
+import { clearVirtualStick } from "./moveInput";
 import {
   HOTBAR_DRAG_MIME,
   HOTBAR_ROW_LEN,
@@ -620,6 +624,10 @@ export function Hud() {
     return () => window.clearInterval(id);
   }, [phase]);
 
+  useEffect(() => {
+    if (uiSettings.layout !== "mobile") clearVirtualStick();
+  }, [uiSettings.layout]);
+
   const bookIds = useMemo(() => {
     if (!snapshot || !dualHasSpellbook(snapshot.you.job, snapshot.you.subjob)) {
       return [] as CombatAbilityId[];
@@ -728,8 +736,10 @@ export function Hud() {
   const posY = me.y.toFixed(1);
   const posZ = me.z.toFixed(1);
 
+  const mobileLayout = uiSettings.layout === "mobile";
+
   return (
-    <div className="hud-root">
+    <div className={`hud-root${mobileLayout ? " hud-layout-mobile" : ""}`}>
       <div className="hud-chrome">
         <div className="hud-corner-left">
           <div className="hud-vitals-dock">
@@ -923,11 +933,39 @@ export function Hud() {
             <div>
               <div className="settings-kicker">Hud appearance</div>
               <div className="settings-panel-title">Settings</div>
-              <div className="settings-panel-sub">Color &amp; font for the HUD</div>
+              <div className="settings-panel-sub">Color, font &amp; layout for the HUD</div>
             </div>
             <button type="button" className="cmd-close-btn" onClick={() => setSettingsOpen(false)}>
               Close
             </button>
+          </div>
+          <div className="settings-section settings-card">
+            <div className="settings-section-label">Layout</div>
+            <div className="settings-panel-sub" style={{ marginBottom: 8 }}>
+              Mobile adds arcade sticks and moves hotkeys nearby for touch play.
+            </div>
+            <div className="cmd-seg" role="listbox" aria-label="UI layout">
+              {UI_LAYOUT_OPTIONS.map((opt) => {
+                const active = uiSettings.layout === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    role="option"
+                    aria-selected={active}
+                    className={active ? "on" : undefined}
+                    title={opt.hint}
+                    onClick={() => {
+                      const next = { ...uiSettings, layout: opt.id as UiLayoutId };
+                      setUiSettings(next);
+                      persistAndApplyUiSettings(next);
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
           <div className="settings-section settings-card">
             <div className="settings-section-label">Color</div>
@@ -1053,102 +1091,120 @@ export function Hud() {
 
       <div style={{ flex: 1 }} />
 
+      {mobileLayout && (
+        <MobileArcadeControls
+          potions={potions}
+          onCastSlot={(index) => {
+            const id = hotbarAbilityAt(index, 0);
+            if (id) castAbility(id);
+          }}
+          onCastRest={() => {
+            if (restUnlocked) castAbility("rest");
+          }}
+          onPotion={() => send({ type: "item/use", tokenId: ITEM.POTION })}
+        />
+      )}
+
       <div className="hud-bottom">
-        <div className="hud-hotbar-stack">
-          {hotbarRow1.map((id, i) =>
-            id ? (
-              <SkillButton
-                key={`r0-${i}`}
-                id={id}
-                keyLabel={HOTBAR_KEYS[i]}
-                now={now}
-                recasts={recasts}
-                me={me}
-                hotbarIndex={i}
-                onHotbarDrop={handleHotbarDrop}
-              />
-            ) : (
-              <EmptyHotbarSlot
-                key={`r0-${i}`}
-                keyLabel={HOTBAR_KEYS[i]!}
-                slotIndex={i}
-                onHotbarDrop={handleHotbarDrop}
-              />
-            ),
-          )}
-          <div className="hud-hotbar-utility">
-            {restUnlocked ? (
-              <SkillButton id="rest" keyLabel="R" now={now} recasts={recasts} me={me} draggable={false} />
-            ) : (
-              <div className="skill-wrap" aria-hidden>
-                <div className="skill-slot empty" style={{ visibility: "hidden" }} />
-              </div>
+        {!mobileLayout && (
+          <div className="hud-hotbar-stack">
+            {hotbarRow1.map((id, i) =>
+              id ? (
+                <SkillButton
+                  key={`r0-${i}`}
+                  id={id}
+                  keyLabel={HOTBAR_KEYS[i]}
+                  now={now}
+                  recasts={recasts}
+                  me={me}
+                  hotbarIndex={i}
+                  onHotbarDrop={handleHotbarDrop}
+                />
+              ) : (
+                <EmptyHotbarSlot
+                  key={`r0-${i}`}
+                  keyLabel={HOTBAR_KEYS[i]!}
+                  slotIndex={i}
+                  onHotbarDrop={handleHotbarDrop}
+                />
+              ),
             )}
-            <div
-              className="skill-wrap tip-above"
-              onPointerLeave={(e) => e.currentTarget.classList.remove("tip-dismissed")}
-              onPointerEnter={(e) => e.currentTarget.classList.remove("tip-dismissed")}
-            >
-              <button
-                type="button"
-                className="skill-slot potion"
-                aria-label="Potion. Restore HP. Key Q."
-                onClick={(e) => {
-                  send({ type: "item/use", tokenId: ITEM.POTION });
-                  e.currentTarget.closest(".skill-wrap")?.classList.add("tip-dismissed");
-                  e.currentTarget.blur();
-                }}
-              >
-                  <span className="skill-key">Q</span>
-                  <AbilityIcon id="potion" />
-                  <span className="skill-name">Potion×{potions}</span>
-              </button>
-              <div className="skill-tip" role="tooltip">
-                <div className="skill-tip-title">Potion</div>
-                <div className="skill-tip-body">
-                  Drink to restore {getItem(ITEM.POTION)?.consume?.hp ?? 70} HP. Keep a stack for emergencies.
+            <div className="hud-hotbar-utility">
+              {restUnlocked ? (
+                <SkillButton id="rest" keyLabel="R" now={now} recasts={recasts} me={me} draggable={false} />
+              ) : (
+                <div className="skill-wrap" aria-hidden>
+                  <div className="skill-slot empty" style={{ visibility: "hidden" }} />
                 </div>
-                <div className="skill-tip-meta">Item · Key Q · ×{potions}</div>
+              )}
+              <div
+                className="skill-wrap tip-above"
+                onPointerLeave={(e) => e.currentTarget.classList.remove("tip-dismissed")}
+                onPointerEnter={(e) => e.currentTarget.classList.remove("tip-dismissed")}
+              >
+                <button
+                  type="button"
+                  className="skill-slot potion"
+                  aria-label="Potion. Restore HP. Key Q."
+                  onClick={(e) => {
+                    send({ type: "item/use", tokenId: ITEM.POTION });
+                    e.currentTarget.closest(".skill-wrap")?.classList.add("tip-dismissed");
+                    e.currentTarget.blur();
+                  }}
+                >
+                    <span className="skill-key">Q</span>
+                    <AbilityIcon id="potion" />
+                    <span className="skill-name">Potion×{potions}</span>
+                </button>
+                <div className="skill-tip" role="tooltip">
+                  <div className="skill-tip-title">Potion</div>
+                  <div className="skill-tip-body">
+                    Drink to restore {getItem(ITEM.POTION)?.consume?.hp ?? 70} HP. Keep a stack for emergencies.
+                  </div>
+                  <div className="skill-tip-meta">Item · Key Q · ×{potions}</div>
+                </div>
+              </div>
+            </div>
+            {hotbarRow2.map((id, i) => {
+              const slotIndex = HOTBAR_ROW_LEN + i;
+              return id ? (
+                <SkillButton
+                  key={`r1-${i}`}
+                  id={id}
+                  keyLabel={HOTBAR_SHIFT_KEYS[i]}
+                  now={now}
+                  recasts={recasts}
+                  me={me}
+                  hotbarIndex={slotIndex}
+                  onHotbarDrop={handleHotbarDrop}
+                />
+              ) : (
+                <EmptyHotbarSlot
+                  key={`r1-${i}`}
+                  keyLabel={HOTBAR_SHIFT_KEYS[i]!}
+                  slotIndex={slotIndex}
+                  onHotbarDrop={handleHotbarDrop}
+                />
+              );
+            })}
+            <div className="hud-hotbar-utility hud-hotbar-utility-spacer" aria-hidden>
+              <div className="skill-wrap">
+                <div className="skill-slot" />
+              </div>
+              <div className="skill-wrap">
+                <div className="skill-slot" />
               </div>
             </div>
           </div>
-          {hotbarRow2.map((id, i) => {
-            const slotIndex = HOTBAR_ROW_LEN + i;
-            return id ? (
-              <SkillButton
-                key={`r1-${i}`}
-                id={id}
-                keyLabel={HOTBAR_SHIFT_KEYS[i]}
-                now={now}
-                recasts={recasts}
-                me={me}
-                hotbarIndex={slotIndex}
-                onHotbarDrop={handleHotbarDrop}
-              />
-            ) : (
-              <EmptyHotbarSlot
-                key={`r1-${i}`}
-                keyLabel={HOTBAR_SHIFT_KEYS[i]!}
-                slotIndex={slotIndex}
-                onHotbarDrop={handleHotbarDrop}
-              />
-            );
-          })}
-          <div className="hud-hotbar-utility hud-hotbar-utility-spacer" aria-hidden>
-            <div className="skill-wrap">
-              <div className="skill-slot" />
-            </div>
-            <div className="skill-wrap">
-              <div className="skill-slot" />
-            </div>
-          </div>
-        </div>
+        )}
 
         <div className="hud-log-frame">
           <div className="hud-log-head">
             <span>Combat Log</span>
             <span className="hud-log-hints">
-              WASD · Drag book→bar · 1–0 · Shift+1–0 · R Rest · Q Potion · K Book · B Character · C Craft
+              {mobileLayout
+                ? "Sticks · Face 1–8 · Flick Skills stick · R Rest · Q Potion · K Book · B Character"
+                : "WASD · Drag book→bar · 1–0 · Shift+1–0 · R Rest · Q Potion · K Book · B Character · C Craft"}
             </span>
           </div>
           <div className="hud-log-body mmo-scroll">

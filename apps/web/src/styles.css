@@ -3778,3 +3778,166 @@ button.equip-stat-label:focus-visible {
   pointer-events: none;
 }
 
+/* —— Mobile / arcade layout (Settings → Layout → Mobile) —— */
+html[data-ui-layout="mobile"] .hud-layout-mobile .hud-log-frame {
+  max-height: 88px;
+}
+html[data-ui-layout="mobile"] .hud-layout-mobile .hud-log-body {
+  max-height: 52px;
+}
+html[data-ui-layout="mobile"] .hud-layout-mobile .hud-bottom {
+  padding-bottom: 4px;
+}
+
+.arcade-controls {
+  pointer-events: none;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 108px;
+  z-index: 30;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 14px;
+  touch-action: none;
+}
+
+.arcade-stick {
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.arcade-stick-pad {
+  position: relative;
+  width: min(148px, 28vw);
+  height: min(148px, 28vw);
+  border-radius: 50%;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.arcade-stick-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--cmd-accent) 55%, transparent);
+  background:
+    radial-gradient(circle at 50% 45%, rgba(255, 255, 255, 0.08), transparent 55%),
+    color-mix(in srgb, var(--cmd-dock-bg) 82%, transparent);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.45), 0 10px 28px rgba(0, 0, 0, 0.45);
+}
+
+.arcade-stick-knob {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 42%;
+  height: 42%;
+  margin: -21% 0 0 -21%;
+  border-radius: 50%;
+  background: linear-gradient(165deg, color-mix(in srgb, var(--cmd-accent) 70%, #fff), var(--cmd-accent));
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+  will-change: transform;
+}
+
+.arcade-stick-label {
+  font-family: var(--ui-font);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--cmd-text-muted);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+.arcade-face-cluster {
+  pointer-events: auto;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(44px, 52px));
+  gap: 8px;
+  align-content: end;
+  justify-content: center;
+  padding: 8px 10px;
+  border-radius: 16px;
+  border: 1px solid var(--cmd-panel-edge);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--cmd-dock-inner) 80%, transparent), transparent 50%),
+    color-mix(in srgb, var(--cmd-panel-bg) 88%, transparent);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5);
+  touch-action: manipulation;
+}
+
+.arcade-face-btn {
+  width: 100%;
+  aspect-ratio: 1;
+  min-height: 44px;
+  border-radius: 12px;
+  border: 1px solid var(--panel-edge);
+  background: var(--slot);
+  color: var(--text);
+  font-family: var(--ui-font);
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.05;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  -webkit-tap-highlight-color: transparent;
+}
+.arcade-face-btn:active {
+  transform: translateY(1px) scale(0.97);
+  border-color: var(--cmd-accent);
+  color: var(--cmd-accent);
+}
+.arcade-face-btn.arcade-face-util {
+  border-color: color-mix(in srgb, var(--cmd-accent) 45%, var(--panel-edge));
+}
+.arcade-face-sub {
+  display: block;
+  margin-top: 2px;
+  font-size: 9px;
+  font-weight: 700;
+  opacity: 0.75;
+}
+
+@media (max-width: 720px) {
+  .arcade-controls {
+    bottom: 96px;
+    padding: 0 8px;
+    gap: 6px;
+  }
+  .arcade-face-cluster {
+    grid-template-columns: repeat(5, minmax(38px, 46px));
+    gap: 6px;
+    padding: 6px;
+  }
+  .arcade-stick-pad {
+    width: min(128px, 30vw);
+    height: min(128px, 30vw);
+  }
+}
+
+@media (max-width: 520px) {
+  .arcade-controls {
+    flex-wrap: wrap;
+    justify-content: center;
+    bottom: 84px;
+  }
+  .arcade-face-cluster {
+    order: 3;
+    width: 100%;
+    grid-template-columns: repeat(5, minmax(40px, 1fr));
+  }
+}
