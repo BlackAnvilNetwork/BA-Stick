@@ -6,13 +6,13 @@
  *   pnpm --filter @bellgrave/server exec tsx scripts/play-bot.ts
  *   pnpm --filter @bellgrave/server exec tsx scripts/play-bot.ts --job rogue --seconds 60
  */
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createConnection } from "node:net";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import WebSocket from "ws";
-import {
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
+import {
   MELEE_RANGE,
   PH_ALL_MOBS,
   PH_BRIDGE_SITES,
@@ -204,6 +204,23 @@ function assertLocalWs(url: string) {
   }
 }
 
+function botKeyPath(id: string): string {
+  return resolve(reportDir, `${id}.key`);
+}
+
+/** Reuse one local key per bot id so a restarted client enters the same character. */
+function loadOrCreateBotKey(id: string): `0x${string}` {
+  mkdirSync(reportDir, { recursive: true });
+  const path = botKeyPath(id);
+  if (existsSync(path)) {
+    const raw = readFileSync(path, "utf8").trim();
+    if (/^0x[0-9a-fA-F]{64}$/.test(raw)) return raw as `0x${string}`;
+  }
+  const key = generatePrivateKey();
+  writeFileSync(path, `${key}\n`, { mode: 0o600 });
+  return key;
+}
+
 function portOpen(port: number, host = "127.0.0.1"): Promise<boolean> {
   return new Promise((resolveOpen) => {
     const sock = createConnection({ port, host });
@@ -260,6 +277,7 @@ class PlayBot {
   private areas = new Map<string, { t: number; x: number; y: number; z: number }>();
   private gameLog: { t: number; message: string }[] = [];
   private rejected = 0;
+  private nameRetried = false;
   private unstuckLog: { t: number; x: number; z: number; tried: string; result: string }[] = [];
 
   constructor(opts: {
@@ -280,7 +298,7 @@ class PlayBot {
     this.seconds = opts.seconds;
     this.tour = opts.tour ?? false;
     this.routeId = opts.route ?? "north-spine";
-    this.privateKey = generatePrivateKey();
+    this.privateKey = loadOrCreateBotKey(opts.id);
     this.wallet = privateKeyToAccount(this.privateKey).address;
   }
 
@@ -807,7 +825,9 @@ class PlayBot {
   private connect(): Promise<void> {
     assertLocalWs(this.wsUrl);
     return new Promise((resolveReady, reject) => {
-      const ws = new WebSocket(this.wsUrl);
+      const ws = new WebSocket(this.wsUrl, {
+        headers: { Origin: "http://127.0.0.1:5173" },
+      });
       this.ws = ws;
       const fail = (err: Error) => {
         if (!this.ready) reject(err);
@@ -837,6 +857,12 @@ class PlayBot {
         if (msg.type === "pong" || msg.type === "npc/dialog") return;
         if (msg.type === "error") {
           const message = msg.message ?? "error";
+          if (!this.nameRetried && /already on the log/i.test(message)) {
+            this.nameRetried = true;
+            const name = `${this.job.slice(0, 3)}${Date.now().toString(36).slice(-4)}`.slice(0, 16);
+            this.send({ type: "char/create", name, job: this.job, gender: "male" });
+            return;
+          }
           this.errors.push(message);
           this.bug("server_error", message);
           return;
