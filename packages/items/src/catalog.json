@@ -9,7 +9,7 @@
     "craftLevel": 6,
     "craftSkill": "woodworking",
     "recipe": {
-      "gold": 1000,
+      "gold": 170,
       "materialsText": "Ashbeam Lumber×2, Pale Dust×1"
     },
     "stats": {
@@ -24,7 +24,8 @@
       "sorcerer",
       "cleric"
     ],
-    "weaponFamily": "staff"
+    "weaponFamily": "staff",
+    "rarity": "Common"
   },
   {
     "id": 2,
@@ -36,7 +37,7 @@
     "craftLevel": 10,
     "craftSkill": "clothcraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 250,
       "materialsText": "Linen Cloth×3, Pale Dust×1"
     },
     "stats": {
@@ -51,7 +52,8 @@
       "tim",
       "sorcerer",
       "cleric"
-    ]
+    ],
+    "rarity": "Common"
   },
   {
     "id": 3,
@@ -63,7 +65,7 @@
     "craftLevel": 5,
     "craftSkill": "alchemy",
     "recipe": {
-      "gold": 1000,
+      "gold": 150,
       "materialsText": "Distilled Pale×1, Dustgrain×1, Pale Dust×1"
     },
     "stats": {
@@ -83,7 +85,7 @@
     "craftLevel": 22,
     "craftSkill": "smithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 490,
       "materialsText": "Iron Ingot×2, Ashbeam Lumber×1, Ash Dust×1"
     },
     "stats": {
@@ -98,7 +100,8 @@
       "fighter",
       "battlemage"
     ],
-    "weaponFamily": "sword"
+    "weaponFamily": "sword",
+    "rarity": "Common"
   },
   {
     "id": 5,
@@ -110,7 +113,7 @@
     "craftLevel": 28,
     "craftSkill": "smithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 610,
       "materialsText": "Iron Ingot×3, Ash Dust×1"
     },
     "stats": {
@@ -122,7 +125,8 @@
     "jobRestrict": [
       "knight",
       "fighter"
-    ]
+    ],
+    "rarity": "Uncommon"
   },
   {
     "id": 6,
@@ -144,9 +148,10 @@
     "delayMs": 1800,
     "weaponFamily": "dagger",
     "recipe": {
-      "gold": 1000,
+      "gold": 510,
       "materialsText": "Iron Ingot×1, Ash Dust×1"
-    }
+    },
+    "rarity": "Common"
   },
   {
     "id": 7,
@@ -158,7 +163,7 @@
     "craftLevel": 10,
     "craftSkill": "leathercraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 250,
       "materialsText": "Leather×3, Pale Dust×1"
     },
     "stats": {
@@ -171,7 +176,8 @@
       "battlemage",
       "rogue",
       "tim"
-    ]
+    ],
+    "rarity": "Common"
   },
   {
     "id": 8,
@@ -195,9 +201,10 @@
     "delayMs": 3800,
     "weaponFamily": "greatsword",
     "recipe": {
-      "gold": 1000,
+      "gold": 730,
       "materialsText": "Iron Ingot×4, Ash Dust×1"
-    }
+    },
+    "rarity": "Uncommon"
   },
   {
     "id": 9,
@@ -209,7 +216,7 @@
     "craftLevel": 40,
     "craftSkill": "leathercraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 850,
       "materialsText": "Stone Scale×3, Soft Pelt×1, Ash Dust×1"
     },
     "stats": {
@@ -222,7 +229,8 @@
       "knight",
       "fighter",
       "rogue"
-    ]
+    ],
+    "rarity": "Uncommon"
   },
   {
     "id": 10,
@@ -234,9 +242,10 @@
     "craftLevel": 3,
     "craftSkill": "smithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 110,
       "materialsText": "Bronze Ingot×1, Pale Dust×1"
-    }
+    },
+    "craftOutputQty": 6
   },
   {
     "id": 11,
@@ -248,9 +257,10 @@
     "craftLevel": 20,
     "craftSkill": "smithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 450,
       "materialsText": "Iron Ingot×1, Ash Dust×1"
-    }
+    },
+    "craftOutputQty": 6
   },
   {
     "id": 12,
@@ -261,10 +271,7 @@
     "kind": "filler",
     "craftLevel": 40,
     "craftSkill": "smithing",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Steel Ingot×1, Ash Dust×1"
-    }
+    "craftOutputQty": 12
   },
   {
     "id": 13,
@@ -276,9 +283,10 @@
     "craftLevel": 44,
     "craftSkill": "smithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 930,
       "materialsText": "Mythril Ingot×1, Slag Dust×1"
-    }
+    },
+    "craftOutputQty": 6
   },
   {
     "id": 14,
@@ -289,10 +297,7 @@
     "kind": "filler",
     "craftLevel": 60,
     "craftSkill": "smithing",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Mythril Ingot×1, Slag Dust×1"
-    }
+    "craftOutputQty": 12
   },
   {
     "id": 15,
@@ -303,10 +308,7 @@
     "kind": "filler",
     "craftLevel": 80,
     "craftSkill": "smithing",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Darksteel Ingot×1, Bell Dust×1"
-    }
+    "craftOutputQty": 12
   },
   {
     "id": 16,
@@ -318,9 +320,10 @@
     "craftLevel": 40,
     "craftSkill": "smithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 850,
       "materialsText": "Steel Ingot×1, Slag Dust×1"
-    }
+    },
+    "craftOutputQty": 6
   },
   {
     "id": 17,
@@ -332,9 +335,10 @@
     "craftLevel": 86,
     "craftSkill": "smithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 1770,
       "materialsText": "Orichalcum Ingot×1, Throne Dust×1"
-    }
+    },
+    "craftOutputQty": 6
   },
   {
     "id": 18,
@@ -346,7 +350,7 @@
     "craftLevel": 10,
     "craftSkill": "woodworking",
     "recipe": {
-      "gold": 1000,
+      "gold": 250,
       "materialsText": "Ashbeam Lumber×1, Bronze Arrowhead×1, Pale Dust×1"
     },
     "stats": {
@@ -354,7 +358,8 @@
     },
     "consume": {
       "hp": 29
-    }
+    },
+    "craftOutputQty": 12
   },
   {
     "id": 19,
@@ -365,8 +370,9 @@
     "kind": "filler",
     "craftLevel": 20,
     "craftSkill": "woodworking",
+    "craftOutputQty": 12,
     "recipe": {
-      "gold": 1000,
+      "gold": 450,
       "materialsText": "Ashbeam Lumber×1, Pale Dust×1"
     }
   },
@@ -379,10 +385,7 @@
     "kind": "filler",
     "craftLevel": 39,
     "craftSkill": "woodworking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Ashbeam Lumber×1, Ash Dust×1"
-    }
+    "craftOutputQty": 6
   },
   {
     "id": 21,
@@ -394,7 +397,7 @@
     "craftLevel": 48,
     "craftSkill": "woodworking",
     "recipe": {
-      "gold": 1000,
+      "gold": 1010,
       "materialsText": "Bloodbeam Lumber×1, Mythril Arrowhead×1, Slag Dust×1"
     },
     "stats": {
@@ -402,7 +405,8 @@
     },
     "consume": {
       "hp": 50
-    }
+    },
+    "craftOutputQty": 12
   },
   {
     "id": 22,
@@ -413,10 +417,7 @@
     "kind": "filler",
     "craftLevel": 60,
     "craftSkill": "woodworking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Bloodbeam Lumber×1, Slag Dust×1"
-    }
+    "craftOutputQty": 12
   },
   {
     "id": 23,
@@ -426,11 +427,7 @@
     "slug": "bell-bloodbeam-wand",
     "kind": "filler",
     "craftLevel": 62,
-    "craftSkill": "woodworking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Bloodbeam Lumber×1, Bell Dust×1"
-    }
+    "craftSkill": "woodworking"
   },
   {
     "id": 24,
@@ -440,11 +437,7 @@
     "slug": "bell-bloodbeam-pole",
     "kind": "filler",
     "craftLevel": 64,
-    "craftSkill": "woodworking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Bloodbeam Lumber×1, Bell Dust×1"
-    }
+    "craftSkill": "woodworking"
   },
   {
     "id": 25,
@@ -456,7 +449,7 @@
     "craftLevel": 75,
     "craftSkill": "woodworking",
     "recipe": {
-      "gold": 1000,
+      "gold": 1550,
       "materialsText": "Bellwood Lumber×1, Darksteel Ingot×1, Acid Bolt Compound×1, Bell Dust×1"
     },
     "stats": {
@@ -464,7 +457,8 @@
     },
     "consume": {
       "hp": 68
-    }
+    },
+    "craftOutputQty": 12
   },
   {
     "id": 26,
@@ -475,10 +469,7 @@
     "kind": "filler",
     "craftLevel": 79,
     "craftSkill": "woodworking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Bellwood Lumber×1, Bell Dust×1"
-    }
+    "craftOutputQty": 6
   },
   {
     "id": 27,
@@ -488,11 +479,7 @@
     "slug": "throne-bellwood-ferrule",
     "kind": "filler",
     "craftLevel": 87,
-    "craftSkill": "woodworking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Bellwood Lumber×1, Throne Dust×1"
-    }
+    "craftSkill": "woodworking"
   },
   {
     "id": 28,
@@ -502,11 +489,7 @@
     "slug": "throne-bellwood-laminate",
     "kind": "filler",
     "craftLevel": 89,
-    "craftSkill": "woodworking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Bellwood Lumber×1, Throne Dust×1"
-    }
+    "craftSkill": "woodworking"
   },
   {
     "id": 29,
@@ -516,11 +499,7 @@
     "slug": "throne-bellwood-shield-rim",
     "kind": "filler",
     "craftLevel": 94,
-    "craftSkill": "woodworking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Bellwood Lumber×1, Throne Dust×1"
-    }
+    "craftSkill": "woodworking"
   },
   {
     "id": 30,
@@ -530,11 +509,7 @@
     "slug": "throne-bellwood-longbow",
     "kind": "filler",
     "craftLevel": 97,
-    "craftSkill": "woodworking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Bellwood Lumber×1, Throne Dust×1"
-    }
+    "craftSkill": "woodworking"
   },
   {
     "id": 31,
@@ -546,19 +521,20 @@
     "craftLevel": 33,
     "craftSkill": "woodworking",
     "recipe": {
-      "gold": 1000,
+      "gold": 710,
       "materialsText": "Ashbeam Lumber×2, Sulfur Bit×1, Ash Dust×1"
     },
     "stats": {
-      "mab": 18,
-      "mnd": 4
+      "mab": 19,
+      "int": 4
     },
     "delayMs": 3600,
     "slot": "main",
     "jobRestrict": [
       "sorcerer"
     ],
-    "weaponFamily": "staff"
+    "weaponFamily": "staff",
+    "rarity": "Uncommon"
   },
   {
     "id": 32,
@@ -570,19 +546,21 @@
     "craftLevel": 33,
     "craftSkill": "woodworking",
     "recipe": {
-      "gold": 1000,
+      "gold": 710,
       "materialsText": "Ashbeam Lumber×2, Echo Extract×1, Ash Dust×1"
     },
     "stats": {
-      "mab": 18,
-      "mnd": 4
+      "mab": 16,
+      "mnd": 4,
+      "mp": 20
     },
     "delayMs": 3600,
     "slot": "main",
     "jobRestrict": [
       "sorcerer"
     ],
-    "weaponFamily": "staff"
+    "weaponFamily": "staff",
+    "rarity": "Uncommon"
   },
   {
     "id": 33,
@@ -594,19 +572,21 @@
     "craftLevel": 57,
     "craftSkill": "woodworking",
     "recipe": {
-      "gold": 1000,
+      "gold": 1190,
       "materialsText": "Bloodbeam Lumber×2, Lapis×1, Slag Dust×1"
     },
     "stats": {
-      "mab": 29,
-      "mnd": 7
+      "mab": 28,
+      "int": 5,
+      "acc": 4
     },
     "delayMs": 3600,
     "slot": "main",
     "jobRestrict": [
       "sorcerer"
     ],
-    "weaponFamily": "staff"
+    "weaponFamily": "staff",
+    "rarity": "Rare"
   },
   {
     "id": 34,
@@ -618,19 +598,21 @@
     "craftLevel": 57,
     "craftSkill": "woodworking",
     "recipe": {
-      "gold": 1000,
+      "gold": 1190,
       "materialsText": "Bloodbeam Lumber×2, Onyx×1, Slag Dust×1"
     },
     "stats": {
-      "mab": 29,
-      "mnd": 7
+      "mab": 27,
+      "vit": 4,
+      "hp": 25
     },
     "delayMs": 3600,
     "slot": "main",
     "jobRestrict": [
       "sorcerer"
     ],
-    "weaponFamily": "staff"
+    "weaponFamily": "staff",
+    "rarity": "Rare"
   },
   {
     "id": 35,
@@ -642,12 +624,12 @@
     "craftLevel": 80,
     "craftSkill": "woodworking",
     "recipe": {
-      "gold": 1000,
+      "gold": 1650,
       "materialsText": "Bellwood Lumber×2, Glass Bead×1, Bell Dust×1"
     },
     "stats": {
       "mab": 40,
-      "mnd": 9
+      "int": 9
     },
     "delayMs": 3600,
     "slot": "main",
@@ -655,7 +637,8 @@
     "jobRestrict": [
       "sorcerer"
     ],
-    "weaponFamily": "staff"
+    "weaponFamily": "staff",
+    "rarity": "Epic"
   },
   {
     "id": 36,
@@ -667,12 +650,13 @@
     "craftLevel": 80,
     "craftSkill": "woodworking",
     "recipe": {
-      "gold": 1000,
+      "gold": 1650,
       "materialsText": "Bellwood Lumber×2, Bat Wing×2, Bell Dust×1"
     },
     "stats": {
-      "mab": 40,
-      "mnd": 9
+      "mab": 36,
+      "agi": 6,
+      "acc": 6
     },
     "delayMs": 3600,
     "slot": "main",
@@ -680,7 +664,8 @@
     "jobRestrict": [
       "sorcerer"
     ],
-    "weaponFamily": "staff"
+    "weaponFamily": "staff",
+    "rarity": "Epic"
   },
   {
     "id": 37,
@@ -692,7 +677,7 @@
     "craftLevel": 41,
     "craftSkill": "woodworking",
     "recipe": {
-      "gold": 1000,
+      "gold": 870,
       "materialsText": "Ashbeam Lumber×1, Steel Arrowhead×1, Ash Dust×1"
     },
     "stats": {
@@ -700,7 +685,8 @@
     },
     "consume": {
       "hp": 47
-    }
+    },
+    "craftOutputQty": 12
   },
   {
     "id": 38,
@@ -712,7 +698,7 @@
     "craftLevel": 87,
     "craftSkill": "woodworking",
     "recipe": {
-      "gold": 1000,
+      "gold": 1790,
       "materialsText": "Bellwood Lumber×1, Orichalcum Arrowhead×1, Throne Dust×1"
     },
     "stats": {
@@ -720,7 +706,8 @@
     },
     "consume": {
       "hp": 74
-    }
+    },
+    "craftOutputQty": 12
   },
   {
     "id": 39,
@@ -732,16 +719,16 @@
     "craftLevel": 15,
     "craftSkill": "woodworking",
     "recipe": {
-      "gold": 1000,
+      "gold": 350,
       "materialsText": "Ashbeam Lumber×2, Climbing Cord×1, Pale Dust×1"
     },
     "stats": {
-      "mab": 11,
-      "mnd": 3
+      "mnd": 2,
+      "agi": 1
     },
     "delayMs": 3600,
     "slot": "main",
-    "weaponFamily": "staff"
+    "rarity": "Common"
   },
   {
     "id": 40,
@@ -753,16 +740,17 @@
     "craftLevel": 45,
     "craftSkill": "woodworking",
     "recipe": {
-      "gold": 1000,
+      "gold": 950,
       "materialsText": "Bloodbeam Lumber×2, Silk Thread×1, Slag Dust×1"
     },
     "stats": {
-      "mab": 25,
-      "mnd": 6
+      "mnd": 3,
+      "agi": 3,
+      "hp": 15
     },
     "delayMs": 3600,
     "slot": "main",
-    "weaponFamily": "staff"
+    "rarity": "Uncommon"
   },
   {
     "id": 41,
@@ -774,16 +762,17 @@
     "craftLevel": 75,
     "craftSkill": "woodworking",
     "recipe": {
-      "gold": 1000,
+      "gold": 1550,
       "materialsText": "Bellwood Lumber×2, Mythril Chain×1, Bell Dust×1"
     },
     "stats": {
-      "mab": 38,
-      "mnd": 9
+      "mnd": 4,
+      "agi": 4,
+      "hp": 25
     },
     "delayMs": 3600,
     "slot": "main",
-    "weaponFamily": "staff"
+    "rarity": "Rare"
   },
   {
     "id": 42,
@@ -795,7 +784,7 @@
     "craftLevel": 100,
     "craftSkill": "woodworking",
     "recipe": {
-      "gold": 1000,
+      "gold": 2050,
       "materialsText": "Relic Staff Blank×1, Diamond×1, Ornamented Plate Accent×1, Throne Dust×2"
     },
     "stats": {
@@ -810,7 +799,8 @@
       "sorcerer",
       "cleric"
     ],
-    "weaponFamily": "staff"
+    "weaponFamily": "staff",
+    "rarity": "Epic"
   },
   {
     "id": 43,
@@ -821,8 +811,9 @@
     "kind": "filler",
     "craftLevel": 19,
     "craftSkill": "leathercraft",
+    "craftOutputQty": 4,
     "recipe": {
-      "gold": 1000,
+      "gold": 430,
       "materialsText": "Leather×1, Pale Dust×1"
     }
   },
@@ -835,10 +826,7 @@
     "kind": "filler",
     "craftLevel": 21,
     "craftSkill": "leathercraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Leather×1, Ash Dust×1"
-    }
+    "craftOutputQty": 8
   },
   {
     "id": 45,
@@ -848,11 +836,7 @@
     "slug": "ash-leather-emboss-kit",
     "kind": "filler",
     "craftLevel": 34,
-    "craftSkill": "leathercraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Leather×1, Ash Dust×1"
-    }
+    "craftSkill": "leathercraft"
   },
   {
     "id": 46,
@@ -863,10 +847,7 @@
     "kind": "filler",
     "craftLevel": 40,
     "craftSkill": "leathercraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Leather×1, Ash Dust×1"
-    }
+    "craftOutputQty": 8
   },
   {
     "id": 47,
@@ -877,10 +858,7 @@
     "kind": "filler",
     "craftLevel": 60,
     "craftSkill": "leathercraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Fine Leather×1, Slag Dust×1"
-    }
+    "craftOutputQty": 8
   },
   {
     "id": 48,
@@ -890,11 +868,7 @@
     "slug": "bell-fine-leather-pouch",
     "kind": "filler",
     "craftLevel": 64,
-    "craftSkill": "leathercraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Fine Leather×1, Bell Dust×1"
-    }
+    "craftSkill": "leathercraft"
   },
   {
     "id": 49,
@@ -905,10 +879,7 @@
     "kind": "filler",
     "craftLevel": 80,
     "craftSkill": "leathercraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Scale Leather×1, Bell Dust×1"
-    }
+    "craftOutputQty": 8
   },
   {
     "id": 50,
@@ -919,10 +890,7 @@
     "kind": "filler",
     "craftLevel": 99,
     "craftSkill": "leathercraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Scale Leather×1, Throne Dust×1"
-    }
+    "craftOutputQty": 4
   },
   {
     "id": 51,
@@ -934,7 +902,7 @@
     "craftLevel": 1,
     "craftSkill": "clothcraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 70,
       "materialsText": "Pale Flax×2, Dead Fiber×1, Pale Dust×1"
     }
   },
@@ -947,10 +915,7 @@
     "kind": "filler",
     "craftLevel": 26,
     "craftSkill": "clothcraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Linen Cloth×1, Ash Dust×1"
-    }
+    "craftOutputQty": 6
   },
   {
     "id": 53,
@@ -960,11 +925,7 @@
     "slug": "ash-linen-sanctified-patch",
     "kind": "filler",
     "craftLevel": 38,
-    "craftSkill": "clothcraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Linen Cloth×1, Ash Dust×1"
-    }
+    "craftSkill": "clothcraft"
   },
   {
     "id": 54,
@@ -976,7 +937,7 @@
     "craftLevel": 25,
     "craftSkill": "clothcraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 550,
       "materialsText": "Shade Cotton×2, Ash Dust×1"
     }
   },
@@ -988,11 +949,7 @@
     "slug": "slag-linen-gloves",
     "kind": "filler",
     "craftLevel": 44,
-    "craftSkill": "clothcraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Linen Cloth×1, Slag Dust×1"
-    }
+    "craftSkill": "clothcraft"
   },
   {
     "id": 56,
@@ -1004,7 +961,7 @@
     "craftLevel": 45,
     "craftSkill": "clothcraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 950,
       "materialsText": "Silk Thread×3, Slag Dust×1"
     }
   },
@@ -1018,7 +975,7 @@
     "craftLevel": 60,
     "craftSkill": "clothcraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 1250,
       "materialsText": "Velvet Fiber×2 or Velvet Dust×3, Bell Dust×1"
     }
   },
@@ -1031,10 +988,7 @@
     "kind": "filler",
     "craftLevel": 86,
     "craftSkill": "clothcraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Velvet Cloth×1, Throne Dust×1"
-    }
+    "craftOutputQty": 6
   },
   {
     "id": 59,
@@ -1046,13 +1000,13 @@
     "craftLevel": 30,
     "craftSkill": "clothcraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 650,
       "materialsText": "Linen Cloth×2, Spell Parchment×1, Ash Dust×1"
     },
     "stats": {
-      "atk": 17,
-      "str": 4,
-      "int": 3
+      "mab": 17,
+      "int": 4,
+      "mp": 15
     },
     "delayMs": 2400,
     "slot": "main",
@@ -1060,7 +1014,9 @@
       "tim",
       "sorcerer",
       "cleric"
-    ]
+    ],
+    "rarity": "Uncommon",
+    "weaponFamily": "staff"
   },
   {
     "id": 60,
@@ -1072,20 +1028,23 @@
     "craftLevel": 78,
     "craftSkill": "clothcraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 1610,
       "materialsText": "Velvet Cloth×2, Spell Parchment×2, Bell Dust×1"
     },
     "stats": {
-      "atk": 37,
-      "str": 9,
-      "int": 6
+      "mab": 37,
+      "int": 7,
+      "mnd": 4,
+      "mp": 30
     },
     "delayMs": 2400,
     "slot": "main",
     "jobRestrict": [
       "tim",
       "sorcerer"
-    ]
+    ],
+    "rarity": "Rare",
+    "weaponFamily": "staff"
   },
   {
     "id": 61,
@@ -1097,9 +1056,10 @@
     "craftLevel": 5,
     "craftSkill": "bonecraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 150,
       "materialsText": "Bone Chip×2, Pale Dust×1"
-    }
+    },
+    "craftOutputQty": 6
   },
   {
     "id": 62,
@@ -1111,7 +1071,7 @@
     "craftLevel": 12,
     "craftSkill": "bonecraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 290,
       "materialsText": "Bone Arrowhead×1, Ashbeam Lumber×1, Pale Dust×1"
     },
     "stats": {
@@ -1119,7 +1079,8 @@
     },
     "consume": {
       "hp": 29
-    }
+    },
+    "craftOutputQty": 12
   },
   {
     "id": 63,
@@ -1130,10 +1091,7 @@
     "kind": "filler",
     "craftLevel": 22,
     "craftSkill": "bonecraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Bone Chip×2, Ash Dust×1"
-    }
+    "craftOutputQty": 4
   },
   {
     "id": 64,
@@ -1143,11 +1101,7 @@
     "slug": "ash-bone-knuckles",
     "kind": "filler",
     "craftLevel": 27,
-    "craftSkill": "bonecraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Bone Chip×2, Ash Dust×1"
-    }
+    "craftSkill": "bonecraft"
   },
   {
     "id": 65,
@@ -1159,7 +1113,7 @@
     "craftLevel": 34,
     "craftSkill": "bonecraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 730,
       "materialsText": "Bone Chip×2, Ash Dust×1"
     }
   },
@@ -1172,10 +1126,7 @@
     "kind": "filler",
     "craftLevel": 42,
     "craftSkill": "bonecraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Bone Chip×2, Slag Dust×1"
-    }
+    "craftOutputQty": 4
   },
   {
     "id": 67,
@@ -1185,11 +1136,7 @@
     "slug": "slag-bone-hilt",
     "kind": "filler",
     "craftLevel": 44,
-    "craftSkill": "bonecraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Bone Chip×2, Slag Dust×1"
-    }
+    "craftSkill": "bonecraft"
   },
   {
     "id": 68,
@@ -1199,11 +1146,7 @@
     "slug": "slag-bone-knuckles",
     "kind": "filler",
     "craftLevel": 47,
-    "craftSkill": "bonecraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Bone Chip×2, Slag Dust×1"
-    }
+    "craftSkill": "bonecraft"
   },
   {
     "id": 69,
@@ -1213,11 +1156,7 @@
     "slug": "slag-bone-inlay",
     "kind": "filler",
     "craftLevel": 52,
-    "craftSkill": "bonecraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Bone Chip×2, Slag Dust×1"
-    }
+    "craftSkill": "bonecraft"
   },
   {
     "id": 70,
@@ -1227,11 +1166,7 @@
     "slug": "slag-bone-shell-buckle",
     "kind": "filler",
     "craftLevel": 54,
-    "craftSkill": "bonecraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Bone Chip×2, Slag Dust×1"
-    }
+    "craftSkill": "bonecraft"
   },
   {
     "id": 71,
@@ -1241,11 +1176,7 @@
     "slug": "slag-bone-war-horn",
     "kind": "filler",
     "craftLevel": 57,
-    "craftSkill": "bonecraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Bone Chip×2, Slag Dust×1"
-    }
+    "craftSkill": "bonecraft"
   },
   {
     "id": 72,
@@ -1255,11 +1186,7 @@
     "slug": "slag-bone-relic-core",
     "kind": "filler",
     "craftLevel": 59,
-    "craftSkill": "bonecraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Bone Chip×2, Slag Dust×1"
-    }
+    "craftSkill": "bonecraft"
   },
   {
     "id": 73,
@@ -1270,10 +1197,7 @@
     "kind": "filler",
     "craftLevel": 65,
     "craftSkill": "bonecraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Bone Chip×2, Bell Dust×1"
-    }
+    "craftOutputQty": 6
   },
   {
     "id": 74,
@@ -1283,11 +1207,7 @@
     "slug": "bell-bone-knuckles",
     "kind": "filler",
     "craftLevel": 67,
-    "craftSkill": "bonecraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Bone Chip×2, Bell Dust×1"
-    }
+    "craftSkill": "bonecraft"
   },
   {
     "id": 75,
@@ -1297,11 +1217,7 @@
     "slug": "bell-bone-inlay",
     "kind": "filler",
     "craftLevel": 72,
-    "craftSkill": "bonecraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Bone Chip×2, Bell Dust×1"
-    }
+    "craftSkill": "bonecraft"
   },
   {
     "id": 76,
@@ -1311,11 +1227,7 @@
     "slug": "bell-bone-shell-buckle",
     "kind": "filler",
     "craftLevel": 74,
-    "craftSkill": "bonecraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Bone Chip×2, Bell Dust×1"
-    }
+    "craftSkill": "bonecraft"
   },
   {
     "id": 77,
@@ -1325,11 +1237,7 @@
     "slug": "bell-bone-skull-charm",
     "kind": "filler",
     "craftLevel": 76,
-    "craftSkill": "bonecraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Bone Chip×2, Bell Dust×1"
-    }
+    "craftSkill": "bonecraft"
   },
   {
     "id": 78,
@@ -1339,11 +1247,7 @@
     "slug": "bell-bone-onyx-socket",
     "kind": "filler",
     "craftLevel": 78,
-    "craftSkill": "bonecraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Bone Chip×2, Bell Dust×1"
-    }
+    "craftSkill": "bonecraft"
   },
   {
     "id": 79,
@@ -1354,10 +1258,7 @@
     "kind": "filler",
     "craftLevel": 80,
     "craftSkill": "bonecraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Bone Chip×2, Bell Dust×1"
-    }
+    "craftOutputQty": 6
   },
   {
     "id": 80,
@@ -1368,10 +1269,7 @@
     "kind": "filler",
     "craftLevel": 82,
     "craftSkill": "bonecraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Bone Chip×2, Throne Dust×1"
-    }
+    "craftOutputQty": 4
   },
   {
     "id": 81,
@@ -1381,11 +1279,7 @@
     "slug": "throne-bone-hilt",
     "kind": "filler",
     "craftLevel": 84,
-    "craftSkill": "bonecraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Bone Chip×2, Throne Dust×1"
-    }
+    "craftSkill": "bonecraft"
   },
   {
     "id": 82,
@@ -1395,11 +1289,7 @@
     "slug": "throne-bone-inlay",
     "kind": "filler",
     "craftLevel": 92,
-    "craftSkill": "bonecraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Bone Chip×2, Throne Dust×1"
-    }
+    "craftSkill": "bonecraft"
   },
   {
     "id": 83,
@@ -1409,11 +1299,7 @@
     "slug": "throne-bone-shell-buckle",
     "kind": "filler",
     "craftLevel": 94,
-    "craftSkill": "bonecraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Bone Chip×2, Throne Dust×1"
-    }
+    "craftSkill": "bonecraft"
   },
   {
     "id": 84,
@@ -1423,11 +1309,7 @@
     "slug": "throne-bone-skull-charm",
     "kind": "filler",
     "craftLevel": 96,
-    "craftSkill": "bonecraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Bone Chip×2, Throne Dust×1"
-    }
+    "craftSkill": "bonecraft"
   },
   {
     "id": 85,
@@ -1437,11 +1319,7 @@
     "slug": "throne-bone-onyx-socket",
     "kind": "filler",
     "craftLevel": 98,
-    "craftSkill": "bonecraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Bone Chip×2, Throne Dust×1"
-    }
+    "craftSkill": "bonecraft"
   },
   {
     "id": 86,
@@ -1453,7 +1331,7 @@
     "craftLevel": 10,
     "craftSkill": "bonecraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 250,
       "materialsText": "Bone Chip×2, Leather×1, Pale Dust×1"
     },
     "stats": {
@@ -1465,7 +1343,8 @@
     "jobRestrict": [
       "rogue"
     ],
-    "weaponFamily": "dagger"
+    "weaponFamily": "dagger",
+    "rarity": "Common"
   },
   {
     "id": 87,
@@ -1477,7 +1356,7 @@
     "craftLevel": 55,
     "craftSkill": "bonecraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 1150,
       "materialsText": "Giant Femur×1, Fine Leather×1, Slag Dust×1"
     },
     "stats": {
@@ -1489,7 +1368,8 @@
     "jobRestrict": [
       "rogue"
     ],
-    "weaponFamily": "dagger"
+    "weaponFamily": "dagger",
+    "rarity": "Rare"
   },
   {
     "id": 88,
@@ -1501,7 +1381,7 @@
     "craftLevel": 7,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 190,
       "materialsText": "Copper Ore×1, Pale Dust×1"
     }
   },
@@ -1514,8 +1394,9 @@
     "kind": "filler",
     "craftLevel": 9,
     "craftSkill": "goldsmithing",
+    "craftOutputQty": 4,
     "recipe": {
-      "gold": 1000,
+      "gold": 230,
       "materialsText": "Copper Ore×1, Pale Dust×1"
     }
   },
@@ -1529,7 +1410,7 @@
     "craftLevel": 17,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 390,
       "materialsText": "Copper Ore×1, Pale Dust×1"
     }
   },
@@ -1543,7 +1424,7 @@
     "craftLevel": 19,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 430,
       "materialsText": "Copper Ore×1, Pale Dust×1"
     }
   },
@@ -1556,10 +1437,7 @@
     "kind": "filler",
     "craftLevel": 21,
     "craftSkill": "goldsmithing",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Iron Ingot×1, Ash Dust×1"
-    }
+    "craftOutputQty": 6
   },
   {
     "id": 93,
@@ -1569,11 +1447,7 @@
     "slug": "iron-goldsmith-earring",
     "kind": "filler",
     "craftLevel": 23,
-    "craftSkill": "goldsmithing",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Iron Ingot×1, Ash Dust×1"
-    }
+    "craftSkill": "goldsmithing"
   },
   {
     "id": 94,
@@ -1583,11 +1457,7 @@
     "slug": "iron-goldsmith-cabochon",
     "kind": "filler",
     "craftLevel": 27,
-    "craftSkill": "goldsmithing",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Iron Ingot×1, Ash Dust×1"
-    }
+    "craftSkill": "goldsmithing"
   },
   {
     "id": 95,
@@ -1598,10 +1468,7 @@
     "kind": "filler",
     "craftLevel": 29,
     "craftSkill": "goldsmithing",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Iron Ingot×1, Ash Dust×1"
-    }
+    "craftOutputQty": 4
   },
   {
     "id": 96,
@@ -1611,11 +1478,7 @@
     "slug": "iron-goldsmith-wash",
     "kind": "filler",
     "craftLevel": 32,
-    "craftSkill": "goldsmithing",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Iron Ingot×1, Ash Dust×1"
-    }
+    "craftSkill": "goldsmithing"
   },
   {
     "id": 97,
@@ -1625,11 +1488,7 @@
     "slug": "iron-goldsmith-dual-setting",
     "kind": "filler",
     "craftLevel": 34,
-    "craftSkill": "goldsmithing",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Iron Ingot×1, Ash Dust×1"
-    }
+    "craftSkill": "goldsmithing"
   },
   {
     "id": 98,
@@ -1639,11 +1498,7 @@
     "slug": "iron-goldsmith-noble-chain",
     "kind": "filler",
     "craftLevel": 36,
-    "craftSkill": "goldsmithing",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Iron Ingot×1, Ash Dust×1"
-    }
+    "craftSkill": "goldsmithing"
   },
   {
     "id": 99,
@@ -1653,11 +1508,7 @@
     "slug": "iron-goldsmith-regalia-filigree",
     "kind": "filler",
     "craftLevel": 38,
-    "craftSkill": "goldsmithing",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Iron Ingot×1, Ash Dust×1"
-    }
+    "craftSkill": "goldsmithing"
   },
   {
     "id": 100,
@@ -1669,7 +1520,7 @@
     "craftLevel": 1,
     "craftSkill": "smithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 70,
       "materialsText": "Copper Ore×2, Tin Ore×1 or Metal Scrap×5, Pale Dust×1"
     }
   },
@@ -1682,10 +1533,7 @@
     "kind": "filler",
     "craftLevel": 40,
     "craftSkill": "goldsmithing",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Iron Ingot×1, Ash Dust×1"
-    }
+    "craftOutputQty": 6
   },
   {
     "id": 102,
@@ -1697,7 +1545,7 @@
     "craftLevel": 5,
     "craftSkill": "smithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 150,
       "materialsText": "Bronze Ingot×2, Ashbeam Lumber×1, Pale Dust×1"
     },
     "stats": {
@@ -1712,7 +1560,8 @@
       "fighter",
       "battlemage"
     ],
-    "weaponFamily": "sword"
+    "weaponFamily": "sword",
+    "rarity": "Common"
   },
   {
     "id": 103,
@@ -1724,7 +1573,7 @@
     "craftLevel": 7,
     "craftSkill": "smithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 190,
       "materialsText": "Bronze Ingot×2, Pale Dust×1"
     },
     "stats": {
@@ -1736,7 +1585,8 @@
     "jobRestrict": [
       "fighter"
     ],
-    "weaponFamily": "axe"
+    "weaponFamily": "axe",
+    "rarity": "Common"
   },
   {
     "id": 104,
@@ -1748,17 +1598,20 @@
     "craftLevel": 8,
     "craftSkill": "smithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 210,
       "materialsText": "Bronze Ingot×1, Pale Dust×1"
     },
     "stats": {
-      "def": 3
+      "def": 3,
+      "str": 1,
+      "acc": 1
     },
     "slot": "head",
     "jobRestrict": [
       "knight",
       "fighter"
-    ]
+    ],
+    "rarity": "Common"
   },
   {
     "id": 105,
@@ -1770,17 +1623,20 @@
     "craftLevel": 9,
     "craftSkill": "smithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 230,
       "materialsText": "Bronze Ingot×1, Pale Dust×1"
     },
     "stats": {
-      "def": 3
+      "def": 3,
+      "atk": 1,
+      "acc": 1
     },
     "slot": "hands",
     "jobRestrict": [
       "knight",
       "fighter"
-    ]
+    ],
+    "rarity": "Common"
   },
   {
     "id": 106,
@@ -1792,7 +1648,7 @@
     "craftLevel": 10,
     "craftSkill": "smithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 250,
       "materialsText": "Bronze Ingot×3, Pale Dust×1"
     },
     "stats": {
@@ -1804,7 +1660,8 @@
     "jobRestrict": [
       "knight",
       "fighter"
-    ]
+    ],
+    "rarity": "Common"
   },
   {
     "id": 107,
@@ -1816,17 +1673,20 @@
     "craftLevel": 11,
     "craftSkill": "smithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 270,
       "materialsText": "Bronze Ingot×2, Pale Dust×1"
     },
     "stats": {
-      "def": 5
+      "def": 5,
+      "str": 2,
+      "hp": 20
     },
     "slot": "legs",
     "jobRestrict": [
       "knight",
       "fighter"
-    ]
+    ],
+    "rarity": "Common"
   },
   {
     "id": 108,
@@ -1838,17 +1698,20 @@
     "craftLevel": 12,
     "craftSkill": "smithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 290,
       "materialsText": "Bronze Ingot×2, Pale Dust×1"
     },
     "stats": {
-      "def": 5
+      "def": 5,
+      "str": 2,
+      "hp": 20
     },
     "slot": "legs",
     "jobRestrict": [
       "knight",
       "fighter"
-    ]
+    ],
+    "rarity": "Common"
   },
   {
     "id": 109,
@@ -1860,7 +1723,7 @@
     "craftLevel": 14,
     "craftSkill": "smithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 330,
       "materialsText": "Bronze Ingot×3, Cobble×2, Pale Dust×1"
     },
     "stats": {
@@ -1872,7 +1735,8 @@
       "knight",
       "battlemage",
       "cleric"
-    ]
+    ],
+    "rarity": "Common"
   },
   {
     "id": 110,
@@ -1884,7 +1748,7 @@
     "craftLevel": 16,
     "craftSkill": "smithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 370,
       "materialsText": "Bronze Ingot×1, Pale Dust×1"
     }
   },
@@ -1898,7 +1762,7 @@
     "craftLevel": 18,
     "craftSkill": "smithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 410,
       "materialsText": "Iron Ore×3, Ash Dust×1"
     }
   },
@@ -1911,10 +1775,7 @@
     "kind": "filler",
     "craftLevel": 42,
     "craftSkill": "goldsmithing",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Iron Ingot×1, Slag Dust×1"
-    }
+    "craftOutputQty": 8
   },
   {
     "id": 113,
@@ -1926,7 +1787,7 @@
     "craftLevel": 24,
     "craftSkill": "smithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 530,
       "materialsText": "Iron Ingot×4, Ash Dust×1"
     },
     "stats": {
@@ -1939,7 +1800,8 @@
     "jobRestrict": [
       "fighter"
     ],
-    "weaponFamily": "axe"
+    "weaponFamily": "axe",
+    "rarity": "Common"
   },
   {
     "id": 114,
@@ -1951,17 +1813,20 @@
     "craftLevel": 26,
     "craftSkill": "smithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 570,
       "materialsText": "Iron Ingot×1, Ash Dust×1"
     },
     "stats": {
-      "def": 7
+      "def": 7,
+      "str": 3,
+      "acc": 3
     },
     "slot": "head",
     "jobRestrict": [
       "knight",
       "fighter"
-    ]
+    ],
+    "rarity": "Uncommon"
   },
   {
     "id": 115,
@@ -1973,17 +1838,20 @@
     "craftLevel": 27,
     "craftSkill": "smithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 590,
       "materialsText": "Iron Ingot×1, Ash Dust×1"
     },
     "stats": {
-      "def": 7
+      "def": 7,
+      "atk": 3,
+      "acc": 3
     },
     "slot": "hands",
     "jobRestrict": [
       "knight",
       "fighter"
-    ]
+    ],
+    "rarity": "Uncommon"
   },
   {
     "id": 116,
@@ -1995,17 +1863,20 @@
     "craftLevel": 29,
     "craftSkill": "smithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 630,
       "materialsText": "Iron Ingot×2, Ash Dust×1"
     },
     "stats": {
-      "def": 10
+      "def": 10,
+      "str": 3,
+      "hp": 30
     },
     "slot": "legs",
     "jobRestrict": [
       "knight",
       "fighter"
-    ]
+    ],
+    "rarity": "Uncommon"
   },
   {
     "id": 117,
@@ -2017,17 +1888,20 @@
     "craftLevel": 30,
     "craftSkill": "smithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 650,
       "materialsText": "Iron Ingot×2, Ash Dust×1"
     },
     "stats": {
-      "def": 11
+      "def": 11,
+      "str": 4,
+      "hp": 40
     },
     "slot": "legs",
     "jobRestrict": [
       "knight",
       "fighter"
-    ]
+    ],
+    "rarity": "Uncommon"
   },
   {
     "id": 118,
@@ -2037,11 +1911,7 @@
     "slug": "iron-cuirass-kit",
     "kind": "filler",
     "craftLevel": 32,
-    "craftSkill": "smithing",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Iron Ingot×1, Ash Dust×1"
-    }
+    "craftSkill": "smithing"
   },
   {
     "id": 119,
@@ -2051,11 +1921,7 @@
     "slug": "iron-tower-shield",
     "kind": "filler",
     "craftLevel": 34,
-    "craftSkill": "smithing",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Iron Ingot×1, Ash Dust×1"
-    }
+    "craftSkill": "smithing"
   },
   {
     "id": 120,
@@ -2067,7 +1933,7 @@
     "craftLevel": 35,
     "craftSkill": "smithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 750,
       "materialsText": "Iron Ingot×2, Iron Sand×1, Slag Dust×1"
     }
   },
@@ -2079,11 +1945,7 @@
     "slug": "steel-blade-polish",
     "kind": "filler",
     "craftLevel": 37,
-    "craftSkill": "smithing",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Steel Ingot×1, Ash Dust×1"
-    }
+    "craftSkill": "smithing"
   },
   {
     "id": 122,
@@ -2095,7 +1957,7 @@
     "craftLevel": 38,
     "craftSkill": "smithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 810,
       "materialsText": "Steel Ingot×4, Slag Dust×1"
     },
     "stats": {
@@ -2109,7 +1971,8 @@
       "knight",
       "fighter"
     ],
-    "weaponFamily": "greatsword"
+    "weaponFamily": "greatsword",
+    "rarity": "Uncommon"
   },
   {
     "id": 123,
@@ -2119,11 +1982,7 @@
     "slug": "iron-goldsmith-bangle",
     "kind": "filler",
     "craftLevel": 44,
-    "craftSkill": "goldsmithing",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Iron Ingot×1, Slag Dust×1"
-    }
+    "craftSkill": "goldsmithing"
   },
   {
     "id": 124,
@@ -2135,7 +1994,7 @@
     "craftLevel": 42,
     "craftSkill": "smithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 890,
       "materialsText": "Mythril Ore×3, Slag Dust×1"
     }
   },
@@ -2147,11 +2006,7 @@
     "slug": "mythril-goldsmith-cabochon",
     "kind": "filler",
     "craftLevel": 47,
-    "craftSkill": "goldsmithing",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Mythril Ingot×1, Slag Dust×1"
-    }
+    "craftSkill": "goldsmithing"
   },
   {
     "id": 126,
@@ -2163,7 +2018,7 @@
     "craftLevel": 46,
     "craftSkill": "smithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 970,
       "materialsText": "Mythril Ingot×2, Bloodbeam Lumber×1, Slag Dust×1"
     },
     "stats": {
@@ -2178,7 +2033,8 @@
       "fighter",
       "battlemage"
     ],
-    "weaponFamily": "sword"
+    "weaponFamily": "sword",
+    "rarity": "Uncommon"
   },
   {
     "id": 127,
@@ -2190,16 +2046,19 @@
     "craftLevel": 48,
     "craftSkill": "smithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 1010,
       "materialsText": "Mythril Ingot×1, Slag Dust×1"
     },
     "stats": {
-      "def": 11
+      "def": 11,
+      "vit": 5,
+      "hp": 50
     },
     "slot": "head",
     "jobRestrict": [
       "knight"
-    ]
+    ],
+    "rarity": "Uncommon"
   },
   {
     "id": 128,
@@ -2211,16 +2070,19 @@
     "craftLevel": 49,
     "craftSkill": "smithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 1030,
       "materialsText": "Mythril Ingot×1, Slag Dust×1"
     },
     "stats": {
-      "def": 11
+      "def": 11,
+      "atk": 5,
+      "vit": 5
     },
     "slot": "hands",
     "jobRestrict": [
       "knight"
-    ]
+    ],
+    "rarity": "Uncommon"
   },
   {
     "id": 129,
@@ -2232,7 +2094,7 @@
     "craftLevel": 50,
     "craftSkill": "smithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 1050,
       "materialsText": "Mythril Ingot×3, Slag Dust×1"
     },
     "stats": {
@@ -2243,7 +2105,8 @@
     "slot": "body",
     "jobRestrict": [
       "knight"
-    ]
+    ],
+    "rarity": "Rare"
   },
   {
     "id": 130,
@@ -2255,16 +2118,19 @@
     "craftLevel": 51,
     "craftSkill": "smithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 1070,
       "materialsText": "Mythril Ingot×2, Slag Dust×1"
     },
     "stats": {
-      "def": 17
+      "def": 17,
+      "hp": 70,
+      "vit": 4
     },
     "slot": "legs",
     "jobRestrict": [
       "knight"
-    ]
+    ],
+    "rarity": "Rare"
   },
   {
     "id": 131,
@@ -2276,16 +2142,19 @@
     "craftLevel": 52,
     "craftSkill": "smithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 1090,
       "materialsText": "Mythril Ingot×2, Slag Dust×1"
     },
     "stats": {
-      "def": 12
+      "def": 12,
+      "vit": 6,
+      "agi": 6
     },
     "slot": "feet",
     "jobRestrict": [
       "knight"
-    ]
+    ],
+    "rarity": "Rare"
   },
   {
     "id": 132,
@@ -2297,7 +2166,7 @@
     "craftLevel": 54,
     "craftSkill": "smithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 1130,
       "materialsText": "Mythril Ingot×3, Slag Dust×1"
     },
     "stats": {
@@ -2307,7 +2176,8 @@
     "slot": "sub",
     "jobRestrict": [
       "knight"
-    ]
+    ],
+    "rarity": "Rare"
   },
   {
     "id": 133,
@@ -2317,11 +2187,7 @@
     "slug": "mythril-sallet",
     "kind": "filler",
     "craftLevel": 56,
-    "craftSkill": "smithing",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Mythril Ingot×1, Slag Dust×1"
-    }
+    "craftSkill": "smithing"
   },
   {
     "id": 134,
@@ -2333,7 +2199,7 @@
     "craftLevel": 58,
     "craftSkill": "smithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 1210,
       "materialsText": "Mythril Ingot×4, Slag Dust×1"
     },
     "stats": {
@@ -2347,7 +2213,8 @@
       "knight",
       "fighter"
     ],
-    "weaponFamily": "greatsword"
+    "weaponFamily": "greatsword",
+    "rarity": "Rare"
   },
   {
     "id": 135,
@@ -2357,11 +2224,7 @@
     "slug": "mythril-goldsmith-dual-setting",
     "kind": "filler",
     "craftLevel": 54,
-    "craftSkill": "goldsmithing",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Mythril Ingot×1, Slag Dust×1"
-    }
+    "craftSkill": "goldsmithing"
   },
   {
     "id": 136,
@@ -2373,7 +2236,7 @@
     "craftLevel": 62,
     "craftSkill": "smithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 1290,
       "materialsText": "Darksteel Ore×3, Iron Sand×1, Bell Dust×1"
     }
   },
@@ -2387,7 +2250,7 @@
     "craftLevel": 65,
     "craftSkill": "smithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 1350,
       "materialsText": "Darksteel Ingot×2, Bellwood Lumber×1, Bell Dust×1"
     },
     "stats": {
@@ -2402,7 +2265,8 @@
       "fighter",
       "battlemage"
     ],
-    "weaponFamily": "sword"
+    "weaponFamily": "sword",
+    "rarity": "Rare"
   },
   {
     "id": 138,
@@ -2414,7 +2278,7 @@
     "craftLevel": 66,
     "craftSkill": "smithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 1370,
       "materialsText": "Darksteel Ingot×4, Bell Dust×1"
     },
     "stats": {
@@ -2427,7 +2291,8 @@
     "jobRestrict": [
       "fighter"
     ],
-    "weaponFamily": "axe"
+    "weaponFamily": "axe",
+    "rarity": "Rare"
   },
   {
     "id": 139,
@@ -2439,17 +2304,20 @@
     "craftLevel": 68,
     "craftSkill": "smithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 1410,
       "materialsText": "Darksteel Ingot×1, Bell Dust×1"
     },
     "stats": {
-      "def": 15
+      "def": 15,
+      "str": 7,
+      "acc": 7
     },
     "slot": "head",
     "jobRestrict": [
       "knight",
       "fighter"
-    ]
+    ],
+    "rarity": "Rare"
   },
   {
     "id": 140,
@@ -2461,17 +2329,20 @@
     "craftLevel": 69,
     "craftSkill": "smithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 1430,
       "materialsText": "Darksteel Ingot×1, Bell Dust×1"
     },
     "stats": {
-      "def": 15
+      "def": 15,
+      "atk": 7,
+      "acc": 7
     },
     "slot": "hands",
     "jobRestrict": [
       "knight",
       "fighter"
-    ]
+    ],
+    "rarity": "Rare"
   },
   {
     "id": 141,
@@ -2483,7 +2354,7 @@
     "craftLevel": 70,
     "craftSkill": "smithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 1450,
       "materialsText": "Darksteel Ingot×3, Bell Dust×1"
     },
     "stats": {
@@ -2495,7 +2366,8 @@
     "jobRestrict": [
       "knight",
       "fighter"
-    ]
+    ],
+    "rarity": "Rare"
   },
   {
     "id": 142,
@@ -2507,17 +2379,20 @@
     "craftLevel": 71,
     "craftSkill": "smithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 1470,
       "materialsText": "Darksteel Ingot×2, Bell Dust×1"
     },
     "stats": {
-      "def": 23
+      "def": 23,
+      "str": 8,
+      "hp": 80
     },
     "slot": "legs",
     "jobRestrict": [
       "knight",
       "fighter"
-    ]
+    ],
+    "rarity": "Rare"
   },
   {
     "id": 143,
@@ -2529,17 +2404,20 @@
     "craftLevel": 72,
     "craftSkill": "smithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 1490,
       "materialsText": "Darksteel Ingot×2, Bell Dust×1"
     },
     "stats": {
-      "def": 16
+      "def": 16,
+      "agi": 8,
+      "str": 8
     },
     "slot": "feet",
     "jobRestrict": [
       "knight",
       "fighter"
-    ]
+    ],
+    "rarity": "Rare"
   },
   {
     "id": 144,
@@ -2551,7 +2429,7 @@
     "craftLevel": 74,
     "craftSkill": "smithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 1530,
       "materialsText": "Darksteel Ingot×3, Bell Dust×1"
     },
     "stats": {
@@ -2561,7 +2439,8 @@
     "slot": "sub",
     "jobRestrict": [
       "knight"
-    ]
+    ],
+    "rarity": "Rare"
   },
   {
     "id": 145,
@@ -2571,11 +2450,7 @@
     "slug": "darksteel-sallet",
     "kind": "filler",
     "craftLevel": 76,
-    "craftSkill": "smithing",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Darksteel Ingot×1, Bell Dust×1"
-    }
+    "craftSkill": "smithing"
   },
   {
     "id": 146,
@@ -2585,11 +2460,7 @@
     "slug": "darksteel-hybrid-plate",
     "kind": "filler",
     "craftLevel": 78,
-    "craftSkill": "smithing",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Darksteel Ingot×1, Bell Dust×1"
-    }
+    "craftSkill": "smithing"
   },
   {
     "id": 147,
@@ -2599,11 +2470,7 @@
     "slug": "mythril-goldsmith-noble-chain",
     "kind": "filler",
     "craftLevel": 56,
-    "craftSkill": "goldsmithing",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Mythril Ingot×1, Slag Dust×1"
-    }
+    "craftSkill": "goldsmithing"
   },
   {
     "id": 148,
@@ -2615,7 +2482,7 @@
     "craftLevel": 82,
     "craftSkill": "smithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 1690,
       "materialsText": "Orichalcum Ore×2, Mythril Ingot×1, Throne Dust×1"
     }
   },
@@ -2627,11 +2494,7 @@
     "slug": "orichalcum-buckle",
     "kind": "filler",
     "craftLevel": 84,
-    "craftSkill": "smithing",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Orichalcum Ingot×1, Throne Dust×1"
-    }
+    "craftSkill": "smithing"
   },
   {
     "id": 150,
@@ -2641,11 +2504,7 @@
     "slug": "orichalcum-mace-head",
     "kind": "filler",
     "craftLevel": 86,
-    "craftSkill": "smithing",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Orichalcum Ingot×1, Throne Dust×1"
-    }
+    "craftSkill": "smithing"
   },
   {
     "id": 151,
@@ -2657,7 +2516,7 @@
     "craftLevel": 88,
     "craftSkill": "smithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 1810,
       "materialsText": "Orichalcum Ingot×2, Bellwood Lumber×1, Throne Dust×1"
     },
     "stats": {
@@ -2671,7 +2530,8 @@
       "knight",
       "battlemage"
     ],
-    "weaponFamily": "sword"
+    "weaponFamily": "sword",
+    "rarity": "Epic"
   },
   {
     "id": 152,
@@ -2681,11 +2541,7 @@
     "slug": "orichalcum-shield-boss",
     "kind": "filler",
     "craftLevel": 90,
-    "craftSkill": "smithing",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Orichalcum Ingot×1, Throne Dust×1"
-    }
+    "craftSkill": "smithing"
   },
   {
     "id": 153,
@@ -2697,16 +2553,19 @@
     "craftLevel": 92,
     "craftSkill": "smithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 1890,
       "materialsText": "Orichalcum Ingot×1, Marble Chip×1, Throne Dust×1"
     },
     "stats": {
-      "def": 20
+      "def": 20,
+      "vit": 10,
+      "hp": 100
     },
     "slot": "head",
     "jobRestrict": [
       "knight"
-    ]
+    ],
+    "rarity": "Epic"
   },
   {
     "id": 154,
@@ -2718,16 +2577,19 @@
     "craftLevel": 93,
     "craftSkill": "smithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 1910,
       "materialsText": "Orichalcum Ingot×1, Marble Chip×1, Throne Dust×1"
     },
     "stats": {
-      "def": 20
+      "def": 20,
+      "atk": 10,
+      "vit": 10
     },
     "slot": "hands",
     "jobRestrict": [
       "knight"
-    ]
+    ],
+    "rarity": "Epic"
   },
   {
     "id": 155,
@@ -2739,7 +2601,7 @@
     "craftLevel": 94,
     "craftSkill": "smithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 1930,
       "materialsText": "Orichalcum Ingot×3, Marble Chip×2, Darksteel Goldsmith Wire×2, Goldsmith Filigree×1, Throne Dust×1"
     },
     "stats": {
@@ -2750,7 +2612,8 @@
     "slot": "body",
     "jobRestrict": [
       "knight"
-    ]
+    ],
+    "rarity": "Epic"
   },
   {
     "id": 156,
@@ -2762,16 +2625,19 @@
     "craftLevel": 95,
     "craftSkill": "smithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 1950,
       "materialsText": "Orichalcum Ingot×2, Marble Chip×1, Throne Dust×1"
     },
     "stats": {
-      "def": 31
+      "def": 31,
+      "hp": 120,
+      "vit": 8
     },
     "slot": "legs",
     "jobRestrict": [
       "knight"
-    ]
+    ],
+    "rarity": "Epic"
   },
   {
     "id": 157,
@@ -2783,16 +2649,19 @@
     "craftLevel": 96,
     "craftSkill": "smithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 1970,
       "materialsText": "Orichalcum Ingot×2, Marble Chip×1, Throne Dust×1"
     },
     "stats": {
-      "def": 21
+      "def": 21,
+      "vit": 10,
+      "agi": 10
     },
     "slot": "feet",
     "jobRestrict": [
       "knight"
-    ]
+    ],
+    "rarity": "Epic"
   },
   {
     "id": 158,
@@ -2804,7 +2673,7 @@
     "craftLevel": 98,
     "craftSkill": "smithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 2010,
       "materialsText": "Orichalcum Ingot×3, Column Fragment×1, Throne Dust×1"
     },
     "stats": {
@@ -2817,7 +2686,8 @@
     "jobRestrict": [
       "fighter"
     ],
-    "weaponFamily": "axe"
+    "weaponFamily": "axe",
+    "rarity": "Epic"
   },
   {
     "id": 159,
@@ -2829,7 +2699,7 @@
     "craftLevel": 100,
     "craftSkill": "smithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 2050,
       "materialsText": "Orichalcum Ingot×1, Diamond×1, Throne Dust×1"
     }
   },
@@ -2843,7 +2713,7 @@
     "craftLevel": 1,
     "craftSkill": "woodworking",
     "recipe": {
-      "gold": 1000,
+      "gold": 70,
       "materialsText": "Ashbeam Log×2, Bark Strip×1, Pale Dust×1"
     }
   },
@@ -2857,7 +2727,7 @@
     "craftLevel": 3,
     "craftSkill": "woodworking",
     "recipe": {
-      "gold": 1000,
+      "gold": 110,
       "materialsText": "Ashbeam Lumber×1, Pale Dust×1"
     }
   },
@@ -2871,14 +2741,15 @@
     "craftLevel": 4,
     "craftSkill": "woodworking",
     "recipe": {
-      "gold": 1000,
+      "gold": 130,
       "materialsText": "Ashbeam Lumber×2, Cracked Brick×1, Pale Dust×1"
     },
     "stats": {
       "def": 4,
       "vit": 1
     },
-    "slot": "sub"
+    "slot": "sub",
+    "rarity": "Common"
   },
   {
     "id": 163,
@@ -2890,7 +2761,7 @@
     "craftLevel": 8,
     "craftSkill": "woodworking",
     "recipe": {
-      "gold": 1000,
+      "gold": 210,
       "materialsText": "Ashbeam Lumber×1, Pale Dust×1"
     }
   },
@@ -2902,11 +2773,7 @@
     "slug": "mythril-goldsmith-regalia-filigree",
     "kind": "filler",
     "craftLevel": 58,
-    "craftSkill": "goldsmithing",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Mythril Ingot×1, Slag Dust×1"
-    }
+    "craftSkill": "goldsmithing"
   },
   {
     "id": 165,
@@ -2918,7 +2785,7 @@
     "craftLevel": 12,
     "craftSkill": "woodworking",
     "recipe": {
-      "gold": 1000,
+      "gold": 290,
       "materialsText": "Ashbeam Lumber×1, Pale Dust×1"
     }
   },
@@ -2932,7 +2799,7 @@
     "craftLevel": 14,
     "craftSkill": "woodworking",
     "recipe": {
-      "gold": 1000,
+      "gold": 330,
       "materialsText": "Ashbeam Lumber×1, Pale Dust×1"
     }
   },
@@ -2946,13 +2813,15 @@
     "craftLevel": 16,
     "craftSkill": "woodworking",
     "recipe": {
-      "gold": 1000,
+      "gold": 370,
       "materialsText": "Ashbeam Lumber×1, Leather×1, Ash Dust×1"
     },
     "stats": {
-      "acc": 3
+      "acc": 2,
+      "mab": 2
     },
-    "slot": "grip"
+    "slot": "grip",
+    "rarity": "Common"
   },
   {
     "id": 168,
@@ -2962,11 +2831,7 @@
     "slug": "ashbeam-siege-stock",
     "kind": "filler",
     "craftLevel": 20,
-    "craftSkill": "woodworking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Ashbeam Lumber×1, Iron Arrowhead×1, Ash Dust×1"
-    }
+    "craftSkill": "woodworking"
   },
   {
     "id": 169,
@@ -2977,10 +2842,7 @@
     "kind": "filler",
     "craftLevel": 60,
     "craftSkill": "goldsmithing",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Mythril Ingot×1, Slag Dust×1"
-    }
+    "craftOutputQty": 6
   },
   {
     "id": 170,
@@ -2990,11 +2852,7 @@
     "slug": "ashbeam-wand",
     "kind": "filler",
     "craftLevel": 22,
-    "craftSkill": "woodworking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Ashbeam Lumber×1, Ash Dust×1"
-    }
+    "craftSkill": "woodworking"
   },
   {
     "id": 171,
@@ -3004,11 +2862,7 @@
     "slug": "ashbeam-pole",
     "kind": "filler",
     "craftLevel": 24,
-    "craftSkill": "woodworking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Ashbeam Lumber×1, Ash Dust×1"
-    }
+    "craftSkill": "woodworking"
   },
   {
     "id": 172,
@@ -3020,7 +2874,7 @@
     "craftLevel": 25,
     "craftSkill": "woodworking",
     "recipe": {
-      "gold": 1000,
+      "gold": 550,
       "materialsText": "Ashbeam Lumber×1, Bone Chip×1, Ash Dust×1"
     },
     "stats": {
@@ -3033,7 +2887,8 @@
       "battlemage",
       "cleric"
     ],
-    "weaponFamily": "staff"
+    "weaponFamily": "staff",
+    "rarity": "Uncommon"
   },
   {
     "id": 173,
@@ -3043,11 +2898,7 @@
     "slug": "ashbeam-ferrule",
     "kind": "filler",
     "craftLevel": 27,
-    "craftSkill": "woodworking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Ashbeam Lumber×1, Ash Dust×1"
-    }
+    "craftSkill": "woodworking"
   },
   {
     "id": 174,
@@ -3057,11 +2908,7 @@
     "slug": "ashbeam-laminate",
     "kind": "filler",
     "craftLevel": 29,
-    "craftSkill": "woodworking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Ashbeam Lumber×1, Ash Dust×1"
-    }
+    "craftSkill": "woodworking"
   },
   {
     "id": 175,
@@ -3071,11 +2918,7 @@
     "slug": "ashbeam-quarterstaff",
     "kind": "filler",
     "craftLevel": 31,
-    "craftSkill": "woodworking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Ashbeam Lumber×1, Ash Dust×1"
-    }
+    "craftSkill": "woodworking"
   },
   {
     "id": 176,
@@ -3085,11 +2928,7 @@
     "slug": "ashbeam-club-blank",
     "kind": "filler",
     "craftLevel": 33,
-    "craftSkill": "woodworking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Ashbeam Lumber×1, Ash Dust×1"
-    }
+    "craftSkill": "woodworking"
   },
   {
     "id": 177,
@@ -3099,11 +2938,7 @@
     "slug": "ashbeam-string-kit",
     "kind": "filler",
     "craftLevel": 35,
-    "craftSkill": "woodworking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Ashbeam Lumber×1, Ash Dust×1"
-    }
+    "craftSkill": "woodworking"
   },
   {
     "id": 178,
@@ -3113,11 +2948,7 @@
     "slug": "ashbeam-longbow",
     "kind": "filler",
     "craftLevel": 37,
-    "craftSkill": "woodworking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Ashbeam Lumber×1, Ash Dust×1"
-    }
+    "craftSkill": "woodworking"
   },
   {
     "id": 179,
@@ -3128,10 +2959,7 @@
     "kind": "filler",
     "craftLevel": 62,
     "craftSkill": "goldsmithing",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Mythril Ingot×1, Bell Dust×1"
-    }
+    "craftOutputQty": 8
   },
   {
     "id": 180,
@@ -3143,7 +2971,7 @@
     "craftLevel": 40,
     "craftSkill": "woodworking",
     "recipe": {
-      "gold": 1000,
+      "gold": 850,
       "materialsText": "Bloodbeam Log×2, Bark Strip×1, Slag Dust×1"
     }
   },
@@ -3155,11 +2983,7 @@
     "slug": "bloodbeam-wand",
     "kind": "filler",
     "craftLevel": 42,
-    "craftSkill": "woodworking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Bloodbeam Lumber×1, Slag Dust×1"
-    }
+    "craftSkill": "woodworking"
   },
   {
     "id": 182,
@@ -3169,11 +2993,7 @@
     "slug": "bloodbeam-pole",
     "kind": "filler",
     "craftLevel": 44,
-    "craftSkill": "woodworking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Bloodbeam Lumber×1, Slag Dust×1"
-    }
+    "craftSkill": "woodworking"
   },
   {
     "id": 183,
@@ -3182,11 +3002,11 @@
     "icon": "/icons/items/ashbeam-club.png",
     "slug": "ashbeam-club",
     "kind": "equipment",
-    "craftLevel": 45,
+    "craftLevel": 12,
     "craftSkill": "woodworking",
     "recipe": {
-      "gold": 1000,
-      "materialsText": "Bloodbeam Lumber×1, Iron Ingot×1, Slag Dust×1"
+      "gold": 290,
+      "materialsText": "Ashbeam Lumber×2, Soft Pelt×1, Pale Dust×1"
     },
     "stats": {
       "atk": 21,
@@ -3197,7 +3017,8 @@
     "jobRestrict": [
       "cleric"
     ],
-    "weaponFamily": "club"
+    "weaponFamily": "club",
+    "rarity": "Common"
   },
   {
     "id": 184,
@@ -3207,11 +3028,7 @@
     "slug": "bloodbeam-ferrule",
     "kind": "filler",
     "craftLevel": 47,
-    "craftSkill": "woodworking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Bloodbeam Lumber×1, Slag Dust×1"
-    }
+    "craftSkill": "woodworking"
   },
   {
     "id": 185,
@@ -3221,11 +3038,7 @@
     "slug": "mythril-goldsmith-bangle",
     "kind": "filler",
     "craftLevel": 64,
-    "craftSkill": "goldsmithing",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Mythril Ingot×1, Bell Dust×1"
-    }
+    "craftSkill": "goldsmithing"
   },
   {
     "id": 186,
@@ -3237,14 +3050,15 @@
     "craftLevel": 50,
     "craftSkill": "woodworking",
     "recipe": {
-      "gold": 1000,
+      "gold": 1050,
       "materialsText": "Bloodbeam Lumber×2, Silk Thread×1, Slag Dust×1"
     },
     "stats": {
-      "atk": 23,
-      "agi": 6
+      "agi": 6,
+      "acc": 8
     },
-    "slot": "ranged"
+    "slot": "ranged",
+    "rarity": "Rare"
   },
   {
     "id": 187,
@@ -3254,11 +3068,7 @@
     "slug": "bloodbeam-bow-stave",
     "kind": "filler",
     "craftLevel": 52,
-    "craftSkill": "woodworking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Bloodbeam Lumber×1, Slag Dust×1"
-    }
+    "craftSkill": "woodworking"
   },
   {
     "id": 188,
@@ -3268,11 +3078,7 @@
     "slug": "bloodbeam-shield-rim",
     "kind": "filler",
     "craftLevel": 54,
-    "craftSkill": "woodworking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Bloodbeam Lumber×1, Slag Dust×1"
-    }
+    "craftSkill": "woodworking"
   },
   {
     "id": 189,
@@ -3282,11 +3088,7 @@
     "slug": "bloodbeam-crook",
     "kind": "filler",
     "craftLevel": 56,
-    "craftSkill": "woodworking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Bloodbeam Lumber×1, Slag Dust×1"
-    }
+    "craftSkill": "woodworking"
   },
   {
     "id": 190,
@@ -3296,11 +3098,7 @@
     "slug": "bloodbeam-siege-stock",
     "kind": "filler",
     "craftLevel": 58,
-    "craftSkill": "woodworking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Bloodbeam Lumber×1, Slag Dust×1"
-    }
+    "craftSkill": "woodworking"
   },
   {
     "id": 191,
@@ -3310,11 +3108,7 @@
     "slug": "darksteel-goldsmith-wash",
     "kind": "filler",
     "craftLevel": 72,
-    "craftSkill": "goldsmithing",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Darksteel Ingot×1, Bell Dust×1"
-    }
+    "craftSkill": "goldsmithing"
   },
   {
     "id": 192,
@@ -3326,7 +3120,7 @@
     "craftLevel": 65,
     "craftSkill": "woodworking",
     "recipe": {
-      "gold": 1000,
+      "gold": 1350,
       "materialsText": "Bellwood Log×2, Bark Strip×1, Bell Dust×1"
     }
   },
@@ -3340,7 +3134,7 @@
     "craftLevel": 67,
     "craftSkill": "woodworking",
     "recipe": {
-      "gold": 1000,
+      "gold": 1390,
       "materialsText": "Bellwood Lumber×1, Bell Dust×1"
     }
   },
@@ -3354,7 +3148,7 @@
     "craftLevel": 69,
     "craftSkill": "woodworking",
     "recipe": {
-      "gold": 1000,
+      "gold": 1430,
       "materialsText": "Bellwood Lumber×1, Bell Dust×1"
     }
   },
@@ -3368,7 +3162,7 @@
     "craftLevel": 70,
     "craftSkill": "woodworking",
     "recipe": {
-      "gold": 1000,
+      "gold": 1450,
       "materialsText": "Bellwood Lumber×2, Silk Thread×1, Bell Dust×1"
     },
     "stats": {
@@ -3382,7 +3176,8 @@
       "tim",
       "sorcerer"
     ],
-    "weaponFamily": "staff"
+    "weaponFamily": "staff",
+    "rarity": "Rare"
   },
   {
     "id": 196,
@@ -3394,13 +3189,16 @@
     "craftLevel": 72,
     "craftSkill": "woodworking",
     "recipe": {
-      "gold": 1000,
+      "gold": 1490,
       "materialsText": "Bellwood Lumber×1, Fine Leather×1, Bell Dust×1"
     },
     "stats": {
-      "acc": 8
+      "acc": 6,
+      "atk": 4,
+      "str": 2
     },
-    "slot": "grip"
+    "slot": "grip",
+    "rarity": "Rare"
   },
   {
     "id": 197,
@@ -3410,11 +3208,7 @@
     "slug": "bellwood-shield-rim",
     "kind": "filler",
     "craftLevel": 74,
-    "craftSkill": "woodworking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Bellwood Lumber×1, Bell Dust×1"
-    }
+    "craftSkill": "woodworking"
   },
   {
     "id": 198,
@@ -3424,11 +3218,7 @@
     "slug": "darksteel-goldsmith-dual-setting",
     "kind": "filler",
     "craftLevel": 74,
-    "craftSkill": "goldsmithing",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Darksteel Ingot×1, Bell Dust×1"
-    }
+    "craftSkill": "goldsmithing"
   },
   {
     "id": 199,
@@ -3438,11 +3228,7 @@
     "slug": "bellwood-longbow",
     "kind": "filler",
     "craftLevel": 77,
-    "craftSkill": "woodworking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Bellwood Lumber×1, Bell Dust×1"
-    }
+    "craftSkill": "woodworking"
   },
   {
     "id": 200,
@@ -3452,11 +3238,7 @@
     "slug": "darksteel-goldsmith-royal-setting",
     "kind": "filler",
     "craftLevel": 77,
-    "craftSkill": "goldsmithing",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Darksteel Ingot×1, Bell Dust×1"
-    }
+    "craftSkill": "goldsmithing"
   },
   {
     "id": 201,
@@ -3466,11 +3248,7 @@
     "slug": "bellwood-shaft",
     "kind": "filler",
     "craftLevel": 81,
-    "craftSkill": "woodworking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Bellwood Lumber×1, Throne Dust×1"
-    }
+    "craftSkill": "woodworking"
   },
   {
     "id": 202,
@@ -3480,11 +3258,7 @@
     "slug": "bellwood-cane",
     "kind": "filler",
     "craftLevel": 83,
-    "craftSkill": "woodworking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Bellwood Lumber×1, Throne Dust×1"
-    }
+    "craftSkill": "woodworking"
   },
   {
     "id": 203,
@@ -3494,11 +3268,7 @@
     "slug": "bellwood-crosspiece",
     "kind": "filler",
     "craftLevel": 85,
-    "craftSkill": "woodworking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Bellwood Lumber×1, Throne Dust×1"
-    }
+    "craftSkill": "woodworking"
   },
   {
     "id": 204,
@@ -3510,14 +3280,15 @@
     "craftLevel": 90,
     "craftSkill": "woodworking",
     "recipe": {
-      "gold": 1000,
+      "gold": 1850,
       "materialsText": "Bellwood Lumber×2, Horn×1, Throne Dust×1"
     },
     "stats": {
-      "atk": 39,
-      "agi": 10
+      "agi": 10,
+      "acc": 14
     },
-    "slot": "ranged"
+    "slot": "ranged",
+    "rarity": "Epic"
   },
   {
     "id": 205,
@@ -3527,11 +3298,7 @@
     "slug": "bellwood-bow-stave",
     "kind": "filler",
     "craftLevel": 92,
-    "craftSkill": "woodworking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Bellwood Lumber×1, Throne Dust×1"
-    }
+    "craftSkill": "woodworking"
   },
   {
     "id": 206,
@@ -3543,12 +3310,13 @@
     "craftLevel": 95,
     "craftSkill": "woodworking",
     "recipe": {
-      "gold": 1000,
+      "gold": 1950,
       "materialsText": "Bellwood Lumber×2, Bellwood Ferrule×1, Bellwood Laminate×1, Orichalcum Ingot×1, Throne Dust×1"
     },
     "stats": {
-      "mab": 47,
-      "mnd": 11
+      "mab": 45,
+      "int": 8,
+      "mp": 40
     },
     "delayMs": 3600,
     "slot": "main",
@@ -3556,7 +3324,8 @@
     "jobRestrict": [
       "tim"
     ],
-    "weaponFamily": "staff"
+    "weaponFamily": "staff",
+    "rarity": "Epic"
   },
   {
     "id": 207,
@@ -3568,12 +3337,12 @@
     "craftLevel": 98,
     "craftSkill": "woodworking",
     "recipe": {
-      "gold": 1000,
+      "gold": 2010,
       "materialsText": "Bellwood Lumber×2, Diamond×1, Throne Dust×1"
     },
     "stats": {
       "mab": 47,
-      "mnd": 11
+      "int": 11
     },
     "delayMs": 3600,
     "slot": "main",
@@ -3581,7 +3350,8 @@
     "jobRestrict": [
       "sorcerer"
     ],
-    "weaponFamily": "staff"
+    "weaponFamily": "staff",
+    "rarity": "Epic"
   },
   {
     "id": 208,
@@ -3593,7 +3363,7 @@
     "craftLevel": 100,
     "craftSkill": "woodworking",
     "recipe": {
-      "gold": 1000,
+      "gold": 2050,
       "materialsText": "Bellwood Lumber×2 or Petrified Lumber×2, Ancient Branch×1, Orichalcum Ingot×1, Throne Dust×2"
     }
   },
@@ -3607,7 +3377,7 @@
     "craftLevel": 1,
     "craftSkill": "leathercraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 70,
       "materialsText": "Desiccated Hide×2, Pale Dust×1"
     }
   },
@@ -3621,7 +3391,7 @@
     "craftLevel": 3,
     "craftSkill": "leathercraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 110,
       "materialsText": "Leather×1, Pale Dust×1"
     }
   },
@@ -3635,18 +3405,21 @@
     "craftLevel": 4,
     "craftSkill": "leathercraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 130,
       "materialsText": "Leather×1, Pale Dust×1"
     },
     "stats": {
-      "def": 2
+      "def": 2,
+      "agi": 1,
+      "mp": 10
     },
     "slot": "head",
     "jobRestrict": [
       "battlemage",
       "rogue",
       "tim"
-    ]
+    ],
+    "rarity": "Common"
   },
   {
     "id": 212,
@@ -3658,18 +3431,21 @@
     "craftLevel": 5,
     "craftSkill": "leathercraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 150,
       "materialsText": "Leather×1, Pale Dust×1"
     },
     "stats": {
-      "def": 3
+      "def": 3,
+      "dex": 1,
+      "int": 1
     },
     "slot": "hands",
     "jobRestrict": [
       "battlemage",
       "rogue",
       "tim"
-    ]
+    ],
+    "rarity": "Common"
   },
   {
     "id": 213,
@@ -3681,18 +3457,21 @@
     "craftLevel": 6,
     "craftSkill": "leathercraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 170,
       "materialsText": "Leather×1, Pale Dust×1"
     },
     "stats": {
-      "def": 3
+      "def": 3,
+      "agi": 1,
+      "mp": 10
     },
     "slot": "feet",
     "jobRestrict": [
       "battlemage",
       "rogue",
       "tim"
-    ]
+    ],
+    "rarity": "Common"
   },
   {
     "id": 214,
@@ -3704,18 +3483,21 @@
     "craftLevel": 8,
     "craftSkill": "leathercraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 210,
       "materialsText": "Leather×2, Pale Dust×1"
     },
     "stats": {
-      "def": 4
+      "def": 4,
+      "agi": 1,
+      "mp": 10
     },
     "slot": "legs",
     "jobRestrict": [
       "battlemage",
       "rogue",
       "tim"
-    ]
+    ],
+    "rarity": "Common"
   },
   {
     "id": 215,
@@ -3727,7 +3509,7 @@
     "craftLevel": 12,
     "craftSkill": "leathercraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 290,
       "materialsText": "Leather×1, Pale Dust×1"
     }
   },
@@ -3741,7 +3523,7 @@
     "craftLevel": 14,
     "craftSkill": "leathercraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 330,
       "materialsText": "Leather×1, Pale Dust×1"
     }
   },
@@ -3755,13 +3537,15 @@
     "craftLevel": 15,
     "craftSkill": "leathercraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 350,
       "materialsText": "Leather×1, Ash Dust×1"
     },
     "stats": {
-      "acc": 3
+      "acc": 3,
+      "dex": 1
     },
-    "slot": "grip"
+    "slot": "grip",
+    "rarity": "Common"
   },
   {
     "id": 218,
@@ -3773,7 +3557,7 @@
     "craftLevel": 17,
     "craftSkill": "leathercraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 390,
       "materialsText": "Leather×1, Pale Dust×1"
     }
   },
@@ -3785,11 +3569,7 @@
     "slug": "darksteel-goldsmith-accent-socket",
     "kind": "filler",
     "craftLevel": 79,
-    "craftSkill": "goldsmithing",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Darksteel Ingot×1, Bell Dust×1"
-    }
+    "craftSkill": "goldsmithing"
   },
   {
     "id": 220,
@@ -3801,9 +3581,10 @@
     "craftLevel": 81,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 1670,
       "materialsText": "Darksteel Ingot×1, Throne Dust×1"
-    }
+    },
+    "craftOutputQty": 6
   },
   {
     "id": 221,
@@ -3815,16 +3596,19 @@
     "craftLevel": 22,
     "craftSkill": "leathercraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 490,
       "materialsText": "Leather×2, Silk Thread×1, Ash Dust×1"
     },
     "stats": {
-      "def": 6
+      "def": 6,
+      "dex": 2,
+      "agi": 2
     },
     "slot": "head",
     "jobRestrict": [
       "rogue"
-    ]
+    ],
+    "rarity": "Common"
   },
   {
     "id": 222,
@@ -3836,16 +3620,19 @@
     "craftLevel": 24,
     "craftSkill": "leathercraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 530,
       "materialsText": "Leather×2, Silk Thread×1, Ash Dust×1"
     },
     "stats": {
-      "def": 6
+      "def": 6,
+      "dex": 2,
+      "acc": 2
     },
     "slot": "hands",
     "jobRestrict": [
       "rogue"
-    ]
+    ],
+    "rarity": "Common"
   },
   {
     "id": 223,
@@ -3857,16 +3644,19 @@
     "craftLevel": 26,
     "craftSkill": "leathercraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 570,
       "materialsText": "Leather×2, Silk Thread×1, Ash Dust×1"
     },
     "stats": {
-      "def": 10
+      "def": 10,
+      "agi": 3,
+      "hp": 30
     },
     "slot": "legs",
     "jobRestrict": [
       "rogue"
-    ]
+    ],
+    "rarity": "Uncommon"
   },
   {
     "id": 224,
@@ -3878,16 +3668,19 @@
     "craftLevel": 28,
     "craftSkill": "leathercraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 610,
       "materialsText": "Leather×2, Silk Thread×1, Ash Dust×1"
     },
     "stats": {
-      "def": 7
+      "def": 7,
+      "agi": 4,
+      "dex": 2
     },
     "slot": "feet",
     "jobRestrict": [
       "rogue"
-    ]
+    ],
+    "rarity": "Uncommon"
   },
   {
     "id": 225,
@@ -3899,7 +3692,7 @@
     "craftLevel": 30,
     "craftSkill": "leathercraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 650,
       "materialsText": "Leather×3, Silk Thread×1, Ash Dust×1"
     },
     "stats": {
@@ -3910,7 +3703,8 @@
     "slot": "body",
     "jobRestrict": [
       "rogue"
-    ]
+    ],
+    "rarity": "Uncommon"
   },
   {
     "id": 226,
@@ -3922,19 +3716,21 @@
     "craftLevel": 32,
     "craftSkill": "leathercraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 690,
       "materialsText": "Leather×1, Climbing Cord×1, Ash Dust×1"
     },
     "stats": {
       "def": 16,
-      "agi": 15,
-      "hp": 26
+      "agi": 8,
+      "mp": 20,
+      "hp": 15
     },
     "slot": "body",
     "jobRestrict": [
       "rogue",
       "tim"
-    ]
+    ],
+    "rarity": "Uncommon"
   },
   {
     "id": 227,
@@ -3944,11 +3740,7 @@
     "slug": "leather-mail-skirt",
     "kind": "filler",
     "craftLevel": 36,
-    "craftSkill": "leathercraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Leather×1, Ash Dust×1"
-    }
+    "craftSkill": "leathercraft"
   },
   {
     "id": 228,
@@ -3958,11 +3750,7 @@
     "slug": "leather-court-patch",
     "kind": "filler",
     "craftLevel": 38,
-    "craftSkill": "leathercraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Leather×1, Ash Dust×1"
-    }
+    "craftSkill": "leathercraft"
   },
   {
     "id": 229,
@@ -3972,11 +3760,7 @@
     "slug": "orichalcum-goldsmith-earring",
     "kind": "filler",
     "craftLevel": 83,
-    "craftSkill": "goldsmithing",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Orichalcum Ingot×1, Throne Dust×1"
-    }
+    "craftSkill": "goldsmithing"
   },
   {
     "id": 230,
@@ -3988,7 +3772,7 @@
     "craftLevel": 42,
     "craftSkill": "leathercraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 890,
       "materialsText": "Soft Pelt×2, Slime Oil×1, Slag Dust×1"
     }
   },
@@ -4000,11 +3784,7 @@
     "slug": "fine-leather-pouch",
     "kind": "filler",
     "craftLevel": 44,
-    "craftSkill": "leathercraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Fine Leather×1, Slag Dust×1"
-    }
+    "craftSkill": "leathercraft"
   },
   {
     "id": 232,
@@ -4016,13 +3796,16 @@
     "craftLevel": 45,
     "craftSkill": "leathercraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 950,
       "materialsText": "Fine Leather×1, Bone Chip×1, Slag Dust×1"
     },
     "stats": {
-      "def": 11
+      "def": 11,
+      "hp": 50,
+      "mp": 50
     },
-    "slot": "head"
+    "slot": "head",
+    "rarity": "Uncommon"
   },
   {
     "id": 233,
@@ -4032,11 +3815,7 @@
     "slug": "fine-leather-mantle-scrap",
     "kind": "filler",
     "craftLevel": 47,
-    "craftSkill": "leathercraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Fine Leather×1, Slag Dust×1"
-    }
+    "craftSkill": "leathercraft"
   },
   {
     "id": 234,
@@ -4048,17 +3827,20 @@
     "craftLevel": 48,
     "craftSkill": "leathercraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 1010,
       "materialsText": "Fine Leather×1, Slag Dust×1"
     },
     "stats": {
-      "def": 11
+      "def": 11,
+      "dex": 5,
+      "acc": 5
     },
     "slot": "head",
     "jobRestrict": [
       "fighter",
       "rogue"
-    ]
+    ],
+    "rarity": "Uncommon"
   },
   {
     "id": 235,
@@ -4070,19 +3852,21 @@
     "craftLevel": 50,
     "craftSkill": "leathercraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 1050,
       "materialsText": "Fine Leather×3, Slag Dust×1"
     },
     "stats": {
-      "def": 35,
-      "vit": 12,
-      "hp": 49
+      "def": 33,
+      "str": 8,
+      "agi": 6,
+      "hp": 40
     },
     "slot": "body",
     "jobRestrict": [
       "fighter",
       "rogue"
-    ]
+    ],
+    "rarity": "Rare"
   },
   {
     "id": 236,
@@ -4094,17 +3878,20 @@
     "craftLevel": 52,
     "craftSkill": "leathercraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 1090,
       "materialsText": "Fine Leather×1, Slag Dust×1"
     },
     "stats": {
-      "def": 12
+      "def": 12,
+      "acc": 6,
+      "dex": 6
     },
     "slot": "hands",
     "jobRestrict": [
       "fighter",
       "rogue"
-    ]
+    ],
+    "rarity": "Rare"
   },
   {
     "id": 237,
@@ -4116,17 +3903,20 @@
     "craftLevel": 54,
     "craftSkill": "leathercraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 1130,
       "materialsText": "Fine Leather×2, Slag Dust×1"
     },
     "stats": {
-      "def": 17
+      "def": 17,
+      "agi": 6,
+      "hp": 60
     },
     "slot": "legs",
     "jobRestrict": [
       "fighter",
       "rogue"
-    ]
+    ],
+    "rarity": "Rare"
   },
   {
     "id": 238,
@@ -4138,17 +3928,20 @@
     "craftLevel": 56,
     "craftSkill": "leathercraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 1170,
       "materialsText": "Fine Leather×2, Slag Dust×1"
     },
     "stats": {
-      "def": 13
+      "def": 13,
+      "agi": 8,
+      "hp": 40
     },
     "slot": "feet",
     "jobRestrict": [
       "fighter",
       "rogue"
-    ]
+    ],
+    "rarity": "Rare"
   },
   {
     "id": 239,
@@ -4158,11 +3951,7 @@
     "slug": "fine-leather-court-patch",
     "kind": "filler",
     "craftLevel": 58,
-    "craftSkill": "leathercraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Fine Leather×1, Slag Dust×1"
-    }
+    "craftSkill": "leathercraft"
   },
   {
     "id": 240,
@@ -4172,11 +3961,7 @@
     "slug": "orichalcum-goldsmith-cabochon",
     "kind": "filler",
     "craftLevel": 87,
-    "craftSkill": "goldsmithing",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Orichalcum Ingot×1, Throne Dust×1"
-    }
+    "craftSkill": "goldsmithing"
   },
   {
     "id": 241,
@@ -4186,11 +3971,7 @@
     "slug": "fine-leather-belt",
     "kind": "filler",
     "craftLevel": 62,
-    "craftSkill": "leathercraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Fine Leather×1, Bell Dust×1"
-    }
+    "craftSkill": "leathercraft"
   },
   {
     "id": 242,
@@ -4202,7 +3983,7 @@
     "craftLevel": 65,
     "craftSkill": "leathercraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 1350,
       "materialsText": "Scale Hide×2, Bell Dust×1"
     }
   },
@@ -4214,11 +3995,7 @@
     "slug": "scale-leather-mantle-scrap",
     "kind": "filler",
     "craftLevel": 67,
-    "craftSkill": "leathercraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Scale Leather×1, Bell Dust×1"
-    }
+    "craftSkill": "leathercraft"
   },
   {
     "id": 244,
@@ -4228,11 +4005,7 @@
     "slug": "scale-leather-chaps",
     "kind": "filler",
     "craftLevel": 69,
-    "craftSkill": "leathercraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Scale Leather×1, Bell Dust×1"
-    }
+    "craftSkill": "leathercraft"
   },
   {
     "id": 245,
@@ -4244,17 +4017,20 @@
     "craftLevel": 70,
     "craftSkill": "leathercraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 1450,
       "materialsText": "Scale Leather×1, Bell Dust×1"
     },
     "stats": {
-      "def": 16
+      "def": 16,
+      "dex": 8,
+      "acc": 8
     },
     "slot": "head",
     "jobRestrict": [
       "knight",
       "rogue"
-    ]
+    ],
+    "rarity": "Rare"
   },
   {
     "id": 246,
@@ -4266,17 +4042,20 @@
     "craftLevel": 72,
     "craftSkill": "leathercraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 1490,
       "materialsText": "Scale Leather×1, Bell Dust×1"
     },
     "stats": {
-      "def": 16
+      "def": 16,
+      "acc": 8,
+      "dex": 8
     },
     "slot": "hands",
     "jobRestrict": [
       "knight",
       "rogue"
-    ]
+    ],
+    "rarity": "Rare"
   },
   {
     "id": 247,
@@ -4288,19 +4067,21 @@
     "craftLevel": 74,
     "craftSkill": "leathercraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 1530,
       "materialsText": "Scale Leather×3, Bell Dust×1"
     },
     "stats": {
-      "def": 47,
-      "vit": 16,
-      "hp": 65
+      "def": 45,
+      "vit": 10,
+      "agi": 8,
+      "hp": 55
     },
     "slot": "body",
     "jobRestrict": [
       "knight",
       "rogue"
-    ]
+    ],
+    "rarity": "Rare"
   },
   {
     "id": 248,
@@ -4312,17 +4093,20 @@
     "craftLevel": 76,
     "craftSkill": "leathercraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 1570,
       "materialsText": "Scale Leather×2, Bell Dust×1"
     },
     "stats": {
-      "def": 25
+      "def": 25,
+      "agi": 8,
+      "hp": 80
     },
     "slot": "legs",
     "jobRestrict": [
       "knight",
       "rogue"
-    ]
+    ],
+    "rarity": "Rare"
   },
   {
     "id": 249,
@@ -4334,17 +4118,20 @@
     "craftLevel": 78,
     "craftSkill": "leathercraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 1610,
       "materialsText": "Scale Leather×2, Bell Dust×1"
     },
     "stats": {
-      "def": 17
+      "def": 17,
+      "agi": 11,
+      "hp": 50
     },
     "slot": "feet",
     "jobRestrict": [
       "knight",
       "rogue"
-    ]
+    ],
+    "rarity": "Rare"
   },
   {
     "id": 250,
@@ -4355,10 +4142,7 @@
     "kind": "filler",
     "craftLevel": 89,
     "craftSkill": "goldsmithing",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Orichalcum Ingot×1, Throne Dust×1"
-    }
+    "craftOutputQty": 4
   },
   {
     "id": 251,
@@ -4370,7 +4154,7 @@
     "craftLevel": 82,
     "craftSkill": "leathercraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 1690,
       "materialsText": "Scale Leather×1, Throne Dust×1"
     }
   },
@@ -4382,11 +4166,7 @@
     "slug": "scale-leather-pouch",
     "kind": "filler",
     "craftLevel": 84,
-    "craftSkill": "leathercraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Scale Leather×1, Throne Dust×1"
-    }
+    "craftSkill": "leathercraft"
   },
   {
     "id": 253,
@@ -4398,7 +4178,7 @@
     "craftLevel": 86,
     "craftSkill": "leathercraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 1770,
       "materialsText": "Scale Leather×1, Throne Dust×1"
     }
   },
@@ -4410,11 +4190,7 @@
     "slug": "scale-leather-collar",
     "kind": "filler",
     "craftLevel": 88,
-    "craftSkill": "leathercraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Scale Leather×1, Throne Dust×1"
-    }
+    "craftSkill": "leathercraft"
   },
   {
     "id": 255,
@@ -4424,11 +4200,7 @@
     "slug": "scale-leather-shoulder-pad",
     "kind": "filler",
     "craftLevel": 90,
-    "craftSkill": "leathercraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Scale Leather×1, Throne Dust×1"
-    }
+    "craftSkill": "leathercraft"
   },
   {
     "id": 256,
@@ -4438,11 +4210,7 @@
     "slug": "scale-leather-oil-cure",
     "kind": "filler",
     "craftLevel": 92,
-    "craftSkill": "leathercraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Scale Leather×1, Throne Dust×1"
-    }
+    "craftSkill": "leathercraft"
   },
   {
     "id": 257,
@@ -4452,11 +4220,7 @@
     "slug": "scale-leather-emboss-kit",
     "kind": "filler",
     "craftLevel": 94,
-    "craftSkill": "leathercraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Scale Leather×1, Throne Dust×1"
-    }
+    "craftSkill": "leathercraft"
   },
   {
     "id": 258,
@@ -4468,7 +4232,7 @@
     "craftLevel": 95,
     "craftSkill": "leathercraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 1950,
       "materialsText": "Scale Leather×3, Jadeite×1, Scale Leather Belt×1, Scale Leather Stud Kit×1, Throne Dust×1"
     },
     "stats": {
@@ -4479,7 +4243,8 @@
     "slot": "body",
     "jobRestrict": [
       "rogue"
-    ]
+    ],
+    "rarity": "Epic"
   },
   {
     "id": 259,
@@ -4489,11 +4254,7 @@
     "slug": "scale-leather-hardened-vest",
     "kind": "filler",
     "craftLevel": 97,
-    "craftSkill": "leathercraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Scale Leather×1, Throne Dust×1"
-    }
+    "craftSkill": "leathercraft"
   },
   {
     "id": 260,
@@ -4503,11 +4264,7 @@
     "slug": "orichalcum-goldsmith-wash",
     "kind": "filler",
     "craftLevel": 92,
-    "craftSkill": "goldsmithing",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Orichalcum Ingot×1, Throne Dust×1"
-    }
+    "craftSkill": "goldsmithing"
   },
   {
     "id": 261,
@@ -4517,11 +4274,7 @@
     "slug": "master-leather-kit",
     "kind": "filler",
     "craftLevel": 100,
-    "craftSkill": "leathercraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Scale Leather×2, Fine Leather×2, Throne Dust×1"
-    }
+    "craftSkill": "leathercraft"
   },
   {
     "id": 262,
@@ -4533,7 +4286,7 @@
     "craftLevel": 1,
     "craftSkill": "clothcraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 70,
       "materialsText": "Linen Thread×3 or Linen Scrap×4, Pale Dust×1"
     }
   },
@@ -4547,7 +4300,7 @@
     "craftLevel": 3,
     "craftSkill": "clothcraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 110,
       "materialsText": "Linen Cloth×1, Pale Dust×1"
     }
   },
@@ -4561,11 +4314,14 @@
     "craftLevel": 4,
     "craftSkill": "clothcraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 130,
       "materialsText": "Linen Cloth×1, Pale Dust×1"
     },
     "stats": {
-      "def": 2
+      "def": 2,
+      "int": 1,
+      "mnd": 1,
+      "mp": 10
     },
     "slot": "head",
     "jobRestrict": [
@@ -4573,7 +4329,8 @@
       "tim",
       "sorcerer",
       "cleric"
-    ]
+    ],
+    "rarity": "Common"
   },
   {
     "id": 265,
@@ -4585,11 +4342,13 @@
     "craftLevel": 5,
     "craftSkill": "clothcraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 150,
       "materialsText": "Linen Cloth×1, Pale Dust×1"
     },
     "stats": {
-      "def": 3
+      "def": 3,
+      "mab": 1,
+      "mnd": 1
     },
     "slot": "hands",
     "jobRestrict": [
@@ -4597,7 +4356,8 @@
       "tim",
       "sorcerer",
       "cleric"
-    ]
+    ],
+    "rarity": "Common"
   },
   {
     "id": 266,
@@ -4609,11 +4369,13 @@
     "craftLevel": 6,
     "craftSkill": "clothcraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 170,
       "materialsText": "Linen Cloth×1, Pale Dust×1"
     },
     "stats": {
-      "def": 3
+      "def": 3,
+      "agi": 1,
+      "mp": 10
     },
     "slot": "feet",
     "jobRestrict": [
@@ -4621,7 +4383,8 @@
       "tim",
       "sorcerer",
       "cleric"
-    ]
+    ],
+    "rarity": "Common"
   },
   {
     "id": 267,
@@ -4633,11 +4396,13 @@
     "craftLevel": 8,
     "craftSkill": "clothcraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 210,
       "materialsText": "Linen Cloth×2, Pale Dust×1"
     },
     "stats": {
-      "def": 4
+      "def": 4,
+      "mp": 10,
+      "mnd": 1
     },
     "slot": "legs",
     "jobRestrict": [
@@ -4645,7 +4410,8 @@
       "tim",
       "sorcerer",
       "cleric"
-    ]
+    ],
+    "rarity": "Common"
   },
   {
     "id": 268,
@@ -4657,7 +4423,7 @@
     "craftLevel": 12,
     "craftSkill": "clothcraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 290,
       "materialsText": "Linen Cloth×1, Pale Dust×1"
     }
   },
@@ -4671,7 +4437,7 @@
     "craftLevel": 14,
     "craftSkill": "clothcraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 330,
       "materialsText": "Linen Cloth×1, Pale Dust×1"
     }
   },
@@ -4685,7 +4451,7 @@
     "craftLevel": 16,
     "craftSkill": "clothcraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 370,
       "materialsText": "Linen Cloth×1, Pale Dust×1"
     }
   },
@@ -4699,7 +4465,7 @@
     "craftLevel": 18,
     "craftSkill": "clothcraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 410,
       "materialsText": "Linen Cloth×1, Pale Dust×1"
     }
   },
@@ -4711,11 +4477,7 @@
     "slug": "orichalcum-goldsmith-dual-setting",
     "kind": "filler",
     "craftLevel": 94,
-    "craftSkill": "goldsmithing",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Orichalcum Ingot×1, Throne Dust×1"
-    }
+    "craftSkill": "goldsmithing"
   },
   {
     "id": 273,
@@ -4727,7 +4489,7 @@
     "craftLevel": 22,
     "craftSkill": "clothcraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 490,
       "materialsText": "Parchment×1, Ink Salt×1, Ash Dust×1"
     }
   },
@@ -4739,11 +4501,7 @@
     "slug": "linen-gloves",
     "kind": "filler",
     "craftLevel": 24,
-    "craftSkill": "clothcraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Linen Cloth×1, Ash Dust×1"
-    }
+    "craftSkill": "clothcraft"
   },
   {
     "id": 275,
@@ -4753,11 +4511,7 @@
     "slug": "orichalcum-goldsmith-noble-chain",
     "kind": "filler",
     "craftLevel": 96,
-    "craftSkill": "goldsmithing",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Orichalcum Ingot×1, Throne Dust×1"
-    }
+    "craftSkill": "goldsmithing"
   },
   {
     "id": 276,
@@ -4769,11 +4523,14 @@
     "craftLevel": 28,
     "craftSkill": "clothcraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 610,
       "materialsText": "Linen Cloth×1, Shade Cotton×1, Ash Dust×1"
     },
     "stats": {
-      "def": 7
+      "def": 7,
+      "int": 2,
+      "mnd": 2,
+      "mp": 20
     },
     "slot": "head",
     "jobRestrict": [
@@ -4781,7 +4538,8 @@
       "sorcerer",
       "cleric",
       "battlemage"
-    ]
+    ],
+    "rarity": "Uncommon"
   },
   {
     "id": 277,
@@ -4793,7 +4551,7 @@
     "craftLevel": 30,
     "craftSkill": "clothcraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 650,
       "materialsText": "Linen Cloth×3, Shade Cotton Thread×1, Ash Dust×1"
     },
     "stats": {
@@ -4808,7 +4566,8 @@
       "sorcerer",
       "cleric",
       "battlemage"
-    ]
+    ],
+    "rarity": "Uncommon"
   },
   {
     "id": 278,
@@ -4820,11 +4579,13 @@
     "craftLevel": 32,
     "craftSkill": "clothcraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 690,
       "materialsText": "Linen Cloth×1, Shade Cotton×1, Ash Dust×1"
     },
     "stats": {
-      "def": 8
+      "def": 8,
+      "mab": 4,
+      "mnd": 4
     },
     "slot": "hands",
     "jobRestrict": [
@@ -4832,7 +4593,8 @@
       "sorcerer",
       "cleric",
       "battlemage"
-    ]
+    ],
+    "rarity": "Uncommon"
   },
   {
     "id": 279,
@@ -4844,11 +4606,13 @@
     "craftLevel": 34,
     "craftSkill": "clothcraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 730,
       "materialsText": "Linen Cloth×2, Shade Cotton×1, Ash Dust×1"
     },
     "stats": {
-      "def": 11
+      "def": 11,
+      "mp": 40,
+      "mnd": 4
     },
     "slot": "legs",
     "jobRestrict": [
@@ -4856,7 +4620,8 @@
       "sorcerer",
       "cleric",
       "battlemage"
-    ]
+    ],
+    "rarity": "Uncommon"
   },
   {
     "id": 280,
@@ -4868,11 +4633,13 @@
     "craftLevel": 36,
     "craftSkill": "clothcraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 770,
       "materialsText": "Linen Cloth×1, Shade Cotton×1, Ash Dust×1"
     },
     "stats": {
-      "def": 9
+      "def": 9,
+      "agi": 3,
+      "mp": 50
     },
     "slot": "feet",
     "jobRestrict": [
@@ -4880,7 +4647,8 @@
       "sorcerer",
       "cleric",
       "battlemage"
-    ]
+    ],
+    "rarity": "Uncommon"
   },
   {
     "id": 281,
@@ -4890,11 +4658,7 @@
     "slug": "linen-sash",
     "kind": "filler",
     "craftLevel": 42,
-    "craftSkill": "clothcraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Linen Cloth×1, Slag Dust×1"
-    }
+    "craftSkill": "clothcraft"
   },
   {
     "id": 282,
@@ -4906,7 +4670,7 @@
     "craftLevel": 45,
     "craftSkill": "clothcraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 950,
       "materialsText": "Spun Silk×1, Slag Dust×1"
     }
   },
@@ -4918,11 +4682,7 @@
     "slug": "silk-twill",
     "kind": "filler",
     "craftLevel": 47,
-    "craftSkill": "clothcraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Silk Cloth×1, Slag Dust×1"
-    }
+    "craftSkill": "clothcraft"
   },
   {
     "id": 284,
@@ -4934,11 +4694,14 @@
     "craftLevel": 48,
     "craftSkill": "clothcraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 1010,
       "materialsText": "Silk Cloth×1, Slag Dust×1"
     },
     "stats": {
-      "def": 11
+      "def": 11,
+      "int": 3,
+      "mnd": 3,
+      "mp": 30
     },
     "slot": "head",
     "jobRestrict": [
@@ -4946,7 +4709,8 @@
       "sorcerer",
       "cleric",
       "battlemage"
-    ]
+    ],
+    "rarity": "Uncommon"
   },
   {
     "id": 285,
@@ -4958,7 +4722,7 @@
     "craftLevel": 50,
     "craftSkill": "clothcraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 1050,
       "materialsText": "Silk Cloth×3, Slag Dust×1"
     },
     "stats": {
@@ -4973,7 +4737,8 @@
       "sorcerer",
       "cleric",
       "battlemage"
-    ]
+    ],
+    "rarity": "Rare"
   },
   {
     "id": 286,
@@ -4985,11 +4750,13 @@
     "craftLevel": 52,
     "craftSkill": "clothcraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 1090,
       "materialsText": "Silk Cloth×1, Slag Dust×1"
     },
     "stats": {
-      "def": 12
+      "def": 12,
+      "mab": 6,
+      "mnd": 6
     },
     "slot": "hands",
     "jobRestrict": [
@@ -4997,7 +4764,8 @@
       "sorcerer",
       "cleric",
       "battlemage"
-    ]
+    ],
+    "rarity": "Rare"
   },
   {
     "id": 287,
@@ -5009,11 +4777,13 @@
     "craftLevel": 54,
     "craftSkill": "clothcraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 1130,
       "materialsText": "Silk Cloth×2, Slag Dust×1"
     },
     "stats": {
-      "def": 17
+      "def": 17,
+      "mp": 60,
+      "mnd": 6
     },
     "slot": "legs",
     "jobRestrict": [
@@ -5021,7 +4791,8 @@
       "sorcerer",
       "cleric",
       "battlemage"
-    ]
+    ],
+    "rarity": "Rare"
   },
   {
     "id": 288,
@@ -5033,11 +4804,13 @@
     "craftLevel": 56,
     "craftSkill": "clothcraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 1170,
       "materialsText": "Silk Cloth×1, Slag Dust×1"
     },
     "stats": {
-      "def": 13
+      "def": 13,
+      "agi": 5,
+      "mp": 70
     },
     "slot": "feet",
     "jobRestrict": [
@@ -5045,7 +4818,8 @@
       "sorcerer",
       "cleric",
       "battlemage"
-    ]
+    ],
+    "rarity": "Rare"
   },
   {
     "id": 289,
@@ -5055,11 +4829,7 @@
     "slug": "silk-sanctified-patch",
     "kind": "filler",
     "craftLevel": 58,
-    "craftSkill": "clothcraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Silk Cloth×1, Slag Dust×1"
-    }
+    "craftSkill": "clothcraft"
   },
   {
     "id": 290,
@@ -5069,11 +4839,7 @@
     "slug": "orichalcum-goldsmith-regalia-filigree",
     "kind": "filler",
     "craftLevel": 98,
-    "craftSkill": "goldsmithing",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Orichalcum Ingot×1, Throne Dust×1"
-    }
+    "craftSkill": "goldsmithing"
   },
   {
     "id": 291,
@@ -5083,11 +4849,7 @@
     "slug": "silk-sash",
     "kind": "filler",
     "craftLevel": 62,
-    "craftSkill": "clothcraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Silk Cloth×1, Bell Dust×1"
-    }
+    "craftSkill": "clothcraft"
   },
   {
     "id": 292,
@@ -5097,11 +4859,7 @@
     "slug": "silk-gloves",
     "kind": "filler",
     "craftLevel": 64,
-    "craftSkill": "clothcraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Silk Cloth×1, Bell Dust×1"
-    }
+    "craftSkill": "clothcraft"
   },
   {
     "id": 293,
@@ -5113,7 +4871,7 @@
     "craftLevel": 65,
     "craftSkill": "clothcraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 1350,
       "materialsText": "Velvet Thread×3, Silk Cloth×1, Bell Dust×1"
     }
   },
@@ -5125,11 +4883,7 @@
     "slug": "velvet-twill",
     "kind": "filler",
     "craftLevel": 67,
-    "craftSkill": "clothcraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Velvet Cloth×1, Bell Dust×1"
-    }
+    "craftSkill": "clothcraft"
   },
   {
     "id": 295,
@@ -5139,11 +4893,7 @@
     "slug": "velvet-shirt",
     "kind": "filler",
     "craftLevel": 69,
-    "craftSkill": "clothcraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Velvet Cloth×1, Bell Dust×1"
-    }
+    "craftSkill": "clothcraft"
   },
   {
     "id": 296,
@@ -5155,17 +4905,20 @@
     "craftLevel": 70,
     "craftSkill": "clothcraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 1450,
       "materialsText": "Velvet Cloth×1, Bell Dust×1"
     },
     "stats": {
-      "def": 16
+      "def": 16,
+      "int": 8,
+      "mp": 80
     },
     "slot": "head",
     "jobRestrict": [
       "tim",
       "sorcerer"
-    ]
+    ],
+    "rarity": "Rare"
   },
   {
     "id": 297,
@@ -5177,7 +4930,7 @@
     "craftLevel": 72,
     "craftSkill": "clothcraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 1490,
       "materialsText": "Velvet Cloth×3, Bell Dust×1"
     },
     "stats": {
@@ -5190,7 +4943,8 @@
     "jobRestrict": [
       "tim",
       "sorcerer"
-    ]
+    ],
+    "rarity": "Rare"
   },
   {
     "id": 298,
@@ -5202,17 +4956,20 @@
     "craftLevel": 74,
     "craftSkill": "clothcraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 1530,
       "materialsText": "Velvet Cloth×1, Bell Dust×1"
     },
     "stats": {
-      "def": 16
+      "def": 16,
+      "mab": 9,
+      "int": 6
     },
     "slot": "hands",
     "jobRestrict": [
       "tim",
       "sorcerer"
-    ]
+    ],
+    "rarity": "Rare"
   },
   {
     "id": 299,
@@ -5224,17 +4981,20 @@
     "craftLevel": 76,
     "craftSkill": "clothcraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 1570,
       "materialsText": "Velvet Cloth×2, Bell Dust×1"
     },
     "stats": {
-      "def": 25
+      "def": 25,
+      "mp": 80,
+      "int": 8
     },
     "slot": "legs",
     "jobRestrict": [
       "tim",
       "sorcerer"
-    ]
+    ],
+    "rarity": "Rare"
   },
   {
     "id": 300,
@@ -5246,17 +5006,20 @@
     "craftLevel": 78,
     "craftSkill": "clothcraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 1610,
       "materialsText": "Velvet Cloth×1, Bell Dust×1"
     },
     "stats": {
-      "def": 17
+      "def": 17,
+      "agi": 6,
+      "mp": 100
     },
     "slot": "feet",
     "jobRestrict": [
       "tim",
       "sorcerer"
-    ]
+    ],
+    "rarity": "Rare"
   },
   {
     "id": 301,
@@ -5268,13 +5031,16 @@
     "craftLevel": 75,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 1550,
       "materialsText": "Mythril Ingot×1, Fine Leather×1, Bell Dust×1"
     },
     "stats": {
-      "def": 17
+      "def": 17,
+      "hp": 80,
+      "mp": 80
     },
-    "slot": "head"
+    "slot": "head",
+    "rarity": "Rare"
   },
   {
     "id": 302,
@@ -5284,11 +5050,7 @@
     "slug": "velvet-sash",
     "kind": "filler",
     "craftLevel": 82,
-    "craftSkill": "clothcraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Velvet Cloth×1, Throne Dust×1"
-    }
+    "craftSkill": "clothcraft"
   },
   {
     "id": 303,
@@ -5298,11 +5060,7 @@
     "slug": "velvet-gloves",
     "kind": "filler",
     "craftLevel": 84,
-    "craftSkill": "clothcraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Velvet Cloth×1, Throne Dust×1"
-    }
+    "craftSkill": "clothcraft"
   },
   {
     "id": 304,
@@ -5314,16 +5072,17 @@
     "craftLevel": 20,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 450,
       "materialsText": "Copper Ore×2, Leather×1, Ash Dust×1"
     },
     "stats": {
-      "atk": 13,
-      "str": 3
+      "str": 2,
+      "vit": 2,
+      "hp": 10
     },
-    "delayMs": 2400,
-    "slot": "main",
-    "jobRestrict": "all"
+    "slot": "earring",
+    "jobRestrict": "all",
+    "rarity": "Common"
   },
   {
     "id": 305,
@@ -5333,11 +5092,7 @@
     "slug": "velvet-stole",
     "kind": "filler",
     "craftLevel": 88,
-    "craftSkill": "clothcraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Velvet Cloth×1, Throne Dust×1"
-    }
+    "craftSkill": "clothcraft"
   },
   {
     "id": 306,
@@ -5347,11 +5102,7 @@
     "slug": "velvet-hose",
     "kind": "filler",
     "craftLevel": 90,
-    "craftSkill": "clothcraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Velvet Cloth×1, Throne Dust×1"
-    }
+    "craftSkill": "clothcraft"
   },
   {
     "id": 307,
@@ -5363,7 +5114,7 @@
     "craftLevel": 92,
     "craftSkill": "clothcraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 1890,
       "materialsText": "Velvet Cloth×2, Jadeite×1, Throne Dust×1"
     },
     "stats": {
@@ -5375,7 +5126,8 @@
     "slot": "body",
     "jobRestrict": [
       "cleric"
-    ]
+    ],
+    "rarity": "Epic"
   },
   {
     "id": 308,
@@ -5385,11 +5137,7 @@
     "slug": "velvet-scroll-bind",
     "kind": "filler",
     "craftLevel": 94,
-    "craftSkill": "clothcraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Velvet Cloth×1, Throne Dust×1"
-    }
+    "craftSkill": "clothcraft"
   },
   {
     "id": 309,
@@ -5401,7 +5149,7 @@
     "craftLevel": 95,
     "craftSkill": "clothcraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 1950,
       "materialsText": "Velvet Cloth×3, Diamond×1, Throne Dust×1"
     },
     "stats": {
@@ -5414,7 +5162,8 @@
     "jobRestrict": [
       "tim",
       "sorcerer"
-    ]
+    ],
+    "rarity": "Epic"
   },
   {
     "id": 310,
@@ -5424,11 +5173,7 @@
     "slug": "velvet-bellweave",
     "kind": "filler",
     "craftLevel": 97,
-    "craftSkill": "clothcraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Velvet Cloth×1, Throne Dust×1"
-    }
+    "craftSkill": "clothcraft"
   },
   {
     "id": 311,
@@ -5438,11 +5183,7 @@
     "slug": "velvet-twinweave-kit",
     "kind": "filler",
     "craftLevel": 99,
-    "craftSkill": "clothcraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Velvet Cloth×1, Throne Dust×1"
-    }
+    "craftSkill": "clothcraft"
   },
   {
     "id": 312,
@@ -5452,11 +5193,7 @@
     "slug": "throneweave-set-accent",
     "kind": "filler",
     "craftLevel": 100,
-    "craftSkill": "clothcraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Velvet Cloth×2, Diamond×1, Throne Dust×1"
-    }
+    "craftSkill": "clothcraft"
   },
   {
     "id": 313,
@@ -5468,13 +5205,15 @@
     "craftLevel": 1,
     "craftSkill": "bonecraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 70,
       "materialsText": "Bone Chip×2, Pale Dust×1"
     },
     "stats": {
-      "str": 1
+      "str": 1,
+      "hp": 5
     },
-    "slot": "ring"
+    "slot": "ring",
+    "rarity": "Common"
   },
   {
     "id": 314,
@@ -5486,13 +5225,15 @@
     "craftLevel": 3,
     "craftSkill": "bonecraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 110,
       "materialsText": "Bone Chip×1, Pale Dust×1"
     },
     "stats": {
-      "mnd": 1
+      "mnd": 1,
+      "mp": 5
     },
-    "slot": "earring"
+    "slot": "earring",
+    "rarity": "Common"
   },
   {
     "id": 315,
@@ -5504,14 +5245,17 @@
     "craftLevel": 45,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 950,
       "materialsText": "Mythril Ingot×1, Fine Leather×1, Slag Dust×1"
     },
     "stats": {
-      "def": 11
+      "def": 11,
+      "hp": 50,
+      "mp": 50
     },
     "slot": "head",
-    "jobRestrict": "all"
+    "jobRestrict": "all",
+    "rarity": "Uncommon"
   },
   {
     "id": 316,
@@ -5523,7 +5267,7 @@
     "craftLevel": 7,
     "craftSkill": "bonecraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 190,
       "materialsText": "Bone Chip×2, Pale Dust×1"
     }
   },
@@ -5537,8 +5281,8 @@
     "craftLevel": 8,
     "craftSkill": "bonecraft",
     "recipe": {
-      "gold": 1000,
-      "materialsText": "Giant Femur×1, Pale Dust×1"
+      "gold": 210,
+      "materialsText": "Bone Chip×2, Soft Pelt×1, Pale Dust×1"
     },
     "stats": {
       "atk": 4,
@@ -5549,7 +5293,9 @@
     "jobRestrict": [
       "rogue"
     ],
-    "weaponFamily": "dagger"
+    "weaponFamily": "dagger",
+    "rarity": "Common",
+    "obtainedFrom": "Craft — Bone Chip (Pale Hollow)"
   },
   {
     "id": 318,
@@ -5561,7 +5307,7 @@
     "craftLevel": 10,
     "craftSkill": "bonecraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 250,
       "materialsText": "Bone Chip×2, Pale Dust×1"
     }
   },
@@ -5575,17 +5321,20 @@
     "craftLevel": 92,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 1890,
       "materialsText": "Orichalcum Ingot×1, Diamond×1, Throne Dust×1"
     },
     "stats": {
-      "def": 20
+      "def": 20,
+      "hp": 100,
+      "mp": 100
     },
     "slot": "head",
     "jobRestrict": [
       "knight",
       "cleric"
-    ]
+    ],
+    "rarity": "Epic"
   },
   {
     "id": 320,
@@ -5597,7 +5346,7 @@
     "craftLevel": 14,
     "craftSkill": "bonecraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 330,
       "materialsText": "Bone Chip×2, Pale Dust×1"
     }
   },
@@ -5611,7 +5360,7 @@
     "craftLevel": 16,
     "craftSkill": "bonecraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 370,
       "materialsText": "Bone Chip×2, Pale Dust×1"
     }
   },
@@ -5625,7 +5374,7 @@
     "craftLevel": 18,
     "craftSkill": "bonecraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 410,
       "materialsText": "Bone Chip×2, Pale Dust×1"
     }
   },
@@ -5639,13 +5388,15 @@
     "craftLevel": 20,
     "craftSkill": "bonecraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 450,
       "materialsText": "Bone Chip×1, Horn×1, Ash Dust×1"
     },
     "stats": {
-      "mnd": 3
+      "atk": 3,
+      "acc": 2
     },
-    "slot": "earring"
+    "slot": "earring",
+    "rarity": "Common"
   },
   {
     "id": 324,
@@ -5657,7 +5408,7 @@
     "craftLevel": 34,
     "craftSkill": "alchemy",
     "recipe": {
-      "gold": 1000,
+      "gold": 730,
       "materialsText": "Distilled Ash×1, Ash Dust×1"
     },
     "stats": {
@@ -5677,11 +5428,7 @@
     "slug": "bone-hilt",
     "kind": "filler",
     "craftLevel": 24,
-    "craftSkill": "bonecraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Bone Chip×2, Ash Dust×1"
-    }
+    "craftSkill": "bonecraft"
   },
   {
     "id": 326,
@@ -5693,13 +5440,15 @@
     "craftLevel": 25,
     "craftSkill": "bonecraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 550,
       "materialsText": "Skull Plate×1, Ash Dust×1"
     },
     "stats": {
-      "str": 4
+      "dex": 3,
+      "agi": 2
     },
-    "slot": "ring"
+    "slot": "ring",
+    "rarity": "Uncommon"
   },
   {
     "id": 327,
@@ -5711,19 +5460,21 @@
     "craftLevel": 28,
     "craftSkill": "bonecraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 610,
       "materialsText": "Giant Femur×1, Desiccated Hide×1, Ash Dust×1"
     },
     "stats": {
       "def": 20,
-      "vit": 7,
-      "hp": 29
+      "str": 5,
+      "dex": 3,
+      "hp": 20
     },
     "slot": "body",
     "jobRestrict": [
       "fighter",
       "rogue"
-    ]
+    ],
+    "rarity": "Uncommon"
   },
   {
     "id": 328,
@@ -5735,17 +5486,20 @@
     "craftLevel": 30,
     "craftSkill": "bonecraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 650,
       "materialsText": "Skull Plate×1, Soft Pelt×1, Ash Dust×1"
     },
     "stats": {
-      "def": 8
+      "def": 8,
+      "dex": 4,
+      "acc": 4
     },
     "slot": "head",
     "jobRestrict": [
       "fighter",
       "rogue"
-    ]
+    ],
+    "rarity": "Uncommon"
   },
   {
     "id": 329,
@@ -5757,7 +5511,7 @@
     "craftLevel": 32,
     "craftSkill": "bonecraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 690,
       "materialsText": "Bone Chip×2, Ash Dust×1"
     }
   },
@@ -5771,17 +5525,20 @@
     "craftLevel": 35,
     "craftSkill": "bonecraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 750,
       "materialsText": "Giant Femur×1, Soft Pelt×1, Slag Dust×1"
     },
     "stats": {
-      "def": 13
+      "def": 13,
+      "agi": 4,
+      "hp": 40
     },
     "slot": "legs",
     "jobRestrict": [
       "fighter",
       "rogue"
-    ]
+    ],
+    "rarity": "Uncommon"
   },
   {
     "id": 331,
@@ -5791,11 +5548,7 @@
     "slug": "bone-war-horn",
     "kind": "filler",
     "craftLevel": 37,
-    "craftSkill": "bonecraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Bone Chip×2, Ash Dust×1"
-    }
+    "craftSkill": "bonecraft"
   },
   {
     "id": 332,
@@ -5805,11 +5558,7 @@
     "slug": "bone-relic-core",
     "kind": "filler",
     "craftLevel": 39,
-    "craftSkill": "bonecraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Bone Chip×2, Ash Dust×1"
-    }
+    "craftSkill": "bonecraft"
   },
   {
     "id": 333,
@@ -5821,13 +5570,15 @@
     "craftLevel": 40,
     "craftSkill": "bonecraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 850,
       "materialsText": "Horn×2, Slag Dust×1"
     },
     "stats": {
-      "str": 5
+      "atk": 4,
+      "str": 2
     },
-    "slot": "ring"
+    "slot": "ring",
+    "rarity": "Uncommon"
   },
   {
     "id": 334,
@@ -5839,13 +5590,16 @@
     "craftLevel": 45,
     "craftSkill": "bonecraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 950,
       "materialsText": "Stone Scale×2, Bone Chip×1, Slag Dust×1"
     },
     "stats": {
-      "str": 6
+      "vit": 3,
+      "def": 4,
+      "hp": 15
     },
-    "slot": "ring"
+    "slot": "ring",
+    "rarity": "Uncommon"
   },
   {
     "id": 335,
@@ -5857,14 +5611,15 @@
     "craftLevel": 48,
     "craftSkill": "bonecraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 1010,
       "materialsText": "Stone Scale×4, Slag Dust×1"
     },
     "stats": {
       "def": 22,
       "vit": 5
     },
-    "slot": "sub"
+    "slot": "sub",
+    "rarity": "Uncommon"
   },
   {
     "id": 336,
@@ -5876,13 +5631,15 @@
     "craftLevel": 50,
     "craftSkill": "bonecraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 1050,
       "materialsText": "Mythril Ingot×1, Bone Chip×1, Slag Dust×1"
     },
     "stats": {
-      "mnd": 6
+      "vit": 4,
+      "hp": 25
     },
-    "slot": "earring"
+    "slot": "earring",
+    "rarity": "Rare"
   },
   {
     "id": 337,
@@ -5894,16 +5651,19 @@
     "craftLevel": 55,
     "craftSkill": "bonecraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 1150,
       "materialsText": "Skull Plate×1, Soft Pelt×1, Slag Dust×1"
     },
     "stats": {
-      "def": 13
+      "def": 13,
+      "dex": 6,
+      "agi": 6
     },
     "slot": "head",
     "jobRestrict": [
       "rogue"
-    ]
+    ],
+    "rarity": "Rare"
   },
   {
     "id": 338,
@@ -5913,11 +5673,7 @@
     "slug": "bone-pin",
     "kind": "filler",
     "craftLevel": 61,
-    "craftSkill": "bonecraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Bone Chip×2, Bell Dust×1"
-    }
+    "craftSkill": "bonecraft"
   },
   {
     "id": 339,
@@ -5927,11 +5683,7 @@
     "slug": "bone-charm",
     "kind": "filler",
     "craftLevel": 63,
-    "craftSkill": "bonecraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Bone Chip×2, Bell Dust×1"
-    }
+    "craftSkill": "bonecraft"
   },
   {
     "id": 340,
@@ -5941,11 +5693,7 @@
     "slug": "bone-pauldron",
     "kind": "filler",
     "craftLevel": 69,
-    "craftSkill": "bonecraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Bone Chip×2, Bell Dust×1"
-    }
+    "craftSkill": "bonecraft"
   },
   {
     "id": 341,
@@ -5957,13 +5705,16 @@
     "craftLevel": 70,
     "craftSkill": "bonecraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 1450,
       "materialsText": "Onyx×1, Bone Chip×1, Bell Dust×1"
     },
     "stats": {
-      "str": 8
+      "str": 4,
+      "atk": 5,
+      "acc": 3
     },
-    "slot": "ring"
+    "slot": "ring",
+    "rarity": "Rare"
   },
   {
     "id": 342,
@@ -5975,7 +5726,7 @@
     "craftLevel": 44,
     "craftSkill": "alchemy",
     "recipe": {
-      "gold": 1000,
+      "gold": 930,
       "materialsText": "Distilled Ash×1, Slag Dust×1"
     },
     "stats": {
@@ -5993,11 +5744,7 @@
     "slug": "bone-mask-blank",
     "kind": "filler",
     "craftLevel": 86,
-    "craftSkill": "bonecraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Bone Chip×2, Throne Dust×1"
-    }
+    "craftSkill": "bonecraft"
   },
   {
     "id": 344,
@@ -6007,11 +5754,7 @@
     "slug": "bone-bracer",
     "kind": "filler",
     "craftLevel": 88,
-    "craftSkill": "bonecraft",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Bone Chip×2, Throne Dust×1"
-    }
+    "craftSkill": "bonecraft"
   },
   {
     "id": 345,
@@ -6023,14 +5766,20 @@
     "craftLevel": 90,
     "craftSkill": "bonecraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 1850,
       "materialsText": "Diamond×1, Orichalcum Ingot×1, Bone Inlay×2, Ash Bone Shell Buckle×1, Throne Dust×1"
     },
     "stats": {
-      "str": 10
+      "str": 3,
+      "dex": 3,
+      "vit": 3,
+      "agi": 3,
+      "int": 3,
+      "mnd": 3
     },
     "slot": "ring",
-    "jobRestrict": "all"
+    "jobRestrict": "all",
+    "rarity": "Epic"
   },
   {
     "id": 346,
@@ -6042,13 +5791,17 @@
     "craftLevel": 100,
     "craftSkill": "bonecraft",
     "recipe": {
-      "gold": 1000,
+      "gold": 2050,
       "materialsText": "Diamond×1, Skull Plate×1, Throne Dust×1"
     },
     "stats": {
-      "str": 11
+      "str": 5,
+      "vit": 4,
+      "atk": 6,
+      "hp": 30
     },
-    "slot": "ring"
+    "slot": "ring",
+    "rarity": "Epic"
   },
   {
     "id": 347,
@@ -6060,7 +5813,7 @@
     "craftLevel": 1,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 70,
       "materialsText": "River Sand×2, Potter's Clay×1 or Limestone×3, Pale Dust×1"
     }
   },
@@ -6074,7 +5827,7 @@
     "craftLevel": 3,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 110,
       "materialsText": "Copper Ore×1, Pale Dust×1"
     }
   },
@@ -6088,13 +5841,15 @@
     "craftLevel": 5,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 150,
       "materialsText": "Copper Ore×2, Pale Dust×1"
     },
     "stats": {
-      "str": 2
+      "acc": 2,
+      "dex": 1
     },
-    "slot": "ring"
+    "slot": "ring",
+    "rarity": "Common"
   },
   {
     "id": 350,
@@ -6106,7 +5861,7 @@
     "craftLevel": 47,
     "craftSkill": "alchemy",
     "recipe": {
-      "gold": 1000,
+      "gold": 990,
       "materialsText": "Distilled Ash×1, Slag Dust×1"
     },
     "stats": {
@@ -6126,7 +5881,7 @@
     "craftLevel": 49,
     "craftSkill": "alchemy",
     "recipe": {
-      "gold": 1000,
+      "gold": 1030,
       "materialsText": "Distilled Ash×1, Slag Dust×1"
     },
     "stats": {
@@ -6148,7 +5903,7 @@
     "craftLevel": 11,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 270,
       "materialsText": "Copper Ore×1, Pale Dust×1"
     }
   },
@@ -6162,7 +5917,7 @@
     "craftLevel": 13,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 310,
       "materialsText": "Copper Ore×1 or Tile Shard×2, Pale Dust×1"
     }
   },
@@ -6176,13 +5931,16 @@
     "craftLevel": 15,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 350,
       "materialsText": "Bronze Ingot×1, Glass Bead×1, Copper Goldsmith Cabochon×1, Ash Dust×1"
     },
     "stats": {
-      "def": 5
+      "def": 5,
+      "hp": 20,
+      "mp": 20
     },
-    "slot": "head"
+    "slot": "head",
+    "rarity": "Common"
   },
   {
     "id": 355,
@@ -6194,7 +5952,7 @@
     "craftLevel": 52,
     "craftSkill": "alchemy",
     "recipe": {
-      "gold": 1000,
+      "gold": 1090,
       "materialsText": "Distilled Ash×1, Slag Dust×1"
     },
     "stats": {
@@ -6216,7 +5974,7 @@
     "craftLevel": 54,
     "craftSkill": "alchemy",
     "recipe": {
-      "gold": 1000,
+      "gold": 1130,
       "materialsText": "Distilled Ash×1, Slag Dust×1"
     },
     "stats": {
@@ -6238,7 +5996,7 @@
     "craftLevel": 57,
     "craftSkill": "alchemy",
     "recipe": {
-      "gold": 1000,
+      "gold": 1190,
       "materialsText": "Distilled Ash×1, Slag Dust×1"
     }
   },
@@ -6252,13 +6010,15 @@
     "craftLevel": 25,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 550,
       "materialsText": "Tin Ore×2, Copper Ore×1, Ash Dust×1"
     },
     "stats": {
-      "str": 4
+      "int": 3,
+      "mab": 2
     },
-    "slot": "ring"
+    "slot": "ring",
+    "rarity": "Uncommon"
   },
   {
     "id": 359,
@@ -6270,13 +6030,15 @@
     "craftLevel": 30,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 650,
       "materialsText": "Lapis×1, Copper Ore×1, Ash Dust×1"
     },
     "stats": {
-      "mnd": 4
+      "int": 3,
+      "mp": 10
     },
-    "slot": "earring"
+    "slot": "earring",
+    "rarity": "Uncommon"
   },
   {
     "id": 360,
@@ -6288,7 +6050,7 @@
     "craftLevel": 64,
     "craftSkill": "alchemy",
     "recipe": {
-      "gold": 1000,
+      "gold": 1330,
       "materialsText": "Distilled Ash×1, Bell Dust×1"
     },
     "stats": {
@@ -6308,7 +6070,7 @@
     "craftLevel": 67,
     "craftSkill": "alchemy",
     "recipe": {
-      "gold": 1000,
+      "gold": 1390,
       "materialsText": "Distilled Ash×1, Bell Dust×1"
     },
     "stats": {
@@ -6328,7 +6090,7 @@
     "craftLevel": 69,
     "craftSkill": "alchemy",
     "recipe": {
-      "gold": 1000,
+      "gold": 1430,
       "materialsText": "Distilled Ash×1, Bell Dust×1"
     },
     "stats": {
@@ -6350,7 +6112,7 @@
     "craftLevel": 72,
     "craftSkill": "alchemy",
     "recipe": {
-      "gold": 1000,
+      "gold": 1490,
       "materialsText": "Distilled Ash×1, Bell Dust×1"
     },
     "stats": {
@@ -6372,7 +6134,7 @@
     "craftLevel": 74,
     "craftSkill": "alchemy",
     "recipe": {
-      "gold": 1000,
+      "gold": 1530,
       "materialsText": "Distilled Ash×1, Bell Dust×1"
     },
     "stats": {
@@ -6392,11 +6154,7 @@
     "slug": "bell-cluster-shell",
     "kind": "filler",
     "craftLevel": 77,
-    "craftSkill": "alchemy",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Distilled Ash×1, Bell Dust×1"
-    }
+    "craftSkill": "alchemy"
   },
   {
     "id": 366,
@@ -6406,11 +6164,7 @@
     "slug": "throne-ink-base",
     "kind": "filler",
     "craftLevel": 82,
-    "craftSkill": "alchemy",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Distilled Ash×1, Throne Dust×1"
-    }
+    "craftSkill": "alchemy"
   },
   {
     "id": 367,
@@ -6422,13 +6176,16 @@
     "craftLevel": 45,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 950,
       "materialsText": "Mythril Ingot×1, Slag Dust×1"
     },
     "stats": {
-      "str": 6
+      "mnd": 3,
+      "mp": 15,
+      "mab": 2
     },
-    "slot": "ring"
+    "slot": "ring",
+    "rarity": "Uncommon"
   },
   {
     "id": 368,
@@ -6440,7 +6197,7 @@
     "craftLevel": 48,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 1010,
       "materialsText": "Mythril Ingot×1, Slag Dust×1"
     }
   },
@@ -6454,13 +6211,15 @@
     "craftLevel": 50,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 1050,
       "materialsText": "Jadeite×1, Mythril Ingot×1, Slag Dust×1"
     },
     "stats": {
-      "mnd": 6
+      "mnd": 4,
+      "mab": 3
     },
-    "slot": "earring"
+    "slot": "earring",
+    "rarity": "Rare"
   },
   {
     "id": 370,
@@ -6472,13 +6231,15 @@
     "craftLevel": 52,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 1090,
       "materialsText": "Onyx×1, Mythril Ingot×1, Slag Dust×1"
     },
     "stats": {
-      "mnd": 6
+      "str": 3,
+      "atk": 4
     },
-    "slot": "earring"
+    "slot": "earring",
+    "rarity": "Rare"
   },
   {
     "id": 371,
@@ -6488,11 +6249,7 @@
     "slug": "goldsmith-pendant",
     "kind": "filler",
     "craftLevel": 66,
-    "craftSkill": "goldsmithing",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Mythril Ingot×1, Bell Dust×1"
-    }
+    "craftSkill": "goldsmithing"
   },
   {
     "id": 372,
@@ -6504,7 +6261,7 @@
     "craftLevel": 68,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 1410,
       "materialsText": "Mythril Ingot×1, Bell Dust×1"
     }
   },
@@ -6518,13 +6275,16 @@
     "craftLevel": 70,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 1450,
       "materialsText": "Mythril Ingot×1, Bell Dust×1"
     },
     "stats": {
-      "str": 8
+      "mnd": 4,
+      "mab": 4,
+      "mp": 20
     },
-    "slot": "ring"
+    "slot": "ring",
+    "rarity": "Rare"
   },
   {
     "id": 374,
@@ -6536,7 +6296,7 @@
     "craftLevel": 84,
     "craftSkill": "alchemy",
     "recipe": {
-      "gold": 1000,
+      "gold": 1730,
       "materialsText": "Distilled Ash×1, Throne Dust×1"
     },
     "stats": {
@@ -6554,11 +6314,7 @@
     "slug": "goldsmith-setting",
     "kind": "filler",
     "craftLevel": 85,
-    "craftSkill": "goldsmithing",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Orichalcum Ingot×1, Throne Dust×1"
-    }
+    "craftSkill": "goldsmithing"
   },
   {
     "id": 376,
@@ -6570,13 +6326,17 @@
     "craftLevel": 90,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 1850,
       "materialsText": "Diamond×1, Orichalcum Ingot×1, Throne Dust×1"
     },
     "stats": {
-      "mnd": 10
+      "int": 4,
+      "mnd": 4,
+      "mab": 4,
+      "mp": 20
     },
-    "slot": "earring"
+    "slot": "earring",
+    "rarity": "Epic"
   },
   {
     "id": 377,
@@ -6588,13 +6348,17 @@
     "craftLevel": 100,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "gold": 1000,
+      "gold": 2050,
       "materialsText": "Diamond×1, Ornamented Plate Accent×1, Throne Dust×1"
     },
     "stats": {
-      "str": 11
+      "int": 5,
+      "mnd": 4,
+      "mab": 6,
+      "mp": 30
     },
-    "slot": "ring"
+    "slot": "ring",
+    "rarity": "Epic"
   },
   {
     "id": 378,
@@ -6606,7 +6370,7 @@
     "craftLevel": 20,
     "craftSkill": "alchemy",
     "recipe": {
-      "gold": 1000,
+      "gold": 450,
       "materialsText": "Ash Dust×2, Antidote Root×1"
     }
   },
@@ -6620,7 +6384,7 @@
     "craftLevel": 3,
     "craftSkill": "alchemy",
     "recipe": {
-      "gold": 1000,
+      "gold": 110,
       "materialsText": "Antidote Root×1, Pale Dust×1"
     },
     "stats": {
@@ -6640,7 +6404,7 @@
     "craftLevel": 7,
     "craftSkill": "alchemy",
     "recipe": {
-      "gold": 1000,
+      "gold": 190,
       "materialsText": "Distilled Pale×1, Pale Dust×1"
     },
     "stats": {
@@ -6660,7 +6424,7 @@
     "craftLevel": 9,
     "craftSkill": "alchemy",
     "recipe": {
-      "gold": 1000,
+      "gold": 230,
       "materialsText": "Distilled Pale×1, Pale Dust×1"
     },
     "stats": {
@@ -6682,7 +6446,7 @@
     "craftLevel": 11,
     "craftSkill": "alchemy",
     "recipe": {
-      "gold": 1000,
+      "gold": 270,
       "materialsText": "Distilled Pale×1, Pale Dust×1"
     },
     "stats": {
@@ -6704,7 +6468,7 @@
     "craftLevel": 12,
     "craftSkill": "alchemy",
     "recipe": {
-      "gold": 1000,
+      "gold": 290,
       "materialsText": "Poison Sac×1, Ash Dust×1"
     },
     "stats": {
@@ -6724,7 +6488,7 @@
     "craftLevel": 14,
     "craftSkill": "alchemy",
     "recipe": {
-      "gold": 1000,
+      "gold": 330,
       "materialsText": "Distilled Pale×1, Pale Dust×1"
     },
     "stats": {
@@ -6746,7 +6510,7 @@
     "craftLevel": 16,
     "craftSkill": "alchemy",
     "recipe": {
-      "gold": 1000,
+      "gold": 370,
       "materialsText": "Distilled Pale×1, Pale Dust×1"
     }
   },
@@ -6760,7 +6524,7 @@
     "craftLevel": 20,
     "craftSkill": "alchemy",
     "recipe": {
-      "gold": 1000,
+      "gold": 450,
       "materialsText": "Distilled Ash×1, Ink Salt×1, Ash Dust×1"
     },
     "stats": {
@@ -6780,7 +6544,7 @@
     "craftLevel": 20,
     "craftSkill": "alchemy",
     "recipe": {
-      "gold": 1000,
+      "gold": 450,
       "materialsText": "Echo Extract×1, Ash Dust×1"
     },
     "stats": {
@@ -6800,7 +6564,7 @@
     "craftLevel": 22,
     "craftSkill": "alchemy",
     "recipe": {
-      "gold": 1000,
+      "gold": 490,
       "materialsText": "Distilled Ash×1, Lapis×1, Ash Dust×1"
     },
     "stats": {
@@ -6820,7 +6584,7 @@
     "craftLevel": 24,
     "craftSkill": "alchemy",
     "recipe": {
-      "gold": 1000,
+      "gold": 530,
       "materialsText": "Distilled Ash×1, Ash Dust×1"
     },
     "stats": {
@@ -6840,7 +6604,7 @@
     "craftLevel": 26,
     "craftSkill": "alchemy",
     "recipe": {
-      "gold": 1000,
+      "gold": 570,
       "materialsText": "Distilled Ash×1, Ash Dust×1"
     },
     "stats": {
@@ -6860,7 +6624,7 @@
     "craftLevel": 28,
     "craftSkill": "alchemy",
     "recipe": {
-      "gold": 1000,
+      "gold": 610,
       "materialsText": "Spell Parchment×1, Pale Dust×1, Glass Bead×1"
     },
     "stats": {
@@ -6880,7 +6644,7 @@
     "craftLevel": 30,
     "craftSkill": "alchemy",
     "recipe": {
-      "gold": 1000,
+      "gold": 650,
       "materialsText": "Distilled Ash×1, Ash Dust×1"
     },
     "stats": {
@@ -6902,7 +6666,7 @@
     "craftLevel": 32,
     "craftSkill": "alchemy",
     "recipe": {
-      "gold": 1000,
+      "gold": 690,
       "materialsText": "Distilled Ash×1, Ash Dust×1"
     },
     "stats": {
@@ -6924,7 +6688,7 @@
     "craftLevel": 35,
     "craftSkill": "alchemy",
     "recipe": {
-      "gold": 1000,
+      "gold": 750,
       "materialsText": "Slime Oil×1, Dead Fiber×1, Slag Dust×1"
     },
     "stats": {
@@ -6942,11 +6706,7 @@
     "slug": "cluster-shell",
     "kind": "filler",
     "craftLevel": 37,
-    "craftSkill": "alchemy",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Distilled Ash×1, Ash Dust×1"
-    }
+    "craftSkill": "alchemy"
   },
   {
     "id": 396,
@@ -6958,7 +6718,7 @@
     "craftLevel": 38,
     "craftSkill": "alchemy",
     "recipe": {
-      "gold": 1000,
+      "gold": 810,
       "materialsText": "Distilled Ash×1, Glass Bead×1, Insect Wing×1, Slag Dust×1"
     },
     "stats": {
@@ -6978,7 +6738,7 @@
     "craftLevel": 40,
     "craftSkill": "alchemy",
     "recipe": {
-      "gold": 1000,
+      "gold": 850,
       "materialsText": "Bitter Spice×1, Distilled Ash×1, Slag Dust×1"
     },
     "stats": {
@@ -6998,7 +6758,7 @@
     "craftLevel": 42,
     "craftSkill": "alchemy",
     "recipe": {
-      "gold": 1000,
+      "gold": 890,
       "materialsText": "Slime Oil×1, Iron Sand×1, Slag Dust×1"
     }
   },
@@ -7012,7 +6772,7 @@
     "craftLevel": 45,
     "craftSkill": "alchemy",
     "recipe": {
-      "gold": 1000,
+      "gold": 950,
       "materialsText": "Echo Extract×1, Slime Oil×1, Slag Dust×1"
     },
     "stats": {
@@ -7032,7 +6792,7 @@
     "craftLevel": 50,
     "craftSkill": "alchemy",
     "recipe": {
-      "gold": 1000,
+      "gold": 1050,
       "materialsText": "Spell Parchment×1, Slag Dust×1, Onyx×1"
     },
     "stats": {
@@ -7052,7 +6812,7 @@
     "craftLevel": 55,
     "craftSkill": "alchemy",
     "recipe": {
-      "gold": 1000,
+      "gold": 1150,
       "materialsText": "Spell Parchment×1, Slag Dust×1, Sulfur Bit×1"
     },
     "stats": {
@@ -7070,11 +6830,7 @@
     "slug": "panacea-base",
     "kind": "filler",
     "craftLevel": 59,
-    "craftSkill": "alchemy",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Distilled Ash×1, Slag Dust×1"
-    }
+    "craftSkill": "alchemy"
   },
   {
     "id": 403,
@@ -7086,7 +6842,7 @@
     "craftLevel": 60,
     "craftSkill": "alchemy",
     "recipe": {
-      "gold": 1000,
+      "gold": 1250,
       "materialsText": "Spell Parchment×1, Bell Dust×1, Lapis×1"
     },
     "stats": {
@@ -7104,11 +6860,7 @@
     "slug": "ink-base",
     "kind": "filler",
     "craftLevel": 62,
-    "craftSkill": "alchemy",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Distilled Ash×1, Bell Dust×1"
-    }
+    "craftSkill": "alchemy"
   },
   {
     "id": 405,
@@ -7120,7 +6872,7 @@
     "craftLevel": 65,
     "craftSkill": "alchemy",
     "recipe": {
-      "gold": 1000,
+      "gold": 1350,
       "materialsText": "Echo Extract×1, Silk Thread×1, Bell Dust×1"
     },
     "stats": {
@@ -7140,7 +6892,7 @@
     "craftLevel": 70,
     "craftSkill": "alchemy",
     "recipe": {
-      "gold": 1000,
+      "gold": 1450,
       "materialsText": "Antidote Root×1, Echo Extract×1, Bell Dust×1"
     },
     "stats": {
@@ -7160,7 +6912,7 @@
     "craftLevel": 75,
     "craftSkill": "alchemy",
     "recipe": {
-      "gold": 1000,
+      "gold": 1550,
       "materialsText": "Poison Sac×1, Onyx×1, Bell Dust×1"
     },
     "stats": {
@@ -7180,7 +6932,7 @@
     "craftLevel": 78,
     "craftSkill": "alchemy",
     "recipe": {
-      "gold": 1000,
+      "gold": 1610,
       "materialsText": "Sulfur Bit×2, Bell Dust×1"
     },
     "stats": {
@@ -7200,7 +6952,7 @@
     "craftLevel": 80,
     "craftSkill": "alchemy",
     "recipe": {
-      "gold": 1000,
+      "gold": 1650,
       "materialsText": "Echo Extract×1, Bell Dust×1"
     },
     "stats": {
@@ -7220,7 +6972,7 @@
     "craftLevel": 86,
     "craftSkill": "alchemy",
     "recipe": {
-      "gold": 1000,
+      "gold": 1770,
       "materialsText": "Distilled Ash×1, Throne Dust×1"
     },
     "stats": {
@@ -7238,11 +6990,7 @@
     "slug": "stat-oil-base",
     "kind": "filler",
     "craftLevel": 88,
-    "craftSkill": "alchemy",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Distilled Ash×1, Throne Dust×1"
-    }
+    "craftSkill": "alchemy"
   },
   {
     "id": 412,
@@ -7254,7 +7002,7 @@
     "craftLevel": 90,
     "craftSkill": "alchemy",
     "recipe": {
-      "gold": 1000,
+      "gold": 1850,
       "materialsText": "Echo Extract×2, Bell Koi×1, Throne Dust×1"
     },
     "stats": {
@@ -7274,7 +7022,7 @@
     "craftLevel": 92,
     "craftSkill": "alchemy",
     "recipe": {
-      "gold": 1000,
+      "gold": 1890,
       "materialsText": "Distilled Ash×1, Throne Dust×1"
     },
     "stats": {
@@ -7296,7 +7044,7 @@
     "craftLevel": 94,
     "craftSkill": "alchemy",
     "recipe": {
-      "gold": 1000,
+      "gold": 1930,
       "materialsText": "Distilled Ash×1, Throne Dust×1"
     },
     "stats": {
@@ -7316,11 +7064,7 @@
     "slug": "throne-multi-status-base",
     "kind": "filler",
     "craftLevel": 96,
-    "craftSkill": "alchemy",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Distilled Ash×1, Throne Dust×1"
-    }
+    "craftSkill": "alchemy"
   },
   {
     "id": 416,
@@ -7330,11 +7074,7 @@
     "slug": "x-ether-base",
     "kind": "filler",
     "craftLevel": 98,
-    "craftSkill": "alchemy",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Distilled Ash×1, Throne Dust×1"
-    }
+    "craftSkill": "alchemy"
   },
   {
     "id": 417,
@@ -7346,7 +7086,7 @@
     "craftLevel": 100,
     "craftSkill": "alchemy",
     "recipe": {
-      "gold": 1000,
+      "gold": 2050,
       "materialsText": "Remedy×1, Diamond×1, Slag Binding Agent×2, Slag Cluster Shell×1, Throne Dust×2"
     },
     "stats": {
@@ -7366,7 +7106,7 @@
     "craftLevel": 1,
     "craftSkill": "cooking",
     "recipe": {
-      "gold": 1000,
+      "gold": 70,
       "materialsText": "Dried Ration Scrap×2, Pale Dust×1"
     },
     "stats": {
@@ -7386,7 +7126,7 @@
     "craftLevel": 3,
     "craftSkill": "cooking",
     "recipe": {
-      "gold": 1000,
+      "gold": 110,
       "materialsText": "Rock Salt×1, Dustgrain×1, Pale Dust×1"
     }
   },
@@ -7400,7 +7140,7 @@
     "craftLevel": 5,
     "craftSkill": "cooking",
     "recipe": {
-      "gold": 1000,
+      "gold": 150,
       "materialsText": "Dustgrain×2, Rock Salt×1, Pale Dust×1"
     },
     "stats": {
@@ -7421,7 +7161,7 @@
     "craftLevel": 7,
     "craftSkill": "cooking",
     "recipe": {
-      "gold": 1000,
+      "gold": 190,
       "materialsText": "Fossil Minnow×2, Dustgrain×1, Pale Dust×1"
     }
   },
@@ -7435,7 +7175,7 @@
     "craftLevel": 8,
     "craftSkill": "cooking",
     "recipe": {
-      "gold": 1000,
+      "gold": 210,
       "materialsText": "Fossil Minnow×2, Rock Salt×1, Pale Dust×1"
     },
     "stats": {
@@ -7453,7 +7193,7 @@
     "craftLevel": 10,
     "craftSkill": "cooking",
     "recipe": {
-      "gold": 1000,
+      "gold": 250,
       "materialsText": "Clay Crab×1, Dustgrain×2, Pale Dust×1"
     }
   },
@@ -7467,7 +7207,7 @@
     "craftLevel": 12,
     "craftSkill": "cooking",
     "recipe": {
-      "gold": 1000,
+      "gold": 290,
       "materialsText": "Dustgrain×2, Rock Salt×1, Pale Dust×1"
     }
   },
@@ -7481,7 +7221,7 @@
     "craftLevel": 14,
     "craftSkill": "cooking",
     "recipe": {
-      "gold": 1000,
+      "gold": 330,
       "materialsText": "Dustgrain×2, Pale Dust×1"
     }
   },
@@ -7493,11 +7233,7 @@
     "slug": "carp-fillet",
     "kind": "filler",
     "craftLevel": 16,
-    "craftSkill": "cooking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Echo Carp×1, Rock Salt×1, Pale Dust×1"
-    }
+    "craftSkill": "cooking"
   },
   {
     "id": 427,
@@ -7509,7 +7245,7 @@
     "craftLevel": 18,
     "craftSkill": "cooking",
     "recipe": {
-      "gold": 1000,
+      "gold": 410,
       "materialsText": "Fossil Minnow×1, Clay Crab×1, Dustgrain×1, Pale Dust×1"
     }
   },
@@ -7523,7 +7259,7 @@
     "craftLevel": 20,
     "craftSkill": "cooking",
     "recipe": {
-      "gold": 1000,
+      "gold": 450,
       "materialsText": "Clay Crab×1, Dustgrain×1, Ash Dust×1"
     },
     "stats": {
@@ -7542,11 +7278,7 @@
     "slug": "scholar-tea",
     "kind": "filler",
     "craftLevel": 22,
-    "craftSkill": "cooking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Antidote Root×1, Dustgrain×1, Ash Dust×1"
-    }
+    "craftSkill": "cooking"
   },
   {
     "id": 430,
@@ -7556,11 +7288,7 @@
     "slug": "rich-stock",
     "kind": "filler",
     "craftLevel": 24,
-    "craftSkill": "cooking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Bone Chip×1, Dustgrain×1, Ash Dust×1"
-    }
+    "craftSkill": "cooking"
   },
   {
     "id": 431,
@@ -7572,7 +7300,7 @@
     "craftLevel": 25,
     "craftSkill": "cooking",
     "recipe": {
-      "gold": 1000,
+      "gold": 550,
       "materialsText": "Stone Scale×2, Bitter Spice×1, Ash Dust×1"
     },
     "stats": {
@@ -7591,11 +7319,7 @@
     "slug": "fortified-bread",
     "kind": "filler",
     "craftLevel": 27,
-    "craftSkill": "cooking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Dustgrain×2, Rock Salt×1, Ash Dust×1"
-    }
+    "craftSkill": "cooking"
   },
   {
     "id": 433,
@@ -7605,11 +7329,7 @@
     "slug": "war-broth",
     "kind": "filler",
     "craftLevel": 29,
-    "craftSkill": "cooking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Bone Chip×2, Dustgrain×1, Ash Dust×1"
-    }
+    "craftSkill": "cooking"
   },
   {
     "id": 434,
@@ -7619,11 +7339,7 @@
     "slug": "banquet-starter",
     "kind": "filler",
     "craftLevel": 31,
-    "craftSkill": "cooking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Dried Ration Scrap×1, Dustgrain×1, Ash Dust×1"
-    }
+    "craftSkill": "cooking"
   },
   {
     "id": 435,
@@ -7633,11 +7349,7 @@
     "slug": "royal-stock",
     "kind": "filler",
     "craftLevel": 33,
-    "craftSkill": "cooking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Bone Chip×1, Fossil Minnow×1, Ash Dust×1"
-    }
+    "craftSkill": "cooking"
   },
   {
     "id": 436,
@@ -7647,11 +7359,7 @@
     "slug": "jewel-glaze",
     "kind": "filler",
     "craftLevel": 35,
-    "craftSkill": "cooking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Glass Bead×1, Dustgrain×1, Ash Dust×1"
-    }
+    "craftSkill": "cooking"
   },
   {
     "id": 437,
@@ -7661,11 +7369,7 @@
     "slug": "palace-banquet",
     "kind": "filler",
     "craftLevel": 37,
-    "craftSkill": "cooking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Clay Crab×1, Fossil Minnow×1, Dustgrain×1, Ash Dust×1"
-    }
+    "craftSkill": "cooking"
   },
   {
     "id": 438,
@@ -7675,11 +7379,7 @@
     "slug": "twin-plate",
     "kind": "filler",
     "craftLevel": 39,
-    "craftSkill": "cooking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Fossil Minnow×2, Rock Salt×1, Ash Dust×1"
-    }
+    "craftSkill": "cooking"
   },
   {
     "id": 439,
@@ -7691,7 +7391,7 @@
     "craftLevel": 40,
     "craftSkill": "cooking",
     "recipe": {
-      "gold": 1000,
+      "gold": 850,
       "materialsText": "Echo Carp×1, Rock Salt×1, Slag Dust×1"
     },
     "stats": {
@@ -7710,11 +7410,7 @@
     "slug": "hardtack",
     "kind": "filler",
     "craftLevel": 42,
-    "craftSkill": "cooking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Dustgrain×2, Rock Salt×1, Slag Dust×1"
-    }
+    "craftSkill": "cooking"
   },
   {
     "id": 441,
@@ -7724,11 +7420,7 @@
     "slug": "fish-stock",
     "kind": "filler",
     "craftLevel": 44,
-    "craftSkill": "cooking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Fossil Minnow×1, Dustgrain×1, Slag Dust×1"
-    }
+    "craftSkill": "cooking"
   },
   {
     "id": 442,
@@ -7740,7 +7432,7 @@
     "craftLevel": 45,
     "craftSkill": "cooking",
     "recipe": {
-      "gold": 1000,
+      "gold": 950,
       "materialsText": "Dustgrain×1, Distilled Ash×1, Lapis×1, Slag Dust×1"
     },
     "stats": {
@@ -7759,11 +7451,7 @@
     "slug": "slag-smoked-minnow",
     "kind": "filler",
     "craftLevel": 47,
-    "craftSkill": "cooking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Fossil Minnow×2, Dustgrain×1, Slag Dust×1"
-    }
+    "craftSkill": "cooking"
   },
   {
     "id": 444,
@@ -7775,7 +7463,7 @@
     "craftLevel": 48,
     "craftSkill": "cooking",
     "recipe": {
-      "gold": 1000,
+      "gold": 1010,
       "materialsText": "Stone Scale×1, Bitter Spice×1, Slag Dust×1"
     },
     "stats": {
@@ -7794,11 +7482,7 @@
     "slug": "slag-crab-cake",
     "kind": "filler",
     "craftLevel": 50,
-    "craftSkill": "cooking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Clay Crab×1, Dustgrain×2, Slag Dust×1"
-    }
+    "craftSkill": "cooking"
   },
   {
     "id": 446,
@@ -7808,11 +7492,7 @@
     "slug": "slag-hearty-ration",
     "kind": "filler",
     "craftLevel": 52,
-    "craftSkill": "cooking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Dustgrain×2, Rock Salt×1, Slag Dust×1"
-    }
+    "craftSkill": "cooking"
   },
   {
     "id": 447,
@@ -7822,11 +7502,7 @@
     "slug": "slag-grain-porridge",
     "kind": "filler",
     "craftLevel": 54,
-    "craftSkill": "cooking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Dustgrain×2, Slag Dust×1"
-    }
+    "craftSkill": "cooking"
   },
   {
     "id": 448,
@@ -7836,11 +7512,7 @@
     "slug": "slag-carp-fillet",
     "kind": "filler",
     "craftLevel": 56,
-    "craftSkill": "cooking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Echo Carp×1, Rock Salt×1, Slag Dust×1"
-    }
+    "craftSkill": "cooking"
   },
   {
     "id": 449,
@@ -7850,11 +7522,7 @@
     "slug": "slag-marina-stew",
     "kind": "filler",
     "craftLevel": 58,
-    "craftSkill": "cooking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Fossil Minnow×1, Clay Crab×1, Dustgrain×1, Slag Dust×1"
-    }
+    "craftSkill": "cooking"
   },
   {
     "id": 450,
@@ -7866,7 +7534,7 @@
     "craftLevel": 60,
     "craftSkill": "cooking",
     "recipe": {
-      "gold": 1000,
+      "gold": 1250,
       "materialsText": "Glass Eel×1, Bitter Spice×1, Slag Dust×1"
     },
     "stats": {
@@ -7884,11 +7552,7 @@
     "slug": "bell-scholar-tea",
     "kind": "filler",
     "craftLevel": 62,
-    "craftSkill": "cooking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Antidote Root×1, Echo Extract×1, Bell Dust×1"
-    }
+    "craftSkill": "cooking"
   },
   {
     "id": 452,
@@ -7898,11 +7562,7 @@
     "slug": "bell-rich-stock",
     "kind": "filler",
     "craftLevel": 64,
-    "craftSkill": "cooking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Bone Chip×1, Echo Carp×1, Bell Dust×1"
-    }
+    "craftSkill": "cooking"
   },
   {
     "id": 453,
@@ -7914,7 +7574,7 @@
     "craftLevel": 65,
     "craftSkill": "cooking",
     "recipe": {
-      "gold": 1000,
+      "gold": 1350,
       "materialsText": "Bell Koi×2, Bell Dust×1"
     },
     "stats": {
@@ -7933,11 +7593,7 @@
     "slug": "bell-fortified-bread",
     "kind": "filler",
     "craftLevel": 67,
-    "craftSkill": "cooking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Dustgrain×2, Rock Salt×1, Bell Dust×1"
-    }
+    "craftSkill": "cooking"
   },
   {
     "id": 455,
@@ -7947,11 +7603,7 @@
     "slug": "bell-war-broth",
     "kind": "filler",
     "craftLevel": 69,
-    "craftSkill": "cooking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Bone Chip×2, Dustgrain×1, Bell Dust×1"
-    }
+    "craftSkill": "cooking"
   },
   {
     "id": 456,
@@ -7963,7 +7615,7 @@
     "craftLevel": 70,
     "craftSkill": "cooking",
     "recipe": {
-      "gold": 1000,
+      "gold": 1450,
       "materialsText": "Glass Eel×1, Dustgrain×1, Bell Dust×1"
     },
     "stats": {
@@ -7981,11 +7633,7 @@
     "slug": "throne-salt",
     "kind": "filler",
     "craftLevel": 72,
-    "craftSkill": "cooking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Rock Salt×2, Bell Dust×1"
-    }
+    "craftSkill": "cooking"
   },
   {
     "id": 458,
@@ -7995,11 +7643,7 @@
     "slug": "coronation-loaf",
     "kind": "filler",
     "craftLevel": 74,
-    "craftSkill": "cooking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Dustgrain×3, Rock Salt×1, Bell Dust×1"
-    }
+    "craftSkill": "cooking"
   },
   {
     "id": 459,
@@ -8009,11 +7653,7 @@
     "slug": "sovereign-jerky",
     "kind": "filler",
     "craftLevel": 76,
-    "craftSkill": "cooking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Desiccated Hide×1, Rock Salt×1, Bell Dust×1"
-    }
+    "craftSkill": "cooking"
   },
   {
     "id": 460,
@@ -8023,11 +7663,7 @@
     "slug": "feast-core",
     "kind": "filler",
     "craftLevel": 78,
-    "craftSkill": "cooking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Echo Carp×1, Clay Crab×1, Bell Dust×1"
-    }
+    "craftSkill": "cooking"
   },
   {
     "id": 461,
@@ -8038,10 +7674,7 @@
     "kind": "filler",
     "craftLevel": 80,
     "craftSkill": "cooking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Rock Salt×2, Bell Dust×1"
-    }
+    "craftOutputQty": 6
   },
   {
     "id": 462,
@@ -8051,11 +7684,7 @@
     "slug": "throne-hardtack",
     "kind": "filler",
     "craftLevel": 82,
-    "craftSkill": "cooking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Dustgrain×2, Rock Salt×1, Throne Dust×1"
-    }
+    "craftSkill": "cooking"
   },
   {
     "id": 463,
@@ -8065,11 +7694,7 @@
     "slug": "throne-fish-stock",
     "kind": "filler",
     "craftLevel": 84,
-    "craftSkill": "cooking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Echo Carp×1, Dustgrain×1, Throne Dust×1"
-    }
+    "craftSkill": "cooking"
   },
   {
     "id": 464,
@@ -8079,11 +7704,7 @@
     "slug": "scale-crisp",
     "kind": "filler",
     "craftLevel": 86,
-    "craftSkill": "cooking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Scale Hide×1, Rock Salt×1, Throne Dust×1"
-    }
+    "craftSkill": "cooking"
   },
   {
     "id": 465,
@@ -8093,11 +7714,7 @@
     "slug": "broth-base",
     "kind": "filler",
     "craftLevel": 88,
-    "craftSkill": "cooking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Bone Chip×2, Dustgrain×1, Throne Dust×1"
-    }
+    "craftSkill": "cooking"
   },
   {
     "id": 466,
@@ -8109,7 +7726,7 @@
     "craftLevel": 90,
     "craftSkill": "cooking",
     "recipe": {
-      "gold": 1000,
+      "gold": 1850,
       "materialsText": "Bell Koi×1, Echo Carp×1, Dustgrain×1, Throne Dust×1"
     },
     "stats": {
@@ -8136,11 +7753,7 @@
     "slug": "throne-hearty-ration",
     "kind": "filler",
     "craftLevel": 92,
-    "craftSkill": "cooking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Dustgrain×2, Rock Salt×1, Throne Dust×1"
-    }
+    "craftSkill": "cooking"
   },
   {
     "id": 468,
@@ -8150,11 +7763,7 @@
     "slug": "throne-grain-porridge",
     "kind": "filler",
     "craftLevel": 94,
-    "craftSkill": "cooking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Dustgrain×2, Throne Dust×1"
-    }
+    "craftSkill": "cooking"
   },
   {
     "id": 469,
@@ -8164,11 +7773,7 @@
     "slug": "throne-carp-fillet",
     "kind": "filler",
     "craftLevel": 96,
-    "craftSkill": "cooking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Echo Carp×1, Rock Salt×1, Throne Dust×1"
-    }
+    "craftSkill": "cooking"
   },
   {
     "id": 470,
@@ -8178,11 +7783,7 @@
     "slug": "throne-marina-stew",
     "kind": "filler",
     "craftLevel": 98,
-    "craftSkill": "cooking",
-    "recipe": {
-      "gold": 1000,
-      "materialsText": "Echo Carp×1, Glass Eel×1, Dustgrain×1, Throne Dust×1"
-    }
+    "craftSkill": "cooking"
   },
   {
     "id": 471,
@@ -8194,7 +7795,7 @@
     "craftLevel": 100,
     "craftSkill": "cooking",
     "recipe": {
-      "gold": 1000,
+      "gold": 2050,
       "materialsText": "Throne Feast×1, Diamond×1, Throne Dust×2"
     },
     "stats": {
@@ -8223,12 +7824,13 @@
     "craftLevel": 2,
     "craftSkill": "cooking",
     "recipe": {
-      "gold": 1000,
+      "gold": 90,
       "materialsText": "Dustgrain×1, Pale Dust×1"
     },
     "consume": {
       "foodDurationSec": 0
-    }
+    },
+    "craftOutputQty": 6
   },
   {
     "id": 473,
@@ -8240,12 +7842,13 @@
     "craftLevel": 8,
     "craftSkill": "cooking",
     "recipe": {
-      "gold": 1000,
+      "gold": 210,
       "materialsText": "Fossil Minnow×1, Pale Dust×1"
     },
     "consume": {
       "foodDurationSec": 0
-    }
+    },
+    "craftOutputQty": 6
   },
   {
     "id": 474,
@@ -8257,12 +7860,13 @@
     "craftLevel": 14,
     "craftSkill": "cooking",
     "recipe": {
-      "gold": 1000,
+      "gold": 330,
       "materialsText": "Stone Scale×1, Pale Dust×1"
     },
     "consume": {
       "foodDurationSec": 0
-    }
+    },
+    "craftOutputQty": 6
   },
   {
     "id": 475,
@@ -8274,12 +7878,13 @@
     "craftLevel": 22,
     "craftSkill": "cooking",
     "recipe": {
-      "gold": 1000,
+      "gold": 490,
       "materialsText": "Dustgrain×1, Ash Dust×1"
     },
     "consume": {
       "foodDurationSec": 0
-    }
+    },
+    "craftOutputQty": 6
   },
   {
     "id": 476,
@@ -8291,12 +7896,13 @@
     "craftLevel": 28,
     "craftSkill": "cooking",
     "recipe": {
-      "gold": 1000,
+      "gold": 610,
       "materialsText": "Clay Crab×1, Ash Dust×1"
     },
     "consume": {
       "foodDurationSec": 0
-    }
+    },
+    "craftOutputQty": 6
   },
   {
     "id": 477,
@@ -8308,12 +7914,13 @@
     "craftLevel": 36,
     "craftSkill": "cooking",
     "recipe": {
-      "gold": 1000,
+      "gold": 770,
       "materialsText": "Dustgrain×1, Echo Extract×1, Ash Dust×1"
     },
     "consume": {
       "foodDurationSec": 0
-    }
+    },
+    "craftOutputQty": 6
   },
   {
     "id": 478,
@@ -8325,12 +7932,13 @@
     "craftLevel": 44,
     "craftSkill": "cooking",
     "recipe": {
-      "gold": 1000,
+      "gold": 930,
       "materialsText": "Dustgrain×1, Slag Dust×1"
     },
     "consume": {
       "foodDurationSec": 0
-    }
+    },
+    "craftOutputQty": 6
   },
   {
     "id": 479,
@@ -8342,12 +7950,13 @@
     "craftLevel": 52,
     "craftSkill": "cooking",
     "recipe": {
-      "gold": 1000,
+      "gold": 1090,
       "materialsText": "Echo Carp×1, Slag Dust×1"
     },
     "consume": {
       "foodDurationSec": 0
-    }
+    },
+    "craftOutputQty": 6
   },
   {
     "id": 480,
@@ -8359,12 +7968,13 @@
     "craftLevel": 60,
     "craftSkill": "cooking",
     "recipe": {
-      "gold": 1000,
+      "gold": 1250,
       "materialsText": "Dustgrain×1, Bitter Spice×1, Slag Dust×1"
     },
     "consume": {
       "foodDurationSec": 0
-    }
+    },
+    "craftOutputQty": 6
   },
   {
     "id": 481,
@@ -8376,12 +7986,13 @@
     "craftLevel": 68,
     "craftSkill": "cooking",
     "recipe": {
-      "gold": 1000,
+      "gold": 1410,
       "materialsText": "Dustgrain×1, Bell Dust×1"
     },
     "consume": {
       "foodDurationSec": 0
-    }
+    },
+    "craftOutputQty": 6
   },
   {
     "id": 482,
@@ -8393,12 +8004,13 @@
     "craftLevel": 76,
     "craftSkill": "cooking",
     "recipe": {
-      "gold": 1000,
+      "gold": 1570,
       "materialsText": "Bell Koi×1, Bell Dust×1"
     },
     "consume": {
       "foodDurationSec": 0
-    }
+    },
+    "craftOutputQty": 6
   },
   {
     "id": 483,
@@ -8410,12 +8022,13 @@
     "craftLevel": 84,
     "craftSkill": "cooking",
     "recipe": {
-      "gold": 1000,
+      "gold": 1730,
       "materialsText": "Dustgrain×1, Throne Dust×1"
     },
     "consume": {
       "foodDurationSec": 0
-    }
+    },
+    "craftOutputQty": 6
   },
   {
     "id": 484,
@@ -8427,12 +8040,13 @@
     "craftLevel": 92,
     "craftSkill": "cooking",
     "recipe": {
-      "gold": 1000,
+      "gold": 1890,
       "materialsText": "Dustgrain×1, Echo Extract×1, Throne Dust×1"
     },
     "consume": {
       "foodDurationSec": 0
-    }
+    },
+    "craftOutputQty": 6
   },
   {
     "id": 485,
@@ -8444,12 +8058,13 @@
     "craftLevel": 100,
     "craftSkill": "cooking",
     "recipe": {
-      "gold": 1000,
+      "gold": 2050,
       "materialsText": "Dustgrain×1, Diamond×1, Throne Dust×1"
     },
     "consume": {
       "foodDurationSec": 0
-    }
+    },
+    "craftOutputQty": 6
   },
   {
     "id": 486,
@@ -8488,7 +8103,7 @@
     "craftLevel": 1,
     "craftSkill": "alchemy",
     "recipe": {
-      "gold": 1000,
+      "gold": 70,
       "materialsText": "Pale Dust×2, Antidote Root×1"
     }
   },
@@ -8499,7 +8114,7 @@
     "icon": "/icons/items/copper-ore.png",
     "slug": "copper-ore",
     "kind": "base",
-    "obtainedFrom": "Mine — Pale Hollow ore vein"
+    "obtainedFrom": "Mine / Drop — Pale Hollow"
   },
   {
     "id": 1001,
@@ -8508,7 +8123,7 @@
     "icon": "/icons/items/tin-ore.png",
     "slug": "tin-ore",
     "kind": "base",
-    "obtainedFrom": "Mine — Pale Hollow ore vein"
+    "obtainedFrom": "Mine / Drop — Pale Hollow"
   },
   {
     "id": 1002,
@@ -8580,7 +8195,7 @@
     "icon": "/icons/items/cracked-brick.png",
     "slug": "cracked-brick",
     "kind": "base",
-    "obtainedFrom": "Drop — ruin-dweller enemies, Pale Hollow"
+    "obtainedFrom": "Drop — Ruin Dweller"
   },
   {
     "id": 1010,
@@ -8652,7 +8267,7 @@
     "icon": "/icons/items/bark-strip.png",
     "slug": "bark-strip",
     "kind": "base",
-    "obtainedFrom": "Harvest — any forest zone"
+    "obtainedFrom": "Gather — Pale Hollow Ashbeam Logs"
   },
   {
     "id": 1018,
@@ -8805,7 +8420,7 @@
     "icon": "/icons/items/horn.png",
     "slug": "horn",
     "kind": "base",
-    "obtainedFrom": "Drop — beast enemies, any zone"
+    "obtainedFrom": "Drop — Pale Hollow beasts"
   },
   {
     "id": 1035,
@@ -8994,7 +8609,7 @@
     "icon": "/icons/items/rock-salt.png",
     "slug": "rock-salt",
     "kind": "base",
-    "obtainedFrom": "Mine — Ashlands"
+    "obtainedFrom": "Mine — Pale Hollow limestone"
   },
   {
     "id": 1056,
@@ -9060,10 +8675,10 @@
     "craftLevel": 10,
     "craftSkill": "smithing",
     "stats": {
-      "str": 5,
-      "dex": 5,
-      "agi": 5,
-      "def": 10
+      "def": 10,
+      "str": 2,
+      "dex": 2,
+      "hp": 15
     },
     "slot": "body",
     "jobRestrict": [
@@ -9072,6 +8687,30 @@
       "battlemage",
       "rogue",
       "cleric"
-    ]
+    ],
+    "rarity": "Rare"
+  },
+  {
+    "id": 1063,
+    "name": "Heart Ring",
+    "description": "Heart Ring. A rare goldsmith's work that steadies the pulse.",
+    "icon": "/icons/items/heart-ring.png",
+    "slug": "heart-ring",
+    "kind": "equipment",
+    "craftLevel": 12,
+    "craftSkill": "goldsmithing",
+    "recipe": {
+      "gold": 290,
+      "materialsText": "Copper Ore×2, Soft Pelt×1, Pale Dust×1"
+    },
+    "stats": {
+      "regen": 1,
+      "healPotency": 5,
+      "atk": 6
+    },
+    "slot": "ring",
+    "jobRestrict": "all",
+    "rarity": "Rare",
+    "obtainedFrom": "Craft — goldsmithing"
   }
 ]

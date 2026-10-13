@@ -1,5 +1,6 @@
-//! Auto-generated from packages/items/src/catalog.json — do not edit by hand.
-//! Regenerate: node contracts/lok-log/engine/scripts/gen-npc-prices.mjs
+//! Pinned NPC sell units. Existing ids keep historical prices; new ids use
+//! NPC_SELL_GOLD_BASIS=1000 (not recipe.gold). Regenerate:
+//!   node contracts/lok-log/engine/scripts/gen-npc-prices.mjs
 
 /// Sorted (item_id, unit_gold) pairs from the item catalog.
 pub const NPC_SELL_UNITS: &[(u64, u64)] = &[
@@ -555,5 +556,5 @@ pub const NPC_SELL_UNITS: &[(u64, u64)] = &[
     (1060, 2),
     (1061, 2),
     (1062, 52),
+    (1063, 52),
 ];
-

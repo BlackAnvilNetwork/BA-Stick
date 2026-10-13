@@ -39,7 +39,9 @@ export async function withPlayerCharge(
   stillOk: () => boolean,
   reserve: () => (() => void) | null,
   spend: () => Promise<{ ok: true } | { ok: false; error: string }>,
-  grant: () => void,
+  grant: () => void | { ok: true } | { ok: false; error: string },
+  /** Called when `grant` returns `{ ok: false }` after a successful spend (e.g. refund gold). */
+  refundSpend?: () => void,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   return withPlayerAction(playerId, async () => {
     if (!stillOk()) return { ok: false, error: "no longer available" };
@@ -50,7 +52,12 @@ export async function withPlayerCharge(
       undo();
       return paid;
     }
-    grant();
+    const granted = grant();
+    if (granted && typeof granted === "object" && granted.ok === false) {
+      undo();
+      refundSpend?.();
+      return granted;
+    }
     return { ok: true };
   });
 }

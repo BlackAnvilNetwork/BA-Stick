@@ -10,11 +10,25 @@ import {
 } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { resolveNetworkName } from "@bellgrave/config";
 import type { LokListingView, LokSnapshot } from "@bellgrave/protocol";
 import { characterNameKey, normalizeCharacterName } from "./character-name";
 import { acquireDataDirLock } from "./data-dir-lock";
 import { exploreDocument, type LokExplorePage } from "./lok-explore";
 import { defaultWasmPath, loadLokExports, lokCall, lokOut, type LokExports } from "./lok-engine";
+
+/**
+ * Craft skill-validation cutoff (global world seq) for this network.
+ * Legacy local anvil may have pre-#222 crafts below seq 175; Chiado/Gnosis are fresh → 0.
+ * Override with LOK_CRAFT_VALIDATE_MIN_SEQ when needed.
+ */
+export function craftValidateMinSeqForNetwork(env: NodeJS.ProcessEnv = process.env): number {
+  const raw = env.LOK_CRAFT_VALIDATE_MIN_SEQ?.trim();
+  if (raw && /^\d+$/.test(raw)) return Number(raw);
+  const network = resolveNetworkName(env as Record<string, string | undefined>);
+  if (network === "anvil") return 175;
+  return 0;
+}
 
 export type LokResult = { ok: true } | { ok: false; error: string };
 
@@ -247,6 +261,7 @@ export class LokWorld {
     this.chain = mode.chain;
     this.chainNote = mode.note;
     this.exp = loadLokExports(wasmPath);
+    this.exp.lok_set_craft_validate_min_seq(craftValidateMinSeqForNetwork(env));
     const text = existsSync(this.logPath) ? readFileSync(this.logPath, "utf8") : "";
     const cursor = journalCursor(text);
     const opened = lokCall(this.exp, text, (ptr, len) => this.exp.lok_open(ptr, len));

@@ -3,23 +3,27 @@
  * shared owner-key queue (no private key on the cast argv).
  */
 import { isSettlementChain, settlementCurrencyView } from "@bellgrave/config";
-import { createPublicClient, createWalletClient, http, type Chain, type Hex } from "viem";
+import { createPublicClient, createWalletClient, http, keccak256, toBytes, type Chain, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { renameSync, writeFileSync } from "node:fs";
 import { withOwnerKeyQueue } from "./owner-tx-queue";
 
-/** Accepted on the local anvil only. Not a mainnet ruleset. Bumped with ChainFill payment refs. */
-export const LOCAL_RULESET_HASH = "0xb7e4d1c9a8f6520e3d7c6b5a49382716f0e1d2c3b4a5968778695a4b3c2d1e0f";
+/**
+ * sha256 of the checked-in engine bundle (contracts/lok-log/engine/pkg/lok_engine.wasm).
+ * lok-ruleset-pin.test.ts fails when the checked-in wasm drifts from it. When the engine changes:
+ * rebuild with contracts/lok-log/engine/scripts/check-wasm-pin.mjs --install and update this pin
+ * (LOCAL_RULESET_HASH derives automatically). This pin is also the Gnosis mainnet ruleset wasm
+ * (see deployments/gnosis.json on #221 — proposed tx 0x42ff771b…, activatesAt 1792037555).
+ * Do not bump without a new RulesetRegistry propose.
+ */
+export const LOCAL_RULESET_WASM_SHA256 = "6577236dc54fc3fb63e8542326e8414f90bafdb6093fa484af47985ef70e8e2e";
 
 /**
- * sha256 of the checked-in engine bundle (contracts/lok-log/engine/pkg/lok_engine.wasm) that
- * checkpoints signed under LOCAL_RULESET_HASH are computed with. LOCAL_RULESET_HASH is an opaque id
- * registered on the local anvil; it is not derived from the wasm, so this pin is the binding.
- * lok-ruleset-pin.test.ts fails when the checked-in wasm drifts from it. When the engine changes on
- * purpose: rebuild the wasm, run contracts/lok-log/engine/scripts/check-wasm-pin.mjs, update this pin,
- * and on any non-local network propose a new ruleset hash for the new bundle.
+ * Ruleset id derived from the wasm pin: `keccak256(utf8(LOCAL_RULESET_WASM_SHA256))`.
+ * Same value used for local anvil acceptance and the Gnosis propose recorded in
+ * deployments/gnosis.json (`0x609dbdea…949cdc`).
  */
-export const LOCAL_RULESET_WASM_SHA256 = "bbf77ab29b31bc869891028d83ab1ee85f4d84a9137f8631d05c4c0876496510";
+export const LOCAL_RULESET_HASH = keccak256(toBytes(LOCAL_RULESET_WASM_SHA256));
 
 export const LOCAL_ANVIL_CHAIN_ID = 31337n;
 

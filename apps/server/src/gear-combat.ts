@@ -5,10 +5,33 @@
  * players) and `mab` (player spell damage).
  */
 import { applyMagicAttackBonus, playerDefense } from "@bellgrave/combat";
-import { aggregateEquipmentStats } from "@bellgrave/items";
+import { aggregateEquipmentStats, EQUIP_SLOTS, getItem } from "@bellgrave/items";
 
 type GearEquip = Parameters<typeof aggregateEquipmentStats>[0];
 type Geared = { equip?: GearEquip | null };
+
+/**
+ * Melee Attack: (main-hand Atk or 10) + Atk from every other slot except ranged/ammo.
+ * Staffs with no Atk keep the 10 baseline; rings/mittens still add. Bows never stack.
+ */
+export function meleeAtkBonus(p: Geared): number {
+  const equip = p.equip ?? null;
+  const mainId = equip?.main;
+  if (mainId == null) return 0;
+  const main = getItem(mainId);
+  if (!main || main.slot !== "main") return 0;
+  const weaponAtk = main.stats?.atk ?? 10;
+  let gearAtk = 0;
+  for (const slot of EQUIP_SLOTS) {
+    if (slot === "main" || slot === "ranged" || slot === "ammo") continue;
+    const tokenId = equip?.[slot];
+    if (tokenId == null) continue;
+    const def = getItem(tokenId);
+    if (!def || def.slot !== slot) continue;
+    gearAtk += def.stats?.atk ?? 0;
+  }
+  return weaponAtk + gearAtk;
+}
 
 /** Summed `def` from equipped catalog gear. */
 export function gearDef(p: Geared): number {
@@ -23,6 +46,23 @@ export function gearMab(p: Geared): number {
 /** VIT defense plus gear `def`; the same number the character sheet shows. */
 export function playerDefenseWithGear(p: Geared, vit: number): number {
   return playerDefense(vit, gearDef(p));
+}
+
+/** Percent healing bonus from equipped `healPotency`. */
+export function gearHealPotency(p: Geared): number {
+  return Math.max(0, Math.floor(aggregateEquipmentStats(p.equip ?? {}).healPotency ?? 0));
+}
+
+/** Apply percent `healPotency` to a finished heal amount (Cleric, TIM, Battlemage). */
+export function withHealPotency(p: Geared, amount: number, potency = gearHealPotency(p)): number {
+  const pct = Math.max(0, Math.floor(potency));
+  const raw = pct > 0 ? Math.floor((amount * (100 + pct)) / 100) : amount;
+  return Math.max(1, raw);
+}
+
+/** Flat HP/sec from equipped `regen`. */
+export function gearRegen(p: Geared): number {
+  return Math.max(0, Math.floor(aggregateEquipmentStats(p.equip ?? {}).regen ?? 0));
 }
 
 /** Apply the caster's gear MAB to finished spell damage. */

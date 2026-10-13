@@ -7,7 +7,7 @@ import {
   isKnightAbilityId,
   type KnightAbilityId,
 } from "@bellgrave/combat";
-import { SIGNATURE_WEAPON_IDS, signatureWeaponEquipped } from "./starter-kit";
+import { signatureWeaponEquipped } from "./starter-kit";
 import { kitLevel } from "./support-job";
 import { withGearMab } from "./gear-combat";
 import type { AbilityId } from "@bellgrave/protocol";
@@ -80,7 +80,7 @@ export type KnightHooks = {
 
 
 export function swordEquipped(p: KnightPlayer): boolean {
-  return signatureWeaponEquipped(p, SIGNATURE_WEAPON_IDS.knight);
+  return signatureWeaponEquipped(p, "knight");
 }
 
 /** Combined physical damage-taken multiplier from Knight DT buffs. */

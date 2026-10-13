@@ -14,7 +14,7 @@ import {
 
 } from "@bellgrave/combat";
 
-import { SIGNATURE_WEAPON_IDS, signatureWeaponEquipped } from "./starter-kit";
+import { signatureWeaponEquipped } from "./starter-kit";
 import { kitLevel } from "./support-job";
 
 import type { AbilityId } from "@bellgrave/protocol";
@@ -123,7 +123,7 @@ export type FighterHooks = {
 
 
 export function greatswordEquipped(p: FighterPlayer): boolean {
-  return signatureWeaponEquipped(p, SIGNATURE_WEAPON_IDS.fighter);
+  return signatureWeaponEquipped(p, "fighter");
 }
 
 

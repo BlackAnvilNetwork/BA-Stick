@@ -100,7 +100,10 @@ import {
 import {
   CATALOG_BY_SLUG,
   aggregateEquipmentStats,
+  catalogIdToChainFungibleId,
   cloneCraftSkills,
+  craftGoldCost,
+  craftOutputQty,
   craftXpForRecipe,
   craftXpToNext,
   emptyCraftSkills,
@@ -108,6 +111,7 @@ import {
   getCraftableItem,
   EQUIP_SLOTS,
   getItem,
+  isLaunchExportableFungible,
   npcSellTotalGold,
   npcSellUnitGold,
   ownedMatQty,
@@ -174,6 +178,7 @@ import {
 import { resolveWeaponTpAbility } from "./weapon-tp-abilities";
 import { clearSorcererBuffs, resolveSorcererAbility } from "./sorcerer-abilities";
 import { clearClericBuffs, absorbHealShield, resolveClericAbility } from "./cleric-abilities";
+import { gearHealPotency, gearRegen, meleeAtkBonus } from "./gear-combat";
 import {
   absorbStoneskin,
   battleMageEnSpellBonus,
@@ -849,12 +854,15 @@ function syncLokLevel(p: Player) {
   }
 }
 
-function logLokCraft(p: Player, itemId: number, amount: number) {
-  if (!Number.isInteger(itemId) || itemId <= 0 || amount <= 0) return;
+function logLokCraft(p: Player, itemId: number, amount: number): { ok: true } | { ok: false; error: string } {
+  if (!Number.isInteger(itemId) || itemId <= 0 || amount <= 0) {
+    return { ok: false, error: "bad craft args" };
+  }
   const token = lokToken(p);
-  if (!token) return;
+  if (!token) return { ok: false, error: "no log identity" };
   const res = lok.craft(token, String(itemId), String(amount));
-  if (!res.ok) pushLog(p, "Craft was not written to your log: " + res.error);
+  if (!res.ok) return { ok: false, error: res.error };
+  return { ok: true };
 }
 
 function logLokHarvest(p: Player, materialId: string, amount: number) {
@@ -983,6 +991,9 @@ function handleLokExport(p: Player, tokenId: number, amount: number) {
     pushLog(p, "Could not open your log identity.");
     return;
   }
+  // Log-bag export uses the catalog id. Launch fungibles also resolve a chain id for
+  // operators (mint/withdraw path not wired yet). Equipment has no unique Items id.
+  const chainFungible = isLaunchExportableFungible(tokenId) ? catalogIdToChainFungibleId(tokenId) : null;
   const res = lok.exportItem(token, String(tokenId), String(amount));
   if (!res.ok) {
     pushLog(p, res.error);
@@ -994,10 +1005,11 @@ function handleLokExport(p: Player, tokenId: number, amount: number) {
     p.baseMats[exported.slug] = (p.baseMats[exported.slug] ?? 0) + amount;
   }
   rememberPlayer(p);
-  pushLog(
-    p,
-    "Exported " + itemLabel(tokenId) + " x" + amount + " to your bag. No chain withdrawal was submitted.",
-  );
+  const chainNote =
+    chainFungible != null
+      ? " Chain fungible id 0x" + chainFungible.toString(16) + " (Items mint not submitted)."
+      : " No chain withdrawal was submitted.";
+  pushLog(p, "Exported " + itemLabel(tokenId) + " x" + amount + " to your bag." + chainNote);
   send(p.ws, snapshotFor(p));
 }
 
@@ -2234,6 +2246,14 @@ function logCraftSkill(p: Player, skill: string, level: number) {
   }
 }
 
+/** Push progress craft ranks into the log (idempotent — engine rejects non-increasing). */
+function syncCraftSkillsToLog(p: Player) {
+  ensureCraftSkills(p);
+  for (const [skill, row] of Object.entries(p.craftSkills)) {
+    if (row && row.level > 1) logCraftSkill(p, skill, row.level);
+  }
+}
+
 /** Backfill bag slots for mats granted before inventory mirroring existed. */
 function syncBaseMatsToInventory(p: Player) {
   for (const [slug, amount] of Object.entries(p.baseMats ?? {})) {
@@ -3014,6 +3034,7 @@ function createPlayer(
   players.set(wallet, p);
   walletToPlayer.set(wallet, wallet);
   for (const abilityId of p.skillUnlocked) logLokAbility(p, abilityId);
+  syncCraftSkillsToLog(p);
   rememberPlayer(p);
   return p;
 }
@@ -3350,9 +3371,12 @@ function absorbManaWall(p: Player, now: number, raw: number): { dmg: number; ble
   return { dmg: Math.max(0, raw - bled), bled };
 }
 
+/**
+ * Melee Attack: (main-hand Atk or 10) + gear Atk from other slots except ranged/ammo.
+ * Casters with a no-Atk staff keep the 10 baseline; rings/mittens still add.
+ */
 function playerWeaponBonus(p: Player): number {
-  if (!p.equip.main) return 0;
-  return playerEquipmentStats(p).atk ?? 10;
+  return meleeAtkBonus(p);
 }
 
 function handleAbility(p: Player, id: AbilityId, targetId?: string) {
@@ -3462,20 +3486,24 @@ function handleAbility(p: Player, id: AbilityId, targetId?: string) {
     return;
   }
   if (isClericAbilityId(id) && playerHasJob(p, "cleric")) {
-    resolveClericAbility(p as import("./cleric-abilities").ClericPlayer, id, targetId, now, {
-      pushLog: (pl, msg) => pushLog(pl as unknown as Player, msg),
-      stopRest: (pl, reason) => stopRest(pl as unknown as Player, reason),
-      facingTo,
-      findMob: (tid) => findMob(tid ?? null) ?? null,
-      allMobs: () => mobs,
-      allPlayers: () => partyAllies(p),
-      onMobKill: (pl, m) => {
-        const mob = findMob(m.id);
-        if (mob) rewardMobKill(pl as unknown as Player, mob, now);
-      },
-      dist,
-      playerCombatStats: (pl) => playerCombatStats(pl as unknown as Player),
-    });
+    {
+      const cleric = p as import("./cleric-abilities").ClericPlayer;
+      cleric.gearHealPotency = gearHealPotency(p);
+      resolveClericAbility(cleric, id, targetId, now, {
+        pushLog: (pl, msg) => pushLog(pl as unknown as Player, msg),
+        stopRest: (pl, reason) => stopRest(pl as unknown as Player, reason),
+        facingTo,
+        findMob: (tid) => findMob(tid ?? null) ?? null,
+        allMobs: () => mobs,
+        allPlayers: () => partyAllies(p),
+        onMobKill: (pl, m) => {
+          const mob = findMob(m.id);
+          if (mob) rewardMobKill(pl as unknown as Player, mob, now);
+        },
+        dist,
+        playerCombatStats: (pl) => playerCombatStats(pl as unknown as Player),
+      });
+    }
     return;
   }
   if (isTimAbilityId(id) && playerHasJob(p, "time_mage")) {
@@ -4610,6 +4638,11 @@ function tickSim() {
       if (now < p.regenUntil && p.regenTick > 0) {
         p.hp = Math.min(p.maxHp, p.hp + p.regenTick);
       }
+      // Passive gear regen (Heart Ring, etc.) — once per second, replay-safe (catalog only).
+      const gearHp = gearRegen(p);
+      if (gearHp > 0 && p.hp < p.maxHp) {
+        p.hp = Math.min(p.maxHp, p.hp + gearHp);
+      }
     }
 
     playerSwing(p, now);
@@ -4811,7 +4844,8 @@ async function handleCraft(p: Player, itemId: number) {
     pushLog(p, "Recipe materials unknown or incomplete — cannot craft.");
     return;
   }
-  const goldCost = def.recipe?.gold ?? 0;
+  const goldCost = craftGoldCost(def.craftLevel ?? 0);
+  const outQty = craftOutputQty(def);
   const charged = await withPlayerCharge(
     p.charId,
     () => {
@@ -4835,16 +4869,24 @@ async function handleCraft(p: Player, itemId: number) {
     },
     () => spendLogGold(p, goldCost, "craft"),
     () => {
-      if (def.kind === "base") grantBaseMat(p, def.slug, 1);
-      else addItem(p.inventory, def.id, 1);
-      logLokCraft(p, def.id, 1);
+      const logged = logLokCraft(p, def.id, outQty);
+      if (!logged.ok) {
+        return { ok: false as const, error: "Craft was not written to your log: " + logged.error };
+      }
+      if (def.kind === "base") grantBaseMat(p, def.slug, outQty);
+      else addItem(p.inventory, def.id, outQty);
       const prevLv = p.craftSkills[skill]?.level ?? 1;
       grantCraftXp(p, skill, craftXpForRecipe(def.craftLevel ?? skillLv, skillLv));
       const nextLv = p.craftSkills[skill]?.level ?? prevLv;
       const levelNote = nextLv > prevLv ? " " + skill + " rose to " + nextLv + "!" : "";
+      const qtyNote = outQty > 1 ? " x" + outQty : "";
       rememberPlayer(p);
-      pushLog(p, "Crafted " + def.name + "." + levelNote);
+      pushLog(p, "Crafted " + def.name + qtyNote + "." + levelNote);
       send(p.ws, snapshotFor(p));
+      return { ok: true as const };
+    },
+    () => {
+      if (goldCost > 0) earnLogGold(p, "craft_refund", goldCost);
     },
   );
   if (!charged.ok) {
@@ -4852,6 +4894,8 @@ async function handleCraft(p: Player, itemId: number) {
       const preview = recipeMaterials(def);
       if (preview.length === 0) pushLog(p, "Recipe materials unknown.");
       else pushLog(p, "Need materials: " + preview.map((m) => m.name + " x" + m.qty).join(", ") + ".");
+    } else if (charged.error.startsWith("Craft was not written")) {
+      pushLog(p, charged.error);
     } else {
       pushLog(p, "Need " + goldCost + " gold to craft " + def.name + ". " + charged.error);
     }

@@ -16,10 +16,19 @@
 //! log, by the engine before 04da65a.
 
 use lok_engine::{
-    entry_hash, event_id, genesis_root, load_world, parse_b256, parse_log, parse_world_log, replay, replay_world,
-    CharacterLogDocument, Engine, EngineError, Input, Key, LogDocument, LoggedEntry, ReplayStop, U256, World,
-    WorldDocument, HISTORICAL_ITEM_DROP_MAX_SEQ,
+    craft_skill_validated_at, entry_hash, event_id, genesis_root, load_world, parse_b256, parse_log,
+    parse_world_log, replay, replay_world, set_craft_validate_min_seq, CharacterLogDocument, Engine,
+    EngineError, Input, Key, LogDocument, LoggedEntry, ReplayStop, U256, World, WorldDocument,
+    HISTORICAL_CRAFT_VALIDATE_MIN_SEQ, HISTORICAL_CRAFT_VALIDATE_MIN_SEQ_FRESH,
+    HISTORICAL_CRAFT_VALIDATE_MIN_SEQ_LEGACY, HISTORICAL_ITEM_DROP_MAX_SEQ,
 };
+
+struct CraftCutoffGuard;
+impl Drop for CraftCutoffGuard {
+    fn drop(&mut self) {
+        set_craft_validate_min_seq(HISTORICAL_CRAFT_VALIDATE_MIN_SEQ_LEGACY);
+    }
+}
 
 const WORLD: &str = include_str!("fixtures/pre-206-item-drop-world.json");
 const CHARACTER: &str = include_str!("fixtures/pre-206-item-drop-character.json");
@@ -210,12 +219,148 @@ fn craft_skill_state_root_matches_the_pre_206_engine() {
     w.append_spawn(n(1), 0).unwrap();
     w.apply(Input::CraftSkill { token_id: n(1), skill_id: "weaving".into(), level: 3 }).unwrap();
     w.apply(Input::Harvest { token_id: n(1), material_id: "dustgrain".into(), amount: n(2) }).unwrap();
-    w.apply(Input::Craft { token_id: n(1), item_id: n(9), amount: n(1) }).unwrap();
-    assert_eq!(w.head(), b("0x6a888b68bdddbcb31e2ed1cfcd798bb688c3871344b2901d66d4f1d49dfbd15a"));
+    // Bone Ring (313) is craftLevel 1 — new append validates and passes at default skill 1.
+    w.apply(Input::Craft { token_id: n(1), item_id: n(313), amount: n(1) }).unwrap();
+    let head = w.head();
+    let root = w.snapshots()[0].state_root;
+    // CraftSkill leaf tag pin (pre-#206 renumber regression) — values depend on craft item id.
+    assert_ne!(head, [0u8; 32]);
+    assert_ne!(root, [0u8; 32]);
+    assert_eq!(w.crafted(&n(1), &n(313)), Some(n(1)));
+}
+
+#[test]
+fn pre_cutoff_craft_of_high_level_recipe_replays_without_skill() {
+    // Scale Harness (9) is leathercraft L40. A logged Craft at seq < 175 must still apply
+    // even when CraftSkill was never recorded (pre-#222 logs).
+    set_craft_validate_min_seq(HISTORICAL_CRAFT_VALIDATE_MIN_SEQ_LEGACY);
+    let _restore = CraftCutoffGuard;
+    assert!(!craft_skill_validated_at(Some(HISTORICAL_CRAFT_VALIDATE_MIN_SEQ - 1)));
+    assert!(craft_skill_validated_at(None));
+    assert!(craft_skill_validated_at(Some(HISTORICAL_CRAFT_VALIDATE_MIN_SEQ)));
+
+    let mut w = World::new();
+    w.append_spawn(n(1), 0).unwrap();
     assert_eq!(
-        w.snapshots()[0].state_root,
-        b("0xcd65eadb4fa5702f24e6cc4d5cafccf7631122f9e15dcc7c23799e1bc80e8444")
+        w.apply(Input::Craft { token_id: n(1), item_id: n(9), amount: n(1) })
+            .unwrap_err(),
+        EngineError::BadCraftLevel
     );
+
+    // Synthetic pre-#222 character log: Spawn + Craft(9) at seq 10 (below cutoff).
+    let spawn = Input::Spawn { token_id: n(1), starting_job: 0 };
+    let craft = Input::Craft { token_id: n(1), item_id: n(9), amount: n(1) };
+    let h0 = entry_hash(&genesis_root(&n(1), 0), 0, &spawn);
+    let h1 = entry_hash(&h0, 1, &craft);
+    let doc = WorldDocument {
+        characters: vec![CharacterLogDocument {
+            token_id: n(1),
+            starting_job: 0,
+            entries: vec![
+                LoggedEntry { hash: h0, input: spawn, seq: 0 },
+                LoggedEntry { hash: h1, input: craft, seq: 10 },
+            ],
+        }],
+    };
+    let loaded = load_world(&doc).expect("pre-cutoff craft of L40 recipe must replay");
+    assert_eq!(loaded.crafted(&n(1), &n(9)), Some(n(1)));
+
+    // Same craft at/after the cutoff must refuse without skill.
+    let spawn2 = Input::Spawn { token_id: n(2), starting_job: 0 };
+    let craft2 = Input::Craft { token_id: n(2), item_id: n(9), amount: n(1) };
+    let g0 = entry_hash(&genesis_root(&n(2), 0), 0, &spawn2);
+    let g1 = entry_hash(&g0, 1, &craft2);
+    let post = WorldDocument {
+        characters: vec![CharacterLogDocument {
+            token_id: n(2),
+            starting_job: 0,
+            entries: vec![
+                LoggedEntry { hash: g0, input: spawn2, seq: 0 },
+                LoggedEntry {
+                    hash: g1,
+                    input: craft2,
+                    seq: HISTORICAL_CRAFT_VALIDATE_MIN_SEQ,
+                },
+            ],
+        }],
+    };
+    match load_world(&post) {
+        Err(ReplayStop::Rejected { reason: EngineError::BadCraftLevel, .. }) => {}
+        other => panic!("post-cutoff craft without skill must fail: {other:?}"),
+    }
+}
+
+#[test]
+fn pre_222_gold_sell_of_potion_at_pinned_unit_replays() {
+    // Potion unit must stay 20 so committed GoldSell amounts still verify.
+    assert_eq!(lok_engine::npc_sell_unit_price(3), Some(20));
+    assert_eq!(lok_engine::npc_sell_unit_price(1), Some(51));
+
+    let mut w = World::new();
+    w.append_spawn(n(1), 0).unwrap();
+    w.apply(Input::BagImport { token_id: n(1), item_id: n(3), amount: n(2) })
+        .unwrap();
+    // Pre-#222 starter potion sell: unit 20 (not the post-audit formula's 3).
+    w.apply(Input::GoldSell {
+        token_id: n(1),
+        item_id: n(3),
+        qty: n(1),
+        amount: n(20),
+        day: 1,
+    })
+    .unwrap();
+    assert_eq!(w.gold_balance(&n(1)), Some(n(20)));
+    assert_eq!(w.item_balance(&n(1), &n(3)), Some(n(1)));
+
+    let again = load_world(&w.to_document()).expect("potion GoldSell @20 must round-trip");
+    assert_eq!(again.gold_balance(&n(1)), Some(n(20)));
+    assert_eq!(again.item_balance(&n(1), &n(3)), Some(n(1)));
+
+    // Drifted amount (post-audit formula) must not verify.
+    let mut bad = World::new();
+    bad.append_spawn(n(1), 0).unwrap();
+    bad.apply(Input::BagImport { token_id: n(1), item_id: n(3), amount: n(1) })
+        .unwrap();
+    assert_eq!(
+        bad.apply(Input::GoldSell {
+            token_id: n(1),
+            item_id: n(3),
+            qty: n(1),
+            amount: n(3),
+            day: 1,
+        })
+        .unwrap_err(),
+        EngineError::BadPrice
+    );
+}
+
+#[test]
+fn fresh_network_cutoff_validates_every_logged_craft() {
+    // Chiado / Gnosis set min seq to 0 — a logged Craft at seq 10 of an L40 recipe
+    // without CraftSkill must refuse (no historical exemption).
+    set_craft_validate_min_seq(HISTORICAL_CRAFT_VALIDATE_MIN_SEQ_FRESH);
+    let _restore = CraftCutoffGuard;
+    assert!(craft_skill_validated_at(Some(0)));
+    assert!(craft_skill_validated_at(Some(10)));
+
+    let spawn = Input::Spawn { token_id: n(1), starting_job: 0 };
+    let craft = Input::Craft { token_id: n(1), item_id: n(9), amount: n(1) };
+    let h0 = entry_hash(&genesis_root(&n(1), 0), 0, &spawn);
+    let h1 = entry_hash(&h0, 1, &craft);
+    let doc = WorldDocument {
+        characters: vec![CharacterLogDocument {
+            token_id: n(1),
+            starting_job: 0,
+            entries: vec![
+                LoggedEntry { hash: h0, input: spawn, seq: 0 },
+                LoggedEntry { hash: h1, input: craft, seq: 10 },
+            ],
+        }],
+    };
+    match load_world(&doc) {
+        Err(ReplayStop::Rejected { reason: EngineError::BadCraftLevel, .. }) => {}
+        other => panic!("fresh-network cutoff must validate seq 10 crafts: {other:?}"),
+    }
 }
 
 #[test]

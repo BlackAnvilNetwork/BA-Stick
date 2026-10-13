@@ -13,7 +13,37 @@ const JOB_ABBR: Record<string, string> = {
   time_mage: "TM",
 };
 
-const PRIMARY_STAT_KEYS = ["def", "atk", "mab", "mdb", "acc", "eva", "hp", "mp"] as const;
+const PRIMARY_STAT_KEYS = [
+  "def",
+  "atk",
+  "mab",
+  "mdb",
+  "acc",
+  "eva",
+  "hp",
+  "mp",
+  "regen",
+  "healPotency",
+] as const;
+
+const STAT_LABEL: Record<string, string> = {
+  def: "DEF",
+  atk: "ATK",
+  mab: "MAB",
+  mdb: "MDB",
+  acc: "ACC",
+  eva: "EVA",
+  hp: "HP",
+  mp: "MP",
+  regen: "Regen",
+  healPotency: "Healing Potency",
+  str: "STR",
+  dex: "DEX",
+  vit: "VIT",
+  agi: "AGI",
+  int: "INT",
+  mnd: "MND",
+};
 
 function formatSigned(v: number): string {
   return `${v > 0 ? "+" : ""}${v}`;
@@ -40,11 +70,11 @@ export function formatPrimaryEffects(stats: ItemStats | undefined, consumeHp?: n
   }
 
   const effects = Object.entries(entries)
-    .map(([k, v]) => `${k.toUpperCase()} ${formatSigned(v)}`)
+    .map(([k, v]) => `${STAT_LABEL[k] ?? k.toUpperCase()} ${formatSigned(v)}`)
     .join(" / ");
 
   if (primaryKey == null) return effects;
-  const head = `${primaryKey.toUpperCase()}: ${primaryVal}`;
+  const head = `${STAT_LABEL[primaryKey] ?? primaryKey.toUpperCase()}: ${primaryVal}`;
   return effects ? `${head} / ${effects}` : head;
 }
 
@@ -81,6 +111,8 @@ function tipStyle(anchor: Anchor): CSSProperties {
 export function ItemCatalogDetails({ tokenId }: { tokenId: number }) {
   const def = getItem(tokenId);
   const name = def?.name ?? "Item " + tokenId;
+  const rarity = def?.rarity;
+  const title = rarity ? `${name} [${rarity}]` : name;
   const statsLine = formatPrimaryEffects(def?.stats, def?.consume?.hp);
   const jobsLine = formatJobs(def?.jobRestrict);
   const ilevel = def?.craftLevel;
@@ -97,7 +129,7 @@ export function ItemCatalogDetails({ tokenId }: { tokenId: number }) {
         }}
       />
       <div className="item-hover-copy">
-        <div className="skill-tip-title">{name}</div>
+        <div className="skill-tip-title">{title}</div>
         {statsLine ? <div className="equip-item-stats">{statsLine}</div> : null}
         {(ilevel != null || jobsLine) && (
           <div className="equip-item-meta">

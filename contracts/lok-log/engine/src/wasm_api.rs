@@ -41,6 +41,13 @@ pub extern "C" fn lok_out_len() -> usize {
     unsafe { OUT.len() }
 }
 
+/// Set the craft skill-validation cutoff (global world seq) before `lok_open`.
+/// Fresh networks (Chiado / Gnosis) pass 0; legacy local anvil passes 175.
+#[no_mangle]
+pub extern "C" fn lok_set_craft_validate_min_seq(min_seq: u32) {
+    crate::event::set_craft_validate_min_seq(u64::from(min_seq));
+}
+
 /// 0 = opened. Nonzero = refused (bad hash, parse error). Message is in the out buffer.
 #[no_mangle]
 pub extern "C" fn lok_open(ptr: *const u8, len: usize) -> i32 {

@@ -9,7 +9,14 @@
   ConsumeEffect,
   ItemDef,
 } from "./types";
-export { EQUIP_SLOTS, hqStats, budgetPoints } from "./types";
+export {
+  EQUIP_SLOTS,
+  hqStats,
+  budgetPoints,
+  craftGoldCost,
+  craftOutputQty,
+  type ItemRarity,
+} from "./types";
 export { CATALOG, CATALOG_BY_ID, CATALOG_BY_SLUG } from "./catalog.generated";
 export {
   CRAFT_SKILLS,
@@ -38,9 +45,12 @@ export { npcSellUnitGold, npcSellTotalGold } from "./npc-sell";
 export { chainFungibleId, chainUniqueId, chainFungibleIdHex } from "./chain-ids";
 export {
   EXPORTABLE_BASE_SLUGS,
+  LIVE_BASE_SLUGS,
+  ALL_BASE_SLUGS,
   catalogIdToChainFungibleId,
   exportableFungibles,
   itemsSeedSlugsCsv,
+  isLaunchExportableFungible,
   type ExportableFungible,
 } from "./exportable-slugs";
 

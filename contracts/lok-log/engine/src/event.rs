@@ -1,5 +1,7 @@
 //! Inputs applied to state, and the outcome of a successful apply.
 
+use std::sync::atomic::{AtomicU64, Ordering};
+
 use crate::abi::{keccak256, Buf};
 use crate::ids::spawn_tag;
 use crate::u256::U256;
@@ -18,9 +20,43 @@ use crate::u256::U256;
 /// `logHash` / `stateRoot` checkpoints do that.
 pub const HISTORICAL_ITEM_DROP_MAX_SEQ: u64 = 174;
 
+/// Legacy Black Anvil / local anvil world: crafts logged below this global seq
+/// skip recipe/skill checks on replay (pre-#222 logs, seq 0..=174).
+pub const HISTORICAL_CRAFT_VALIDATE_MIN_SEQ_LEGACY: u64 = 175;
+
+/// Fresh networks (Chiado, Gnosis): every logged craft is validated.
+pub const HISTORICAL_CRAFT_VALIDATE_MIN_SEQ_FRESH: u64 = 0;
+
+/// Default runtime bound — legacy anvil quarantine. The game server sets
+/// [`HISTORICAL_CRAFT_VALIDATE_MIN_SEQ_FRESH`] on Chiado/Gnosis before `lok_open`.
+/// Prefer [`craft_validate_min_seq`] at apply time.
+pub const HISTORICAL_CRAFT_VALIDATE_MIN_SEQ: u64 = HISTORICAL_CRAFT_VALIDATE_MIN_SEQ_LEGACY;
+
+static CRAFT_VALIDATE_MIN_SEQ: AtomicU64 = AtomicU64::new(HISTORICAL_CRAFT_VALIDATE_MIN_SEQ_LEGACY);
+
+/// Override the craft-validation cutoff (per network / ruleset). Call before replaying a log.
+pub fn set_craft_validate_min_seq(min_seq: u64) {
+    CRAFT_VALIDATE_MIN_SEQ.store(min_seq, Ordering::SeqCst);
+}
+
+/// Current craft-validation cutoff (global world seq).
+pub fn craft_validate_min_seq() -> u64 {
+    CRAFT_VALIDATE_MIN_SEQ.load(Ordering::SeqCst)
+}
+
 /// True when a logged `ItemDrop` at `seq` keeps its historical meaning (credit).
 pub fn item_drop_credits_at(seq: u64) -> bool {
     seq <= HISTORICAL_ITEM_DROP_MAX_SEQ
+}
+
+/// True when craft recipe/skill checks run for this apply.
+/// New appends (`None`) always validate; logged entries validate only at/after
+/// [`craft_validate_min_seq`].
+pub fn craft_skill_validated_at(logged_seq: Option<u64>) -> bool {
+    match logged_seq {
+        None => true,
+        Some(seq) => seq >= craft_validate_min_seq(),
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

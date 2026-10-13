@@ -54,7 +54,7 @@ mod tests {
         assert_eq!(npc_sell_unit_price(0), None);
         // equipment id 1
         assert!(npc_sell_unit_price(1).unwrap() >= 15);
-        // consumable id 3
+        // consumable id 3 — pinned pre-#222 unit (Potion = 20)
         assert_eq!(npc_sell_unit_price(3), Some(20));
         // filler-ish mid catalog — must not be 40+ band arithmetic
         // base material 486 (Pale Flax)

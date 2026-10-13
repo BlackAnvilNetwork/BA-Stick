@@ -1339,7 +1339,7 @@ impl World {
             }
             Input::Craft { token_id, item_id, amount } => {
                 if touch.contains(token_id) {
-                    self.note_craft(*token_id, *item_id, *amount)?;
+                    self.note_craft(*token_id, *item_id, *amount, logged_seq)?;
                 }
                 Ok(())
             }
@@ -1476,7 +1476,13 @@ impl World {
         Ok(())
     }
 
-    fn note_craft(&mut self, token_id: U256, item_id: U256, amount: U256) -> Result<(), EngineError> {
+    fn note_craft(
+        &mut self,
+        token_id: U256,
+        item_id: U256,
+        amount: U256,
+        logged_seq: Option<u64>,
+    ) -> Result<(), EngineError> {
         if item_id == U256::ZERO {
             return Err(EngineError::BadId);
         }
@@ -1484,6 +1490,21 @@ impl World {
             return Err(EngineError::ZeroAmount);
         }
         let ch = self.characters.get_mut(&token_id).ok_or(EngineError::NotSpawned)?;
+        // Known catalog recipes require craft skill on new appends / post-cutoff seq.
+        if crate::event::craft_skill_validated_at(logged_seq) && item_id.0[..24].iter().all(|b| *b == 0) {
+            let id = u64::from_be_bytes(item_id.0[24..].try_into().expect("8 bytes"));
+            if let Some(recipe) = crate::craft_recipe_data::craft_recipe(id) {
+                if recipe.output_qty == 0 {
+                    return Err(EngineError::BadCraftRecipe);
+                }
+                let skill = crate::craft_recipe_data::skill_label(recipe.skill).ok_or(EngineError::BadId)?;
+                let raw = ch.craft_skills.get(skill).copied().unwrap_or(0);
+                let have = if raw == 0 { 1 } else { raw };
+                if have < u32::from(recipe.level) {
+                    return Err(EngineError::BadCraftLevel);
+                }
+            }
+        }
         ch.state.add_count(Key::Craft(item_id), amount).map_err(|_| EngineError::Overflow)?;
         Ok(())
     }
