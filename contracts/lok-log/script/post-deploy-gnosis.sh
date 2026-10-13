@@ -7,7 +7,29 @@ cd "$ROOT"
 
 RPC_URL="${RPC_URL:-${GNOSIS_RPC_URL:-https://rpc.gnosischain.com}}"
 : "${RPC_URL:?}"
-: "${PRIVATE_KEY:?}"
+
+ensure_private_key() {
+  if [[ -n "${PRIVATE_KEY:-}" ]] && cast wallet address --private-key "$PRIVATE_KEY" >/dev/null 2>&1; then
+    return 0
+  fi
+  local env_file="${LOK_DEPLOY_ENV_FILE:-$ROOT/.env}"
+  if [[ ! -f "$env_file" ]]; then
+    echo "post-deploy-gnosis: PRIVATE_KEY missing or invalid and no $env_file" >&2
+    exit 1
+  fi
+  PRIVATE_KEY="$(
+    python3 - <<'PY' "$env_file"
+import re, sys
+text = open(sys.argv[1]).read()
+m = re.search(r"^PRIVATE_KEY=(.*)$", text, re.M)
+if not m:
+    sys.exit(1)
+print(m.group(1).strip().strip('"').strip("'"))
+PY
+  )" || exit 1
+  export PRIVATE_KEY
+}
+ensure_private_key
 : "${ADMIN:?}"
 : "${LISTING:?}"
 : "${ROTATOR:?}"

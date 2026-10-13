@@ -15,7 +15,33 @@ cd "$ROOT"
 
 RPC_URL="${RPC_URL:-${GNOSIS_RPC_URL:-https://rpc.gnosischain.com}}"
 : "${RPC_URL:?set RPC_URL or GNOSIS_RPC_URL}"
-: "${PRIVATE_KEY:?}"
+
+# Cloud shells often export a placeholder PRIVATE_KEY; prefer lok-log/.env when decode fails.
+ensure_private_key() {
+  if [[ -n "${PRIVATE_KEY:-}" ]] && cast wallet address --private-key "$PRIVATE_KEY" >/dev/null 2>&1; then
+    return 0
+  fi
+  local env_file="${LOK_DEPLOY_ENV_FILE:-$ROOT/.env}"
+  if [[ ! -f "$env_file" ]]; then
+    echo "broadcast-deploy-gnosis: PRIVATE_KEY missing or invalid and no $env_file" >&2
+    exit 1
+  fi
+  PRIVATE_KEY="$(
+    python3 - <<'PY' "$env_file"
+import re, sys
+text = open(sys.argv[1]).read()
+m = re.search(r"^PRIVATE_KEY=(.*)$", text, re.M)
+if not m:
+    sys.exit(1)
+print(m.group(1).strip().strip('"').strip("'"))
+PY
+  )" || {
+    echo "broadcast-deploy-gnosis: could not read PRIVATE_KEY from $env_file" >&2
+    exit 1
+  }
+  export PRIVATE_KEY
+}
+ensure_private_key
 : "${ADMIN:?}"
 : "${FEE_RECIPIENT:?}"
 : "${LISTING:?}"
@@ -39,15 +65,19 @@ fi
 
 export CHAIN_ID="${CHAIN_ID:-100}"
 export FOUNDRY_ETH_RPC_URL="$RPC_URL"
+DEPLOYER="$(cast wallet address --private-key "$PRIVATE_KEY")"
+export DEPLOYER
+FORGE_BROADCAST_ARGS=(--private-key "$PRIVATE_KEY" --sender "$DEPLOYER")
 
 if [[ -z "${TIMELOCK:-}" ]]; then
-  echo "[broadcast-deploy-gnosis] deploying TimelockController to $RPC_LOG"
+  echo "[broadcast-deploy-gnosis] deploying TimelockController to $RPC_LOG (from $DEPLOYER)"
   TL_LOG="$(mktemp)"
   forge script script/DeployTimelock.s.sol:DeployTimelock \
     --rpc-url "$RPC_URL" \
     --broadcast \
     --slow \
     --sig "run()" \
+    "${FORGE_BROADCAST_ARGS[@]}" \
     -vv | tee "$TL_LOG"
   export TIMELOCK="$(grep -E '^[[:space:]]*TimelockController[[:space:]]+0x' "$TL_LOG" | tail -1 | grep -oE '0x[a-fA-F0-9]{40}' | head -1 || true)"
   rm -f "$TL_LOG"
@@ -67,6 +97,7 @@ forge script script/DeployChiado.s.sol:DeployChiado \
   --broadcast \
   --slow \
   --sig "run()" \
+  "${FORGE_BROADCAST_ARGS[@]}" \
   -vv | tee "$LOG"
 
 if [[ "${VERIFY:-}" != "1" ]]; then
@@ -85,7 +116,7 @@ export FACTORY_IMPL="$(pick factoryImpl)"
 export RULESETS_IMPL="$(pick rulesetsImpl)"
 export AH_ESCROW="$(pick AhEscrow)"
 export NFT_PROXY="$(pick CharacterNFT)"
-export DEPLOYER="$(cast wallet address --private-key "$PRIVATE_KEY")"
+export DEPLOYER="${DEPLOYER:-$(cast wallet address --private-key "$PRIVATE_KEY")}"
 export FEE_RECIPIENT="${FEE_RECIPIENT}"
 export CHAIN_ID="${CHAIN_ID:-100}"
 export VERIFIERS="${VERIFIERS:-sourcify blockscout}"
