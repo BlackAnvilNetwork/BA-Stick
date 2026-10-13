@@ -38,15 +38,15 @@ fn game_state_events_replay_and_a_bad_event_does_not_append() {
     );
     assert_eq!(world.len(), len);
 
-    // Non-catalog counter ids stay recipe-free (catalog recipes enforce craft skill).
+    // Bone Ring (313) is leathercraft-adjacent bonecraft L1 — default skill rank 1 is enough.
     world
-        .apply(Input::Craft { token_id: n(1), item_id: n(900_001), amount: n(1) })
+        .apply(Input::Craft { token_id: n(1), item_id: n(313), amount: n(1) })
         .unwrap();
     world
-        .apply(Input::Craft { token_id: n(1), item_id: n(900_001), amount: n(2) })
+        .apply(Input::Craft { token_id: n(1), item_id: n(313), amount: n(2) })
         .unwrap();
-    assert_eq!(world.crafted(&n(1), &n(900_001)), Some(n(3)));
-    assert_eq!(world.item_balance(&n(1), &n(900_001)), Some(n(0)));
+    assert_eq!(world.crafted(&n(1), &n(313)), Some(n(3)));
+    assert_eq!(world.item_balance(&n(1), &n(313)), Some(n(0)));
     assert_eq!(
         world.apply(Input::Craft { token_id: n(1), item_id: n(0), amount: n(1) }).unwrap_err(),
         EngineError::BadId
@@ -98,7 +98,7 @@ fn game_state_events_replay_and_a_bad_event_does_not_append() {
     let again = load_world(&world.to_document()).expect("replay");
     assert_eq!(again.level(&n(1)), Some(2));
     assert!(again.knows(&n(1), "fire"));
-    assert_eq!(again.crafted(&n(1), &n(900_001)), Some(n(3)));
+    assert_eq!(again.crafted(&n(1), &n(313)), Some(n(3)));
     assert_eq!(again.harvested(&n(1), "dustgrain"), Some(n(1)));
     assert_eq!(again.dropped(&n(1), &n(7)), Some(n(2)));
     assert_eq!(again.item_balance(&n(1), &n(7)), Some(U256::ZERO));
@@ -123,7 +123,7 @@ fn lone_engine_records_level_and_drop_without_minting_kek() {
         .apply(Input::LearnAbility { token_id: n(1), ability_id: "hub".into() })
         .unwrap();
     engine
-        .apply(Input::Craft { token_id: n(1), item_id: n(900_002), amount: n(1) })
+        .apply(Input::Craft { token_id: n(1), item_id: n(313), amount: n(1) })
         .unwrap();
     engine
         .apply(Input::Harvest { token_id: n(1), material_id: "ore".into(), amount: n(3) })
@@ -131,7 +131,7 @@ fn lone_engine_records_level_and_drop_without_minting_kek() {
     assert_eq!(engine.state().level_u32(), 2);
     assert_eq!(engine.state().get(&Key::Item(n(4))), U256::ZERO);
     assert_eq!(engine.state().get(&Key::Drop(n(4))), n(1));
-    assert_eq!(engine.state().get(&Key::Craft(n(900_002))), n(1));
+    assert_eq!(engine.state().get(&Key::Craft(n(313))), n(1));
     assert_eq!(engine.state().get(&Key::Kek), U256::ZERO);
     let before = engine.len();
     assert_eq!(

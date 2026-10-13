@@ -51,7 +51,6 @@ export {
   exportableFungibles,
   itemsSeedSlugsCsv,
   isLaunchExportableFungible,
-  isLaunchExportableEquipment,
   type ExportableFungible,
 } from "./exportable-slugs";
 

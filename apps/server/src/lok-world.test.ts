@@ -206,10 +206,15 @@ test("level, ability, craft, harvest, and drop replay and a bad event does not a
   if (!againAbility.ok) assert.match(againAbility.error, /already known/i);
   assert.equal(lok.length, len + 1);
 
-  assert.equal(lok.craft(a.tokenId, "9", "1").ok, true);
-  assert.equal(lok.craftOf(a.tokenId, "9"), "1");
-  assert.equal(lok.itemOf(a.tokenId, "9"), "0");
+  // Bone Ring (313) is bonecraft L1 — default skill rank 1 is enough.
+  assert.equal(lok.craft(a.tokenId, "313", "1").ok, true);
+  assert.equal(lok.craftOf(a.tokenId, "313"), "1");
+  assert.equal(lok.itemOf(a.tokenId, "313"), "0");
   assert.equal(lok.kekOf(a.tokenId), "0");
+  // Scale Harness (9) is leathercraft L40 — refused without CraftSkill.
+  const underleveled = lok.craft(a.tokenId, "9", "1");
+  assert.equal(underleveled.ok, false);
+  if (!underleveled.ok) assert.match(underleveled.error, /craft skill|too low|BadCraftLevel/i);
   const badCraft = lok.craft(a.tokenId, "0", "1");
   assert.equal(badCraft.ok, false);
 
@@ -239,7 +244,8 @@ test("level, ability, craft, harvest, and drop replay and a bad event does not a
   const again = LokWorld.open(dir, undefined, {});
   assert.equal(again.levelOf(a.tokenId), 2);
   assert.equal(again.hasAbility(a.tokenId, "fire"), true);
-  assert.equal(again.craftOf(a.tokenId, "9"), "1");
+  assert.equal(again.craftOf(a.tokenId, "313"), "1");
+  assert.equal(again.craftOf(a.tokenId, "9"), "0");
   assert.equal(again.harvestOf(a.tokenId, "dustgrain"), "2");
   assert.equal(again.dropOf(a.tokenId, "7"), "3");
   assert.equal(again.itemOf(a.tokenId, "7"), "2");

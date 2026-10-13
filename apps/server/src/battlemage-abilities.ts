@@ -9,7 +9,7 @@ import {
 } from "@bellgrave/combat";
 import { signatureWeaponEquipped } from "./starter-kit";
 import { kitLevel } from "./support-job";
-import { withGearMab } from "./gear-combat";
+import { withGearMab, withHealPotency } from "./gear-combat";
 import type { AbilityId } from "@bellgrave/protocol";
 
 export type BattleMagePlayer = {
@@ -318,7 +318,7 @@ export function resolveBattleMageAbility(
   // Self heals
   if (id === "bm_cure" || id === "bm_cure_ii" || id === "bm_cure_iii" || id === "bm_cure_iv") {
     spend();
-    const heal = Math.floor((def.heal ?? 35) + combatStats.mnd * 1.1);
+    const heal = withHealPotency(p, Math.floor((def.heal ?? 35) + combatStats.mnd * 1.1));
     p.hp = Math.min(p.maxHp, p.hp + heal);
     p.anim = "cast";
     p.animUntil = now + castAnimMs;

@@ -11,7 +11,7 @@ import {
 } from "@bellgrave/combat";
 import { signatureWeaponEquipped } from "./starter-kit";
 import { kitLevel } from "./support-job";
-import { withGearMab } from "./gear-combat";
+import { withGearMab, withHealPotency } from "./gear-combat";
 import type { AbilityId } from "@bellgrave/protocol";
 
 export type TimPlayer = {
@@ -305,7 +305,10 @@ export function resolveTimAbility(
   // Heals
   if (def.category === "heal" && def.heal) {
     const { mnd } = combatStats;
-    const heal = Math.floor((def.heal + mnd * 1.5) * (p.aether ? 1.05 : 1));
+    const heal = withHealPotency(
+      p,
+      Math.floor((def.heal + mnd * 1.5) * (p.aether ? 1.05 : 1)),
+    );
     p.hp = Math.min(p.maxHp, p.hp + heal);
     hooks.pushLog(`${def.label} restores ${heal} HP.`);
     return true;

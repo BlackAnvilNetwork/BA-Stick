@@ -9,7 +9,7 @@ import {
 } from "@bellgrave/combat";
 import { signatureWeaponEquipped } from "./starter-kit";
 import { kitLevel } from "./support-job";
-import { withGearMab } from "./gear-combat";
+import { gearHealPotency, withGearMab, withHealPotency } from "./gear-combat";
 import type { AbilityId } from "@bellgrave/protocol";
 
 export type ClericPlayer = {
@@ -135,9 +135,7 @@ function healPower(p: ClericPlayer, base: number, double: boolean, stats: { mnd:
   const { mnd } = stats;
   let amt = Math.floor(base + mnd * 2.8);
   if (double) amt *= 2;
-  const potency = Math.max(0, Math.floor(p.gearHealPotency ?? 0));
-  if (potency > 0) amt = Math.floor((amt * (100 + potency)) / 100);
-  return Math.max(1, amt);
+  return withHealPotency(p, amt, p.gearHealPotency ?? gearHealPotency(p));
 }
 
 function divineNuke(p: ClericPlayer, potency: number, double: boolean, stats: { mnd: number }): number {
@@ -303,7 +301,11 @@ export function resolveClericAbility(
     p.martyrReadyUntil = now + (def.durationMs ?? 30_000);
     const sacrifice = Math.floor(p.maxHp * 0.15);
     p.hp = Math.max(1, p.hp - sacrifice);
-    const heal = sacrifice + Math.floor(combatStats.mnd * 2);
+    const heal = withHealPotency(
+      p,
+      sacrifice + Math.floor(combatStats.mnd * 2),
+      p.gearHealPotency ?? gearHealPotency(p),
+    );
     applyHeal(p, ally, heal, now, hooks, def.label);
     p.anim = "cast";
     p.animUntil = now + 600;

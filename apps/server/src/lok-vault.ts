@@ -3,23 +3,26 @@
  * shared owner-key queue (no private key on the cast argv).
  */
 import { isSettlementChain, settlementCurrencyView } from "@bellgrave/config";
-import { createPublicClient, createWalletClient, http, type Chain, type Hex } from "viem";
+import { createPublicClient, createWalletClient, http, keccak256, toBytes, type Chain, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { renameSync, writeFileSync } from "node:fs";
 import { withOwnerKeyQueue } from "./owner-tx-queue";
 
-/** Accepted on the local anvil only. Not a mainnet ruleset. Bumped with items-audit craft validation. */
-export const LOCAL_RULESET_HASH = "0xc8f5e2d0b9a7631f4e8d7c6b5a49392817f1e2d3c4b5a69788796b5c4d3e2f1a";
+/**
+ * sha256 of the checked-in engine bundle (contracts/lok-log/engine/pkg/lok_engine.wasm).
+ * lok-ruleset-pin.test.ts fails when the checked-in wasm drifts from it. When the engine changes:
+ * rebuild with contracts/lok-log/engine/scripts/check-wasm-pin.mjs --install, update this pin
+ * (LOCAL_RULESET_HASH derives automatically), and do not propose a mainnet ruleset until review
+ * HIGH items for this engine change have landed.
+ */
+export const LOCAL_RULESET_WASM_SHA256 = "57e91c9e4b05591140f3765cd2cf89c9a9f2b3ef6921a2adb27543f3cb9c010a";
 
 /**
- * sha256 of the checked-in engine bundle (contracts/lok-log/engine/pkg/lok_engine.wasm) that
- * checkpoints signed under LOCAL_RULESET_HASH are computed with. LOCAL_RULESET_HASH is an opaque id
- * registered on the local anvil; it is not derived from the wasm, so this pin is the binding.
- * lok-ruleset-pin.test.ts fails when the checked-in wasm drifts from it. When the engine changes on
- * purpose: rebuild the wasm, run contracts/lok-log/engine/scripts/check-wasm-pin.mjs, update this pin,
- * and on any non-local network propose a new ruleset hash for the new bundle.
+ * Local-anvil-only ruleset id derived from the wasm pin:
+ * `keccak256(utf8(LOCAL_RULESET_WASM_SHA256))`. Not a mainnet proposal — mainnet must use an
+ * explicit propose after HIGH replay gates are fixed.
  */
-export const LOCAL_RULESET_WASM_SHA256 = "6dd264ac721db0e737232e0f2a2a15b7e8e190bcc41a750b826fef8f2aafc577";
+export const LOCAL_RULESET_HASH = keccak256(toBytes(LOCAL_RULESET_WASM_SHA256));
 
 export const LOCAL_ANVIL_CHAIN_ID = 31337n;
 

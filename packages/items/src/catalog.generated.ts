@@ -375,7 +375,11 @@ export const CATALOG: ItemDef[] = [
     "kind": "filler",
     "craftLevel": 20,
     "craftSkill": "woodworking",
-    "craftOutputQty": 12
+    "craftOutputQty": 12,
+    "recipe": {
+      "gold": 450,
+      "materialsText": "Ashbeam Lumber×1, Pale Dust×1"
+    }
   },
   {
     "id": 20,
@@ -812,7 +816,11 @@ export const CATALOG: ItemDef[] = [
     "kind": "filler",
     "craftLevel": 19,
     "craftSkill": "leathercraft",
-    "craftOutputQty": 4
+    "craftOutputQty": 4,
+    "recipe": {
+      "gold": 430,
+      "materialsText": "Leather×1, Pale Dust×1"
+    }
   },
   {
     "id": 44,
@@ -1391,7 +1399,11 @@ export const CATALOG: ItemDef[] = [
     "kind": "filler",
     "craftLevel": 9,
     "craftSkill": "goldsmithing",
-    "craftOutputQty": 4
+    "craftOutputQty": 4,
+    "recipe": {
+      "gold": 230,
+      "materialsText": "Copper Ore×1, Pale Dust×1"
+    }
   },
   {
     "id": 90,
@@ -1401,7 +1413,11 @@ export const CATALOG: ItemDef[] = [
     "slug": "copper-goldsmith-royal-setting",
     "kind": "filler",
     "craftLevel": 17,
-    "craftSkill": "goldsmithing"
+    "craftSkill": "goldsmithing",
+    "recipe": {
+      "gold": 390,
+      "materialsText": "Copper Ore×1, Pale Dust×1"
+    }
   },
   {
     "id": 91,
@@ -1411,7 +1427,11 @@ export const CATALOG: ItemDef[] = [
     "slug": "copper-goldsmith-accent-socket",
     "kind": "filler",
     "craftLevel": 19,
-    "craftSkill": "goldsmithing"
+    "craftSkill": "goldsmithing",
+    "recipe": {
+      "gold": 430,
+      "materialsText": "Copper Ore×1, Pale Dust×1"
+    }
   },
   {
     "id": 92,
@@ -1731,7 +1751,11 @@ export const CATALOG: ItemDef[] = [
     "slug": "bronze-sallet",
     "kind": "filler",
     "craftLevel": 16,
-    "craftSkill": "smithing"
+    "craftSkill": "smithing",
+    "recipe": {
+      "gold": 370,
+      "materialsText": "Bronze Ingot×1, Pale Dust×1"
+    }
   },
   {
     "id": 111,
@@ -2706,7 +2730,11 @@ export const CATALOG: ItemDef[] = [
     "slug": "ashbeam-cane",
     "kind": "filler",
     "craftLevel": 3,
-    "craftSkill": "woodworking"
+    "craftSkill": "woodworking",
+    "recipe": {
+      "gold": 110,
+      "materialsText": "Ashbeam Lumber×1, Pale Dust×1"
+    }
   },
   {
     "id": 162,
@@ -2736,7 +2764,11 @@ export const CATALOG: ItemDef[] = [
     "slug": "ashbeam-flatbow",
     "kind": "filler",
     "craftLevel": 8,
-    "craftSkill": "woodworking"
+    "craftSkill": "woodworking",
+    "recipe": {
+      "gold": 210,
+      "materialsText": "Ashbeam Lumber×1, Pale Dust×1"
+    }
   },
   {
     "id": 164,
@@ -2756,7 +2788,11 @@ export const CATALOG: ItemDef[] = [
     "slug": "ashbeam-bow-stave",
     "kind": "filler",
     "craftLevel": 12,
-    "craftSkill": "woodworking"
+    "craftSkill": "woodworking",
+    "recipe": {
+      "gold": 290,
+      "materialsText": "Ashbeam Lumber×1, Pale Dust×1"
+    }
   },
   {
     "id": 166,
@@ -2766,7 +2802,11 @@ export const CATALOG: ItemDef[] = [
     "slug": "ashbeam-shield-rim",
     "kind": "filler",
     "craftLevel": 14,
-    "craftSkill": "woodworking"
+    "craftSkill": "woodworking",
+    "recipe": {
+      "gold": 330,
+      "materialsText": "Ashbeam Lumber×1, Pale Dust×1"
+    }
   },
   {
     "id": 167,
@@ -3354,7 +3394,11 @@ export const CATALOG: ItemDef[] = [
     "slug": "leather-bracer",
     "kind": "filler",
     "craftLevel": 3,
-    "craftSkill": "leathercraft"
+    "craftSkill": "leathercraft",
+    "recipe": {
+      "gold": 110,
+      "materialsText": "Leather×1, Pale Dust×1"
+    }
   },
   {
     "id": 211,
@@ -3468,7 +3512,11 @@ export const CATALOG: ItemDef[] = [
     "slug": "leather-oil-cure",
     "kind": "filler",
     "craftLevel": 12,
-    "craftSkill": "leathercraft"
+    "craftSkill": "leathercraft",
+    "recipe": {
+      "gold": 290,
+      "materialsText": "Leather×1, Pale Dust×1"
+    }
   },
   {
     "id": 216,
@@ -3478,7 +3526,11 @@ export const CATALOG: ItemDef[] = [
     "slug": "leather-emboss-kit",
     "kind": "filler",
     "craftLevel": 14,
-    "craftSkill": "leathercraft"
+    "craftSkill": "leathercraft",
+    "recipe": {
+      "gold": 330,
+      "materialsText": "Leather×1, Pale Dust×1"
+    }
   },
   {
     "id": 217,
@@ -3508,7 +3560,11 @@ export const CATALOG: ItemDef[] = [
     "slug": "leather-hardened-vest",
     "kind": "filler",
     "craftLevel": 17,
-    "craftSkill": "leathercraft"
+    "craftSkill": "leathercraft",
+    "recipe": {
+      "gold": 390,
+      "materialsText": "Leather×1, Pale Dust×1"
+    }
   },
   {
     "id": 219,
@@ -4247,7 +4303,11 @@ export const CATALOG: ItemDef[] = [
     "slug": "linen-capelet",
     "kind": "filler",
     "craftLevel": 3,
-    "craftSkill": "clothcraft"
+    "craftSkill": "clothcraft",
+    "recipe": {
+      "gold": 110,
+      "materialsText": "Linen Cloth×1, Pale Dust×1"
+    }
   },
   {
     "id": 264,
@@ -4366,7 +4426,11 @@ export const CATALOG: ItemDef[] = [
     "slug": "linen-undersleeves",
     "kind": "filler",
     "craftLevel": 12,
-    "craftSkill": "clothcraft"
+    "craftSkill": "clothcraft",
+    "recipe": {
+      "gold": 290,
+      "materialsText": "Linen Cloth×1, Pale Dust×1"
+    }
   },
   {
     "id": 269,
@@ -4376,7 +4440,11 @@ export const CATALOG: ItemDef[] = [
     "slug": "linen-scroll-bind",
     "kind": "filler",
     "craftLevel": 14,
-    "craftSkill": "clothcraft"
+    "craftSkill": "clothcraft",
+    "recipe": {
+      "gold": 330,
+      "materialsText": "Linen Cloth×1, Pale Dust×1"
+    }
   },
   {
     "id": 270,
@@ -4386,7 +4454,11 @@ export const CATALOG: ItemDef[] = [
     "slug": "linen-hood-blank",
     "kind": "filler",
     "craftLevel": 16,
-    "craftSkill": "clothcraft"
+    "craftSkill": "clothcraft",
+    "recipe": {
+      "gold": 370,
+      "materialsText": "Linen Cloth×1, Pale Dust×1"
+    }
   },
   {
     "id": 271,
@@ -4396,7 +4468,11 @@ export const CATALOG: ItemDef[] = [
     "slug": "linen-sanctified-patch",
     "kind": "filler",
     "craftLevel": 18,
-    "craftSkill": "clothcraft"
+    "craftSkill": "clothcraft",
+    "recipe": {
+      "gold": 410,
+      "materialsText": "Linen Cloth×1, Pale Dust×1"
+    }
   },
   {
     "id": 272,
@@ -5194,7 +5270,11 @@ export const CATALOG: ItemDef[] = [
     "slug": "bone-knuckles",
     "kind": "filler",
     "craftLevel": 7,
-    "craftSkill": "bonecraft"
+    "craftSkill": "bonecraft",
+    "recipe": {
+      "gold": 190,
+      "materialsText": "Bone Chip×2, Pale Dust×1"
+    }
   },
   {
     "id": 317,
@@ -5230,7 +5310,11 @@ export const CATALOG: ItemDef[] = [
     "slug": "bone-greave-blank",
     "kind": "filler",
     "craftLevel": 10,
-    "craftSkill": "bonecraft"
+    "craftSkill": "bonecraft",
+    "recipe": {
+      "gold": 250,
+      "materialsText": "Bone Chip×2, Pale Dust×1"
+    }
   },
   {
     "id": 319,
@@ -5265,7 +5349,11 @@ export const CATALOG: ItemDef[] = [
     "slug": "bone-shell-buckle",
     "kind": "filler",
     "craftLevel": 14,
-    "craftSkill": "bonecraft"
+    "craftSkill": "bonecraft",
+    "recipe": {
+      "gold": 330,
+      "materialsText": "Bone Chip×2, Pale Dust×1"
+    }
   },
   {
     "id": 321,
@@ -5275,7 +5363,11 @@ export const CATALOG: ItemDef[] = [
     "slug": "bone-skull-charm",
     "kind": "filler",
     "craftLevel": 16,
-    "craftSkill": "bonecraft"
+    "craftSkill": "bonecraft",
+    "recipe": {
+      "gold": 370,
+      "materialsText": "Bone Chip×2, Pale Dust×1"
+    }
   },
   {
     "id": 322,
@@ -5285,7 +5377,11 @@ export const CATALOG: ItemDef[] = [
     "slug": "bone-onyx-socket",
     "kind": "filler",
     "craftLevel": 18,
-    "craftSkill": "bonecraft"
+    "craftSkill": "bonecraft",
+    "recipe": {
+      "gold": 410,
+      "materialsText": "Bone Chip×2, Pale Dust×1"
+    }
   },
   {
     "id": 323,
@@ -5734,7 +5830,11 @@ export const CATALOG: ItemDef[] = [
     "slug": "goldsmith-earring",
     "kind": "filler",
     "craftLevel": 3,
-    "craftSkill": "goldsmithing"
+    "craftSkill": "goldsmithing",
+    "recipe": {
+      "gold": 110,
+      "materialsText": "Copper Ore×1, Pale Dust×1"
+    }
   },
   {
     "id": 349,
@@ -5806,7 +5906,11 @@ export const CATALOG: ItemDef[] = [
     "slug": "goldsmith-signet-blank",
     "kind": "filler",
     "craftLevel": 11,
-    "craftSkill": "goldsmithing"
+    "craftSkill": "goldsmithing",
+    "recipe": {
+      "gold": 270,
+      "materialsText": "Copper Ore×1, Pale Dust×1"
+    }
   },
   {
     "id": 353,
@@ -5816,7 +5920,11 @@ export const CATALOG: ItemDef[] = [
     "slug": "goldsmith-chip-mount",
     "kind": "filler",
     "craftLevel": 13,
-    "craftSkill": "goldsmithing"
+    "craftSkill": "goldsmithing",
+    "recipe": {
+      "gold": 310,
+      "materialsText": "Copper Ore×1 or Tile Shard×2, Pale Dust×1"
+    }
   },
   {
     "id": 354,
@@ -6405,7 +6513,11 @@ export const CATALOG: ItemDef[] = [
     "slug": "multi-status-base",
     "kind": "filler",
     "craftLevel": 16,
-    "craftSkill": "alchemy"
+    "craftSkill": "alchemy",
+    "recipe": {
+      "gold": 370,
+      "materialsText": "Distilled Pale×1, Pale Dust×1"
+    }
   },
   {
     "id": 386,
@@ -7017,7 +7129,11 @@ export const CATALOG: ItemDef[] = [
     "slug": "spice-rub",
     "kind": "filler",
     "craftLevel": 3,
-    "craftSkill": "cooking"
+    "craftSkill": "cooking",
+    "recipe": {
+      "gold": 110,
+      "materialsText": "Rock Salt×1, Dustgrain×1, Pale Dust×1"
+    }
   },
   {
     "id": 420,
@@ -7048,7 +7164,11 @@ export const CATALOG: ItemDef[] = [
     "slug": "smoked-minnow",
     "kind": "filler",
     "craftLevel": 7,
-    "craftSkill": "cooking"
+    "craftSkill": "cooking",
+    "recipe": {
+      "gold": 190,
+      "materialsText": "Fossil Minnow×2, Dustgrain×1, Pale Dust×1"
+    }
   },
   {
     "id": 422,
@@ -7076,7 +7196,11 @@ export const CATALOG: ItemDef[] = [
     "slug": "crab-cake",
     "kind": "filler",
     "craftLevel": 10,
-    "craftSkill": "cooking"
+    "craftSkill": "cooking",
+    "recipe": {
+      "gold": 250,
+      "materialsText": "Clay Crab×1, Dustgrain×2, Pale Dust×1"
+    }
   },
   {
     "id": 424,
@@ -7086,7 +7210,11 @@ export const CATALOG: ItemDef[] = [
     "slug": "hearty-ration",
     "kind": "filler",
     "craftLevel": 12,
-    "craftSkill": "cooking"
+    "craftSkill": "cooking",
+    "recipe": {
+      "gold": 290,
+      "materialsText": "Dustgrain×2, Rock Salt×1, Pale Dust×1"
+    }
   },
   {
     "id": 425,
@@ -7096,7 +7224,11 @@ export const CATALOG: ItemDef[] = [
     "slug": "grain-porridge",
     "kind": "filler",
     "craftLevel": 14,
-    "craftSkill": "cooking"
+    "craftSkill": "cooking",
+    "recipe": {
+      "gold": 330,
+      "materialsText": "Dustgrain×2, Pale Dust×1"
+    }
   },
   {
     "id": 426,
@@ -7116,7 +7248,11 @@ export const CATALOG: ItemDef[] = [
     "slug": "marina-stew",
     "kind": "filler",
     "craftLevel": 18,
-    "craftSkill": "cooking"
+    "craftSkill": "cooking",
+    "recipe": {
+      "gold": 410,
+      "materialsText": "Fossil Minnow×1, Clay Crab×1, Dustgrain×1, Pale Dust×1"
+    }
   },
   {
     "id": 428,
@@ -8566,10 +8702,10 @@ export const CATALOG: ItemDef[] = [
     "icon": "/icons/items/heart-ring.png",
     "slug": "heart-ring",
     "kind": "equipment",
-    "craftLevel": 55,
+    "craftLevel": 12,
     "craftSkill": "goldsmithing",
     "recipe": {
-      "gold": 1150,
+      "gold": 290,
       "materialsText": "Copper Ore×2, Soft Pelt×1, Pale Dust×1"
     },
     "stats": {

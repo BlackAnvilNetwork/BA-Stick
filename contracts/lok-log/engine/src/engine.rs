@@ -3,7 +3,7 @@
 use std::fmt;
 
 use crate::chain::Chain;
-use crate::event::{entry_hash, item_drop_credits_at, Input, Outcome};
+use crate::event::{craft_skill_validated_at, entry_hash, item_drop_credits_at, Input, Outcome};
 use crate::gold::{self, GoldError};
 use crate::ids::genesis_root;
 use crate::state::{label_key, Key, State};
@@ -55,8 +55,8 @@ pub enum EngineError {
     BadCraftSkill,
     /// Craft targets a known recipe but craft skill rank is too low.
     BadCraftLevel,
-    /// Craft targets a known recipe but required material harvests are missing.
-    BadCraftMaterials,
+    /// Craft targets a known recipe with invalid output quantity.
+    BadCraftRecipe,
     /// No ask of that item is at or under the bid, after skipping the bidder's own asks.
     NoAsk,
     /// The ask is still inside its 7 day window.
@@ -108,7 +108,7 @@ impl fmt::Display for EngineError {
             Self::BadId => write!(f, "id is empty or invalid"),
             Self::BadCraftSkill => write!(f, "craft skill level is not higher than the logged level"),
             Self::BadCraftLevel => write!(f, "craft skill level is too low for the recipe"),
-            Self::BadCraftMaterials => write!(f, "craft materials are insufficient"),
+            Self::BadCraftRecipe => write!(f, "craft recipe is invalid"),
             Self::NoAsk => write!(f, "no ask at or under that bid"),
             Self::TooSoon => write!(f, "ask can be reclaimed after 7 days"),
             Self::InsufficientInbox => write!(f, "nothing in the inbox"),
@@ -248,7 +248,9 @@ impl Engine {
             // GoldPaidRespec is applied on the character log (gold + skills).
             Input::LevelUp { token_id, level } => self.apply_level(*token_id, *level),
             Input::LearnAbility { token_id, ability_id } => self.learn(*token_id, ability_id),
-            Input::Craft { token_id, item_id, amount } => self.note_craft(*token_id, *item_id, *amount),
+            Input::Craft { token_id, item_id, amount } => {
+                self.note_craft(*token_id, *item_id, *amount, logged)
+            }
             Input::Harvest { token_id, material_id, amount } => self.note_harvest(*token_id, material_id, *amount),
             // Historical entries keep their original meaning (credit). New appends, and any
             // logged ItemDrop past HISTORICAL_ITEM_DROP_MAX_SEQ, are closed.
@@ -311,7 +313,13 @@ impl Engine {
         Ok(())
     }
 
-    fn note_craft(&mut self, token_id: U256, item_id: U256, amount: U256) -> Result<(), EngineError> {
+    fn note_craft(
+        &mut self,
+        token_id: U256,
+        item_id: U256,
+        amount: U256,
+        logged_seq: Option<u64>,
+    ) -> Result<(), EngineError> {
         self.involves(&token_id)?;
         if item_id == U256::ZERO {
             return Err(EngineError::BadId);
@@ -319,14 +327,13 @@ impl Engine {
         if amount == U256::ZERO {
             return Err(EngineError::ZeroAmount);
         }
-        // Known catalog recipes: require craft skill rank. Unknown ids stay counter-only
-        // (tests / legacy). Spendable material debit is deferred so Harvest state roots of
-        // committed historical logs stay bit-identical; the server still burns mats.
-        if item_id.0[..24].iter().all(|b| *b == 0) {
+        // Known catalog recipes: require craft skill rank on new appends / post-cutoff seq.
+        // Material burn stays server-side so Harvest roots of committed logs stay identical.
+        if craft_skill_validated_at(logged_seq) && item_id.0[..24].iter().all(|b| *b == 0) {
             let id = u64::from_be_bytes(item_id.0[24..].try_into().expect("8 bytes"));
             if let Some(recipe) = crate::craft_recipe_data::craft_recipe(id) {
                 if recipe.output_qty == 0 {
-                    return Err(EngineError::BadCraftMaterials);
+                    return Err(EngineError::BadCraftRecipe);
                 }
                 let skill = crate::craft_recipe_data::skill_label(recipe.skill).ok_or(EngineError::BadId)?;
                 let raw = self.state.craft_skill_level(&label_key(skill));

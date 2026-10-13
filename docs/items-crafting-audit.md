@@ -1,20 +1,30 @@
 # Items / crafting audit fixes (stacked on #212)
 
-Applied from the Black Anvil crafting audit + 103-row stat CSV.
+Applied from the Black Anvil crafting audit + 103-row stat CSV, plus support-review fixes for PR #222.
 
 ## Launch Items seed
 
 - `LIVE_BASE_SLUGS` / `EXPORTABLE_BASE_SLUGS` = **24** Pale Hollow obtainable bases (23 live + `desiccated-hide`).
-- Equipment is **not** chain-exportable at launch (`isLaunchExportableEquipment` → false). Unique instance ids deferred.
-- Server export maps catalog id → `catalogIdToChainFungibleId` for live bases; equipment stays log-local.
+- Equipment has **no** chain Items id yet; log-bag export still uses catalog ids. `catalogIdToChainFungibleId` only resolves live bases (mint/withdraw path not wired).
+- Heart Ring is goldsmithing **L12** (Rare) so it is obtainable on the live ladder.
 
 ## Engine craft validation
 
-- Known catalog recipes require craft skill rank (`BadCraftLevel`).
-- Unknown item ids stay counter-only (tests / legacy).
-- **Material burn** stays server-authoritative so committed historical `Harvest` state roots remain bit-identical. Recipe table embeds `output_qty` for pack crafts.
+- Known catalog recipes require craft skill rank (`BadCraftLevel`) on **new appends** and logged crafts at `seq >= HISTORICAL_CRAFT_VALIDATE_MIN_SEQ` (175).
+- Pre-cutoff crafts (including the quarantined pre-#206 / pre-#222 log, seq 0..=174) replay without the skill check.
+- Invalid `output_qty` is `BadCraftRecipe` (materials stay server-side so Harvest roots stay identical).
+- Recipe table embeds `output_qty` for pack crafts; filler ladder recipes restored for progression past ~L10.
+
+## NPC sell prices
+
+- Unit prices are **pinned** in `npc_price_data.rs` / `npc-sell-units.generated.ts` (Potion stays 20, etc.).
+- `gen-npc-prices.mjs` keeps existing ids; only new catalog ids use `NPC_SELL_GOLD_BASIS=1000`.
+
+## Server craft vs log
+
+- `handleCraft` appends the Craft event **before** granting the item; on log refusal, materials undo and gold refunds via `craft_refund`.
 
 ## Replay
 
 - Pre-#206 `ItemDrop` fixtures still credit under `HISTORICAL_ITEM_DROP_MAX_SEQ`.
-- Local ruleset hash + wasm pin bumped with this engine change.
+- Local ruleset hash is derived as `keccak256(utf8(LOCAL_RULESET_WASM_SHA256))`; bump the wasm pin after engine rebuild. **Do not propose a mainnet ruleset until this lands.**

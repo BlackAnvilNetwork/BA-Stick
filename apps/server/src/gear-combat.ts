@@ -30,6 +30,13 @@ export function gearHealPotency(p: Geared): number {
   return Math.max(0, Math.floor(aggregateEquipmentStats(p.equip ?? {}).healPotency ?? 0));
 }
 
+/** Apply percent `healPotency` to a finished heal amount (Cleric, TIM, Battlemage). */
+export function withHealPotency(p: Geared, amount: number, potency = gearHealPotency(p)): number {
+  const pct = Math.max(0, Math.floor(potency));
+  const raw = pct > 0 ? Math.floor((amount * (100 + pct)) / 100) : amount;
+  return Math.max(1, raw);
+}
+
 /** Flat HP/sec from equipped `regen`. */
 export function gearRegen(p: Geared): number {
   return Math.max(0, Math.floor(aggregateEquipmentStats(p.equip ?? {}).regen ?? 0));

@@ -74,8 +74,12 @@ export function exportableFungibles(
   }));
 }
 
-/** Resolve catalog small-int id → chain fungible id when the def has a slug. */
+/**
+ * Resolve catalog small-int id → chain fungible id for **launch-exportable** bases only.
+ * Equipment / other kinds return null (no Items mint path yet).
+ */
 export function catalogIdToChainFungibleId(catalogId: number): bigint | null {
+  if (!isLaunchExportableFungible(catalogId)) return null;
   const def = CATALOG_BY_ID[catalogId];
   if (!def?.slug) return null;
   return chainFungibleId(def.slug);
@@ -88,10 +92,3 @@ export function isLaunchExportableFungible(catalogId: number): boolean {
   return (LIVE_BASE_SLUGS as readonly string[]).includes(def.slug);
 }
 
-/**
- * Equipment is not chain-exportable at launch (no unique instance registry).
- * Returns false for equipment/consumable/filler/intermediate/bait.
- */
-export function isLaunchExportableEquipment(_catalogId: number): boolean {
-  return false;
-}

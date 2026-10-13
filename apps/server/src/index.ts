@@ -111,7 +111,6 @@ import {
   getCraftableItem,
   EQUIP_SLOTS,
   getItem,
-  isLaunchExportableEquipment,
   isLaunchExportableFungible,
   npcSellTotalGold,
   npcSellUnitGold,
@@ -855,12 +854,15 @@ function syncLokLevel(p: Player) {
   }
 }
 
-function logLokCraft(p: Player, itemId: number, amount: number) {
-  if (!Number.isInteger(itemId) || itemId <= 0 || amount <= 0) return;
+function logLokCraft(p: Player, itemId: number, amount: number): { ok: true } | { ok: false; error: string } {
+  if (!Number.isInteger(itemId) || itemId <= 0 || amount <= 0) {
+    return { ok: false, error: "bad craft args" };
+  }
   const token = lokToken(p);
-  if (!token) return;
+  if (!token) return { ok: false, error: "no log identity" };
   const res = lok.craft(token, String(itemId), String(amount));
-  if (!res.ok) pushLog(p, "Craft was not written to your log: " + res.error);
+  if (!res.ok) return { ok: false, error: res.error };
+  return { ok: true };
 }
 
 function logLokHarvest(p: Player, materialId: string, amount: number) {
@@ -989,14 +991,9 @@ function handleLokExport(p: Player, tokenId: number, amount: number) {
     pushLog(p, "Could not open your log identity.");
     return;
   }
-  // Catalog id → chain fungible id for launch bases. Equipment is not chain-exportable yet
-  // (unique instance ids deferred); log-bag export still uses the small catalog id.
-  const chainFungible = catalogIdToChainFungibleId(tokenId);
-  const launchFungible = isLaunchExportableFungible(tokenId);
-  if (isLaunchExportableEquipment(tokenId)) {
-    pushLog(p, "Equipment cannot be chain-exported at launch.");
-    return;
-  }
+  // Log-bag export uses the catalog id. Launch fungibles also resolve a chain id for
+  // operators (mint/withdraw path not wired yet). Equipment has no unique Items id.
+  const chainFungible = isLaunchExportableFungible(tokenId) ? catalogIdToChainFungibleId(tokenId) : null;
   const res = lok.exportItem(token, String(tokenId), String(amount));
   if (!res.ok) {
     pushLog(p, res.error);
@@ -1009,11 +1006,9 @@ function handleLokExport(p: Player, tokenId: number, amount: number) {
   }
   rememberPlayer(p);
   const chainNote =
-    launchFungible && chainFungible != null
-      ? " Chain fungible id " + ("0x" + chainFungible.toString(16)) + "."
-      : exported?.kind === "equipment"
-        ? " Equipment stays log-local until unique Items ids ship."
-        : " No chain withdrawal was submitted.";
+    chainFungible != null
+      ? " Chain fungible id 0x" + chainFungible.toString(16) + " (Items mint not submitted)."
+      : " No chain withdrawal was submitted.";
   pushLog(p, "Exported " + itemLabel(tokenId) + " x" + amount + " to your bag." + chainNote);
   send(p.ws, snapshotFor(p));
 }
@@ -3367,12 +3362,23 @@ function absorbManaWall(p: Player, now: number, raw: number): { dmg: number; ble
   return { dmg: Math.max(0, raw - bled), bled };
 }
 
-/** Main-hand Attack only — ranged/other slots must not stack into melee swings. */
+/**
+ * Melee Attack bonus: sum `atk` from every equipped slot except `ranged`/`ammo`.
+ * Bows no longer stack into melee; rings/grips/mittens with +Atk still count.
+ * Requires a main-hand item to swing (same as before).
+ */
 function playerWeaponBonus(p: Player): number {
   if (!p.equip.main) return 0;
-  const main = getItem(p.equip.main);
-  if (!main || main.slot !== "main") return 0;
-  return main.stats?.atk ?? 10;
+  let atk = 0;
+  for (const slot of EQUIP_SLOTS) {
+    if (slot === "ranged" || slot === "ammo") continue;
+    const tokenId = p.equip[slot];
+    if (tokenId == null) continue;
+    const def = getItem(tokenId);
+    if (!def || def.slot !== slot) continue;
+    atk += def.stats?.atk ?? 0;
+  }
+  return atk > 0 ? atk : 10;
 }
 
 function handleAbility(p: Player, id: AbilityId, targetId?: string) {
@@ -4865,9 +4871,12 @@ async function handleCraft(p: Player, itemId: number) {
     },
     () => spendLogGold(p, goldCost, "craft"),
     () => {
+      const logged = logLokCraft(p, def.id, outQty);
+      if (!logged.ok) {
+        return { ok: false as const, error: "Craft was not written to your log: " + logged.error };
+      }
       if (def.kind === "base") grantBaseMat(p, def.slug, outQty);
       else addItem(p.inventory, def.id, outQty);
-      logLokCraft(p, def.id, outQty);
       const prevLv = p.craftSkills[skill]?.level ?? 1;
       grantCraftXp(p, skill, craftXpForRecipe(def.craftLevel ?? skillLv, skillLv));
       const nextLv = p.craftSkills[skill]?.level ?? prevLv;
@@ -4876,6 +4885,10 @@ async function handleCraft(p: Player, itemId: number) {
       rememberPlayer(p);
       pushLog(p, "Crafted " + def.name + qtyNote + "." + levelNote);
       send(p.ws, snapshotFor(p));
+      return { ok: true as const };
+    },
+    () => {
+      if (goldCost > 0) earnLogGold(p, "craft_refund", goldCost);
     },
   );
   if (!charged.ok) {
@@ -4883,6 +4896,8 @@ async function handleCraft(p: Player, itemId: number) {
       const preview = recipeMaterials(def);
       if (preview.length === 0) pushLog(p, "Recipe materials unknown.");
       else pushLog(p, "Need materials: " + preview.map((m) => m.name + " x" + m.qty).join(", ") + ".");
+    } else if (charged.error.startsWith("Craft was not written")) {
+      pushLog(p, charged.error);
     } else {
       pushLog(p, "Need " + goldCost + " gold to craft " + def.name + ". " + charged.error);
     }

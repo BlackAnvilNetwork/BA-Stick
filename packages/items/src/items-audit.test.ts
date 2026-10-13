@@ -26,9 +26,11 @@ describe("items audit catalog patches", () => {
     }
   });
 
-  it("Heart Ring has regen + healPotency + atk", () => {
+  it("Heart Ring has regen + healPotency + atk and is craftable at L12", () => {
     const heart = CATALOG_BY_ID[1063]!;
     assert.equal(heart.rarity, "Rare");
+    assert.equal(heart.craftLevel, 12);
+    assert.equal(heart.craftSkill, "goldsmithing");
     assert.deepEqual(heart.stats, { regen: 1, healPotency: 5, atk: 6 });
   });
 
@@ -40,9 +42,9 @@ describe("items audit catalog patches", () => {
     assert.equal(craftGoldCost(50), 1050);
   });
 
-  it("dead-end fillers lost recipes; equipment has rarity", () => {
-    const deadFillerRecipes = CATALOG.filter((i) => i.kind === "filler" && i.recipe).length;
-    assert.ok(deadFillerRecipes <= 15);
+  it("live-mat filler ladder restored; equipment has rarity", () => {
+    const fillerRecipes = CATALOG.filter((i) => i.kind === "filler" && i.recipe).length;
+    assert.ok(fillerRecipes >= 40, "expected restored progression fillers, got " + fillerRecipes);
     const gear = CATALOG.filter((i) => i.kind === "equipment");
     assert.ok(gear.every((i) => i.rarity));
   });

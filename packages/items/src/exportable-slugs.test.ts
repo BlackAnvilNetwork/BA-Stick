@@ -7,7 +7,6 @@ import {
   LIVE_BASE_SLUGS,
   catalogIdToChainFungibleId,
   exportableFungibles,
-  isLaunchExportableEquipment,
   isLaunchExportableFungible,
   itemsSeedSlugsCsv,
 } from "./exportable-slugs";
@@ -48,12 +47,13 @@ describe("exportable slugs", () => {
     assert.equal(catalogIdToChainFungibleId(-1), null);
   });
 
-  it("launch export policy: live bases yes, equipment no", () => {
+  it("launch export policy: live bases yes; equipment has no chain fungible id", () => {
     const dust = CATALOG_BY_SLUG["pale-dust"]!.id;
     const staff = CATALOG_BY_SLUG["ashbeam-staff"]!.id;
     assert.equal(isLaunchExportableFungible(dust), true);
     assert.equal(isLaunchExportableFungible(staff), false);
-    assert.equal(isLaunchExportableEquipment(staff), false);
+    assert.equal(catalogIdToChainFungibleId(staff), null);
     assert.equal(CATALOG_BY_ID[1063]?.slug, "heart-ring");
+    assert.equal(CATALOG_BY_ID[1063]?.craftLevel, 12);
   });
 });

@@ -18,9 +18,24 @@ use crate::u256::U256;
 /// `logHash` / `stateRoot` checkpoints do that.
 pub const HISTORICAL_ITEM_DROP_MAX_SEQ: u64 = 174;
 
+/// Craft recipe/skill validation applies to new appends and to logged entries at or above
+/// this seq. Entries below it (including the pre-#222 quarantined log, seq 0..=174) replay
+/// without the check so committed Craft events keep applying.
+pub const HISTORICAL_CRAFT_VALIDATE_MIN_SEQ: u64 = 175;
+
 /// True when a logged `ItemDrop` at `seq` keeps its historical meaning (credit).
 pub fn item_drop_credits_at(seq: u64) -> bool {
     seq <= HISTORICAL_ITEM_DROP_MAX_SEQ
+}
+
+/// True when craft recipe/skill checks run for this apply.
+/// New appends (`None`) always validate; logged entries validate only at/after
+/// [`HISTORICAL_CRAFT_VALIDATE_MIN_SEQ`].
+pub fn craft_skill_validated_at(logged_seq: Option<u64>) -> bool {
+    match logged_seq {
+        None => true,
+        Some(seq) => seq >= HISTORICAL_CRAFT_VALIDATE_MIN_SEQ,
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

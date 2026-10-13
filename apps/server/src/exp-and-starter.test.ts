@@ -94,4 +94,16 @@ test("signature weapons gate on weapon family (crafted upgrades keep the kit)", 
     inventory: [{ tokenId: 39, amount: 1 }],
   };
   assert.equal(signatureWeaponEquipped(rod, "sorcerer"), false);
+  // Fighter axes count; Ashbeam Rod (staff) keeps Battlemage kit
+  const axe = {
+    equip: { main: 103 },
+    inventory: [{ tokenId: 103, amount: 1 }],
+  };
+  assert.equal(signatureWeaponEquipped(axe, "fighter"), true);
+  const ashRod = {
+    equip: { main: 172 },
+    inventory: [{ tokenId: 172, amount: 1 }],
+  };
+  assert.equal(signatureWeaponEquipped(ashRod, "battle_mage"), true);
+  assert.equal(signatureWeaponEquipped(ashRod, "cleric"), true);
 });

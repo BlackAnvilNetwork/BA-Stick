@@ -32,38 +32,24 @@ export const STARTER_POTION_AMOUNT = 3;
 export const SIGNATURE_WEAPON_FAMILIES: Record<JobId, readonly WeaponFamily[]> = {
   time_mage: ["staff"],
   sorcerer: ["staff"],
-  fighter: ["greatsword"],
+  fighter: ["greatsword", "axe"],
   rogue: ["dagger"],
   cleric: ["staff", "club"],
   knight: ["sword"],
-  battle_mage: ["sword"],
-};
-
-/** @deprecated Prefer SIGNATURE_WEAPON_FAMILIES — kept for tests that assert starter ids. */
-export const SIGNATURE_WEAPON_IDS: Record<JobId, readonly number[]> = {
-  time_mage: [ITEM.STAFF_ASHBEAM],
-  sorcerer: [ITEM.STAFF_ASHBEAM],
-  fighter: [ITEM.GREATSWORD_IRON],
-  rogue: [ITEM.DAGGER_IRON, STARTER_WEAPON.rogue.tokenId],
-  cleric: [ITEM.STAFF_ASHBEAM, STARTER_WEAPON.cleric.tokenId],
-  knight: [ITEM.SWORD_IRON, STARTER_WEAPON.knight.tokenId],
-  battle_mage: [ITEM.SWORD_IRON, STARTER_WEAPON.battle_mage.tokenId],
+  // Ashbeam Rod is staff; bronze/iron swords stay valid.
+  battle_mage: ["sword", "staff"],
 };
 
 export function signatureWeaponEquipped(
   p: { equip: { main: number | null }; inventory: ItemStack[] },
-  idsOrJob: readonly number[] | JobId,
+  job: JobId,
 ): boolean {
   const id = p.equip.main;
   if (id == null) return false;
   if (!p.inventory.some((row) => row.tokenId === id && row.amount > 0)) return false;
-
-  if (typeof idsOrJob === "string") {
-    const families = SIGNATURE_WEAPON_FAMILIES[idsOrJob];
-    const family = getItem(id)?.weaponFamily;
-    return family != null && families.includes(family);
-  }
-  return idsOrJob.includes(id);
+  const families = SIGNATURE_WEAPON_FAMILIES[job];
+  const family = getItem(id)?.weaponFamily;
+  return family != null && families.includes(family);
 }
 
 export function stackAmount(inv: ItemStack[], tokenId: number): number {
