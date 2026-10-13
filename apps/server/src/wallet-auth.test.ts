@@ -424,6 +424,7 @@ test("a missing or foreign Origin is rejected on upgrade", async () => {
   assert.equal(allow.includes("http://localhost:5173"), true);
   assert.equal(allow.includes("http://127.0.0.1:5173"), true);
   assert.equal(allow.includes("http://localhost:5174"), true);
+  assert.equal(allow.includes("http://127.0.0.1:5174"), true);
   assert.equal(allow.includes("https://play.example"), true);
   const fromOrigin = resolveAuthOrigin("http://127.0.0.1:5173", allow);
   assert.equal(fromOrigin.ok, true);
