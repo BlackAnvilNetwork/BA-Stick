@@ -1,6 +1,17 @@
 ﻿import type { ClientMessage, ServerMessage } from "@bellgrave/protocol";
 import { generatePrivateKey, privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
+import {
+  appKitConfigured,
+  connectWithAppKit,
+  disconnectAppKit,
+  sessionFromConnectedAppKit,
+} from "./appkit";
+import { burnerIdentityAllowed } from "./burner-identity";
+import { connectInjectedWallet, injectedWalletAvailable } from "./injected-login";
+import { clearPendingMint, clearPendingMintIfTokenBound } from "./pending-mint";
 import { useGame } from "./state";
+import { setPreferredPayoutWallet } from "./wallet";
+import { defaultRpcUrl, walletConnectConfigured } from "./walletconnect";
 
 const WS_URL = import.meta.env.VITE_WS_URL ?? "ws://localhost:8787";
 const HEARTBEAT_MS = 20_000;
@@ -18,6 +29,19 @@ let visibilityBound = false;
 /** User chose Logout — drop the live session and do not auto-enter the character. */
 let intentionalLogout = false;
 let authInFlight = false;
+let nameCheckWaiter:
+  | {
+      resolve: (r: { ok: true; name: string } | { ok: false; error: string }) => void;
+      timer: ReturnType<typeof setTimeout>;
+    }
+  | null = null;
+
+/** External wallet used for auth challenge signing (injected / WalletConnect). */
+type ExternalAuth = {
+  address: `0x${string}`;
+  signMessage: (message: string) => Promise<string>;
+};
+let externalAuth: ExternalAuth | null = null;
 
 function clearHeartbeat() {
   if (heartbeatTimer) {
@@ -69,8 +93,16 @@ function clearResumeStorage() {
   }
 }
 
-/** Local anvil-style account kept in this browser. Never logged. */
+/**
+ * Local anvil-style account kept in this browser. Never logged.
+ * Disabled on Gnosis/Chiado — must not be game-auth identity (audit L-8 / C-1).
+ */
 function localAccount(): PrivateKeyAccount {
+  if (!burnerIdentityAllowed()) {
+    throw new Error(
+      "Local burner identity is disabled on Gnosis/Chiado. Connect an injected wallet or Reown AppKit.",
+    );
+  }
   let key = localStorage.getItem(PK_KEY);
   const existingWallet = localStorage.getItem(WALLET_KEY);
   // Migrate mock 0xmvp… ids to a real secp256k1 account.
@@ -87,15 +119,26 @@ export function mockWallet(): string {
   return localAccount().address;
 }
 
-function tryAutoAuth() {
+function beginAuthHello(address: `0x${string}`) {
   if (!socket || socket.readyState !== WebSocket.OPEN) return;
   if (authInFlight) return;
-  const account = localAccount();
-  const w = account.address.toLowerCase();
+  const w = address.toLowerCase();
   if (authedWallet === w && useGame.getState().wallet) return;
   authInFlight = true;
-  useGame.getState().setWallet(account.address);
-  socket.send(JSON.stringify({ type: "auth/hello", wallet: account.address } satisfies ClientMessage));
+  socket.send(JSON.stringify({ type: "auth/hello", wallet: address } satisfies ClientMessage));
+}
+
+function tryAutoAuth() {
+  if (externalAuth) {
+    beginAuthHello(externalAuth.address);
+    return;
+  }
+  if (!burnerIdentityAllowed()) {
+    // Wait for Connect Wallet — do not create or use a localStorage private key as identity.
+    useGame.getState().setPhase("auth");
+    return;
+  }
+  beginAuthHello(localAccount().address);
 }
 
 async function completeSignedAuth(msg: Extract<ServerMessage, { type: "auth/challenge" }>) {
@@ -104,18 +147,30 @@ async function completeSignedAuth(msg: Extract<ServerMessage, { type: "auth/chal
     return;
   }
   try {
-    const account = localAccount();
-    if (account.address.toLowerCase() !== msg.wallet.toLowerCase()) {
-      useGame.getState().pushLog("Error: Wallet mismatch on login challenge.");
+    let signature: string;
+    let wallet: `0x${string}`;
+    if (externalAuth && externalAuth.address.toLowerCase() === msg.wallet.toLowerCase()) {
+      wallet = externalAuth.address;
+      signature = await externalAuth.signMessage(msg.message);
+    } else if (!burnerIdentityAllowed()) {
+      useGame.getState().pushLog("Error: Connect a wallet to sign in.");
       authInFlight = false;
       return;
+    } else {
+      const account = localAccount();
+      if (account.address.toLowerCase() !== msg.wallet.toLowerCase()) {
+        useGame.getState().pushLog("Error: Wallet mismatch on login challenge.");
+        authInFlight = false;
+        return;
+      }
+      wallet = account.address;
+      signature = await account.signMessage({ message: msg.message });
     }
-    const signature = await account.signMessage({ message: msg.message });
-    authedWallet = account.address.toLowerCase();
+    // Do not set authedWallet until auth/ok — signing alone is not a server session.
     socket.send(
       JSON.stringify({
         type: "auth",
-        wallet: account.address,
+        wallet,
         signature,
         nonce: msg.nonce,
         message: msg.message,
@@ -124,7 +179,111 @@ async function completeSignedAuth(msg: Extract<ServerMessage, { type: "auth/chal
   } catch {
     useGame.getState().pushLog("Error: Could not sign the login challenge.");
     authInFlight = false;
+    authedWallet = null;
   }
+}
+
+/**
+ * Connect home-chain wallet (Reown AppKit picker, or injected MetaMask without project id),
+ * then re-auth as that wallet (replaces burner session). Login is sign-only — no forced switch.
+ *
+ * Never uses @walletconnect/ethereum-provider showQrModal (raw QR-only modal).
+ */
+export async function loginWithWalletConnect(opts?: {
+  chainId?: number;
+  rpcUrl?: string;
+  /** When true, only adopt an already-connected AppKit account (Hud opened the modal). */
+  appKitAlreadyOpen?: boolean;
+}): Promise<{ ok: true; address: string } | { ok: false; error: string }> {
+  const chainId = opts?.chainId ?? Number(import.meta.env.VITE_CHAIN_ID ?? "100");
+  const rpcUrl = opts?.rpcUrl ?? defaultRpcUrl(chainId);
+  if (!Number.isSafeInteger(chainId) || chainId <= 0) {
+    return { ok: false, error: "Bad VITE_CHAIN_ID for wallet login." };
+  }
+  try {
+    let address: `0x${string}`;
+    let signMessage: (message: string) => Promise<string>;
+
+    if (appKitConfigured()) {
+      const session = opts?.appKitAlreadyOpen
+        ? await sessionFromConnectedAppKit()
+        : await connectWithAppKit();
+      address = session.address;
+      signMessage = async (message) =>
+        session.client.signMessage({ message, account: session.account });
+      useGame.getState().pushLog("Wallet connected. Signing in…");
+    } else if (injectedWalletAvailable()) {
+      const session = await connectInjectedWallet({ chainId, rpcUrl, switchChain: false });
+      address = session.address;
+      signMessage = async (message) =>
+        session.client.signMessage({ message, account: session.account });
+      useGame.getState().pushLog("Browser wallet connected. Signing in…");
+    } else {
+      return {
+        ok: false,
+        error:
+          "No wallet available. Set VITE_WALLETCONNECT_PROJECT_ID for Reown AppKit, or install MetaMask/Rabby.",
+      };
+    }
+
+    setPreferredPayoutWallet(address);
+    externalAuth = { address, signMessage };
+    authedWallet = null;
+    authInFlight = false;
+    if (socket?.readyState === WebSocket.OPEN) {
+      beginAuthHello(address);
+    } else {
+      connectSocket();
+    }
+    return { ok: true, address };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/** Connect is offered when AppKit (project id) or an injected wallet is available. */
+export function walletConnectLoginAvailable(): boolean {
+  return walletConnectConfigured() || injectedWalletAvailable();
+}
+
+/** @deprecated Use walletConnectLoginAvailable — includes injected fallback. */
+export function walletLoginAvailable(): boolean {
+  return walletConnectLoginAvailable();
+}
+
+/** True after the server has accepted signed auth (auth/ok). */
+export function isServerAuthed(): boolean {
+  return authedWallet !== null;
+}
+
+/** Ask the server whether a character name is free on the global log (before paying mint). */
+export function checkCharacterNameAvailable(
+  name: string,
+): Promise<{ ok: true; name: string } | { ok: false; error: string }> {
+  if (!socket || socket.readyState !== WebSocket.OPEN) {
+    return Promise.resolve({ ok: false, error: "Not connected to the server." });
+  }
+  if (!isServerAuthed()) {
+    return Promise.resolve({ ok: false, error: "Sign in before checking names." });
+  }
+  if (nameCheckWaiter) {
+    clearTimeout(nameCheckWaiter.timer);
+    nameCheckWaiter.resolve({ ok: false, error: "Name check superseded." });
+    nameCheckWaiter = null;
+  }
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      if (nameCheckWaiter?.resolve === resolve) nameCheckWaiter = null;
+      resolve({ ok: false, error: "Name check timed out." });
+    }, 8_000);
+    nameCheckWaiter = { resolve, timer };
+    socket!.send(JSON.stringify({ type: "char/nameCheck", name } satisfies ClientMessage));
+  });
+}
+
+export async function clearExternalWalletAuth(): Promise<void> {
+  externalAuth = null;
+  await disconnectAppKit();
 }
 
 function bindVisibility() {
@@ -182,6 +341,7 @@ export function connectSocket() {
     }
     if (msg.type === "auth/ok") {
       authInFlight = false;
+      authedWallet = msg.wallet.toLowerCase();
       g.setWallet(msg.wallet);
       g.setPendingCreateEnter(false);
       const list =
@@ -192,6 +352,11 @@ export function connectSocket() {
             : [];
       g.setCharacters(list);
       g.setHasCharacter(list.length > 0 || msg.hasCharacter);
+      if ("characterMint" in msg) g.setCharacterMint(msg.characterMint ?? null);
+      clearPendingMintIfTokenBound(
+        msg.wallet,
+        list.map((c) => c.tokenId),
+      );
       const primary = msg.character ?? list[0] ?? null;
       g.setCharacterPreview(primary);
 
@@ -232,20 +397,55 @@ export function connectSocket() {
         job: msg.you.job,
         level: msg.you.level,
         gender: msg.you.gender ?? "male",
+        ...(msg.you.lok?.tokenId ? { tokenId: msg.you.lok.tokenId } : {}),
       };
       g.setCharacterPreview(preview);
       g.setSelectedCharId(preview.id);
       g.setHasCharacter(true);
       const others = g.characters.filter((c) => c.id !== preview.id);
-      g.setCharacters([...others, preview]);
+      const nextRoster = [...others, preview];
+      g.setCharacters(nextRoster);
+      if (g.wallet) {
+        clearPendingMintIfTokenBound(
+          g.wallet,
+          nextRoster.map((c) => c.tokenId),
+        );
+        // Successful create: roster updated — drop any pending paid mint for this wallet.
+        if (g.pendingCreateEnter) clearPendingMint(g.wallet);
+      }
       if (g.pendingCreateEnter) {
         g.setPendingCreateEnter(false);
         g.setPhase("play");
       }
+    } else if (msg.type === "char/nameCheck") {
+      if (nameCheckWaiter) {
+        clearTimeout(nameCheckWaiter.timer);
+        const resolve = nameCheckWaiter.resolve;
+        nameCheckWaiter = null;
+        if (msg.available && msg.name) resolve({ ok: true, name: msg.name });
+        else resolve({ ok: false, error: msg.error ?? "That name is not available." });
+      }
     } else if (msg.type === "log") {
       g.pushLog(msg.message);
     } else if (msg.type === "error") {
-      authInFlight = false;
+      if (authInFlight) {
+        authInFlight = false;
+        authedWallet = null;
+      }
+      // Only resolve a pending nameCheck on errors that are replies to that request path.
+      if (
+        nameCheckWaiter &&
+        /Authenticate first|signed wallet first|Too many name checks/i.test(msg.message)
+      ) {
+        clearTimeout(nameCheckWaiter.timer);
+        const resolve = nameCheckWaiter.resolve;
+        nameCheckWaiter = null;
+        resolve({ ok: false, error: msg.message });
+      }
+      // M-F: paid NFT already bound — stop reusing it on the next create.
+      if (/already bound/i.test(msg.message) && g.wallet) {
+        clearPendingMint(g.wallet);
+      }
       g.pushLog(`Error: ${msg.message}`);
     } else if (msg.type === "party/invite") {
       g.pushLog(`${msg.fromName} invited you to a party — open Party to accept.`);
@@ -277,6 +477,7 @@ export function logoutToMenu() {
   intentionalLogout = true;
   resumeCharId = null;
   clearResumeStorage();
+  void clearExternalWalletAuth();
   if (reconnectTimer) {
     clearTimeout(reconnectTimer);
     reconnectTimer = null;

@@ -195,7 +195,8 @@ test("one nonce cannot authorize two in-flight logins", async () => {
   assert.equal(challenged.ok, true);
   if (!challenged.ok) return;
   assert.match(challenged.message, /^localhost wants you to sign in with your Ethereum account:/);
-  assert.match(challenged.message, /Domain: localhost/);
+  assert.match(challenged.message, /Sign in to Black Anvil/);
+  assert.match(challenged.message, /URI: http:\/\/localhost/);
   assert.match(challenged.message, /Expiration Time: /);
   const signature = await account.signMessage({ message: challenged.message });
   const args = {
@@ -413,8 +414,9 @@ test("x-forwarded-for is ignored unless the trusted proxy setting is on", () => 
   const local = clientAddress(req, {});
   assert.equal(local, "127.0.0.1");
   assert.equal(isLoopbackIp(local), true);
-  assert.equal(clientAddress(req, { AUTH_TRUST_PROXY: "1" }), "203.0.113.9");
-  assert.equal(clientAddress(req, { AUTH_TRUST_PROXY: "true" }), "203.0.113.9");
+  // M-3: right-most hop is the trusted proxy append; left is client-spoofable.
+  assert.equal(clientAddress(req, { AUTH_TRUST_PROXY: "1" }), "10.0.0.2");
+  assert.equal(clientAddress(req, { AUTH_TRUST_PROXY: "true" }), "10.0.0.2");
 });
 
 test("a missing or foreign Origin is rejected on upgrade", async () => {

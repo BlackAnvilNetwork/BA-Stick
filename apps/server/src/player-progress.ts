@@ -149,7 +149,7 @@ export function mergeLogItemsIntoBag(
 
 /**
  * Union trainer ability ids from the per-character log into `learned`.
- * Does not invent craft XP, equipment, or Dust. Returns true when the save changed.
+ * Does not invent craft XP or equipment. Returns true when the save changed.
  */
 export function hydrateLearnedFromLog(progress: PlayerProgress, abilityIds: string[]): number {
   let added = 0;
@@ -164,7 +164,7 @@ export function hydrateLearnedFromLog(progress: PlayerProgress, abilityIds: stri
 }
 
 /**
- * True when buying this ability should debit KEK.
+ * True when buying this ability should debit gold.
  * Already in `learned` or already on the character log must not charge again.
  */
 export function shouldChargeForAbility(learned: readonly string[], logKnows: boolean, abilityId: string): boolean {
@@ -297,14 +297,14 @@ export function hydrateSkillTree(
   return !same || addedPaid !== 0 || removedPaid !== 0;
 }
 
-export const RESPEC_KEK_COST = 10_000;
-
+/** Gold cost to clear paid skill nodes (was KEK; gold + WETH economy). */
+export const RESPEC_GOLD_COST = 10_000;
 export async function chargeSkillRespec(args: {
   charId: string;
   paidNodes: () => string[];
   earnedPoints: number;
   kept: (clearIds: readonly string[]) => string[];
-  /** One call that debits KEK and clears the tree together (or fails without spending). */
+  /** One call that debits gold and clears the tree together (or fails without spending). */
   payAndClear: (amount: number, nodeIds: string[]) => Promise<{ ok: true } | { ok: false; error: string }>;
   apply: (unlocked: string[], skillPoints: number) => void;
 }): Promise<{ ok: true; unlocked: string[]; skillPoints: number } | { ok: false; error: string }> {
@@ -317,7 +317,7 @@ export async function chargeSkillRespec(args: {
       return clearIds.length > 0;
     },
     () => () => {},
-    () => args.payAndClear(RESPEC_KEK_COST, clearIds),
+    () => args.payAndClear(RESPEC_GOLD_COST, clearIds),
     () => {
       const unlocked = args.kept(clearIds);
       args.apply(unlocked, args.earnedPoints);

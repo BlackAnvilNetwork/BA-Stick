@@ -1,5 +1,6 @@
 import {
   JOBS,
+  JOB_IDS,
   SUBJOB_UNLOCK_LEVEL,
   abilityCategory,
   abilityIconUrl,
@@ -15,7 +16,8 @@ import {
   type AbilityId as CombatAbilityId,
   type JobId,
 } from "@bellgrave/combat";
-import { ITEM } from "@bellgrave/config";
+import { clearPendingMint, mintCharacterWithWallet } from "./character-mint";
+import { ITEM, normalizeCharacterName, characterNameKey, explorerTxUrl } from "@bellgrave/config";
 import { getItem } from "@bellgrave/items";
 import type { AbilityId, UnitSnapshot } from "@bellgrave/protocol";
 import { useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent } from "react";
@@ -49,7 +51,16 @@ import {
   swapHotbarSlots,
   type HotbarSlots,
 } from "./hotbar";
-import { logoutToMenu, send } from "./net";
+import { useAppKit, useAppKitAccount, useAppKitState } from "@reown/appkit/react";
+import { appKitConfigured } from "./appkit-config";
+import {
+  checkCharacterNameAvailable,
+  isServerAuthed,
+  loginWithWalletConnect,
+  logoutToMenu,
+  send,
+  walletConnectLoginAvailable,
+} from "./net";
 import { stopZoneMusic } from "./zoneMusic";
 import { useGame } from "./state";
 // NpcInteractMenu mounts world-anchored under the NPC in WorldScene.
@@ -1154,6 +1165,102 @@ export function Hud() {
   );
 }
 
+function WalletConnectButton() {
+  // AppKit hooks require createAppKit (appkit-config). When unset, fall back without hooks.
+  if (appKitConfigured()) return <AppKitConnectButton />;
+  return <FallbackConnectButton />;
+}
+
+/**
+ * Docs path (https://docs.reown.com/appkit/overview): useAppKit().open for the
+ * pre-built modal (EIP-6963 / WalletConnect / Coinbase). Login+sign runs once
+ * useAppKitAccount reports connected (open() alone only shows the modal).
+ */
+function AppKitConnectButton() {
+  const pushLog = useGame((s) => s.pushLog);
+  const { open } = useAppKit();
+  const { address, isConnected } = useAppKitAccount();
+  const { open: modalOpen } = useAppKitState();
+  const [busy, setBusy] = useState(false);
+  const loginStarted = useRef(false);
+
+  useEffect(() => {
+    if (!busy || !isConnected || !address || loginStarted.current) return;
+    loginStarted.current = true;
+    // Modal already open via useAppKit — do not call connectWithAppKit / raw WC QR.
+    void loginWithWalletConnect({ appKitAlreadyOpen: true }).then((res) => {
+      setBusy(false);
+      loginStarted.current = false;
+      if (!res.ok) pushLog("Wallet: " + res.error);
+      else pushLog("Wallet: " + res.address.slice(0, 6) + "…" + res.address.slice(-4));
+    });
+  }, [busy, isConnected, address, pushLog]);
+
+  // User dismissed the modal without connecting.
+  useEffect(() => {
+    if (busy && !modalOpen && !isConnected && !loginStarted.current) {
+      setBusy(false);
+    }
+  }, [busy, modalOpen, isConnected]);
+
+  return (
+    <button
+      type="button"
+      className="boot-primary"
+      disabled={busy}
+      style={{ marginTop: "0.75rem", width: "100%" }}
+      onClick={() => {
+        if (busy) return;
+        setBusy(true);
+        loginStarted.current = false;
+        void open({ view: "Connect" }).catch((err: unknown) => {
+          setBusy(false);
+          pushLog("Wallet: " + (err instanceof Error ? err.message : String(err)));
+        });
+      }}
+    >
+      {busy ? "Opening wallet…" : "Connect Wallet"}
+    </button>
+  );
+}
+
+function FallbackConnectButton() {
+  const pushLog = useGame((s) => s.pushLog);
+  const [busy, setBusy] = useState(false);
+  if (!walletConnectLoginAvailable()) {
+    return (
+      <button
+        type="button"
+        className="boot-primary"
+        disabled
+        style={{ marginTop: "0.75rem", width: "100%", opacity: 0.75 }}
+        title="Set VITE_WALLETCONNECT_PROJECT_ID (Reown) in apps/web/.env.local, or install a browser wallet"
+      >
+        Connect Wallet (set Reown project ID or install MetaMask)
+      </button>
+    );
+  }
+  return (
+    <button
+      type="button"
+      className="boot-primary"
+      disabled={busy}
+      style={{ marginTop: "0.75rem", width: "100%" }}
+      onClick={() => {
+        if (busy) return;
+        setBusy(true);
+        void loginWithWalletConnect().then((res) => {
+          setBusy(false);
+          if (!res.ok) pushLog("Wallet: " + res.error);
+          else pushLog("Wallet: " + res.address.slice(0, 6) + "…" + res.address.slice(-4));
+        });
+      }}
+    >
+      {busy ? "Opening wallet…" : "Connect Wallet"}
+    </button>
+  );
+}
+
 export function BootScreens() {
   const phase = useGame((s) => s.phase);
   const connected = useGame((s) => s.connected);
@@ -1169,13 +1276,31 @@ export function BootScreens() {
         <div className="boot-card">
           <h1 className="boot-brand">Legend of KEK</h1>
           {!connected || phase === "boot" || phase === "auth" ? (
-            <p className="boot-sub">{connected ? "Signing in…" : "Connecting to server…"}</p>
+            <>
+              <p className="boot-sub">
+                {!connected
+                  ? "Connecting to server…"
+                  : phase === "auth"
+                    ? "Connect a wallet to sign in."
+                    : "Signing in…"}
+              </p>
+              <WalletConnectButton />
+            </>
           ) : phase === "create" ? (
-            <CreatePanel />
+            <>
+              <WalletConnectButton />
+              <CreatePanel />
+            </>
           ) : phase === "select" || hasCharacter ? (
-            <SelectPanel preview={characterPreview} />
+            <>
+              <WalletConnectButton />
+              <SelectPanel preview={characterPreview} />
+            </>
           ) : (
-            <CreatePanel />
+            <>
+              <WalletConnectButton />
+              <CreatePanel />
+            </>
           )}
         </div>
       </div>
@@ -1295,21 +1420,160 @@ type Appearance = "male" | "female" | "pepeka";
 function CreatePanel() {
   const [job, setJob] = useState<JobId>("time_mage");
   const [gender, setGender] = useState<Appearance>("male");
+  const [creating, setCreating] = useState(false);
   const characters = useGame((s) => s.characters);
+  const pushLog = useGame((s) => s.pushLog);
+  const mintCfg = useGame((s) => s.characterMint ?? s.snapshot?.you?.lok?.characterMint ?? null);
   const playableJobs = (Object.keys(JOBS) as JobId[]).filter((j) => JOBS[j].playable);
+
   return (
     <form
       className="boot-panel"
       onSubmit={(e: FormEvent<HTMLFormElement>) => {
         e.preventDefault();
+        if (creating) return;
         const fd = new FormData(e.currentTarget);
-        const name = String(fd.get("name") || "Chrona").slice(0, 16);
+        const rawName = String(fd.get("name") || "Chrona");
+        // M-C: same name rules as the server, before any payment.
+        const named = normalizeCharacterName(rawName);
+        if (!named.ok) {
+          pushLog(named.error);
+          return;
+        }
+        const name = named.name;
+        if (characters.some((c) => characterNameKey(c.name) === named.key)) {
+          pushLog("That name is already on your roster. Pick another.");
+          return;
+        }
+        const jobIndex = JOB_IDS.indexOf(job);
         useGame.getState().setPendingCreateEnter(true);
-        send({ type: "char/create", name, job, gender });
-        window.setTimeout(() => send({ type: "claim/starter" }), 100);
+        setCreating(true);
+
+        const finish = (extra?: {
+          tokenId?: string;
+          mintWallet?: string;
+          mintNonce?: string;
+          mintExpiry?: number;
+          mintSignature?: string;
+          mintChainId?: number;
+          mintCharId?: string;
+        }) => {
+          send({
+            type: "char/create",
+            name,
+            job,
+            gender,
+            ...(extra?.tokenId ? { tokenId: extra.tokenId } : {}),
+            ...(extra?.mintWallet ? { mintWallet: extra.mintWallet } : {}),
+            ...(extra?.mintNonce ? { mintNonce: extra.mintNonce } : {}),
+            ...(extra?.mintExpiry != null ? { mintExpiry: extra.mintExpiry } : {}),
+            ...(extra?.mintSignature ? { mintSignature: extra.mintSignature } : {}),
+            ...(extra?.mintChainId != null ? { mintChainId: extra.mintChainId } : {}),
+            ...(extra?.mintCharId ? { mintCharId: extra.mintCharId } : {}),
+          });
+          window.setTimeout(() => send({ type: "claim/starter" }), 100);
+          setCreating(false);
+        };
+
+        if (!isServerAuthed()) {
+          pushLog("Sign in before creating a character.");
+          useGame.getState().setPendingCreateEnter(false);
+          setCreating(false);
+          return;
+        }
+        void checkCharacterNameAvailable(name).then((avail) => {
+          if (!avail.ok) {
+            pushLog(avail.error);
+            useGame.getState().setPendingCreateEnter(false);
+            setCreating(false);
+            return;
+          }
+
+          if (!mintCfg) {
+            finish();
+            return;
+          }
+
+          // Mint-first: pay native settlement fee, then create the log char bound to that NFT id.
+          const gameWallet = useGame.getState().wallet;
+          if (!gameWallet) {
+            pushLog("Authenticate before creating a character.");
+            useGame.getState().setPendingCreateEnter(false);
+            setCreating(false);
+            return;
+          }
+          if (mintCfg.devFaucet) send({ type: "dev/faucet" });
+          window.setTimeout(() => {
+            void mintCharacterWithWallet({
+              mint: mintCfg,
+              job: jobIndex < 0 ? 0 : jobIndex,
+              gameWallet,
+              charId: name,
+              allowReuse: true,
+            }).then((res) => {
+              if (!res.ok) {
+                pushLog("Character mint: " + res.error);
+                useGame.getState().setPendingCreateEnter(false);
+                setCreating(false);
+                return;
+              }
+              {
+                const unit = mintCfg.currency?.symbol ?? "xDAI";
+                const txLink =
+                  !res.reused && res.hash && res.hash !== "reuse"
+                    ? explorerTxUrl(mintCfg.chainId, res.hash)
+                    : "";
+                pushLog(
+                  (res.reused
+                    ? "Reusing already-paid NFT #"
+                    : "Paid character mint fee (native " +
+                        unit +
+                        "). Creating log identity for NFT #") +
+                    res.tokenId +
+                    "…" +
+                    (txLink ? " " + txLink : ""),
+                );
+              }
+              finish({
+                tokenId: res.tokenId,
+                mintWallet: res.payer,
+                ...(res.mintSignature
+                  ? {
+                      mintNonce: res.mintNonce,
+                      mintExpiry: res.mintExpiry,
+                      mintSignature: res.mintSignature,
+                      mintChainId: mintCfg.chainId,
+                      mintCharId: res.charId,
+                    }
+                  : {}),
+              });
+              // M-F: also clear if the roster later shows this token (auth refresh / late snapshot).
+              window.setTimeout(() => {
+                const roster = useGame.getState().characters;
+                if (
+                  roster.some(
+                    (c) => c.tokenId === res.tokenId || characterNameKey(c.name) === named.key,
+                  )
+                ) {
+                  clearPendingMint(gameWallet);
+                }
+              }, 1500);
+            });
+          }, mintCfg.devFaucet ? 800 : 0);
+        });
       }}
     >
       <p className="boot-sub">Create your adventurer</p>
+      {mintCfg ? (
+        <p className="boot-sub">
+          Character NFT mint fee: {(Number(mintCfg.mintFee) / 1e18).toFixed(4)}{" "}
+          {mintCfg.currency?.symbol ??
+            (mintCfg.chainId === 100 || mintCfg.chainId === 10200 ? "xDAI" : "ETH")}{" "}
+          (native, paid from your
+          wallet before the character is created)
+          {mintCfg.devFaucet ? ". Local faucet can fund the burner on anvil 31337." : ""}.
+        </p>
+      ) : null}
       <label className="boot-label">
         Character name
         <input name="name" defaultValue="Chrona" maxLength={16} className="boot-input" />

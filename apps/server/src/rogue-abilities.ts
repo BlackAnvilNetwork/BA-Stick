@@ -72,6 +72,8 @@ export type RogueHooks = {
     int: number;
     mnd: number;
   };
+  /** Credit in-game gold (purse cut). Soft Dust currency is retired. */
+  earnGold: (p: RoguePlayer, amount: number) => void;
 };
 
 
@@ -206,10 +208,10 @@ export function resolveRogueAbility(
     spend();
     p.facing = hooks.facingTo(p.x, p.z, m.x, m.z);
     const stolen = 8 + Math.floor(Math.random() * 13);
-    p.dust += stolen;
+    hooks.earnGold(p, stolen);
     p.anim = "melee";
     p.animUntil = now + 480;
-    hooks.pushLog(p, `${def.label} — +${stolen} Dust from ${m.name ?? "foe"}.`);
+    hooks.pushLog(p, `${def.label} — +${stolen} gold from ${m.name ?? "foe"}.`);
     return true;
   }
 

@@ -1,3 +1,28 @@
+export { characterNameKey, normalizeCharacterName } from "./character-name";
+
+export {
+  SETTLEMENT_BY_CHAIN,
+  isSettlementChain,
+  settlementCurrency,
+  settlementCurrencyView,
+  type SettlementCurrency,
+} from "./settlement";
+
+export {
+  NETWORK_PROFILES,
+  applyNetworkProfileEnv,
+  explorerAddressUrl,
+  explorerTxUrl,
+  isNetworkName,
+  networkProfile,
+  networkProfileByChainId,
+  resolveNetworkName,
+  settlementRpcUrls,
+  type NetworkName,
+  type NetworkProfile,
+} from "./network-profile";
+
+/** @deprecated Prefer settlement chain ids (100 / 10200 / 31337). Kept for legacy imports. */
 export const CHAIN_ID = 4663;
 export const TICK_HZ = 20;
 export const TICK_MS = 1000 / TICK_HZ;

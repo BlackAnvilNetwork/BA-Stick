@@ -11,6 +11,7 @@ import {ICharacterStateHook} from "./interfaces/ICharacterNFT.sol";
 /// @notice Pure ownership token for characters. All game data lives in CharacterState.
 ///         Every transfer (not mint) calls CharacterState.onTransfer, which bumps the character's
 ///         version + revision: outstanding server signatures die and marketplaces can detect changes.
+///         UUPS upgrades must be authorized by `upgradeAuthority` (Timelock) once set.
 contract CharacterNFT is Initializable, ERC721Upgradeable, AccessControlUpgradeable, UUPSUpgradeable {
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE"); // CharacterFactory
 
@@ -18,12 +19,17 @@ contract CharacterNFT is Initializable, ERC721Upgradeable, AccessControlUpgradea
     ICharacterStateHook public state;
     uint256 public nextTokenId; // last minted id; ids start at 1
     string private _baseTokenURI;
+    /// @notice Timelock (or similar) that alone may authorize UUPS upgrades. When unset, DEFAULT_ADMIN may upgrade (anvil).
+    address public upgradeAuthority;
 
     error StateNotSet();
     error ZeroAddress();
+    error UnauthorizedUpgrade();
+    error UpgradeAuthorityAlreadySet();
 
     event StateSet(address state);
     event BaseURISet(string baseURI);
+    event UpgradeAuthoritySet(address indexed authority);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -41,7 +47,21 @@ contract CharacterNFT is Initializable, ERC721Upgradeable, AccessControlUpgradea
         _baseTokenURI = baseURI_;
     }
 
-    function _authorizeUpgrade(address) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
+    /// @notice Set once to the TimelockController that must authorize upgrades in production.
+    function setUpgradeAuthority(address authority) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (upgradeAuthority != address(0)) revert UpgradeAuthorityAlreadySet();
+        if (authority == address(0)) revert ZeroAddress();
+        upgradeAuthority = authority;
+        emit UpgradeAuthoritySet(authority);
+    }
+
+    function _authorizeUpgrade(address) internal override {
+        if (upgradeAuthority != address(0)) {
+            if (msg.sender != upgradeAuthority) revert UnauthorizedUpgrade();
+        } else {
+            _checkRole(DEFAULT_ADMIN_ROLE);
+        }
+    }
 
     function setState(address state_) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (state_ == address(0)) revert ZeroAddress();

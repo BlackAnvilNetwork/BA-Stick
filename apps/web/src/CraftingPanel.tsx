@@ -120,15 +120,15 @@ export function CraftingPanel({ you, onClose }: Props) {
         {closeList.map((c) => {
           const pct = Math.round(c.matFrac * 100);
           const groups = c.materialGroups ?? c.materials.map((m) => ({ options: [m] }));
-          const kekCost = c.def.recipe?.kek ?? 0;
-          let kekBal = 0n;
+          const goldCost = c.def.recipe?.gold ?? 0;
+          let goldBal = 0n;
           try {
-            kekBal = BigInt(you.lok?.kek ?? "0");
+            goldBal = BigInt(you.lok?.gold ?? "0");
           } catch {
-            kekBal = 0n;
+            goldBal = 0n;
           }
-          const kekOk = kekCost <= 0 || kekBal >= BigInt(kekCost);
-          const ready = c.canCraft && kekOk;
+          const goldOk = goldCost <= 0 || goldBal >= BigInt(goldCost);
+          const ready = c.canCraft && goldOk;
           return (
             <div key={c.def.id} className="craft-recipe-row">
               <img src={c.def.icon} alt="" width={40} height={40} className="craft-icon" />
@@ -163,7 +163,7 @@ export function CraftingPanel({ you, onClose }: Props) {
                     );
                   })}
                 </div>
-                <div className="craft-mat-line">{kekCost > 0 ? `${kekCost} KEK` : "0 KEK"}</div>
+                <div className="craft-mat-line">{goldCost > 0 ? `${goldCost} gold` : "0 gold"}</div>
                 <div className="craft-progress">
                   <i style={{ width: `${pct}%` }} />
                 </div>
@@ -174,7 +174,7 @@ export function CraftingPanel({ you, onClose }: Props) {
                 disabled={!ready}
                 onClick={() => send({ type: "craft", itemId: c.def.id })}
               >
-                {ready ? "Craft" : !kekOk ? "KEK" : c.skillLevel < c.needLevel ? `Lv ${c.needLevel}` : `${pct}%`}
+                {ready ? "Craft" : !goldOk ? "gold" : c.skillLevel < c.needLevel ? `Lv ${c.needLevel}` : `${pct}%`}
               </button>
             </div>
           );

@@ -92,7 +92,7 @@ export type ItemDef = {
   stats?: ItemStats;
   consume?: ConsumeEffect;
   recipe?: {
-    kek: number;
+    gold: number;
     materialsText: string;
     /** Structured materials when available (preferred over parsing materialsText). */
     materials?: { slug: string; qty: number }[];

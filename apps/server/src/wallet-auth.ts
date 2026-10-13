@@ -1,6 +1,7 @@
 /** EIP-4361-style signed login for the local game server. */
 import { randomBytes } from "node:crypto";
-import { verifyMessage, type Hex } from "viem";
+import { createPublicClient, http, verifyMessage, type Hex } from "viem";
+import { envSettlementChainId } from "./settlement-chain";
 
 const NONCE_TTL_MS = 5 * 60_000;
 /** Pending challenges one connection may hold at once. Applies to every address. */
@@ -65,6 +66,7 @@ function trustsProxy(env: Record<string, string | undefined>): boolean {
 /**
  * Socket remote address by default.
  * X-Forwarded-For is used only when AUTH_TRUST_PROXY is explicitly on.
+ * M-3: take the right-most untrusted hop (left entries are client-spoofable).
  */
 export function clientAddress(
   req: {
@@ -78,8 +80,14 @@ export function clientAddress(
   const header = req.headers["x-forwarded-for"];
   const raw = Array.isArray(header) ? header[0] : header;
   if (!raw) return remote;
-  const first = raw.split(",")[0]?.trim() ?? "";
-  return first ? normalizeIp(first) : remote;
+  const hops = raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (hops.length === 0) return remote;
+  // Right-most hop is the one appended by the trusted proxy nearest the app.
+  const last = hops[hops.length - 1]!;
+  return normalizeIp(last);
 }
 
 function canonicalOrigin(value: string): { origin: string; domain: string } | null {
@@ -179,16 +187,22 @@ function pendingForIp(clientIp: string): number {
   return n;
 }
 
-function pendingGlobal(): number {
+function pendingGlobal(countLoopback = false): number {
   let n = 0;
   for (const row of pendingNonces.values()) {
-    if (!isLoopbackIp(row.clientIp)) n += 1;
+    if (countLoopback || !isLoopbackIp(row.clientIp)) n += 1;
   }
   return n;
 }
 
-function allowHello(connectionId: string, clientIp: string, now: number): boolean {
-  if (isLoopbackIp(clientIp)) {
+function allowHello(
+  connectionId: string,
+  clientIp: string,
+  now: number,
+  /** When true, treat loopback like a remote IP (AUTH_TRUST_PROXY / M-3). */
+  countLoopback = false,
+): boolean {
+  if (isLoopbackIp(clientIp) && !countLoopback) {
     const hits = (loopbackHellos.get(connectionId) ?? []).filter((t) => now - t < AUTH_HELLO_WINDOW_MS);
     if (hits.length >= AUTH_HELLO_LIMIT) {
       loopbackHellos.set(connectionId, hits);
@@ -238,17 +252,21 @@ export function authMessage(args: {
   chainId?: number;
   uri?: string;
   domain?: string;
+  /** Statement line under the address (EIP-4361). */
+  statement?: string;
 }): string {
   const wallet = args.wallet.toLowerCase();
-  const uri = args.uri ?? "bellgrave://local";
+  const uri = args.uri ?? "https://blackanvil.gg";
   const chainId = args.chainId ?? 31337;
   const domain = (args.domain ?? "localhost").trim() || "localhost";
   const expirationTime = args.expirationTime ?? new Date(Date.now() + NONCE_TTL_MS).toISOString();
+  const statement = (args.statement ?? "Sign in to Black Anvil.").trim();
   return [
     domain + " wants you to sign in with your Ethereum account:",
     wallet,
     "",
-    "Domain: " + domain,
+    statement,
+    "",
     "URI: " + uri,
     "Version: 1",
     "Chain ID: " + chainId,
@@ -263,10 +281,25 @@ export type AuthChallengeOpts = {
   connectionId?: string;
   /** SIWE domain: host of the allowlisted Origin, never a client Host header. */
   domain?: string;
+  /** Full allowlisted Origin used as SIWE URI. */
+  uri?: string;
+  /** Settlement chain id (Gnosis 100, Chiado 10200, anvil 31337). */
+  chainId?: number;
   /** Normalized socket address. Loopback does not spend the global budget. */
   clientIp?: string;
+  /** When true (AUTH_TRUST_PROXY), loopback still spends IP/global budgets (M-3). */
+  countLoopback?: boolean;
   now?: number;
+  env?: NodeJS.ProcessEnv;
 };
+
+function authUriForDomain(domain: string, uri?: string): string {
+  if (uri && /^https?:\/\//i.test(uri)) return uri;
+  if (domain === "localhost" || domain.startsWith("localhost:") || domain.startsWith("127.0.0.1")) {
+    return "http://" + domain;
+  }
+  return "https://" + domain;
+}
 
 export function issueAuthChallenge(
   wallet: string,
@@ -280,30 +313,37 @@ export function issueAuthChallenge(
   }
   const connectionId = opts.connectionId ?? "";
   const clientIp = normalizeIp(opts.clientIp ?? "");
+  const countLoopback =
+    opts.countLoopback === true ||
+    trustsProxy((opts.env ?? process.env) as Record<string, string | undefined>);
   if (pendingFor(connectionId) >= AUTH_PENDING_PER_CONNECTION) {
     return { ok: false, error: "Too many pending login challenges." };
   }
-  if (!isLoopbackIp(clientIp)) {
+  if (countLoopback || !isLoopbackIp(clientIp)) {
     if (pendingForIp(clientIp) >= AUTH_PENDING_PER_IP) {
       return { ok: false, error: "Too many pending login challenges." };
     }
-    if (pendingGlobal() >= AUTH_PENDING_GLOBAL) {
+    if (pendingGlobal(countLoopback) >= AUTH_PENDING_GLOBAL) {
       return { ok: false, error: "Too many pending login challenges." };
     }
   }
-  if (!allowHello(connectionId, clientIp, now)) {
+  if (!allowHello(connectionId, clientIp, now, countLoopback)) {
     return { ok: false, error: "Too many login challenges. Wait a moment." };
   }
   const nonce = randomBytes(16).toString("hex");
   const issuedAt = new Date(now).toISOString();
   const expiresAt = now + NONCE_TTL_MS;
   const domain = (opts.domain ?? "localhost").trim() || "localhost";
+  const chainId = opts.chainId ?? envSettlementChainId(opts.env ?? process.env);
   const message = authMessage({
     wallet: addr,
     nonce,
     issuedAt,
     expirationTime: new Date(expiresAt).toISOString(),
     domain,
+    chainId,
+    uri: authUriForDomain(domain, opts.uri),
+    statement: "Sign in to Black Anvil.",
   });
   pendingNonces.set(nonce, { wallet: addr, message, expiresAt, connectionId, clientIp });
   return { ok: true, nonce, issuedAt, message };
@@ -316,6 +356,7 @@ export async function verifyAuthLogin(args: {
   message: string;
   /** Must be the connection that received the challenge. */
   connectionId?: string;
+  env?: NodeJS.ProcessEnv;
 }): Promise<{ ok: true; wallet: string } | { ok: false; error: string }> {
   const now = Date.now();
   prune(now);
@@ -349,11 +390,32 @@ export async function verifyAuthLogin(args: {
   usedNonces.set(args.nonce, now + NONCE_TTL_MS);
   let valid = false;
   try {
-    valid = await verifyMessage({
-      address: wallet as `0x${string}`,
-      message: args.message,
-      signature: args.signature as Hex,
-    });
+    // M-4: prefer publicClient.verifyMessage (ERC-1271 / smart wallets) when RPC is set.
+    const env = args.env ?? process.env;
+    const rpc = env.LOK_CHAIN_RPC?.trim() || env.LOK_PUBLIC_RPC?.trim();
+    const chainId = envSettlementChainId(env);
+    if (rpc) {
+      const pub = createPublicClient({
+        chain: {
+          id: chainId,
+          name: "settlement",
+          nativeCurrency: { name: "xDAI", symbol: "xDAI", decimals: 18 },
+          rpcUrls: { default: { http: [rpc] } },
+        },
+        transport: http(rpc),
+      });
+      valid = await pub.verifyMessage({
+        address: wallet as `0x${string}`,
+        message: args.message,
+        signature: args.signature as Hex,
+      });
+    } else {
+      valid = await verifyMessage({
+        address: wallet as `0x${string}`,
+        message: args.message,
+        signature: args.signature as Hex,
+      });
+    }
   } catch {
     return { ok: false, error: "Signature could not be checked." };
   }

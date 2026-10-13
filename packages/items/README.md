@@ -4,12 +4,26 @@ Item catalog for Legend of Kek / Bellgrave: stats, descriptions, icon paths, cra
 
 **Source of truth:** `docs/legend-of-kek-item-manifest.xlsx`
 
+## On-chain ids (Gnosis Items.sol)
+
+Craft/recipes keep catalog **small-int `id` + kebab `slug`**. Settlement ERC-1155 ids are content-addressed:
+
+- fungible: `chainFungibleId(slug)` ≡ `ItemIds.fungible(slug)`
+- unique: `chainUniqueId(slug, instanceId)` ≡ `ItemIds.unique(slug, n)`
+
+Register new exportable types with `Items.registerFungible(slug, …)` — **no contract redeploy**. Log replay / checkpoint / watchers treat `itemId` as opaque `uint256`.
+
+```bash
+pnpm --filter @bellgrave/items test
+```
+
 ## Regen
 
 ```bash
 py -3 scripts/build-item-catalog.py
 py -3 scripts/bake-item-icons.py
 ```
+
 
 Icons are **painted PNGs** (96×96, magenta-keyed) under `apps/web/public/icons/items/{slug}.png`.
 

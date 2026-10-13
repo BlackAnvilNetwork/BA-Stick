@@ -313,7 +313,12 @@ contract CharacterCheckpointTest is Base {
     function test_export_reentrancyViaMintReceiverBlocked() public {
         ReentrantPlayer atk = new ReentrantPlayer();
         vm.deal(address(atk), 1 ether);
-        bytes memory ret = atk.call(address(factory), 0.001 ether, abi.encodeCall(factory.createCharacter, (1)));
+        uint256 expectedAtk = nft.nextTokenId() + 1;
+        bytes memory ret = atk.call(
+            address(factory),
+            0.001 ether,
+            abi.encodeCall(factory.createCharacterFor, (1, expectedAtk))
+        );
         uint256 atkToken = abi.decode(ret, (uint256));
 
         CharacterCheckpoint.Checkpoint memory c = _next(atkToken);
@@ -338,6 +343,23 @@ contract CharacterCheckpointTest is Base {
         assertEq(items.balanceOf(player, ITEM_SWORD), 1);
         assertEq(cp.inboundCount(tokenId), 1);
         assertEq(cp.inboundApplied(tokenId), 0);
+    }
+
+    function test_import_revertsWhenImportsDisabled() public {
+        items.mint(player, ITEM_SWORD, 1);
+        vm.prank(admin);
+        cp.setImportsEnabled(false);
+        vm.prank(player);
+        vm.expectRevert(CharacterCheckpoint.ImportsDisabled.selector);
+        cp.importItem(tokenId, ITEM_SWORD, 1);
+    }
+
+    function test_export_revertsWhenExportsDisabled() public {
+        vm.prank(admin);
+        cp.setExportsEnabled(false);
+        CharacterCheckpoint.Checkpoint memory c = _next();
+        c.exports = _export(ITEM_SWORD, 1);
+        _expectRevert(c, CharacterCheckpoint.ExportsDisabled.selector);
     }
 
     function test_import_rejections() public {
@@ -487,15 +509,21 @@ contract CharacterCheckpointTest is Base {
         assertEq(cp.logIndex(tokenId), 0, "checkpoint rolled back");
     }
 
+    /// L-7: with vault=0, deposit / reassign / sink / kekOut all revert NotConfigured.
     function test_kek_vaultUnconfigured() public {
         vm.prank(admin);
         cp.setVault(address(0));
         CharacterCheckpoint.Checkpoint memory c = _next();
         c.kekOut = 1 ether;
         _expectRevert(c, CharacterCheckpoint.NotConfigured.selector);
-        vm.prank(player);
+        vm.startPrank(player);
         vm.expectRevert(CharacterCheckpoint.NotConfigured.selector);
         cp.depositKek(tokenId, 1 ether);
+        vm.expectRevert(CharacterCheckpoint.NotConfigured.selector);
+        cp.reassignKek(tokenId, tokenId + 1, 1 ether);
+        vm.expectRevert(CharacterCheckpoint.NotConfigured.selector);
+        cp.sinkKek(tokenId, 1 ether);
+        vm.stopPrank();
     }
 
     // ============================================================== transfers

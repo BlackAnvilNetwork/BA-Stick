@@ -37,11 +37,26 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
     name: z.string().min(2).max(16),
     job: JobId,
     gender: Gender.default("male"),
+    /** On-chain NFT id when mint-first (player already paid createCharacter). */
+    tokenId: z.string().regex(/^[1-9][0-9]{0,77}$/).optional(),
+    /** Wallet that paid the mint fee (may differ from burner auth). */
+    mintWallet: z.string().regex(/^0x[0-9a-fA-F]{40}$/).optional(),
+    /** EIP-191 mint claim when mintWallet !== auth wallet (H1 / L3). */
+    mintNonce: z.string().min(8).max(128).optional(),
+    mintExpiry: z.number().int().positive().optional(),
+    mintSignature: z.string().min(130).max(200).optional(),
+    mintChainId: z.number().int().positive().optional(),
+    mintCharId: z.string().min(1).max(64).optional(),
   }),
   z.object({
     type: z.literal("char/enter"),
     /** Which roster slot to play; omit to enter the last-active character. */
     characterId: z.string().min(1).optional(),
+  }),
+  /** Pre-pay check: is this character name free on the global log? */
+  z.object({
+    type: z.literal("char/nameCheck"),
+    name: z.string().min(2).max(16),
   }),
   z.object({ type: z.literal("move"), x: z.number(), z: z.number() }),
   z.object({ type: z.literal("engage"), targetId: z.string() }),
@@ -78,6 +93,11 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
   }),
   /** Keepalive — client ↔ server heartbeat so AFK tabs stay connected. */
   z.object({ type: z.literal("ping"), t: z.number().optional() }),
+  /** Dev-only anvil ETH faucet (31337). Ignored when faucet is disabled. */
+  z.object({
+    type: z.literal("dev/faucet"),
+    to: z.string().regex(/^0x[0-9a-fA-F]{40}$/).optional(),
+  }),
   /** Invite a player to your party (by wallet / unit id, or exact character name). */
   z.object({ type: z.literal("party/invite"), targetId: z.string().min(1).max(64) }),
   z.object({ type: z.literal("party/accept") }),
@@ -110,7 +130,7 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
     to: z.string().min(1).max(64),
     amount: z.string().regex(/^[1-9][0-9]{0,18}$/),
   }),
-  /** Appends the WithdrawKek debit, then queues the vault withdrawal. A definite refusal undoes the debit. */
+  /** Legacy client message. The server refuses — vault withdrawals are removed. */
   z.object({
     type: z.literal("lok/withdrawKek"),
     amount: z.string().regex(/^[1-9][0-9]{0,18}$/),
@@ -128,6 +148,11 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
     tokenId: z.number().int().positive(),
     amount: z.number().int().positive().max(1_000_000),
     minPrice: z.string().regex(/^[1-9][0-9]{0,18}$/),
+    /**
+     * Ignored by the server. Proceeds always go to ownerOf(character) at list
+     * time (mainnet rule 2/4). Kept optional for older clients.
+     */
+    sellerPayout: z.string().regex(/^0x[0-9a-fA-F]{40}$/).optional(),
   }),
   z.object({
     type: z.literal("lok/bid"),
@@ -146,6 +171,12 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
   }),
   z.object({
     type: z.literal("lok/takeInbox"),
+    tokenId: z.number().int().positive(),
+    amount: z.number().int().positive().max(1_000_000),
+  }),
+  /** Sell a log stack to the Provisioner NPC for gold (server-priced). */
+  z.object({
+    type: z.literal("lok/npcSell"),
     tokenId: z.number().int().positive(),
     amount: z.number().int().positive().max(1_000_000),
   }),
@@ -357,15 +388,90 @@ export type LokListingView = {
   yours: boolean;
 };
 
+/** Matches AhEscrow.FEE_BPS — 1% of sale price (floor). */
+export const AH_FEE_BPS = 100;
+export const AH_FEE_BPS_DENOM = 10_000;
+
+/** Floor split used by AhEscrow.buyAsk / quoteFee. */
+export function ahFeeSplit(priceWei: bigint): { feeWei: bigint; sellerNetWei: bigint } {
+  if (priceWei < 0n) throw new Error("priceWei must be non-negative");
+  const feeWei = (priceWei * BigInt(AH_FEE_BPS)) / BigInt(AH_FEE_BPS_DENOM);
+  return { feeWei, sellerNetWei: priceWei - feeWei };
+}
+
+/** Native settlement currency exposed to the client (label + defaults). */
+export type SettlementCurrencyView = {
+  chainId: number;
+  symbol: string;
+  name: string;
+  decimals: number;
+  defaultMintFeeWei: string;
+  exampleAskHuman: string;
+};
+
+/** Browser-reachable AhEscrow config so the client can sign buyAsk. Null when unset. */
+export type AhEscrowClientConfig = {
+  address: string;
+  rpcUrl: string;
+  chainId: number;
+  /** Marketplace fee in basis points (default 100 = 1%). */
+  feeBps?: number;
+  /** Native unit for ask prices / fee display (xDAI on Gnosis, ETH on anvil). */
+  currency?: SettlementCurrencyView;
+};
+
+/** Local / EEZ sync-buy client config (pay from home chain). */
+export type EezSyncBuyClientConfig = {
+  syncBuyEnabled: boolean;
+  zoneId: string | null;
+  homeChainId: number | null;
+  homeRpcUrl: string | null;
+  homeLabel: string | null;
+  /** Local MockEezSyncBuy address when testing without a live EEZ zone. */
+  mockSyncBuy: string | null;
+  gameEscrow: string | null;
+  gameChainId: number | null;
+};
+
 export type LokSnapshot = {
   tokenId: string;
+  /**
+   * Settlement balance for AH bids/asks and player sends (ETH/WETH wei on the log).
+   * Engine event names still say Kek for replay; product unit is ETH.
+   * New play does not credit this for AH — payment is on-chain via AhEscrow.
+   */
   kek: string;
+  /** Same as `kek` — preferred client field for legacy settlement display. */
+  eth?: string;
+  /** In-game gold (log-only). Trainer / craft / respec spend this, not ETH. */
+  gold?: string;
   items: LokItemBalance[];
   /** Provisioner inbox. Sends, sales, cancels, and reclaims land here, not in the bag. */
   inbox: LokItemBalance[];
   listings: LokListingView[];
-  /** engine-only: no endpoint. rpc-unwatched: endpoint set, vault not followed. watching: deposits are applied from the checkpoint. */
+  /** engine-only: no endpoint. rpc-unwatched: endpoint set, vault not followed. watching: AhEscrow and/or checkpoint are followed. */
   chain: "engine-only" | "rpc-unwatched" | "watching";
+  /** Present when the server exposes a public RPC + AhEscrow address for wallet buys. */
+  ahEscrow?: AhEscrowClientConfig | null;
+  /** Present when EEZ / local mock sync buy is configured. */
+  eezSyncBuy?: EezSyncBuyClientConfig | null;
+  /** Present when the player should pay createCharacter{value} for the NFT. */
+  characterMint?: {
+    factory: string;
+    nft: string;
+    mintFee: string;
+    chainId: number;
+    rpcUrl: string;
+    /** False on factories deployed before createCharacterFor. */
+    supportsCreateFor?: boolean;
+    /** Suggested next token id (max of chain next and log bind counter). */
+    suggestedTokenId?: string;
+    /** Dev faucet / server-mint hints for local 31337. */
+    devFaucet?: boolean;
+    devServerMint?: boolean;
+    /** Native mint-fee unit label (xDAI / ETH). */
+    currency?: SettlementCurrencyView;
+  } | null;
   withdrawDelaySec: number | null;
   queues: { id: string; amount: string; availableAt: number }[];
 };
@@ -423,7 +529,7 @@ export type SnapshotMessage = {
     freeStatPoints: number;
     /** Allocated free attribute points. */
     freeStats: { str: number; dex: number; vit: number; agi: number; int: number; mnd: number };
-    /** Hash-chained lok balances. KEK is deposit-only. */
+    /** Hash-chained lok balances. Settlement Key::Kek is historical; new AH pays on-chain. */
     lok?: LokSnapshot;
   };
   units: UnitSnapshot[];
@@ -440,6 +546,8 @@ export type CharacterPreview = {
   job: JobId;
   level: number;
   gender: Gender;
+  /** Log / NFT token id when bound (used to clear pending paid mints). */
+  tokenId?: string;
 };
 
 export type SpellOffer = {
@@ -469,8 +577,26 @@ export type ServerMessage =
       characters: CharacterPreview[];
       /** Last-active / primary character — convenience for older clients. */
       character?: CharacterPreview;
+      /** Present when the player should pay createCharacter{value} before char/create. */
+      characterMint?: {
+        factory: string;
+        nft: string;
+        mintFee: string;
+        chainId: number;
+        rpcUrl: string;
+        supportsCreateFor?: boolean;
+        suggestedTokenId?: string;
+        devFaucet?: boolean;
+        devServerMint?: boolean;
+      } | null;
     }
   | { type: "log"; message: string }
+  | {
+      type: "char/nameCheck";
+      available: boolean;
+      name?: string;
+      error?: string;
+    }
   | { type: "pong"; t?: number }
   | { type: "party/invite"; fromId: string; fromName: string; partyId: string; expiresAt: number }
   | {

@@ -2007,7 +2007,7 @@ textarea {
 .npc-trainer-card-wrap {
   width: min(320px, 56vw) !important;
 }
-.npc-trainer-dust {
+.npc-trainer-gold {
   margin: 0 18px 8px 0;
   font-size: 11px;
   color: var(--teal);

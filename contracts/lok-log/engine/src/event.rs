@@ -98,6 +98,37 @@ pub enum Input {
     SendInbox { from: U256, to: U256, item_id: U256, amount: U256 },
     /// Take items out of the inbox. They leave the log; the server bags them.
     TakeInbox { token_id: U256, item_id: U256, amount: U256 },
+    /// Credit in-game gold. `day` is server-stamped; the engine enforces daily earn caps.
+    /// Not KEK, not a vault deposit, and not transferable between characters in v1.
+    GoldEarn { token_id: U256, source: String, amount: U256, day: u64 },
+    /// Debit in-game gold for a sink (trainer, craft, respec, shop). Fails if short.
+    GoldSpend { token_id: U256, sink: String, amount: U256 },
+    /// NPC buy-back: burn `qty` of `item_id`, credit `amount` gold under the npc_sell earn cap.
+    /// `day` is server-stamped like GoldEarn. Price tables are ruleset content (E3); the amount
+    /// is part of the event payload the server appends.
+    GoldSell { token_id: U256, item_id: U256, qty: U256, amount: U256, day: u64 },
+    /// On-chain AhEscrow fill mirrored into the log. Moves the ask's stack into the buyer's
+    /// inbox. Does **not** debit or credit settlement ETH/`Key::Kek` — payment already settled
+    /// on-chain. `price_wei` / `item_id` / `amount` / `seller` must match the open ask.
+    /// `tx_hash` + `log_index` bind the mirror to the AskFilled receipt (dedupe + audit).
+    /// Appended only by the server after a trusted on-chain fill. Not yet on any committed log.
+    ChainFill {
+        listing_id: U256,
+        buyer: U256,
+        price_wei: U256,
+        item_id: U256,
+        amount: U256,
+        seller: U256,
+        tx_hash: [u8; 32],
+        log_index: u64,
+    },
+    /// Debit in-game gold and drop skill-node ids in one apply. Mirrors PaidRespecSkills
+    /// but spends gold rather than KEK. Not a mint and not kekOut.
+    GoldPaidRespec {
+        token_id: U256,
+        amount: U256,
+        node_ids: Vec<String>,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -302,6 +333,56 @@ Input::CancelAsk { listing_id, seller } => {
             buf.u256(token_id);
             buf.u256(item_id);
             buf.u256(amount);
+        }
+        Input::GoldEarn { token_id, source, amount, day } => {
+            buf.b256(&domain(b"LOK_GOLD_EARN_V1"));
+            buf.u256(token_id);
+            push_label(&mut buf, source);
+            buf.u256(amount);
+            buf.u64(*day);
+        }
+        Input::GoldSpend { token_id, sink, amount } => {
+            buf.b256(&domain(b"LOK_GOLD_SPEND_V1"));
+            buf.u256(token_id);
+            push_label(&mut buf, sink);
+            buf.u256(amount);
+        }
+        Input::GoldSell { token_id, item_id, qty, amount, day } => {
+            buf.b256(&domain(b"LOK_GOLD_SELL_V1"));
+            buf.u256(token_id);
+            buf.u256(item_id);
+            buf.u256(qty);
+            buf.u256(amount);
+            buf.u64(*day);
+        }
+        Input::ChainFill {
+            listing_id,
+            buyer,
+            price_wei,
+            item_id,
+            amount,
+            seller,
+            tx_hash,
+            log_index,
+        } => {
+            buf.b256(&domain(b"LOK_CHAIN_FILL_V1"));
+            buf.u256(listing_id);
+            buf.u256(buyer);
+            buf.u256(price_wei);
+            buf.u256(item_id);
+            buf.u256(amount);
+            buf.u256(seller);
+            buf.b256(tx_hash);
+            buf.u64(*log_index);
+        }
+        Input::GoldPaidRespec { token_id, amount, node_ids } => {
+            buf.b256(&domain(b"LOK_GOLD_PAID_RESPEC_V1"));
+            buf.u256(token_id);
+            buf.u256(amount);
+            buf.u64(node_ids.len() as u64);
+            for id in node_ids {
+                push_label(&mut buf, id);
+            }
         }
     }
     keccak256(&buf.bytes)

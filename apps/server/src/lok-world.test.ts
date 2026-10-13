@@ -80,6 +80,24 @@ test("auction settle pays the high bid with no fee and replays after restart", (
   assert.equal(again.length, lok.length);
 });
 
+test("goldEarn credits gold, goldSpend debits it, and caps reject over-earn", () => {
+  const dir = mkdtempSync(join(tmpdir(), "lok-gold-"));
+  const lok = LokWorld.open(dir, undefined, {});
+  const a = lok.spawn("char-a", "Ada", 0);
+  assert.equal(a.ok, true);
+  if (!a.ok) return;
+  assert.equal(lok.goldOf(a.tokenId), "0");
+  assert.equal(lok.goldEarn(a.tokenId, "quest", "100", 1).ok, true);
+  assert.equal(lok.goldOf(a.tokenId), "100");
+  assert.equal(lok.goldSpend(a.tokenId, "trainer", "40").ok, true);
+  assert.equal(lok.goldOf(a.tokenId), "60");
+  const short = lok.goldSpend(a.tokenId, "craft", "61");
+  assert.equal(short.ok, false);
+  if (!short.ok) assert.match(short.error, /insufficient gold/i);
+  const again = LokWorld.open(dir, undefined, {});
+  assert.equal(again.goldOf(a.tokenId), "60");
+});
+
 test("spendKek debits spendable KEK, leaves escrow locked, and does not mint", () => {
   const dir = mkdtempSync(join(tmpdir(), "lok-spend-"));
   const lok = LokWorld.open(dir, undefined, {});

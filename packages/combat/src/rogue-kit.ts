@@ -149,7 +149,7 @@ export const ROGUE_ABILITIES: Record<RogueAbilityId, RogueAbilityDef> = {
 export const ROGUE_ABILITY_BLURBS: Record<RogueAbilityId, string> = {
   rest: "Kneel to recover HP. Breaks on damage or move.",
   ghost_step: "2-hour: violet smoke — enemies lose you and stop chasing; melee misses for 30s.",
-  purse_cut: "Slip a hand into their purse — steal Dust.",
+  purse_cut: "Slip a hand into their purse — steal gold.",
   backblade: "Ready a backstrike — your next hit is a guaranteed critical.",
   dust_runner: "Sprint through ash — move speed +50% for 30s.",
   shadow_pass: "Next hit dumps your enmity (passes hate in a party).",

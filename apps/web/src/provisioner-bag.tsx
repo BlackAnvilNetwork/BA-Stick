@@ -1,8 +1,11 @@
-import { getItem } from "@bellgrave/items";
-import type { InventorySlot, LokItemBalance } from "@bellgrave/protocol";
+import { getItem, npcSellTotalGold, npcSellUnitGold } from "@bellgrave/items";
+import { ahFeeSplit, type InventorySlot, type LokItemBalance } from "@bellgrave/protocol";
 import { useState } from "react";
+import { formatEther, parseEther } from "viem";
 import { ItemCatalogDetails, ItemTipHost } from "./itemTip";
 import { send } from "./net";
+import { settlementExampleAsk, settlementSymbol } from "./settlement-label";
+import { useGame } from "./state";
 
 type Near = { id: string; name: string };
 
@@ -61,9 +64,42 @@ export function ProvisionerBag({ inventory, logItems, inbox, others }: Props) {
   const [inboxKey, setInboxKey] = useState<number | null>(null);
   const [toId, setToId] = useState("");
   const [minPrice, setMinPrice] = useState("");
+  const [sellQty, setSellQty] = useState("1");
+  const ahEscrow = useGame((s) => s.snapshot?.you?.lok?.ahEscrow ?? null);
+  const unit = settlementSymbol(ahEscrow?.currency, ahEscrow?.chainId);
+  const exampleAsk = settlementExampleAsk(ahEscrow?.currency, ahEscrow?.chainId);
   const cells = cellsOf(inventory, logItems);
   const selected = others.find((unit) => unit.id === toId);
-  const priceOk = /^[1-9][0-9]{0,18}$/.test(minPrice);
+  let minPriceWei: string | null = null;
+  const trimmed = minPrice.trim();
+  if (trimmed) {
+    try {
+      const wei = parseEther(trimmed);
+      if (wei > 0n) minPriceWei = wei.toString();
+    } catch {
+      minPriceWei = null;
+    }
+  }
+  const priceOk = minPriceWei !== null;
+  const listFeeNote = (() => {
+    if (!minPriceWei) return null;
+    try {
+      const { feeWei, sellerNetWei } = ahFeeSplit(BigInt(minPriceWei));
+      return (
+        "1% marketplace fee (" +
+        formatEther(feeWei) +
+        " " +
+        unit +
+        ") — you receive " +
+        formatEther(sellerNetWei) +
+        " " +
+        unit +
+        " if this ask fills (paid to the character NFT owner)."
+      );
+    } catch {
+      return null;
+    }
+  })();
 
   return (
     <div className="prov-hold">
@@ -124,22 +160,28 @@ export function ProvisionerBag({ inventory, logItems, inbox, others }: Props) {
                   </button>
                   <input
                     value={minPrice}
-                    placeholder="Minimum KEK"
+                    placeholder={"Minimum " + unit + " (e.g. " + exampleAsk + ")"}
                     aria-label="Minimum ask"
                     onChange={(e) => setMinPrice(e.target.value)}
                   />
+                  {listFeeNote && <p className="lok-note">{listFeeNote}</p>}
                   <button
                     type="button"
                     className="cmd-pill-tab"
                     disabled={!cell.logAmount || !priceOk}
-                    title={priceOk ? "List the log stack at this minimum." : "Minimum must be greater than 0."}
+                    title={
+                      priceOk
+                        ? "List the log stack at this minimum (1% fee on fill)."
+                        : "Enter a minimum " + unit + " amount greater than 0."
+                    }
                     onClick={() => {
-                      if (!cell.logAmount || !priceOk) return;
+                      if (!cell.logAmount || !minPriceWei) return;
+                      // Seller payout is ownerOf(character) on fill — never client-supplied.
                       send({
                         type: "lok/list",
                         tokenId: cell.tokenId,
                         amount: Number(cell.logAmount),
-                        minPrice,
+                        minPrice: minPriceWei,
                       });
                     }}
                   >
@@ -160,6 +202,52 @@ export function ProvisionerBag({ inventory, logItems, inbox, others }: Props) {
                     }}
                   >
                     Send
+                  </button>
+                  <input
+                    value={sellQty}
+                    placeholder="Qty"
+                    aria-label="Sell quantity"
+                    inputMode="numeric"
+                    onChange={(e) => setSellQty(e.target.value.replace(/[^0-9]/g, ""))}
+                  />
+                  <button
+                    type="button"
+                    className="cmd-pill-tab"
+                    disabled={!cell.logAmount}
+                    title={
+                      (() => {
+                        const max = Number(cell.logAmount || 0);
+                        const qty = Math.min(max, Math.max(1, Number(sellQty) || 1));
+                        const unit = npcSellUnitGold(cell.tokenId);
+                        const total = npcSellTotalGold(cell.tokenId, qty);
+                        if (unit == null || total == null) return "No NPC buyback price.";
+                        return "Sell " + qty + " for " + total + " gold (" + unit + " each). Confirms before sending.";
+                      })()
+                    }
+                    onClick={() => {
+                      if (!cell.logAmount) return;
+                      const max = Number(cell.logAmount);
+                      const qty = Math.min(max, Math.max(1, Number(sellQty) || 1));
+                      const total = npcSellTotalGold(cell.tokenId, qty);
+                      if (total == null) return;
+                      const ok = window.confirm(
+                        "Sell " +
+                          cell.name +
+                          " x" +
+                          qty +
+                          " to the Provisioner for " +
+                          total +
+                          " gold? This cannot be undone.",
+                      );
+                      if (!ok) return;
+                      send({
+                        type: "lok/npcSell",
+                        tokenId: cell.tokenId,
+                        amount: qty,
+                      });
+                    }}
+                  >
+                    Sell for gold
                   </button>
                   <button
                     type="button"

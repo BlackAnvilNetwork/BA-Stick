@@ -1,9 +1,15 @@
-import { execFile } from "node:child_process";
-import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+/**
+ * Local ruleset propose + character NFT link. Writes go through viem on the
+ * shared owner-key queue (no private key on the cast argv).
+ */
+import { isSettlementChain, settlementCurrencyView } from "@bellgrave/config";
+import { createPublicClient, createWalletClient, http, type Chain, type Hex } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
+import { renameSync, writeFileSync } from "node:fs";
+import { withOwnerKeyQueue } from "./owner-tx-queue";
 
-/** Accepted on the local anvil only. Not a mainnet ruleset. */
-export const LOCAL_RULESET_HASH = "0x5d9ceefcea8710b7a205f925e26aecb17a3c83aa4b668d12fb76ffafeda3bd38";
+/** Accepted on the local anvil only. Not a mainnet ruleset. Bumped with ChainFill payment refs. */
+export const LOCAL_RULESET_HASH = "0xb7e4d1c9a8f6520e3d7c6b5a49382716f0e1d2c3b4a5968778695a4b3c2d1e0f";
 
 /**
  * sha256 of the checked-in engine bundle (contracts/lok-log/engine/pkg/lok_engine.wasm) that
@@ -13,71 +19,44 @@ export const LOCAL_RULESET_HASH = "0x5d9ceefcea8710b7a205f925e26aecb17a3c83aa4b6
  * purpose: rebuild the wasm, run contracts/lok-log/engine/scripts/check-wasm-pin.mjs, update this pin,
  * and on any non-local network propose a new ruleset hash for the new bundle.
  */
-export const LOCAL_RULESET_WASM_SHA256 = "ee51c9a825f974715f4fa34d6d45137c88a9e44df676e624dd5298c850805fd2";
+export const LOCAL_RULESET_WASM_SHA256 = "bbf77ab29b31bc869891028d83ab1ee85f4d84a9137f8631d05c4c0876496510";
 
-const CHECKPOINT_TUPLE =
-  "(bytes32,bytes32,uint64,uint64,bytes32,bytes32,uint256,uint64,uint256,(uint256,uint32)[])";
+export const LOCAL_ANVIL_CHAIN_ID = 31337n;
 
-export type CastResult = { stdout: string; stderr: string };
-export type CastFn = (args: string[]) => Promise<CastResult>;
+export type VaultErr = { ok: false; error: string; uncertain?: boolean; id?: string; needsPlayerMint?: boolean };
 
-export type VaultOk = { ok: true; id: string; availableAt: number };
-export type VaultErr = { ok: false; error: string; uncertain?: boolean; id?: string };
-export type QueuedWithdrawal = {
-  id: string;
-  tokenId: string;
-  amount: string;
-  availableAt: number;
-  status: "pending" | "claimed";
+export type CharacterMintClientConfig = {
+  factory: string;
+  nft: string;
+  mintFee: string;
+  chainId: number;
+  rpcUrl: string;
+  supportsCreateFor: boolean;
+  suggestedTokenId: string;
+  devFaucet: boolean;
+  devServerMint: boolean;
+  currency: ReturnType<typeof settlementCurrencyView>;
 };
 
 type Env = {
   rpc: string;
-  checkpoint: string;
-  vault: string;
-  kek: string;
   nft: string;
   factory: string;
   rulesets: string;
   ownerKey: string;
-  rotatorKey: string;
   proposerKey: string;
-  castBin: string;
 };
 
 function envOf(env: NodeJS.ProcessEnv): Env {
   const pick = (key: string) => env[key]?.trim() ?? "";
   return {
     rpc: pick("LOK_CHAIN_RPC"),
-    checkpoint: pick("LOK_CHECKPOINT"),
-    vault: pick("LOK_VAULT"),
-    kek: pick("LOK_KEK"),
     nft: pick("LOK_NFT"),
     factory: pick("LOK_FACTORY"),
     rulesets: pick("LOK_RULESETS"),
     ownerKey: pick("LOK_OWNER_KEY"),
-    rotatorKey: pick("LOK_ROTATOR_KEY"),
     proposerKey: pick("LOK_PROPOSER_KEY"),
-    castBin: pick("LOK_CAST") || "cast",
   };
-}
-
-export function spawnCast(bin: string): CastFn {
-  return (args) =>
-    new Promise((resolve, reject) => {
-      execFile(bin, args, { timeout: 90_000, windowsHide: true, maxBuffer: 4_000_000 }, (err, stdout, stderr) => {
-        if (err) {
-          const wrapped = new Error(String(stderr || err.message || "cast failed"));
-          reject(wrapped);
-          return;
-        }
-        resolve({ stdout: String(stdout), stderr: String(stderr) });
-      });
-    });
-}
-
-function word(stdout: string): string {
-  return stdout.trim().split(/\s+/)[0] ?? "";
 }
 
 function redact(text: string, secrets: string[]): string {
@@ -88,851 +67,763 @@ function redact(text: string, secrets: string[]): string {
   return out.replace(/\s+/g, " ").trim().slice(0, 280);
 }
 
-async function call(cast: CastFn, rpc: string, to: string, sig: string, args: string[] = []): Promise<string> {
-  const res = await cast(["call", to, sig, ...args, "--rpc-url", rpc]);
-  return word(res.stdout);
-}
-
-function sendArgs(to: string, sig: string, args: string[], rpc: string, key: string, value?: string): string[] {
-  const out = ["send", to, sig, ...args, "--rpc-url", rpc, "--private-key", key];
-  if (value) out.push("--value", value);
-  return out;
-}
-
-export const LOCAL_ANVIL_CHAIN_ID = 31337n;
-/** Anvil's first default MockKEK. Player deposits refuse any other token, including real KEK. */
-export const LOCAL_MOCK_KEK = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
-/** Per player-initiated deposit. Local test only. */
-export const PLAYER_DEPOSIT_CAP = 10_000n;
-export const PLAYER_DEPOSIT_GAP_MS = 10_000;
-
-const nextPlayerDeposit = new Map<string, number>();
-
-export function playerDepositGate(input: {
-  chainId: bigint;
-  token: string;
-  amount: bigint;
-}): { ok: true } | { ok: false; error: string } {
-  if (input.chainId !== LOCAL_ANVIL_CHAIN_ID) {
-    return { ok: false, error: "Deposits are only available on local chain 31337. Nothing was minted." };
-  }
-  if (input.token.toLowerCase() !== LOCAL_MOCK_KEK.toLowerCase()) {
-    return { ok: false, error: "Deposits are only available for the local MockKEK token. Nothing was minted." };
-  }
-  if (input.amount <= 0n || input.amount > PLAYER_DEPOSIT_CAP) {
-    return { ok: false, error: "Deposit cap is " + PLAYER_DEPOSIT_CAP.toString() + " KEK. Nothing was minted." };
-  }
-  return { ok: true };
-}
-
-export function allowPlayerDeposit(tokenId: string, now: number): { ok: true } | { ok: false; error: string } {
-  const at = nextPlayerDeposit.get(tokenId) ?? 0;
-  if (now < at) return { ok: false, error: "Wait a moment before depositing again. Nothing was minted." };
-  nextPlayerDeposit.set(tokenId, now + PLAYER_DEPOSIT_GAP_MS);
-  return { ok: true };
-}
-
-/** Approve the vault and deposit. Never mints. */
-export function depositCastArgs(env: Env, tokenId: string, amount: string): string[][] {
-  return [
-    sendArgs(env.kek, "approve(address,uint256)", [env.vault, amount], env.rpc, env.ownerKey),
-    sendArgs(env.checkpoint, "depositKek(uint256,uint256)", [tokenId, amount], env.rpc, env.ownerKey),
-  ];
-}
-
-export async function debitAfterQueue(
-  queue: () => Promise<VaultOk | VaultErr>,
-  debit: () => { ok: true } | { ok: false; error: string },
-  credit: () => { ok: true } | { ok: false; error: string },
-): Promise<(VaultOk & { debited: true }) | (VaultErr & { debited: boolean })> {
-  const spent = debit();
-  if (!spent.ok) return { ok: false, error: spent.error, debited: false };
-  let queued: VaultOk | VaultErr;
-  try {
-    queued = await queue();
-  } catch (err) {
-    const back = credit();
-    if (!back.ok) {
-      return { ok: false, error: "Withdrawal threw and the debit could not be returned. " + back.error, debited: true };
-    }
-    return { ok: false, error: "Withdrawal was not queued. The debit was returned.", debited: false };
-  }
-  if (!queued.ok) {
-    const back = credit();
-    if (!back.ok) {
-      return {
-        ok: false,
-        error: "The vault withdrawal was not queued and the debit could not be returned. " + back.error,
-        debited: true,
-      };
-    }
-    return { ok: false, error: queued.error, debited: false };
-  }
-  return { ...queued, debited: true };
-}
-
-let delaySec: number | null = null;
-let queues: QueuedWithdrawal[] = [];
-let queuePath = "";
-
-export function vaultDelaySec(): number | null {
-  return delaySec;
-}
-
-export function withdrawalById(id: string): QueuedWithdrawal | undefined {
-  return queues.find((row) => row.id === id);
-}
-
-export function queuesFor(tokenId: string): { id: string; amount: string; availableAt: number }[] {
-  return queues
-    .filter((row) => row.tokenId === tokenId && row.status === "pending")
-    .map((row) => ({ id: row.id, amount: row.amount, availableAt: row.availableAt }));
-}
-
-export function loadQueues(dataDir: string): void {
-  queuePath = join(dataDir, "lok-queues.json");
-  if (!existsSync(queuePath)) return;
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(readFileSync(queuePath, "utf8"));
-  } catch {
-    throw new Error("lok-queues.json could not be read. Refusing to start with an empty queue list.");
-  }
-  if (Array.isArray(parsed)) queues = parsed as QueuedWithdrawal[];
-}
-
 export function writeTextAtomic(path: string, text: string): void {
   const tmp = path + ".tmp";
   writeFileSync(tmp, text);
   renameSync(tmp, path);
 }
 
-function saveQueues() {
-  if (!queuePath) return;
-  writeTextAtomic(queuePath, JSON.stringify(queues));
+function isAddress(value: string): boolean {
+  return /^0x[0-9a-fA-F]{40}$/.test(value);
 }
 
-function remember(row: QueuedWithdrawal) {
-  const idx = queues.findIndex((q) => q.id === row.id);
-  if (idx >= 0) queues[idx] = row;
-  else queues.push(row);
-  saveQueues();
+function chainOf(chainId: number, rpcUrl: string): Chain {
+  return {
+    id: chainId,
+    name: chainId === 31337 ? "Bellgrave Anvil" : "Bellgrave",
+    nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+    rpcUrls: { default: { http: [rpcUrl] } },
+  };
 }
 
-export async function readWithdrawDelay(envIn: NodeJS.ProcessEnv = process.env, cast: CastFn = spawnCast(envOf(envIn).castBin)): Promise<void> {
+const NFT_ABI = [
+  {
+    type: "function",
+    name: "ownerOf",
+    stateMutability: "view",
+    inputs: [{ name: "tokenId", type: "uint256" }],
+    outputs: [{ type: "address" }],
+  },
+  {
+    type: "function",
+    name: "nextTokenId",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "transferFrom",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "from", type: "address" },
+      { name: "to", type: "address" },
+      { name: "tokenId", type: "uint256" },
+    ],
+    outputs: [],
+  },
+] as const;
+
+const FACTORY_ABI = [
+  {
+    type: "function",
+    name: "mintFee",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "createCharacterFor",
+    stateMutability: "payable",
+    inputs: [
+      { name: "startingJob", type: "uint8" },
+      { name: "expectedTokenId", type: "uint256" },
+    ],
+    outputs: [{ type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "createCharacter",
+    stateMutability: "payable",
+    inputs: [{ name: "startingJob", type: "uint8" }],
+    outputs: [{ type: "uint256" }],
+  },
+] as const;
+
+/** True when RPC/factory/NFT env is set so the player mint path should load. */
+export function characterMintEnvConfigured(envIn: NodeJS.ProcessEnv = process.env): boolean {
   const env = envOf(envIn);
-  if (!env.rpc || !env.vault) return;
+  const publicRpc = envIn.LOK_PUBLIC_RPC?.trim() || env.rpc;
+  if (!env.rpc || !env.factory || !env.nft || !publicRpc) return false;
+  return publicRpc.startsWith("http://") || publicRpc.startsWith("https://");
+}
+
+function isLocalAnvilRpc(rpc: string): boolean {
   try {
-    const raw = await call(cast, env.rpc, env.vault, "withdrawDelay()(uint64)");
-    const n = Number(raw);
-    if (Number.isFinite(n) && n > 0) delaySec = n;
+    const u = new URL(rpc);
+    return u.hostname === "127.0.0.1" || u.hostname === "localhost" || u.hostname === "0.0.0.0";
   } catch {
-    delaySec = null;
+    return false;
   }
 }
 
-export async function depositKekOnchain(
-  tokenId: string,
-  amount: string,
-  envIn: NodeJS.ProcessEnv = process.env,
-  cast: CastFn = spawnCast(envOf(envIn).castBin),
-): Promise<{ ok: true } | VaultErr> {
-  const env = envOf(envIn);
-  if (!env.rpc || !env.checkpoint || !env.vault || !env.kek || !env.ownerKey) {
-    return { ok: false, error: "Deposit is not configured on this server. Nothing was minted." };
+/**
+ * Local 31337 faucet. Enabled only when chain id is explicitly 31337 (LOK_CHAIN_ID)
+ * or, when unset, the RPC is clearly local. Set LOK_DEV_FAUCET=0 to disable.
+ */
+export function devFaucetEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  if (env.LOK_DEV_FAUCET === "0") return false;
+  const chainRaw = env.LOK_CHAIN_ID?.trim();
+  if (chainRaw) {
+    if (chainRaw !== "31337") return false;
+  } else {
+    const rpc = env.LOK_CHAIN_RPC?.trim() || "";
+    if (!isLocalAnvilRpc(rpc)) return false;
   }
-  if (!/^[1-9][0-9]{0,18}$/.test(amount)) return { ok: false, error: "Bad deposit amount." };
-  const amountN = BigInt(amount);
-  if (env.kek.toLowerCase() !== LOCAL_MOCK_KEK.toLowerCase()) {
-    return { ok: false, error: "Deposits are only available for the local MockKEK token. Nothing was minted." };
+  if (env.LOK_DEV_FAUCET === "1" || env.NODE_ENV === "development" || env.ALLOW_DEBUG_CHEATS === "1") {
+    return true;
   }
-  if (amountN > PLAYER_DEPOSIT_CAP) {
-    return { ok: false, error: "Deposit cap is " + PLAYER_DEPOSIT_CAP.toString() + " KEK. Nothing was minted." };
-  }
+  return !!(env.LOK_OWNER_KEY?.trim() && (env.LOK_CHAIN_RPC?.trim() || env.LOK_FACTORY?.trim()));
+}
+
+export function devServerMintEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.LOK_DEV_SERVER_MINT === "1";
+}
+
+/**
+ * Pull structured revert `data` from a viem (or similar) error.
+ * Only reads object `.data` / `.raw` fields — never scrapes free-form messages
+ * (those always contain the factory address and would false-positive).
+ */
+function revertDataHex(err: unknown): string | null {
+  const walk = (v: unknown, depth: number): string | null => {
+    if (depth > 8 || v == null || typeof v !== "object") return null;
+    const o = v as Record<string, unknown>;
+    for (const key of ["data", "raw"]) {
+      if (typeof o[key] === "string") {
+        const s = (o[key] as string).toLowerCase().trim();
+        if (s === "0x" || s === "0x0") return "0x";
+        // Revert payload: empty, 4-byte selector, or ABI-encoded error.
+        if (/^0x([0-9a-f]{8})([0-9a-f]{64})*$/.test(s) || /^0x[0-9a-f]{8}$/.test(s)) return s;
+      }
+    }
+    for (const key of ["cause", "walk", "details", "error", "value"]) {
+      const inner = walk(o[key], depth + 1);
+      if (inner) return inner;
+    }
+    return null;
+  };
+  return walk(err, 0);
+}
+
+export async function factorySupportsCreateFor(
+  rpc: string,
+  factory: string,
+  chainId: number,
+): Promise<boolean> {
+  const pub = publicClient(rpc, chainId);
   try {
-    const chainRaw = word((await cast(["chain-id", "--rpc-url", env.rpc])).stdout);
-    const gate = playerDepositGate({ chainId: BigInt(chainRaw), token: env.kek, amount: amountN });
-    if (!gate.ok) return gate;
-    const paced = allowPlayerDeposit(tokenId, Date.now());
-    if (!paced.ok) return paced;
-    const balance = BigInt(await call(cast, env.rpc, env.kek, "balanceOf(address)(uint256)", [
-      await ownerAddress(cast, env.ownerKey),
-    ]));
-    if (balance < amountN) {
-      return { ok: false, error: "The local depositor does not have enough MockKEK. Nothing was minted." };
-    }
-    for (const args of depositCastArgs(env, tokenId, amount)) {
-      await cast(args);
-    }
-    return { ok: true };
+    await pub.simulateContract({
+      address: factory as `0x${string}`,
+      abi: FACTORY_ABI,
+      functionName: "createCharacterFor",
+      args: [0, 1n],
+      value: 0n,
+      account: "0x0000000000000000000000000000000000000001",
+    });
+    return true;
   } catch (err) {
-    return { ok: false, error: "Deposit was not submitted. " + redact(String(err), [env.ownerKey]) };
+    const msg = String(err);
+    // Named custom errors prove the selector exists (even when data parse fails).
+    if (/WrongFee|WrongTokenId|BadJob/i.test(msg)) return true;
+    // Prefer revert data over viem's generic "ABI encoding" prose (M-A).
+    // Do NOT match bare 0x[8 hex] — messages always include the factory address.
+    const data = revertDataHex(err);
+    if (data === "0x" || data === "0x0") return false;
+    if (data && data.length >= 10) {
+      // Non-empty 4-byte selector (or longer) ⇒ function exists and reverted.
+      return true;
+    }
+    // Only after data inspection: clear function-not-found signals (never bare "ABI").
+    if (
+      /Function "createCharacterFor" not found|returned no data|does not exist on (the )?contract|encoded error details:\s*0x\s*$/i.test(
+        msg,
+      )
+    ) {
+      return false;
+    }
+    return false;
   }
 }
 
-async function ownerAddress(cast: CastFn, key: string): Promise<string> {
-  const res = await cast(["wallet", "address", "--private-key", key]);
-  return word(res.stdout);
+/** AlreadyProposed() — pending proposal is fine; do not log as failure. */
+const ALREADY_PROPOSED_SELECTOR = "0x79429186";
+
+const RULESETS_ABI = [
+  {
+    type: "function",
+    name: "isAccepted",
+    stateMutability: "view",
+    inputs: [{ name: "hash", type: "bytes32" }],
+    outputs: [{ type: "bool" }],
+  },
+  {
+    type: "function",
+    name: "minDelay",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "uint64" }],
+  },
+  {
+    type: "function",
+    name: "propose",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "hash", type: "bytes32" },
+      { name: "delay", type: "uint64" },
+      { name: "uri", type: "string" },
+    ],
+    outputs: [],
+  },
+  {
+    type: "function",
+    name: "rulesets",
+    stateMutability: "view",
+    inputs: [{ name: "hash", type: "bytes32" }],
+    outputs: [
+      { name: "activatesAt", type: "uint64" },
+      { name: "retiresAt", type: "uint64" },
+      { name: "cancelled", type: "bool" },
+      { name: "uri", type: "string" },
+    ],
+  },
+  { type: "error", name: "AlreadyProposed", inputs: [] },
+] as const;
+
+function publicClient(rpc: string, chainId: number) {
+  return createPublicClient({
+    chain: chainOf(chainId, rpc),
+    transport: http(rpc),
+  });
 }
 
+async function chainIdOf(rpc: string): Promise<number> {
+  const pub = createPublicClient({ transport: http(rpc) });
+  return Number(await pub.getChainId());
+}
+
+export type CharacterMintLoadResult =
+  | { status: "disabled" }
+  | { status: "ready"; config: CharacterMintClientConfig }
+  | { status: "error"; error: string };
+
+/**
+ * Load browser-reachable mint config. Distinguishes "mint off" from "RPC failed"
+ * so boot can fail closed and retry (M-B).
+ */
+export async function loadCharacterMintClientConfig(
+  envIn: NodeJS.ProcessEnv = process.env,
+  opts?: { logNextTokenId?: string },
+): Promise<CharacterMintLoadResult> {
+  if (!characterMintEnvConfigured(envIn)) return { status: "disabled" };
+  const env = envOf(envIn);
+  const publicRpc = envIn.LOK_PUBLIC_RPC?.trim() || env.rpc;
+  try {
+    const chainId = await chainIdOf(env.rpc);
+    // Anvil + configured settlement chains (Gnosis 100 / Chiado 10200). Others stay off.
+    if (BigInt(chainId) !== LOCAL_ANVIL_CHAIN_ID && !isSettlementChain(chainId)) {
+      return { status: "disabled" };
+    }
+    const pub = publicClient(env.rpc, chainId);
+    const fee = await pub.readContract({
+      address: env.factory as `0x${string}`,
+      abi: FACTORY_ABI,
+      functionName: "mintFee",
+    });
+    const next = await pub.readContract({
+      address: env.nft as `0x${string}`,
+      abi: NFT_ABI,
+      functionName: "nextTokenId",
+    });
+    const chainSuggested = next + 1n;
+    let suggested = chainSuggested;
+    const logNext = opts?.logNextTokenId?.trim();
+    if (logNext && /^[1-9][0-9]{0,77}$/.test(logNext)) {
+      const logN = BigInt(logNext);
+      if (logN > suggested) suggested = logN;
+    }
+    const supportsCreateFor = await factorySupportsCreateFor(env.rpc, env.factory, chainId);
+    return {
+      status: "ready",
+      config: {
+        factory: env.factory,
+        nft: env.nft,
+        mintFee: fee.toString(),
+        chainId,
+        rpcUrl: publicRpc,
+        supportsCreateFor,
+        suggestedTokenId: suggested.toString(),
+        devFaucet: BigInt(chainId) === LOCAL_ANVIL_CHAIN_ID && devFaucetEnabled(envIn),
+        devServerMint: BigInt(chainId) === LOCAL_ANVIL_CHAIN_ID && devServerMintEnabled(envIn),
+        currency: settlementCurrencyView(chainId),
+      },
+    };
+  } catch (err) {
+    return {
+      status: "error",
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+/** Browser-reachable mint config so the player can pay createCharacter{value}. */
+export async function characterMintClientConfig(
+  envIn: NodeJS.ProcessEnv = process.env,
+  opts?: { logNextTokenId?: string },
+): Promise<CharacterMintClientConfig | null> {
+  const loaded = await loadCharacterMintClientConfig(envIn, opts);
+  if (loaded.status === "ready") return loaded.config;
+  return null;
+}
+
+/**
+ * Link a log token to an on-chain NFT the **player** already minted (or move one
+ * the owner still holds). Does not pay mintFee from the server key.
+ *
+ * `acceptedWallets` may include the burner auth address and/or the EIP-1193
+ * wallet that paid `createCharacterFor` — either holder counts as linked.
+ */
 export async function linkCharacterNft(
   tokenId: string,
   job: number,
   playerWallet?: string,
   envIn: NodeJS.ProcessEnv = process.env,
-  cast: CastFn = spawnCast(envOf(envIn).castBin),
-): Promise<{ ok: true; tokenId: string } | VaultErr> {
+  opts?: { acceptedWallets?: string[] },
+): Promise<{ ok: true; tokenId: string; holder?: string } | VaultErr> {
   const env = envOf(envIn);
-  if (!env.rpc || !env.factory || !env.nft || !env.ownerKey) {
+  if (!env.rpc || !env.factory || !env.nft) {
     return { ok: false, error: "Character mint is not configured. The log identity was still created." };
   }
   if (!Number.isInteger(job) || job < 0 || job > 255) return { ok: false, error: "That job cannot be minted." };
-  const player = playerWallet && isAddress(playerWallet) ? playerWallet.toLowerCase() : "";
+  const accepted = new Set<string>();
+  if (playerWallet && isAddress(playerWallet)) accepted.add(playerWallet.toLowerCase());
+  for (const w of opts?.acceptedWallets ?? []) {
+    if (isAddress(w)) accepted.add(w.toLowerCase());
+  }
   try {
-    const chainId = word((await cast(["chain-id", "--rpc-url", env.rpc])).stdout);
+    const chainId = await chainIdOf(env.rpc);
     if (BigInt(chainId) !== LOCAL_ANVIL_CHAIN_ID) {
-      return { ok: false, error: "Character mint is only submitted on local chain 31337." };
+      return { ok: false, error: "Character NFT link is only checked on local chain 31337." };
     }
-    const owner = (await ownerAddress(cast, env.ownerKey)).toLowerCase();
-    const dest = player && player !== owner ? player : owner;
-    const give = async (held: string) => {
-      if (held === dest) return;
-      if (held !== owner) throw new Error("already minted");
-      if (dest !== owner) {
-        await cast(sendArgs(env.nft, "transferFrom(address,address,uint256)", [owner, dest, tokenId], env.rpc, env.ownerKey));
-      }
-    };
-    let exists = false;
+    const pub = publicClient(env.rpc, chainId);
+    const nft = env.nft as `0x${string}`;
+
+    let held: string;
     try {
-      const held = (await call(cast, env.rpc, env.nft, "ownerOf(uint256)(address)", [tokenId])).toLowerCase();
-      exists = true;
-      await give(held);
-      return { ok: true, tokenId };
-    } catch (err) {
-      if (exists) {
-        const message = String(err).includes("already minted")
-          ? "NFT " + tokenId + " is already minted to someone else. No second mint was sent."
-          : "Character NFT could not be moved to the player wallet. " + redact(String(err), [env.ownerKey]);
-        return { ok: false, error: message };
+      held = (
+        await pub.readContract({
+          address: nft,
+          abi: NFT_ABI,
+          functionName: "ownerOf",
+          args: [BigInt(tokenId)],
+        })
+      ).toLowerCase();
+    } catch {
+      const next = await pub.readContract({
+        address: nft,
+        abi: NFT_ABI,
+        functionName: "nextTokenId",
+      });
+      if (next + 1n !== BigInt(tokenId)) {
+        return {
+          ok: false,
+          error:
+            "Refused to expect NFT " +
+            tokenId +
+            " because the chain next id is " +
+            String(next + 1n) +
+            ". Mint with createCharacterFor(job, " +
+            tokenId +
+            ").",
+        };
       }
-    }
-    const last = BigInt(await call(cast, env.rpc, env.nft, "nextTokenId()(uint256)"));
-    if (last + 1n !== BigInt(tokenId)) {
       return {
         ok: false,
-        error: "Refused to mint NFT " + tokenId + " because the checkpoint next id is " + String(last + 1n) + ".",
+        needsPlayerMint: true,
+        error:
+          "Pay the character mint fee from your wallet (createCharacterFor). NFT #" +
+          tokenId +
+          " is not on-chain yet.",
       };
     }
-    const fee = await call(cast, env.rpc, env.factory, "mintFee()(uint256)");
-    await cast(sendArgs(env.factory, "createCharacter(uint8)", [String(job)], env.rpc, env.ownerKey, fee));
-    await give(owner);
-    return { ok: true, tokenId };
-  } catch (err) {
-    return { ok: false, error: "Character NFT was not minted. " + redact(String(err), [env.ownerKey]) };
-  }
-}
 
-async function localVaultReady(
-  envIn: NodeJS.ProcessEnv,
-  cast: CastFn,
-): Promise<{ env: ReturnType<typeof envOf>; cast: CastFn } | undefined> {
-  const env = envOf(envIn);
-  if (!env.rpc || !env.checkpoint || !env.ownerKey || !env.rotatorKey) return undefined;
-  if (env.kek && env.kek.toLowerCase() !== LOCAL_MOCK_KEK.toLowerCase()) return undefined;
-  try {
-    const chainId = word((await cast(["chain-id", "--rpc-url", env.rpc])).stdout);
-    if (BigInt(chainId) !== LOCAL_ANVIL_CHAIN_ID) return undefined;
-    const server = await ownerAddress(cast, env.ownerKey);
-    const active = await call(cast, env.rpc, env.checkpoint, "isActiveSigner(address)(bool)", [server]);
-    if (active !== "true") {
-      const now = BigInt(word((await cast(["block", "latest", "--rpc-url", env.rpc, "-f", "timestamp"])).stdout));
-      await cast(
-        sendArgs(env.checkpoint, "addSigner(address,uint64)", [server, (now + 23n * 3600n).toString()], env.rpc, env.rotatorKey),
-      );
+    if (accepted.size === 0 || accepted.has(held)) {
+      return { ok: true, tokenId, holder: held };
     }
-    return { env, cast };
+
+    if (!env.ownerKey) {
+      return {
+        ok: false,
+        error: "NFT #" + tokenId + " is held by " + held + " and cannot be moved without the owner key.",
+      };
+    }
+    const account = privateKeyToAccount(env.ownerKey as Hex);
+    if (held !== account.address.toLowerCase()) {
+      return {
+        ok: false,
+        error: "NFT " + tokenId + " is already minted to someone else. No second mint was sent.",
+      };
+    }
+
+    const dest = [...accepted][0]!;
+    return withOwnerKeyQueue(async () => {
+      const wallet = createWalletClient({
+        account,
+        chain: chainOf(chainId, env.rpc),
+        transport: http(env.rpc),
+      });
+      const hash = await wallet.writeContract({
+        address: nft,
+        abi: NFT_ABI,
+        functionName: "transferFrom",
+        args: [account.address, dest as `0x${string}`, BigInt(tokenId)],
+        account,
+        chain: chainOf(chainId, env.rpc),
+      });
+      const receipt = await pub.waitForTransactionReceipt({ hash });
+      if (receipt.status !== "success") {
+        return { ok: false, error: "Character NFT transfer reverted." };
+      }
+      return { ok: true, tokenId, holder: dest };
+    });
   } catch (err) {
-    console.error("[bellgrave] vault credit was not moved: " + redact(String(err), [env.ownerKey, env.rotatorKey]));
-    return undefined;
+    return { ok: false, error: "Character NFT was not linked. " + redact(String(err), [env.ownerKey]) };
   }
 }
 
-export async function reassignKekOnchain(
-  fromId: string,
-  toId: string,
-  amount: string,
-  envIn: NodeJS.ProcessEnv = process.env,
-  cast: CastFn = spawnCast(envOf(envIn).castBin),
-): Promise<{ ok: true } | { ok: false; error: string; paused?: boolean }> {
-  if (!/^[1-9][0-9]{0,18}$/.test(amount) || fromId === toId) {
-    return { ok: false, error: "bad reassign" };
-  }
-  const ready = await localVaultReady(envIn, cast);
-  if (!ready) return { ok: false, error: "vault not ready" };
-  try {
-    await withKeyQueue(ready.env.ownerKey, () =>
-      cast(
-        sendArgs(ready.env.checkpoint, "reassignKek(uint256,uint256,uint256)", [fromId, toId, amount], ready.env.rpc, ready.env.ownerKey),
-      ),
-    );
-    return { ok: true };
-  } catch (err) {
-    const text = redact(String(err), [ready.env.ownerKey, ready.env.rotatorKey]);
-    console.error("[bellgrave] vault reassign was not submitted: " + text);
-    return { ok: false, error: text, paused: isPausedError(text) };
-  }
-}
-
-export async function sinkKekOnchain(
+/** Poll ownerOf until the player mint confirms, then link. */
+export async function linkCharacterNftWithRetry(
   tokenId: string,
-  amount: string,
+  job: number,
+  playerWallet: string | undefined,
+  opts?: {
+    env?: NodeJS.ProcessEnv;
+    acceptedWallets?: string[];
+    attempts?: number;
+    delayMs?: number;
+  },
+): Promise<{ ok: true; tokenId: string; holder?: string } | VaultErr> {
+  const attempts = opts?.attempts ?? 12;
+  const delayMs = opts?.delayMs ?? 1500;
+  let last: { ok: true; tokenId: string; holder?: string } | VaultErr = {
+    ok: false,
+    needsPlayerMint: true,
+    error: "Mint not confirmed yet.",
+  };
+  for (let i = 0; i < attempts; i++) {
+    last = await linkCharacterNft(tokenId, job, playerWallet, opts?.env, {
+      acceptedWallets: opts?.acceptedWallets,
+    });
+    if (last.ok || !last.needsPlayerMint) return last;
+    await new Promise((r) => setTimeout(r, delayMs));
+  }
+  return last;
+}
+
+const faucetLastAt = new Map<string, number>();
+const FAUCET_COOLDOWN_MS = 60_000;
+/** Global faucet payouts in the current window (all wallets). */
+let faucetGlobalWindowStart = 0;
+let faucetGlobalCount = 0;
+const FAUCET_GLOBAL_CAP = 20;
+const FAUCET_GLOBAL_WINDOW_MS = 60_000;
+
+/** Test seam — clear per-wallet + global faucet rate-limit state. */
+export function resetFaucetRateLimitsForTests(): void {
+  faucetLastAt.clear();
+  faucetGlobalWindowStart = 0;
+  faucetGlobalCount = 0;
+}
+
+/**
+ * Dev-only native ETH faucet for burners on chain 31337.
+ * Rate-limited per destination (slot reserved before send) and globally.
+ * Caller must pass their own verified wallet.
+ */
+export async function faucetAnvilEth(
+  to: string,
   envIn: NodeJS.ProcessEnv = process.env,
-  cast: CastFn = spawnCast(envOf(envIn).castBin),
-): Promise<{ ok: true } | { ok: false; error: string; paused?: boolean }> {
-  if (!/^[1-9][0-9]{0,18}$/.test(amount)) return { ok: false, error: "bad sink" };
-  const ready = await localVaultReady(envIn, cast);
-  if (!ready) return { ok: false, error: "vault not ready" };
-  try {
-    await withKeyQueue(ready.env.ownerKey, () =>
-      cast(sendArgs(ready.env.checkpoint, "sinkKek(uint256,uint256)", [tokenId, amount], ready.env.rpc, ready.env.ownerKey)),
-    );
-    return { ok: true };
-  } catch (err) {
-    const text = redact(String(err), [ready.env.ownerKey, ready.env.rotatorKey]);
-    console.error("[bellgrave] vault sink was not submitted: " + text);
-    return { ok: false, error: text, paused: isPausedError(text) };
-  }
-}
-
-export type VaultSyncOp =
-  | {
-      id: string;
-      kind: "sink";
-      tokenId: string;
-      amount: string;
-      status: "pending" | "stranded";
-      attempts: number;
-      lastError?: string;
-      updatedAt: number;
-    }
-  | {
-      id: string;
-      kind: "reassign";
-      fromId: string;
-      toId: string;
-      amount: string;
-      status: "pending" | "stranded";
-      attempts: number;
-      lastError?: string;
-      updatedAt: number;
-    };
-
-const STRAND_AFTER = 12;
-const keyQueues = new Map<string, Promise<unknown>>();
-let pendingOps: VaultSyncOp[] = [];
-let pendingPath = "";
-let syncBusy = false;
-let syncTimer: ReturnType<typeof setInterval> | null = null;
-
-function isPausedError(text: string): boolean {
-  return /EnforcedPause|Pausable:\s*paused|contract is paused/i.test(text);
-}
-
-/** Serialize cast sends that share one private key so nonces never race. */
-export function withKeyQueue<T>(keyId: string, task: () => Promise<T>): Promise<T> {
-  const prev = keyQueues.get(keyId) ?? Promise.resolve();
-  const next = prev.then(task, task);
-  keyQueues.set(
-    keyId,
-    next.then(
-      () => undefined,
-      () => undefined,
-    ),
-  );
-  return next;
-}
-
-export function vaultPendingPath(dataDir: string): string {
-  return join(dataDir, "lok-vault-pending.json");
-}
-
-export function loadVaultPending(path: string): VaultSyncOp[] {
-  pendingPath = path;
-  if (!existsSync(path)) {
-    pendingOps = [];
-    return pendingOps;
-  }
-  let parsed: { ops?: VaultSyncOp[] };
-  try {
-    parsed = JSON.parse(readFileSync(path, "utf8")) as { ops?: VaultSyncOp[] };
-  } catch {
-    // Starting with an empty list would overwrite the file on the next enqueue
-    // and silently drop queued sinks/reassigns. Fail loudly like loadQueues.
-    pendingOps = [];
-    pendingPath = "";
-    throw new Error(path + " could not be read. Refusing to start with an empty vault pending queue.");
-  }
-  if (!parsed || !Array.isArray(parsed.ops)) {
-    pendingOps = [];
-    pendingPath = "";
-    throw new Error(path + " is not a vault pending queue.");
-  }
-  pendingOps = parsed.ops;
-  return pendingOps;
-}
-
-function saveVaultPending(): void {
-  if (!pendingPath) return;
-  writeTextAtomic(pendingPath, JSON.stringify({ ops: pendingOps }));
-}
-
-export function listVaultPending(): VaultSyncOp[] {
-  return pendingOps.slice();
-}
-
-export function enqueueVaultSync(
-  op:
-    | { kind: "sink"; tokenId: string; amount: string }
-    | { kind: "reassign"; fromId: string; toId: string; amount: string },
-  dataDir?: string,
-): VaultSyncOp {
-  if (dataDir && !pendingPath) loadVaultPending(vaultPendingPath(dataDir));
-  if (!pendingPath && dataDir) pendingPath = vaultPendingPath(dataDir);
-  const row: VaultSyncOp =
-    op.kind === "sink"
-      ? {
-          id: "sink-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8),
-          kind: "sink",
-          tokenId: op.tokenId,
-          amount: op.amount,
-          status: "pending",
-          attempts: 0,
-          updatedAt: Date.now(),
-        }
-      : {
-          id: "reassign-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8),
-          kind: "reassign",
-          fromId: op.fromId,
-          toId: op.toId,
-          amount: op.amount,
-          status: "pending",
-          attempts: 0,
-          updatedAt: Date.now(),
-        };
-  pendingOps.push(row);
-  saveVaultPending();
-  void flushVaultPending();
-  return row;
-}
-
-async function runOneVaultOp(op: VaultSyncOp): Promise<"done" | "retry" | "strand"> {
-  const res =
-    op.kind === "sink"
-      ? await sinkKekOnchain(op.tokenId, op.amount)
-      : await reassignKekOnchain(op.fromId, op.toId, op.amount);
-  op.attempts += 1;
-  op.updatedAt = Date.now();
-  if (res.ok) return "done";
-  op.lastError = res.error;
-  if (res.paused) return "retry";
-  if (op.attempts >= STRAND_AFTER) {
-    op.status = "stranded";
-    return "strand";
-  }
-  return "retry";
-}
-
-export async function flushVaultPending(
-  envIn: NodeJS.ProcessEnv = process.env,
-): Promise<void> {
-  if (syncBusy) return;
-  syncBusy = true;
-  try {
-    let i = 0;
-    while (i < pendingOps.length) {
-      const op = pendingOps[i]!;
-      if (op.status === "stranded") {
-        i += 1;
-        continue;
-      }
-      const outcome = await runOneVaultOp(op);
-      if (outcome === "done") {
-        pendingOps.splice(i, 1);
-        saveVaultPending();
-        continue;
-      }
-      saveVaultPending();
-      if (outcome === "strand") {
-        console.error(
-          "[bellgrave] vault sync stranded " + op.id + ": " + (op.lastError ?? "unknown"),
-        );
-      }
-      i += 1;
-    }
-  } finally {
-    syncBusy = false;
-  }
-}
-
-/** Resume persisted sink/reassign ops after restart. Retries until confirmed or stranded. */
-export function startVaultSyncWorker(dataDir: string, envIn: NodeJS.ProcessEnv = process.env): void {
-  loadVaultPending(vaultPendingPath(dataDir));
-  if (pendingOps.length) {
-    console.log("[bellgrave] vault pending ops=" + pendingOps.length);
-  }
-  void flushVaultPending(envIn).catch((err) => console.error("[bellgrave] vault sync", err));
-  if (syncTimer) return;
-  syncTimer = setInterval(() => {
-    void flushVaultPending(envIn).catch((err) => console.error("[bellgrave] vault sync", err));
-  }, 5000);
-  syncTimer.unref?.();
-}
-
-/** True when the checkpoint is paused (or unknown). Callers should not advance vault_claim further. */
-export async function checkpointPaused(
-  envIn: NodeJS.ProcessEnv = process.env,
-  cast: CastFn = spawnCast(envOf(envIn).castBin),
-): Promise<boolean | null> {
+  opts?: { callerWallet?: string },
+): Promise<{ ok: true; hash: Hex; amountWei: string } | VaultErr> {
   const env = envOf(envIn);
-  if (!env.rpc || !env.checkpoint) return null;
+  if (!devFaucetEnabled(envIn)) return { ok: false, error: "Dev faucet is disabled." };
+  if (!env.rpc || !env.ownerKey) return { ok: false, error: "Faucet needs LOK_CHAIN_RPC and LOK_OWNER_KEY." };
+  if (!isAddress(to)) return { ok: false, error: "Bad faucet destination." };
+  const dest = to.toLowerCase();
+  if (opts?.callerWallet) {
+    if (!isAddress(opts.callerWallet) || opts.callerWallet.toLowerCase() !== dest) {
+      return { ok: false, error: "Faucet can only fund your own verified wallet." };
+    }
+  }
+  const now = Date.now();
+  const last = faucetLastAt.get(dest) ?? 0;
+  if (now - last < FAUCET_COOLDOWN_MS) {
+    return { ok: false, error: "Faucet rate limit: wait before requesting again." };
+  }
+  if (now - faucetGlobalWindowStart >= FAUCET_GLOBAL_WINDOW_MS) {
+    faucetGlobalWindowStart = now;
+    faucetGlobalCount = 0;
+  }
+  if (faucetGlobalCount >= FAUCET_GLOBAL_CAP) {
+    return { ok: false, error: "Faucet global rate limit: try again later." };
+  }
+  // Reserve before the transfer so concurrent requests cannot all pass the check (L1).
+  faucetLastAt.set(dest, now);
+  faucetGlobalCount += 1;
   try {
-    const out = await call(cast, env.rpc, env.checkpoint, "paused()(bool)");
-    return out === "true";
-  } catch {
-    return null;
+    const chainId = await chainIdOf(env.rpc);
+    if (BigInt(chainId) !== LOCAL_ANVIL_CHAIN_ID) {
+      faucetLastAt.delete(dest);
+      faucetGlobalCount = Math.max(0, faucetGlobalCount - 1);
+      return { ok: false, error: "Faucet is only available on local chain 31337." };
+    }
+    const amount = 100_000_000_000_000_000n; // 0.1 ETH — enough for many mint fees
+    const releaseReservation = () => {
+      faucetLastAt.delete(dest);
+      faucetGlobalCount = Math.max(0, faucetGlobalCount - 1);
+    };
+    try {
+      return await withOwnerKeyQueue(async () => {
+        const account = privateKeyToAccount(env.ownerKey as Hex);
+        const pub = publicClient(env.rpc, chainId);
+        const wallet = createWalletClient({
+          account,
+          chain: chainOf(chainId, env.rpc),
+          transport: http(env.rpc),
+        });
+        const hash = await wallet.sendTransaction({
+          account,
+          chain: chainOf(chainId, env.rpc),
+          to: dest as `0x${string}`,
+          value: amount,
+        });
+        const receipt = await pub.waitForTransactionReceipt({ hash });
+        if (receipt.status !== "success") {
+          releaseReservation();
+          return { ok: false, error: "Faucet transfer reverted." };
+        }
+        return { ok: true, hash, amountWei: amount.toString() };
+      });
+    } catch (err) {
+      releaseReservation();
+      return { ok: false, error: "Faucet failed. " + redact(String(err), [env.ownerKey]) };
+    }
+  } catch (err) {
+    faucetLastAt.delete(dest);
+    faucetGlobalCount = Math.max(0, faucetGlobalCount - 1);
+    return { ok: false, error: "Faucet failed. " + redact(String(err), [env.ownerKey]) };
   }
 }
 
-/** Refuse in-engine claim when the chain is paused or a stranded sync still needs operator review. */
-export async function vaultClaimBlocked(
+/**
+ * Dev-only: server pays createCharacterFor so local testing still mints when
+ * burners have no ETH. Requires LOK_DEV_SERVER_MINT=1 and chain 31337.
+ */
+export async function serverMintCharacterFor(
+  tokenId: string,
+  job: number,
+  toWallet: string,
   envIn: NodeJS.ProcessEnv = process.env,
-): Promise<{ blocked: false } | { blocked: true; error: string }> {
-  if (pendingOps.some((op) => op.status === "stranded")) {
-    return {
-      blocked: true,
-      error: "A vault sink/reassign is stranded. Operator review is required before more vault claims.",
-    };
+): Promise<{ ok: true; tokenId: string; hash: Hex } | VaultErr> {
+  const env = envOf(envIn);
+  if (envIn.LOK_DEV_SERVER_MINT !== "1") {
+    return { ok: false, error: "Server-paid mint is disabled (set LOK_DEV_SERVER_MINT=1 for local)." };
   }
-  const paused = await checkpointPaused(envIn);
-  if (paused === true) {
-    return {
-      blocked: true,
-      error: "The vault is paused. In-game KEK claims that need chain sync are held until it unpauses.",
-    };
+  if (!env.rpc || !env.factory || !env.ownerKey) {
+    return { ok: false, error: "Server mint needs factory + owner key." };
   }
-  return { blocked: false };
+  if (!isAddress(toWallet)) return { ok: false, error: "Bad mint destination." };
+  if (!Number.isInteger(job) || job < 0 || job > 255) return { ok: false, error: "That job cannot be minted." };
+  try {
+    const chainId = await chainIdOf(env.rpc);
+    if (BigInt(chainId) !== LOCAL_ANVIL_CHAIN_ID) {
+      return { ok: false, error: "Server mint is only available on local chain 31337." };
+    }
+    const pub = publicClient(env.rpc, chainId);
+    const fee = await pub.readContract({
+      address: env.factory as `0x${string}`,
+      abi: FACTORY_ABI,
+      functionName: "mintFee",
+    });
+    return withOwnerKeyQueue(async () => {
+      const account = privateKeyToAccount(env.ownerKey as Hex);
+      const wallet = createWalletClient({
+        account,
+        chain: chainOf(chainId, env.rpc),
+        transport: http(env.rpc),
+      });
+      // Mint to the player via createCharacterFor, then transfer if needed.
+      // Factory mints to msg.sender (owner), then we transfer to the player.
+      const hash = await wallet.writeContract({
+        address: env.factory as `0x${string}`,
+        abi: FACTORY_ABI,
+        functionName: "createCharacterFor",
+        args: [job, BigInt(tokenId)],
+        value: fee,
+        account,
+        chain: chainOf(chainId, env.rpc),
+      });
+      const receipt = await pub.waitForTransactionReceipt({ hash });
+      if (receipt.status !== "success") return { ok: false, error: "Server createCharacterFor reverted." };
+      const held = (
+        await pub.readContract({
+          address: env.nft as `0x${string}`,
+          abi: NFT_ABI,
+          functionName: "ownerOf",
+          args: [BigInt(tokenId)],
+        })
+      ).toLowerCase();
+      if (held !== toWallet.toLowerCase()) {
+        const xfer = await wallet.writeContract({
+          address: env.nft as `0x${string}`,
+          abi: NFT_ABI,
+          functionName: "transferFrom",
+          args: [account.address, toWallet as `0x${string}`, BigInt(tokenId)],
+          account,
+          chain: chainOf(chainId, env.rpc),
+        });
+        const xReceipt = await pub.waitForTransactionReceipt({ hash: xfer });
+        if (xReceipt.status !== "success") return { ok: false, error: "Server NFT transfer reverted." };
+      }
+      return { ok: true, tokenId, hash };
+    });
+  } catch (err) {
+    return { ok: false, error: "Server mint failed. " + redact(String(err), [env.ownerKey]) };
+  }
 }
 
-export async function ensureLocalRuleset(
+/**
+ * Read `ownerOf(tokenId)` for AH list payout / transfer cancel.
+ * Client-supplied payout addresses are never used (mainnet rule 2/4).
+ */
+export async function readCharacterNftOwner(
+  tokenId: string,
   envIn: NodeJS.ProcessEnv = process.env,
-  cast: CastFn = spawnCast(envOf(envIn).castBin),
-): Promise<void> {
+): Promise<{ ok: true; holder: string } | VaultErr> {
+  const env = envOf(envIn);
+  if (!env.rpc || !env.nft) return { ok: false, error: "Character NFT is not configured." };
+  if (!/^[1-9][0-9]{0,77}$/.test(tokenId)) {
+    return { ok: false, error: "Bad character token id." };
+  }
+  try {
+    const chainId = await chainIdOf(env.rpc);
+    const pub = publicClient(env.rpc, chainId);
+    const holder = (
+      await pub.readContract({
+        address: env.nft as `0x${string}`,
+        abi: NFT_ABI,
+        functionName: "ownerOf",
+        args: [BigInt(tokenId)],
+      })
+    ).toLowerCase();
+    if (!isAddress(holder)) {
+      return { ok: false, error: "Character NFT owner is not a valid address." };
+    }
+    return { ok: true, holder };
+  } catch (err) {
+    return {
+      ok: false,
+      needsPlayerMint: true,
+      error: "NFT #" + tokenId + " is not on-chain yet. " + redact(String(err), []),
+    };
+  }
+}
+
+/**
+ * AH list payout: always `ownerOf(character)` at list time.
+ * Ignores any client-supplied sellerPayout / preferred payout wallet.
+ */
+export function resolveListSellerPayout(ownerOf: string | null | undefined): {
+  ok: true;
+  payout: string;
+} | { ok: false; error: string } {
+  if (!ownerOf || !isAddress(ownerOf)) {
+    return {
+      ok: false,
+      error: "Character NFT owner could not be read. Nothing was listed.",
+    };
+  }
+  return { ok: true, payout: ownerOf.toLowerCase() };
+}
+
+/** Verify the player already owns tokenId on-chain (mint-first create). */
+export async function verifyCharacterNftOwner(
+  tokenId: string,
+  wallets: string[],
+  envIn: NodeJS.ProcessEnv = process.env,
+): Promise<{ ok: true; holder: string } | VaultErr> {
+  const accepted = new Set(wallets.filter(isAddress).map((w) => w.toLowerCase()));
+  if (accepted.size === 0) return { ok: false, error: "No wallet to verify against." };
+  const owned = await readCharacterNftOwner(tokenId, envIn);
+  if (!owned.ok) return owned;
+  if (!accepted.has(owned.holder)) {
+    return { ok: false, error: "NFT #" + tokenId + " is held by " + owned.holder + ", not your wallet." };
+  }
+  return { ok: true, holder: owned.holder };
+}
+
+export async function ensureLocalRuleset(envIn: NodeJS.ProcessEnv = process.env): Promise<void> {
   const env = envOf(envIn);
   if (!env.rpc || !env.rulesets || !env.proposerKey) return;
   try {
-    const accepted = await call(cast, env.rpc, env.rulesets, "isAccepted(bytes32)(bool)", [LOCAL_RULESET_HASH]);
-    if (accepted === "true") return;
-    const delay = await call(cast, env.rpc, env.rulesets, "minDelay()(uint64)");
-    await cast(
-      sendArgs(env.rulesets, "propose(bytes32,uint64,string)", [LOCAL_RULESET_HASH, delay, "local"], env.rpc, env.proposerKey),
-    );
+    const chainId = await chainIdOf(env.rpc);
+    const pub = publicClient(env.rpc, chainId);
+    const rulesets = env.rulesets as `0x${string}`;
+    const accepted = await pub.readContract({
+      address: rulesets,
+      abi: RULESETS_ABI,
+      functionName: "isAccepted",
+      args: [LOCAL_RULESET_HASH as Hex],
+    });
+    if (accepted) return;
+    // Pending proposal is OK — don't propose again / don't log failure.
+    try {
+      const row = await pub.readContract({
+        address: rulesets,
+        abi: RULESETS_ABI,
+        functionName: "rulesets",
+        args: [LOCAL_RULESET_HASH as Hex],
+      });
+      if (row[0] !== 0n) {
+        console.log("[bellgrave] local ruleset already proposed (activatesAt=" + String(row[0]) + ").");
+        return;
+      }
+    } catch {
+      /* older ABI without rulesets() — fall through to propose */
+    }
+    const delay = await pub.readContract({
+      address: rulesets,
+      abi: RULESETS_ABI,
+      functionName: "minDelay",
+    });
+    await withOwnerKeyQueue(async () => {
+      const account = privateKeyToAccount(env.proposerKey as Hex);
+      const wallet = createWalletClient({
+        account,
+        chain: chainOf(chainId, env.rpc),
+        transport: http(env.rpc),
+      });
+      const hash = await wallet.writeContract({
+        address: rulesets,
+        abi: RULESETS_ABI,
+        functionName: "propose",
+        args: [LOCAL_RULESET_HASH as Hex, delay, "local"],
+        account,
+        chain: chainOf(chainId, env.rpc),
+      });
+      await pub.waitForTransactionReceipt({ hash });
+    });
     console.log("[bellgrave] proposed local ruleset. It is not accepted until the registry delay elapses.");
   } catch (err) {
-    console.error("[bellgrave] ruleset setup failed: " + redact(String(err), [env.proposerKey, env.ownerKey]));
-  }
-}
-
-type Body = {
-  prevRoot: string;
-  newRoot: string;
-  fromIndex: string;
-  toIndex: string;
-  logHash: string;
-  rulesetHash: string;
-  summary: string;
-  inboundConsumed: string;
-  kekOut: string;
-};
-
-function tupleOf(body: Body): string {
-  return `(${body.prevRoot},${body.newRoot},${body.fromIndex},${body.toIndex},${body.logHash},${body.rulesetHash},${body.summary},${body.inboundConsumed},${body.kekOut},[])`;
-}
-
-let vaultQueueTail: Promise<void> = Promise.resolve();
-
-function withVaultQueue<T>(fn: () => Promise<T>): Promise<T> {
-  const run = vaultQueueTail.then(fn, fn);
-  vaultQueueTail = run.then(
-    () => undefined,
-    () => undefined,
-  );
-  return run;
-}
-
-export type LogCheckpoint = {
-  player: string;
-  prevRoot: string;
-  newRoot: string;
-  fromIndex: string;
-  toIndex: string;
-  logHash: string;
-  summary: string;
-  inboundConsumed: string;
-  kekOut: string;
-};
-
-function isAddress(value: string): boolean {
-  return /^0x[0-9a-fA-F]{40}$/.test(value);
-}
-
-function isWord(value: string): boolean {
-  return /^0x[0-9a-fA-F]{64}$/.test(value);
-}
-
-/** Refuse a made-up checkpoint. The body has to name a real log span and the player's wallet. */
-export function checkpointReady(
-  body: LogCheckpoint | undefined,
-  amount: string,
-  server: string,
-): { ok: true } | { ok: false; error: string } {
-  if (!body) return { ok: false, error: "Withdrawal needs a checkpoint from the log. No in-game KEK was spent." };
-  if (!isAddress(body.player)) return { ok: false, error: "Withdrawal needs the player's wallet." };
-  if (!isAddress(server) || body.player.toLowerCase() === server.toLowerCase()) {
-    return { ok: false, error: "The server key cannot stand in as the player." };
-  }
-  if (!isWord(body.prevRoot) || !isWord(body.newRoot) || !isWord(body.logHash)) {
-    return { ok: false, error: "Checkpoint is missing a real log hash." };
-  }
-  if (body.prevRoot.toLowerCase() === body.newRoot.toLowerCase()) {
-    return { ok: false, error: "Checkpoint root was not taken from the log." };
-  }
-  if (!/^\d+$/.test(body.fromIndex) || !/^\d+$/.test(body.toIndex) || !/^\d+$/.test(body.kekOut)) {
-    return { ok: false, error: "Checkpoint index is not a log position." };
-  }
-  if (BigInt(body.toIndex) <= BigInt(body.fromIndex)) {
-    return { ok: false, error: "Checkpoint does not cover a real log position." };
-  }
-  if (body.kekOut !== amount) return { ok: false, error: "Checkpoint kekOut does not match the withdrawal." };
-  return { ok: true };
-}
-
-export type WithdrawHooks = {
-  beforeSend?: (predictedId: string) => void;
-  body?: LogCheckpoint;
-  /** Build the body after the on-chain log index is known. A missing body is refused. */
-  prepare?: (chain: { fromIndex: string; prevRoot: string }) => LogCheckpoint | undefined;
-  /**
-   * Append the log debit. When set it runs after the read-only chain checks that
-   * commonly refuse (chain id, ruleset accepted) and immediately before `prepare`,
-   * so a refusal does not leave a debit that later has to be popped. The caller
-   * owns undoing it if the result is a definite failure.
-   */
-  debit?: () => { ok: true } | { ok: false; error: string };
-};
-
-export async function queueKekWithdrawal(
-  tokenId: string,
-  amount: string,
-  envIn: NodeJS.ProcessEnv = process.env,
-  cast?: CastFn,
-  hooks?: WithdrawHooks,
-): Promise<VaultOk | VaultErr> {
-  return withVaultQueue(() => queueKekWithdrawalNow(tokenId, amount, envIn, cast, hooks));
-}
-
-async function queueKekWithdrawalNow(
-  tokenId: string,
-  amount: string,
-  envIn: NodeJS.ProcessEnv = process.env,
-  cast?: CastFn,
-  hooks?: WithdrawHooks,
-): Promise<VaultOk | VaultErr> {
-  if (!cast) cast = spawnCast(envOf(envIn).castBin);
-  const env = envOf(envIn);
-  const secrets = [env.ownerKey, env.rotatorKey, env.proposerKey];
-  if (!env.rpc || !env.checkpoint || !env.vault || !env.nft || !env.rulesets || !env.ownerKey || !env.rotatorKey) {
-    return { ok: false, error: "Withdrawal is not configured. No in-game KEK was spent." };
-  }
-  if (!/^[1-9][0-9]{0,18}$/.test(amount)) return { ok: false, error: "Bad withdrawal amount." };
-  let broadcast = false;
-  let predicted = "";
-  try {
-    const chainId = word((await cast(["chain-id", "--rpc-url", env.rpc])).stdout);
-    if (BigInt(chainId) !== LOCAL_ANVIL_CHAIN_ID) {
-      return { ok: false, error: "Withdrawals are only submitted on local chain 31337. No in-game KEK was spent." };
+    const msg = String(err);
+    if (
+      msg.toLowerCase().includes(ALREADY_PROPOSED_SELECTOR) ||
+      /AlreadyProposed/i.test(msg)
+    ) {
+      console.log("[bellgrave] local ruleset already proposed (AlreadyProposed).");
+      return;
     }
-    const server = (await ownerAddress(cast, env.ownerKey)).toLowerCase();
-    const prevRoot = (await call(cast, env.rpc, env.checkpoint, "stateRoot(uint256)(bytes32)", [tokenId])).toLowerCase();
-    const fromIndex = await call(cast, env.rpc, env.checkpoint, "logIndex(uint256)(uint64)", [tokenId]);
-    const version = await call(cast, env.rpc, env.checkpoint, "version(uint256)(uint32)", [tokenId]);
-    let rulesetChecked = false;
-    if (hooks?.debit) {
-      const acceptedEarly = await call(cast, env.rpc, env.rulesets, "isAccepted(bytes32)(bool)", [LOCAL_RULESET_HASH]);
-      if (acceptedEarly !== "true") {
-        return { ok: false, error: "The local ruleset is not accepted yet. No in-game KEK was spent." };
-      }
-      rulesetChecked = true;
-      const debited = hooks.debit();
-      if (!debited.ok) return { ok: false, error: debited.error };
-    }
-    const drafted = hooks?.body ?? hooks?.prepare?.({ fromIndex, prevRoot });
-    const ready = checkpointReady(drafted, amount, server);
-    if (!ready.ok) return ready;
-    const bodyIn = drafted!;
-    const player = bodyIn.player.toLowerCase();
-    let nftOwner = (await call(cast, env.rpc, env.nft, "ownerOf(uint256)(address)", [tokenId])).toLowerCase();
-    if (nftOwner === server && player !== server) {
-      await cast(sendArgs(env.nft, "transferFrom(address,address,uint256)", [server, player, tokenId], env.rpc, env.ownerKey));
-      nftOwner = (await call(cast, env.rpc, env.nft, "ownerOf(uint256)(address)", [tokenId])).toLowerCase();
-    }
-    if (nftOwner !== player) {
-      return { ok: false, error: "This character NFT is not held by the player wallet. No in-game KEK was spent." };
-    }
-    const accepted = rulesetChecked
-      ? "true"
-      : await call(cast, env.rpc, env.rulesets, "isAccepted(bytes32)(bool)", [LOCAL_RULESET_HASH]);
-    if (accepted !== "true") {
-      return { ok: false, error: "The local ruleset is not accepted yet. No in-game KEK was spent." };
-    }
-    const now = BigInt(word((await cast(["block", "latest", "--rpc-url", env.rpc, "-f", "timestamp"])).stdout));
-    const active = await call(cast, env.rpc, env.checkpoint, "isActiveSigner(address)(bool)", [server]);
-    if (active !== "true") {
-      const expiry = (now + 23n * 3600n).toString();
-      await cast(sendArgs(env.checkpoint, "addSigner(address,uint64)", [server, expiry], env.rpc, env.rotatorKey));
-    }
-    if (prevRoot !== bodyIn.prevRoot.toLowerCase() || fromIndex !== bodyIn.fromIndex) {
-      return { ok: false, error: "On-chain log position does not match this checkpoint. Nothing was invented." };
-    }
-    const body: Body = {
-      prevRoot: bodyIn.prevRoot,
-      newRoot: bodyIn.newRoot,
-      fromIndex: bodyIn.fromIndex,
-      toIndex: bodyIn.toIndex,
-      logHash: bodyIn.logHash,
-      rulesetHash: LOCAL_RULESET_HASH,
-      summary: bodyIn.summary,
-      inboundConsumed: bodyIn.inboundConsumed,
-      kekOut: bodyIn.kekOut,
-    };
-    const encoded = word(
-      (await cast(["abi-encode", "x(" + CHECKPOINT_TUPLE + ")", tupleOf(body)])).stdout,
-    );
-    const bodyHash = word((await cast(["keccak", encoded])).stdout);
-    const deadline = (now + 3600n).toString();
-    const typed = JSON.stringify({
-      types: {
-        EIP712Domain: [
-          { name: "name", type: "string" },
-          { name: "version", type: "string" },
-          { name: "chainId", type: "uint256" },
-          { name: "verifyingContract", type: "address" },
-        ],
-        Checkpoint: [
-          { name: "tokenId", type: "uint256" },
-          { name: "player", type: "address" },
-          { name: "version", type: "uint32" },
-          { name: "deadline", type: "uint256" },
-          { name: "bodyHash", type: "bytes32" },
-        ],
-      },
-      primaryType: "Checkpoint",
-      domain: {
-        name: "CharacterCheckpoint",
-        version: "1",
-        chainId: Number(chainId),
-        verifyingContract: env.checkpoint,
-      },
-      message: {
-        tokenId: Number(tokenId),
-        player: player,
-        version: Number(version),
-        deadline: Number(deadline),
-        bodyHash,
-      },
-    });
-    const sig = word((await cast(["wallet", "sign", "--data", typed, "--private-key", env.ownerKey])).stdout);
-    const before = BigInt(await call(cast, env.rpc, env.vault, "nextWithdrawalId()(uint256)"));
-    predicted = (before + 1n).toString();
-    hooks?.beforeSend?.(predicted);
-    broadcast = true;
-    await cast(
-      sendArgs(
-        env.checkpoint,
-        "checkpoint(uint256," + CHECKPOINT_TUPLE + ",(uint32,uint256,bytes))",
-        [tokenId, tupleOf(body), `(${version},${deadline},${sig})`],
-        env.rpc,
-        env.ownerKey,
-      ),
-    );
-    const after = BigInt(await call(cast, env.rpc, env.vault, "nextWithdrawalId()(uint256)"));
-    if (after !== before + 1n) {
-      return {
-        ok: false,
-        uncertain: true,
-        id: predicted,
-        error: "The vault withdrawal may already be queued. Spendable KEK stays reserved until the chain is checked.",
-      };
-    }
-    const id = after.toString();
-    const packed = (await cast(["call", env.vault, "withdrawals(uint256)(address,uint64,uint8,uint256)", id, "--rpc-url", env.rpc])).stdout;
-    const availableAt = Number(packed.trim().split(/\s+/)[1] ?? "0");
-    remember({ id, tokenId, amount, availableAt, status: "pending" });
-    return { ok: true, id, availableAt };
-  } catch (err) {
-    if (broadcast) {
-      return {
-        ok: false,
-        uncertain: true,
-        id: predicted,
-        error: "The vault send did not finish. Spendable KEK stays reserved until the chain is checked. " + redact(String(err), secrets),
-      };
-    }
-    return { ok: false, error: "Withdrawal was not queued. No in-game KEK was spent. " + redact(String(err), secrets) };
-  }
-}
-
-export async function claimQueuedWithdrawal(
-  id: string,
-  envIn: NodeJS.ProcessEnv = process.env,
-  cast: CastFn = spawnCast(envOf(envIn).castBin),
-): Promise<{ ok: true } | VaultErr> {
-  const env = envOf(envIn);
-  const row = queues.find((q) => q.id === id && q.status === "pending");
-  if (!row) return { ok: false, error: "That withdrawal is not queued on this server." };
-  if (!env.rpc || !env.vault || !env.ownerKey) return { ok: false, error: "Claim is not configured." };
-  try {
-    await cast(sendArgs(env.vault, "claim(uint256)", [id], env.rpc, env.ownerKey));
-    row.status = "claimed";
-    saveQueues();
-    return { ok: true };
-  } catch (err) {
-    const text = String(err);
-    if (/NotYet|0x0d3f7776/i.test(text)) {
-      return { ok: false, error: "That withdrawal is still inside the vault delay. Nothing was paid out." };
-    }
-    return { ok: false, error: "Claim was not paid. " + redact(text, [env.ownerKey]) };
-  }
-}
-
-/** True only when this id is this character's withdrawal for this amount. Null if the chain cannot be read. No private key. */
-export async function vaultWithdrawalMatches(
-  id: string,
-  token: string,
-  amount: string,
-  envIn: NodeJS.ProcessEnv = process.env,
-  cast?: CastFn,
-): Promise<boolean | null> {
-  const env = envOf(envIn);
-  if (!env.rpc || !env.vault) return null;
-  if (!/^\d+$/.test(id) || !/^\d+$/.test(token) || !/^\d+$/.test(amount)) return null;
-  const run = cast ?? spawnCast(env.castBin);
-  try {
-    const owner = word((await run(["call", env.vault, "withdrawalToken(uint256)(uint256)", id, "--rpc-url", env.rpc])).stdout);
-    if (!owner || BigInt(owner) !== BigInt(token)) return false;
-    const packed = (await run(["call", env.vault, "withdrawals(uint256)(address,uint64,uint8,uint256)", id, "--rpc-url", env.rpc])).stdout;
-    const got = packed.trim().split(/\s+/)[3] ?? "0";
-    return BigInt(got) === BigInt(amount) && BigInt(got) > 0n;
-  } catch {
-    return null;
+    console.error("[bellgrave] ruleset setup failed: " + redact(msg, [env.proposerKey, env.ownerKey]));
   }
 }

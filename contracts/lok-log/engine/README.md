@@ -2,7 +2,7 @@
 
 First slice of the Bellgrave lok engine. It sits next to `contracts/lok-log` and must reproduce the golden vectors pinned in `test/Golden.t.sol` and recomputed by `test/golden/verify.mjs`.
 
-KEK is deposit-only from Robinhood L2 (not earnable). `DepositKek` credits KEK already in the vault; it is not a mint. Transfers, bids, and settlement move balances the character already holds. No transfer tax and no auction fee are specified, so amounts move flat. The game server loads this crate as wasm (`pkg/lok_engine.wasm`) and persists one hash chain per character. The client exchange sits on the Provisioner.
+In-game **gold** is a separate log balance (`GoldEarn` / `GoldSpend` / `GoldSell`) with daily earn caps. It is not vault-backed. Historical **KEK** events stay for replay; new AH/PvP settlement targets WETH via EEZ (see `docs/economy-weth-eez.md`). The game server loads this crate as wasm (`pkg/lok_engine.wasm`) and persists one hash chain per character.
 
 ## What is implemented
 
@@ -63,7 +63,10 @@ Exit 0 prints the head, state root, and summary. Exit 1 is a bad hash. Exit 2 is
 | `append_spawn` | `spawn` | that character |
 | `append_deposit_kek` | `depositKek` (vault deposit already happened; not a mint; `nonce` is the next inbound id) | that character |
 | `append_withdraw_kek` | `withdrawKek` (spendable only; not an onchain withdrawal) | that character |
-| `append_spend_kek` | `spendKek` (spendable only; in-game price; not `kekOut`; not a mint) | that character |
+| `append_spend_kek` | `spendKek` (spendable only; legacy in-game price; not `kekOut`; not a mint) | that character |
+| `append_gold_earn` | `goldEarn` (faucet; server day + daily caps) | that character |
+| `append_gold_spend` | `goldSpend` (trainer / craft / respec sinks) | that character |
+| `append_gold_sell` | `goldSell` (NPC buy-back; burns items, credits gold) | that character |
 | `append_import_item` | `importItem` (same per-character inbound nonce sequence as `depositKek`) | that character |
 | `append_export_item` | `exportItem` (spendable balance only) | that character |
 | `append_send_item` | `sendItem` | sender and recipient |

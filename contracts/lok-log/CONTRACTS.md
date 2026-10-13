@@ -2,13 +2,31 @@
 
 These decisions are locked for the lok-log package.
 
-- **KEK is deposit-only from Robinhood L2.** It is not earnable in-game. There is no faucet. Trainer ability prices and craft `recipe.kek` charges spend that deposited balance through `spendKek`. Dust is no longer the spend currency for those prices. `spendKek` does not mint and is not a withdrawal. `lok/withdrawKek` stays disabled. No chain watcher is added.
-- **KEK token (Robinhood L2):** `0x5a3544a0328afD50A9979e03404F35c555B88c00`. Deposit-only. There is no faucet. This is the token a vault would custody. Do not deploy it from this tree.
-- **In-game transfers and the auction house are lok-engine log events, not contracts.** A transfer or bid moves only KEK or items the character already holds. There is no transfer tax and no auction fee. Listing an item escrows it so it cannot be transferred, exported, or listed again until cancel or settle.
-- **Goal:** prove in-game events cheaply with an event-sourced rules engine and a hash-chained log. Items and KEK enter from Robinhood. Items can be minted out as NFTs (exports) and brought back (import).
-- **Per-token vault cap:** `KekVault.queueWithdrawal` for a `tokenId` cannot exceed that character's deposited KEK minus withdrawals already reserved for them (pending or claimed). Cancel releases the reservation; claim does not. Another player's KEK sitting in the same vault does not raise the cap. The global check (pending withdrawals cannot exceed the vault balance) still applies. `lok/withdrawKek` stays disabled on the server; the engine `WithdrawKek` op remains.
-- **Inbound nonce:** `depositKek` and on-chain `importItem` each take the next per-character inbound nonce (`inboundCount`, shared by both). The engine accepts that nonce once, in order, and a checkpoint's `inboundConsumed` is how many of those inbounds the log has applied. Replaying a nonce does not credit again. Bag imports (`bagImport`) credit items without a chain nonce and are not counted in `inboundConsumed`. The game client cannot invent a custody inbound; there is no client `lok/deposit`. A local watcher credits `KekDepositRequested` and `ItemImportRequested`, swallows only nonces already applied, and halts on gaps.
-- **Withdrawal delay:** the deploy default stays **24 hours** (`KEK_WITHDRAW_DELAY` in `script/Deploy.s.sol`). An admin may set it between 1 hour and 30 days (`MIN_WITHDRAW_DELAY` / `MAX_WITHDRAW_DELAY` on `KekVault`). Do not change that default or those bounds.
+## Current lock (gold + ETH via EEZ; log is game-only)
+
+- **Two units, two homes.**
+  - **Gold** — in-game only (log counter). Training, crafting, respec, NPC shops. No token, no vault, no player-to-player gold send in v1.
+  - **ETH** — auction house, PvP bounties, and any real-value player payment. Lives on **chain** (EEZ sync `value` into first-party escrow). **Not** a spendable balance on the character log.
+- **The log does not manage funds.** No player deposit into a game vault, no log-credited settlement balance for AH/PvP, no `lok/deposit` / withdraw / claim / send-ETH play path. Historical `DepositKek` / `SendKek` / bid-escrow-on-log events stay for **replay only**. After the wipe, new play does not credit settlement ETH onto `Key::Kek` for spending.
+- **AH payment is EEZ-only.** Buyers pay native ETH (unwrap WETH on the home chain when needed) through **[eez-core-protocol](https://github.com/eez-association/eez-core-protocol)** sync calls into first-party [`AhEscrow.sol`](src/AhEscrow.sol). There is **no deposit fallback**. On fill, the server appends log `chainFill` (item inbox only). Chains outside the EEZ zone cannot pay until they join the zone (or the player moves ETH onto a zone chain themselves — outside our vault). See [`docs/eez-ah-research.md`](../../docs/eez-ah-research.md).
+- **What the log still governs:** character identity, levels, abilities, gold, items (including AH **item** escrow and inbox), harvest/craft/loot counters, and mirrors of on-chain fills (item credit/debit). The client cannot invent custody.
+- **Gold** never converts directly to ETH. The route is item → AH (chain pay) → ETH to seller.
+- **Gold day is server-trusted.** `GoldEarn` / `GoldSell` carry a server-stamped `day` (UTC days since epoch). The engine rejects `day == 0`, a day lower than the character's last earn day (`StaleDay`), and any day above `GOLD_MAX_DAY` (100000), so one bad stamp cannot lock a character's later earns. A replayer cannot check the day against wall time, though: a server that stamps a higher day resets the daily caps early. Daily caps therefore only bind an honest server clock. Binding the day to something verifiable (block timestamp in the checkpoint, or a signed day beacon) is open.
+- **NPC buy-back price is server-trusted.** `GoldSell` credits whatever `amount` the server passes; only the `npc_sell` daily cap bounds it. A per-item NPC price table in the engine (`amount <= price(item) * qty`) is the planned fix (E5 budget sheet) so a replayer can reject an over-paid sell.
+- **EEZ caveats are binding.** Upstream is early-stage and unaudited. Upstream `src/periphery/` is test-only. Game-facing escrow is first-party.
+- **New events only.** Do not change the meaning or serialization of any existing event. Fresh log + anvil wipe on the batched redeploy; bump `LOCAL_RULESET_HASH` and the wasm pin together.
+- **AH fee:** still undecided. If a fee ships, it is in ETH on-chain and this file must be updated before merge.
 - **Known MVP limits** stay as the package README already states: no k-of-n signer threshold, no fraud proofs, no on-chain Merkle proof yet, and unique-item supply of 1 is not enforced in the items contract.
+
+Design: [`docs/economy-weth-eez.md`](../../docs/economy-weth-eez.md) · EEZ AH: [`docs/eez-ah-research.md`](../../docs/eez-ah-research.md).
+
+## Superseded (KEK vault / deposit era — replay only)
+
+- KEK deposit-only from Robinhood, trainer/craft via `spendKek`, `KekVault` caps/delays, inbound nonces, client had no invent-deposit — that was the fund-custody play path.
+- **Removed as product:** park-then-play vault, log settlement balance for AH, deposit fallback for “other chains.”
+
+Do not reinterpret those events. Do not reintroduce a player vault deposit for AH or PvP.
+
+---
 
 This directory is a standalone Foundry project. It is not a pnpm workspace package. The game (`apps/*`, `packages/*`) does not compile these Solidity files.

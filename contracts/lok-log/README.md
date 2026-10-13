@@ -33,11 +33,14 @@ The leading tag byte on item ids is domain separation: without it a fungible `ty
 
 ## Setup
 ```
-forge install foundry-rs/forge-std OpenZeppelin/openzeppelin-contracts@v5.4.0 OpenZeppelin/openzeppelin-contracts-upgradeable@v5.4.0
+# Pins are also recorded in lib.lock — do not invent OZ versions for audits.
+forge install foundry-rs/forge-std@v1.9.4
+forge install OpenZeppelin/openzeppelin-contracts@v5.4.0
+forge install OpenZeppelin/openzeppelin-contracts-upgradeable@v5.4.0
 forge test
 cd test/golden && npm i && node verify.mjs
 ```
-Solc 0.8.28, cancun. OZ 5.x (namespaced storage, so no `__gap`s).
+Solc 0.8.28, cancun. OZ **v5.4.0** + forge-std **v1.9.4** (namespaced storage, so no `__gap`s).
 
 ## Roles
 | Contract | Role | Holder |

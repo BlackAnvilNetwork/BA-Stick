@@ -26,6 +26,8 @@ type EngineCraftSkill = { skillId: string; level: number };
 type EngineCharacter = {
   tokenId: string;
   kek: string;
+  /** In-game gold (log-only). Absent on logs that never earned gold. */
+  gold?: string;
   vaultClaim?: string;
   sunkKek?: string;
   inboundApplied?: number;
@@ -99,6 +101,19 @@ export type CustodyInbound =
   | { kind: "depositKek"; tokenId: string; nonce: string; amount: string }
   | { kind: "importItem"; tokenId: string; nonce: string; itemId: string; amount: string };
 
+/** AhEscrow AskFilled the server already saw. Client messages cannot invent these. */
+export type ChainFillInbound = {
+  listingId: string;
+  buyerTokenId: string;
+  priceWei: string;
+  fillKey: string;
+  itemId: string;
+  amount: string;
+  sellerTokenId: string;
+  txHash: string;
+  logIndex: string;
+};
+
 const here = dirname(fileURLToPath(import.meta.url));
 
 export function defaultLokDir(): string {
@@ -113,18 +128,18 @@ export function chainModeFromEnv(env: NodeJS.ProcessEnv = process.env): {
   if (!rpc) {
     return {
       chain: "engine-only",
-      note: "No LOK_CHAIN_RPC. KEK deposits, KEK withdrawals, and item exports stay engine events; Robinhood L2 is not queried and nothing is submitted.",
+      note: "No LOK_CHAIN_RPC. The log governs items and gold only — no vault deposit path. AH pays ETH on-chain via AhEscrow / EEZ when configured.",
     };
   }
-  if (env.LOK_CHECKPOINT?.trim()) {
+  if (env.LOK_AH_ESCROW?.trim()) {
     return {
       chain: "watching",
-      note: "Watching the checkpoint for KEK deposits. A withdrawal queues on the vault and waits out its delay. Spendable KEK is debited only after that queue exists.",
+      note: "Watching AhEscrow AskFilled. Item fills mirror into the log; ETH never credits a character balance.",
     };
   }
   return {
     chain: "rpc-unwatched",
-    note: "LOK_CHAIN_RPC is set, but no KekVault watcher or withdrawal transaction is wired. Deposits, withdrawals, and exports still only append the per-character logs.",
+    note: "LOK_CHAIN_RPC is set, but AhEscrow is not configured. AH ETH pay is not live on this server.",
   };
 }
 
@@ -154,6 +169,47 @@ function asItemId(raw: string): number | null {
   return Number.isSafeInteger(n) ? n : null;
 }
 
+function normalizeFillKey(fillKey: string): string {
+  return fillKey.trim().toLowerCase();
+}
+
+/** Build fillKeys from ChainFill entries already on the engine document. */
+export function collectChainFillKeys(logText: string): Set<string> {
+  const keys = new Set<string>();
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(logText);
+  } catch {
+    return keys;
+  }
+  if (!parsed || typeof parsed !== "object") return keys;
+  const characters = (parsed as { characters?: unknown }).characters;
+  if (!Array.isArray(characters)) return keys;
+  for (const row of characters) {
+    if (!row || typeof row !== "object") continue;
+    const entries = (row as { entries?: unknown }).entries;
+    if (!Array.isArray(entries)) continue;
+    for (const entry of entries) {
+      if (!entry || typeof entry !== "object") continue;
+      const input = (entry as { input?: unknown }).input;
+      if (!input || typeof input !== "object") continue;
+      const body = input as { type?: unknown; txHash?: unknown; logIndex?: unknown };
+      if (body.type !== "chainFill") continue;
+      if (typeof body.txHash !== "string" || !body.txHash.startsWith("0x")) continue;
+      let idx: string;
+      if (typeof body.logIndex === "number" && Number.isFinite(body.logIndex)) {
+        idx = String(body.logIndex);
+      } else if (typeof body.logIndex === "string" && /^\d+$/.test(body.logIndex)) {
+        idx = body.logIndex;
+      } else {
+        continue;
+      }
+      keys.add(normalizeFillKey(body.txHash + "-" + idx));
+    }
+  }
+  return keys;
+}
+
 /**
  * One hash chain per character. The wasm engine accepts or rejects every move.
  * Deposit credits KEK the caller already holds in custody. It does not mint.
@@ -170,6 +226,9 @@ export class LokWorld {
   private state: EngineState = { characters: [], listings: [] };
   /** Custody nonces observed by the server. Not loaded from the client and not a chain watcher. */
   private custody = new Map<string, CustodyInbound>();
+  private chainFills = new Map<string, ChainFillInbound>();
+  /** fillKeys already journaled as ChainFill (txHash-logIndex). Source of truth for AskFilled replay. */
+  private appliedChainFillKeys = new Set<string>();
   /** Bytes of lok-world.jsonl already folded into the snapshot. */
   private journalBytes = 0;
   /** Accepted events since the snapshot on disk was rewritten. */
@@ -197,6 +256,7 @@ export class LokWorld {
     this.replayJournal(cursor);
     this.bind = this.readBind();
     this.refresh();
+    this.appliedChainFillKeys = collectChainFillKeys(this.logDocument());
     this.reconcileBind();
     this.pruneExpiredReservations();
     if (!existsSync(this.logPath)) this.snapshotLog();
@@ -211,11 +271,17 @@ export class LokWorld {
     return this.bind.chars.find((c) => c.charId === charId)?.tokenId ?? null;
   }
 
+  /** Next log token id the bind file would assign (may lag or lead the chain). */
+  nextTokenId(): string {
+    return this.bind.nextToken;
+  }
+
   spawn(
     charId: string,
     name: string,
     job: number,
     wallet?: string,
+    opts?: { tokenId?: string },
   ): { ok: true; tokenId: string } | { ok: false; error: string } {
     const existing = this.tokenFor(charId);
     if (existing) {
@@ -229,7 +295,17 @@ export class LokWorld {
     }
     const claimed = this.claimName(charId, name, owner);
     if (!claimed.ok) return claimed;
-    const tokenId = this.bind.nextToken;
+    const preferred = opts?.tokenId?.trim();
+    let tokenId = this.bind.nextToken;
+    if (preferred) {
+      if (!/^[1-9][0-9]{0,77}$/.test(preferred)) {
+        return { ok: false, error: "Bad character token id." };
+      }
+      if (this.bind.chars.some((c) => c.tokenId === preferred)) {
+        return { ok: false, error: "That character NFT is already bound." };
+      }
+      tokenId = preferred;
+    }
     const res = this.apply({ op: "spawn", tokenId, startingJob: job });
     if (!res.ok) return res;
     this.bind.chars.push({
@@ -240,9 +316,15 @@ export class LokWorld {
       ...(owner ? { wallet: owner } : {}),
     });
     this.bind.reserved = this.bind.reserved.filter((row) => row.charId !== charId);
-    this.bind.nextToken = (BigInt(tokenId) + 1n).toString();
+    const next = BigInt(tokenId) + 1n;
+    if (next > BigInt(this.bind.nextToken)) this.bind.nextToken = next.toString();
     this.saveBind();
     return { ok: true, tokenId };
+  }
+
+  /** Open book listings (AhEscrow asks) for boot reconcile against on-chain `asks()`. */
+  openBookListings(): EngineListing[] {
+    return this.state.listings.filter((row) => row.book === true);
   }
 
   /**
@@ -252,6 +334,11 @@ export class LokWorld {
    */
   noteCustodyInbound(inbound: CustodyInbound): void {
     this.custody.set(this.custodyKey(inbound.tokenId, inbound.nonce), inbound);
+  }
+
+  /** Remember an AhEscrow AskFilled before mirroring items via chainFill. */
+  noteChainFill(inbound: ChainFillInbound): void {
+    this.chainFills.set(inbound.fillKey, inbound);
   }
 
   /** Log image of a vault deposit. Credits only a nonce this server already recorded. Never a mint. */
@@ -298,11 +385,26 @@ export class LokWorld {
   }
 
   /**
-   * Spend deposited KEK on an in-game price. Debits spendable balance only.
-   * Escrowed bids stay locked. Does not mint and does not withdraw.
+   * Replay helper: spend historical Key::Kek. Live sinks use goldSpend.
+   * Debits spendable KEK only; escrowed bids stay locked. Does not mint or withdraw.
    */
   spendKek(tokenId: string, amount: string): LokResult {
     return this.apply({ op: "spendKek", tokenId, amount });
+  }
+
+  /** Credit in-game gold. `day` is a server-stamped day id (engine enforces caps). */
+  goldEarn(tokenId: string, source: string, amount: string, day: number): LokResult {
+    return this.apply({ op: "goldEarn", tokenId, source, amount, day });
+  }
+
+  /** Debit in-game gold for a sink (trainer, craft, respec, shop). */
+  goldSpend(tokenId: string, sink: string, amount: string): LokResult {
+    return this.apply({ op: "goldSpend", tokenId, sink, amount });
+  }
+
+  /** NPC buy-back: burn items, credit gold under the npc_sell earn cap. */
+  goldSell(tokenId: string, itemId: string, qty: string, amount: string, day: number): LokResult {
+    return this.apply({ op: "goldSell", tokenId, itemId, qty, amount, day });
   }
 
   /** Record the next level. Rejects a skip. Does not mint KEK. */
@@ -431,6 +533,52 @@ export class LokWorld {
   }
 
   /**
+   * Mirror an on-chain AhEscrow fill into the log (items only). Requires a prior
+   * noteChainFill for the same fillKey. Does not credit or debit settlement ETH.
+   */
+  chainFill(listingId: string, buyer: string, priceWei: string, fillKey: string): LokResult {
+    const noted = this.chainFills.get(fillKey);
+    if (
+      !noted ||
+      noted.listingId !== listingId ||
+      noted.buyerTokenId !== buyer ||
+      noted.priceWei !== priceWei
+    ) {
+      return { ok: false, error: "AhEscrow fill is not a recorded on-chain fill" };
+    }
+    const res = this.apply({
+      op: "chainFill",
+      listingId,
+      buyer,
+      priceWei,
+      itemId: noted.itemId,
+      amount: noted.amount,
+      seller: noted.sellerTokenId,
+      txHash: noted.txHash,
+      logIndex: noted.logIndex,
+    });
+    if (res.ok) {
+      this.chainFills.delete(fillKey);
+      this.appliedChainFillKeys.add(normalizeFillKey(fillKey));
+    }
+    return res;
+  }
+
+  /** True when a ChainFill with this fillKey (txHash-logIndex) is already on the log. */
+  hasChainFill(fillKey: string): boolean {
+    return this.appliedChainFillKeys.has(normalizeFillKey(fillKey));
+  }
+
+  /** All journaled ChainFill fillKeys (source of truth for AskFilled replay). */
+  chainFillKeys(): ReadonlySet<string> {
+    return this.appliedChainFillKeys;
+  }
+
+  goldPaidRespec(tokenId: string, amount: string, nodeIds: string[]): LokResult {
+    return this.apply({ op: "goldPaidRespec", tokenId, amount, nodeIds });
+  }
+
+  /**
    * Buy whole asks until qty items are taken, the book runs out, or this message
    * hits MAX_FILLS_PER_BUY_MESSAGE. Each step is buy(), so the cheapest ask is
    * charged its own price. The buyer's own asks are skipped by the engine.
@@ -513,6 +661,16 @@ export class LokWorld {
 
   cancel(listingId: string, seller: string): LokResult {
     return this.apply({ op: "cancel", listingId, seller });
+  }
+
+  /** Cancel an order-book ask into the seller inbox (not the legacy bid/settle path). */
+  cancelAsk(listingId: string, seller: string): LokResult {
+    return this.apply({ op: "cancelAsk", listingId, seller });
+  }
+
+  /** Open ask/listing row, if any. Used before chainFill removes it. */
+  listingOf(listingId: string): EngineListing | undefined {
+    return this.state.listings.find((row) => row.id === listingId);
   }
 
   settle(listingId: string): LokResult {
@@ -649,6 +807,31 @@ export class LokWorld {
     this.saveBind();
   }
 
+  /**
+   * Re-bind character control after a finalized NFT Transfer (C-1).
+   * Overwrites an existing wallet binding — unlike write-once bindWallet.
+   */
+  rebindWallet(charId: string, wallet: string): { ok: true; previous: string | null } | { ok: false; error: string } {
+    const owner = wallet.trim().toLowerCase();
+    if (!/^0x[0-9a-f]{40}$/.test(owner)) return { ok: false, error: "Bad wallet." };
+    const row = this.bind.chars.find((c) => c.charId === charId);
+    if (!row) return { ok: false, error: "Unknown character." };
+    const previous = row.wallet?.toLowerCase() ?? null;
+    if (previous === owner) return { ok: true, previous };
+    row.wallet = owner;
+    this.saveBind();
+    return { ok: true, previous };
+  }
+
+  /** Find bind row by NFT token id. */
+  charByTokenId(
+    tokenId: string,
+  ): { charId: string; tokenId: string; name: string; job: number; wallet?: string } | null {
+    const id = tokenId.trim();
+    const row = this.bind.chars.find((c) => c.tokenId === id);
+    return row ? { ...row } : null;
+  }
+
   walletCharCount(wallet: string, exceptCharId?: string): number {
     this.pruneExpiredReservations();
     const owner = wallet.trim().toLowerCase();
@@ -749,13 +932,17 @@ export class LokWorld {
         return { tokenId: id, amount: row.amount };
       })
       .filter((row): row is { tokenId: number; amount: string } => row != null);
+    const settlement = me?.kek ?? "0";
     return {
       tokenId,
-      kek: me?.kek ?? "0",
+      kek: settlement,
+      eth: settlement,
+      gold: me?.gold ?? "0",
       items,
       inbox,
       listings,
       chain: this.chain,
+      ahEscrow: null,
       withdrawDelaySec: null,
       queues: [],
     };
@@ -763,6 +950,10 @@ export class LokWorld {
 
   kekOf(tokenId: string): string {
     return this.state.characters.find((c) => c.tokenId === tokenId)?.kek ?? "0";
+  }
+
+  goldOf(tokenId: string): string {
+    return this.state.characters.find((c) => c.tokenId === tokenId)?.gold ?? "0";
   }
 
   vaultClaim(tokenId: string): string {
