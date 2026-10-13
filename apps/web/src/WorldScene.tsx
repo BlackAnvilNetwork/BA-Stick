@@ -32,6 +32,12 @@ import { PaleHollowRiverBanks } from "./PaleHollowRiverBanks";
 import { PaleHollowPaths } from "./PaleHollowPaths";
 import { peekSpriteTexture, putSpriteTexture, requestSpriteTexture, subscribeSpriteLoads } from "./spriteCache";
 import { send } from "./net";
+import {
+  clearKeyboardMove,
+  getMoveKeys,
+  setKeyboardMoveKey,
+  type MoveKeys,
+} from "./moveInput";
 import { useGame } from "./state";
 import { playEnemySwing, playJobSwing, playTemporalDistortion } from "./combatSfx";
 import { UnitStatusIcons } from "./UnitStatusIcons";
@@ -2697,7 +2703,6 @@ function SheetBillboardInner({
 }
 
 function WasdController() {
-  const keys = useRef({ w: false, a: false, s: false, d: false });
   const accum = useRef(0);
 
   useFrame((_, dt) => {
@@ -2710,7 +2715,7 @@ function WasdController() {
       ? g.snapshot?.units.find((u) => u.id === g.wallet)
       : undefined;
     if (!me) return;
-    const { w, a, s, d } = keys.current;
+    const { w, a, s, d } = getMoveKeys();
     if (!w && !a && !s && !d) return;
     const up = new THREE.Vector3(-1, 0, -1).normalize();
     const right = new THREE.Vector3(1, 0, -1).normalize();
@@ -2727,22 +2732,28 @@ function WasdController() {
   });
 
   useEffect(() => {
+    const isMoveKey = (k: string): k is keyof MoveKeys =>
+      k === "w" || k === "a" || k === "s" || k === "d";
     const down = (e: KeyboardEvent) => {
       const k = e.key.toLowerCase();
-      if (k in keys.current) {
-        keys.current[k as keyof typeof keys.current] = true;
+      if (isMoveKey(k)) {
+        setKeyboardMoveKey(k, true);
         e.preventDefault();
       }
     };
     const up = (e: KeyboardEvent) => {
       const k = e.key.toLowerCase();
-      if (k in keys.current) keys.current[k as keyof typeof keys.current] = false;
+      if (isMoveKey(k)) setKeyboardMoveKey(k, false);
     };
+    const blur = () => clearKeyboardMove();
     window.addEventListener("keydown", down);
     window.addEventListener("keyup", up);
+    window.addEventListener("blur", blur);
     return () => {
       window.removeEventListener("keydown", down);
       window.removeEventListener("keyup", up);
+      window.removeEventListener("blur", blur);
+      clearKeyboardMove();
     };
   }, []);
 
