@@ -70,8 +70,11 @@ check_role "$AH" "$LISTING_ROLE" "$LISTING" "AhEscrow LISTING"
 check_role "$RULESETS" "$PROPOSER_ROLE" "$PROPOSER" "RulesetRegistry PROPOSER"
 check_role "$CHECKPOINT" "$DEFAULT_ADMIN" "$ADMIN" "Checkpoint DEFAULT_ADMIN"
 
-DEPLOY_BLOCK="${DEPLOY_BLOCK:-$(cast block-number --rpc-url "$RPC_URL")}"
 BROADCAST_JSON="$ROOT/broadcast/DeployChiado.s.sol/100/run-latest.json"
+if [[ -z "${DEPLOY_BLOCK:-}" && -f "$BROADCAST_JSON" ]] && command -v jq >/dev/null; then
+  DEPLOY_BLOCK="$(jq -r '.receipts[0].blockNumber // empty' "$BROADCAST_JSON" | python3 -c "import sys; s=sys.stdin.read().strip(); print(int(s,16) if s.startswith('0x') else s)" 2>/dev/null || true)"
+fi
+DEPLOY_BLOCK="${DEPLOY_BLOCK:-$(cast block-number --rpc-url "$RPC_URL")}"
 TXS='[]'
 if [[ -f "$BROADCAST_JSON" ]] && command -v jq >/dev/null; then
   TXS="$(jq '[.transactions[]?.hash // empty] | map(select(. != null))' "$BROADCAST_JSON")"
