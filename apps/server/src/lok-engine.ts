@@ -7,6 +7,8 @@ export type LokExports = {
   lok_alloc: (len: number) => number;
   lok_out_ptr: () => number;
   lok_out_len: () => number;
+  /** Per-network craft validation cutoff; call before lok_open. */
+  lok_set_craft_validate_min_seq: (minSeq: number) => void;
   lok_open: (ptr: number, len: number) => number;
   lok_apply: (ptr: number, len: number) => number;
   lok_document: () => number;

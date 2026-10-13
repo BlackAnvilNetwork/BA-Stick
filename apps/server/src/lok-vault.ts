@@ -15,7 +15,7 @@ import { withOwnerKeyQueue } from "./owner-tx-queue";
  * (LOCAL_RULESET_HASH derives automatically), and do not propose a mainnet ruleset until review
  * HIGH items for this engine change have landed.
  */
-export const LOCAL_RULESET_WASM_SHA256 = "57e91c9e4b05591140f3765cd2cf89c9a9f2b3ef6921a2adb27543f3cb9c010a";
+export const LOCAL_RULESET_WASM_SHA256 = "6577236dc54fc3fb63e8542326e8414f90bafdb6093fa484af47985ef70e8e2e";
 
 /**
  * Local-anvil-only ruleset id derived from the wasm pin:

@@ -17,10 +17,18 @@
 
 use lok_engine::{
     craft_skill_validated_at, entry_hash, event_id, genesis_root, load_world, parse_b256, parse_log,
-    parse_world_log, replay, replay_world, CharacterLogDocument, Engine, EngineError, Input, Key,
-    LogDocument, LoggedEntry, ReplayStop, U256, World, WorldDocument, HISTORICAL_CRAFT_VALIDATE_MIN_SEQ,
-    HISTORICAL_ITEM_DROP_MAX_SEQ,
+    parse_world_log, replay, replay_world, set_craft_validate_min_seq, CharacterLogDocument, Engine,
+    EngineError, Input, Key, LogDocument, LoggedEntry, ReplayStop, U256, World, WorldDocument,
+    HISTORICAL_CRAFT_VALIDATE_MIN_SEQ, HISTORICAL_CRAFT_VALIDATE_MIN_SEQ_FRESH,
+    HISTORICAL_CRAFT_VALIDATE_MIN_SEQ_LEGACY, HISTORICAL_ITEM_DROP_MAX_SEQ,
 };
+
+struct CraftCutoffGuard;
+impl Drop for CraftCutoffGuard {
+    fn drop(&mut self) {
+        set_craft_validate_min_seq(HISTORICAL_CRAFT_VALIDATE_MIN_SEQ_LEGACY);
+    }
+}
 
 const WORLD: &str = include_str!("fixtures/pre-206-item-drop-world.json");
 const CHARACTER: &str = include_str!("fixtures/pre-206-item-drop-character.json");
@@ -225,6 +233,8 @@ fn craft_skill_state_root_matches_the_pre_206_engine() {
 fn pre_cutoff_craft_of_high_level_recipe_replays_without_skill() {
     // Scale Harness (9) is leathercraft L40. A logged Craft at seq < 175 must still apply
     // even when CraftSkill was never recorded (pre-#222 logs).
+    set_craft_validate_min_seq(HISTORICAL_CRAFT_VALIDATE_MIN_SEQ_LEGACY);
+    let _restore = CraftCutoffGuard;
     assert!(!craft_skill_validated_at(Some(HISTORICAL_CRAFT_VALIDATE_MIN_SEQ - 1)));
     assert!(craft_skill_validated_at(None));
     assert!(craft_skill_validated_at(Some(HISTORICAL_CRAFT_VALIDATE_MIN_SEQ)));
@@ -322,6 +332,35 @@ fn pre_222_gold_sell_of_potion_at_pinned_unit_replays() {
         .unwrap_err(),
         EngineError::BadPrice
     );
+}
+
+#[test]
+fn fresh_network_cutoff_validates_every_logged_craft() {
+    // Chiado / Gnosis set min seq to 0 — a logged Craft at seq 10 of an L40 recipe
+    // without CraftSkill must refuse (no historical exemption).
+    set_craft_validate_min_seq(HISTORICAL_CRAFT_VALIDATE_MIN_SEQ_FRESH);
+    let _restore = CraftCutoffGuard;
+    assert!(craft_skill_validated_at(Some(0)));
+    assert!(craft_skill_validated_at(Some(10)));
+
+    let spawn = Input::Spawn { token_id: n(1), starting_job: 0 };
+    let craft = Input::Craft { token_id: n(1), item_id: n(9), amount: n(1) };
+    let h0 = entry_hash(&genesis_root(&n(1), 0), 0, &spawn);
+    let h1 = entry_hash(&h0, 1, &craft);
+    let doc = WorldDocument {
+        characters: vec![CharacterLogDocument {
+            token_id: n(1),
+            starting_job: 0,
+            entries: vec![
+                LoggedEntry { hash: h0, input: spawn, seq: 0 },
+                LoggedEntry { hash: h1, input: craft, seq: 10 },
+            ],
+        }],
+    };
+    match load_world(&doc) {
+        Err(ReplayStop::Rejected { reason: EngineError::BadCraftLevel, .. }) => {}
+        other => panic!("fresh-network cutoff must validate seq 10 crafts: {other:?}"),
+    }
 }
 
 #[test]

@@ -178,7 +178,7 @@ import {
 import { resolveWeaponTpAbility } from "./weapon-tp-abilities";
 import { clearSorcererBuffs, resolveSorcererAbility } from "./sorcerer-abilities";
 import { clearClericBuffs, absorbHealShield, resolveClericAbility } from "./cleric-abilities";
-import { gearHealPotency, gearRegen } from "./gear-combat";
+import { gearHealPotency, gearRegen, meleeAtkBonus } from "./gear-combat";
 import {
   absorbStoneskin,
   battleMageEnSpellBonus,
@@ -2246,6 +2246,14 @@ function logCraftSkill(p: Player, skill: string, level: number) {
   }
 }
 
+/** Push progress craft ranks into the log (idempotent — engine rejects non-increasing). */
+function syncCraftSkillsToLog(p: Player) {
+  ensureCraftSkills(p);
+  for (const [skill, row] of Object.entries(p.craftSkills)) {
+    if (row && row.level > 1) logCraftSkill(p, skill, row.level);
+  }
+}
+
 /** Backfill bag slots for mats granted before inventory mirroring existed. */
 function syncBaseMatsToInventory(p: Player) {
   for (const [slug, amount] of Object.entries(p.baseMats ?? {})) {
@@ -3026,6 +3034,7 @@ function createPlayer(
   players.set(wallet, p);
   walletToPlayer.set(wallet, wallet);
   for (const abilityId of p.skillUnlocked) logLokAbility(p, abilityId);
+  syncCraftSkillsToLog(p);
   rememberPlayer(p);
   return p;
 }
@@ -3363,22 +3372,11 @@ function absorbManaWall(p: Player, now: number, raw: number): { dmg: number; ble
 }
 
 /**
- * Melee Attack bonus: sum `atk` from every equipped slot except `ranged`/`ammo`.
- * Bows no longer stack into melee; rings/grips/mittens with +Atk still count.
- * Requires a main-hand item to swing (same as before).
+ * Melee Attack: (main-hand Atk or 10) + gear Atk from other slots except ranged/ammo.
+ * Casters with a no-Atk staff keep the 10 baseline; rings/mittens still add.
  */
 function playerWeaponBonus(p: Player): number {
-  if (!p.equip.main) return 0;
-  let atk = 0;
-  for (const slot of EQUIP_SLOTS) {
-    if (slot === "ranged" || slot === "ammo") continue;
-    const tokenId = p.equip[slot];
-    if (tokenId == null) continue;
-    const def = getItem(tokenId);
-    if (!def || def.slot !== slot) continue;
-    atk += def.stats?.atk ?? 0;
-  }
-  return atk > 0 ? atk : 10;
+  return meleeAtkBonus(p);
 }
 
 function handleAbility(p: Player, id: AbilityId, targetId?: string) {

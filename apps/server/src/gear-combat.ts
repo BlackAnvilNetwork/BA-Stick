@@ -5,10 +5,33 @@
  * players) and `mab` (player spell damage).
  */
 import { applyMagicAttackBonus, playerDefense } from "@bellgrave/combat";
-import { aggregateEquipmentStats } from "@bellgrave/items";
+import { aggregateEquipmentStats, EQUIP_SLOTS, getItem } from "@bellgrave/items";
 
 type GearEquip = Parameters<typeof aggregateEquipmentStats>[0];
 type Geared = { equip?: GearEquip | null };
+
+/**
+ * Melee Attack: (main-hand Atk or 10) + Atk from every other slot except ranged/ammo.
+ * Staffs with no Atk keep the 10 baseline; rings/mittens still add. Bows never stack.
+ */
+export function meleeAtkBonus(p: Geared): number {
+  const equip = p.equip ?? null;
+  const mainId = equip?.main;
+  if (mainId == null) return 0;
+  const main = getItem(mainId);
+  if (!main || main.slot !== "main") return 0;
+  const weaponAtk = main.stats?.atk ?? 10;
+  let gearAtk = 0;
+  for (const slot of EQUIP_SLOTS) {
+    if (slot === "main" || slot === "ranged" || slot === "ammo") continue;
+    const tokenId = equip?.[slot];
+    if (tokenId == null) continue;
+    const def = getItem(tokenId);
+    if (!def || def.slot !== slot) continue;
+    gearAtk += def.stats?.atk ?? 0;
+  }
+  return weaponAtk + gearAtk;
+}
 
 /** Summed `def` from equipped catalog gear. */
 export function gearDef(p: Geared): number {

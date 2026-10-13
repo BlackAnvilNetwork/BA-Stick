@@ -10,10 +10,11 @@ Applied from the Black Anvil crafting audit + 103-row stat CSV, plus support-rev
 
 ## Engine craft validation
 
-- Known catalog recipes require craft skill rank (`BadCraftLevel`) on **new appends** and logged crafts at `seq >= HISTORICAL_CRAFT_VALIDATE_MIN_SEQ` (175).
-- Pre-cutoff crafts (including the quarantined pre-#206 / pre-#222 log, seq 0..=174) replay without the skill check.
+- Known catalog recipes require craft skill rank (`BadCraftLevel`) on **new appends** and logged crafts at/after the per-network cutoff.
+- **Anvil / legacy local:** cutoff **175** (pre-#222 seq 0..=174 skip the check). **Chiado / Gnosis:** cutoff **0** (every logged craft validates). Override with `LOK_CRAFT_VALIDATE_MIN_SEQ`.
 - Invalid `output_qty` is `BadCraftRecipe` (materials stay server-side so Harvest roots stay identical).
 - Recipe table embeds `output_qty` for pack crafts; filler ladder recipes restored for progression past ~L10.
+- `craft_refund` gold earns skip daily caps. Progress craft ranks sync into the log on character load.
 
 ## NPC sell prices
 

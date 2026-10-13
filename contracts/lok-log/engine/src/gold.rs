@@ -21,15 +21,21 @@ pub const GOLD_MAX_DAY: u64 = 100_000;
 /// Earn source used by `GoldSell`.
 pub const GOLD_SOURCE_NPC_SELL: &str = "npc_sell";
 
+/// Restores a craft fee after the log refuses the Craft. Not a faucet earn —
+/// must not hit per-source or daily total caps (or the player loses the fee).
+pub const GOLD_SOURCE_CRAFT_REFUND: &str = "craft_refund";
+
 const LABEL_MAX: usize = 128;
 
 /// Per-source daily earn cap. Unknown sources get the default.
+/// `craft_refund` is uncapped (see [`credit_earn`]).
 pub fn gold_source_cap(source: &str) -> u64 {
     match source {
         "quest" => 20_000,
         "drop" => 15_000,
         "harvest" => 15_000,
         GOLD_SOURCE_NPC_SELL => 10_000,
+        GOLD_SOURCE_CRAFT_REFUND => u64::MAX,
         _ => 5_000,
     }
 }
@@ -80,6 +86,13 @@ pub fn credit_earn(state: &mut State, source: &str, amount: U256, day: u64) -> R
         state.set_gold_day(day);
     } else if day < current_day {
         return Err(GoldError::StaleDay);
+    }
+
+    // craft_refund restores a prior spend — credit the balance only, skip earn caps.
+    if source == GOLD_SOURCE_CRAFT_REFUND {
+        let next_bal = state.get(&Key::Gold).checked_add(amount).ok_or(GoldError::Overflow)?;
+        state.set_gold(next_bal);
+        return Ok(());
     }
 
     let source_key = label_key(source);
