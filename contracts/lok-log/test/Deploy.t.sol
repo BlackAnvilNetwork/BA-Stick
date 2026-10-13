@@ -208,6 +208,7 @@ contract DeployTest is Test {
     }
 
     function test_validateConfig_feeRecipientDistinctFromAdmin_onMainnet() public {
+        vm.setEnv("ALLOW_EOA_ADMIN", "0");
         Deploy s = new Deploy();
         address admin = makeAddr("admin");
         Deploy.Config memory c = Deploy.Config({
@@ -229,7 +230,35 @@ contract DeployTest is Test {
         s.validateConfig(c);
     }
 
+    function test_validateConfig_allowEoaAdmin_whenFlagSet() public {
+        Deploy s = new Deploy();
+        address admin = makeAddr("eoaTreasury");
+        Deploy.Config memory c = Deploy.Config({
+            admin: admin,
+            emergency: admin,
+            guardian: admin,
+            feeRecipient: makeAddr("fee"),
+            rotator: makeAddr("rotator"),
+            proposer: makeAddr("proposer"),
+            listing: makeAddr("listing"),
+            items: address(0),
+            kek: address(0),
+            timelock: address(new DummySafe()),
+            baseURI: "ipfs://x/",
+            mintFee: 1 ether
+        });
+        vm.chainId(100);
+        vm.expectRevert(abi.encodeWithSelector(Deploy.BadConfig.selector, "admin must be a contract"));
+        s.validateConfig(c);
+
+        vm.setEnv("ALLOW_EOA_ADMIN", "1");
+        c.feeRecipient = admin;
+        s.validateConfig(c);
+        vm.setEnv("ALLOW_EOA_ADMIN", "0");
+    }
+
     function test_validateConfig_requiresContractRoles_onMainnet() public {
+        vm.setEnv("ALLOW_EOA_ADMIN", "0");
         Deploy s = new Deploy();
         address eoa = makeAddr("eoaAdmin");
         Deploy.Config memory c = Deploy.Config({
@@ -247,7 +276,7 @@ contract DeployTest is Test {
             mintFee: 1 ether
         });
         vm.chainId(100);
-        vm.expectRevert(abi.encodeWithSelector(Deploy.BadConfig.selector, "admin must be a contract"));
+        vm.expectRevert(abi.encodeWithSelector(Deploy.BadConfig.selector, "TIMELOCK required on Gnosis (chain 100)"));
         s.validateConfig(c);
 
         DummySafe safe = new DummySafe();

@@ -29,7 +29,9 @@ fi
 : "${NFT_PROXY:?}"
 : "${FEE_RECIPIENT:?}"
 
-BLOCKSCOUT_URL="${BLOCKSCOUT_URL:-https://gnosis.blockscout.com/api/}"
+# Prefer no trailing slash. forge's native `--verifier blockscout` against this host
+# returns "Params 'module' and 'action' are required"; use etherscan-compat instead.
+BLOCKSCOUT_URL="${BLOCKSCOUT_URL:-https://gnosis.blockscout.com/api}"
 
 verify_one() {
   local addr="$1"
@@ -47,13 +49,15 @@ verify_one() {
           "$addr" "$contract" || true
       fi
     elif [[ "$v" == "blockscout" ]]; then
+      # Etherscan-compat API on Blockscout (forge --verifier blockscout is broken for this host).
       if [[ -n "$ctor_args" ]]; then
-        forge verify-contract --chain-id "$CHAIN_ID" --verifier blockscout \
-          --verifier-url "$BLOCKSCOUT_URL" \
+        forge verify-contract --chain-id "$CHAIN_ID" --verifier etherscan \
+          --verifier-url "$BLOCKSCOUT_URL" --etherscan-api-key "${ETHERSCAN_API_KEY:-unused}" \
           --constructor-args "$ctor_args" "$addr" "$contract" || true
       else
-        forge verify-contract --chain-id "$CHAIN_ID" --verifier blockscout \
-          --verifier-url "$BLOCKSCOUT_URL" "$addr" "$contract" || true
+        forge verify-contract --chain-id "$CHAIN_ID" --verifier etherscan \
+          --verifier-url "$BLOCKSCOUT_URL" --etherscan-api-key "${ETHERSCAN_API_KEY:-unused}" \
+          "$addr" "$contract" || true
       fi
     else
       echo "unknown verifier: $v" >&2
