@@ -92,3 +92,17 @@ export function persistAndApplyUiSettings(settings: UiSettings): void {
   saveUiSettings(settings);
   applyUiSettings(settings);
 }
+
+/** True when Settings → Layout is Mobile (arcade sticks + clustered hotkeys). */
+export function layoutUsesArcadeControls(layout: UiLayoutId): boolean {
+  return layout === "mobile";
+}
+
+/** Read the live layout from <html data-ui-layout> (falls back to persisted settings). */
+export function readAppliedUiLayout(): UiLayoutId {
+  if (typeof document !== "undefined") {
+    const fromDom = document.documentElement.dataset.uiLayout;
+    if (fromDom === "regular" || fromDom === "mobile") return fromDom;
+  }
+  return loadUiSettings().layout;
+}

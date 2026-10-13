@@ -34,6 +34,8 @@ import {
   UI_FONT_OPTIONS,
   UI_FONT_STACKS,
   UI_LAYOUT_OPTIONS,
+  UI_SETTINGS_KEY,
+  layoutUsesArcadeControls,
   loadUiSettings,
   persistAndApplyUiSettings,
   type UiColorId,
@@ -625,8 +627,20 @@ export function Hud() {
   }, [phase]);
 
   useEffect(() => {
-    if (uiSettings.layout !== "mobile") clearVirtualStick();
+    if (!layoutUsesArcadeControls(uiSettings.layout)) clearVirtualStick();
   }, [uiSettings.layout]);
+
+  // Re-sync from localStorage when entering play / when another tab changes settings.
+  // Keeps Mobile sticks visible after remounts and across refresh.
+  useEffect(() => {
+    if (phase !== "play") return;
+    setUiSettings(loadUiSettings());
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === UI_SETTINGS_KEY || e.key === null) setUiSettings(loadUiSettings());
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [phase]);
 
   const bookIds = useMemo(() => {
     if (!snapshot || !dualHasSpellbook(snapshot.you.job, snapshot.you.subjob)) {
@@ -736,10 +750,13 @@ export function Hud() {
   const posY = me.y.toFixed(1);
   const posZ = me.z.toFixed(1);
 
-  const mobileLayout = uiSettings.layout === "mobile";
+  const mobileLayout = layoutUsesArcadeControls(uiSettings.layout);
 
   return (
-    <div className={`hud-root${mobileLayout ? " hud-layout-mobile" : ""}`}>
+    <div
+      className={`hud-root${mobileLayout ? " hud-layout-mobile" : ""}`}
+      data-ui-layout={uiSettings.layout}
+    >
       <div className="hud-chrome">
         <div className="hud-corner-left">
           <div className="hud-vitals-dock">
@@ -1091,22 +1108,20 @@ export function Hud() {
 
       <div style={{ flex: 1 }} />
 
-      {mobileLayout && (
-        <MobileArcadeControls
-          potions={potions}
-          onCastSlot={(index) => {
-            const id = hotbarAbilityAt(index, 0);
-            if (id) castAbility(id);
-          }}
-          onCastRest={() => {
-            if (restUnlocked) castAbility("rest");
-          }}
-          onPotion={() => send({ type: "item/use", tokenId: ITEM.POTION })}
-        />
-      )}
-
       <div className="hud-bottom">
-        {!mobileLayout && (
+        {mobileLayout ? (
+          <MobileArcadeControls
+            potions={potions}
+            onCastSlot={(index) => {
+              const id = hotbarAbilityAt(index, 0);
+              if (id) castAbility(id);
+            }}
+            onCastRest={() => {
+              if (restUnlocked) castAbility("rest");
+            }}
+            onPotion={() => send({ type: "item/use", tokenId: ITEM.POTION })}
+          />
+        ) : (
           <div className="hud-hotbar-stack">
             {hotbarRow1.map((id, i) =>
               id ? (

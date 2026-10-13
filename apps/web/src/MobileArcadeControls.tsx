@@ -1,6 +1,9 @@
 /**
  * Mobile / arcade overlay: left move stick, right skill stick (8-way hotbar),
  * and face buttons clustered between them.
+ *
+ * Seated in normal HUD flow (not position:absolute) so the pad stays visible on
+ * desktop mouse, after resize, and across React re-renders.
  */
 import { useCallback, useRef, type PointerEvent as ReactPointerEvent } from "react";
 import { clearVirtualStick, setVirtualStick } from "./moveInput";
@@ -39,7 +42,7 @@ function VirtualStick({
       const rect = el.getBoundingClientRect();
       const cx = rect.left + rect.width / 2;
       const cy = rect.top + rect.height / 2;
-      const max = rect.width * 0.36;
+      const max = Math.max(rect.width * 0.36, 1);
       let dx = clientX - cx;
       let dy = clientY - cy;
       const mag = Math.hypot(dx, dy);
@@ -77,7 +80,11 @@ function VirtualStick({
     e.preventDefault();
     e.stopPropagation();
     activePtr.current = e.pointerId;
-    e.currentTarget.setPointerCapture(e.pointerId);
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      /* some desktop browsers reject capture — drag still works via move/up */
+    }
     apply(e.clientX, e.clientY);
   };
   const onMove = (e: ReactPointerEvent<HTMLDivElement>) => {
@@ -90,7 +97,11 @@ function VirtualStick({
   };
 
   return (
-    <div className={`arcade-stick arcade-stick-${side}`} aria-label={label}>
+    <div
+      className={`arcade-stick arcade-stick-${side}`}
+      aria-label={label}
+      data-arcade-stick={side}
+    >
       <div
         ref={rootRef}
         className="arcade-stick-pad"
@@ -128,7 +139,12 @@ export function MobileArcadeControls({
   );
 
   return (
-    <div className="arcade-controls" aria-label="Mobile arcade controls">
+    <div
+      className="arcade-controls"
+      aria-label="Mobile arcade controls"
+      data-arcade-controls="1"
+      data-testid="mobile-arcade-controls"
+    >
       <VirtualStick side="move" label="Move" />
       <div className="arcade-face-cluster" aria-label="Arcade hotkeys">
         {Array.from({ length: 8 }, (_, i) => (
@@ -137,10 +153,7 @@ export function MobileArcadeControls({
             type="button"
             className="arcade-face-btn"
             aria-label={`Hotkey ${i + 1}`}
-            onPointerDown={(e) => {
-              e.preventDefault();
-              onCastSlot(i);
-            }}
+            onClick={() => onCastSlot(i)}
           >
             {String(i + 1)}
           </button>
@@ -149,10 +162,7 @@ export function MobileArcadeControls({
           type="button"
           className="arcade-face-btn arcade-face-util"
           aria-label="Rest"
-          onPointerDown={(e) => {
-            e.preventDefault();
-            onCastRest();
-          }}
+          onClick={() => onCastRest()}
         >
           R
         </button>
@@ -160,10 +170,7 @@ export function MobileArcadeControls({
           type="button"
           className="arcade-face-btn arcade-face-util"
           aria-label={`Potion ×${potions}`}
-          onPointerDown={(e) => {
-            e.preventDefault();
-            onPotion();
-          }}
+          onClick={() => onPotion()}
         >
           Q
           <span className="arcade-face-sub">×{potions}</span>

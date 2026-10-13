@@ -3779,6 +3779,8 @@ button.equip-stat-label:focus-visible {
 }
 
 /* —— Mobile / arcade layout (Settings → Layout → Mobile) —— */
+/* In-flow under .hud-bottom (not absolute) so sticks stay visible on desktop
+   mouse / resize / re-render — absolute overlay was vanishing after the hotbar unmounted. */
 html[data-ui-layout="mobile"] .hud-layout-mobile .hud-log-frame {
   max-height: 88px;
 }
@@ -3790,18 +3792,22 @@ html[data-ui-layout="mobile"] .hud-layout-mobile .hud-bottom {
 }
 
 .arcade-controls {
-  pointer-events: none;
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 108px;
-  z-index: 30;
+  pointer-events: auto;
+  position: relative;
+  z-index: 2;
   display: flex;
   align-items: flex-end;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 0 14px;
-  touch-action: none;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  width: 100%;
+  min-height: 160px;
+  margin: 0 auto 4px;
+  padding: 8px 10px 6px;
+  opacity: 1;
+  visibility: visible;
+  touch-action: manipulation;
+  box-sizing: border-box;
 }
 
 .arcade-stick {
@@ -3914,9 +3920,9 @@ html[data-ui-layout="mobile"] .hud-layout-mobile .hud-bottom {
 
 @media (max-width: 720px) {
   .arcade-controls {
-    bottom: 96px;
-    padding: 0 8px;
-    gap: 6px;
+    min-height: 140px;
+    gap: 8px 10px;
+    padding: 6px 6px 4px;
   }
   .arcade-face-cluster {
     grid-template-columns: repeat(5, minmax(38px, 46px));
@@ -3931,9 +3937,7 @@ html[data-ui-layout="mobile"] .hud-layout-mobile .hud-bottom {
 
 @media (max-width: 520px) {
   .arcade-controls {
-    flex-wrap: wrap;
-    justify-content: center;
-    bottom: 84px;
+    min-height: 0;
   }
   .arcade-face-cluster {
     order: 3;

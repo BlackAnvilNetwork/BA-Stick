@@ -3,7 +3,10 @@ import { afterEach, before, test } from "node:test";
 import {
   UI_SETTINGS_KEY,
   applyUiSettings,
+  layoutUsesArcadeControls,
   loadUiSettings,
+  persistAndApplyUiSettings,
+  readAppliedUiLayout,
   saveUiSettings,
   type UiSettings,
 } from "./uiSettings";
@@ -58,4 +61,16 @@ test("applyUiSettings sets data-ui-layout", () => {
   applyUiSettings(next);
   assert.equal(document.documentElement.dataset.uiLayout, "mobile");
   assert.equal(document.documentElement.dataset.uiColor, "ember");
+});
+
+test("persistAndApply keeps Mobile layout for non-touch / remount", () => {
+  persistAndApplyUiSettings({ color: "cyan", font: "source", layout: "mobile" });
+  assert.equal(layoutUsesArcadeControls(loadUiSettings().layout), true);
+  assert.equal(readAppliedUiLayout(), "mobile");
+  // Switching away then back must not drop persistence.
+  persistAndApplyUiSettings({ color: "cyan", font: "source", layout: "regular" });
+  assert.equal(readAppliedUiLayout(), "regular");
+  persistAndApplyUiSettings({ color: "cyan", font: "source", layout: "mobile" });
+  assert.equal(loadUiSettings().layout, "mobile");
+  assert.equal(readAppliedUiLayout(), "mobile");
 });
