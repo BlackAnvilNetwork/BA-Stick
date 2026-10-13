@@ -53,6 +53,10 @@ pub enum EngineError {
     BadId,
     /// Craft skill level was zero, above 16 bits, or not strictly higher than the logged level.
     BadCraftSkill,
+    /// Craft targets a known recipe but craft skill rank is too low.
+    BadCraftLevel,
+    /// Craft targets a known recipe but required material harvests are missing.
+    BadCraftMaterials,
     /// No ask of that item is at or under the bid, after skipping the bidder's own asks.
     NoAsk,
     /// The ask is still inside its 7 day window.
@@ -103,6 +107,8 @@ impl fmt::Display for EngineError {
             Self::AlreadyKnown => write!(f, "already known"),
             Self::BadId => write!(f, "id is empty or invalid"),
             Self::BadCraftSkill => write!(f, "craft skill level is not higher than the logged level"),
+            Self::BadCraftLevel => write!(f, "craft skill level is too low for the recipe"),
+            Self::BadCraftMaterials => write!(f, "craft materials are insufficient"),
             Self::NoAsk => write!(f, "no ask at or under that bid"),
             Self::TooSoon => write!(f, "ask can be reclaimed after 7 days"),
             Self::InsufficientInbox => write!(f, "nothing in the inbox"),
@@ -312,6 +318,23 @@ impl Engine {
         }
         if amount == U256::ZERO {
             return Err(EngineError::ZeroAmount);
+        }
+        // Known catalog recipes: require craft skill rank. Unknown ids stay counter-only
+        // (tests / legacy). Spendable material debit is deferred so Harvest state roots of
+        // committed historical logs stay bit-identical; the server still burns mats.
+        if item_id.0[..24].iter().all(|b| *b == 0) {
+            let id = u64::from_be_bytes(item_id.0[24..].try_into().expect("8 bytes"));
+            if let Some(recipe) = crate::craft_recipe_data::craft_recipe(id) {
+                if recipe.output_qty == 0 {
+                    return Err(EngineError::BadCraftMaterials);
+                }
+                let skill = crate::craft_recipe_data::skill_label(recipe.skill).ok_or(EngineError::BadId)?;
+                let raw = self.state.craft_skill_level(&label_key(skill));
+                let have = if raw == 0 { 1 } else { raw };
+                if have < u32::from(recipe.level) {
+                    return Err(EngineError::BadCraftLevel);
+                }
+            }
         }
         self.state
             .add_count(Key::Craft(item_id), amount)

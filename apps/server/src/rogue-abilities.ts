@@ -11,7 +11,7 @@ import {
   isJobId,
   type JobId,
 } from "@bellgrave/combat";
-import { SIGNATURE_WEAPON_IDS, signatureWeaponEquipped } from "./starter-kit";
+import { signatureWeaponEquipped } from "./starter-kit";
 import { kitLevel } from "./support-job";
 import type { AbilityId } from "@bellgrave/protocol";
 
@@ -78,7 +78,7 @@ export type RogueHooks = {
 
 
 export function daggerEquipped(p: RoguePlayer): boolean {
-  return signatureWeaponEquipped(p, SIGNATURE_WEAPON_IDS.rogue);
+  return signatureWeaponEquipped(p, "rogue");
 }
 
 export function resolveRogueAbility(

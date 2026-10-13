@@ -8,8 +8,8 @@ import { privateKeyToAccount } from "viem/accounts";
 import { renameSync, writeFileSync } from "node:fs";
 import { withOwnerKeyQueue } from "./owner-tx-queue";
 
-/** Accepted on the local anvil only. Not a mainnet ruleset. Bumped with ChainFill payment refs. */
-export const LOCAL_RULESET_HASH = "0xb7e4d1c9a8f6520e3d7c6b5a49382716f0e1d2c3b4a5968778695a4b3c2d1e0f";
+/** Accepted on the local anvil only. Not a mainnet ruleset. Bumped with items-audit craft validation. */
+export const LOCAL_RULESET_HASH = "0xc8f5e2d0b9a7631f4e8d7c6b5a49392817f1e2d3c4b5a69788796b5c4d3e2f1a";
 
 /**
  * sha256 of the checked-in engine bundle (contracts/lok-log/engine/pkg/lok_engine.wasm) that
@@ -19,7 +19,7 @@ export const LOCAL_RULESET_HASH = "0xb7e4d1c9a8f6520e3d7c6b5a49382716f0e1d2c3b4a
  * purpose: rebuild the wasm, run contracts/lok-log/engine/scripts/check-wasm-pin.mjs, update this pin,
  * and on any non-local network propose a new ruleset hash for the new bundle.
  */
-export const LOCAL_RULESET_WASM_SHA256 = "bbf77ab29b31bc869891028d83ab1ee85f4d84a9137f8631d05c4c0876496510";
+export const LOCAL_RULESET_WASM_SHA256 = "6dd264ac721db0e737232e0f2a2a15b7e8e190bcc41a750b826fef8f2aafc577";
 
 export const LOCAL_ANVIL_CHAIN_ID = 31337n;
 

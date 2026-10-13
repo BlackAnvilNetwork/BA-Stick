@@ -9,7 +9,7 @@ import {
     isTrainerFreeAbility,
   clockwindConversion,
 } from "@bellgrave/combat";
-import { SIGNATURE_WEAPON_IDS, signatureWeaponEquipped } from "./starter-kit";
+import { signatureWeaponEquipped } from "./starter-kit";
 import { kitLevel } from "./support-job";
 import { withGearMab } from "./gear-combat";
 import type { AbilityId } from "@bellgrave/protocol";
@@ -75,7 +75,7 @@ export type TimMob = {
 
 
 export function staffEquipped(p: TimPlayer): boolean {
-  return signatureWeaponEquipped(p, SIGNATURE_WEAPON_IDS.time_mage);
+  return signatureWeaponEquipped(p, "time_mage");
 }
 
 export function playerStance(p: TimPlayer): Stance {

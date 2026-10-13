@@ -51,6 +51,9 @@ export type WeaponFamily =
   | "club"
   | "knuckles";
 
+/** Derived from craft level (or drop rarity). */
+export type ItemRarity = "Common" | "Uncommon" | "Rare" | "Epic";
+
 export type ItemStats = {
   str?: number;
   dex?: number;
@@ -66,6 +69,10 @@ export type ItemStats = {
   mdb?: number;
   hp?: number;
   mp?: number;
+  /** Flat HP restored once per second while equipped. */
+  regen?: number;
+  /** Percent bonus to healing spells (Cleric healPower). */
+  healPotency?: number;
 };
 
 export type ConsumeEffect = {
@@ -90,6 +97,7 @@ export type ItemDef = {
   twoHand?: boolean;
   delayMs?: number;
   stats?: ItemStats;
+  rarity?: ItemRarity;
   consume?: ConsumeEffect;
   recipe?: {
     gold: number;
@@ -97,11 +105,25 @@ export type ItemDef = {
     /** Structured materials when available (preferred over parsing materialsText). */
     materials?: { slug: string; qty: number }[];
   };
+  /** When name is "Foo×N", craft grants this many (default 1). */
+  craftOutputQty?: number;
   /** Zone / method text for base mats (from manifest Obtained From). */
   obtainedFrom?: string;
-  /** Main-hand family for weapon skills (TP). */
+  /** Main-hand family for weapon skills (TP) and signature ability gates. */
   weaponFamily?: WeaponFamily;
 };
+
+/** Craft fee: 50 + 20×craftLevel (audit MED-8). */
+export function craftGoldCost(craftLevel: number): number {
+  return 50 + 20 * Math.max(0, Math.floor(craftLevel));
+}
+
+/** Pack yield from authored craftOutputQty or ×N in the name. */
+export function craftOutputQty(def: Pick<ItemDef, "name" | "craftOutputQty">): number {
+  if (def.craftOutputQty != null && def.craftOutputQty > 0) return Math.floor(def.craftOutputQty);
+  const m = /×(\d+)\s*$/u.exec(def.name);
+  return m ? Math.max(1, Number(m[1])) : 1;
+}
 
 /** HQ = NQ × 1.25 (ceil) for numeric combat fields. */
 export function hqStats(nq: ItemStats | undefined): ItemStats {

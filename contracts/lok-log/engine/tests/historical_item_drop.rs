@@ -210,11 +210,12 @@ fn craft_skill_state_root_matches_the_pre_206_engine() {
     w.append_spawn(n(1), 0).unwrap();
     w.apply(Input::CraftSkill { token_id: n(1), skill_id: "weaving".into(), level: 3 }).unwrap();
     w.apply(Input::Harvest { token_id: n(1), material_id: "dustgrain".into(), amount: n(2) }).unwrap();
-    w.apply(Input::Craft { token_id: n(1), item_id: n(9), amount: n(1) }).unwrap();
-    assert_eq!(w.head(), b("0x6a888b68bdddbcb31e2ed1cfcd798bb688c3871344b2901d66d4f1d49dfbd15a"));
+    // Counter-only craft id (not a catalog recipe) so skill validation does not fire.
+    w.apply(Input::Craft { token_id: n(1), item_id: n(900_001), amount: n(1) }).unwrap();
+    assert_eq!(w.head(), b("0xfa26142914fc0bc2c9ee9415eae08baa729fa0e960ac57ba2c0e37a6b1c3abad"));
     assert_eq!(
         w.snapshots()[0].state_root,
-        b("0xcd65eadb4fa5702f24e6cc4d5cafccf7631122f9e15dcc7c23799e1bc80e8444")
+        b("0xfa57fea7c124c027e07b8ccc58cfbaddb3f4fe13fa6cac4d8560e5bb886d3122")
     );
 }
 

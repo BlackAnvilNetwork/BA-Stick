@@ -1,5 +1,5 @@
 import type { JobId } from "@bellgrave/combat";
-import { getItem, ITEM } from "@bellgrave/items";
+import { getItem, ITEM, type WeaponFamily } from "@bellgrave/items";
 
 export type ItemStack = { tokenId: number; amount: number; starter?: boolean };
 
@@ -17,7 +17,7 @@ export const STARTER_WEAPON: Record<JobId, { tokenId: number; name: string; craf
   fighter: { tokenId: ITEM.GREATSWORD_IRON, name: "Iron Greatsword", craftLevel: 34 },
   rogue: { tokenId: 317, name: "Bone Dagger", craftLevel: 8 },
   sorcerer: { tokenId: ITEM.STAFF_ASHBEAM, name: "Ashbeam Staff", craftLevel: 6 },
-  cleric: { tokenId: 183, name: "Ashbeam Club", craftLevel: 45 },
+  cleric: { tokenId: 183, name: "Ashbeam Club", craftLevel: 12 },
   battle_mage: { tokenId: 102, name: "Bronze Sword", craftLevel: 5 },
   knight: { tokenId: 102, name: "Bronze Sword", craftLevel: 5 },
 };
@@ -26,10 +26,20 @@ export const STARTER_POTION_ID = ITEM.POTION;
 export const STARTER_POTION_AMOUNT = 3;
 
 /**
- * Weapon ids a job's signature abilities accept.
- * The legacy MVP id stays valid. The starter id is added when it differs,
- * so a level-1 club or bronze sword still counts, and an older iron/staff kit still counts.
+ * Signature abilities gate on weapon **family**, not a single catalog id.
+ * Crafted upgrades (Ashbeam Rod, Mythril Sword, …) keep the job kit online.
  */
+export const SIGNATURE_WEAPON_FAMILIES: Record<JobId, readonly WeaponFamily[]> = {
+  time_mage: ["staff"],
+  sorcerer: ["staff"],
+  fighter: ["greatsword"],
+  rogue: ["dagger"],
+  cleric: ["staff", "club"],
+  knight: ["sword"],
+  battle_mage: ["sword"],
+};
+
+/** @deprecated Prefer SIGNATURE_WEAPON_FAMILIES — kept for tests that assert starter ids. */
 export const SIGNATURE_WEAPON_IDS: Record<JobId, readonly number[]> = {
   time_mage: [ITEM.STAFF_ASHBEAM],
   sorcerer: [ITEM.STAFF_ASHBEAM],
@@ -42,11 +52,18 @@ export const SIGNATURE_WEAPON_IDS: Record<JobId, readonly number[]> = {
 
 export function signatureWeaponEquipped(
   p: { equip: { main: number | null }; inventory: ItemStack[] },
-  ids: readonly number[],
+  idsOrJob: readonly number[] | JobId,
 ): boolean {
   const id = p.equip.main;
-  if (id == null || !ids.includes(id)) return false;
-  return p.inventory.some((row) => row.tokenId === id && row.amount > 0);
+  if (id == null) return false;
+  if (!p.inventory.some((row) => row.tokenId === id && row.amount > 0)) return false;
+
+  if (typeof idsOrJob === "string") {
+    const families = SIGNATURE_WEAPON_FAMILIES[idsOrJob];
+    const family = getItem(id)?.weaponFamily;
+    return family != null && families.includes(family);
+  }
+  return idsOrJob.includes(id);
 }
 
 export function stackAmount(inv: ItemStack[], tokenId: number): number {

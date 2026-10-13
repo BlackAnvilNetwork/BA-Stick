@@ -7,7 +7,7 @@ import {
   isBattleMageAbilityId,
   type BattleMageAbilityId,
 } from "@bellgrave/combat";
-import { SIGNATURE_WEAPON_IDS, signatureWeaponEquipped } from "./starter-kit";
+import { signatureWeaponEquipped } from "./starter-kit";
 import { kitLevel } from "./support-job";
 import { withGearMab } from "./gear-combat";
 import type { AbilityId } from "@bellgrave/protocol";
@@ -105,7 +105,7 @@ export type BattleMageHooks = {
 
 
 export function swordEquipped(p: BattleMagePlayer): boolean {
-  return signatureWeaponEquipped(p, SIGNATURE_WEAPON_IDS.battle_mage);
+  return signatureWeaponEquipped(p, "battle_mage");
 }
 
 export function battleMagePhysDtMul(p: BattleMagePlayer, now: number): number {

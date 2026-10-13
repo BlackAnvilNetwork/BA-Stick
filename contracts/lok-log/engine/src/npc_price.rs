@@ -54,8 +54,8 @@ mod tests {
         assert_eq!(npc_sell_unit_price(0), None);
         // equipment id 1
         assert!(npc_sell_unit_price(1).unwrap() >= 15);
-        // consumable id 3
-        assert_eq!(npc_sell_unit_price(3), Some(20));
+        // consumable id 3 — unit tracks recipe gold / 50 (Potion L5 → 150g → 3)
+        assert_eq!(npc_sell_unit_price(3), Some(3));
         // filler-ish mid catalog — must not be 40+ band arithmetic
         // base material 486 (Pale Flax)
         assert_eq!(npc_sell_unit_price(486), Some(2));

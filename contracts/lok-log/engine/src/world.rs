@@ -1484,6 +1484,22 @@ impl World {
             return Err(EngineError::ZeroAmount);
         }
         let ch = self.characters.get_mut(&token_id).ok_or(EngineError::NotSpawned)?;
+        // Known catalog recipes require craft skill (missing skill = rank 1).
+        // Material burn stays server-side so committed Harvest roots stay identical.
+        if item_id.0[..24].iter().all(|b| *b == 0) {
+            let id = u64::from_be_bytes(item_id.0[24..].try_into().expect("8 bytes"));
+            if let Some(recipe) = crate::craft_recipe_data::craft_recipe(id) {
+                if recipe.output_qty == 0 {
+                    return Err(EngineError::BadCraftMaterials);
+                }
+                let skill = crate::craft_recipe_data::skill_label(recipe.skill).ok_or(EngineError::BadId)?;
+                let raw = ch.craft_skills.get(skill).copied().unwrap_or(0);
+                let have = if raw == 0 { 1 } else { raw };
+                if have < u32::from(recipe.level) {
+                    return Err(EngineError::BadCraftLevel);
+                }
+            }
+        }
         ch.state.add_count(Key::Craft(item_id), amount).map_err(|_| EngineError::Overflow)?;
         Ok(())
     }

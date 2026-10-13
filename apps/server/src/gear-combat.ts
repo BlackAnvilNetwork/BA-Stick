@@ -25,6 +25,16 @@ export function playerDefenseWithGear(p: Geared, vit: number): number {
   return playerDefense(vit, gearDef(p));
 }
 
+/** Percent healing bonus from equipped `healPotency`. */
+export function gearHealPotency(p: Geared): number {
+  return Math.max(0, Math.floor(aggregateEquipmentStats(p.equip ?? {}).healPotency ?? 0));
+}
+
+/** Flat HP/sec from equipped `regen`. */
+export function gearRegen(p: Geared): number {
+  return Math.max(0, Math.floor(aggregateEquipmentStats(p.equip ?? {}).regen ?? 0));
+}
+
 /** Apply the caster's gear MAB to finished spell damage. */
 export function withGearMab(p: Geared, dmg: number): number {
   return applyMagicAttackBonus(dmg, gearMab(p));

@@ -7,7 +7,7 @@ import {
   isClericAbilityId,
   type ClericAbilityId,
 } from "@bellgrave/combat";
-import { SIGNATURE_WEAPON_IDS, signatureWeaponEquipped } from "./starter-kit";
+import { signatureWeaponEquipped } from "./starter-kit";
 import { kitLevel } from "./support-job";
 import { withGearMab } from "./gear-combat";
 import type { AbilityId } from "@bellgrave/protocol";
@@ -53,6 +53,8 @@ export type ClericPlayer = {
   healAbsorbHp: number;
   sacredLightUntil: number;
   blindUntil: number;
+  /** Sum of equipped healPotency (percent). Optional — filled by the server before resolve. */
+  gearHealPotency?: number;
 };
 
 export type ClericMob = {
@@ -94,7 +96,7 @@ export type ClericHooks = {
 
 
 export function staffEquipped(p: ClericPlayer): boolean {
-  return signatureWeaponEquipped(p, SIGNATURE_WEAPON_IDS.cleric);
+  return signatureWeaponEquipped(p, "cleric");
 }
 
 export function clericMagDtMul(p: ClericPlayer, now: number): number {
@@ -133,6 +135,8 @@ function healPower(p: ClericPlayer, base: number, double: boolean, stats: { mnd:
   const { mnd } = stats;
   let amt = Math.floor(base + mnd * 2.8);
   if (double) amt *= 2;
+  const potency = Math.max(0, Math.floor(p.gearHealPotency ?? 0));
+  if (potency > 0) amt = Math.floor((amt * (100 + potency)) / 100);
   return Math.max(1, amt);
 }
 

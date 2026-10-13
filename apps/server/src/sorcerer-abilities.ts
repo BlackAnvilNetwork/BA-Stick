@@ -9,7 +9,7 @@ import {
   type SorcererElement,
 } from "@bellgrave/combat";
 import { PH_HUB_SPAWN, paleHollowStandHeight } from "@bellgrave/config";
-import { SIGNATURE_WEAPON_IDS, signatureWeaponEquipped } from "./starter-kit";
+import { signatureWeaponEquipped } from "./starter-kit";
 import { kitLevel } from "./support-job";
 import { withGearMab } from "./gear-combat";
 import type { AbilityId } from "@bellgrave/protocol";
@@ -85,7 +85,7 @@ export type SorcererHooks = {
 
 
 export function staffEquipped(p: SorcererPlayer): boolean {
-  return signatureWeaponEquipped(p, SIGNATURE_WEAPON_IDS.sorcerer);
+  return signatureWeaponEquipped(p, "sorcerer");
 }
 
 

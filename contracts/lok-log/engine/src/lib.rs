@@ -17,6 +17,7 @@
 mod abi;
 mod chain;
 mod checkpoint;
+mod craft_recipe_data;
 mod engine;
 mod event;
 mod gold;

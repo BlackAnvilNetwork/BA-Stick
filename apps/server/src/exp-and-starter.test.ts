@@ -69,16 +69,29 @@ test("starter stacks stay distinct from a later drop and cannot be laundered", (
   assert.equal(inv.length, 0);
 });
 
-test("signature weapons accept the starter id and the legacy kit id", () => {
+test("signature weapons gate on weapon family (crafted upgrades keep the kit)", () => {
   const bronze = {
     equip: { main: 102 },
     inventory: [{ tokenId: 102, amount: 1, starter: true }],
   };
-  assert.equal(signatureWeaponEquipped(bronze, [4, 102]), true);
+  assert.equal(signatureWeaponEquipped(bronze, "knight"), true);
+  assert.equal(signatureWeaponEquipped(bronze, "battle_mage"), true);
   const iron = {
     equip: { main: 4 },
     inventory: [{ tokenId: 4, amount: 1 }],
   };
-  assert.equal(signatureWeaponEquipped(iron, [4, 102]), true);
-  assert.equal(signatureWeaponEquipped(bronze, [1]), false);
+  assert.equal(signatureWeaponEquipped(iron, "knight"), true);
+  // Mythril Sword (id 126) is still a sword — kit stays online
+  const mythril = {
+    equip: { main: 126 },
+    inventory: [{ tokenId: 126, amount: 1 }],
+  };
+  assert.equal(signatureWeaponEquipped(mythril, "knight"), true);
+  assert.equal(signatureWeaponEquipped(bronze, "sorcerer"), false);
+  // Fishing rod is no longer a staff family
+  const rod = {
+    equip: { main: 39 },
+    inventory: [{ tokenId: 39, amount: 1 }],
+  };
+  assert.equal(signatureWeaponEquipped(rod, "sorcerer"), false);
 });
