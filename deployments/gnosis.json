@@ -47,7 +47,20 @@
       "RulesetRegistry_impl": "https://sourcify.dev/server/verify-ui/jobs/57500ff5-b337-462f-a47f-d7e3977eac83",
       "AhEscrow": "https://sourcify.dev/server/verify-ui/jobs/90025970-a4c8-426e-910a-1b653b21f629"
     },
-    "blockscoutNote": "forge blockscout verifier returned API shape errors; use Sourcify or manual Blockscout UI for proxies/implementations."
+    "blockscout": {
+      "method": "forge verify-contract --verifier etherscan --verifier-url https://gnosis.blockscout.com/api",
+      "note": "Native --verifier blockscout fails on this host; etherscan-compat works. All checked via api/v2 is_verified=true.",
+      "CharacterNFT_impl": "https://gnosis.blockscout.com/address/0x51731566b350Cf6558E39b16234a28471D9DEC80?tab=contract",
+      "CharacterCheckpoint_impl": "https://gnosis.blockscout.com/address/0xcB72054d502fAA9f2de5Aeefb32ceBE2bb29e376?tab=contract",
+      "CharacterFactory_impl": "https://gnosis.blockscout.com/address/0x5DbCBEcD3aF34a598f3a24ab27F1AB1f216481F9?tab=contract",
+      "RulesetRegistry_impl": "https://gnosis.blockscout.com/address/0x5cC61017ce5c4eCEf180a4522A2f434E8C985bbb?tab=contract",
+      "AhEscrow": "https://gnosis.blockscout.com/address/0x4669488AE862D7cbf979878fCb1e1b9b80fba6Df?tab=contract",
+      "CharacterNFT_proxy": "https://gnosis.blockscout.com/address/0x48aFeC17A56c5Bd32ABDbcAD57f16d3859b1289F?tab=contract",
+      "CharacterCheckpoint_proxy": "https://gnosis.blockscout.com/address/0x8eb4CaCc8b7Dae677FA92B7962f8Ee6E4795A6E0?tab=contract",
+      "CharacterFactory_proxy": "https://gnosis.blockscout.com/address/0xA78a61c0E16A74eC64F3d876D222F1e46334ac24?tab=contract",
+      "RulesetRegistry_proxy": "https://gnosis.blockscout.com/address/0xdd7B66451529918273fe4E0d9f9fdf261194a6e0?tab=contract",
+      "TimelockController": "https://gnosis.blockscout.com/address/0x73c8b994719e3703AFDCa419317Fc5Bc563A7F37?tab=contract"
+    }
   },
   "transactions": {
     "timelockDeploy": "0xe35acb58b7376c5ca501733013d45b39239f8112058fd709b08805a0db04ee5f",
@@ -79,5 +92,15 @@
       "0xf8d9ed80137d4ca46bf704c8b21f169e93c8e884ba49edd4b3596e1e50d10f11"
     ],
     "setStartingJob1": "0x72743ccafca1b7b75d19ea57da2f43f3fd6a562a1f7d376cc667f4de530bd3b2"
+  },
+  "ruleset": {
+    "hash": "0xb7e4d1c9a8f6520e3d7c6b5a49382716f0e1d2c3b4a5968778695a4b3c2d1e0f",
+    "wasmSha256": "bbf77ab29b31bc869891028d83ab1ee85f4d84a9137f8631d05c4c0876496510",
+    "gitRef": "a24ea88",
+    "registry": "0xdd7B66451529918273fe4E0d9f9fdf261194a6e0",
+    "minDelaySeconds": 172800,
+    "status": "pending_propose",
+    "blocker": "PROPOSER 0x82DC7FF0f2E199799a1028fE3c5702dF6Fe6f697 has 0 xDAI; PROPOSER_KEY not in agent env",
+    "proposeScript": "contracts/lok-log/script/propose-ruleset-gnosis.sh"
   }
 }
