@@ -91,16 +91,24 @@
       "0xc58d390214b0d41c14c8c6397f4035683b13b65a43f3d37a739f3814041900e5",
       "0xf8d9ed80137d4ca46bf704c8b21f169e93c8e884ba49edd4b3596e1e50d10f11"
     ],
-    "setStartingJob1": "0x72743ccafca1b7b75d19ea57da2f43f3fd6a562a1f7d376cc667f4de530bd3b2"
+    "setStartingJob1": "0x72743ccafca1b7b75d19ea57da2f43f3fd6a562a1f7d376cc667f4de530bd3b2",
+    "proposeRuleset": "0x42ff771bdb11a59b50b99b37e61ce268b2586810613a71b27ae210fa3319d00b"
   },
   "ruleset": {
-    "hash": "0xb7e4d1c9a8f6520e3d7c6b5a49382716f0e1d2c3b4a5968778695a4b3c2d1e0f",
-    "wasmSha256": "bbf77ab29b31bc869891028d83ab1ee85f4d84a9137f8631d05c4c0876496510",
-    "gitRef": "a24ea88",
+    "hash": "0x609dbdea7256550cb09322d314c81adb20752ed273bc2372e29044b96e949cdc",
+    "wasmSha256": "6577236dc54fc3fb63e8542326e8414f90bafdb6093fa484af47985ef70e8e2e",
+    "gitRef": "ab2204c",
+    "sourceBranch": "cursor/items-crafting-audit-a535",
+    "sourcePr": 222,
     "registry": "0xdd7B66451529918273fe4E0d9f9fdf261194a6e0",
     "minDelaySeconds": 172800,
-    "status": "pending_propose",
-    "blocker": "PROPOSER 0x82DC7FF0f2E199799a1028fE3c5702dF6Fe6f697 has 0 xDAI; PROPOSER_KEY not in agent env",
-    "proposeScript": "contracts/lok-log/script/propose-ruleset-gnosis.sh"
+    "status": "proposed",
+    "proposeTx": "0x42ff771bdb11a59b50b99b37e61ce268b2586810613a71b27ae210fa3319d00b",
+    "proposeBlock": 48729492,
+    "proposedAt": 1791864755,
+    "activatesAt": 1792037555,
+    "activatesAtIso": "2026-10-15T04:12:35Z",
+    "proposer": "0x82DC7FF0f2E199799a1028fE3c5702dF6Fe6f697",
+    "note": "keccak256(utf8(wasmSha256)); server pin is LOCAL_RULESET_WASM_SHA256 / LOCAL_RULESET_HASH on #222 @ ab2204c. No further propose txs from this agent."
   }
 }
