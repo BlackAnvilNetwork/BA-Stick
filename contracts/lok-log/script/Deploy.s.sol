@@ -25,6 +25,7 @@ import {AhEscrow} from "../src/AhEscrow.sol";
 ///   forge script script/Deploy.s.sol --rpc-url $RPC --broadcast --sig "run()"
 ///   env: ADMIN, FEE_RECIPIENT, ROTATOR, GUARDIAN, PROPOSER, LISTING, BASE_URI
 ///        optional: EMERGENCY (default ADMIN), ITEMS (default 0), KEK (default 0), MINT_FEE
+///        optional: TIMELOCK (required on chain 100), ALLOW_EOA_ADMIN=1 (documented one-off only)
 ///
 /// After running, the Safe must still:
 ///   1. Items.grantRole(MINTER_ROLE, checkpoint) + registerFungible… (if ITEMS != 0; see DeployItems)
@@ -125,8 +126,20 @@ contract Deploy is Script {
         return abi.decode(ret, (bool));
     }
 
+    /// Explicit, documented escape hatch for a one-off EOA admin launch (not a Safe).
+    /// Requires ALLOW_EOA_ADMIN=1 in the deploy environment. Never use on anvil.
+    function allowEoaAdmin() public view returns (bool) {
+        if (block.chainid == ANVIL_CHAIN_ID) return false;
+        try vm.envUint("ALLOW_EOA_ADMIN") returns (uint256 v) {
+            return v != 0;
+        } catch {
+            return false;
+        }
+    }
+
     /// Distinctness rules for official launch. Anvil may reuse addresses for convenience.
     function validateConfig(Config memory c) public view {
+        bool eoaAdmin = allowEoaAdmin();
         if (c.admin == address(0)) revert BadConfig("admin=0");
         if (c.emergency == address(0)) revert BadConfig("emergency=0");
         if (c.guardian == address(0)) revert BadConfig("guardian=0");
@@ -150,8 +163,10 @@ contract Deploy is Script {
         if (c.listing == c.feeRecipient || c.rotator == c.feeRecipient || c.proposer == c.feeRecipient) {
             revert BadConfig("server keys must not equal feeRecipient");
         }
-        if (c.feeRecipient == c.admin) revert BadConfig("feeRecipient must be distinct from admin Safe");
-        // emergency/guardian may equal admin (same Safe). They must not be server keys.
+        if (!eoaAdmin && c.feeRecipient == c.admin) {
+            revert BadConfig("feeRecipient must be distinct from admin Safe");
+        }
+        // emergency/guardian may equal admin (same Safe / EOA). They must not be server keys.
         if (c.emergency == c.listing || c.emergency == c.rotator || c.emergency == c.proposer) {
             revert BadConfig("emergency must not be a server key");
         }
@@ -159,10 +174,6 @@ contract Deploy is Script {
             revert BadConfig("guardian must not be a server key");
         }
 
-        // Launch roles must be contracts (Safe / Timelock), not bare EOAs.
-        if (c.admin.code.length == 0) revert BadConfig("admin must be a contract");
-        if (c.emergency.code.length == 0) revert BadConfig("emergency must be a contract");
-        if (c.guardian.code.length == 0) revert BadConfig("guardian must be a contract");
         if (c.timelock != address(0) && c.timelock.code.length == 0) {
             revert BadConfig("timelock must be a contract");
         }
@@ -171,6 +182,17 @@ contract Deploy is Script {
             if (c.timelock == address(0)) revert BadConfig("TIMELOCK required on Gnosis (chain 100)");
             if (c.timelock.code.length == 0) revert BadConfig("timelock must be a contract");
         }
+
+        if (eoaAdmin) {
+            // EOA admin path: admin/emergency/guardian may be the same treasury EOA.
+            // UUPS upgrades still route through TIMELOCK; PROPOSER EOA schedules on the timelock.
+            return;
+        }
+
+        // Launch roles must be contracts (Safe / Timelock), not bare EOAs.
+        if (c.admin.code.length == 0) revert BadConfig("admin must be a contract");
+        if (c.emergency.code.length == 0) revert BadConfig("emergency must be a contract");
+        if (c.guardian.code.length == 0) revert BadConfig("guardian must be a contract");
 
         // Optional: if ADMIN looks like a Safe, require threshold >= 2.
         try ISafeThreshold(c.admin).getThreshold() returns (uint256 threshold) {
