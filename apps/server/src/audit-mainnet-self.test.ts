@@ -299,11 +299,16 @@ describe("ops auth + migration lows", () => {
     const chars = Array.from({ length: 20 }, (_, i) => ({
       charId: "c" + i,
       tokenId: String(i + 1),
+      name: "Char" + i,
+      job: 0,
       wallet: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     }));
     const lok = {
       boundChars: () => chars,
-      rebindWallet: () => ({ ok: true as const, previous: chars[0]!.wallet }),
+      rebindWallet: (_charId: string, _wallet: string) => ({
+        ok: true as const,
+        previous: chars[0]!.wallet,
+      }),
     };
     await migrateCharacterWalletsToNftOwners(lok, {
       concurrency: 4,
@@ -327,10 +332,12 @@ describe("ops auth + migration lows", () => {
         {
           charId: "c1",
           tokenId: "1",
+          name: "Char1",
+          job: 0,
           wallet: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         },
       ],
-      rebindWallet: () => ({ ok: true as const, previous: null }),
+      rebindWallet: (_charId: string, _wallet: string) => ({ ok: true as const, previous: null }),
     };
     const out = await migrateCharacterWalletsToNftOwners(lok, {
       readOwner: async () => ({ ok: false as const, error: "rpc down" }),
