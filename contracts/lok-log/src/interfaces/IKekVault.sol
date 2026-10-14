@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+/**
+ * @notice DEPRECATED — KekVault is not deployed on Gnosis mainnet.
+ * @dev Interface for the deprecated KEK token custody vault. See KekVault.sol and CONTRACTS.md.
+ */
 interface IKekVault {
     /// Pull `amount` KEK from `from` into custody. BRIDGE_ROLE only (CharacterCheckpoint).
     function deposit(address from, uint256 tokenId, uint256 amount) external;

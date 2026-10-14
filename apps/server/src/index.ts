@@ -1089,6 +1089,7 @@ function handleLokSendItem(p: Player, to: string, tokenId: number, amount: numbe
   });
 }
 
+/** @deprecated KEK custody disabled. Refuses all requests. Kept for old client compatibility. */
 function handleLokSendKek(p: Player, _to: string, _amount: string) {
   refuseFundCustody(p, "Send ETH");
 }
@@ -1156,14 +1157,17 @@ function refuseFundCustody(p: Player, action: string) {
   send(p.ws, snapshotFor(p));
 }
 
+/** @deprecated KEK custody disabled. Refuses all requests. Kept for old client compatibility. */
 function handleLokDeposit(p: Player, _amount: string) {
   refuseFundCustody(p, "Deposit");
 }
 
+/** @deprecated KEK custody disabled. Refuses all requests. Kept for old client compatibility. */
 function handleLokWithdrawKek(p: Player, _amount: string) {
   refuseFundCustody(p, "Withdrawal");
 }
 
+/** @deprecated KEK custody disabled. Refuses all requests. Kept for old client compatibility. */
 function handleLokClaim(p: Player, _id: string) {
   refuseFundCustody(p, "Claim");
 }
