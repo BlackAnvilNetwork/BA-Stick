@@ -8,8 +8,7 @@ import {CharacterCheckpoint} from "../src/CharacterCheckpoint.sol";
 import {CharacterFactory} from "../src/CharacterFactory.sol";
 import {RulesetRegistry} from "../src/RulesetRegistry.sol";
 import {AhEscrow} from "../src/AhEscrow.sol";
-// KekVault.sol + CharacterCheckpoint.vault stay until a batched redeploy drops custody deposits.
-// Play path AH uses AhEscrow (deployed and granted LISTING_ROLE here).
+// KEK custody is retired. Play-path payments use AhEscrow (deployed and granted LISTING_ROLE here).
 
 /// Deploys the log-model character stack behind UUPS proxies, wires roles, then hands admin to the Safe.
 /// The deployer is the temporary admin and renounces at the end (when deployer != admin).

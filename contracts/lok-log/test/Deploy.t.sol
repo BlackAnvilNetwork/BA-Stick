@@ -79,7 +79,6 @@ contract DeployTest is Test {
         assertTrue(d.checkpoint.hasRole(d.checkpoint.NFT_ROLE(), address(d.nft)));
         assertEq(address(d.checkpoint.rulesets()), address(d.rulesets));
         assertEq(address(d.checkpoint.items()), address(items));
-        assertEq(address(d.checkpoint.vault()), address(0));
         assertFalse(d.checkpoint.importsEnabled());
         assertFalse(d.checkpoint.exportsEnabled());
         assertTrue(d.ahEscrow.hasRole(d.ahEscrow.LISTING_ROLE(), listing));

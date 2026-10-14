@@ -7,8 +7,7 @@ import {CharacterNFT} from "../src/CharacterNFT.sol";
 import {CharacterCheckpoint} from "../src/CharacterCheckpoint.sol";
 import {CharacterFactory} from "../src/CharacterFactory.sol";
 import {RulesetRegistry} from "../src/RulesetRegistry.sol";
-import {KekVault} from "../src/KekVault.sol";
-import {MockKEK, MockItems} from "./mocks/Mocks.sol";
+import {MockItems} from "./mocks/Mocks.sol";
 
 abstract contract Base is Test {
     bytes32 constant CHECKPOINT_TYPEHASH =
@@ -30,14 +29,11 @@ abstract contract Base is Test {
     CharacterCheckpoint cp;
     CharacterFactory factory;
     RulesetRegistry rulesets;
-    KekVault vault;
-    MockKEK kek;
     MockItems items;
 
     uint256 tokenId;
     uint256 constant ITEM_SWORD = 111;
     uint256 constant ITEM_ORE = 222;
-    uint64 constant WITHDRAW_DELAY = 24 hours;
 
     function _proxy(address impl, bytes memory init) internal returns (address) {
         return address(new ERC1967Proxy(impl, init));
@@ -65,14 +61,7 @@ abstract contract Base is Test {
         rulesets = RulesetRegistry(
             _proxy(address(new RulesetRegistry()), abi.encodeCall(RulesetRegistry.initialize, (admin, 48 hours)))
         );
-        kek = new MockKEK();
         items = new MockItems();
-        vault = KekVault(
-            _proxy(
-                address(new KekVault()),
-                abi.encodeCall(KekVault.initialize, (admin, address(kek), guardian, WITHDRAW_DELAY))
-            )
-        );
 
         vm.startPrank(admin);
         nft.setState(address(cp));
@@ -82,11 +71,9 @@ abstract contract Base is Test {
         factory.grantRole(factory.GUARDIAN_ROLE(), guardian);
         cp.setRulesets(address(rulesets));
         cp.setItems(address(items));
-        cp.setVault(address(vault));
         // Tests exercise import/export paths; production leaves these false until policy is live.
         cp.setImportsEnabled(true);
         cp.setExportsEnabled(true);
-        vault.grantRole(vault.BRIDGE_ROLE(), address(cp));
         rulesets.grantRole(rulesets.PROPOSER_ROLE(), proposer);
         factory.setStartingJob(1, true);
         vm.stopPrank();

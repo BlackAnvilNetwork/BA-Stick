@@ -3,7 +3,6 @@ pragma solidity ^0.8.24;
 
 import {Base} from "./Base.sol";
 import {CharacterCheckpoint} from "../src/CharacterCheckpoint.sol";
-import {KekVault} from "../src/KekVault.sol";
 import {ItemIds} from "../src/libraries/ItemIds.sol";
 import {ReentrantPlayer} from "./mocks/Mocks.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
@@ -419,111 +418,21 @@ contract CharacterCheckpointTest is Base {
         assertEq(cp.inboundApplied(tokenId), 1);
     }
 
-    // ===================================================================== KEK
-    function _fundAndApprove(uint256 amt) internal {
-        kek.mint(player, amt);
-        vm.prank(player);
-        kek.approve(address(vault), type(uint256).max);
-    }
-
-    function test_kek_depositQueuesInbound() public {
-        _fundAndApprove(100 ether);
-        vm.expectEmit(true, true, false, true, address(cp));
-        emit CharacterCheckpoint.KekDepositRequested(tokenId, 1, 60 ether, player);
-        vm.prank(player);
-        cp.depositKek(tokenId, 60 ether);
-        assertEq(kek.balanceOf(address(vault)), 60 ether);
-        assertEq(kek.balanceOf(player), 40 ether);
-        assertEq(cp.inboundCount(tokenId), 1);
-    }
-
-    function test_kek_depositRejections() public {
-        _fundAndApprove(10 ether);
-        vm.prank(other);
-        vm.expectRevert(CharacterCheckpoint.NotOwner.selector);
-        cp.depositKek(tokenId, 1 ether);
-        vm.prank(player);
-        vm.expectRevert(CharacterCheckpoint.BadDeposit.selector);
-        cp.depositKek(tokenId, 0);
-        vm.prank(player);
-        vm.expectRevert(); // more than the player holds
-        cp.depositKek(tokenId, 11 ether);
-        assertEq(cp.inboundCount(tokenId), 0);
-    }
-
-    function test_kek_depositAndWithdrawFlow() public {
-        _fundAndApprove(100 ether);
-        vm.prank(player);
-        cp.depositKek(tokenId, 100 ether);
-
+    function test_kekOut_isRetired() public {
         CharacterCheckpoint.Checkpoint memory c = _next();
-        c.inboundConsumed = 1;
-        c.kekOut = 40 ether; // engine decreased the in-game counter by 40
-        CharacterCheckpoint.Auth memory a = _auth(c);
-        vm.expectEmit(true, true, false, true, address(cp));
-        emit CharacterCheckpoint.KekWithdrawalQueued(tokenId, 1, 40 ether, player);
-        vm.prank(player);
-        cp.checkpoint(tokenId, c, a);
-
-        (address to, uint64 availableAt, KekVault.Status st, uint256 amt) = vault.withdrawals(1);
-        assertEq(to, player);
-        assertEq(amt, 40 ether);
-        assertEq(uint8(st), uint8(KekVault.Status.Pending));
-        assertEq(availableAt, block.timestamp + WITHDRAW_DELAY);
-        assertEq(vault.pendingTotal(), 40 ether);
-
-        vm.expectRevert(KekVault.NotYet.selector);
-        vault.claim(1);
-
-        vm.warp(block.timestamp + WITHDRAW_DELAY);
-        vault.claim(1);
-        assertEq(kek.balanceOf(player), 40 ether);
-        assertEq(kek.balanceOf(address(vault)), 60 ether);
-        assertEq(vault.pendingTotal(), 0);
-    }
-
-    function test_checkpoint_relayerPaysTheNftOwnerNotTheSigner() public {
-        _fundAndApprove(50 ether);
-        vm.prank(player);
-        cp.depositKek(tokenId, 50 ether);
-        CharacterCheckpoint.Checkpoint memory c = _next();
-        c.inboundConsumed = 1;
-        c.kekOut = 20 ether;
-        CharacterCheckpoint.Auth memory a = _auth(c);
-        vm.prank(signer);
-        cp.checkpoint(tokenId, c, a);
-        (address to,, , uint256 amt) = vault.withdrawals(1);
-        assertEq(to, player);
-        assertTrue(to != signer);
-        assertEq(amt, 20 ether);
-    }
-
-    function test_kek_withdrawalCannotExceedVault() public {
-        _fundAndApprove(100 ether);
-        vm.prank(player);
-        cp.depositKek(tokenId, 100 ether);
-        CharacterCheckpoint.Checkpoint memory c = _next();
-        c.inboundConsumed = 1;
-        c.kekOut = 100 ether + 1; // a compromised signer attesting more than custody holds
-        _expectRevert(c, KekVault.InsufficientVault.selector);
+        c.kekOut = 1 ether;
+        _expectRevert(c, CharacterCheckpoint.KekRetired.selector);
         assertEq(cp.logIndex(tokenId), 0, "checkpoint rolled back");
     }
 
-    /// L-7: with vault=0, deposit / reassign / sink / kekOut all revert NotConfigured.
-    function test_kek_vaultUnconfigured() public {
-        vm.prank(admin);
-        cp.setVault(address(0));
+    function test_checkpoint_relayerSubmitsForTheNftOwner() public {
         CharacterCheckpoint.Checkpoint memory c = _next();
-        c.kekOut = 1 ether;
-        _expectRevert(c, CharacterCheckpoint.NotConfigured.selector);
-        vm.startPrank(player);
-        vm.expectRevert(CharacterCheckpoint.NotConfigured.selector);
-        cp.depositKek(tokenId, 1 ether);
-        vm.expectRevert(CharacterCheckpoint.NotConfigured.selector);
-        cp.reassignKek(tokenId, tokenId + 1, 1 ether);
-        vm.expectRevert(CharacterCheckpoint.NotConfigured.selector);
-        cp.sinkKek(tokenId, 1 ether);
-        vm.stopPrank();
+        CharacterCheckpoint.Auth memory a = _auth(c);
+        vm.prank(signer);
+        cp.checkpoint(tokenId, c, a);
+        assertEq(nft.ownerOf(tokenId), player);
+        assertTrue(player != signer);
+        assertEq(cp.logIndex(tokenId), 10);
     }
 
     // ============================================================== transfers
@@ -651,8 +560,6 @@ contract CharacterCheckpointTest is Base {
         cp.checkpoint(tokenId, c, a);
         vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
         cp.importItem(tokenId, ITEM_SWORD, 1);
-        vm.expectRevert(PausableUpgradeable.EnforcedPause.selector);
-        cp.depositKek(tokenId, 1);
         vm.stopPrank();
 
         vm.prank(rotator);
@@ -684,8 +591,6 @@ contract CharacterCheckpointTest is Base {
         cp.setRulesets(address(1));
         vm.expectRevert();
         cp.setItems(address(1));
-        vm.expectRevert();
-        cp.setVault(address(1));
         vm.stopPrank();
     }
 
@@ -700,7 +605,6 @@ contract CharacterCheckpointTest is Base {
         UUPSUpgradeable(address(cp)).upgradeToAndCall(newImpl, "");
         assertEq(cp.stateRoot(tokenId), c.newRoot);
         assertEq(cp.logIndex(tokenId), 10);
-        assertEq(address(cp.vault()), address(vault));
     }
 
     function test_implementation_cannotBeInitialized() public {

@@ -11,7 +11,6 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {ICharacterNFT} from "./interfaces/ICharacterNFT.sol";
 import {IItems} from "./interfaces/IItems.sol";
 import {IRulesetRegistry} from "./interfaces/IRulesetRegistry.sol";
-import {IKekVault} from "./interfaces/IKekVault.sol";
 
 /// @title CharacterCheckpoint
 /// @notice Log-model replacement for CharacterState. The chain no longer stores the sheet (skills, materials,
@@ -22,11 +21,10 @@ import {IKekVault} from "./interfaces/IKekVault.sol";
 ///           - it is computed under an accepted ruleset (RulesetRegistry)
 ///           - it is submitted, and paid for, by the character's owner (gas policy unchanged)
 ///         Items leave the game's trust bubble only through `exports` inside a signed checkpoint, and re-enter through
-///         `importItem` plus a log event that consumes it. KEK works the same way: `depositKek` moves tokens into the
-///         KekVault and enters the log as an inbound event; `kekOut` in a signed checkpoint queues a delayed withdrawal.
-///         Item imports and KEK deposits share ONE inbound queue, so a single cumulative counter proves the log consumed
-///         both. Everything else (crafting, XP, abilities, equipment) is off-chain game events, replayable by anyone
-///         from the published log.
+///         `importItem` plus a log event that consumes it. KEK custody is retired: there is no vault, and a checkpoint
+///         with `kekOut != 0` reverts. The field stays in `Checkpoint` so the signed body hash matches the engine
+///         until that side drops it too. Item imports use the inbound queue. Everything else (crafting, XP, abilities,
+///         equipment) is off-chain game events, replayable by anyone from the published log.
 ///         External contracts still keep the same hooks: initCharacter (factory) and onTransfer (NFT).
 ///         Item import/export are gated by `importsEnabled` / `exportsEnabled` (default false) in addition to
 ///         `items != address(0)`. Players must approve this contract on Items before `importItem`.
@@ -82,7 +80,6 @@ contract CharacterCheckpoint is
 
     IRulesetRegistry public rulesets;
     IItems public items;
-    IKekVault public vault;
 
     /// @notice When false (default), `importItem` reverts even if `items` is set.
     bool public importsEnabled;
@@ -108,7 +105,7 @@ contract CharacterCheckpoint is
         bytes32 rulesetHash;
         uint256 summary;
         uint64 inboundConsumed;  // cumulative inbound requests applied by the log up to toIndex
-        uint256 kekOut;          // KEK withdrawn from the in-game counter in this span; queued in the vault with a delay
+        uint256 kekOut;          // Retired. Must be 0. Kept so abi.encode(Checkpoint) stays stable for the engine.
         Export[] exports;        // items marked exported in newRoot; minted here as ERC-1155
     }
 
@@ -130,15 +127,12 @@ contract CharacterCheckpoint is
     );
     event ItemExported(uint256 indexed tokenId, uint256 indexed itemId, uint32 amount, address to);
     event ItemImportRequested(uint256 indexed tokenId, uint64 indexed nonce, uint256 itemId, uint32 amount, address from);
-    event KekDepositRequested(uint256 indexed tokenId, uint64 indexed nonce, uint256 amount, address from);
-    event KekWithdrawalQueued(uint256 indexed tokenId, uint256 indexed withdrawalId, uint256 amount, address to);
     event VersionBumped(uint256 indexed tokenId, uint32 newVersion); // transfer
     event SignerAdded(address indexed signer, uint64 expiry);
     event SignerRevoked(address indexed signer);
     event AllSignersRevoked(uint32 newEpoch);
     event RulesetsSet(address rulesets);
     event ItemsSet(address items);
-    event VaultSet(address vault);
     event ImportsEnabledSet(bool enabled);
     event ExportsEnabledSet(bool enabled);
     event MaxExportsPerCheckpointSet(uint256 maxExports);
@@ -152,7 +146,6 @@ contract CharacterCheckpoint is
     error BadInbound();
     error BadExport();
     error BadImport();
-    error BadDeposit();
     error Expired();
     error BadSignature();
     error BadSigner();
@@ -164,6 +157,8 @@ contract CharacterCheckpoint is
     error UnauthorizedUpgrade();
     error UpgradeAuthorityAlreadySet();
     error ZeroAddress();
+    /// @notice KEK custody is gone. Checkpoints may not queue a withdrawal.
+    error KekRetired();
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -208,18 +203,6 @@ contract CharacterCheckpoint is
     function setItems(address i) external onlyRole(DEFAULT_ADMIN_ROLE) {
         items = IItems(i);
         emit ItemsSet(i);
-    }
-
-    /**
-     * @notice DEPRECATED — DO NOT CALL on Gnosis mainnet.
-     * @dev KEK vault custody is deprecated. The game runs on Gnosis/xDAI native value via AhEscrow.
-     *      vault MUST stay address(0) so that depositKek, reassignKek, sinkKek all revert NotConfigured.
-     *      Calling setVault would enable session-signer theft vulnerabilities (see #253, #254).
-     *      This function exists only to preserve upgrade compatibility; it must never be invoked.
-     */
-    function setVault(address v) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        vault = IKekVault(v);
-        emit VaultSet(v);
     }
 
     function setImportsEnabled(bool enabled) external onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -311,6 +294,7 @@ contract CharacterCheckpoint is
         if (!rulesets.isAccepted(c.rulesetHash)) revert RulesetNotAccepted();
 
         _requireSigner(ECDSA.recover(_digest(player, tokenId, c, a), a.sig));
+        if (c.kekOut != 0) revert KekRetired();
 
         // effects
         stateRoot[tokenId] = c.newRoot;
@@ -325,11 +309,6 @@ contract CharacterCheckpoint is
         emit Checkpointed(tokenId, c.newRoot, c.prevRoot, c.fromIndex, c.toIndex, c.logHash, c.rulesetHash);
 
         // interactions last: 1155 mint calls the receiver
-        if (c.kekOut != 0) {
-            if (address(vault) == address(0)) revert NotConfigured();
-            uint256 wid = vault.queueWithdrawal(player, tokenId, c.kekOut);
-            emit KekWithdrawalQueued(tokenId, wid, c.kekOut, player);
-        }
         uint256 n = c.exports.length;
         if (n != 0) {
             // Exports mint ERC-1155 unbound to a separate root registry — keep disabled by default.
@@ -362,55 +341,6 @@ contract CharacterCheckpoint is
         }
         items.burn(msg.sender, itemId, amount);
         emit ItemImportRequested(tokenId, nonce, itemId, amount, msg.sender);
-    }
-
-    /**
-     * @notice DEPRECATED — reverts NotConfigured on Gnosis (vault == address(0)).
-     * @dev Deposit KEK into the vault; the engine credits the character's in-game KEK counter when the log applies the
-     *      event carrying this nonce. Approve the VAULT (not this contract) first. Shares the inbound queue with item imports.
-     *      KEK vault custody is deprecated; this function is unreachable while vault stays unset.
-     *      Kept for upgrade compatibility only. See CONTRACTS.md "Superseded (KEK vault / deposit era)".
-     */
-    function depositKek(uint256 tokenId, uint256 amount) external whenNotPaused nonReentrant {
-        if (address(vault) == address(0)) revert NotConfigured();
-        address player = nft.ownerOf(tokenId);
-        // The owner pays, or an active signer pays their own tokens. The signer is not the player.
-        if (msg.sender != player && !isActiveSigner(msg.sender)) revert NotOwner();
-        if (amount == 0) revert BadDeposit();
-        uint64 nonce;
-        unchecked {
-            nonce = ++inboundCount[tokenId];
-        }
-        vault.deposit(msg.sender, tokenId, amount);
-        emit KekDepositRequested(tokenId, nonce, amount, msg.sender);
-    }
-
-    /**
-     * @notice DEPRECATED — reverts NotConfigured on Gnosis (vault == address(0)).
-     * @dev Move vault credit after the log moves KEK to another character. Cannot redirect the payout.
-     *      KEK vault custody is deprecated; this function is unreachable while vault stays unset.
-     *      Kept for upgrade compatibility only. See CONTRACTS.md "Superseded (KEK vault / deposit era)".
-     */
-    function reassignKek(uint256 fromId, uint256 toId, uint256 amount) external whenNotPaused {
-        if (address(vault) == address(0)) revert NotConfigured();
-        address player = nft.ownerOf(fromId);
-        if (msg.sender != player && !isActiveSigner(msg.sender)) revert NotOwner();
-        if (amount == 0 || fromId == toId) revert BadDeposit();
-        vault.reassign(fromId, toId, amount);
-    }
-
-    /**
-     * @notice DEPRECATED — reverts NotConfigured on Gnosis (vault == address(0)).
-     * @dev Burn KEK the character already spent in game so it is not left withdrawable.
-     *      KEK vault custody is deprecated; this function is unreachable while vault stays unset.
-     *      Kept for upgrade compatibility only. See CONTRACTS.md "Superseded (KEK vault / deposit era)".
-     */
-    function sinkKek(uint256 tokenId, uint256 amount) external whenNotPaused {
-        if (address(vault) == address(0)) revert NotConfigured();
-        address player = nft.ownerOf(tokenId);
-        if (msg.sender != player && !isActiveSigner(msg.sender)) revert NotOwner();
-        if (amount == 0) revert BadDeposit();
-        vault.sink(tokenId, amount);
     }
 
     function _digest(address player, uint256 tokenId, Checkpoint calldata c, Auth calldata a)
