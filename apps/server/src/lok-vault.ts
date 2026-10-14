@@ -52,6 +52,7 @@ type Env = {
   rpc: string;
   nft: string;
   factory: string;
+  checkpoint: string;
   rulesets: string;
   ownerKey: string;
   proposerKey: string;
@@ -63,6 +64,7 @@ function envOf(env: NodeJS.ProcessEnv): Env {
     rpc: pick("LOK_CHAIN_RPC"),
     nft: pick("LOK_NFT"),
     factory: pick("LOK_FACTORY"),
+    checkpoint: pick("LOK_CHECKPOINT"),
     rulesets: pick("LOK_RULESETS"),
     ownerKey: pick("LOK_OWNER_KEY"),
     proposerKey: pick("LOK_PROPOSER_KEY"),
@@ -157,6 +159,54 @@ const FACTORY_ABI = [
     outputs: [{ type: "uint256" }],
   },
 ] as const;
+
+const CHECKPOINT_ABI = [
+  {
+    type: "function",
+    name: "summary",
+    stateMutability: "view",
+    inputs: [{ name: "tokenId", type: "uint256" }],
+    outputs: [{ type: "uint256" }],
+  },
+] as const;
+
+/**
+ * Read the genesis job for a character from CharacterCheckpoint.summary(tokenId).
+ * Summary format: level (bits 0-15) | job (bits 16-23) | ...
+ * Returns null if the character has no genesis (not minted via factory).
+ */
+export async function readCharacterGenesisJob(
+  tokenId: string,
+  envIn: NodeJS.ProcessEnv = process.env,
+): Promise<{ ok: true; job: number } | VaultErr> {
+  const env = envOf(envIn);
+  if (!env.rpc || !env.checkpoint) {
+    return { ok: false, error: "CharacterCheckpoint is not configured." };
+  }
+  if (!/^[1-9][0-9]{0,77}$/.test(tokenId)) {
+    return { ok: false, error: "Bad character token id." };
+  }
+  try {
+    const chainId = await chainIdOf(env.rpc);
+    const pub = publicClient(env.rpc, chainId);
+    const summary = await pub.readContract({
+      address: env.checkpoint as `0x${string}`,
+      abi: CHECKPOINT_ABI,
+      functionName: "summary",
+      args: [BigInt(tokenId)],
+    });
+    if (summary === 0n) {
+      return { ok: false, error: "Character #" + tokenId + " has no on-chain genesis." };
+    }
+    const job = Number((summary >> 16n) & 0xFFn);
+    return { ok: true, job };
+  } catch (err) {
+    return {
+      ok: false,
+      error: "Failed to read genesis job for #" + tokenId + ": " + redact(String(err), []),
+    };
+  }
+}
 
 /** Job indexes the factory currently accepts as starting jobs (0–15 probed). */
 export async function readStartingJobs(
