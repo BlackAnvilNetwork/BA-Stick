@@ -51,7 +51,7 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("char/enter"),
     /** Which roster slot to play; omit to enter the last-active character. */
-    characterId: z.string().min(1).optional(),
+    characterId: z.string().min(1).max(64).optional(),
   }),
   /** Pre-pay check: is this character name free on the global log? */
   z.object({
@@ -59,11 +59,11 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
     name: z.string().min(2).max(16),
   }),
   z.object({ type: z.literal("move"), x: z.number(), z: z.number() }),
-  z.object({ type: z.literal("engage"), targetId: z.string() }),
+  z.object({ type: z.literal("engage"), targetId: z.string().min(1).max(64) }),
   z.object({ type: z.literal("disengage") }),
-  z.object({ type: z.literal("ability"), id: AbilityId, targetId: z.string().optional() }),
-  z.object({ type: z.literal("equip"), slot: EquipSlot, tokenId: z.number().nullable() }),
-  z.object({ type: z.literal("item/use"), tokenId: z.number() }),
+  z.object({ type: z.literal("ability"), id: AbilityId, targetId: z.string().min(1).max(64).optional() }),
+  z.object({ type: z.literal("equip"), slot: EquipSlot, tokenId: z.number().int().nonnegative().nullable() }),
+  z.object({ type: z.literal("item/use"), tokenId: z.number().int().nonnegative() }),
   /** Throw away one bag stack. Starter stacks are allowed. This is not a sale and is not written to the log. */
   z.object({
     type: z.literal("item/discard"),
@@ -75,7 +75,7 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("job/change"), job: JobId }),
   /** Set support job at L10+ (Job Master). Level = floor(main/2). */
   z.object({ type: z.literal("job/subjob"), job: JobId.nullable() }),
-  z.object({ type: z.literal("npc/interact"), npcId: z.string() }),
+  z.object({ type: z.literal("npc/interact"), npcId: z.string().min(1).max(64) }),
   z.object({ type: z.literal("gather"), nodeId: z.string().min(1).max(64) }),
   /** Synth an item by catalog id (requires mats + craft skill level). */
   z.object({ type: z.literal("craft"), itemId: z.number().int().positive() }),
