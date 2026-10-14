@@ -216,12 +216,14 @@ import {
   faucetAnvilEth,
   loadCharacterMintClientConfig,
   linkCharacterNftWithRetry,
+  readCharacterGenesisJob,
   readCharacterNftOwner,
   resolveListSellerPayout,
   serverMintCharacterFor,
   verifyCharacterNftOwner,
   type CharacterMintClientConfig,
 } from "./lok-vault";
+import { refuseZeroMintFee, resolveBindSpawnJob } from "./char-create-guard";
 import {
   enqueuePendingCancel,
   startNftTransferAskCancelWatcher,
@@ -5155,8 +5157,8 @@ function onMessage(ws: WebSocket, data: string) {
         send(ws, { type: "error", message: capped.error });
         return;
       }
-      const job = isJobId(msg.job) && JOBS[msg.job].playable ? msg.job : "time_mage";
-      const jobIndex = JOB_IDS.indexOf(job);
+      let job = isJobId(msg.job) && JOBS[msg.job].playable ? msg.job : "time_mage";
+      let jobIndex = JOB_IDS.indexOf(job);
       const gender =
         msg.gender === "female" ? "female" : msg.gender === "pepeka" ? "pepeka" : "male";
 
@@ -5165,6 +5167,11 @@ function onMessage(ws: WebSocket, data: string) {
       let acceptedWallets = [wallet.toLowerCase()];
       let pendingMintNonce: { mintWallet: string; nonce: string } | undefined;
       if (cachedCharacterMint) {
+        const feeGuard = refuseZeroMintFee(cachedCharacterMint.chainId, cachedCharacterMint.mintFee);
+        if (!feeGuard.ok) {
+          send(ws, { type: "error", message: feeGuard.error });
+          return;
+        }
         bindToken =
           typeof msg.tokenId === "string" && /^[1-9][0-9]{0,77}$/.test(msg.tokenId)
             ? msg.tokenId
@@ -5275,6 +5282,18 @@ function onMessage(ws: WebSocket, data: string) {
           }
           bindWallet = holder;
         }
+        const genesis = await readCharacterGenesisJob(bindToken);
+        const resolved = resolveBindSpawnJob(
+          genesis.ok
+            ? { genesisJob: genesis.job }
+            : { genesisJob: null, genesisError: genesis.error },
+        );
+        if (!resolved.ok) {
+          send(ws, { type: "error", message: resolved.error });
+          return;
+        }
+        job = resolved.job;
+        jobIndex = resolved.jobIndex;
       }
       const charId = `c_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
       const claimed = lok.claimName(charId, named.name, bindWallet);
