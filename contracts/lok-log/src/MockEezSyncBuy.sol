@@ -6,7 +6,8 @@ import {AhEscrow} from "./AhEscrow.sol";
 /// @title MockEezSyncBuy
 /// @notice Local stand-in for an EEZ `CrossChainProxy` sync buy.
 ///         Buyer pays this contract (home / same anvil), which forwards the
-///         ask price to `AhEscrow.buyAsk` and refunds any excess to the sender
+///         ask price to `AhEscrow.buyAskFor` using an owner signature that names
+///         this contract as the relayer, and refunds any excess to the sender
 ///         in the same transaction. Seller payout is already same-batch inside
 ///         AhEscrow. Not a production EEZ bridge.
 contract MockEezSyncBuy {
@@ -36,13 +37,17 @@ contract MockEezSyncBuy {
     }
 
     /// @notice Pay an ask from the "home" wallet; forwards exact price, refunds excess.
-    function syncBuy(uint256 listingId, uint256 buyerTokenId) external payable {
+    /// @param ownerSignature EIP-712 `BuyAskFor` from `ownerOf(buyerTokenId)` with `relayer` = this contract.
+    function syncBuy(uint256 listingId, uint256 buyerTokenId, uint256 deadline, bytes calldata ownerSignature)
+        external
+        payable
+    {
         (,,, uint256 priceWei, bool open,) = escrow.asks(listingId);
         if (!open) revert AskClosed();
         if (msg.value < priceWei) revert WrongPrice();
 
         uint256 excess = msg.value - priceWei;
-        escrow.buyAsk{value: priceWei}(listingId, buyerTokenId);
+        escrow.buyAskFor{value: priceWei}(listingId, buyerTokenId, deadline, ownerSignature);
 
         if (excess > 0) {
             (bool refunded,) = payable(msg.sender).call{value: excess}("");

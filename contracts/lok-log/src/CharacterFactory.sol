@@ -35,6 +35,9 @@ contract CharacterFactory is Initializable, AccessControlUpgradeable, PausableUp
     /// @notice Timelock (or similar) that alone may authorize UUPS upgrades. When unset, DEFAULT_ADMIN may upgrade (anvil).
     address public upgradeAuthority;
 
+    /// @dev Reserved for later upgrades. Shrink this gap when appending state. Do not reorder earlier variables.
+    uint256[50] private __gap;
+
     event CharacterCreated(address indexed player, uint256 indexed tokenId, uint8 startingJob);
     event MintFeeSet(uint256 fee);
     event StartingJobSet(uint8 indexed job, bool ok);
@@ -48,6 +51,7 @@ contract CharacterFactory is Initializable, AccessControlUpgradeable, PausableUp
     error UnauthorizedUpgrade();
     error UpgradeAuthorityAlreadySet();
     error ZeroAddress();
+    error ZeroFee();
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -119,6 +123,7 @@ contract CharacterFactory is Initializable, AccessControlUpgradeable, PausableUp
     }
 
     function setMintFee(uint256 fee) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (fee == 0) revert ZeroFee();
         mintFee = fee;
         emit MintFeeSet(fee);
     }
