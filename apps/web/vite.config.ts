@@ -1,6 +1,10 @@
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
+import dns from "node:dns";
 import path from "node:path";
+
+// Prefer 127.0.0.1 when tools resolve "localhost" (Node 17+ defaults to ::1 first).
+dns.setDefaultResultOrder("ipv4first");
 
 /** Mirror of burner-identity.assertWalletConnectProjectIdForPublicNetwork (keep vite.config free of src imports). */
 function assertWalletConnectProjectIdForPublicNetwork(env: Record<string, string | undefined>): void {
@@ -38,8 +42,10 @@ export default defineConfig(({ mode, command }) => {
       },
     },
     server: {
+      // Dual-stack (::) so both http://localhost:5173 and http://127.0.0.1:5173 work.
+      // Rabby site permissions are origin-scoped — pick one host and stick to it.
       // Fail loud if 5173 is taken — silent 5174+ used to break WS auth (server allowlist).
-      host: "127.0.0.1",
+      host: "::",
       port: 5173,
       strictPort: true,
     },

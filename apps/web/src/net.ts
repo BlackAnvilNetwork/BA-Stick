@@ -13,7 +13,17 @@ import { useGame } from "./state";
 import { setPreferredPayoutWallet } from "./wallet";
 import { defaultRpcUrl, walletConnectConfigured } from "./walletconnect";
 
-const WS_URL = import.meta.env.VITE_WS_URL ?? "ws://localhost:8787";
+/** Prefer same hostname as the page so localhost vs 127.0.0.1 stay consistent for WS Origin. */
+function defaultWsUrl(): string {
+  if (import.meta.env.VITE_WS_URL) return import.meta.env.VITE_WS_URL;
+  if (typeof window !== "undefined" && window.location?.hostname) {
+    const host = window.location.hostname;
+    const authority = host.includes(":") ? `[${host}]` : host;
+    return `ws://${authority}:8787`;
+  }
+  return "ws://127.0.0.1:8787";
+}
+const WS_URL = defaultWsUrl();
 const HEARTBEAT_MS = 20_000;
 const RESUME_KEY = "bellgrave.resumeChar";
 const WALLET_KEY = "bellgrave.wallet";
