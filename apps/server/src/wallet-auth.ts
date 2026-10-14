@@ -52,13 +52,114 @@ const pendingNonces = new Map<string, PendingNonce>();
 const remoteHellos = new Map<string, HelloRow>();
 const loopbackHellos = new Map<string, number[]>();
 
+/**
+ * Canonicalize an IP address to prevent rate-limit bypass via non-canonical forms.
+ * IPv4: removes leading zeros (192.168.001.001 → 192.168.1.1)
+ * IPv6: RFC 5952 canonical form (lowercase, :: for longest zero run, no leading zeros)
+ */
 export function normalizeIp(ip: string): string {
   const trimmed = ip.trim().toLowerCase();
+
+  // Handle IPv4-mapped IPv6 (::ffff:192.168.1.1)
   if (trimmed.startsWith("::ffff:")) {
     const v4 = trimmed.slice("::ffff:".length);
-    if (/^\d{1,3}(?:\.\d{1,3}){3}$/.test(v4)) return v4;
+    if (/^\d{1,3}(?:\.\d{1,3}){3}$/.test(v4)) {
+      return canonicalizeIpv4(v4);
+    }
   }
+
+  // Pure IPv4
+  if (/^\d{1,3}(?:\.\d{1,3}){3}$/.test(trimmed)) {
+    return canonicalizeIpv4(trimmed);
+  }
+
+  // IPv6
+  if (trimmed.includes(":")) {
+    return canonicalizeIpv6(trimmed);
+  }
+
   return trimmed;
+}
+
+/** Canonicalize IPv4: remove leading zeros from each octet. */
+function canonicalizeIpv4(ip: string): string {
+  const octets = ip.split(".");
+  if (octets.length !== 4) return ip;
+  const parsed = octets.map((o) => {
+    const n = parseInt(o, 10);
+    return Number.isNaN(n) || n < 0 || n > 255 ? null : n;
+  });
+  if (parsed.some((n) => n === null)) return ip;
+  return parsed.join(".");
+}
+
+/**
+ * Canonicalize IPv6 per RFC 5952:
+ * - Lowercase hex
+ * - No leading zeros in groups
+ * - :: for longest run of zero groups (first if tied)
+ */
+function canonicalizeIpv6(ip: string): string {
+  let addr = ip.toLowerCase();
+  // Strip zone ID (e.g., %eth0)
+  const zoneIdx = addr.indexOf("%");
+  if (zoneIdx !== -1) addr = addr.slice(0, zoneIdx);
+
+  // Expand :: to full form
+  let parts: string[];
+  if (addr.includes("::")) {
+    const [left, right] = addr.split("::");
+    const leftParts = left ? left.split(":") : [];
+    const rightParts = right ? right.split(":") : [];
+    const missing = 8 - leftParts.length - rightParts.length;
+    if (missing < 0) return ip; // invalid
+    parts = [...leftParts, ...Array(missing).fill("0"), ...rightParts];
+  } else {
+    parts = addr.split(":");
+  }
+
+  if (parts.length !== 8) return ip; // invalid
+
+  // Parse each group, removing leading zeros
+  const groups = parts.map((p) => {
+    const n = parseInt(p || "0", 16);
+    return Number.isNaN(n) ? 0 : n;
+  });
+
+  // Find longest run of zeros for :: compression
+  let bestStart = -1;
+  let bestLen = 0;
+  let runStart = -1;
+  let runLen = 0;
+  for (let i = 0; i < 8; i++) {
+    if (groups[i] === 0) {
+      if (runStart === -1) runStart = i;
+      runLen++;
+    } else {
+      if (runLen > bestLen) {
+        bestStart = runStart;
+        bestLen = runLen;
+      }
+      runStart = -1;
+      runLen = 0;
+    }
+  }
+  if (runLen > bestLen) {
+    bestStart = runStart;
+    bestLen = runLen;
+  }
+
+  // Build canonical form
+  const hex = groups.map((n) => n.toString(16));
+  if (bestLen >= 2) {
+    const before = hex.slice(0, bestStart);
+    const after = hex.slice(bestStart + bestLen);
+    if (before.length === 0 && after.length === 0) return "::";
+    if (before.length === 0) return "::" + after.join(":");
+    if (after.length === 0) return before.join(":") + "::";
+    return before.join(":") + "::" + after.join(":");
+  }
+  return hex.join(":");
 }
 
 export function isLoopbackIp(ip: string): boolean {
