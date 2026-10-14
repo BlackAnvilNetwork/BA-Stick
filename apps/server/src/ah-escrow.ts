@@ -79,8 +79,7 @@ type RpcLog = {
 
 export type ApplyAskFilledResult =
   | { ok: true; kind: "applied" | "replay" }
-  | { ok: false; kind: "quarantine"; error: string; reason: AskFillQuarantineReason }
-  | { ok: false; kind: "halt"; error: string };
+  | { ok: false; kind: "quarantine"; error: string; reason: AskFillQuarantineReason };
 
 export function decodeAskFilled(log: { topics?: string[]; data?: string }): AskFilled | null {
   const topics = log.topics ?? [];
@@ -188,16 +187,13 @@ export function applyAskFilled(
   }
 
   const reason = reasonFromEngineError(res.error);
-  if (reason) {
-    return { ok: false, kind: "quarantine", error: res.error, reason };
-  }
-  return { ok: false, kind: "halt", error: res.error };
+  return { ok: false, kind: "quarantine", error: res.error, reason };
 }
 
 /** @deprecated use applyAskFilled result kinds; kept for older tests that only check ok. */
-export function classifyAskFilledFailure(error: string): "replay" | "quarantine" | "other" {
+export function classifyAskFilledFailure(error: string): "replay" | "quarantine" {
   if (/already mirrored|already (applied|consumed)/i.test(error)) return "replay";
-  return reasonFromEngineError(error) ? "quarantine" : "other";
+  return "quarantine";
 }
 
 export function ahEscrowAddress(env: NodeJS.ProcessEnv = process.env): string | null {
@@ -315,25 +311,19 @@ export async function scanAskFilled(opts: {
       const key = fillKeyOf(log);
       const res = opts.apply(fill, key, log);
       if (res.ok) continue;
-      if (res.kind === "quarantine") {
-        if (opts.quarantine) {
-          const entry: QuarantinedAskFill = {
-            id: key,
-            reason: res.reason,
-            error: res.error,
-            fill,
-            blockNumber: log.blockNumber ?? "0x0",
-            logIndex: log.logIndex ?? "0x0",
-            transactionHash: log.transactionHash ?? "",
-            quarantinedAt: new Date().toISOString(),
-          };
-          if (opts.quarantine.add(entry)) alertAskFilledQuarantine(entry);
-        }
-        continue;
+      if (opts.quarantine) {
+        const entry: QuarantinedAskFill = {
+          id: key,
+          reason: res.reason,
+          error: res.error,
+          fill,
+          blockNumber: log.blockNumber ?? "0x0",
+          logIndex: log.logIndex ?? "0x0",
+          transactionHash: log.transactionHash ?? "",
+          quarantinedAt: new Date().toISOString(),
+        };
+        if (opts.quarantine.add(entry)) alertAskFilledQuarantine(entry);
       }
-      // halt
-      cursor = BigInt(log.blockNumber && log.blockNumber !== "0x" ? log.blockNumber : "0x0");
-      return { cursor };
     }
     from = to + 1n;
   }
@@ -394,7 +384,6 @@ export function startAskFilledWatcher(
     expectedAddress: escrow,
   });
   let busy = false;
-  let haltedLogged = false;
   const tick = async () => {
     if (busy) return;
     busy = true;
@@ -422,20 +411,6 @@ export function startAskFilledWatcher(
                 fillKey,
             );
             opts?.onFilled?.({ ...fill, sellerTokenId: beforeSeller }, fillKey);
-            haltedLogged = false;
-            return res;
-          }
-          if (res.ok) {
-            haltedLogged = false;
-            return res;
-          }
-          if (res.kind === "halt") {
-            if (!haltedLogged) {
-              console.error(
-                "[bellgrave] AskFilled halted listing=" + fill.listingId + " key=" + fillKey + ": " + res.error,
-              );
-              haltedLogged = true;
-            }
           }
           return res;
         },

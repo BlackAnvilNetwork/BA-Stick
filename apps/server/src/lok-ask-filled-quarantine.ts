@@ -143,14 +143,18 @@ export class MirroredFills {
   }
 }
 
-/** Permanent fill failures only. Unknown/transient errors return null → halt the cursor. */
-export function reasonFromEngineError(error: string): AskFillQuarantineReason | null {
+/**
+ * Classify engine chainFill errors. Known permanent failures get specific reasons;
+ * unknown errors default to "unprocessable" (quarantine + move cursor forward).
+ * Halting on unknown errors would block all AH fills until ops intervene.
+ */
+export function reasonFromEngineError(error: string): AskFillQuarantineReason {
   if (/unknown listing/i.test(error)) return "unknown-listing";
   if (/self.?transfer|cannot send to self/i.test(error)) return "self-transfer";
   if (/not spawned/i.test(error)) return "not-spawned";
   if (/fill mismatch|does not match/i.test(error)) return "fill-mismatch";
   if (/over.?ask|pay more than the ask/i.test(error)) return "over-ask";
-  return null;
+  return "unprocessable";
 }
 
 export function alertAskFilledQuarantine(entry: QuarantinedAskFill): void {
