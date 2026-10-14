@@ -110,7 +110,10 @@ export const MAX_FILLS_PER_BUY_MESSAGE = 32;
 /** Successful fills applied before a quantity buy lets the event loop run. */
 export const BUY_FILL_BATCH = 8;
 
-/** An inbound the server recorded from custody. The game client cannot insert these. */
+/**
+ * An inbound the server recorded from custody. The game client cannot insert these.
+ * @deprecated depositKek is deprecated - no KekVault deployed on Gnosis. importItem reserved for ERC-1155.
+ */
 export type CustodyInbound =
   | { kind: "depositKek"; tokenId: string; nonce: string; amount: string }
   | { kind: "importItem"; tokenId: string; nonce: string; itemId: string; amount: string };
@@ -346,6 +349,7 @@ export class LokWorld {
    * Remember an inbound the server already saw in custody (a vault deposit or an item burn).
    * Does not credit the log. There is no chain watcher in this process; nothing here reads Robinhood.
    * Game-client messages must not call this.
+   * @deprecated depositKek is deprecated (no KekVault). importItem reserved for future ERC-1155.
    */
   noteCustodyInbound(inbound: CustodyInbound): void {
     this.custody.set(this.custodyKey(inbound.tokenId, inbound.nonce), inbound);
@@ -356,7 +360,10 @@ export class LokWorld {
     this.chainFills.set(inbound.fillKey, inbound);
   }
 
-  /** Log image of a vault deposit. Credits only a nonce this server already recorded. Never a mint. */
+  /**
+   * Log image of a vault deposit. Credits only a nonce this server already recorded. Never a mint.
+   * @deprecated No KekVault deployed on Gnosis. Deposit watcher disabled via refuseFundCustody.
+   */
   depositKek(tokenId: string, amount: string, nonce: string): LokResult {
     const key = this.custodyKey(tokenId, nonce);
     const noted = this.custody.get(key);
@@ -394,7 +401,10 @@ export class LokWorld {
     return this.apply({ op: "exportItem", tokenId, itemId, amount });
   }
 
-  /** Drop spendable KEK on this character's log. Escrowed bids are not spendable. No chain transaction. */
+  /**
+   * Drop spendable KEK on this character's log. Escrowed bids are not spendable. No chain transaction.
+   * @deprecated No KekVault deployed on Gnosis. Withdrawals disabled via refuseFundCustody.
+   */
   withdrawKek(tokenId: string, amount: string): LokResult {
     return this.apply({ op: "withdrawKek", tokenId, amount });
   }

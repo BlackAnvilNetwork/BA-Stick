@@ -193,7 +193,7 @@ import {
 } from "./auto-attack-traits";
 import { pickDotKillCredit } from "./dot-credit";
 import { pendingHitDtMul, physDtMul } from "./incoming-dt";
-import { loadLokEnv } from "./lok-chain";
+import { loadLokEnv } from "./lok-env";
 import { applySettlementDeployFile } from "./settlement-deploy";
 import {
   ahEscrowAddress,
