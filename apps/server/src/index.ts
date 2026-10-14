@@ -1242,13 +1242,31 @@ function handleLokList(
           if (pulled.ok && !("alreadyClosed" in pulled && pulled.alreadyClosed)) {
             lok.cancelAsk(listingId, token);
             clearListingOpened(listingId);
+            pushLog(
+              p,
+              "Character NFT owner changed while listing #" +
+                listingId +
+                ". The ask was cancelled.",
+            );
+          } else if (!pulled.ok) {
+            enqueuePendingCancel({ listingId, sellerTokenId: token });
+            pushLog(
+              p,
+              "Character NFT owner changed while listing #" +
+                listingId +
+                ", but on-chain cancel failed (" +
+                pulled.error +
+                "). Queued for the transfer-cancel watcher to retry.",
+            );
+          } else {
+            enqueuePendingCancel({ listingId, sellerTokenId: token });
+            pushLog(
+              p,
+              "Character NFT owner changed while listing #" +
+                listingId +
+                ". On-chain ask was already closed; queued for watcher classify/retry.",
+            );
           }
-          pushLog(
-            p,
-            "Character NFT owner changed while listing #" +
-              listingId +
-              ". The ask was cancelled.",
-          );
           send(p.ws, snapshotFor(p));
           return;
         }
