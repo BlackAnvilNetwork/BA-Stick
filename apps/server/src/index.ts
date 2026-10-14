@@ -3201,7 +3201,7 @@ function rewardMobKill(p: Player, mob: Mob, now: number) {
     if (!participants.has(id)) continue;
     const ally = players.get(id);
     if (!ally) continue;
-    if (dist(ally.x, ally.z, mob.x, mob.z) > PARTY_SHARE_RANGE && ally.targetId !== mob.id) continue;
+    if (dist(ally.x, ally.z, mob.x, mob.z) > PARTY_SHARE_RANGE) continue;
     shareRecipients.push(ally);
   }
   let killXp = 0;
