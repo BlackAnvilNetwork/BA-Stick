@@ -57,27 +57,31 @@ function persistMintNonces(): void {
 export function configureMintClaimNonceStore(path: string): void {
   mintNonceStorePath = path;
   if (!existsSync(path)) return;
+  let parsed: { nonces?: unknown };
   try {
-    const parsed = JSON.parse(readFileSync(path, "utf8")) as { nonces?: unknown };
-    if (!Array.isArray(parsed.nonces)) return;
-    const now = Date.now();
-    for (const n of parsed.nonces) {
-      if (typeof n === "string" && n.includes(":")) {
-        usedMintNonces.set(n, now);
-      } else if (
-        n &&
-        typeof n === "object" &&
-        typeof (n as { key?: unknown }).key === "string" &&
-        (n as { key: string }).key.includes(":") &&
-        typeof (n as { at?: unknown }).at === "number"
-      ) {
-        usedMintNonces.set((n as { key: string }).key, (n as { at: number }).at);
-      }
-    }
-    pruneMintNonces(now);
-  } catch {
-    /* ignore corrupt store */
+    parsed = JSON.parse(readFileSync(path, "utf8")) as { nonces?: unknown };
+  } catch (err) {
+    throw new Error(
+      `Corrupt mint-claim nonce store at ${path} — refusing to start with potentially lost nonce state. ` +
+        `Fix or remove the file manually. Parse error: ${err instanceof Error ? err.message : String(err)}`,
+    );
   }
+  if (!Array.isArray(parsed.nonces)) return;
+  const now = Date.now();
+  for (const n of parsed.nonces) {
+    if (typeof n === "string" && n.includes(":")) {
+      usedMintNonces.set(n, now);
+    } else if (
+      n &&
+      typeof n === "object" &&
+      typeof (n as { key?: unknown }).key === "string" &&
+      (n as { key: string }).key.includes(":") &&
+      typeof (n as { at?: unknown }).at === "number"
+    ) {
+      usedMintNonces.set((n as { key: string }).key, (n as { at: number }).at);
+    }
+  }
+  pruneMintNonces(now);
 }
 
 export function resetMintClaimNoncesForTests(): void {
