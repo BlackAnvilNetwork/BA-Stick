@@ -1,10 +1,15 @@
 /**
  * Settlement chain id for currency labels / AhEscrow client config.
- * Prefer eth_chainId from LOK_CHAIN_RPC (cached at boot); fall back to LOK_CHAIN_ID.
+ * Prefer eth_chainId from LOK_CHAIN_RPC (TTL-cached); fall back to LOK_CHAIN_ID.
+ * Hard-fail on mismatch when LOK_CHAIN_ID_STRICT is set.
  */
 import { settlementCurrency } from "@bellgrave/config";
 
+/** Cache TTL in milliseconds (default 5 minutes). */
+const CHAIN_ID_CACHE_TTL_MS = 5 * 60 * 1000;
+
 let cachedRpcChainId: number | null = null;
+let cacheExpiresAt = 0;
 
 export function envSettlementChainId(env: NodeJS.ProcessEnv = process.env): number {
   const raw = env.LOK_CHAIN_ID?.trim() || "31337";
@@ -13,22 +18,27 @@ export function envSettlementChainId(env: NodeJS.ProcessEnv = process.env): numb
   return Number.isSafeInteger(id) && id > 0 ? id : 31337;
 }
 
-/** Last RPC-resolved chain id, or null if never refreshed. */
+/** Last RPC-resolved chain id, or null if never refreshed / expired. */
 export function cachedSettlementChainId(): number | null {
+  if (Date.now() > cacheExpiresAt) return null;
   return cachedRpcChainId;
 }
 
 /** Test helper — clear / inject the RPC cache. */
-export function setCachedSettlementChainId(id: number | null): void {
+export function setCachedSettlementChainId(id: number | null, ttlMs = CHAIN_ID_CACHE_TTL_MS): void {
   cachedRpcChainId = id;
+  cacheExpiresAt = id !== null ? Date.now() + ttlMs : 0;
 }
 
 /**
- * Effective settlement chain: RPC cache when present, else LOK_CHAIN_ID / 31337.
+ * Effective settlement chain: RPC cache when present and valid, else LOK_CHAIN_ID / 31337.
  * Call `refreshSettlementChainIdFromRpc` at boot so labels match mint config.
  */
 export function settlementChainId(env: NodeJS.ProcessEnv = process.env): number {
-  return cachedRpcChainId ?? envSettlementChainId(env);
+  if (Date.now() <= cacheExpiresAt && cachedRpcChainId !== null) {
+    return cachedRpcChainId;
+  }
+  return envSettlementChainId(env);
 }
 
 export function settlementUnitSymbol(env: NodeJS.ProcessEnv = process.env): string {
@@ -56,7 +66,15 @@ async function ethChainId(rpc: string): Promise<number> {
   return id;
 }
 
-/** Resolve and cache chain id from LOK_CHAIN_RPC; fall back to LOK_CHAIN_ID. */
+function chainIdStrict(env: NodeJS.ProcessEnv): boolean {
+  const value = (env.LOK_CHAIN_ID_STRICT ?? "").trim().toLowerCase();
+  return value === "1" || value === "true" || value === "yes" || value === "on";
+}
+
+/**
+ * Resolve and TTL-cache chain id from LOK_CHAIN_RPC; fall back to LOK_CHAIN_ID.
+ * When LOK_CHAIN_ID_STRICT is set and RPC returns a different chain, throws.
+ */
 export async function refreshSettlementChainIdFromRpc(
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<number> {
@@ -66,17 +84,25 @@ export async function refreshSettlementChainIdFromRpc(
       const id = await ethChainId(rpc);
       const envId = envSettlementChainId(env);
       if (env.LOK_CHAIN_ID?.trim() && envId !== id) {
-        console.warn(
-          "[bellgrave] LOK_CHAIN_ID=" +
-            envId +
-            " differs from RPC eth_chainId=" +
-            id +
-            "; using RPC for currency labels",
-        );
+        const msg =
+          "LOK_CHAIN_ID=" +
+          envId +
+          " differs from RPC eth_chainId=" +
+          id;
+        if (chainIdStrict(env)) {
+          throw new Error(
+            "[bellgrave] FATAL: " +
+              msg +
+              ". Set LOK_CHAIN_ID_STRICT=0 to allow mismatch or fix the RPC endpoint.",
+          );
+        }
+        console.warn("[bellgrave] " + msg + "; using RPC for currency labels");
       }
       cachedRpcChainId = id;
+      cacheExpiresAt = Date.now() + CHAIN_ID_CACHE_TTL_MS;
       return id;
     } catch (err) {
+      if (err instanceof Error && err.message.includes("FATAL:")) throw err;
       console.warn(
         "[bellgrave] eth_chainId failed; currency labels fall back to LOK_CHAIN_ID:",
         err instanceof Error ? err.message : err,
@@ -84,5 +110,21 @@ export async function refreshSettlementChainIdFromRpc(
     }
   }
   cachedRpcChainId = null;
+  cacheExpiresAt = 0;
   return envSettlementChainId(env);
+}
+
+/**
+ * Periodically refresh the chain ID cache. Call this from a timer to keep the cache fresh.
+ * Returns the current chain ID or null if refresh failed.
+ */
+export async function maybeRefreshChainIdCache(
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<number | null> {
+  if (Date.now() <= cacheExpiresAt) return cachedRpcChainId;
+  try {
+    return await refreshSettlementChainIdFromRpc(env);
+  } catch {
+    return null;
+  }
 }
