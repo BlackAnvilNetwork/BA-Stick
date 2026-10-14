@@ -124,39 +124,6 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
     tokenId: z.number().int().positive(),
     amount: z.number().int().positive().max(1_000_000),
   }),
-  /**
-   * @deprecated KEK custody is deprecated. Server refuses via refuseFundCustody.
-   * `to` is a character id or log token. Kept for old client compatibility.
-   */
-  z.object({
-    type: z.literal("lok/sendKek"),
-    to: z.string().min(1).max(64),
-    amount: z.string().regex(/^[1-9][0-9]{0,18}$/),
-  }),
-  /**
-   * @deprecated KEK custody is deprecated. Server refuses via refuseFundCustody.
-   * Legacy client message. Kept for old client compatibility.
-   */
-  z.object({
-    type: z.literal("lok/withdrawKek"),
-    amount: z.string().regex(/^[1-9][0-9]{0,18}$/),
-  }),
-  /**
-   * @deprecated KEK custody is deprecated. Server refuses via refuseFundCustody.
-   * Legacy client message. Kept for old client compatibility.
-   */
-  z.object({
-    type: z.literal("lok/deposit"),
-    amount: z.string().regex(/^[1-9][0-9]{0,18}$/),
-  }),
-  /**
-   * @deprecated KEK custody is deprecated. Server refuses via refuseFundCustody.
-   * Legacy client message. Kept for old client compatibility.
-   */
-  z.object({
-    type: z.literal("lok/claimKek"),
-    id: z.string().regex(/^[1-9][0-9]{0,18}$/),
-  }),
   z.object({
     type: z.literal("lok/list"),
     tokenId: z.number().int().positive(),

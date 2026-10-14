@@ -1089,10 +1089,6 @@ function handleLokSendItem(p: Player, to: string, tokenId: number, amount: numbe
   });
 }
 
-/** @deprecated KEK custody disabled. Refuses all requests. Kept for old client compatibility. */
-function handleLokSendKek(p: Player, _to: string, _amount: string) {
-  refuseFundCustody(p, "Send ETH");
-}
 
 function failAction(p: Player, label: string): void {
   console.error("[bellgrave] " + label + " failed");
@@ -1157,20 +1153,6 @@ function refuseFundCustody(p: Player, action: string) {
   send(p.ws, snapshotFor(p));
 }
 
-/** @deprecated KEK custody disabled. Refuses all requests. Kept for old client compatibility. */
-function handleLokDeposit(p: Player, _amount: string) {
-  refuseFundCustody(p, "Deposit");
-}
-
-/** @deprecated KEK custody disabled. Refuses all requests. Kept for old client compatibility. */
-function handleLokWithdrawKek(p: Player, _amount: string) {
-  refuseFundCustody(p, "Withdrawal");
-}
-
-/** @deprecated KEK custody disabled. Refuses all requests. Kept for old client compatibility. */
-function handleLokClaim(p: Player, _id: string) {
-  refuseFundCustody(p, "Claim");
-}
 
 function handleLokList(
   p: Player,
@@ -4979,12 +4961,32 @@ function adoptOrphanLogs(wallet: string, ws: WebSocket) {
   walletToPlayer.delete(owner);
 }
 
+const UNSUPPORTED_KEK_MESSAGES = new Set([
+  "lok/sendKek",
+  "lok/withdrawKek",
+  "lok/deposit",
+  "lok/claimKek",
+]);
+
 function onMessage(ws: WebSocket, data: string) {
   let json: unknown;
   try {
     json = JSON.parse(data);
   } catch {
     send(ws, { type: "error", message: "Invalid JSON" });
+    return;
+  }
+  if (
+    json &&
+    typeof json === "object" &&
+    "type" in json &&
+    typeof json.type === "string" &&
+    UNSUPPORTED_KEK_MESSAGES.has(json.type)
+  ) {
+    send(ws, {
+      type: "error",
+      message: "Unsupported: KEK custody is deprecated. Use on-chain payments via AhEscrow.",
+    });
     return;
   }
   const msg = parseClientMessage(json);
@@ -5502,18 +5504,6 @@ function onMessage(ws: WebSocket, data: string) {
       break;
     case "lok/sendItem":
       handleLokSendItem(p, msg.to, msg.tokenId, msg.amount);
-      break;
-    case "lok/sendKek":
-      handleLokSendKek(p, msg.to, msg.amount);
-      break;
-    case "lok/withdrawKek":
-      handleLokWithdrawKek(p, msg.amount);
-      break;
-    case "lok/deposit":
-      handleLokDeposit(p, msg.amount);
-      break;
-    case "lok/claimKek":
-      handleLokClaim(p, msg.id);
       break;
     case "lok/list":
       handleLokList(p, msg.tokenId, msg.amount, msg.minPrice, msg.sellerPayout);
