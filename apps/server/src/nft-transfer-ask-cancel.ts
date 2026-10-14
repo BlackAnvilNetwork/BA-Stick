@@ -464,8 +464,15 @@ export async function cancelOpenAsksForCharacter(
   const cancel =
     opts?.cancelOnchain ??
     (async (listingId: string) => {
-      if (!ahEscrowAddress(env) || !listingRoleKey(env)) {
+      const escrow = ahEscrowAddress(env);
+      if (!escrow) {
         return { ok: true as const, neverOpened: true };
+      }
+      if (!listingRoleKey(env)) {
+        return {
+          ok: false as const,
+          error: "AhEscrow is configured but LOK_LISTING_KEY is missing — cannot cancel on-chain",
+        };
       }
       return cancelAskOnchain({ listingId, env });
     });
