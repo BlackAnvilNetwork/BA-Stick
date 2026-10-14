@@ -22,6 +22,7 @@ import {
   dropAuthConnection,
   isLoopbackIp,
   issueAuthChallenge,
+  normalizeIp,
   resolveAuthOrigin,
   verifyAuthLogin,
 } from "./wallet-auth";
@@ -480,4 +481,30 @@ test("a missing or foreign Origin is rejected on upgrade", async () => {
     connectionId: "siwe",
   });
   assert.equal(rejected.ok, false);
+});
+
+test("normalizeIp canonicalizes IPv4 and IPv6 to prevent rate-limit bypass", () => {
+  // IPv4 with leading zeros
+  assert.equal(normalizeIp("192.168.001.001"), "192.168.1.1");
+  assert.equal(normalizeIp("010.000.000.001"), "10.0.0.1");
+  assert.equal(normalizeIp("127.0.0.1"), "127.0.0.1");
+
+  // IPv4-mapped IPv6 with leading zeros
+  assert.equal(normalizeIp("::ffff:192.168.001.001"), "192.168.1.1");
+  assert.equal(normalizeIp("::ffff:127.0.0.1"), "127.0.0.1");
+
+  // IPv6 expanded vs compressed
+  assert.equal(normalizeIp("2001:0db8:0000:0000:0000:0000:0000:0001"), "2001:db8::1");
+  assert.equal(normalizeIp("2001:db8::1"), "2001:db8::1");
+  assert.equal(normalizeIp("0000:0000:0000:0000:0000:0000:0000:0001"), "::1");
+  assert.equal(normalizeIp("::1"), "::1");
+  assert.equal(normalizeIp("fe80:0000:0000:0000:0000:0000:0000:0001"), "fe80::1");
+
+  // :: for all zeros
+  assert.equal(normalizeIp("0000:0000:0000:0000:0000:0000:0000:0000"), "::");
+  assert.equal(normalizeIp("::"), "::");
+
+  // Ensure different forms normalize to the same value
+  assert.equal(normalizeIp("203.0.113.1"), normalizeIp("203.000.113.001"));
+  assert.equal(normalizeIp("2001:db8::1"), normalizeIp("2001:0db8:0000:0000:0000:0000:0000:0001"));
 });
