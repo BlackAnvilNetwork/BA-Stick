@@ -2,6 +2,7 @@
  * Tests for mainnet self-audit fixes (PR #212 @ a88c275): C-1, H-1, H-2, M-1..M-7, lows.
  */
 import assert from "node:assert/strict";
+import { randomBytes } from "node:crypto";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -505,5 +506,64 @@ describe("M-4 SIWE message branding", () => {
     assert.match(msg, /Chain ID: 100/);
     assert.doesNotMatch(msg, /bellgrave:\/\/local/);
     assert.doesNotMatch(msg, /Chain ID: 31337/);
+  });
+});
+
+describe("#240 character ID collision fix", () => {
+  it("randomBytes(6) produces 48 bits of entropy — no collisions in 10k samples", () => {
+    const ids = new Set<string>();
+    const now = Date.now();
+    for (let i = 0; i < 10_000; i++) {
+      const charId = `c_${now.toString(36)}_${randomBytes(6).toString("hex")}`;
+      assert.ok(!ids.has(charId), `collision on iteration ${i}: ${charId}`);
+      ids.add(charId);
+    }
+    assert.equal(ids.size, 10_000);
+  });
+
+  it("character ID format matches expected pattern", () => {
+    const charId = `c_${Date.now().toString(36)}_${randomBytes(6).toString("hex")}`;
+    assert.match(charId, /^c_[0-9a-z]+_[0-9a-f]{12}$/);
+  });
+});
+
+describe("LOK_OPS_STATUS_TOKEN required on all production chains", () => {
+  it("requires LOK_OPS_STATUS_TOKEN on Chiado (chainId 10200) without NETWORK name", () => {
+    const r = assertProductionEnvShape({
+      LOK_CHAIN_ID: "10200",
+      LOK_NFT: "0x" + "11".repeat(20),
+      LOK_FACTORY: "0x" + "22".repeat(20),
+      LOK_AH_ESCROW: "0x" + "33".repeat(20),
+      LOK_CHAIN_RPC: "https://rpc.chiado.gnosis.gateway.fm",
+      LOK_LISTING_KEY: "0x" + "44".repeat(32),
+    });
+    assert.equal(r.ok, false);
+    if (!r.ok) assert.match(r.error, /LOK_OPS_STATUS_TOKEN/);
+  });
+
+  it("requires LOK_OPS_STATUS_TOKEN on Gnosis (chainId 100) without NETWORK name", () => {
+    const r = assertProductionEnvShape({
+      LOK_CHAIN_ID: "100",
+      LOK_NFT: "0x" + "11".repeat(20),
+      LOK_FACTORY: "0x" + "22".repeat(20),
+      LOK_AH_ESCROW: "0x" + "33".repeat(20),
+      LOK_CHAIN_RPC: "https://rpc.gnosischain.com",
+      LOK_LISTING_KEY: "0x" + "44".repeat(32),
+    });
+    assert.equal(r.ok, false);
+    if (!r.ok) assert.match(r.error, /LOK_OPS_STATUS_TOKEN/);
+  });
+
+  it("passes when LOK_OPS_STATUS_TOKEN is set on production chain", () => {
+    const r = assertProductionEnvShape({
+      LOK_CHAIN_ID: "10200",
+      LOK_NFT: "0x" + "11".repeat(20),
+      LOK_FACTORY: "0x" + "22".repeat(20),
+      LOK_AH_ESCROW: "0x" + "33".repeat(20),
+      LOK_CHAIN_RPC: "https://rpc.chiado.gnosis.gateway.fm",
+      LOK_LISTING_KEY: "0x" + "44".repeat(32),
+      LOK_OPS_STATUS_TOKEN: "test-token",
+    });
+    assert.equal(r.ok, true);
   });
 });

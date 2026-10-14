@@ -2908,7 +2908,7 @@ function createPlayer(
     }
   }
   const vitals = combinedJobVitals(job, 1, null);
-  const charId = existingCharId ?? `c_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+  const charId = existingCharId ?? `c_${Date.now().toString(36)}_${randomBytes(6).toString("hex")}`;
   const p: Player = {
     wallet,
     charId,
@@ -5240,7 +5240,7 @@ function onMessage(ws: WebSocket, data: string) {
           bindWallet = holder;
         }
       }
-      const charId = `c_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+      const charId = `c_${Date.now().toString(36)}_${randomBytes(6).toString("hex")}`;
       const claimed = lok.claimName(charId, named.name, bindWallet);
       if (!claimed.ok) {
         send(ws, { type: "error", message: claimed.error });
