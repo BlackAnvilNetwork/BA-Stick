@@ -1700,22 +1700,30 @@ function handleLokSettle(p: Player, listingId: string) {
     pushLog(p, "A wallet is required to settle a listing.");
     return;
   }
+  const row = lok.listingOf(listingId);
+  if (!row) {
+    pushLog(p, "Unknown listing #" + listingId + ".");
+    return;
+  }
+  if (row.seller !== token && row.highBidder !== token) {
+    pushLog(p, "Only the seller or high bidder can settle a listing.");
+    return;
+  }
   void sessionOwnsCharacter(p.wallet, token, { preferLive: true }).then((owned) => {
     if (!owned.ok) {
       pushLog(p, owned.error);
       return;
     }
-    const row = lok.view(token).listings.find((l) => l.id === listingId);
     const res = lok.settle(listingId);
     if (!res.ok) {
       pushLog(p, res.error);
       return;
     }
     pushLog(p, "Settled listing #" + listingId + ".");
-    if (row?.highBidder) {
+    if (row.highBidder) {
       tellToken(
         row.highBidder,
-        "You won listing #" + listingId + " (" + itemLabel(row.itemId) + " x" + row.amount + ").",
+        "You won listing #" + listingId + " (" + itemLabel(Number(row.itemId)) + " x" + row.amount + ").",
       );
       if (row.seller !== token) {
         tellToken(row.seller, "Listing #" + listingId + " settled for " + row.highBid + " (legacy bid).");
