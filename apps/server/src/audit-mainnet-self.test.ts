@@ -432,6 +432,25 @@ describe("H-2 / M-7 production boot + dry-run denylist", () => {
       dryRunDeployAllowed({ LOK_ALLOW_DRY_RUN_DEPLOY: "1", LOK_DRY_RUN_INSPECT: "1" }),
       true,
     );
+    assert.equal(
+      dryRunDeployAllowed({ LOK_ALLOW_DRY_RUN_DEPLOY: "1", NETWORK: "anvil" }),
+      true,
+    );
+    assert.equal(
+      dryRunDeployAllowed({ LOK_ALLOW_DRY_RUN_DEPLOY: "1", NETWORK: "anvil", LOK_CHAIN_ID: "100" }),
+      false,
+      "NETWORK=anvil + LOK_CHAIN_ID=100 bypass (#266)",
+    );
+    assert.equal(
+      dryRunDeployAllowed({ LOK_ALLOW_DRY_RUN_DEPLOY: "1", NETWORK: "anvil", LOK_CHAIN_ID: "10200" }),
+      false,
+      "NETWORK=anvil + LOK_CHAIN_ID=10200 bypass (#266)",
+    );
+    assert.equal(
+      dryRunDeployAllowed({ LOK_ALLOW_DRY_RUN_DEPLOY: "1", NETWORK: "gnosis" }),
+      false,
+      "NETWORK=gnosis must refuse",
+    );
     assert.deepEqual(
       findDryRunEnvHits({ LOK_NFT: GNOSIS_DRY_RUN_ADDRESSES.CharacterNFT }).map((h) => h.key),
       ["LOK_NFT"],

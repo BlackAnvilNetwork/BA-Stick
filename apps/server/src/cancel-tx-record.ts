@@ -32,13 +32,18 @@ export class CancelTxRecordStore {
       this.cancels = {};
       return;
     }
+    const raw = readFileSync(this.path, "utf8");
+    let parsed: FileShape;
     try {
-      const parsed = JSON.parse(readFileSync(this.path, "utf8")) as FileShape;
-      this.cancels =
-        parsed.cancels && typeof parsed.cancels === "object" ? parsed.cancels : {};
-    } catch {
-      this.cancels = {};
+      parsed = JSON.parse(raw) as FileShape;
+    } catch (err) {
+      throw new Error(
+        `Corrupt cancel-ask-txs.json at ${this.path} — refusing to start with potentially lost cancel state. ` +
+          `Fix or remove the file manually. Parse error: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
+    this.cancels =
+      parsed.cancels && typeof parsed.cancels === "object" ? parsed.cancels : {};
   }
 
   private persist(): void {

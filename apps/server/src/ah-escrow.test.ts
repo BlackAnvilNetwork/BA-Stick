@@ -101,10 +101,11 @@ describe("AhEscrow AskFilled mirror", () => {
     );
   });
 
-  it("classifyAskFilledFailure treats unknown listing as quarantine", () => {
+  it("classifyAskFilledFailure treats all non-replay errors as quarantine", () => {
     assert.equal(classifyAskFilledFailure("unknown listing"), "quarantine");
     assert.equal(classifyAskFilledFailure("buyer would pay more than the ask"), "quarantine");
-    assert.equal(classifyAskFilledFailure("rpc timeout"), "other");
+    assert.equal(classifyAskFilledFailure("rpc timeout"), "quarantine");
+    assert.equal(classifyAskFilledFailure("some random engine error"), "quarantine");
   });
 
   it("ahEscrowClientConfig needs address + http rpc + chain id", async () => {

@@ -35,13 +35,18 @@ export class OpenAskPendingStore {
       this.pending = {};
       return;
     }
+    const raw = readFileSync(this.path, "utf8");
+    let parsed: FileShape;
     try {
-      const parsed = JSON.parse(readFileSync(this.path, "utf8")) as FileShape;
-      this.pending =
-        parsed.pending && typeof parsed.pending === "object" ? parsed.pending : {};
-    } catch {
-      this.pending = {};
+      parsed = JSON.parse(raw) as FileShape;
+    } catch (err) {
+      throw new Error(
+        `Corrupt open-ask-pending.json at ${this.path} — refusing to start with potentially lost pending state. ` +
+          `Fix or remove the file manually. Parse error: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
+    this.pending =
+      parsed.pending && typeof parsed.pending === "object" ? parsed.pending : {};
   }
 
   private persist(): void {

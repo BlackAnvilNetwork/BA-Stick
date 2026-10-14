@@ -40,14 +40,18 @@ export function findDryRunEnvHits(env: NodeJS.ProcessEnv = process.env): DryRunD
   return hits;
 }
 
+import { envSettlementChainId } from "./settlement-chain";
+
 /**
- * True when dry-run addresses are allowed (explicit opt-in AND not production gnosis
- * without the inspection flag). Production NETWORK=gnosis never allows denylist hits.
+ * True when dry-run addresses are allowed (explicit opt-in AND not production
+ * without the inspection flag). Production chains (Gnosis 100 / Chiado 10200)
+ * never allow denylist hits regardless of NETWORK name.
  */
 export function dryRunDeployAllowed(env: NodeJS.ProcessEnv = process.env): boolean {
   if (env.LOK_ALLOW_DRY_RUN_DEPLOY?.trim() !== "1") return false;
+  const chainId = envSettlementChainId(env);
+  if (chainId === 100 || chainId === 10200) return false;
   const named = (env.NETWORK ?? env.LOK_NETWORK)?.trim().toLowerCase();
-  // Opt-in inspection only — never when claiming production gnosis profile without
-  // also setting a non-production marker. Require explicit LOK_DRY_RUN_INSPECT=1.
+  if (named === "gnosis" || named === "chiado") return false;
   return env.LOK_DRY_RUN_INSPECT?.trim() === "1" || named === "anvil";
 }

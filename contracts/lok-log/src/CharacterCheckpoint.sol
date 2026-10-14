@@ -210,6 +210,13 @@ contract CharacterCheckpoint is
         emit ItemsSet(i);
     }
 
+    /**
+     * @notice DEPRECATED — DO NOT CALL on Gnosis mainnet.
+     * @dev KEK vault custody is deprecated. The game runs on Gnosis/xDAI native value via AhEscrow.
+     *      vault MUST stay address(0) so that depositKek, reassignKek, sinkKek all revert NotConfigured.
+     *      Calling setVault would enable session-signer theft vulnerabilities (see #253, #254).
+     *      This function exists only to preserve upgrade compatibility; it must never be invoked.
+     */
     function setVault(address v) external onlyRole(DEFAULT_ADMIN_ROLE) {
         vault = IKekVault(v);
         emit VaultSet(v);
@@ -357,8 +364,13 @@ contract CharacterCheckpoint is
         emit ItemImportRequested(tokenId, nonce, itemId, amount, msg.sender);
     }
 
-    /// Deposit KEK into the vault; the engine credits the character's in-game KEK counter when the log applies the
-    /// event carrying this nonce. Approve the VAULT (not this contract) first. Shares the inbound queue with item imports.
+    /**
+     * @notice DEPRECATED — reverts NotConfigured on Gnosis (vault == address(0)).
+     * @dev Deposit KEK into the vault; the engine credits the character's in-game KEK counter when the log applies the
+     *      event carrying this nonce. Approve the VAULT (not this contract) first. Shares the inbound queue with item imports.
+     *      KEK vault custody is deprecated; this function is unreachable while vault stays unset.
+     *      Kept for upgrade compatibility only. See CONTRACTS.md "Superseded (KEK vault / deposit era)".
+     */
     function depositKek(uint256 tokenId, uint256 amount) external whenNotPaused nonReentrant {
         if (address(vault) == address(0)) revert NotConfigured();
         address player = nft.ownerOf(tokenId);
@@ -373,7 +385,12 @@ contract CharacterCheckpoint is
         emit KekDepositRequested(tokenId, nonce, amount, msg.sender);
     }
 
-    /// Move vault credit after the log moves KEK to another character. Cannot redirect the payout.
+    /**
+     * @notice DEPRECATED — reverts NotConfigured on Gnosis (vault == address(0)).
+     * @dev Move vault credit after the log moves KEK to another character. Cannot redirect the payout.
+     *      KEK vault custody is deprecated; this function is unreachable while vault stays unset.
+     *      Kept for upgrade compatibility only. See CONTRACTS.md "Superseded (KEK vault / deposit era)".
+     */
     function reassignKek(uint256 fromId, uint256 toId, uint256 amount) external whenNotPaused {
         if (address(vault) == address(0)) revert NotConfigured();
         address player = nft.ownerOf(fromId);
@@ -382,7 +399,12 @@ contract CharacterCheckpoint is
         vault.reassign(fromId, toId, amount);
     }
 
-    /// Burn KEK the character already spent in game so it is not left withdrawable.
+    /**
+     * @notice DEPRECATED — reverts NotConfigured on Gnosis (vault == address(0)).
+     * @dev Burn KEK the character already spent in game so it is not left withdrawable.
+     *      KEK vault custody is deprecated; this function is unreachable while vault stays unset.
+     *      Kept for upgrade compatibility only. See CONTRACTS.md "Superseded (KEK vault / deposit era)".
+     */
     function sinkKek(uint256 tokenId, uint256 amount) external whenNotPaused {
         if (address(vault) == address(0)) revert NotConfigured();
         address player = nft.ownerOf(tokenId);

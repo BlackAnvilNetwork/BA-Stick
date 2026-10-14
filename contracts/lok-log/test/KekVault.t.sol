@@ -1,6 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+/**
+ * @notice DEPRECATED — KekVault is not deployed on Gnosis mainnet.
+ * @dev Tests for the deprecated KekVault contract. The game runs on Gnosis/xDAI native value
+ *      via AhEscrow, not a KEK token vault. This contract and its tests are retained for
+ *      reference and potential future use but are not part of the production deployment.
+ *      See CONTRACTS.md "Superseded (KEK vault / deposit era)".
+ */
+
 import {Test} from "forge-std/Test.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";

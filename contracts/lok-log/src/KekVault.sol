@@ -1,6 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+/**
+ * @notice DEPRECATED — Not deployed on Gnosis mainnet.
+ * @dev The game runs on Gnosis/xDAI native value via AhEscrow, not a KEK token vault.
+ *      This contract is retained for reference and potential future use but is not part of
+ *      the production deployment. See CONTRACTS.md "Superseded (KEK vault / deposit era)".
+ *      CharacterCheckpoint.setVault() must never be called to keep vault == address(0),
+ *      ensuring depositKek/reassignKek/sinkKek all revert NotConfigured.
+ */
+
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";

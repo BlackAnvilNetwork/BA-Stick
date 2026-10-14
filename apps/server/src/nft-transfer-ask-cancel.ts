@@ -153,21 +153,26 @@ function parsePendingRow(row: unknown): PendingCancel | null {
 
 export function readPendingCancels(path: string): PendingCancel[] {
   if (!existsSync(path)) return [];
+  const text = readFileSync(path, "utf8");
+  let raw: { pending?: unknown[] };
   try {
-    const raw = JSON.parse(readFileSync(path, "utf8")) as { pending?: unknown[] };
-    if (!Array.isArray(raw.pending)) return [];
-    const out: PendingCancel[] = [];
-    const seen = new Set<string>();
-    for (const row of raw.pending) {
-      const parsed = parsePendingRow(row);
-      if (!parsed || seen.has(parsed.listingId)) continue;
-      seen.add(parsed.listingId);
-      out.push(parsed);
-    }
-    return out;
-  } catch {
-    return [];
+    raw = JSON.parse(text) as { pending?: unknown[] };
+  } catch (err) {
+    throw new Error(
+      `Corrupt nft-transfer-pending-cancels.json at ${path} — refusing to start with potentially lost pending state. ` +
+        `Fix or remove the file manually. Parse error: ${err instanceof Error ? err.message : String(err)}`,
+    );
   }
+  if (!Array.isArray(raw.pending)) return [];
+  const out: PendingCancel[] = [];
+  const seen = new Set<string>();
+  for (const row of raw.pending) {
+    const parsed = parsePendingRow(row);
+    if (!parsed || seen.has(parsed.listingId)) continue;
+    seen.add(parsed.listingId);
+    out.push(parsed);
+  }
+  return out;
 }
 
 function normalizePendingRow(row: PendingCancel): PendingCancel {
@@ -459,8 +464,15 @@ export async function cancelOpenAsksForCharacter(
   const cancel =
     opts?.cancelOnchain ??
     (async (listingId: string) => {
-      if (!ahEscrowAddress(env) || !listingRoleKey(env)) {
+      const escrow = ahEscrowAddress(env);
+      if (!escrow) {
         return { ok: true as const, neverOpened: true };
+      }
+      if (!listingRoleKey(env)) {
+        return {
+          ok: false as const,
+          error: "AhEscrow is configured but LOK_LISTING_KEY is missing — cannot cancel on-chain",
+        };
       }
       return cancelAskOnchain({ listingId, env });
     });
