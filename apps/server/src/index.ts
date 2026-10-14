@@ -4570,6 +4570,18 @@ function mobSwing(mob: Mob, now: number) {
 }
 
 function tickSim() {
+  lok.beginTick();
+  try {
+    tickSimBody();
+  } finally {
+    const flushed = lok.endTick();
+    if (!flushed.ok) {
+      for (const err of flushed.errors) console.error("[lok] tick ledger: " + err);
+    }
+  }
+}
+
+function tickSimBody() {
   tick += 1;
   const now = Date.now();
   const dt = TICK_MS / 1000;

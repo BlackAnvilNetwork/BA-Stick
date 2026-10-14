@@ -1,12 +1,16 @@
 import {
   appendFileSync,
+  closeSync,
   copyFileSync,
   existsSync,
+  fsyncSync,
   mkdirSync,
+  openSync,
   readFileSync,
   renameSync,
   truncateSync,
   writeFileSync,
+  writeSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -16,6 +20,7 @@ import { characterNameKey, normalizeCharacterName } from "./character-name";
 import { acquireDataDirLock } from "./data-dir-lock";
 import { exploreDocument, type LokExplorePage } from "./lok-explore";
 import { defaultWasmPath, loadLokExports, lokCall, lokOut, type LokExports } from "./lok-engine";
+import { TickCoalesce, type CoalescedEvent } from "./log-coalesce";
 
 /**
  * Craft skill-validation cutoff (global world seq) for this network.
@@ -232,6 +237,16 @@ export function collectChainFillKeys(logText: string): Set<string> {
  * Deposit credits KEK the caller already holds in custody. It does not mint.
  * WithdrawKek decreases spendable KEK and does not submit an onchain withdrawal.
  */
+function coalescedCmd(row: CoalescedEvent): Record<string, unknown> {
+  if (row.op === "harvest") {
+    return { op: "harvest", tokenId: row.tokenId, materialId: row.materialId, amount: row.amount };
+  }
+  if (row.op === "lootDrop") {
+    return { op: "lootDrop", tokenId: row.tokenId, itemId: row.itemId, amount: row.amount };
+  }
+  return { op: "goldEarn", tokenId: row.tokenId, source: row.source, amount: row.amount, day: row.day };
+}
+
 export class LokWorld {
   readonly logPath: string;
   readonly journalPath: string;
@@ -250,6 +265,13 @@ export class LokWorld {
   private journalBytes = 0;
   /** Accepted events since the snapshot on disk was rewritten. */
   private sinceSnapshot = 0;
+  /** Open game tick. Journal lines stay in memory until endTick fsyncs once. */
+  private journalHold = false;
+  private journalPending: Buffer[] = [];
+  private coalesce: TickCoalesce | null = null;
+  /** Snapshot is due, but the tick must return before the full rewrite. */
+  private snapshotDeferred = false;
+  private snapshotQueued = false;
   /** Live document for the explorer. Cleared when an event is appended. */
   private cachedDoc: string | null = null;
   length = 0;
@@ -419,6 +441,9 @@ export class LokWorld {
 
   /** Credit in-game gold. `day` is a server-stamped day id (engine enforces caps). */
   goldEarn(tokenId: string, source: string, amount: string, day: number): LokResult {
+    if (this.coalesce) {
+      return this.coalesce.add({ op: "goldEarn", tokenId, source, amount, day });
+    }
     return this.apply({ op: "goldEarn", tokenId, source, amount, day });
   }
 
@@ -449,6 +474,9 @@ export class LokWorld {
 
   /** Record a successful gather. Does not credit spendable items or KEK. */
   harvest(tokenId: string, materialId: string, amount: string): LokResult {
+    if (this.coalesce) {
+      return this.coalesce.add({ op: "harvest", tokenId, materialId, amount });
+    }
     return this.apply({ op: "harvest", tokenId, materialId, amount });
   }
 
@@ -459,7 +487,37 @@ export class LokWorld {
 
   /** Loot drop counter. Like harvest: records the drop without minting spendable items. */
   lootDrop(tokenId: string, itemId: string, amount: string): LokResult {
+    if (this.coalesce) {
+      return this.coalesce.add({ op: "lootDrop", tokenId, itemId, amount });
+    }
     return this.apply({ op: "lootDrop", tokenId, itemId, amount });
+  }
+
+  /**
+   * Open a sim tick. Harvest, LootDrop, and GoldEarn queue and merge.
+   * Other events still apply immediately, but their journal lines wait for
+   * endTick so the tick fsyncs once.
+   */
+  beginTick(): void {
+    if (this.journalHold) throw new Error("lok tick is already open");
+    this.journalHold = true;
+    this.coalesce = new TickCoalesce();
+  }
+
+  /** Apply the merged rows, then one journal fsync for the whole tick. */
+  endTick(): { ok: true } | { ok: false; errors: string[] } {
+    const queued = this.coalesce?.drain() ?? [];
+    this.coalesce = null;
+    const errors: string[] = [];
+    for (const row of queued) {
+      const res = this.apply(coalescedCmd(row));
+      if (!res.ok) errors.push(row.op + " " + row.tokenId + ": " + res.error);
+    }
+    this.journalHold = false;
+    const deferSnapshot = this.snapshotDeferred;
+    this.snapshotDeferred = false;
+    this.flushJournal(deferSnapshot);
+    return errors.length > 0 ? { ok: false, errors } : { ok: true };
   }
 
   /** Explicit bag import. Credits this stack without a chain inbound nonce. */
@@ -1178,10 +1236,50 @@ export class LokWorld {
     this.cachedDoc = null;
     const line = JSON.stringify({ seq: this.length, cmd }) + "\n";
     const bytes = Buffer.from(line, "utf8");
-    appendFileSync(this.journalPath, bytes);
+    this.journalPending.push(bytes);
     this.journalBytes += bytes.length;
     this.sinceSnapshot++;
-    if (this.sinceSnapshot >= LOG_SNAPSHOT_EVERY) this.snapshotLog();
+    if (this.journalHold) {
+      if (this.sinceSnapshot >= LOG_SNAPSHOT_EVERY) this.snapshotDeferred = true;
+      return;
+    }
+    this.flushJournal(false);
+  }
+
+  /**
+   * Write every buffered journal line and fsync once.
+   * A tick asks for a background snapshot so the rewrite does not block the sim.
+   */
+  private flushJournal(backgroundSnapshot: boolean) {
+    if (this.journalPending.length > 0) {
+      const payload = Buffer.concat(this.journalPending);
+      this.journalPending = [];
+      const fd = openSync(this.journalPath, "a");
+      try {
+        let off = 0;
+        while (off < payload.length) {
+          const wrote = writeSync(fd, payload, off, payload.length - off);
+          if (wrote <= 0) throw new Error("lok journal write stalled");
+          off += wrote;
+        }
+        fsyncSync(fd);
+      } finally {
+        closeSync(fd);
+      }
+    }
+    if (this.sinceSnapshot < LOG_SNAPSHOT_EVERY) return;
+    if (backgroundSnapshot) this.scheduleSnapshot();
+    else this.snapshotLog();
+  }
+
+  /** Full snapshot rewrite off the tick path. */
+  private scheduleSnapshot() {
+    if (this.snapshotQueued) return;
+    this.snapshotQueued = true;
+    setImmediate(() => {
+      this.snapshotQueued = false;
+      if (this.sinceSnapshot >= LOG_SNAPSHOT_EVERY) this.snapshotLog();
+    });
   }
 
   /**
