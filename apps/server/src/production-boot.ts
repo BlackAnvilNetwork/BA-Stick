@@ -60,7 +60,7 @@ export function assertProductionEnvShape(env: NodeJS.ProcessEnv = process.env): 
   if (!escrow) missing.push("LOK_AH_ESCROW");
   if (!rpc) missing.push("LOK_CHAIN_RPC");
   if (!listingKey) missing.push("LOK_LISTING_KEY");
-  if (!statusToken && (env.NETWORK ?? "").toLowerCase() === "gnosis") {
+  if (!statusToken) {
     missing.push("LOK_OPS_STATUS_TOKEN");
   }
   if (missing.length) {
