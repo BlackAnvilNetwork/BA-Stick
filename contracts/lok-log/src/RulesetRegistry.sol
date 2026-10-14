@@ -30,6 +30,11 @@ contract RulesetRegistry is Initializable, AccessControlUpgradeable, UUPSUpgrade
     mapping(bytes32 => Ruleset) public rulesets;
     /// @notice Timelock (or similar) that alone may authorize UUPS upgrades. When unset, DEFAULT_ADMIN may upgrade (anvil).
     address public upgradeAuthority;
+    /// @notice Hashes passed to `propose`, in order. A new proposal retires every earlier hash at its own `activatesAt`.
+    bytes32[] public proposedRulesets;
+
+    /// @dev Reserved for later upgrades. Shrink this gap when appending state. Do not reorder earlier variables.
+    uint256[49] private __gap;
 
     event RulesetProposed(bytes32 indexed rulesetHash, uint64 activatesAt, string uri, bool emergency);
     event RulesetCancelled(bytes32 indexed rulesetHash);
@@ -93,6 +98,18 @@ contract RulesetRegistry is Initializable, AccessControlUpgradeable, UUPSUpgrade
         uint64 at = uint64(block.timestamp) + delay;
         if (at == 0) revert BadTime();
         rulesets[rulesetHash] = Ruleset(at, 0, false, uri);
+        // Supersede: every earlier ruleset stops being accepted when this one activates.
+        // Pull an existing retirement forward when the new activation is sooner.
+        uint256 n = proposedRulesets.length;
+        for (uint256 i; i < n; ++i) {
+            bytes32 prev = proposedRulesets[i];
+            Ruleset storage old = rulesets[prev];
+            if (old.retiresAt == 0 || old.retiresAt > at) {
+                old.retiresAt = at;
+                emit RulesetRetirement(prev, at);
+            }
+        }
+        proposedRulesets.push(rulesetHash);
         emit RulesetProposed(rulesetHash, at, uri, emergency);
     }
 

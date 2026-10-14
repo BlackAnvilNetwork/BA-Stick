@@ -78,12 +78,75 @@ contract AhEscrowTest is Test {
         _open(LISTING, PRICE);
         (, uint256 net) = escrow.quoteFee(PRICE);
 
-        uint256 beforeProxy = proxy.balance;
-        vm.prank(proxy);
+        uint256 beforeBuyer = buyer.balance;
+        vm.prank(buyer);
         escrow.buyAsk{value: PRICE + 0.01 ether}(LISTING, BUYER_TOKEN);
 
         assertEq(seller.balance, net);
+        assertEq(buyer.balance, beforeBuyer - PRICE);
+    }
+
+    function test_buyAsk_rejectsCallerWhoDoesNotOwnBuyerToken() public {
+        _open(LISTING, PRICE);
+        vm.prank(proxy);
+        vm.expectRevert(AhEscrow.NotOwner.selector);
+        escrow.buyAsk{value: PRICE}(LISTING, BUYER_TOKEN);
+    }
+
+    function test_buyAskFor_paysWhenOwnerSignsRelayer() public {
+        (, uint256 pk) = makeAddrAndKey("signedBuyer");
+        nft.setOwner(BUYER_TOKEN, vm.addr(pk));
+        _open(LISTING, PRICE);
+        uint256 deadline = block.timestamp + 1 hours;
+        bytes memory sig = _buyAskForSig(pk, LISTING, BUYER_TOKEN, proxy, deadline);
+        (, uint256 net) = escrow.quoteFee(PRICE);
+        uint256 beforeProxy = proxy.balance;
+
+        vm.prank(proxy);
+        escrow.buyAskFor{value: PRICE + 0.01 ether}(LISTING, BUYER_TOKEN, deadline, sig);
+
+        assertEq(seller.balance, net);
         assertEq(proxy.balance, beforeProxy - PRICE);
+        (,,,, bool open,) = escrow.asks(LISTING);
+        assertFalse(open);
+    }
+
+    function test_buyAskFor_rejectsWrongRelayer_andExpired() public {
+        (, uint256 pk) = makeAddrAndKey("signedBuyer");
+        nft.setOwner(BUYER_TOKEN, vm.addr(pk));
+        _open(LISTING, PRICE);
+        uint256 deadline = block.timestamp + 1 hours;
+        bytes memory sig = _buyAskForSig(pk, LISTING, BUYER_TOKEN, proxy, deadline);
+
+        vm.prank(buyer);
+        vm.expectRevert(AhEscrow.BadSignature.selector);
+        escrow.buyAskFor{value: PRICE}(LISTING, BUYER_TOKEN, deadline, sig);
+
+        vm.warp(deadline + 1);
+        vm.prank(proxy);
+        vm.expectRevert(AhEscrow.Expired.selector);
+        escrow.buyAskFor{value: PRICE}(LISTING, BUYER_TOKEN, deadline, sig);
+    }
+
+    function _buyAskForSig(uint256 pk, uint256 listingId, uint256 buyerTokenId, address relayer, uint256 deadline)
+        internal
+        view
+        returns (bytes memory)
+    {
+        bytes32 structHash =
+            keccak256(abi.encode(escrow.BUY_ASK_FOR_TYPEHASH(), listingId, buyerTokenId, relayer, deadline));
+        bytes32 domain = keccak256(
+            abi.encode(
+                keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
+                keccak256("AhEscrow"),
+                keccak256("1"),
+                block.chainid,
+                address(escrow)
+            )
+        );
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", domain, structHash));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(pk, digest);
+        return abi.encodePacked(r, s, v);
     }
 
     function test_buyAsk_rejectsShortValue() public {

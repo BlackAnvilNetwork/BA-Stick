@@ -58,9 +58,10 @@ contract AhEscrowSupportTest is Test {
         escrow.openAsk(LISTING, SELLER_TOKEN, ITEM + 1, 5, 1 wei);
     }
 
-    /// buyAsk rejects the seller's own character token as buyer.
+    /// buyAsk rejects the seller's own character token as buyer, even when the caller owns it.
     function test_buyAskRejectsSellerTokenAsBuyer() public {
         _open(LISTING, PRICE);
+        nft.setOwner(SELLER_TOKEN, buyer);
         vm.prank(buyer);
         vm.expectRevert(AhEscrow.BadId.selector);
         escrow.buyAsk{value: PRICE}(LISTING, SELLER_TOKEN);

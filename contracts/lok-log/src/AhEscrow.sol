@@ -2,6 +2,8 @@
 pragma solidity ^0.8.24;
 
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 
 /// @dev Minimal NFT ownership read used at fill time (CharacterNFT).
 interface ICharacterOwnerOf {
@@ -25,11 +27,19 @@ interface ICharacterOwnerOf {
 ///         cannot be reopened (`used` flag). Buyers cannot name the seller's
 ///         character token as the recipient. Owner change cancels open listings
 ///         off-chain (app watcher); fill still pays whoever owns the NFT then.
-///         GUARDIAN_ROLE can pause openAsk/buyAsk; DEFAULT_ADMIN_ROLE unpauses.
-contract AhEscrow is Pausable {
+///         Direct buys (`buyAsk`) require `msg.sender == ownerOf(buyerTokenId)`.
+///         Relayed / EEZ buys use `buyAskFor` with an EIP-712 signature from that owner
+///         authorizing this caller as the relayer.
+///         GUARDIAN_ROLE can pause openAsk/buyAsk/buyAskFor; DEFAULT_ADMIN_ROLE unpauses.
+///         Not upgradeable — a behavior change is a new deployment.
+contract AhEscrow is Pausable, EIP712 {
     bytes32 public constant LISTING_ROLE = keccak256("LISTING_ROLE");
     bytes32 public constant GUARDIAN_ROLE = keccak256("GUARDIAN_ROLE");
     bytes32 public constant DEFAULT_ADMIN_ROLE = 0x00;
+
+    /// @notice EIP-712 payload authorizing `relayer` to fill `listingId` into `buyerTokenId` until `deadline`.
+    bytes32 public constant BUY_ASK_FOR_TYPEHASH =
+        keccak256("BuyAskFor(uint256 listingId,uint256 buyerTokenId,address relayer,uint256 deadline)");
 
     /// @notice 1% of sale price (fee = price * FEE_BPS / BPS_DENOM, floor).
     uint256 public constant FEE_BPS = 100;
@@ -82,6 +92,9 @@ contract AhEscrow is Pausable {
     error TransferFailed();
     error Unauthorized();
     error Reentrant();
+    error NotOwner();
+    error BadSignature();
+    error Expired();
 
     modifier onlyRole(bytes32 role) {
         if (!_roles[role][msg.sender]) revert Unauthorized();
@@ -98,7 +111,7 @@ contract AhEscrow is Pausable {
     /// @param admin Temporary admin (Deploy hands over to multisig). Also receives GUARDIAN_ROLE.
     /// @param nft_ Character NFT whose `ownerOf` receives sale proceeds at fill.
     /// @param feeRecipient_ Multisig/admin treasury for the 1% fee.
-    constructor(address admin, address nft_, address payable feeRecipient_) {
+    constructor(address admin, address nft_, address payable feeRecipient_) EIP712("AhEscrow", "1") {
         if (admin == address(0) || nft_ == address(0) || feeRecipient_ == address(0)) revert BadAddress();
         characterNft = ICharacterOwnerOf(nft_);
         feeRecipient = feeRecipient_;
@@ -200,19 +213,42 @@ contract AhEscrow is Pausable {
         emit AskCancelled(listingId);
     }
 
-    /// @notice Pay the ask in native ETH. Excess `msg.value` is refunded to `msg.sender`
-    ///         (important for EEZ proxies that may overshoot). Does not credit the log.
+    /// @notice Pay the ask in native ETH. Excess `msg.value` is refunded to `msg.sender`.
+    ///         Does not credit the log.
     /// @param listingId Engine ask id already opened on-chain.
     /// @param buyerTokenId Character that will receive the stack on the log after `AskFilled`.
-    ///        Must not be the seller's character token.
+    ///        Caller must own this token (`ownerOf(buyerTokenId) == msg.sender`).
     function buyAsk(uint256 listingId, uint256 buyerTokenId) external payable nonReentrant whenNotPaused {
         if (buyerTokenId == 0) revert BadId();
+        // L-4: buyerTokenId must exist (ownerOf reverts for unminted ids).
+        if (characterNft.ownerOf(buyerTokenId) != msg.sender) revert NotOwner();
+        _fill(listingId, buyerTokenId);
+    }
+
+    /// @notice Relayed fill. `ownerSignature` is an EIP-712 `BuyAskFor` from `ownerOf(buyerTokenId)`
+    ///         naming `msg.sender` as the relayer (EEZ proxy / MockEezSyncBuy). Excess refunds to the relayer.
+    function buyAskFor(uint256 listingId, uint256 buyerTokenId, uint256 deadline, bytes calldata ownerSignature)
+        external
+        payable
+        nonReentrant
+        whenNotPaused
+    {
+        if (buyerTokenId == 0) revert BadId();
+        if (block.timestamp > deadline) revert Expired();
+        address owner = characterNft.ownerOf(buyerTokenId);
+        bytes32 digest = _hashTypedDataV4(
+            keccak256(abi.encode(BUY_ASK_FOR_TYPEHASH, listingId, buyerTokenId, msg.sender, deadline))
+        );
+        (address signer, ECDSA.RecoverError err,) = ECDSA.tryRecover(digest, ownerSignature);
+        if (err != ECDSA.RecoverError.NoError || signer != owner) revert BadSignature();
+        _fill(listingId, buyerTokenId);
+    }
+
+    function _fill(uint256 listingId, uint256 buyerTokenId) private {
         Ask storage ask = asks[listingId];
         if (!ask.open) revert AskClosed();
         if (buyerTokenId == ask.sellerTokenId) revert BadId();
         if (msg.value < ask.priceWei) revert WrongPrice();
-        // L-4: buyerTokenId must exist (ownerOf reverts for unminted ids).
-        characterNft.ownerOf(buyerTokenId);
 
         uint256 price = ask.priceWei;
         uint256 itemId = ask.itemId;

@@ -80,6 +80,8 @@ const MOCK_ABI = [
     inputs: [
       { name: "listingId", type: "uint256" },
       { name: "buyerTokenId", type: "uint256" },
+      { name: "deadline", type: "uint256" },
+      { name: "ownerSignature", type: "bytes" },
     ],
     outputs: [],
   },
@@ -199,14 +201,28 @@ describe("support 8357719: EEZ mock sync buy (throwaway anvil)", { skip: !canRun
       const before = await bal();
       let status = "reverted";
       let gas = 0n;
+      const deadline = BigInt(Math.floor(Date.now() / 1000) + 3600);
+      const ownerSignature = await buyer.signTypedData({
+        domain: { name: "AhEscrow", version: "1", chainId: 31337, verifyingContract: ESCROW },
+        types: {
+          BuyAskFor: [
+            { name: "listingId", type: "uint256" },
+            { name: "buyerTokenId", type: "uint256" },
+            { name: "relayer", type: "address" },
+            { name: "deadline", type: "uint256" },
+          ],
+        },
+        primaryType: "BuyAskFor",
+        message: { listingId: id, buyerTokenId: BigInt(b.tokenId), relayer: MOCK, deadline },
+      });
       try {
         const hash = await bw.writeContract({
           address: MOCK,
           abi: MOCK_ABI,
           functionName: "syncBuy",
-          args: [id, BigInt(b.tokenId)],
+          args: [id, BigInt(b.tokenId), deadline, ownerSignature],
           value,
-          gas: 300_000n,
+          gas: 400_000n,
         });
         const rc = await pub.waitForTransactionReceipt({ hash });
         status = rc.status;

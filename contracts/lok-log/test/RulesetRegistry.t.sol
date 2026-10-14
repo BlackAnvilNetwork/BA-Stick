@@ -121,6 +121,44 @@ contract RulesetRegistryTest is Test {
         reg.retire(V1, uint64(block.timestamp + 1));
     }
 
+    function test_propose_retiresPreviousWhenNewOneActivates() public {
+        vm.prank(emergency);
+        reg.propose(V1, 0, "v1");
+        assertTrue(reg.isAccepted(V1));
+
+        vm.prank(proposer);
+        reg.propose(V2, 48 hours, "v2");
+        assertTrue(reg.isAccepted(V1), "previous stays live until the new ruleset activates");
+        assertFalse(reg.isAccepted(V2));
+
+        vm.warp(block.timestamp + 48 hours);
+        assertFalse(reg.isAccepted(V1));
+        assertTrue(reg.isAccepted(V2));
+    }
+
+    function test_propose_emergencySupersedesLiveAndPending() public {
+        vm.prank(proposer);
+        reg.propose(V1, 48 hours, "v1");
+        vm.warp(block.timestamp + 48 hours);
+        assertTrue(reg.isAccepted(V1));
+
+        bytes32 v2 = keccak256("v2-pending");
+        vm.prank(proposer);
+        reg.propose(v2, 48 hours, "v2");
+        assertTrue(reg.isAccepted(V1));
+
+        bytes32 v3 = keccak256("v3-now");
+        vm.prank(emergency);
+        reg.propose(v3, 0, "v3");
+        assertTrue(reg.isAccepted(v3));
+        assertFalse(reg.isAccepted(V1));
+        assertFalse(reg.isAccepted(v2));
+
+        vm.warp(block.timestamp + 49 hours);
+        assertFalse(reg.isAccepted(v2), "pending ruleset never becomes accepted after a sooner supersede");
+        assertTrue(reg.isAccepted(v3));
+    }
+
     function test_unknownIsNeverAccepted() public view {
         assertFalse(reg.isAccepted(V1));
         assertFalse(reg.isAccepted(bytes32(0)));

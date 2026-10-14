@@ -114,7 +114,12 @@ contract CharacterFactoryTest is Base {
 
         vm.prank(other);
         vm.expectRevert();
+        factory.setMintFee(1);
+
+        vm.prank(admin);
+        vm.expectRevert(CharacterFactory.ZeroFee.selector);
         factory.setMintFee(0);
+        assertEq(factory.mintFee(), 0.01 ether);
     }
 
     function test_withdraw() public {
