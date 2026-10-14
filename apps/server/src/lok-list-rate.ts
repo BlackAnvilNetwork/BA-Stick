@@ -101,8 +101,11 @@ export function listingMinLifetimeOk(
   now = Date.now(),
   minMs = MIN_LISTING_LIFETIME_MS,
 ): { ok: true } | { ok: false; error: string; waitMs: number } {
-  const opened = listingOpenedAt.get(listingId);
-  if (opened == null) return { ok: true }; // legacy / unknown — allow (watcher-driven cancels)
+  let opened = listingOpenedAt.get(listingId);
+  if (opened == null) {
+    opened = now;
+    listingOpenedAt.set(listingId, now);
+  }
   const elapsed = now - opened;
   if (elapsed >= minMs) return { ok: true };
   const waitMs = minMs - elapsed;
