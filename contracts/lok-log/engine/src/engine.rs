@@ -3,7 +3,7 @@
 use std::fmt;
 
 use crate::chain::Chain;
-use crate::event::{craft_skill_validated_at, entry_hash, item_drop_credits_at, Input, Outcome};
+use crate::event::{craft_skill_validated_at, entry_hash, Input, Outcome};
 use crate::gold::{self, GoldError};
 use crate::ids::genesis_root;
 use crate::state::{label_key, Key, State};
@@ -67,9 +67,7 @@ pub enum EngineError {
     InsufficientInbox,
     /// The ask was recorded without a server timestamp.
     BadClock,
-    /// A new ItemDrop append must not credit an arbitrary item onto the log, and neither may a
-    /// logged ItemDrop past `HISTORICAL_ITEM_DROP_MAX_SEQ`. Earlier logged ItemDrop entries still
-    /// replay as the credit they were. New loot is `LootDrop`.
+    /// `ItemDrop` does not credit items, on a new append or on replay. Mob loot is `LootDrop`.
     ClosedMint,
     /// A fill priced above the selected ask. The buyer pays the ask.
     OverAsk,
@@ -179,9 +177,8 @@ impl Engine {
         self.apply_with(input, None)
     }
 
-    /// Re-apply an entry that is already on a log, at its global `seq`. It applies exactly as it
-    /// did when it was written, so an `ItemDrop` at `seq <= HISTORICAL_ITEM_DROP_MAX_SEQ` still
-    /// credits spendable items. A later `ItemDrop` is refused (`ClosedMint`).
+    /// Re-apply an entry that is already on a log, at its global `seq`. An `ItemDrop` is refused
+    /// (`ClosedMint`) at every seq.
     pub fn replay_logged(&mut self, input: Input, seq: u64) -> Result<Outcome, EngineError> {
         self.apply_with(input, Some(seq))
     }
@@ -250,11 +247,6 @@ impl Engine {
                 self.note_craft(*token_id, *item_id, *amount, logged)
             }
             Input::Harvest { token_id, material_id, amount } => self.note_harvest(*token_id, material_id, *amount),
-            // Historical entries keep their original meaning (credit). New appends, and any
-            // logged ItemDrop past HISTORICAL_ITEM_DROP_MAX_SEQ, are closed.
-            Input::ItemDrop { token_id, item_id, amount } if logged.is_some_and(item_drop_credits_at) => {
-                self.drop_item(*token_id, *item_id, *amount)
-            }
             Input::ItemDrop { .. } => Err(EngineError::ClosedMint),
             Input::LootDrop { token_id, item_id, amount } => self.note_drop(*token_id, *item_id, *amount),
             Input::CraftSkill { token_id, skill_id, level } => self.note_craft_skill(*token_id, skill_id, *level),
@@ -390,14 +382,6 @@ impl Engine {
             self.state.clear_ability(label_key(id));
         }
         Ok(())
-    }
-
-    /// Historical ItemDrop: the credit it applied when it was written. Only reached on replay.
-    fn drop_item(&mut self, token_id: U256, item_id: U256, amount: U256) -> Result<(), EngineError> {
-        if item_id == U256::ZERO {
-            return Err(EngineError::BadId);
-        }
-        self.credit_item(token_id, item_id, amount)
     }
 
     /// Check the nonce, apply the credit, then record it. A failed credit does not consume the nonce.

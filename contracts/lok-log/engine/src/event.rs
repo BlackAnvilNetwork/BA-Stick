@@ -10,14 +10,10 @@ use crate::u256::U256;
 /// (`apps/server/data/lok-world.json.bak-pre-aacc7c8-20261005-151212`: 175 entries, seq 0..=174,
 /// 32 `ItemDrop` entries, the last at seq 72).
 ///
-/// A logged `ItemDrop` at or below this seq replays as the item credit it was when written.
-/// An `ItemDrop` above it is refused with `ClosedMint` even on the replay path, so an entry added
-/// later with a valid hash chain cannot mint items. New appends are refused at any seq; mob loot
-/// is `LootDrop`. Never raise this value.
-///
-/// `seq` is replay order and is not part of the entry hash. This bound stops new and later
-/// `ItemDrop` entries; it does not authenticate a log rebuilt from genesis. Committed
-/// `logHash` / `stateRoot` checkpoints do that.
+/// That log is not replayed. `seq` is not part of the entry hash, so a low seq cannot
+/// be trusted to mean "this ItemDrop was one of those 32". Every `ItemDrop` is
+/// `ClosedMint` on append and on replay. Mob loot is `LootDrop`. Clear a log that
+/// still contains `ItemDrop`.
 pub const HISTORICAL_ITEM_DROP_MAX_SEQ: u64 = 174;
 
 /// Legacy Black Anvil / local anvil world: crafts logged below this global seq
@@ -42,11 +38,6 @@ pub fn set_craft_validate_min_seq(min_seq: u64) {
 /// Current craft-validation cutoff (global world seq).
 pub fn craft_validate_min_seq() -> u64 {
     CRAFT_VALIDATE_MIN_SEQ.load(Ordering::SeqCst)
-}
-
-/// True when a logged `ItemDrop` at `seq` keeps its historical meaning (credit).
-pub fn item_drop_credits_at(seq: u64) -> bool {
-    seq <= HISTORICAL_ITEM_DROP_MAX_SEQ
 }
 
 /// True when craft recipe/skill checks run for this apply.
@@ -90,10 +81,8 @@ pub enum Input {
     Craft { token_id: U256, item_id: U256, amount: U256 },
     /// A successful gather. Counts the material. Does not credit spendable items or KEK.
     Harvest { token_id: U256, material_id: String, amount: U256 },
-    /// Historical loot credit. Entries already on a log at `seq <= HISTORICAL_ITEM_DROP_MAX_SEQ`
-    /// replay exactly as they were written: they credit spendable items (not KEK). Any later
-    /// `ItemDrop`, and every new append, is refused with `ClosedMint`; mob loot is `LootDrop`.
-    /// Do not reinterpret committed entries.
+    /// Closed mint. Refused on append and on replay (`ClosedMint`). A low `seq` does not
+    /// credit items. Mob loot is `LootDrop`.
     ItemDrop { token_id: U256, item_id: U256, amount: U256 },
     /// Loot drop counter. Like Harvest: records the drop, does not credit spendable items or KEK.
     LootDrop { token_id: U256, item_id: U256, amount: U256 },

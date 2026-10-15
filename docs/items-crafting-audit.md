@@ -27,5 +27,5 @@ Applied from the Black Anvil crafting audit + 103-row stat CSV, plus support-rev
 
 ## Replay
 
-- Pre-#206 `ItemDrop` fixtures still credit under `HISTORICAL_ITEM_DROP_MAX_SEQ`.
+- Pre-#206 `ItemDrop` fixtures are refused. `ItemDrop` is `ClosedMint` at every seq.
 - Ruleset hash is derived as `keccak256(utf8(LOCAL_RULESET_WASM_SHA256))` (`0x609dbdea…`). **Proposed on Gnosis** (tx `0x42ff771b…`, block 48729492, activatesAt 1792037555) — see `deployments/gnosis.json` on #221. Do not bump the pin without a new propose.
