@@ -2,7 +2,8 @@
  * Persisted watcher cursors with chainId + contract address binding.
  * A cursor from another chain or deploy is ignored so we fall back to LOK_DEPLOY_BLOCK.
  */
-import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { durableWrite } from "./durable-write";
 
 export type WatcherCursorFile = {
   cursor: string;
@@ -71,7 +72,5 @@ export function writeWatcherCursor(opts: {
     chainId: opts.chainId,
     address: opts.address.toLowerCase(),
   };
-  const tmp = opts.path + ".tmp";
-  writeFileSync(tmp, JSON.stringify(body, null, 2) + "\n");
-  renameSync(tmp, opts.path);
+  durableWrite(opts.path, JSON.stringify(body, null, 2) + "\n");
 }

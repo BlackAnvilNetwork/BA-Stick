@@ -6,8 +6,9 @@
  * verify and consumed only after a successful spawn (so a post-pay create failure
  * can retry). Optionally persisted under the lok data dir.
  */
-import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { normalizeCharacterName } from "@bellgrave/config";
+import { durableWrite } from "./durable-write";
 import { verifyMessage } from "viem";
 
 export type MintClaim = {
@@ -47,10 +48,8 @@ function pruneMintNonces(nowMs: number = Date.now()): void {
 function persistMintNonces(): void {
   if (!mintNonceStorePath) return;
   pruneMintNonces();
-  const tmp = mintNonceStorePath + ".tmp";
   const nonces = [...usedMintNonces.entries()].map(([key, at]) => ({ key, at }));
-  writeFileSync(tmp, JSON.stringify({ nonces }));
-  renameSync(tmp, mintNonceStorePath);
+  durableWrite(mintNonceStorePath, JSON.stringify({ nonces }));
 }
 
 /** Load / attach an on-disk nonce store (boot). Safe to call more than once. */

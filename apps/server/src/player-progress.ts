@@ -1,5 +1,6 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { durableWrite } from "./durable-write";
 import { withPlayerCharge } from "./gold-guard";
 
 export type SavedStack = { tokenId: number; amount: number; starter?: boolean };
@@ -56,10 +57,7 @@ export function playerProgressPath(dataDir: string, charId: string): string {
 }
 
 function atomicWrite(path: string, text: string): void {
-  mkdirSync(join(path, ".."), { recursive: true });
-  const tmp = path + ".tmp";
-  writeFileSync(tmp, text);
-  renameSync(tmp, path);
+  durableWrite(path, text);
 }
 
 function isStack(value: unknown): value is SavedStack {
