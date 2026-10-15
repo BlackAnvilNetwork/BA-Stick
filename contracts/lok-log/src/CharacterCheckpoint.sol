@@ -84,10 +84,14 @@ contract CharacterCheckpoint is
     bool public importsEnabled;
     /// @notice When false (default), checkpoint `exports` minting reverts. Keep off until export policy is live.
     bool public exportsEnabled;
-    /// @notice Soft cap on exports per checkpoint root span (0 = uncapped when exports are enabled).
+    /// @notice Max export lines in one checkpoint. Zero is unset, not unlimited.
     uint256 public maxExportsPerCheckpoint;
     /// @notice Timelock (or similar) that alone may authorize UUPS upgrades. When unset, DEFAULT_ADMIN may upgrade (anvil).
     address public upgradeAuthority;
+    /// @notice Max units on one export line. Zero is unset, not unlimited.
+    uint32 public maxAmountPerExport;
+    /// @notice Max units minted by one checkpoint, summed across lines. Zero is unset, not unlimited.
+    uint256 public maxExportUnitsPerCheckpoint;
 
     struct Export {
         uint256 itemId;
@@ -134,6 +138,8 @@ contract CharacterCheckpoint is
     event ImportsEnabledSet(bool enabled);
     event ExportsEnabledSet(bool enabled);
     event MaxExportsPerCheckpointSet(uint256 maxExports);
+    event MaxAmountPerExportSet(uint32 maxAmount);
+    event MaxExportUnitsPerCheckpointSet(uint256 maxUnits);
     event UpgradeAuthoritySet(address indexed authority);
 
     // ----------------------------------------------------------------- errors
@@ -152,6 +158,8 @@ contract CharacterCheckpoint is
     error NotConfigured();
     error ImportsDisabled();
     error ExportsDisabled();
+    /// @notice Exports cannot turn on, and a non-empty export list is rejected, until the count, per-line amount, and total-units caps are all non-zero.
+    error ExportCapsUnset();
     error UnauthorizedUpgrade();
     error UpgradeAuthorityAlreadySet();
     error ZeroAddress();
@@ -207,6 +215,7 @@ contract CharacterCheckpoint is
     }
 
     function setExportsEnabled(bool enabled) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (enabled && !_exportCapsSet()) revert ExportCapsUnset();
         exportsEnabled = enabled;
         emit ExportsEnabledSet(enabled);
     }
@@ -214,6 +223,20 @@ contract CharacterCheckpoint is
     function setMaxExportsPerCheckpoint(uint256 maxExports) external onlyRole(DEFAULT_ADMIN_ROLE) {
         maxExportsPerCheckpoint = maxExports;
         emit MaxExportsPerCheckpointSet(maxExports);
+    }
+
+    function setMaxAmountPerExport(uint32 maxAmount) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        maxAmountPerExport = maxAmount;
+        emit MaxAmountPerExportSet(maxAmount);
+    }
+
+    function setMaxExportUnitsPerCheckpoint(uint256 maxUnits) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        maxExportUnitsPerCheckpoint = maxUnits;
+        emit MaxExportUnitsPerCheckpointSet(maxUnits);
+    }
+
+    function _exportCapsSet() internal view returns (bool) {
+        return maxExportsPerCheckpoint != 0 && maxAmountPerExport != 0 && maxExportUnitsPerCheckpoint != 0;
     }
 
     // ------------------------------------------- signer registry + guardian (unchanged from CharacterState)
@@ -309,10 +332,14 @@ contract CharacterCheckpoint is
             // Exports mint ERC-1155 unbound to a separate root registry — keep disabled by default.
             if (!exportsEnabled) revert ExportsDisabled();
             if (address(items) == address(0)) revert NotConfigured();
-            if (maxExportsPerCheckpoint != 0 && n > maxExportsPerCheckpoint) revert BadExport();
+            if (!_exportCapsSet()) revert ExportCapsUnset();
+            if (n > maxExportsPerCheckpoint) revert BadExport();
+            uint256 units;
             for (uint256 i; i < n; ++i) {
                 Export calldata e = c.exports[i];
-                if (e.amount == 0) revert BadExport();
+                if (e.amount == 0 || e.amount > maxAmountPerExport) revert BadExport();
+                units += e.amount;
+                if (units > maxExportUnitsPerCheckpoint) revert BadExport();
                 items.mint(player, e.itemId, e.amount);
                 emit ItemExported(tokenId, e.itemId, e.amount, player);
             }
