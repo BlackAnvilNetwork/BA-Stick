@@ -137,4 +137,24 @@ contract CharacterFactoryTest is Base {
     function test_tokenURI() public view {
         assertEq(nft.tokenURI(tokenId), string.concat("ipfs://x/", vm.toString(tokenId)));
     }
+
+    function test_initialize_rejectsZeroAddress() public {
+        CharacterFactory impl = new CharacterFactory();
+        vm.expectRevert(CharacterFactory.ZeroAddress.selector);
+        new ERC1967Proxy(
+            address(impl), abi.encodeCall(CharacterFactory.initialize, (address(0), address(nft), address(cp), 0.001 ether))
+        );
+        vm.expectRevert(CharacterFactory.ZeroAddress.selector);
+        new ERC1967Proxy(
+            address(impl), abi.encodeCall(CharacterFactory.initialize, (admin, address(0), address(cp), 0.001 ether))
+        );
+        vm.expectRevert(CharacterFactory.ZeroAddress.selector);
+        new ERC1967Proxy(
+            address(impl), abi.encodeCall(CharacterFactory.initialize, (admin, address(nft), address(0), 0.001 ether))
+        );
+
+        CharacterNFT nftImpl = new CharacterNFT();
+        vm.expectRevert(CharacterNFT.ZeroAddress.selector);
+        new ERC1967Proxy(address(nftImpl), abi.encodeCall(CharacterNFT.initialize, (address(0), "C", "C", "")));
+    }
 }

@@ -191,6 +191,68 @@ contract RulesetRegistryTest is Test {
         new ERC1967Proxy(address(impl), abi.encodeCall(RulesetRegistry.initialize, (admin, 0)));
     }
 
+    function test_initialize_rejectsZeroAdmin() public {
+        RulesetRegistry impl = new RulesetRegistry();
+        vm.expectRevert(RulesetRegistry.ZeroAddress.selector);
+        new ERC1967Proxy(address(impl), abi.encodeCall(RulesetRegistry.initialize, (address(0), 48 hours)));
+    }
+
+    function test_cancel_clearsTheHashSoItCanBeProposedAgain() public {
+        vm.prank(proposer);
+        reg.propose(V1, 48 hours, "x");
+        vm.prank(admin);
+        reg.cancel(V1);
+
+        (uint64 at, uint64 retires, bool cancelled, string memory uri) = reg.rulesets(V1);
+        assertEq(at, 0);
+        assertEq(retires, 0);
+        assertFalse(cancelled);
+        assertEq(uri, "");
+        assertFalse(reg.isAccepted(V1));
+        vm.expectRevert();
+        reg.proposedRulesets(0);
+
+        vm.prank(proposer);
+        reg.propose(V2, 48 hours, "v2");
+        (at, retires,,) = reg.rulesets(V1);
+        assertEq(at, 0);
+        assertEq(retires, 0);
+
+        vm.prank(proposer);
+        reg.propose(V1, 48 hours, "again");
+        assertEq(reg.proposedRulesets(0), V2);
+        assertEq(reg.proposedRulesets(1), V1);
+
+        vm.warp(block.timestamp + 48 hours);
+        assertTrue(reg.isAccepted(V1));
+        assertFalse(reg.isAccepted(V2));
+    }
+
+    function test_cancel_keepsEarlierRulesetOrder() public {
+        vm.prank(emergency);
+        reg.propose(V1, 0, "v1");
+        vm.prank(proposer);
+        reg.propose(V2, 48 hours, "v2");
+        vm.prank(admin);
+        reg.cancel(V2);
+        assertTrue(reg.isAccepted(V1));
+        assertEq(reg.proposedRulesets(0), V1);
+        (uint64 at,,,) = reg.rulesets(V2);
+        assertEq(at, 0);
+    }
+
+    function test_cancel_leavesARetirementItAlreadyScheduled() public {
+        vm.prank(emergency);
+        reg.propose(V1, 0, "v1");
+        vm.prank(proposer);
+        reg.propose(V2, 48 hours, "v2");
+        vm.prank(admin);
+        reg.cancel(V2);
+        vm.warp(block.timestamp + 48 hours);
+        assertFalse(reg.isAccepted(V1));
+        assertFalse(reg.isAccepted(V2));
+    }
+
     function test_upgrade_adminOnly_andPreservesState() public {
         vm.prank(proposer);
         reg.propose(V1, 48 hours, "x");

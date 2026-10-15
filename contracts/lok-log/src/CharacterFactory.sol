@@ -59,6 +59,7 @@ contract CharacterFactory is Initializable, AccessControlUpgradeable, PausableUp
     }
 
     function initialize(address admin, address nft_, address state_, uint256 mintFee_) external initializer {
+        if (admin == address(0) || nft_ == address(0) || state_ == address(0)) revert ZeroAddress();
         __AccessControl_init();
         __Pausable_init();
         __UUPSUpgradeable_init();

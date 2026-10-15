@@ -40,6 +40,7 @@ contract CharacterNFT is Initializable, ERC721Upgradeable, AccessControlUpgradea
         external
         initializer
     {
+        if (admin == address(0)) revert ZeroAddress();
         __ERC721_init(name_, symbol_);
         __AccessControl_init();
         __UUPSUpgradeable_init();

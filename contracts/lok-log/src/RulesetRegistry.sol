@@ -58,6 +58,7 @@ contract RulesetRegistry is Initializable, AccessControlUpgradeable, UUPSUpgrade
     }
 
     function initialize(address admin, uint64 minDelay_) external initializer {
+        if (admin == address(0)) revert ZeroAddress();
         __AccessControl_init();
         __UUPSUpgradeable_init();
         _grantRole(DEFAULT_ADMIN_ROLE, admin); // multisig
@@ -114,11 +115,24 @@ contract RulesetRegistry is Initializable, AccessControlUpgradeable, UUPSUpgrade
     }
 
     /// Cancel a proposal that has not activated yet.
+    /// Clears the slot and drops the hash from `proposedRulesets`, so the same hash can be proposed again
+    /// and a later proposal does not write `retiresAt` onto an empty slot.
+    /// A retirement this proposal already wrote on an earlier ruleset stays. `propose` does not record the
+    /// previous `retiresAt`, so cancel cannot put it back.
     function cancel(bytes32 rulesetHash) external onlyRole(DEFAULT_ADMIN_ROLE) {
         Ruleset storage r = rulesets[rulesetHash];
         if (r.activatesAt == 0) revert UnknownRuleset();
         if (block.timestamp >= r.activatesAt) revert AlreadyActive();
-        r.cancelled = true;
+        delete rulesets[rulesetHash];
+        uint256 n = proposedRulesets.length;
+        for (uint256 i; i < n; ++i) {
+            if (proposedRulesets[i] != rulesetHash) continue;
+            for (uint256 j = i + 1; j < n; ++j) {
+                proposedRulesets[j - 1] = proposedRulesets[j];
+            }
+            proposedRulesets.pop();
+            break;
+        }
         emit RulesetCancelled(rulesetHash);
     }
 
