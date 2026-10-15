@@ -474,6 +474,19 @@ fn a_mid_log_checkpoint_reads_the_stored_projection() {
     assert_eq!(loaded_tail.new_root, loaded_live.root());
 }
 
+#[test]
+fn a_rebase_keeps_the_ruleset_hash_stamped_on_checkpoints() {
+    let mut world = World::new();
+    world.append_spawn(n(1), 3).unwrap();
+    assert_eq!(world.checkpoint_span(&n(1), 1).unwrap().ruleset_hash, [0u8; 32]);
+    let hash = [0x11u8; 32];
+    world.set_ruleset_hash(hash);
+    world.rebase(n(1)).unwrap();
+    let draft = world.checkpoint_span(&n(1), world.character_len(&n(1)).unwrap()).unwrap();
+    assert_eq!(draft.ruleset_hash, hash);
+    assert_eq!(world.ruleset_hash(), hash);
+}
+
 fn expected_ore(w: &World) -> U256 {
     let mut seen = std::collections::BTreeSet::new();
     let mut inn = U256::ZERO;

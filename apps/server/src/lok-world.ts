@@ -19,6 +19,7 @@ import { acquireDataDirLock } from "./data-dir-lock";
 import { durableWrite } from "./durable-write";
 import { exploreDocument, type LokExplorePage } from "./lok-explore";
 import { defaultWasmPath, loadLokExports, lokCall, lokOut, type LokExports } from "./lok-engine";
+import { LOCAL_RULESET_HASH } from "./lok-vault";
 import { TickCoalesce, type CoalescedEvent } from "./log-coalesce";
 
 /**
@@ -289,6 +290,20 @@ export class LokWorld {
     const opened = lokCall(this.exp, text, (ptr, len) => this.exp.lok_open(ptr, len));
     if (opened.rc !== 0) {
       throw new Error("lok log refused to open: " + opened.out);
+    }
+    const stamped = lokCall(
+      this.exp,
+      JSON.stringify({ op: "setRuleset", rulesetHash: LOCAL_RULESET_HASH }),
+      (ptr, len) => this.exp.lok_apply(ptr, len),
+    );
+    let stampedBody: { ok?: boolean; error?: string } = {};
+    try {
+      stampedBody = JSON.parse(stamped.out);
+    } catch {
+      stampedBody = {};
+    }
+    if (stamped.rc !== 0 || !stampedBody.ok) {
+      throw new Error("lok ruleset was not stamped: " + (stampedBody.error || stamped.out));
     }
     this.replayJournal(cursor);
     this.bind = this.readBind();
@@ -1051,8 +1066,10 @@ export class LokWorld {
       fromIndex: string;
       toIndex: string;
       logHash: string;
+      rulesetHash: string;
       summary: string;
       inboundConsumed: string;
+      exports: { itemId: string; amount: number }[];
     };
   } | { ok: false; error: string } {
     const called = lokCall(
@@ -1068,17 +1085,31 @@ export class LokWorld {
       fromIndex?: string;
       toIndex?: string;
       logHash?: string;
+      rulesetHash?: string;
       summary?: string;
       inboundConsumed?: string;
+      exports?: { itemId?: string; amount?: number }[];
     };
     try {
       body = JSON.parse(called.out);
     } catch {
       return { ok: false, error: "lok engine returned junk" };
     }
-    if (!body.ok || !body.prevRoot || !body.newRoot || !body.logHash || !body.fromIndex || !body.toIndex) {
+    if (
+      !body.ok ||
+      !body.prevRoot ||
+      !body.newRoot ||
+      !body.logHash ||
+      !body.rulesetHash ||
+      !body.fromIndex ||
+      !body.toIndex
+    ) {
       return { ok: false, error: body.error || "No checkpoint for that log position." };
     }
+    const exports = (body.exports ?? []).flatMap((row) => {
+      if (!row.itemId || row.amount == null || !Number.isInteger(row.amount) || row.amount < 0) return [];
+      return [{ itemId: row.itemId, amount: row.amount }];
+    });
     return {
       ok: true,
       body: {
@@ -1087,8 +1118,10 @@ export class LokWorld {
         fromIndex: body.fromIndex,
         toIndex: body.toIndex,
         logHash: body.logHash,
+        rulesetHash: body.rulesetHash,
         summary: body.summary || "0",
         inboundConsumed: body.inboundConsumed || "0",
+        exports,
       },
     };
   }

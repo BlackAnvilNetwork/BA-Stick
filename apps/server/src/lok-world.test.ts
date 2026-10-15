@@ -4,6 +4,7 @@ import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { LOCAL_RULESET_HASH } from "./lok-vault";
 import { BUY_FILL_BATCH, LOG_SNAPSHOT_EVERY, LokWorld, MAX_FILLS_PER_BUY_MESSAGE } from "./lok-world";
 
 function noteImport(lok: LokWorld, tokenId: string, itemId: string, amount: string, nonce: string) {
@@ -526,6 +527,25 @@ test("loot drop logs a counter without minting spendable items", () => {
   assert.equal(lok.importFromBag(a.tokenId, "7", "2").ok, true);
   assert.equal(lok.itemOf(a.tokenId, "7"), "2");
   assert.equal(lok.inboundAppliedOf(a.tokenId), 0);
+});
+
+test("a drafted checkpoint stamps the pinned ruleset and lists exports", () => {
+  const lok = world();
+  const a = lok.spawn("char-a", "Ada", 0);
+  assert.equal(a.ok, true);
+  if (!a.ok) return;
+  const bare = lok.checkpointFor(a.tokenId, "0");
+  assert.equal(bare.ok, true);
+  if (!bare.ok) return;
+  assert.equal(bare.body.rulesetHash, LOCAL_RULESET_HASH);
+  assert.deepEqual(bare.body.exports, []);
+  assert.equal(noteImport(lok, a.tokenId, "7", "2", "1").ok, true);
+  assert.equal(lok.exportItem(a.tokenId, "7", "2").ok, true);
+  const drafted = lok.checkpointFor(a.tokenId, "0");
+  assert.equal(drafted.ok, true);
+  if (!drafted.ok) return;
+  assert.equal(drafted.body.rulesetHash, LOCAL_RULESET_HASH);
+  assert.deepEqual(drafted.body.exports, [{ itemId: "7", amount: 2 }]);
 });
 
 test("a new item drop append cannot mint an arbitrary credit", () => {
