@@ -125,7 +125,6 @@ abstract contract Base is Test {
         c.rulesetHash = RULESET;
         c.summary = uint256(5) | (uint256(1) << 16) | (uint256(7) << 96); // level 5, job 1, location 7
         c.inboundConsumed = cp.inboundApplied(id);
-        c.kekOut = 0;
         c.exports = _noExports();
     }
 

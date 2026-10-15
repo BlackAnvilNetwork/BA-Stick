@@ -21,9 +21,8 @@ import {IRulesetRegistry} from "./interfaces/IRulesetRegistry.sol";
 ///           - it is computed under an accepted ruleset (RulesetRegistry)
 ///           - it is submitted, and paid for, by the character's owner (gas policy unchanged)
 ///         Items leave the game's trust bubble only through `exports` inside a signed checkpoint, and re-enter through
-///         `importItem` plus a log event that consumes it. KEK custody is retired: there is no vault, and a checkpoint
-///         with `kekOut != 0` reverts. The field stays in `Checkpoint` so the signed body hash matches the engine
-///         until that side drops it too. Item imports use the inbound queue. Everything else (crafting, XP, abilities,
+///         `importItem` plus a log event that consumes it. KEK custody is retired: there is no vault and no `kekOut`
+///         in the checkpoint body. Item imports use the inbound queue. Everything else (crafting, XP, abilities,
 ///         equipment) is off-chain game events, replayable by anyone from the published log.
 ///         External contracts still keep the same hooks: initCharacter (factory) and onTransfer (NFT).
 ///         Item import/export are gated by `importsEnabled` / `exportsEnabled` (default false) in addition to
@@ -66,7 +65,7 @@ contract CharacterCheckpoint is
     // One storage slot (64+64+64+32+32 = 256 bits).
     struct Meta {
         uint64 logIndex;       // number of log entries committed so far (next checkpoint's fromIndex)
-        uint64 inboundApplied; // inbound requests (item imports + KEK deposits) the committed log has consumed
+        uint64 inboundApplied; // item-import requests the committed log has consumed
         uint64 checkpointedAt; // timestamp of last accepted checkpoint (for finality / export-tier gating later)
         uint32 version;        // bumped on transfer only: kills outstanding signatures
         uint32 revision;       // bumps on any change (checkpoint or transfer): marketplace guard
@@ -76,7 +75,7 @@ contract CharacterCheckpoint is
     /// Projection for cheap reads: level(16) | job(8) | subjob(8) | jobXp(32) | subjobXp(32) | locationId(16) | unspentPoints(16).
     /// Signed by the verifier alongside the root and checkable by replay; NOT proven by the chain.
     mapping(uint256 => uint256) public summary;
-    mapping(uint256 => uint64) public inboundCount;  // inbound requests made on this token (imports + KEK deposits)
+    mapping(uint256 => uint64) public inboundCount;  // item imports made on this token
 
     IRulesetRegistry public rulesets;
     IItems public items;
@@ -105,7 +104,6 @@ contract CharacterCheckpoint is
         bytes32 rulesetHash;
         uint256 summary;
         uint64 inboundConsumed;  // cumulative inbound requests applied by the log up to toIndex
-        uint256 kekOut;          // Retired. Must be 0. Kept so abi.encode(Checkpoint) stays stable for the engine.
         Export[] exports;        // items marked exported in newRoot; minted here as ERC-1155
     }
 
@@ -158,8 +156,6 @@ contract CharacterCheckpoint is
     error UpgradeAuthorityAlreadySet();
     error ZeroAddress();
     /// @notice KEK custody is gone. Checkpoints may not queue a withdrawal.
-    error KekRetired();
-
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
@@ -294,7 +290,6 @@ contract CharacterCheckpoint is
         if (!rulesets.isAccepted(c.rulesetHash)) revert RulesetNotAccepted();
 
         _requireSigner(ECDSA.recover(_digest(player, tokenId, c, a), a.sig));
-        if (c.kekOut != 0) revert KekRetired();
 
         // effects
         stateRoot[tokenId] = c.newRoot;

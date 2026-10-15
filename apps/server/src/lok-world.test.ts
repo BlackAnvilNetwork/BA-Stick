@@ -11,12 +11,6 @@ function noteImport(lok: LokWorld, tokenId: string, itemId: string, amount: stri
   return lok.importItem(tokenId, itemId, amount, nonce);
 }
 
-function noteDeposit(lok: LokWorld, tokenId: string, amount: string, nonce: string) {
-  lok.noteCustodyInbound({ kind: "depositKek", tokenId, nonce, amount });
-  return lok.depositKek(tokenId, amount, nonce);
-}
-
-
 function world() {
   const dir = mkdtempSync(join(tmpdir(), "lok-world-"));
   return LokWorld.open(dir, undefined, {});
@@ -45,7 +39,7 @@ test("item transfer is logged and a short or self send is rejected", () => {
   assert.equal(lok.itemOf(b.tokenId, "7"), "2");
 });
 
-test("auction settle pays the high bid with no fee and replays after restart", () => {
+test("a list escrows the item, KEK bids are retired, and cancel returns it", () => {
   const dir = mkdtempSync(join(tmpdir(), "lok-auction-"));
   const lok = LokWorld.open(dir, undefined, {});
   const a = lok.spawn("char-a", "Ada", 0);
@@ -53,30 +47,29 @@ test("auction settle pays the high bid with no fee and replays after restart", (
   assert.equal(a.ok && b.ok, true);
   if (!a.ok || !b.ok) return;
   assert.equal(noteImport(lok, a.tokenId, "7", "1", "1").ok, true);
-  // Custody credit, not a faucet: the test stands in for a vault deposit the server was told already happened.
-  assert.equal(noteDeposit(lok, b.tokenId, "9", "1").ok, true);
   const listed = lok.list(a.tokenId, "7", "1");
   assert.equal(listed.ok, true);
   if (!listed.ok || !listed.listingId) return;
   assert.equal(lok.itemOf(a.tokenId, "7"), "0");
-  assert.equal(lok.bid(listed.listingId, b.tokenId, "3").ok, true);
-  const low = lok.bid(listed.listingId, b.tokenId, "2");
-  assert.equal(low.ok, false);
-  assert.equal(lok.bid(listed.listingId, b.tokenId, "5").ok, true);
-  assert.equal(lok.kekOf(b.tokenId), "4");
+  const bid = lok.bid(listed.listingId, b.tokenId, "3");
+  assert.equal(bid.ok, false);
+  if (!bid.ok) assert.match(bid.error, /retired/i);
+  const settled = lok.settle(listed.listingId);
+  assert.equal(settled.ok, false);
+  if (!settled.ok) assert.match(settled.error, /retired/i);
+  assert.equal(lok.itemOf(a.tokenId, "7"), "0");
+  assert.equal(lok.kekOf(a.tokenId), "0");
+  assert.equal(lok.kekOf(b.tokenId), "0");
   const cancel = lok.cancel(listed.listingId, b.tokenId);
   assert.equal(cancel.ok, false);
   if (!cancel.ok) assert.match(cancel.error, /seller/i);
-  assert.equal(lok.settle(listed.listingId).ok, true);
-  assert.equal(lok.itemOf(b.tokenId, "7"), "1");
-  assert.equal(lok.kekOf(a.tokenId), "5");
-  assert.equal(lok.kekOf(b.tokenId), "4");
+  assert.equal(lok.cancel(listed.listingId, a.tokenId).ok, true);
+  assert.equal(lok.itemOf(a.tokenId, "7"), "1");
   assert.equal(lok.view(a.tokenId).listings.length, 0);
 
   const again = LokWorld.open(dir, undefined, {});
-  assert.equal(again.itemOf(b.tokenId, "7"), "1");
-  assert.equal(again.kekOf(a.tokenId), "5");
-  assert.equal(again.kekOf(b.tokenId), "4");
+  assert.equal(again.itemOf(a.tokenId, "7"), "1");
+  assert.equal(again.kekOf(a.tokenId), "0");
   assert.equal(again.length, lok.length);
 });
 
@@ -98,52 +91,48 @@ test("goldEarn credits gold, goldSpend debits it, and caps reject over-earn", ()
   assert.equal(again.goldOf(a.tokenId), "60");
 });
 
-test("spendKek debits spendable KEK, leaves escrow locked, and does not mint", () => {
+test("KEK spend, withdraw, and send are retired and append nothing", () => {
   const dir = mkdtempSync(join(tmpdir(), "lok-spend-"));
   const lok = LokWorld.open(dir, undefined, {});
   const a = lok.spawn("char-a", "Ada", 0);
   const b = lok.spawn("char-b", "Bea", 1);
   assert.equal(a.ok && b.ok, true);
   if (!a.ok || !b.ok) return;
-  assert.equal(noteImport(lok, a.tokenId, "7", "1", "1").ok, true);
-  assert.equal(noteDeposit(lok, b.tokenId, "10", "1").ok, true);
-  const listed = lok.list(a.tokenId, "7", "1");
-  assert.equal(listed.ok, true);
-  if (!listed.ok || !listed.listingId) return;
-  assert.equal(lok.bid(listed.listingId, b.tokenId, "6").ok, true);
-  assert.equal(lok.kekOf(b.tokenId), "4");
-  const short = lok.spendKek(b.tokenId, "5");
-  assert.equal(short.ok, false);
-  if (!short.ok) assert.match(short.error, /insufficient/i);
-  assert.equal(lok.kekOf(b.tokenId), "4");
-  assert.equal(lok.spendKek(b.tokenId, "4").ok, true);
-  assert.equal(lok.kekOf(b.tokenId), "0");
-  const zero = lok.spendKek(b.tokenId, "0");
-  assert.equal(zero.ok, false);
+  const len = lok.length;
+  for (const res of [
+    lok.spendKek(b.tokenId, "4"),
+    lok.withdrawKek(a.tokenId, "4"),
+    lok.sendKek(a.tokenId, b.tokenId, "2"),
+    lok.paidRespecSkills(a.tokenId, "1", ["fire"]),
+    lok.depositKek(a.tokenId, "4", "1"),
+  ]) {
+    assert.equal(res.ok, false);
+    if (!res.ok) assert.match(res.error, /retired/i);
+  }
+  assert.equal(lok.length, len);
+  assert.equal(lok.kekOf(a.tokenId), "0");
+  assert.equal(lok.goldOf(a.tokenId), "0");
   const again = LokWorld.open(dir, undefined, {});
-  assert.equal(again.kekOf(b.tokenId), "0");
+  assert.equal(again.length, len);
   assert.equal(again.kekOf(a.tokenId), "0");
 });
 
-test("withdrawKek drops spendable balance and a transfer is stored on both logs", () => {
+test("an item transfer is stored on both logs with different hashes", () => {
   const dir = mkdtempSync(join(tmpdir(), "lok-withdraw-"));
   const lok = LokWorld.open(dir, undefined, {});
   const a = lok.spawn("char-a", "Ada", 0);
   const b = lok.spawn("char-b", "Bea", 1);
   assert.equal(a.ok && b.ok, true);
   if (!a.ok || !b.ok) return;
-  assert.equal(noteDeposit(lok, a.tokenId, "10", "1").ok, true);
-  assert.equal(lok.withdrawKek(a.tokenId, "4").ok, true);
-  assert.equal(lok.kekOf(a.tokenId), "6");
+  assert.equal(noteImport(lok, a.tokenId, "7", "3", "1").ok, true);
   const len = lok.length;
-  const over = lok.withdrawKek(a.tokenId, "7");
+  const over = lok.sendItem(a.tokenId, b.tokenId, "7", "4");
   assert.equal(over.ok, false);
   if (!over.ok) assert.match(over.error, /insufficient/i);
   assert.equal(lok.length, len);
-  assert.equal(lok.kekOf(a.tokenId), "6");
-  assert.equal(lok.sendKek(a.tokenId, b.tokenId, "2").ok, true);
-  assert.equal(lok.kekOf(a.tokenId), "4");
-  assert.equal(lok.kekOf(b.tokenId), "2");
+  assert.equal(lok.sendItem(a.tokenId, b.tokenId, "7", "2").ok, true);
+  assert.equal(lok.itemOf(a.tokenId, "7"), "1");
+  assert.equal(lok.itemOf(b.tokenId, "7"), "2");
 
   const doc = JSON.parse(lok.logDocument()) as {
     type: string;
@@ -152,34 +141,32 @@ test("withdrawKek drops spendable balance and a transfer is stored on both logs"
   assert.equal(doc.type, "characters");
   const logA = doc.characters.find((c) => c.tokenId === a.tokenId);
   const logB = doc.characters.find((c) => c.tokenId === b.tokenId);
-  const sendA = logA?.entries.find((e) => e.input.type === "sendKek");
-  const sendB = logB?.entries.find((e) => e.input.type === "sendKek");
+  const sendA = logA?.entries.find((e) => e.input.type === "sendItem");
+  const sendB = logB?.entries.find((e) => e.input.type === "sendItem");
   assert.ok(sendA && sendB);
   assert.notEqual(sendA.hash, sendB.hash);
   assert.deepEqual(sendA.input, sendB.input);
 
   const again = LokWorld.open(dir, undefined, {});
-  assert.equal(again.kekOf(a.tokenId), "4");
-  assert.equal(again.kekOf(b.tokenId), "2");
+  assert.equal(again.itemOf(a.tokenId, "7"), "1");
+  assert.equal(again.itemOf(b.tokenId, "7"), "2");
   assert.equal(again.length, lok.length);
 });
 
-test("deposit nonce replay fails and two recorded nonces credit twice", () => {
+test("import nonce replay fails and two recorded nonces credit twice", () => {
   const lok = world();
   const a = lok.spawn("char-a", "Ada", 0);
   assert.equal(a.ok, true);
   if (!a.ok) return;
-  assert.equal(lok.depositKek(a.tokenId, "4", "1").ok, false);
-  assert.equal(noteDeposit(lok, a.tokenId, "4", "1").ok, true);
-  assert.equal(lok.kekOf(a.tokenId), "4");
-  assert.equal(noteDeposit(lok, a.tokenId, "4", "1").ok, false);
-  assert.equal(lok.kekOf(a.tokenId), "4");
-  assert.equal(noteDeposit(lok, a.tokenId, "6", "2").ok, true);
-  assert.equal(lok.kekOf(a.tokenId), "10");
-  assert.equal(noteImport(lok, a.tokenId, "7", "2", "3").ok, true);
-  assert.equal(lok.itemOf(a.tokenId, "7"), "2");
-  assert.equal(noteImport(lok, a.tokenId, "7", "1", "3").ok, false);
-  assert.equal(lok.itemOf(a.tokenId, "7"), "2");
+  assert.equal(lok.importItem(a.tokenId, "7", "4", "1").ok, false);
+  assert.equal(noteImport(lok, a.tokenId, "7", "4", "1").ok, true);
+  assert.equal(lok.itemOf(a.tokenId, "7"), "4");
+  assert.equal(noteImport(lok, a.tokenId, "7", "4", "1").ok, false);
+  assert.equal(lok.itemOf(a.tokenId, "7"), "4");
+  assert.equal(noteImport(lok, a.tokenId, "8", "6", "2").ok, true);
+  assert.equal(lok.itemOf(a.tokenId, "8"), "6");
+  assert.equal(lok.inboundAppliedOf(a.tokenId), 2);
+  assert.equal(lok.kekOf(a.tokenId), "0");
 });
 
 
@@ -265,30 +252,30 @@ test("explore reads yours or everyone, searches, and pages newest first", () => 
   if (!a.ok || !b.ok) return;
 
   assert.equal(noteImport(lok, a.tokenId, "7", "2", "1").ok, true);
-  assert.equal(noteDeposit(lok, b.tokenId, "9", "1").ok, true);
-  assert.equal(lok.sendKek(b.tokenId, a.tokenId, "4").ok, true);
+  assert.equal(noteImport(lok, b.tokenId, "1057", "9", "1").ok, true);
+  assert.equal(lok.sendItem(b.tokenId, a.tokenId, "1057", "4").ok, true);
   assert.equal(lok.learnAbility(a.tokenId, "fire").ok, true);
   assert.equal(lok.harvest(b.tokenId, "dustgrain", "13").ok, true);
   for (const id of ["a0", "a1", "a2", "a3"]) {
     assert.equal(lok.learnAbility(a.tokenId, id).ok, true);
   }
   const beforeReject = lok.explore({ tokenId: a.tokenId }).total;
-  assert.equal(lok.sendKek(a.tokenId, b.tokenId, "99").ok, false);
+  assert.equal(lok.sendItem(a.tokenId, b.tokenId, "1057", "99").ok, false);
   assert.equal(lok.explore({ tokenId: a.tokenId }).total, beforeReject);
 
   const yours = lok.explore({ tokenId: a.tokenId });
-  assert.ok(yours.events.every((event) => event.text.includes("Ada") || event.character === "Ada" || event.kind === "sendKek"));
+  assert.ok(yours.events.every((event) => event.text.includes("Ada") || event.character === "Ada" || event.kind === "sendItem"));
   assert.equal(yours.events.some((event) => event.kind === "harvest"), false);
   assert.equal(yours.events.some((event) => event.kind === "depositKek"), false);
-  assert.equal(yours.events.filter((event) => event.kind === "sendKek").length, 1);
+  assert.equal(yours.events.filter((event) => event.kind === "sendItem").length, 1);
   assert.ok(yours.events[0]!.seq >= yours.events[yours.events.length - 1]!.seq);
   assert.equal(yours.events[0]!.kind, "learnAbility");
   assert.match(yours.events[0]!.text, /a3/);
 
   const worldRows = lok.explore({ tokenId: null });
-  assert.equal(worldRows.events.filter((event) => event.kind === "sendKek").length, 1);
+  assert.equal(worldRows.events.filter((event) => event.kind === "sendItem").length, 1);
   assert.equal(worldRows.events.some((event) => event.kind === "harvest"), true);
-  assert.equal(worldRows.events.some((event) => event.kind === "depositKek"), true);
+  assert.equal(worldRows.events.some((event) => event.kind === "importItem"), true);
   assert.ok(worldRows.total > yours.total);
 
   const leather = lok.explore({ tokenId: null, q: "leather" });
@@ -296,7 +283,7 @@ test("explore reads yours or everyone, searches, and pages newest first", () => 
   assert.equal(leather.events[0]!.kind, "importItem");
   assert.match(leather.events[0]!.text, /Leather Vest/);
 
-  const byKind = lok.explore({ tokenId: a.tokenId, q: "SENDKEK" });
+  const byKind = lok.explore({ tokenId: a.tokenId, q: "SENDITEM" });
   assert.equal(byKind.events.length, 1);
   assert.match(byKind.events[0]!.text, /Bea/);
   assert.match(byKind.events[0]!.text, /Ada/);
@@ -326,7 +313,7 @@ test("explore reads yours or everyone, searches, and pages newest first", () => 
   assert.ok(older.events.every((event) => !seen.has(event.seq)));
 });
 
-test("order book sells the lowest Pale Dust ask at the ask price and leaves the rest", () => {
+test("order book keeps asks until chain fill, cancel, or reclaim", () => {
   const lok = world();
   const a = lok.spawn("char-a", "Ada", 0);
   const b = lok.spawn("char-b", "Bea", 1);
@@ -338,8 +325,6 @@ test("order book sells the lowest Pale Dust ask at the ask price and leaves the 
   assert.equal(noteImport(lok, a.tokenId, dust, "1", "1").ok, true);
   assert.equal(noteImport(lok, b.tokenId, dust, "1", "1").ok, true);
   assert.equal(noteImport(lok, c.tokenId, dust, "1", "1").ok, true);
-  assert.equal(noteDeposit(lok, a.tokenId, "100", "2").ok, true);
-  assert.equal(noteDeposit(lok, d.tokenId, "3000", "1").ok, true);
   const t0 = 1_700_000_000;
   const ask100 = lok.ask(a.tokenId, dust, "1", "100", t0);
   const ask1000 = lok.ask(b.tokenId, dust, "1", "1000", t0 + 1);
@@ -349,24 +334,32 @@ test("order book sells the lowest Pale Dust ask at the ask price and leaves the 
 
   const own = lok.fill(a.tokenId, dust, "100");
   assert.equal(own.ok, false);
-  if (!own.ok) assert.match(own.error, /ask/i);
-  assert.equal(lok.kekOf(a.tokenId), "100");
+  if (!own.ok) assert.match(own.error, /retired/i);
+  const bought = lok.buy(d.tokenId, dust);
+  assert.equal(bought.ok, false);
+  if (!bought.ok) assert.match(bought.error, /retired/i);
+  assert.equal(lok.kekOf(a.tokenId), "0");
+  assert.equal(lok.goldOf(d.tokenId), "0");
   assert.equal(lok.view(a.tokenId).listings.some((row) => row.id === ask100.listingId), true);
 
-  const low = lok.fill(d.tokenId, dust, "50");
-  assert.equal(low.ok, false);
-  assert.equal(lok.kekOf(d.tokenId), "3000");
-
-  const bought = lok.fill(d.tokenId, dust, "2000");
-  assert.equal(bought.ok, true);
-  if (!bought.ok) return;
-  assert.equal(bought.listingId, ask100.listingId);
-  assert.equal(bought.seller, a.tokenId);
-  assert.equal(bought.price, "100");
-  assert.equal(lok.kekOf(a.tokenId), "200");
-  assert.equal(lok.kekOf(d.tokenId), "2900");
-  assert.equal(lok.vaultClaim(a.tokenId), "200");
-  assert.equal(lok.vaultClaim(d.tokenId), "2900");
+  const txHash = "0x" + "ab".repeat(32);
+  const fillKey = txHash + "-0";
+  lok.noteChainFill({
+    listingId: ask100.listingId!,
+    buyerTokenId: d.tokenId,
+    priceWei: "100",
+    fillKey,
+    itemId: dust,
+    amount: "1",
+    sellerTokenId: a.tokenId,
+    txHash,
+    logIndex: "0",
+  });
+  const filled = lok.chainFill(ask100.listingId!, d.tokenId, "100", fillKey);
+  assert.equal(filled.ok, true);
+  assert.equal(lok.kekOf(a.tokenId), "0");
+  assert.equal(lok.kekOf(d.tokenId), "0");
+  assert.equal(lok.goldOf(a.tokenId), "0");
   assert.equal(lok.itemOf(d.tokenId, dust), "0");
   assert.equal(lok.view(d.tokenId).inbox.find((row) => row.tokenId === 1057)?.amount, "1");
   const left = lok.view(d.tokenId).listings.map((row) => row.minPrice).sort();
@@ -434,7 +427,7 @@ test("a send uses the character id and does not deliver to a lookalike name", ()
   const sender = rows.find((row) => row.charId === "char-ada");
   assert.ok(real && fake && sender);
   assert.equal(noteImport(opened, sender.tokenId, "7", "1", "1").ok, true);
-  assert.equal(noteDeposit(opened, sender.tokenId, "5", "2").ok, true);
+  assert.equal(noteImport(opened, sender.tokenId, "8", "5", "2").ok, true);
   const byLook = opened.resolveRecipient(fake.name, sender.tokenId);
   assert.equal(byLook.ok, false);
   const byFold = opened.resolveRecipient("chrona", sender.tokenId);
@@ -451,10 +444,11 @@ test("a send uses the character id and does not deliver to a lookalike name", ()
   assert.equal(fakeId.ok, true);
   if (!fakeId.ok) return;
   assert.equal(fakeId.tokenId, fake.tokenId);
-  assert.equal(opened.sendKek(sender.tokenId, fakeId.tokenId, "2").ok, true);
-  assert.equal(opened.kekOf(fake.tokenId), "2");
-  assert.equal(opened.kekOf(real.tokenId), "0");
-  assert.equal(opened.kekOf(sender.tokenId), "3");
+  assert.equal(opened.sendItem(sender.tokenId, fakeId.tokenId, "8", "2").ok, true);
+  assert.equal(opened.itemOf(fake.tokenId, "8"), "2");
+  assert.equal(opened.itemOf(real.tokenId, "8"), "0");
+  assert.equal(opened.itemOf(sender.tokenId, "8"), "3");
+  assert.equal(opened.kekOf(sender.tokenId), "0");
 });
 
 test("a name outside the ascii alphabet is rejected and Chrona 2 still works", () => {
@@ -472,52 +466,50 @@ test("a name outside the ascii alphabet is rejected and Chrona 2 still works", (
   assert.equal(spawned.ok, true);
 });
 
-test("a buy pays the lowest ask and a higher fill cannot overpay", () => {
+test("KEK buy and fill are retired and leave every ask open", () => {
   const lok = world();
   const seller = lok.spawn("char-s", "Sue", 0);
   const buyer = lok.spawn("char-u", "Uma", 1);
   assert.equal(seller.ok && buyer.ok, true);
   if (!seller.ok || !buyer.ok) return;
   assert.equal(noteImport(lok, seller.tokenId, "7", "2", "1").ok, true);
-  assert.equal(noteDeposit(lok, buyer.tokenId, "5000", "1").ok, true);
   assert.equal(lok.ask(seller.tokenId, "7", "1", "100", 10).ok, true);
   assert.equal(lok.ask(seller.tokenId, "7", "1", "100", 11).ok, true);
+  const len = lok.length;
   const bought = lok.buy(buyer.tokenId, "7");
-  assert.equal(bought.ok, true);
-  if (!bought.ok) return;
-  assert.equal(bought.price, "100");
-  assert.equal(lok.kekOf(buyer.tokenId), "4900");
-  assert.equal(lok.kekOf(seller.tokenId), "100");
-  assert.equal(lok.vaultClaim(buyer.tokenId), "4900");
-  assert.equal(lok.vaultClaim(seller.tokenId), "100");
+  assert.equal(bought.ok, false);
+  if (!bought.ok) assert.match(bought.error, /retired/i);
   const over = lok.fill(buyer.tokenId, "7", "4000");
-  assert.equal(over.ok, true);
-  if (!over.ok) return;
-  assert.equal(over.price, "100");
-  assert.equal(lok.kekOf(buyer.tokenId), "4800");
-  assert.equal(lok.vaultClaim(buyer.tokenId), "4800");
+  assert.equal(over.ok, false);
+  if (!over.ok) assert.match(over.error, /retired/i);
+  assert.equal(lok.length, len);
+  assert.equal(lok.view(buyer.tokenId).listings.length, 2);
+  assert.equal(lok.kekOf(buyer.tokenId), "0");
+  assert.equal(lok.goldOf(buyer.tokenId), "0");
+  assert.equal(lok.itemOf(seller.tokenId, "7"), "0");
 });
 
-test("received KEK is the recipient claim and spent KEK is not withdrawable", () => {
+test("gold paid respec debits gold and KEK custody stays at zero", () => {
   const lok = world();
   const a = lok.spawn("char-a", "Ada", 0);
   const b = lok.spawn("char-b", "Bea", 1);
   assert.equal(a.ok && b.ok, true);
   if (!a.ok || !b.ok) return;
-  assert.equal(noteDeposit(lok, a.tokenId, "12000", "1").ok, true);
-  assert.equal(lok.vaultClaim(a.tokenId), "12000");
-  assert.equal(lok.sendKek(a.tokenId, b.tokenId, "4000").ok, true);
-  assert.equal(lok.vaultClaim(a.tokenId), "8000");
-  assert.equal(lok.vaultClaim(b.tokenId), "4000");
-  assert.equal(lok.withdrawKek(a.tokenId, "8001").ok, false);
-  assert.equal(lok.withdrawKek(b.tokenId, "4000").ok, true);
-  assert.equal(lok.vaultClaim(b.tokenId), "0");
-  assert.equal(lok.spendKek(a.tokenId, "1000").ok, true);
-  assert.equal(lok.paidRespecSkills(a.tokenId, "7000", ["fire"]).ok, true);
+  assert.equal(lok.goldEarn(a.tokenId, "quest", "12000", 1).ok, true);
+  assert.equal(lok.learnAbility(a.tokenId, "fire").ok, true);
+  assert.equal(lok.vaultClaim(a.tokenId), "0");
+  assert.equal(lok.sendKek(a.tokenId, b.tokenId, "4000").ok, false);
+  assert.equal(lok.withdrawKek(a.tokenId, "1").ok, false);
+  assert.equal(lok.spendKek(a.tokenId, "1000").ok, false);
+  assert.equal(lok.paidRespecSkills(a.tokenId, "7000", ["fire"]).ok, false);
+  assert.equal(lok.goldOf(a.tokenId), "12000");
+  assert.equal(lok.hasAbility(a.tokenId, "fire"), true);
+  assert.equal(lok.goldPaidRespec(a.tokenId, "7000", ["fire"]).ok, true);
+  assert.equal(lok.goldOf(a.tokenId), "5000");
+  assert.equal(lok.hasAbility(a.tokenId, "fire"), false);
   assert.equal(lok.kekOf(a.tokenId), "0");
   assert.equal(lok.vaultClaim(a.tokenId), "0");
-  assert.equal(lok.sunkKek(a.tokenId), "8000");
-  assert.equal(lok.withdrawKek(a.tokenId, "1").ok, false);
+  assert.equal(lok.sunkKek(a.tokenId), "0");
 });
 
 test("loot drop logs a counter without minting spendable items", () => {
@@ -576,14 +568,13 @@ test("bag import does not consume the chain inbound nonce", () => {
   assert.equal(lok.importFromBag(a.tokenId, "8", "1").ok, true);
   assert.equal(lok.inboundAppliedOf(a.tokenId), 0);
   assert.equal(lok.itemOf(a.tokenId, "7"), "2");
-  // A real chain deposit still takes nonce 1.
-  lok.noteCustodyInbound({ kind: "depositKek", tokenId: a.tokenId, nonce: "1", amount: "50" });
-  assert.equal(lok.depositKek(a.tokenId, "50", "1").ok, true);
-  assert.equal(lok.kekOf(a.tokenId), "50");
+  assert.equal(noteImport(lok, a.tokenId, "9", "1", "1").ok, true);
+  assert.equal(lok.itemOf(a.tokenId, "9"), "1");
   assert.equal(lok.inboundAppliedOf(a.tokenId), 1);
+  assert.equal(lok.kekOf(a.tokenId), "0");
 });
 
-test("quantity buy fills cheapest asks first, charges each ask, skips self, and stops when short", async () => {
+test("quantity plan still prices asks, and a log buy fills none of them", async () => {
   const dir = mkdtempSync(join(tmpdir(), "lok-qty-"));
   const lok = LokWorld.open(dir, undefined, {});
   const ada = lok.spawn("char-a", "Ada", 0);
@@ -599,7 +590,6 @@ test("quantity buy fills cheapest asks first, charges each ask, skips self, and 
   assert.equal(noteImport(lok, cam.tokenId, dust, "2", "1").ok, true);
   assert.equal(noteImport(lok, eve.tokenId, dust, "4", "1").ok, true);
   assert.equal(noteImport(lok, dot.tokenId, dust, "5", "1").ok, true);
-  assert.equal(noteDeposit(lok, dot.tokenId, "10000", "2").ok, true);
   const t0 = 1_700_000_000;
   const askCam = lok.ask(cam.tokenId, dust, "2", "10", t0 + 50);
   const askBea = lok.ask(bea.tokenId, dust, "2", "10", t0);
@@ -624,63 +614,18 @@ test("quantity buy fills cheapest asks first, charges each ask, skips self, and 
   assert.equal(planned.short, false);
   assert.equal(planned.fills[0]!.price, "8");
 
+  const len = lok.length;
   const rejected = await lok.buyQuantity(dot.tokenId, dust, 0);
   assert.equal(rejected.ok, false);
-  const len = lok.length;
-
   const first = await lok.buyQuantity(dot.tokenId, dust, 3);
-  assert.equal(first.ok, true);
-  if (!first.ok) return;
-  assert.deepEqual(first.fills.map((fill) => fill.listingId), [askEve.listingId]);
-  assert.deepEqual(first.fills.map((fill) => fill.price), ["8"]);
-  assert.equal(first.filled, "4");
-  assert.equal(first.short, false);
-  assert.equal(lok.length, len + 1);
-  assert.equal(lok.kekOf(dot.tokenId), "9992");
-  assert.equal(lok.kekOf(eve.tokenId), "8");
-  assert.equal(lok.kekOf(bea.tokenId), "0");
-  assert.equal(lok.view(dot.tokenId).listings.some((row) => row.id === askSelf.listingId), true);
-
-  const tie = await lok.buyQuantity(dot.tokenId, dust, 2);
-  assert.equal(tie.ok, true);
-  if (!tie.ok) return;
-  assert.deepEqual(tie.fills.map((fill) => fill.listingId), [askBea.listingId]);
-  assert.deepEqual(tie.fills.map((fill) => fill.price), ["10"]);
-  assert.equal(lok.kekOf(bea.tokenId), "10");
-  assert.equal(lok.kekOf(cam.tokenId), "0");
-  assert.equal(lok.view(dot.tokenId).listings.some((row) => row.id === askCam.listingId), true);
-
-  const beforeShort = lok.length;
-  const kekBefore = lok.kekOf(dot.tokenId);
-  const rest = await lok.buyQuantity(dot.tokenId, dust, 50);
-  assert.equal(rest.ok, true);
-  if (!rest.ok) return;
-  assert.equal(rest.short, true);
-  assert.deepEqual(rest.fills.map((fill) => fill.listingId), [askCam.listingId, askAda.listingId]);
-  assert.deepEqual(rest.fills.map((fill) => fill.price), ["10", "100"]);
-  assert.equal(rest.filled, "3");
-  assert.equal(lok.length, beforeShort + 2);
-  assert.equal(lok.kekOf(dot.tokenId), (BigInt(kekBefore) - 110n).toString());
-  assert.equal(lok.kekOf(cam.tokenId), "10");
-  assert.equal(lok.kekOf(ada.tokenId), "100");
-  assert.equal(lok.itemOf(dot.tokenId, dust), "0");
-  assert.equal(lok.view(dot.tokenId).inbox.find((row) => row.tokenId === 1057)?.amount, "9");
-  assert.deepEqual(
-    lok.view(dot.tokenId).listings.map((row) => row.id),
-    [askSelf.listingId],
-  );
-
-  const stuck = lok.length;
-  const own = await lok.buyQuantity(dot.tokenId, dust, 1);
-  assert.equal(own.ok, false);
-  if (!own.ok) assert.match(own.error, /ask/i);
-  assert.equal(lok.length, stuck);
-  assert.equal(lok.kekOf(dot.tokenId), (BigInt(kekBefore) - 110n).toString());
-  assert.equal(lok.view(dot.tokenId).listings[0]?.id, askSelf.listingId);
-
-  const buys = lok.explore({ tokenId: dot.tokenId }).events.filter((event) => event.kind === "buy");
-  assert.equal(buys.length, 4);
-  assert.equal(buys.some((event) => event.kind !== "buy"), false);
+  assert.equal(first.ok, false);
+  if (!first.ok) assert.match(first.error, /retired/i);
+  assert.equal(lok.length, len);
+  assert.equal(lok.view(dot.tokenId).listings.length, 5);
+  assert.equal(lok.kekOf(dot.tokenId), "0");
+  assert.equal(lok.goldOf(dot.tokenId), "0");
+  assert.equal(lok.view(dot.tokenId).inbox.length, 0);
+  assert.equal(lok.explore({ tokenId: dot.tokenId }).events.some((event) => event.kind === "buy"), false);
 });
 
 test("one event appends a journal line and does not rewrite the world log", () => {
@@ -691,16 +636,16 @@ test("one event appends a journal line and does not rewrite the world log", () =
   if (!spawned.ok) return;
   const token = spawned.tokenId;
   assert.equal(noteImport(lok, token, "7", "4", "1").ok, true);
-  const depositsBeforeTail = LOG_SNAPSHOT_EVERY - 2;
-  for (let i = 0; i < depositsBeforeTail; i++) {
-    assert.equal(noteDeposit(lok, token, "1", String(i + 2)).ok, true);
+  const importsBeforeTail = LOG_SNAPSHOT_EVERY - 2;
+  for (let i = 0; i < importsBeforeTail; i++) {
+    assert.equal(noteImport(lok, token, "8", "1", String(i + 2)).ok, true);
   }
   assert.equal(lok.length, LOG_SNAPSHOT_EVERY);
   const snap = readFileSync(lok.logPath);
   const journalBefore = readFileSync(lok.journalPath);
   assert.ok(snap.length > 2000);
   assert.ok(snap.subarray(0, 16).toString("utf8").startsWith('{"journalBytes":'));
-  assert.equal(noteDeposit(lok, token, "1", String(depositsBeforeTail + 2)).ok, true);
+  assert.equal(noteImport(lok, token, "8", "1", String(importsBeforeTail + 2)).ok, true);
   const snapAfter = readFileSync(lok.logPath);
   assert.equal(snapAfter.equals(snap), true);
   const journalAfter = readFileSync(lok.journalPath);
@@ -711,14 +656,15 @@ test("one event appends a journal line and does not rewrite the world log", () =
   assert.ok(added.length < 500);
   assert.ok(snap.length > added.length * 10);
   const line = JSON.parse(addedLines[0]!) as { cmd?: { op?: string; nonce?: string } };
-  assert.equal(line.cmd?.op, "depositKek");
-  assert.equal(line.cmd?.nonce, String(depositsBeforeTail + 2));
-  const kek = (BigInt(depositsBeforeTail) + 1n).toString();
-  assert.equal(lok.kekOf(token), kek);
+  assert.equal(line.cmd?.op, "importItem");
+  assert.equal(line.cmd?.nonce, String(importsBeforeTail + 2));
+  const stacked = (BigInt(importsBeforeTail) + 1n).toString();
+  assert.equal(lok.itemOf(token, "8"), stacked);
   assert.equal(lok.itemOf(token, "7"), "4");
+  assert.equal(lok.kekOf(token), "0");
 
   const again = LokWorld.open(dir, undefined, {});
-  assert.equal(again.kekOf(token), kek);
+  assert.equal(again.itemOf(token, "8"), stacked);
   assert.equal(again.itemOf(token, "7"), "4");
   assert.equal(again.length, lok.length);
 
@@ -728,12 +674,12 @@ test("one event appends a journal line and does not rewrite the world log", () =
   writeFileSync(join(oldDir, "lok-world.json"), JSON.stringify(parsed));
   assert.equal(existsSync(join(oldDir, "lok-world.jsonl")), false);
   const old = LokWorld.open(oldDir, undefined, {});
-  assert.equal(old.kekOf(token), depositsBeforeTail.toString());
+  assert.equal(old.itemOf(token, "8"), importsBeforeTail.toString());
   assert.equal(old.itemOf(token, "7"), "4");
   assert.equal(old.length, LOG_SNAPSHOT_EVERY);
 });
 
-test("one quantity buy cannot fill an unbounded synchronous loop", async () => {
+test("a retired quantity buy does not fill an open book", async () => {
   const lok = world();
   const seller = lok.spawn("char-s", "Seller", 0);
   const buyer = lok.spawn("char-b", "Buyer", 1);
@@ -742,39 +688,17 @@ test("one quantity buy cannot fill an unbounded synchronous loop", async () => {
   const item = "7";
   const asks = MAX_FILLS_PER_BUY_MESSAGE + BUY_FILL_BATCH;
   assert.equal(noteImport(lok, seller.tokenId, item, String(asks), "1").ok, true);
-  assert.equal(noteDeposit(lok, buyer.tokenId, "100000", "1").ok, true);
   const t0 = 1_700_000_000;
   for (let i = 0; i < asks; i++) {
     assert.equal(lok.ask(seller.tokenId, item, "1", "3", t0 + i).ok, true);
   }
-  const beforeKek = BigInt(lok.kekOf(buyer.tokenId));
-  const beforeSeller = BigInt(lok.kekOf(seller.tokenId));
   const beforeLen = lok.length;
-  let interleaved = false;
-  const pending = lok.buyQuantity(buyer.tokenId, item, 1_000_000);
-  setImmediate(() => {
-    interleaved = true;
-  });
-  const res = await pending;
-  assert.equal(interleaved, true);
-  assert.equal(res.ok, true);
-  if (!res.ok) return;
-  assert.equal(res.fills.length, MAX_FILLS_PER_BUY_MESSAGE);
-  assert.equal(res.short, true);
-  assert.match(res.stopped ?? "", new RegExp(String(MAX_FILLS_PER_BUY_MESSAGE)));
-  assert.match(res.stopped ?? "", /nothing further was charged/i);
-  const charged = res.fills.reduce((sum, fill) => sum + BigInt(fill.price || "0"), 0n);
-  assert.equal(charged, BigInt(MAX_FILLS_PER_BUY_MESSAGE) * 3n);
-  assert.equal(lok.kekOf(buyer.tokenId), (beforeKek - charged).toString());
-  assert.equal(lok.kekOf(seller.tokenId), (beforeSeller + charged).toString());
-  assert.equal(lok.length, beforeLen + MAX_FILLS_PER_BUY_MESSAGE);
-  assert.equal(lok.view(buyer.tokenId).listings.length, asks - MAX_FILLS_PER_BUY_MESSAGE);
-
-  const more = await lok.buyQuantity(buyer.tokenId, item, BUY_FILL_BATCH);
-  assert.equal(more.ok, true);
-  if (!more.ok) return;
-  assert.equal(more.fills.length, BUY_FILL_BATCH);
-  assert.equal(more.short, false);
-  assert.equal(lok.kekOf(buyer.tokenId), (beforeKek - charged - BigInt(BUY_FILL_BATCH) * 3n).toString());
-  assert.equal(lok.view(buyer.tokenId).listings.length, 0);
+  const res = await lok.buyQuantity(buyer.tokenId, item, 1_000_000);
+  assert.equal(res.ok, false);
+  if (!res.ok) assert.match(res.error, /retired/i);
+  assert.equal(lok.length, beforeLen);
+  assert.equal(lok.kekOf(buyer.tokenId), "0");
+  assert.equal(lok.goldOf(buyer.tokenId), "0");
+  assert.equal(lok.view(buyer.tokenId).listings.length, asks);
+  assert.equal(lok.view(buyer.tokenId).inbox.length, 0);
 });

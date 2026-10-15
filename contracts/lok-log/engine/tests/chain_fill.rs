@@ -33,16 +33,16 @@ fn chain_fill_moves_item_without_touching_kek() {
         .append_ask(n(10), n(1), dust, n(1), n(500), t0)
         .unwrap();
 
-    assert_eq!(world.kek_balance(&n(1)), Some(n(0)));
-    assert_eq!(world.kek_balance(&n(2)), Some(n(0)));
+    assert_eq!(world.gold_balance(&n(1)), Some(n(0)));
+    assert_eq!(world.gold_balance(&n(2)), Some(n(0)));
 
     world
         .append_chain_fill(n(10), n(2), n(500), dust, n(1), n(1), tx(1), 0)
         .unwrap();
     assert!(world.listing(&n(10)).is_none());
     assert_eq!(world.inbox_balance(&n(2), &dust), Some(n(1)));
-    assert_eq!(world.kek_balance(&n(1)), Some(n(0)), "seller Kek unchanged");
-    assert_eq!(world.kek_balance(&n(2)), Some(n(0)), "buyer Kek unchanged");
+    assert_eq!(world.gold_balance(&n(1)), Some(n(0)), "seller Kek unchanged");
+    assert_eq!(world.gold_balance(&n(2)), Some(n(0)), "buyer Kek unchanged");
 
     let report = replay_world(&world.to_document()).expect("replay");
     assert_eq!(report.head, world.head());

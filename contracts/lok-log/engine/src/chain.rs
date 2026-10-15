@@ -327,11 +327,9 @@ pub(crate) fn parse_input(value: &serde_json::Value) -> Result<Input, String> {
                 starting_job: starting_job as u8,
             })
         }
-        "depositKek" => Ok(Input::DepositKek {
-            token_id: req_u256(value, "tokenId")?,
-            amount: req_u256(value, "amount")?,
-            nonce: req_u64(value, "nonce")?,
-        }),
+        "depositKek" | "withdrawKek" | "spendKek" | "sendKek" | "paidRespecSkills" => {
+            Err("KEK custody is retired".to_string())
+        }
         "importItem" => Ok(Input::ImportItem {
             token_id: req_u256(value, "tokenId")?,
             item_id: req_u256(value, "itemId")?,
@@ -348,23 +346,10 @@ pub(crate) fn parse_input(value: &serde_json::Value) -> Result<Input, String> {
             item_id: req_u256(value, "itemId")?,
             amount: req_u256(value, "amount")?,
         }),
-        "withdrawKek" => Ok(Input::WithdrawKek {
-            token_id: req_u256(value, "tokenId")?,
-            amount: req_u256(value, "amount")?,
-        }),
-        "spendKek" => Ok(Input::SpendKek {
-            token_id: req_u256(value, "tokenId")?,
-            amount: req_u256(value, "amount")?,
-        }),
         "sendItem" => Ok(Input::SendItem {
             from: req_u256(value, "from")?,
             to: req_u256(value, "to")?,
             item_id: req_u256(value, "itemId")?,
-            amount: req_u256(value, "amount")?,
-        }),
-        "sendKek" => Ok(Input::SendKek {
-            from: req_u256(value, "from")?,
-            to: req_u256(value, "to")?,
             amount: req_u256(value, "amount")?,
         }),
         "list" => Ok(Input::List {
@@ -488,29 +473,6 @@ pub(crate) fn parse_input(value: &serde_json::Value) -> Result<Input, String> {
             }
             Ok(Input::RespecSkills { token_id, node_ids })
         }
-        "paidRespecSkills" => {
-            let token_id = req_u256(value, "tokenId")?;
-            let amount = req_u256(value, "amount")?;
-            let raw = value
-                .get("nodeIds")
-                .and_then(|v| v.as_array())
-                .ok_or_else(|| "missing nodeIds".to_string())?;
-            if raw.len() > 600 {
-                return Err("too many skill nodes".to_string());
-            }
-            let mut node_ids = Vec::with_capacity(raw.len());
-            for (i, row) in raw.iter().enumerate() {
-                let id = row.as_str().ok_or_else(|| format!("bad nodeIds[{i}]"))?;
-                if id.is_empty() || id.len() > 128 || !id.bytes().all(|b| (0x20..=0x7e).contains(&b)) {
-                    return Err(format!("bad nodeIds[{i}]"));
-                }
-                node_ids.push(id.to_string());
-            }
-            if node_ids.is_empty() {
-                return Err("paid respec needs at least one skill node".to_string());
-            }
-            Ok(Input::PaidRespecSkills { token_id, amount, node_ids })
-        }
         "goldEarn" => Ok(Input::GoldEarn {
             token_id: req_u256(value, "tokenId")?,
             source: req_label(value, "source")?,
@@ -591,12 +553,6 @@ pub(crate) fn input_to_json(input: &Input) -> serde_json::Value {
             "tokenId": token_id.to_dec(),
             "startingJob": starting_job,
         }),
-        Input::DepositKek { token_id, amount, nonce } => serde_json::json!({
-            "type": "depositKek",
-            "tokenId": s(token_id),
-            "amount": s(amount),
-            "nonce": nonce.to_string(),
-        }),
         Input::ImportItem { token_id, item_id, amount, nonce } => serde_json::json!({
             "type": "importItem",
             "tokenId": s(token_id),
@@ -616,27 +572,11 @@ pub(crate) fn input_to_json(input: &Input) -> serde_json::Value {
             "itemId": s(item_id),
             "amount": s(amount),
         }),
-        Input::WithdrawKek { token_id, amount } => serde_json::json!({
-            "type": "withdrawKek",
-            "tokenId": s(token_id),
-            "amount": s(amount),
-        }),
-        Input::SpendKek { token_id, amount } => serde_json::json!({
-            "type": "spendKek",
-            "tokenId": s(token_id),
-            "amount": s(amount),
-        }),
         Input::SendItem { from, to, item_id, amount } => serde_json::json!({
             "type": "sendItem",
             "from": s(from),
             "to": s(to),
             "itemId": s(item_id),
-            "amount": s(amount),
-        }),
-        Input::SendKek { from, to, amount } => serde_json::json!({
-            "type": "sendKek",
-            "from": s(from),
-            "to": s(to),
             "amount": s(amount),
         }),
         Input::List { listing_id, seller, item_id, amount } => serde_json::json!({
@@ -750,12 +690,6 @@ Input::CancelAsk { listing_id, seller } => serde_json::json!({
         Input::RespecSkills { token_id, node_ids } => serde_json::json!({
             "type": "respecSkills",
             "tokenId": s(token_id),
-            "nodeIds": node_ids,
-        }),
-        Input::PaidRespecSkills { token_id, amount, node_ids } => serde_json::json!({
-            "type": "paidRespecSkills",
-            "tokenId": s(token_id),
-            "amount": s(amount),
             "nodeIds": node_ids,
         }),
         Input::GoldEarn { token_id, source, amount, day } => serde_json::json!({

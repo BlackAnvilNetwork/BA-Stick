@@ -65,11 +65,8 @@ impl Gate {
         if op == "checkpoint" {
             return checkpoint_json(&self.world, &value);
         }
-        if op == "undoWithdraw" {
-            return undo_withdraw(&mut self.world, &value);
-        }
-        if op == "withdrawCount" {
-            return withdraw_count_json(&self.world, &value);
+        if op == "undoWithdraw" || op == "withdrawCount" || op == "depositKek" || op == "withdrawKek" || op == "spendKek" || op == "sendKek" || op == "paidRespecSkills" {
+            return fail("KEK custody is retired");
         }
         let value = if op == "fill" || op == "buy" {
             match resolve_buy(&self.world, value, op == "fill") {
@@ -154,39 +151,11 @@ fn checkpoint_json(world: &World, value: &Value) -> String {
             "logHash": hex32(&c.log_hash),
             "summary": c.summary.to_dec(),
             "inboundConsumed": c.inbound_consumed.to_string(),
-            "kekOut": c.kek_out.to_dec(),
         }).to_string(),
         Err(err) => fail(&err.to_string()),
     }
 }
 
-
-fn withdraw_count_json(world: &World, value: &Value) -> String {
-    let token = match dec_field(value, "tokenId") {
-        Ok(v) => v,
-        Err(err) => return fail(&err),
-    };
-    let amount = match dec_field(value, "amount") {
-        Ok(v) => v,
-        Err(err) => return fail(&err),
-    };
-    json!({ "ok": true, "count": world.withdraw_count(token, amount) }).to_string()
-}
-
-fn undo_withdraw(world: &mut World, value: &Value) -> String {
-    let token = match dec_field(value, "tokenId") {
-        Ok(v) => v,
-        Err(err) => return fail(&err),
-    };
-    let amount = match dec_field(value, "amount") {
-        Ok(v) => v,
-        Err(err) => return fail(&err),
-    };
-    match world.undo_last_withdraw(token, amount) {
-        Ok(()) => ok_state(world),
-        Err(err) => fail(&err.to_string()),
-    }
-}
 
 fn command_to_input(value: &Value, op: &str) -> Result<Input, String> {
     let mut obj = value
@@ -264,11 +233,7 @@ fn state_body(world: &World) -> serde_json::Map<String, Value> {
             .collect();
         characters.push(json!({
             "tokenId": snap.token_id.to_dec(),
-            "kek": snap.kek.to_dec(),
-            "solvencyKek": snap.solvency_kek.to_dec(),
             "gold": snap.gold.to_dec(),
-            "vaultClaim": world.vault_claim(&snap.token_id).unwrap_or(crate::u256::U256::ZERO).to_dec(),
-            "sunkKek": world.sunk_kek(&snap.token_id).unwrap_or(crate::u256::U256::ZERO).to_dec(),
             "inboundApplied": world.inbound_applied(&snap.token_id).unwrap_or(0),
             "level": world.level(&snap.token_id).unwrap_or(0),
             "abilities": abilities,
@@ -335,19 +300,14 @@ mod tests {
         assert_eq!(short["ok"], false);
         assert_eq!(gate.len(), before);
 
-        assert!(apply(&mut gate, r#"{"op":"depositKek","tokenId":"2","amount":"9","nonce":"1"}"#)["ok"].as_bool().unwrap());
+        let retired = apply(&mut gate, r#"{"op":"depositKek","tokenId":"2","amount":"9","nonce":"1"}"#);
+        assert_eq!(retired["ok"], false);
         assert!(apply(&mut gate, r#"{"op":"list","listingId":"1","seller":"1","itemId":"7","amount":"1"}"#)["ok"].as_bool().unwrap());
-        let low = apply(&mut gate, r#"{"op":"bid","listingId":"1","bidder":"2","amount":"3"}"#);
-        assert_eq!(low["ok"], true);
-        let not_higher = apply(&mut gate, r#"{"op":"bid","listingId":"1","bidder":"2","amount":"2"}"#);
-        assert_eq!(not_higher["ok"], false);
-        assert_eq!(gate.len(), before + 3);
-        let higher = apply(&mut gate, r#"{"op":"bid","listingId":"1","bidder":"2","amount":"5"}"#);
-        assert_eq!(higher["ok"], true);
+        let bid = apply(&mut gate, r#"{"op":"bid","listingId":"1","bidder":"2","amount":"3"}"#);
+        assert_eq!(bid["ok"], false);
         let not_seller = apply(&mut gate, r#"{"op":"cancel","listingId":"1","seller":"2"}"#);
         assert_eq!(not_seller["ok"], false);
-        let settled = apply(&mut gate, r#"{"op":"settle","listingId":"1"}"#);
-        assert_eq!(settled["ok"], true);
+        assert!(apply(&mut gate, r#"{"op":"cancel","listingId":"1","seller":"1"}"#)["ok"].as_bool().unwrap());
 
         let doc = gate.document_json();
         let again = Gate::open(&doc).unwrap();
@@ -355,11 +315,11 @@ mod tests {
         let chars = state["state"]["characters"].as_array().unwrap();
         let a = chars.iter().find(|c| c["tokenId"] == "1").unwrap();
         let b = chars.iter().find(|c| c["tokenId"] == "2").unwrap();
-        assert_eq!(a["kek"], "5");
-        assert_eq!(b["kek"], "4");
-        assert!(a["items"].as_array().unwrap().is_empty());
+        assert!(a.get("kek").is_none());
+        assert_eq!(a["items"][0]["itemId"], "7");
+        assert_eq!(a["items"][0]["amount"], "1");
         assert_eq!(b["items"][0]["itemId"], "7");
-        assert_eq!(b["items"][0]["amount"], "3");
+        assert_eq!(b["items"][0]["amount"], "2");
         assert!(state["state"]["listings"].as_array().unwrap().is_empty());
     }
 

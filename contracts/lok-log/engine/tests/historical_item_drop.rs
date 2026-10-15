@@ -34,8 +34,8 @@ const WORLD: &str = include_str!("fixtures/pre-206-item-drop-world.json");
 const CHARACTER: &str = include_str!("fixtures/pre-206-item-drop-character.json");
 
 const WORLD_HEAD: &str = "0xa0de5916755575b556b10c639881f7ff28c2ce18c43ff931991df900bf0f7e0c";
-const TOKEN1_ROOT: &str = "0x176684f027b419d00afb19609ac2ae33b0da801738589b051674a93c4b4b44ab";
-const TOKEN4_ROOT: &str = "0x6aa8b05dac2f3e8806945751f791ec133ab8ede3ff9861a8afd36e1891738d21";
+const TOKEN1_ROOT: &str = "0xb722422d3d630396e5a2893407dd43a38454d3539725b939351de6241d6f7339";
+const TOKEN4_ROOT: &str = "0xeda898afffd855490de16281993a5c4b0e8d5afb1aa63f598f7df392fd40dc45";
 const TOKEN1_HEAD: &str = "0xc3531a6c414c92a856f91f0c5e412ec257f4176c9aa0dcd3abf51a036d5909c6";
 
 fn n(v: u64) -> U256 {
@@ -95,7 +95,7 @@ fn historical_item_drop_credits_the_stack_the_seq_21_list_spends() {
     assert_eq!(world.item_balance(&n(4), &n(1057)), Some(n(5)));
     // A historical credit is not a LootDrop counter.
     assert_eq!(world.dropped(&n(4), &n(1029)), Some(U256::ZERO));
-    assert_eq!(world.kek_balance(&n(4)), Some(U256::ZERO));
+    assert_eq!(world.gold_balance(&n(4)), Some(U256::ZERO));
 
     // Seq 21 lists all six. This is the entry #206 rejected with `insufficient item`.
     let world = load_world(&world_doc_through(21)).expect("seq 21 list replays");
@@ -143,7 +143,7 @@ fn new_item_drop_append_is_closed_and_loot_drop_counts_without_minting() {
     assert_eq!(world.character_len(&n(4)), Some(len + 1));
     assert_eq!(world.dropped(&n(4), &n(1029)), Some(n(2)));
     assert_eq!(world.item_balance(&n(4), &n(1029)), Some(U256::ZERO));
-    assert_eq!(world.kek_balance(&n(4)), Some(U256::ZERO));
+    assert_eq!(world.gold_balance(&n(4)), Some(U256::ZERO));
     assert_eq!(
         world.apply(Input::LootDrop { token_id: n(4), item_id: n(0), amount: n(1) }).unwrap_err(),
         EngineError::BadId

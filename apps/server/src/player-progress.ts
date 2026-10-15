@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { withPlayerCharge } from "./kek-guard";
+import { withPlayerCharge } from "./gold-guard";
 
 export type SavedStack = { tokenId: number; amount: number; starter?: boolean };
 

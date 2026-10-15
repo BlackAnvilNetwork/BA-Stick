@@ -1,4 +1,4 @@
-//! Per-character hash chains for items, KEK, and the auction house.
+//! Per-character hash chains for items, gold, and the auction house.
 //!
 //! Each character's log starts at that character's genesis root and advances its own
 //! index. A transfer or auction is one payload appended to every affected character's
@@ -6,10 +6,8 @@
 //! that character's uncommitted tail; another character's committed copy of the trade
 //! stays on their chain.
 //!
-//! KEK enters only through `DepositKek`. `WithdrawKek` decreases spendable KEK
-//! (the `kekOut` image) and does not submit an onchain withdrawal. `SpendKek`
-//! decreases spendable KEK for an in-game price, is not `kekOut`, and does not mint.
-//! Escrowed bids are not spendable. There is no transfer tax and no auction fee.
+//! In-game prices spend gold. Asks escrow items and settle on AhEscrow (`ChainFill`);
+//! they do not move a log balance. KEK custody is retired.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -43,15 +41,10 @@ struct Character {
     inbox: BTreeMap<U256, U256>,
     /// Skill ids removed by respec and not learned again. Rebuilt by replay.
     dropped_skills: BTreeSet<String>,
-    /// Vault attribution still withdrawable by this character. Receipts add to it.
-    /// KEK that was sent, spent, or withdrawn is not included.
-    vault_claim: U256,
-    /// In-game prices (trainer, craft, respec). Not withdrawable and not kekOut.
-    sunk_kek: U256,
 }
 
 /// An auction listing. The item amount is escrowed out of the seller's spendable
-/// balance, and `high_bid` is escrowed out of the bidder's spendable KEK.
+/// balance. KEK-priced bids are retired; book asks settle on AhEscrow.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Listing {
     pub id: U256,
@@ -78,11 +71,7 @@ pub struct CharacterSnapshot {
     pub starting_job: u8,
     pub state_root: [u8; 32],
     pub summary: U256,
-    /// Spendable KEK. Escrowed bids are not included.
-    pub kek: U256,
-    /// Spendable KEK plus this character's escrowed bids. This is the solvency counter.
-    pub solvency_kek: U256,
-    /// Spendable in-game gold. No vault; not KEK.
+    /// Spendable in-game gold. No vault.
     pub gold: U256,
 }
 
@@ -146,24 +135,9 @@ impl World {
         seqs.len() as u64
     }
 
-    /// Spendable KEK. Bids in escrow are not included; they sit on the listing.
-    pub fn kek_balance(&self, token_id: &U256) -> Option<U256> {
-        self.characters.get(token_id).map(|c| c.state.get(&Key::Kek))
-    }
-
     /// Spendable in-game gold.
     pub fn gold_balance(&self, token_id: &U256) -> Option<U256> {
         self.characters.get(token_id).map(|c| c.state.get(&Key::Gold))
-    }
-
-    /// Spendable KEK plus escrowed bids. Vault solvency counts this, not spendable alone.
-    pub fn solvency_kek(&self, token_id: &U256) -> Option<U256> {
-        let spendable = self.kek_balance(token_id)?;
-        Some(
-            spendable
-                .checked_add(escrowed_bids(&self.listings, token_id))
-                .expect("solvency overflow"),
-        )
     }
 
     /// Spendable items. A listed quantity is escrowed and is not returned here,
@@ -267,19 +241,9 @@ impl World {
         self.characters.get(token_id).map(|ch| ch.committed)
     }
 
-    /// How many inbound nonces (KEK deposits and item imports) this character has consumed.
+    /// How many inbound nonces (item imports) this character has consumed.
     pub fn inbound_applied(&self, token_id: &U256) -> Option<u64> {
         self.characters.get(token_id).map(|ch| ch.inbound_applied)
-    }
-
-    /// KEK this character can still withdraw. Sent and spent KEK is not included.
-    pub fn vault_claim(&self, token_id: &U256) -> Option<U256> {
-        self.characters.get(token_id).map(|ch| ch.vault_claim)
-    }
-
-    /// KEK removed from this character by an in-game price.
-    pub fn sunk_kek(&self, token_id: &U256) -> Option<U256> {
-        self.characters.get(token_id).map(|ch| ch.sunk_kek)
     }
 
     pub fn snapshots(&self) -> Vec<CharacterSnapshot> {
@@ -290,12 +254,6 @@ impl World {
                 starting_job: ch.starting_job,
                 state_root: ch.state.root(),
                 summary: ch.state.summary(),
-                kek: ch.state.get(&Key::Kek),
-                solvency_kek: ch
-                    .state
-                    .get(&Key::Kek)
-                    .checked_add(escrowed_bids(&self.listings, token_id))
-                    .expect("solvency overflow"),
                 gold: ch.state.get(&Key::Gold),
             })
             .collect()
@@ -317,19 +275,6 @@ impl World {
 
     pub fn append_spawn(&mut self, token_id: U256, starting_job: u8) -> Result<AppliedEvent, EngineError> {
         self.apply(Input::Spawn { token_id, starting_job })
-    }
-
-    pub fn append_deposit_kek(&mut self, token_id: U256, amount: U256, nonce: u64) -> Result<AppliedEvent, EngineError> {
-        self.apply(Input::DepositKek { token_id, amount, nonce })
-    }
-
-    pub fn append_withdraw_kek(&mut self, token_id: U256, amount: U256) -> Result<AppliedEvent, EngineError> {
-        self.apply(Input::WithdrawKek { token_id, amount })
-    }
-
-    /// Debit spendable KEK for an in-game price. Not a withdrawal and not a mint.
-    pub fn append_spend_kek(&mut self, token_id: U256, amount: U256) -> Result<AppliedEvent, EngineError> {
-        self.apply(Input::SpendKek { token_id, amount })
     }
 
     /// Credit in-game gold from a faucet. Enforces daily earn caps for `day`.
@@ -363,16 +308,6 @@ impl World {
         day: u64,
     ) -> Result<AppliedEvent, EngineError> {
         self.apply(Input::GoldSell { token_id, item_id, qty, amount, day })
-    }
-
-    /// Debit spendable KEK and clear skill nodes together. Not a withdrawal and not a mint.
-    pub fn append_paid_respec_skills(
-        &mut self,
-        token_id: U256,
-        amount: U256,
-        node_ids: Vec<String>,
-    ) -> Result<AppliedEvent, EngineError> {
-        self.apply(Input::PaidRespecSkills { token_id, amount, node_ids })
     }
 
     pub fn append_import_item(
@@ -412,10 +347,6 @@ impl World {
         amount: U256,
     ) -> Result<AppliedEvent, EngineError> {
         self.apply(Input::SendItem { from, to, item_id, amount })
-    }
-
-    pub fn append_send_kek(&mut self, from: U256, to: U256, amount: U256) -> Result<AppliedEvent, EngineError> {
-        self.apply(Input::SendKek { from, to, amount })
     }
 
     pub fn append_list(
@@ -586,15 +517,9 @@ impl World {
         let prev_root = self.root_at(token_id, from_index)?;
         let (new_root, summary) = self.projection_at(token_id, to_index)?;
         let log_hash = ch.entries[to_index as usize - 1].hash;
-        let mut kek_out = U256::ZERO;
         let mut exports = Vec::new();
-        // SpendKek is an in-game sink. It must not become kekOut, or a checkpoint would
-        // queue a vault withdrawal of KEK the player already spent.
         for entry in &ch.entries[from_index as usize..to_index as usize] {
             match &entry.input {
-                Input::WithdrawKek { token_id: who, amount } if who == token_id => {
-                    kek_out = kek_out.checked_add(*amount).ok_or(EngineError::Overflow)?;
-                }
                 Input::ExportItem { token_id: who, item_id, amount } if who == token_id => {
                     exports.push(Export {
                         item_id: *item_id,
@@ -613,7 +538,6 @@ impl World {
             ruleset_hash: [0u8; 32],
             summary,
             inbound_consumed: inbound_count(&ch.entries[..to_index as usize], token_id),
-            kek_out,
             exports,
         })
     }
@@ -865,17 +789,6 @@ impl World {
                 }
                 touch.insert(*token_id);
             }
-            Input::DepositKek { token_id, amount, .. }
-            | Input::WithdrawKek { token_id, amount }
-            | Input::SpendKek { token_id, amount } => {
-                if *amount == U256::ZERO {
-                    return Err(EngineError::ZeroAmount);
-                }
-                if !self.characters.contains_key(token_id) {
-                    return Err(EngineError::NotSpawned);
-                }
-                touch.insert(*token_id);
-            }
             Input::ImportItem { token_id, amount, .. } | Input::ExportItem { token_id, amount, .. } => {
                 if *amount == U256::ZERO {
                     return Err(EngineError::ZeroAmount);
@@ -885,7 +798,7 @@ impl World {
                 }
                 touch.insert(*token_id);
             }
-            Input::SendKek { from, to, amount } | Input::SendItem { from, to, amount, .. } => {
+            Input::SendItem { from, to, amount, .. } => {
                 if from == to {
                     return Err(EngineError::SelfTransfer);
                 }
@@ -913,22 +826,7 @@ impl World {
                 }
                 touch.insert(*seller);
             }
-            Input::Bid { listing_id, bidder, amount } => {
-                if *amount == U256::ZERO {
-                    return Err(EngineError::ZeroAmount);
-                }
-                let listing = self.listings.get(listing_id).ok_or(EngineError::UnknownListing)?;
-                if *amount <= listing.high_bid {
-                    return Err(EngineError::BidNotHigher);
-                }
-                if !self.characters.contains_key(bidder) {
-                    return Err(EngineError::NotSpawned);
-                }
-                touch.insert(*bidder);
-                if let Some(prev) = listing.high_bidder {
-                    touch.insert(prev);
-                }
-            }
+            Input::Bid { .. } => return Err(EngineError::KekRetired),
             Input::Cancel { listing_id, seller } => {
                 let listing = self.listings.get(listing_id).ok_or(EngineError::UnknownListing)?;
                 if listing.seller != *seller {
@@ -939,12 +837,7 @@ impl World {
                     touch.insert(prev);
                 }
             }
-            Input::Settle { listing_id } => {
-                let listing = self.listings.get(listing_id).ok_or(EngineError::UnknownListing)?;
-                let winner = listing.high_bidder.ok_or(EngineError::NoBid)?;
-                touch.insert(winner);
-                touch.insert(listing.seller);
-            }
+            Input::Settle { .. } => return Err(EngineError::KekRetired),
             Input::LevelUp { token_id, level } => {
                 if *level == 0 || *level > 65535 {
                     return Err(EngineError::BadLevel);
@@ -1033,24 +926,6 @@ impl World {
                 }
                 touch.insert(*token_id);
             }
-            Input::PaidRespecSkills { token_id, amount, node_ids } => {
-                if node_ids.is_empty() {
-                    return Err(EngineError::BadId);
-                }
-                if *amount == U256::ZERO {
-                    return Err(EngineError::ZeroAmount);
-                }
-                if node_ids.len() > 600 {
-                    return Err(EngineError::BadId);
-                }
-                for id in node_ids {
-                    parse_label(id)?;
-                }
-                if !self.characters.contains_key(token_id) {
-                    return Err(EngineError::NotSpawned);
-                }
-                touch.insert(*token_id);
-            }
             Input::GoldEarn { token_id, source, amount, day } => {
                 parse_label(source)?;
                 if *amount == U256::ZERO {
@@ -1107,37 +982,7 @@ impl World {
                 }
                 touch.insert(*seller);
             }
-            Input::Fill { bidder, item_id, amount, listing_id } => {
-                if *amount == U256::ZERO {
-                    return Err(EngineError::ZeroAmount);
-                }
-                if *item_id == U256::ZERO {
-                    return Err(EngineError::BadId);
-                }
-                let chosen = self.choose_ask(*bidder, *item_id, *amount)?;
-                if chosen.id != *listing_id || *amount != chosen.min_price {
-                    return Err(if *amount != chosen.min_price { EngineError::OverAsk } else { EngineError::NoAsk });
-                }
-                if !self.characters.contains_key(bidder) || !self.characters.contains_key(&chosen.seller) {
-                    return Err(EngineError::NotSpawned);
-                }
-                touch.insert(*bidder);
-                touch.insert(chosen.seller);
-            }
-            Input::Buy { bidder, item_id, listing_id } => {
-                if *item_id == U256::ZERO {
-                    return Err(EngineError::BadId);
-                }
-                let chosen = self.choose_lowest_ask(*bidder, *item_id)?;
-                if chosen.id != *listing_id {
-                    return Err(EngineError::NoAsk);
-                }
-                if !self.characters.contains_key(bidder) || !self.characters.contains_key(&chosen.seller) {
-                    return Err(EngineError::NotSpawned);
-                }
-                touch.insert(*bidder);
-                touch.insert(chosen.seller);
-            }
+            Input::Fill { .. } | Input::Buy { .. } => return Err(EngineError::KekRetired),
             Input::ChainFill {
                 listing_id,
                 buyer,
@@ -1272,31 +1117,8 @@ impl World {
                         craft_skills: BTreeMap::new(),
                         inbox: BTreeMap::new(),
                         dropped_skills: BTreeSet::new(),
-                        vault_claim: U256::ZERO,
-                        sunk_kek: U256::ZERO,
                     },
                 );
-                Ok(())
-            }
-            Input::DepositKek { token_id, amount, nonce } => {
-                if touch.contains(token_id) {
-                    self.credit_inbound(*token_id, *nonce, |world| world.credit_kek(*token_id, *amount))?;
-                    self.add_claim(*token_id, *amount)?;
-                }
-                Ok(())
-            }
-            Input::WithdrawKek { token_id, amount } => {
-                if touch.contains(token_id) {
-                    self.debit_kek(*token_id, *amount)?;
-                    self.sub_claim(*token_id, *amount)?;
-                }
-                Ok(())
-            }
-            Input::SpendKek { token_id, amount } => {
-                if touch.contains(token_id) {
-                    self.debit_kek(*token_id, *amount)?;
-                    self.sink_claim(*token_id, *amount)?;
-                }
                 Ok(())
             }
             Input::ImportItem { token_id, item_id, amount, nonce } => {
@@ -1311,20 +1133,15 @@ impl World {
                 }
                 Ok(())
             }
-            Input::SendKek { from, to, amount } => {
-                self.transfer_kek(*from, *to, *amount, touch)?;
-                self.move_claim(*from, *to, *amount)?;
-                Ok(())
-            }
             Input::SendItem { from, to, item_id, amount } => {
                 self.transfer_item(*from, *to, *item_id, *amount, touch)
             }
             Input::List { listing_id, seller, item_id, amount } => {
                 self.list(*listing_id, *seller, *item_id, *amount, touch)
             }
-            Input::Bid { listing_id, bidder, amount } => self.bid(*listing_id, *bidder, *amount, touch),
+            Input::Bid { .. } => Err(EngineError::KekRetired),
             Input::Cancel { listing_id, seller } => self.cancel(*listing_id, *seller, touch),
-            Input::Settle { listing_id } => self.settle(*listing_id, touch),
+            Input::Settle { .. } => Err(EngineError::KekRetired),
             Input::LevelUp { token_id, level } => {
                 if touch.contains(token_id) {
                     self.apply_level(*token_id, *level)?;
@@ -1385,24 +1202,10 @@ impl World {
                 }
                 Ok(())
             }
-            Input::PaidRespecSkills { token_id, amount, node_ids } => {
-                if node_ids.is_empty() {
-                    return Err(EngineError::BadId);
-                }
-                if touch.contains(token_id) {
-                    self.debit_kek(*token_id, *amount)?;
-                    self.sink_claim(*token_id, *amount)?;
-                    self.respec_skills(*token_id, node_ids)?;
-                }
-                Ok(())
-            }
             Input::Ask { listing_id, seller, item_id, amount, min_price, listed_at } => {
                 self.ask(*listing_id, *seller, *item_id, *amount, *min_price, *listed_at, touch)
             }
-            Input::Fill { bidder, item_id, amount, listing_id } => {
-                self.fill(*bidder, *item_id, *amount, *listing_id, touch)
-            }
-            Input::Buy { bidder, item_id, listing_id } => self.buy(*bidder, *item_id, *listing_id, touch),
+            Input::Fill { .. } | Input::Buy { .. } => Err(EngineError::KekRetired),
             Input::ChainFill {
                 listing_id,
                 buyer,
@@ -1642,84 +1445,6 @@ impl World {
         Ok(())
     }
 
-    fn add_claim(&mut self, token_id: U256, amount: U256) -> Result<(), EngineError> {
-        let ch = self.characters.get_mut(&token_id).ok_or(EngineError::NotSpawned)?;
-        ch.vault_claim = ch.vault_claim.checked_add(amount).ok_or(EngineError::Overflow)?;
-        Ok(())
-    }
-
-    fn sub_claim(&mut self, token_id: U256, amount: U256) -> Result<(), EngineError> {
-        let ch = self.characters.get_mut(&token_id).ok_or(EngineError::NotSpawned)?;
-        ch.vault_claim = ch.vault_claim.checked_sub(amount).ok_or(EngineError::InsufficientKek)?;
-        Ok(())
-    }
-
-    fn sink_claim(&mut self, token_id: U256, amount: U256) -> Result<(), EngineError> {
-        self.sub_claim(token_id, amount)?;
-        let ch = self.characters.get_mut(&token_id).ok_or(EngineError::NotSpawned)?;
-        ch.sunk_kek = ch.sunk_kek.checked_add(amount).ok_or(EngineError::Overflow)?;
-        Ok(())
-    }
-
-    fn move_claim(&mut self, from: U256, to: U256, amount: U256) -> Result<(), EngineError> {
-        if from == to {
-            return Ok(());
-        }
-        self.sub_claim(from, amount)?;
-        self.add_claim(to, amount)
-    }
-
-    /// How many withdraws of this amount are already on the character log.
-    pub fn withdraw_count(&self, token_id: U256, amount: U256) -> u64 {
-        let Some(ch) = self.characters.get(&token_id) else {
-            return 0;
-        };
-        ch.entries
-            .iter()
-            .filter(|entry| matches!(&entry.input, Input::WithdrawKek { token_id: who, amount: logged } if who == &token_id && logged == &amount))
-            .count() as u64
-    }
-
-    /// Drop a withdraw that was appended but never queued. Only the last uncommitted entry.
-    pub fn undo_last_withdraw(&mut self, token_id: U256, amount: U256) -> Result<(), EngineError> {
-        let ch = self.characters.get(&token_id).ok_or(EngineError::NotSpawned)?;
-        let last = ch.entries.last().ok_or(EngineError::BadRange)?;
-        match &last.input {
-            Input::WithdrawKek { token_id: who, amount: logged } if who == &token_id && logged == &amount => {}
-            _ => return Err(EngineError::BadRange),
-        }
-        if ch.committed >= ch.entries.len() as u64 {
-            return Err(EngineError::BadRange);
-        }
-        let ch = self.characters.get_mut(&token_id).ok_or(EngineError::NotSpawned)?;
-        ch.entries.pop();
-        ch.chain.pop().ok_or(EngineError::BadRange)?;
-        self.credit_kek(token_id, amount)?;
-        self.add_claim(token_id, amount)?;
-        Ok(())
-    }
-
-    fn credit_kek(&mut self, token_id: U256, amount: U256) -> Result<(), EngineError> {
-        if amount == U256::ZERO {
-            return Err(EngineError::ZeroAmount);
-        }
-        let ch = self.characters.get_mut(&token_id).ok_or(EngineError::NotSpawned)?;
-        let next = ch.state.get(&Key::Kek).checked_add(amount).ok_or(EngineError::Overflow)?;
-        ch.state.set_kek(next);
-        Ok(())
-    }
-
-    fn debit_kek(&mut self, token_id: U256, amount: U256) -> Result<(), EngineError> {
-        if amount == U256::ZERO {
-            return Err(EngineError::ZeroAmount);
-        }
-        let ch = self.characters.get_mut(&token_id).ok_or(EngineError::NotSpawned)?;
-        // Spendable only. Escrowed bids were already removed from this balance, so they
-        // cannot be withdrawn.
-        let next = ch.state.get(&Key::Kek).checked_sub(amount).ok_or(EngineError::InsufficientKek)?;
-        ch.state.set_kek(next);
-        Ok(())
-    }
 
     fn credit_item(&mut self, token_id: U256, item_id: U256, amount: U256) -> Result<(), EngineError> {
         if amount == U256::ZERO {
@@ -1746,28 +1471,6 @@ impl World {
             .checked_sub(amount)
             .ok_or(EngineError::InsufficientItem)?;
         ch.state.set_item(item_id, next);
-        Ok(())
-    }
-
-    fn transfer_kek(
-        &mut self,
-        from: U256,
-        to: U256,
-        amount: U256,
-        touch: &BTreeSet<U256>,
-    ) -> Result<(), EngineError> {
-        if from == to {
-            return Err(EngineError::SelfTransfer);
-        }
-        if amount == U256::ZERO {
-            return Err(EngineError::ZeroAmount);
-        }
-        if touch.contains(&from) {
-            self.debit_kek(from, amount)?;
-        }
-        if touch.contains(&to) {
-            self.credit_kek(to, amount)?;
-        }
         Ok(())
     }
 
@@ -1831,40 +1534,6 @@ impl World {
         Ok(())
     }
 
-    fn bid(
-        &mut self,
-        listing_id: U256,
-        bidder: U256,
-        amount: U256,
-        touch: &BTreeSet<U256>,
-    ) -> Result<(), EngineError> {
-        if amount == U256::ZERO {
-            return Err(EngineError::ZeroAmount);
-        }
-        let listing = self
-            .listings
-            .get(&listing_id)
-            .cloned()
-            .ok_or(EngineError::UnknownListing)?;
-        if listing.book {
-            return Err(EngineError::NoAsk);
-        }
-        if amount <= listing.high_bid {
-            return Err(EngineError::BidNotHigher);
-        }
-        if let Some(prev) = listing.high_bidder {
-            if touch.contains(&prev) {
-                self.credit_kek(prev, listing.high_bid)?;
-            }
-        }
-        if touch.contains(&bidder) {
-            self.debit_kek(bidder, amount)?;
-        }
-        let listing = self.listings.get_mut(&listing_id).unwrap();
-        listing.high_bidder = Some(bidder);
-        listing.high_bid = amount;
-        Ok(())
-    }
 
     fn cancel(&mut self, listing_id: U256, seller: U256, touch: &BTreeSet<U256>) -> Result<(), EngineError> {
         let listing = self
@@ -1885,32 +1554,13 @@ impl World {
         if touch.contains(&listing.seller) {
             self.credit_item(listing.seller, listing.item_id, listing.amount)?;
         }
-        if let Some(prev) = listing.high_bidder {
-            if touch.contains(&prev) {
-                self.credit_kek(prev, listing.high_bid)?;
-            }
+        if listing.high_bidder.is_some() {
+            return Err(EngineError::KekRetired);
         }
         self.listings.remove(&listing_id);
         Ok(())
     }
 
-    fn settle(&mut self, listing_id: U256, touch: &BTreeSet<U256>) -> Result<(), EngineError> {
-        let listing = self
-            .listings
-            .get(&listing_id)
-            .cloned()
-            .ok_or(EngineError::UnknownListing)?;
-        let winner = listing.high_bidder.ok_or(EngineError::NoBid)?;
-        if touch.contains(&winner) {
-            self.credit_item(winner, listing.item_id, listing.amount)?;
-        }
-        if touch.contains(&listing.seller) {
-            self.credit_kek(listing.seller, listing.high_bid)?;
-        }
-        self.move_claim(winner, listing.seller, listing.high_bid)?;
-        self.listings.remove(&listing_id);
-        Ok(())
-    }
 
     pub(crate) fn choose_lowest_ask(&self, bidder: U256, item_id: U256) -> Result<Listing, EngineError> {
         self.choose_ask_capped(bidder, item_id, None)
@@ -1990,43 +1640,7 @@ impl World {
         Ok(())
     }
 
-    fn fill(
-        &mut self,
-        bidder: U256,
-        item_id: U256,
-        amount: U256,
-        listing_id: U256,
-        touch: &BTreeSet<U256>,
-    ) -> Result<(), EngineError> {
-        let chosen = self.choose_ask(bidder, item_id, amount)?;
-        if chosen.id != listing_id {
-            return Err(EngineError::NoAsk);
-        }
-        if amount != chosen.min_price {
-            return Err(EngineError::OverAsk);
-        }
-        self.pay_ask(bidder, &chosen, amount, touch)?;
-        self.listings.remove(&listing_id);
-        Ok(())
-    }
 
-    fn buy(
-        &mut self,
-        bidder: U256,
-        item_id: U256,
-        listing_id: U256,
-        touch: &BTreeSet<U256>,
-    ) -> Result<(), EngineError> {
-        let chosen = self.choose_lowest_ask(bidder, item_id)?;
-        if chosen.id != listing_id {
-            return Err(EngineError::NoAsk);
-        }
-        self.pay_ask(bidder, &chosen, chosen.min_price, touch)?;
-        self.listings.remove(&listing_id);
-        Ok(())
-    }
-
-    /// Item-only ask fill after AhEscrow paid the seller on-chain.
     fn chain_fill(
         &mut self,
         listing_id: U256,
@@ -2054,29 +1668,6 @@ impl World {
             self.credit_inbox(buyer, listing.item_id, listing.amount)?;
         }
         self.listings.remove(&listing_id);
-        Ok(())
-    }
-
-    fn pay_ask(
-        &mut self,
-        bidder: U256,
-        chosen: &Listing,
-        price: U256,
-        touch: &BTreeSet<U256>,
-    ) -> Result<(), EngineError> {
-        if price != chosen.min_price {
-            return Err(EngineError::OverAsk);
-        }
-        if touch.contains(&bidder) {
-            self.debit_kek(bidder, price)?;
-        }
-        if touch.contains(&chosen.seller) {
-            self.credit_kek(chosen.seller, price)?;
-        }
-        if touch.contains(&bidder) {
-            self.credit_inbox(bidder, chosen.item_id, chosen.amount)?;
-        }
-        self.move_claim(bidder, chosen.seller, price)?;
         Ok(())
     }
 
@@ -2189,15 +1780,6 @@ impl Default for World {
     }
 }
 
-fn escrowed_bids(listings: &BTreeMap<U256, Listing>, token_id: &U256) -> U256 {
-    let mut total = U256::ZERO;
-    for listing in listings.values() {
-        if listing.high_bidder == Some(*token_id) {
-            total = total.checked_add(listing.high_bid).expect("escrow overflow");
-        }
-    }
-    total
-}
 
 fn fit_u32(amount: U256) -> Result<u32, EngineError> {
     if amount.0[..28].iter().any(|byte| *byte != 0) {
@@ -2215,7 +1797,7 @@ fn inbound_count(entries: &[LoggedEntry], token_id: &U256) -> u64 {
     entries
         .iter()
         .filter(|entry| match &entry.input {
-            Input::DepositKek { token_id: who, .. } | Input::ImportItem { token_id: who, .. } => who == token_id,
+            Input::ImportItem { token_id: who, .. } => who == token_id,
             _ => false,
         })
         .count() as u64

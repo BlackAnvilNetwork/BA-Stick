@@ -18,6 +18,8 @@ pub enum EngineError {
     SelfTransfer,
     ZeroAmount,
     InsufficientKek,
+    /// KEK custody, transfers, and KEK-priced fills are retired. Gold is in-game; asks settle on AhEscrow.
+    KekRetired,
     InsufficientGold,
     InsufficientItem,
     Overflow,
@@ -86,6 +88,7 @@ impl fmt::Display for EngineError {
             Self::SelfTransfer => write!(f, "cannot send to self"),
             Self::ZeroAmount => write!(f, "amount must be greater than zero"),
             Self::InsufficientKek => write!(f, "insufficient KEK"),
+            Self::KekRetired => write!(f, "KEK custody is retired"),
             Self::InsufficientGold => write!(f, "insufficient gold"),
             Self::InsufficientItem => write!(f, "insufficient item"),
             Self::Overflow => write!(f, "balance overflow"),
@@ -221,17 +224,11 @@ impl Engine {
                 self.state.spawn(*token_id, *starting_job);
                 Ok(())
             }
-            Input::DepositKek { token_id, amount, nonce } => {
-                self.credit_inbound(*token_id, *nonce, |engine| engine.credit_kek(*token_id, *amount))
-            }
-            Input::WithdrawKek { token_id, amount } => self.debit_kek(*token_id, *amount),
-            Input::SpendKek { token_id, amount } => self.debit_kek(*token_id, *amount),
             Input::ImportItem { token_id, item_id, amount, nonce } => {
                 self.credit_inbound(*token_id, *nonce, |engine| engine.credit_item(*token_id, *item_id, *amount))
             }
             Input::BagImport { token_id, item_id, amount } => self.credit_item(*token_id, *item_id, *amount),
             Input::ExportItem { token_id, item_id, amount } => self.debit_item(*token_id, *item_id, *amount),
-            Input::SendKek { from, to, amount } => self.transfer_kek(*from, *to, *amount),
             Input::SendItem { from, to, item_id, amount } => self.transfer_item(*from, *to, *item_id, *amount),
             Input::List { .. }
             | Input::Bid { .. }
@@ -261,13 +258,6 @@ impl Engine {
             Input::LootDrop { token_id, item_id, amount } => self.note_drop(*token_id, *item_id, *amount),
             Input::CraftSkill { token_id, skill_id, level } => self.note_craft_skill(*token_id, skill_id, *level),
             Input::RespecSkills { token_id, node_ids } => self.respec_skills(*token_id, node_ids),
-            Input::PaidRespecSkills { token_id, amount, node_ids } => {
-                if node_ids.is_empty() {
-                    return Err(EngineError::BadId);
-                }
-                self.debit_kek(*token_id, *amount)?;
-                self.respec_skills(*token_id, node_ids)
-            }
             Input::GoldEarn { token_id, source, amount, day } => {
                 self.involves(token_id)?;
                 gold::credit_earn(&mut self.state, source, *amount, *day).map_err(gold_err)
@@ -440,30 +430,6 @@ impl Engine {
         Ok(())
     }
 
-    fn credit_kek(&mut self, token_id: U256, amount: U256) -> Result<(), EngineError> {
-        self.involves(&token_id)?;
-        if amount == U256::ZERO {
-            return Err(EngineError::ZeroAmount);
-        }
-        let next = self.state.get(&Key::Kek).checked_add(amount).ok_or(EngineError::Overflow)?;
-        self.state.set_kek(next);
-        Ok(())
-    }
-
-    fn debit_kek(&mut self, token_id: U256, amount: U256) -> Result<(), EngineError> {
-        self.involves(&token_id)?;
-        if amount == U256::ZERO {
-            return Err(EngineError::ZeroAmount);
-        }
-        let next = self
-            .state
-            .get(&Key::Kek)
-            .checked_sub(amount)
-            .ok_or(EngineError::InsufficientKek)?;
-        self.state.set_kek(next);
-        Ok(())
-    }
-
     fn credit_item(&mut self, token_id: U256, item_id: U256, amount: U256) -> Result<(), EngineError> {
         self.involves(&token_id)?;
         if amount == U256::ZERO {
@@ -489,34 +455,6 @@ impl Engine {
             .checked_sub(amount)
             .ok_or(EngineError::InsufficientItem)?;
         self.state.set_item(item_id, next);
-        Ok(())
-    }
-
-    fn transfer_kek(&mut self, from: U256, to: U256, amount: U256) -> Result<(), EngineError> {
-        if from == to {
-            return Err(EngineError::SelfTransfer);
-        }
-        if amount == U256::ZERO {
-            return Err(EngineError::ZeroAmount);
-        }
-        if from != self.token_id && to != self.token_id {
-            return Err(EngineError::NotOnCharacterLog);
-        }
-        if self.state.is_empty() {
-            return Err(EngineError::NotSpawned);
-        }
-        if from == self.token_id {
-            let next = self
-                .state
-                .get(&Key::Kek)
-                .checked_sub(amount)
-                .ok_or(EngineError::InsufficientKek)?;
-            self.state.set_kek(next);
-        }
-        if to == self.token_id {
-            let next = self.state.get(&Key::Kek).checked_add(amount).ok_or(EngineError::Overflow)?;
-            self.state.set_kek(next);
-        }
         Ok(())
     }
 

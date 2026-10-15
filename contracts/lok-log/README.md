@@ -2,8 +2,8 @@
 
 Event-sourced characters with onchain checkpoints. The chain stores **one state root per character** plus a position in
 that character's hash-chained event log. Crafting, XP, abilities and equipment are off-chain game events that anyone can
-replay from the published log. Contracts: `CharacterNFT`, `CharacterCheckpoint`, `CharacterFactory`, `RulesetRegistry`,
-`KekVault`. The ERC-1155 items contract and KEK (ERC-20) are external.
+replay from the published log. Contracts: `CharacterNFT`, `CharacterCheckpoint`, `CharacterFactory`, `RulesetRegistry`.
+The ERC-1155 items contract is external. KEK custody (`KekVault`, `kekOut`) is retired.
 
 ## How it fits together
 - **Checkpoint** (`CharacterCheckpoint.checkpoint`): the owner submits (and pays gas for) a verifier-signed span of the log.
@@ -14,10 +14,8 @@ replay from the published log. Contracts: `CharacterNFT`, `CharacterCheckpoint`,
   invariants). Replaces the old item/collection allowlists and the onchain RecipeBook.
 - **Items**: live as leaves in the state tree. They become ERC-1155 tokens only via `exports[]` inside a signed checkpoint
   (mint) and return via `importItem` (burn) plus a log event that consumes it.
-- **KEK** (`KekVault`): `depositKek` custodies tokens and credits the in-game counter when the log applies the event.
-  `kekOut` in a signed checkpoint queues a **delayed, guardian-cancellable** withdrawal. The vault refuses to queue more
-  than it holds. Solvency invariant: `vault balance >= sum of in-game KEK counters`.
-- **Inbound queue**: item imports and KEK deposits share one counter (`inboundCount`); each checkpoint's `inboundConsumed`
+- **Gold and items** are the log currencies. Auction payment is on-chain ETH via AhEscrow (`ChainFill` moves the item; it does not credit a balance). KEK custody and `kekOut` are retired.
+- **Inbound queue**: item imports share one counter (`inboundCount`); each checkpoint's `inboundConsumed`
   proves the log applied them. Watchers cross-check the log against the emitted request events.
 
 ## Hashing and ids (keccak256 everywhere)

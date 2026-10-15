@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { guardedKekMove, withPlayerCharge } from "./kek-guard";
+import { guardedGoldMove, withPlayerCharge } from "./gold-guard";
 
 test("a second overlapping craft does not double-charge", async () => {
   let gold = 2000;
@@ -92,16 +92,16 @@ test("a failed craft spend rolls the reserved materials back", async () => {
   assert.equal(gold, 1000);
 });
 
-test("guardedKekMove serializes two moves on the same token", async () => {
+test("guardedGoldMove serializes two moves on the same token", async () => {
   let balance = 100;
   const order: number[] = [];
-  const first = guardedKekMove("t1", async () => {
+  const first = guardedGoldMove("t1", async () => {
     await Promise.resolve();
     balance -= 40;
     order.push(1);
     return balance;
   });
-  const second = guardedKekMove("t1", async () => {
+  const second = guardedGoldMove("t1", async () => {
     balance -= 25;
     order.push(2);
     return balance;

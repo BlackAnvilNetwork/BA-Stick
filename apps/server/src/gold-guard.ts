@@ -3,7 +3,7 @@
 const tails = new Map<string, Promise<void>>();
 const playerTails = new Map<string, Promise<void>>();
 
-export function withKekLock<T>(token: string, fn: () => Promise<T>): Promise<T> {
+export function withGoldLock<T>(token: string, fn: () => Promise<T>): Promise<T> {
   const prev = tails.get(token) ?? Promise.resolve();
   const run = prev.then(fn, fn);
   tails.set(
@@ -63,6 +63,6 @@ export async function withPlayerCharge(
 }
 
 /** Serialize spends against one character token (gold sinks share this lock). */
-export function guardedKekMove<T>(token: string, fn: () => T | Promise<T>): Promise<T> {
-  return withKekLock(token, async () => await fn());
+export function guardedGoldMove<T>(token: string, fn: () => T | Promise<T>): Promise<T> {
+  return withGoldLock(token, async () => await fn());
 }

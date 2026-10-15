@@ -1,17 +1,16 @@
 //! Bellgrave lok engine.
 //!
 //! Proven against the golden vectors in `contracts/lok-log/test/Golden.t.sol` and
-//! `test/golden/verify.mjs`. The game server calls this crate (wasm gate) for every item and KEK move.
-//! KEK is deposit-only: a character log credits it only as a vault deposit, and
-//! transfers cannot create it. `WithdrawKek` decreases spendable KEK and does not
-//! submit an onchain withdrawal. `SpendKek` debits spendable KEK for an in-game
-//! price, leaves escrowed bids locked, is not `kekOut`, and does not mint.
+//! `test/golden/verify.mjs`. The game server calls this crate (wasm gate) for item moves and gold.
+//! KEK custody is retired: deposit, withdraw, spend, send, and paid respec do not parse,
+//! and KEK-priced bid, settle, fill, and buy return `KekRetired` without appending.
+//! Asks, chain fills, item list/cancel, and gold sinks remain.
 //! Level-up, ability, craft, harvest, loot-drop counters, and bag imports are per character and
-//! do not mint KEK. Bag imports credit items without a chain inbound nonce. Each character has their own hash chain.
+//! do not mint items. Bag imports credit items without a chain inbound nonce. Each character has their own hash chain.
 //! `LootDrop` is the loot counter and never credits items. `ItemDrop` is closed for new appends
 //! (`ClosedMint`); entries already on a log at `seq <= HISTORICAL_ITEM_DROP_MAX_SEQ` replay as the
 //! item credit they were when written, and any later one is refused even on replay.
-//! A KEK deposit or item import carries that character's inbound nonce and is rejected
+//! An item import carries that character's inbound nonce and is rejected
 //! if the same nonce is applied again. The nonce must be the next one (`inboundCount`).
 
 mod abi;

@@ -153,7 +153,7 @@ contract CharacterCheckpointTest is Base {
         cp.checkpoint(tokenId, c, a);
     }
 
-    function test_checkpoint_rejectsTamperedExportsAndKek() public {
+    function test_checkpoint_rejectsTamperedExports() public {
         CharacterCheckpoint.Checkpoint memory c = _next();
         CharacterCheckpoint.Auth memory a = _auth(c);
 
@@ -162,12 +162,6 @@ contract CharacterCheckpointTest is Base {
         vm.prank(player);
         vm.expectRevert(CharacterCheckpoint.BadSignature.selector);
         cp.checkpoint(tokenId, withExport, a);
-
-        CharacterCheckpoint.Checkpoint memory withKek = _next();
-        withKek.kekOut = 1 ether;
-        vm.prank(player);
-        vm.expectRevert(CharacterCheckpoint.BadSignature.selector);
-        cp.checkpoint(tokenId, withKek, a);
     }
 
     function testFuzz_checkpoint_rejectsAnyWrongFromIndex(uint64 badFrom) public {
@@ -416,13 +410,6 @@ contract CharacterCheckpointTest is Base {
         vm.prank(other);
         cp.checkpoint(tokenId, c, a);
         assertEq(cp.inboundApplied(tokenId), 1);
-    }
-
-    function test_kekOut_isRetired() public {
-        CharacterCheckpoint.Checkpoint memory c = _next();
-        c.kekOut = 1 ether;
-        _expectRevert(c, CharacterCheckpoint.KekRetired.selector);
-        assertEq(cp.logIndex(tokenId), 0, "checkpoint rolled back");
     }
 
     function test_checkpoint_relayerSubmitsForTheNftOwner() public {

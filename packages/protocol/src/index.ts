@@ -417,12 +417,11 @@ export type EezSyncBuyClientConfig = {
 export type LokSnapshot = {
   tokenId: string;
   /**
-   * Settlement balance for AH bids/asks and player sends (ETH/WETH wei on the log).
-   * Engine event names still say Kek for replay; product unit is ETH.
-   * New play does not credit this for AH — payment is on-chain via AhEscrow.
+   * Legacy settlement display. Always "0". KEK custody is retired.
+   * Auction payment is on-chain ETH via AhEscrow. In-game sinks use `gold`.
    */
   kek: string;
-  /** Same as `kek` — preferred client field for legacy settlement display. */
+  /** Same as `kek`. Always "0". */
   eth?: string;
   /** In-game gold (log-only). Trainer / craft / respec spend this, not ETH. */
   gold?: string;
