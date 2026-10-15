@@ -424,6 +424,56 @@ fn a_failed_earn_rolls_back_only_the_touched_character() {
     assert_eq!(world.character_head(&n(2)), other_head);
 }
 
+#[test]
+fn a_mid_log_checkpoint_reads_the_stored_projection() {
+    let mut world = spawn_pair();
+    world.append_gold_earn(n(1), "quest".into(), n(100), 4).unwrap();
+    let mid = world.checkpoint_covering(&n(1), 1, 2).unwrap();
+
+    let mut prefix = World::new();
+    prefix.append_spawn(n(1), 3).unwrap();
+    let spawned = prefix.character_state(&n(1)).unwrap();
+    assert_eq!(mid.prev_root, spawned.root());
+    prefix.append_gold_earn(n(1), "quest".into(), n(100), 4).unwrap();
+    let earned = prefix.character_state(&n(1)).unwrap();
+    assert_eq!(mid.new_root, earned.root());
+    assert_eq!(mid.summary, earned.summary());
+
+    world.append_gold_earn(n(2), "quest".into(), n(500), 5).unwrap();
+    world.append_gold_earn(n(1), "quest".into(), n(50), 6).unwrap();
+    let again = world.checkpoint_covering(&n(1), 1, 2).unwrap();
+    assert_eq!(again.prev_root, mid.prev_root);
+    assert_eq!(again.new_root, mid.new_root);
+    assert_eq!(again.summary, mid.summary);
+
+    let tail = world.checkpoint_span(&n(1), world.character_len(&n(1)).unwrap()).unwrap();
+    let live = world.character_state(&n(1)).unwrap();
+    assert_eq!(tail.new_root, live.root());
+    assert_eq!(tail.summary, live.summary());
+    assert_ne!(tail.new_root, mid.new_root);
+
+    let ore = lok_engine::fungible_id("iron_ore");
+    import_item(&mut world, n(1), ore, n(10)).unwrap();
+    let before_send = world.character_len(&n(1)).unwrap();
+    world.append_send_item(n(1), n(2), ore, n(4)).unwrap();
+    let send = world.checkpoint_covering(&n(1), before_send, before_send + 1).unwrap();
+    world.append_gold_earn(n(1), "quest".into(), n(1), 7).unwrap();
+    let send_again = world.checkpoint_covering(&n(1), before_send, before_send + 1).unwrap();
+    assert_eq!(send_again.prev_root, send.prev_root);
+    assert_eq!(send_again.new_root, send.new_root);
+
+    let loaded = load_world(&world.to_document()).unwrap();
+    let loaded_mid = loaded.checkpoint_covering(&n(1), 1, 2).unwrap();
+    assert_eq!(loaded_mid.prev_root, mid.prev_root);
+    assert_eq!(loaded_mid.new_root, mid.new_root);
+    assert_eq!(loaded_mid.summary, mid.summary);
+    let loaded_send = loaded.checkpoint_covering(&n(1), before_send, before_send + 1).unwrap();
+    assert_eq!(loaded_send.new_root, send.new_root);
+    let loaded_live = loaded.character_state(&n(1)).unwrap();
+    let loaded_tail = loaded.checkpoint_span(&n(1), loaded.character_len(&n(1)).unwrap()).unwrap();
+    assert_eq!(loaded_tail.new_root, loaded_live.root());
+}
+
 fn expected_ore(w: &World) -> U256 {
     let mut seen = std::collections::BTreeSet::new();
     let mut inn = U256::ZERO;
