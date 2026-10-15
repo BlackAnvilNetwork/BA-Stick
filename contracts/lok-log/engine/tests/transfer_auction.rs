@@ -220,7 +220,7 @@ fn order_book_fills_the_lowest_ask_and_pays_the_ask() {
     assert_eq!(world.gold_balance(&n(1)), Some(U256::ZERO));
     assert_eq!(world.gold_balance(&n(4)), Some(U256::ZERO));
 
-    world.append_cancel(n(11), n(2)).unwrap();
+    world.append_cancel_ask(n(11), n(2)).unwrap();
     assert!(world.listing(&n(11)).is_none());
     assert_eq!(world.item_balance(&n(2), &dust), Some(n(0)));
     assert_eq!(world.inbox_balance(&n(2), &dust), Some(n(1)));

@@ -264,8 +264,7 @@ impl Engine {
             }
             Input::GoldSpend { token_id, sink, amount } => {
                 self.involves(token_id)?;
-                parse_label(sink)?;
-                gold::debit_spend(&mut self.state, *amount).map_err(gold_err)
+                gold::debit_spend_for(&mut self.state, sink, *amount).map_err(gold_err)
             }
             Input::GoldSell { token_id, item_id, qty, amount, day } => {
                 self.involves(token_id)?;

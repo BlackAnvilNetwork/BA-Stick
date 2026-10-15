@@ -370,7 +370,7 @@ test("order book keeps asks until chain fill, cancel, or reclaim", () => {
   assert.equal(lok.view(d.tokenId).inbox.length, 0);
   assert.equal(lok.itemOf(d.tokenId, dust), "0");
 
-  assert.equal(lok.cancel(ask1000.listingId!, b.tokenId).ok, true);
+  assert.equal(lok.cancelAsk(ask1000.listingId!, b.tokenId).ok, true);
   assert.equal(lok.view(b.tokenId).inbox.find((row) => row.tokenId === 1057)?.amount, "1");
   assert.equal(lok.itemOf(b.tokenId, dust), "0");
 
