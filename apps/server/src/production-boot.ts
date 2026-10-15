@@ -25,7 +25,32 @@ const ESCROW_ABI = parseAbi([
 const PVP_BOUNTY_ABI = parseAbi([
   "function hasRole(bytes32 role, address account) view returns (bool)",
   "function OPERATOR_ROLE() view returns (bytes32)",
+  "function claimDelay() view returns (uint256)",
 ]);
+
+/** Production propose/execute bounties must leave a guardian a window to veto. */
+export const PVP_PRODUCTION_CLAIM_DELAY_MIN = 60n;
+/** Matches `PvpBounty` constructor cap. */
+export const PVP_PRODUCTION_CLAIM_DELAY_MAX = 7n * 24n * 60n * 60n;
+
+export function assertPvpProductionClaimDelay(delay: bigint): ProductionBootResult {
+  if (delay < PVP_PRODUCTION_CLAIM_DELAY_MIN) {
+    return {
+      ok: false,
+      error:
+        "PvpBounty.claimDelay " +
+        delay.toString() +
+        "s is below the production minimum of 60s",
+    };
+  }
+  if (delay > PVP_PRODUCTION_CLAIM_DELAY_MAX) {
+    return {
+      ok: false,
+      error: "PvpBounty.claimDelay " + delay.toString() + "s exceeds 7 days",
+    };
+  }
+  return { ok: true };
+}
 const FACTORY_ABI = parseAbi(["function mintFee() view returns (uint256)"]);
 
 export function isProductionSettlementChain(env: NodeJS.ProcessEnv = process.env): boolean {
@@ -144,6 +169,24 @@ export async function assertProductionContractsLive(
         return { ok: false, error: label + " has no bytecode at " + addr };
       }
     }
+    let claimDelay: bigint;
+    try {
+      claimDelay = await pub.readContract({
+        address: bounty,
+        abi: PVP_BOUNTY_ABI,
+        functionName: "claimDelay",
+      });
+    } catch {
+      return {
+        ok: false,
+        error:
+          "PvpBounty at " +
+          bounty +
+          " has no claimDelay — redeploy the propose/execute contract (single-claim bytecode cannot be used)",
+      };
+    }
+    const delayOk = assertPvpProductionClaimDelay(claimDelay);
+    if (!delayOk.ok) return delayOk;
     const fee = await pub.readContract({
       address: factory,
       abi: FACTORY_ABI,

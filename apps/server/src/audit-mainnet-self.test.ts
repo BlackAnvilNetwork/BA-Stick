@@ -55,6 +55,7 @@ import {
 } from "./open-ask-pending";
 import {
   assertProductionEnvShape,
+  assertPvpProductionClaimDelay,
   isProductionSettlementChain,
 } from "./production-boot";
 import { applySettlementDeployFile } from "./settlement-deploy";
@@ -593,6 +594,17 @@ describe("LOK_OPS_STATUS_TOKEN required on all production chains", () => {
     });
     assert.equal(r.ok, false);
     if (!r.ok) assert.match(r.error, /LOK_OPS_STATUS_TOKEN/);
+  });
+
+  it("requires a production claimDelay of 60s through 7 days", () => {
+    assert.equal(assertPvpProductionClaimDelay(60n).ok, true);
+    assert.equal(assertPvpProductionClaimDelay(7n * 24n * 60n * 60n).ok, true);
+    const zero = assertPvpProductionClaimDelay(0n);
+    assert.equal(zero.ok, false);
+    if (!zero.ok) assert.match(zero.error, /below the production minimum/);
+    const huge = assertPvpProductionClaimDelay(7n * 24n * 60n * 60n + 1n);
+    assert.equal(huge.ok, false);
+    if (!huge.ok) assert.match(huge.error, /exceeds 7 days/);
   });
 
   it("passes when LOK_OPS_STATUS_TOKEN is set on production chain", () => {
