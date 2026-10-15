@@ -1797,6 +1797,9 @@ function SheetBillboardInner({
         if (legsMat.current) legsMat.current.opacity = 1;
         if (root.current) root.current.visible = true;
         if (barsRoot.current) barsRoot.current.visible = true;
+        if (u.kind === "player" && u.hp <= 0) {
+          mat.current.color.setRGB(0.45, 0.5, 0.58);
+        }
       }
 
       // Mobs: size from idle seed only — walk/melee PNGs are differently cropped

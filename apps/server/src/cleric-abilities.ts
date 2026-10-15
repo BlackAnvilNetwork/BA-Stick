@@ -51,6 +51,8 @@ export type ClericPlayer = {
   regenUntil: number;
   regenTick: number;
   reraiseUntil: number;
+  /** Unix ms. While this is in the future and hp is 0, Raise can recall them. */
+  fallenUntil: number;
   healAbsorbUntil: number;
   healAbsorbHp: number;
   sacredLightUntil: number;
@@ -145,6 +147,29 @@ function healPower(p: ClericPlayer, base: number, double: boolean, stats: { mnd:
   let amt = Math.floor(base + mnd * 2.8);
   if (double) amt *= 2;
   return withHealPotency(p, amt, p.gearHealPotency ?? gearHealPotency(p));
+}
+
+/** How long a non-PvP death stays on the ground for Raise before the hub wake. */
+export const FALLEN_WINDOW_MS = 20_000;
+
+/**
+ * Ember Vigil stands them up. Otherwise they lie at 0 HP until Raise or the window ends.
+ * PvP deaths must not call this — those still wake at the hub immediately.
+ */
+export function resolveLethal(
+  p: { hp: number; maxHp: number; reraiseUntil: number; fallenUntil: number },
+  now: number,
+): "reraise" | "fallen" | "already" {
+  if (now < p.reraiseUntil) {
+    p.reraiseUntil = 0;
+    p.fallenUntil = 0;
+    p.hp = Math.max(1, Math.floor(p.maxHp * 0.25));
+    return "reraise";
+  }
+  if (p.hp <= 0 && now < p.fallenUntil) return "already";
+  p.hp = 0;
+  p.fallenUntil = now + FALLEN_WINDOW_MS;
+  return "fallen";
 }
 
 function divineNuke(p: ClericPlayer, potency: number, double: boolean, stats: { mnd: number }): number {
@@ -478,9 +503,28 @@ export function resolveClericAbility(
 
   if (id === "cl_raise" || id === "cl_raise_ii") {
     const ally = resolveAlly(p, targetId, hooks, def.range ?? 12);
-    // #51: there is no downed state yet (#99), so Raise must never act as an
-    // absolute HP assignment on a living target. It is an additive heal that
-    // can only raise HP, and it is refused (no MP / recast spent) at full HP.
+    if (ally.hp <= 0 && now < ally.fallenUntil) {
+      if (ally.wallet === p.wallet) {
+        hooks.pushLog(p, `${def.label} — you cannot recall yourself.`);
+        return true;
+      }
+      spend();
+      const heal = healPower(p, def.heal ?? 200, false, combatStats);
+      ally.hp = Math.max(1, Math.min(ally.maxHp, heal));
+      ally.fallenUntil = 0;
+      ally.anim = "idle";
+      ally.sacredLightUntil = now + 2200;
+      p.sacredLightUntil = now + 2200;
+      p.anim = "cast";
+      p.animUntil = now + 700;
+      hooks.pushLog(p, `${def.label} — light recalls ally!`);
+      return true;
+    }
+    if (ally.hp <= 0) {
+      hooks.pushLog(p, `${def.label} — the moment to recall them has passed.`);
+      return true;
+    }
+    // #51: on a living target Raise is an additive heal, never an absolute HP write.
     if (ally.hp >= ally.maxHp) {
       hooks.pushLog(p, `${def.label} — ${ally.wallet === p.wallet ? "you are" : "ally is"} not in need of recall.`);
       return true;

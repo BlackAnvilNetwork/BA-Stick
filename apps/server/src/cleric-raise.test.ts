@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { deriveCharacterAttributes, type JobId } from "@bellgrave/combat";
-import { resolveClericAbility, type ClericHooks, type ClericPlayer } from "./cleric-abilities";
+import {
+  FALLEN_WINDOW_MS,
+  resolveClericAbility,
+  resolveLethal,
+  type ClericHooks,
+  type ClericPlayer,
+} from "./cleric-abilities";
 import { applyAilment } from "./player-ailments";
 
 const NOW = 50_000;
@@ -45,6 +51,7 @@ function player(wallet: string, hp: number, maxHp = 1_000): ClericPlayer & { sub
     regenUntil: 0,
     regenTick: 0,
     reraiseUntil: 0,
+    fallenUntil: 0,
     healAbsorbUntil: 0,
     healAbsorbHp: 0,
     sacredLightUntil: 0,
@@ -100,6 +107,29 @@ for (const id of ["cl_raise", "cl_raise_ii"] as const) {
     assert.equal(ally2.hp, 50_000 + healed);
   });
 
+  test(`${id} recalls a fallen ally and refuses a corpse whose window has passed (#99)`, () => {
+    const caster = player("0xcaster", 1_000);
+    const ally = player("0xally", 0);
+    ally.fallenUntil = NOW + 5_000;
+    ally.anim = "dead";
+    const logs: string[] = [];
+    resolveClericAbility(caster, id, "0xally", NOW, hooks(caster, [caster, ally], logs));
+    assert.ok(ally.hp > 0);
+    assert.equal(ally.fallenUntil, 0);
+    assert.equal(ally.anim, "idle");
+    assert.ok(caster.mp < 500);
+    assert.match(logs.join(" | "), /recalls ally/);
+
+    const late = player("0xlate", 0);
+    late.fallenUntil = NOW - 1;
+    const caster2 = player("0xcaster2", 1_000);
+    const lateLogs: string[] = [];
+    resolveClericAbility(caster2, id, "0xlate", NOW, hooks(caster2, [caster2, late], lateLogs));
+    assert.equal(late.hp, 0);
+    assert.equal(caster2.mp, 500);
+    assert.match(lateLogs.join(" | "), /moment to recall/);
+  });
+
   test(`${id} on a full-HP target (or self fallback) spends nothing (#51)`, () => {
     const caster = player("0xcaster", 1_000);
     const logs: string[] = [];
@@ -142,4 +172,20 @@ test("Ashmend on a diseased ally restores half", () => {
   resolveClericAbility(diseased, "cl_cure", undefined, NOW, hooks(diseased, [diseased], logs));
   assert.ok(healthyGain > 0);
   assert.equal(diseased.hp - 100, Math.floor(healthyGain * 0.5));
+});
+
+test("lethal damage leaves a fallen window unless Ember Vigil is up (#99)", () => {
+  const downed = player("0xally", 12);
+  assert.equal(resolveLethal(downed, NOW), "fallen");
+  assert.equal(downed.hp, 0);
+  assert.equal(downed.fallenUntil, NOW + FALLEN_WINDOW_MS);
+  assert.equal(resolveLethal(downed, NOW + 1_000), "already");
+  assert.equal(downed.fallenUntil, NOW + FALLEN_WINDOW_MS);
+
+  const vigil = player("0xvigil", 12);
+  vigil.reraiseUntil = NOW + 60_000;
+  assert.equal(resolveLethal(vigil, NOW), "reraise");
+  assert.ok(vigil.hp > 0);
+  assert.equal(vigil.fallenUntil, 0);
+  assert.equal(vigil.reraiseUntil, 0);
 });
