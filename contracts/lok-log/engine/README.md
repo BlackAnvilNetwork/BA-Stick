@@ -61,28 +61,24 @@ Exit 0 prints the head, state root, and summary. Exit 1 is a bad hash. Exit 2 is
 | Call | Event | Written onto |
 |---|---|---|
 | `append_spawn` | `spawn` | that character |
-| `append_deposit_kek` | `depositKek` (vault deposit already happened; not a mint; `nonce` is the next inbound id) | that character |
-| `append_withdraw_kek` | `withdrawKek` (spendable only; not an onchain withdrawal) | that character |
-| `append_spend_kek` | `spendKek` (spendable only; legacy in-game price; not `kekOut`; not a mint) | that character |
-| `append_gold_earn` | `goldEarn` (faucet; server day + daily caps) | that character |
+| `append_gold_earn` | `goldEarn` (server day + daily caps) | that character |
 | `append_gold_spend` | `goldSpend` (trainer / craft / respec sinks) | that character |
 | `append_gold_sell` | `goldSell` (NPC buy-back; burns items, credits gold) | that character |
-| `append_import_item` | `importItem` (same per-character inbound nonce sequence as `depositKek`) | that character |
+| `append_import_item` | `importItem` (per-character inbound nonce) | that character |
 | `append_export_item` | `exportItem` (spendable balance only) | that character |
 | `append_send_item` | `sendItem` | sender and recipient |
-| `append_send_kek` | `sendKek` | sender and recipient |
-| `append_list` | `list` | seller |
-| `append_bid` | `bid` | bidder and the previous high bidder, if any |
-| `append_cancel` | `cancel` | seller and the high bidder, if any |
-| `append_settle` | `settle` | seller and winner |
+| `append_list` | `list` (item escrow; no KEK bid) | seller |
+| `append_cancel` | `cancel` | seller |
+| `append_ask` | `ask` | seller |
+| `append_chain_fill` | `chainFill` (item to inbox; ETH stays on AhEscrow) | buyer |
 
 The payload (and therefore `event_id`) is the same on every log that carries the event. `entry_hash` is `keccak256(abi.encode(prev, index, eventId))` with **that log's** previous head and index, so the links differ. `seq` in the JSON is replay order and is not part of the hash. A character checkpoint covers only that character's span: `fromIndex` / `toIndex` / `logHash` are that chain.
 
 `commit_span` records the committed prefix (`logIndex`). `rebase` drops only that character's uncommitted tail and replays what remains, so another character's committed copy of the trade is not removed.
 
-Reads: `kek_balance` (spendable), `solvency_kek` (spendable + escrowed bids), `item_balance`, `listing`, `listings`. `apply` is the same append path with an `Input`.
+Reads: `gold_balance`, `item_balance`, `listing`, `listings`. `apply` is the same append path with an `Input`.
 
-Listing escrows the item out of the seller's spendable balance, so that quantity cannot be transferred, exported, or listed again. A bid escrows that much KEK. A strictly higher bid unlocks the previous bid first. Cancel is seller-only: the item returns and the high bid unlocks. Settle pays the seller the high bid and gives the item to the winner, with nothing left in escrow. Sender and recipient must already be spawned. Sending to yourself fails. A short balance, including a withdraw or spend that would take escrowed KEK, fails closed and is not appended. `spendKek` debits spendable KEK and does not mint. It is not `kekOut`.
+Listing escrows the item out of the seller's spendable balance, so that quantity cannot be transferred, exported, or listed again. Cancel is seller-only and returns the item. A KEK bid, settle, fill, or buy is refused and is not appended. Live payment is an AhEscrow `chainFill`, which puts the stack in the buyer's inbox and does not move gold. Sender and recipient must already be spawned. Sending to yourself fails. A short balance fails closed and is not appended.
 
 `lok-replay` of a document with `"type": "characters"` replays those chains and still stops at the first bad hash (exit 1) before applying it or anything after it. An empty legacy `{"type":"world","entries":[]}` file still opens. A non-empty legacy world log is refused, because that single chain cannot be split into per-character checkpoints.
 
@@ -95,7 +91,7 @@ Listing escrows the item out of the seller's spendable balance, so that quantity
       "startingJob": 3,
       "entries": [
         { "seq": 0, "hash": "0x…", "input": { "type": "spawn", "tokenId": "1", "startingJob": 3 } },
-        { "seq": 2, "hash": "0x…", "input": { "type": "sendKek", "from": "1", "to": "2", "amount": "4" } }
+        { "seq": 2, "hash": "0x…", "input": { "type": "sendItem", "from": "1", "to": "2", "itemId": "7", "amount": "4" } }
       ]
     },
     {
@@ -103,7 +99,7 @@ Listing escrows the item out of the seller's spendable balance, so that quantity
       "startingJob": 1,
       "entries": [
         { "seq": 1, "hash": "0x…", "input": { "type": "spawn", "tokenId": "2", "startingJob": 1 } },
-        { "seq": 2, "hash": "0x…", "input": { "type": "sendKek", "from": "1", "to": "2", "amount": "4" } }
+        { "seq": 2, "hash": "0x…", "input": { "type": "sendItem", "from": "1", "to": "2", "itemId": "7", "amount": "4" } }
       ]
     }
   ]
@@ -112,4 +108,4 @@ Listing escrows the item out of the seller's spendable balance, so that quantity
 
 ## Left for the next slice
 
-Ruleset evaluation, XP / abilities / equipment inputs, Merkle proofs for the state root, and watching `KekVault` before appending `depositKek`. `checkpoint_span` drafts a per-character body (including `kekOut` from `WithdrawKek` in the span, and `inboundConsumed` equal to how many `depositKek` / `importItem` events that character's log has applied up to `toIndex`) but does not submit it. Those two events carry the chain inbound nonce and are accepted only in order, once. Replaying a nonce does not credit. The server appends them only for a custody nonce it has already recorded; the game client cannot. There is no client `lok/deposit`. Player `lok/import` does not move bag items, and `lok/withdrawKek` is refused until a vault withdrawal is queued, so it cannot burn in-game KEK; the engine `WithdrawKek` op remains for that queue. No KekVault watcher is wired. The server does not follow Robinhood L2 unless `LOK_CHAIN_RPC` is set, and even then it does not submit or index chain transactions.
+Ruleset evaluation, XP / abilities / equipment inputs, and Merkle proofs for the state root. `checkpoint_span` drafts a per-character body (`inboundConsumed` equals how many `importItem` events that character's log has applied up to `toIndex`) but does not submit it. There is no `kekOut`. Item imports carry the chain inbound nonce and are accepted only in order, once. Replaying a nonce does not credit. The server appends them only for a custody nonce it has already recorded; the game client cannot. KEK custody ops are retired and are not appended. The server does not submit or index chain transactions unless `LOK_CHAIN_RPC` is set, and even then it does not follow a KEK vault.

@@ -27,9 +27,8 @@ import {
   verifyAuthLogin,
 } from "./wallet-auth";
 
-function noteDeposit(lok: LokWorld, tokenId: string, amount: string, nonce: string) {
-  lok.noteCustodyInbound({ kind: "depositKek", tokenId, nonce, amount });
-  return lok.depositKek(tokenId, amount, nonce);
+function noteGold(lok: LokWorld, tokenId: string, amount: string) {
+  return lok.goldEarn(tokenId, "quest", amount, 1);
 }
 
 test("wallet ownership survives restart and orphans stay unowned", () => {
@@ -41,8 +40,9 @@ test("wallet ownership survives restart and orphans stay unowned", () => {
   const bob = lok.spawn("char-b", "Bob", 0, b);
   assert.equal(alice.ok && bob.ok, true);
   if (!alice.ok || !bob.ok) return;
-  assert.equal(noteDeposit(lok, alice.tokenId, "5000", "1").ok, true);
-  assert.equal(lok.kekOf(alice.tokenId), "5000");
+  assert.equal(noteGold(lok, alice.tokenId, "5000").ok, true);
+  assert.equal(lok.goldOf(alice.tokenId), "5000");
+  assert.equal(lok.kekOf(alice.tokenId), "0");
 
   // Legacy character with no wallet must not be adopted by the next login.
   const bindPath = join(dir, "lok-bind.json");
@@ -76,8 +76,8 @@ test("wallet ownership survives restart and orphans stay unowned", () => {
   );
   const aliceAgain = again.boundChars().find((row) => row.charId === "char-a");
   assert.ok(aliceAgain);
-  assert.equal(again.kekOf(aliceAgain.tokenId), "5000");
-  assert.equal(again.charsForWallet(b).every((row) => again.kekOf(row.tokenId) !== "5000"), true);
+  assert.equal(again.goldOf(aliceAgain.tokenId), "5000");
+  assert.equal(again.charsForWallet(b).every((row) => again.goldOf(row.tokenId) !== "5000"), true);
 });
 
 test("name reservations expire and wallets are capped at 8 characters", () => {
@@ -169,24 +169,26 @@ test("signed login accepts a fresh nonce and rejects reuse or bare address auth"
   assert.match(msg, /Chain ID: 31337/);
 });
 
-test("paid respec debits and clears in one engine event", () => {
+test("paid respec debits gold and clears in one engine event", () => {
   const dir = mkdtempSync(join(tmpdir(), "lok-respec-"));
   const lok = LokWorld.open(dir, undefined, {});
   const spawned = lok.spawn("r1", "Respeccer", 0, "0x7777777777777777777777777777777777777777");
   assert.equal(spawned.ok, true);
   if (!spawned.ok) return;
-  assert.equal(noteDeposit(lok, spawned.tokenId, "15000", "1").ok, true);
+  assert.equal(noteGold(lok, spawned.tokenId, "15000").ok, true);
   assert.equal(lok.learnAbility(spawned.tokenId, "node_a").ok, true);
   assert.equal(lok.hasAbility(spawned.tokenId, "node_a"), true);
-  assert.equal(lok.paidRespecSkills(spawned.tokenId, "20000", ["node_a"]).ok, false);
-  assert.equal(lok.kekOf(spawned.tokenId), "15000");
+  assert.equal(lok.goldPaidRespec(spawned.tokenId, "20000", ["node_a"]).ok, false);
+  assert.equal(lok.goldOf(spawned.tokenId), "15000");
   assert.equal(lok.hasAbility(spawned.tokenId, "node_a"), true);
-  assert.equal(lok.paidRespecSkills(spawned.tokenId, "10000", []).ok, false);
-  assert.equal(lok.kekOf(spawned.tokenId), "15000");
+  assert.equal(lok.goldPaidRespec(spawned.tokenId, "10000", []).ok, false);
+  assert.equal(lok.goldOf(spawned.tokenId), "15000");
   assert.equal(lok.hasAbility(spawned.tokenId, "node_a"), true);
-  assert.equal(lok.paidRespecSkills(spawned.tokenId, "10000", ["node_a"]).ok, true);
-  assert.equal(lok.kekOf(spawned.tokenId), "5000");
+  assert.equal(lok.goldPaidRespec(spawned.tokenId, "10000", ["node_a"]).ok, true);
+  assert.equal(lok.goldOf(spawned.tokenId), "5000");
   assert.equal(lok.hasAbility(spawned.tokenId, "node_a"), false);
+  assert.equal(lok.kekOf(spawned.tokenId), "0");
+  assert.equal(lok.paidRespecSkills(spawned.tokenId, "10000", ["node_a"]).ok, false);
 });
 
 test("one nonce cannot authorize two in-flight logins", async () => {

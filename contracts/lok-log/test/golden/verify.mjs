@@ -1,6 +1,6 @@
 // Recomputes the Solidity golden vectors from first principles with viem. Usage: node verify.mjs
 // The Rust engine must reproduce the same genesis root, item ids and checkpoint body hash.
-import { encodeAbiParameters, keccak256, hashTypedData, encodePacked, toHex, stringToHex, parseEther } from 'viem'
+import { encodeAbiParameters, keccak256, hashTypedData, encodePacked, toHex, stringToHex } from 'viem'
 
 const CHECKPOINT_TUPLE = {
   type: 'tuple',
@@ -8,8 +8,7 @@ const CHECKPOINT_TUPLE = {
     { name: 'prevRoot', type: 'bytes32' }, { name: 'newRoot', type: 'bytes32' },
     { name: 'fromIndex', type: 'uint64' }, { name: 'toIndex', type: 'uint64' },
     { name: 'logHash', type: 'bytes32' }, { name: 'rulesetHash', type: 'bytes32' },
-    { name: 'summary', type: 'uint256' }, { name: 'inboundConsumed', type: 'uint64' },
-    { name: 'kekOut', type: 'uint256' },
+    { name: 'summary', type: 'uint256' },     { name: 'inboundConsumed', type: 'uint64' },
     { name: 'exports', type: 'tuple[]', components: [
       { name: 'itemId', type: 'uint256' }, { name: 'amount', type: 'uint32' },
     ] },
@@ -22,7 +21,7 @@ const checkpoint = {
   logHash: '0x' + '33'.repeat(32), rulesetHash: '0x' + '44'.repeat(32),
   // level 42 | job 3 <<16 | subjob 1 <<24 | jobXp 123456 <<32 | location 17 <<96
   summary: 42n | (3n << 16n) | (1n << 24n) | (123456n << 32n) | (17n << 96n),
-  inboundConsumed: 9n, kekOut: parseEther('250'),
+  inboundConsumed: 9n,
   exports: [{ itemId: 0xabcn, amount: 1 }, { itemId: 0xdefn, amount: 40 }],
 }
 
@@ -54,8 +53,8 @@ const fungibleId = BigInt(keccak256(encodePacked(['bytes1', 'string'], ['0x00', 
 
 const expected = {
   genesisTag: '0x8a8d1f348a2311fc4d6271c76e697ff6d99152a86984976269678b04ab4eb413',
-  bodyHash: '0x7f3fcc38e49cecc713b43b66ad375eae92e94b6247265b3bfdec80dc1c6c231f',
-  digest: '0x2b8bb71ec27564ba4d05efee4f8c9778481c488a57fc3e8fc533d8eb335521ca',
+  bodyHash: '0x0da4d29fd8c0892590468c9b2f8fa5e402388553fa6912e3f72a8cc671ee6d19',
+  digest: '0x468f094a906981db2314b95d81ecf4461999c90bd877993fc3ff24828d6bdfed',
   genesisRoot: '0x0c0d7ba0dd69dcda2fe24de603679f65ae5dbdaec43f4ba9f3dfa8c6b444761c',
   uniqueId: 16326979768789847505458237212507241523594462770995321419559994427250918491098n,
   fungibleId: 89658009947691115780873220689577698189678099276092329480841579491160997392175n,

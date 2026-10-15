@@ -44,11 +44,8 @@ type EngineDrop = { itemId: string; amount: string };
 type EngineCraftSkill = { skillId: string; level: number };
 type EngineCharacter = {
   tokenId: string;
-  kek: string;
   /** In-game gold (log-only). Absent on logs that never earned gold. */
   gold?: string;
-  vaultClaim?: string;
-  sunkKek?: string;
   inboundApplied?: number;
   level?: number;
   abilities?: string[];
@@ -115,13 +112,16 @@ export const MAX_FILLS_PER_BUY_MESSAGE = 32;
 /** Successful fills applied before a quantity buy lets the event loop run. */
 export const BUY_FILL_BATCH = 8;
 
-/**
- * An inbound the server recorded from custody. The game client cannot insert these.
- * @deprecated depositKek is deprecated - no KekVault deployed on Gnosis. importItem reserved for ERC-1155.
- */
-export type CustodyInbound =
-  | { kind: "depositKek"; tokenId: string; nonce: string; amount: string }
-  | { kind: "importItem"; tokenId: string; nonce: string; itemId: string; amount: string };
+/** An item import the server recorded from custody. The game client cannot insert these. */
+export type CustodyInbound = {
+  kind: "importItem";
+  tokenId: string;
+  nonce: string;
+  itemId: string;
+  amount: string;
+};
+
+const KEK_RETIRED: LokResult = { ok: false, error: "KEK custody is retired" };
 
 /** AhEscrow AskFilled the server already saw. Client messages cannot invent these. */
 export type ChainFillInbound = {
@@ -368,10 +368,8 @@ export class LokWorld {
   }
 
   /**
-   * Remember an inbound the server already saw in custody (a vault deposit or an item burn).
-   * Does not credit the log. There is no chain watcher in this process; nothing here reads Robinhood.
-   * Game-client messages must not call this.
-   * @deprecated depositKek is deprecated (no KekVault). importItem reserved for future ERC-1155.
+   * Remember an item import the server already saw in custody.
+   * Does not credit the log. Game-client messages must not call this.
    */
   noteCustodyInbound(inbound: CustodyInbound): void {
     this.custody.set(this.custodyKey(inbound.tokenId, inbound.nonce), inbound);
@@ -382,19 +380,9 @@ export class LokWorld {
     this.chainFills.set(inbound.fillKey, inbound);
   }
 
-  /**
-   * Log image of a vault deposit. Credits only a nonce this server already recorded. Never a mint.
-   * @deprecated No KekVault deployed on Gnosis. Deposit watcher disabled via refuseFundCustody.
-   */
-  depositKek(tokenId: string, amount: string, nonce: string): LokResult {
-    const key = this.custodyKey(tokenId, nonce);
-    const noted = this.custody.get(key);
-    if (!noted || noted.kind !== "depositKek" || noted.amount !== amount || noted.tokenId !== tokenId) {
-      return { ok: false, error: "KEK deposit nonce is not a recorded custody inbound" };
-    }
-    const res = this.apply({ op: "depositKek", tokenId, amount, nonce });
-    if (res.ok) this.custody.delete(key);
-    return res;
+  /** KEK vault deposits are retired. Item imports use importItem. */
+  depositKek(_tokenId: string, _amount: string, _nonce: string): LokResult {
+    return KEK_RETIRED;
   }
 
   /** Log image of an item import. Credits only a nonce this server already recorded. */
@@ -423,20 +411,14 @@ export class LokWorld {
     return this.apply({ op: "exportItem", tokenId, itemId, amount });
   }
 
-  /**
-   * Drop spendable KEK on this character's log. Escrowed bids are not spendable. No chain transaction.
-   * @deprecated No KekVault deployed on Gnosis. Withdrawals disabled via refuseFundCustody.
-   */
-  withdrawKek(tokenId: string, amount: string): LokResult {
-    return this.apply({ op: "withdrawKek", tokenId, amount });
+  /** KEK withdrawals are retired. There is no vault claim to burn. */
+  withdrawKek(_tokenId: string, _amount: string): LokResult {
+    return KEK_RETIRED;
   }
 
-  /**
-   * Replay helper: spend historical Key::Kek. Live sinks use goldSpend.
-   * Debits spendable KEK only; escrowed bids stay locked. Does not mint or withdraw.
-   */
-  spendKek(tokenId: string, amount: string): LokResult {
-    return this.apply({ op: "spendKek", tokenId, amount });
+  /** KEK spends are retired. Live sinks use goldSpend. */
+  spendKek(_tokenId: string, _amount: string): LokResult {
+    return KEK_RETIRED;
   }
 
   /** Credit in-game gold. `day` is a server-stamped day id (engine enforces caps). */
@@ -457,7 +439,7 @@ export class LokWorld {
     return this.apply({ op: "goldSell", tokenId, itemId, qty, amount, day });
   }
 
-  /** Record the next level. Rejects a skip. Does not mint KEK. */
+  /** Record the next level. Rejects a skip. Does not mint items or gold. */
   levelUp(tokenId: string, level: number): LokResult {
     return this.apply({ op: "levelUp", tokenId, level });
   }
@@ -467,12 +449,12 @@ export class LokWorld {
     return this.apply({ op: "learnAbility", tokenId, abilityId });
   }
 
-  /** Record a successful craft. Does not credit spendable items or KEK. */
+  /** Record a successful craft. Does not credit spendable items or gold. */
   craft(tokenId: string, itemId: string, amount: string): LokResult {
     return this.apply({ op: "craft", tokenId, itemId, amount });
   }
 
-  /** Record a successful gather. Does not credit spendable items or KEK. */
+  /** Record a successful gather. Does not credit spendable items or gold. */
   harvest(tokenId: string, materialId: string, amount: string): LokResult {
     if (this.coalesce) {
       return this.coalesce.add({ op: "harvest", tokenId, materialId, amount });
@@ -564,8 +546,9 @@ export class LokWorld {
     return this.apply({ op: "sendItem", from, to, itemId, amount });
   }
 
-  sendKek(from: string, to: string, amount: string): LokResult {
-    return this.apply({ op: "sendKek", from, to, amount });
+  /** KEK transfers are retired. Gold is not transferable. Items use sendItem. */
+  sendKek(_from: string, _to: string, _amount: string): LokResult {
+    return KEK_RETIRED;
   }
 
   list(seller: string, itemId: string, amount: string): LokResult & { listingId?: string } {
@@ -594,25 +577,22 @@ export class LokWorld {
   }
 
   /**
-   * Buy the cheapest ask of this item at or under amount. Pays amount, not the minimum.
-   * The engine picks the ask. A rejected bid appends nothing.
+   * KEK-priced fills are retired. Live buys are AhEscrow ChainFill; payment is on-chain ETH.
    */
-  fill(bidder: string, itemId: string, amount: string): LokResult & { listingId?: string; seller?: string; stack?: string; price?: string } {
-    const before = this.state.listings.map((row) => ({ ...row }));
-    const res = this.apply({ op: "fill", bidder, itemId, amount });
-    return this.bought(before, res);
+  fill(
+    _bidder: string,
+    _itemId: string,
+    _amount: string,
+  ): LokResult & { listingId?: string; seller?: string; stack?: string; price?: string } {
+    return KEK_RETIRED;
   }
 
-  /** Buy the cheapest ask and pay that ask. No bid amount. */
-  buy(bidder: string, itemId: string): LokResult & { listingId?: string; seller?: string; stack?: string; price?: string } {
-    const before = this.state.listings.map((row) => ({ ...row }));
-    const buyerKek = BigInt(this.kekOf(bidder) || "0");
-    const res = this.apply({ op: "buy", bidder, itemId });
-    const bought = this.bought(before, res);
-    if (!bought.ok) return bought;
-    const left = BigInt(this.kekOf(bidder) || "0");
-    const price = (buyerKek - left).toString();
-    return { ...bought, price };
+  /** KEK-priced buys are retired. Live buys are AhEscrow ChainFill. */
+  buy(
+    _bidder: string,
+    _itemId: string,
+  ): LokResult & { listingId?: string; seller?: string; stack?: string; price?: string } {
+    return KEK_RETIRED;
   }
 
   /**
@@ -662,12 +642,10 @@ export class LokWorld {
   }
 
   /**
-   * Buy whole asks until qty items are taken, the book runs out, or this message
-   * hits MAX_FILLS_PER_BUY_MESSAGE. Each step is buy(), so the cheapest ask is
-   * charged its own price. The buyer's own asks are skipped by the engine.
-   * A short book or the per-message cap is an explicit partial: asks that
-   * filled were charged, and nothing past the stop was charged. The loop yields
-   * every BUY_FILL_BATCH fills so other players' messages can run.
+   * Walk asks until qty items are taken, the book runs out, or this message
+   * hits MAX_FILLS_PER_BUY_MESSAGE. Each step is buy(). KEK buys are retired,
+   * so the first step refuses and nothing is filled. The cap and the yield
+   * every BUY_FILL_BATCH fills stay so a future payer cannot hold the loop.
    */
   async buyQuantity(
     bidder: string,
@@ -738,8 +716,9 @@ export class LokWorld {
     return { ok: true, listingId: prior?.id, seller: prior?.seller, stack: prior?.amount, price: prior?.minPrice };
   }
 
-  bid(listingId: string, bidder: string, amount: string): LokResult {
-    return this.apply({ op: "bid", listingId, bidder, amount });
+  /** KEK bids are retired. Asks stay as item escrow; payment is on-chain ETH. */
+  bid(_listingId: string, _bidder: string, _amount: string): LokResult {
+    return KEK_RETIRED;
   }
 
   cancel(listingId: string, seller: string): LokResult {
@@ -756,8 +735,9 @@ export class LokWorld {
     return this.state.listings.find((row) => row.id === listingId);
   }
 
-  settle(listingId: string): LokResult {
-    return this.apply({ op: "settle", listingId });
+  /** KEK settlement is retired. ChainFill moves the item after AhEscrow pays. */
+  settle(_listingId: string): LokResult {
+    return KEK_RETIRED;
   }
 
   reclaim(listingId: string, seller: string, now: number): LokResult {
@@ -780,9 +760,9 @@ export class LokWorld {
     return this.apply({ op: "respecSkills", tokenId, nodeIds });
   }
 
-  /** Debit spendable KEK and clear skill nodes in one engine event. */
-  paidRespecSkills(tokenId: string, amount: string, nodeIds: string[]): LokResult {
-    return this.apply({ op: "paidRespecSkills", tokenId, amount, nodeIds });
+  /** KEK respec is retired. Live respec uses goldPaidRespec. */
+  paidRespecSkills(_tokenId: string, _amount: string, _nodeIds: string[]): LokResult {
+    return KEK_RETIRED;
   }
 
   craftSkillsOf(tokenId: string): { skillId: string; level: number }[] {
@@ -1015,11 +995,10 @@ export class LokWorld {
         return { tokenId: id, amount: row.amount };
       })
       .filter((row): row is { tokenId: number; amount: string } => row != null);
-    const settlement = me?.kek ?? "0";
     return {
       tokenId,
-      kek: settlement,
-      eth: settlement,
+      kek: "0",
+      eth: "0",
       gold: me?.gold ?? "0",
       items,
       inbox,
@@ -1031,34 +1010,28 @@ export class LokWorld {
     };
   }
 
-  kekOf(tokenId: string): string {
-    return this.state.characters.find((c) => c.tokenId === tokenId)?.kek ?? "0";
+  /** Always zero. KEK balances are not part of character state. */
+  kekOf(_tokenId: string): string {
+    return "0";
   }
 
   goldOf(tokenId: string): string {
     return this.state.characters.find((c) => c.tokenId === tokenId)?.gold ?? "0";
   }
 
-  vaultClaim(tokenId: string): string {
-    return this.state.characters.find((c) => c.tokenId === tokenId)?.vaultClaim ?? "0";
+  /** Always zero. There is no vault claim. */
+  vaultClaim(_tokenId: string): string {
+    return "0";
   }
 
-  withdrawCount(tokenId: string, amount: string): number {
-    const called = lokCall(
-      this.exp,
-      JSON.stringify({ op: "withdrawCount", tokenId, amount }),
-      (ptr, len) => this.exp.lok_apply(ptr, len),
-    );
-    try {
-      const body = JSON.parse(called.out) as { ok?: boolean; count?: number };
-      return body.ok && typeof body.count === "number" ? body.count : 0;
-    } catch {
-      return 0;
-    }
+  /** Always zero. Withdraw counting left with KEK custody. */
+  withdrawCount(_tokenId: string, _amount: string): number {
+    return 0;
   }
 
-  sunkKek(tokenId: string): string {
-    return this.state.characters.find((c) => c.tokenId === tokenId)?.sunkKek ?? "0";
+  /** Always zero. Spent KEK is not tracked. */
+  sunkKek(_tokenId: string): string {
+    return "0";
   }
 
   checkpointFor(tokenId: string, fromIndex: string): {
@@ -1071,7 +1044,6 @@ export class LokWorld {
       logHash: string;
       summary: string;
       inboundConsumed: string;
-      kekOut: string;
     };
   } | { ok: false; error: string } {
     const called = lokCall(
@@ -1089,14 +1061,13 @@ export class LokWorld {
       logHash?: string;
       summary?: string;
       inboundConsumed?: string;
-      kekOut?: string;
     };
     try {
       body = JSON.parse(called.out);
     } catch {
       return { ok: false, error: "lok engine returned junk" };
     }
-    if (!body.ok || !body.prevRoot || !body.newRoot || !body.logHash || !body.fromIndex || !body.toIndex || !body.kekOut) {
+    if (!body.ok || !body.prevRoot || !body.newRoot || !body.logHash || !body.fromIndex || !body.toIndex) {
       return { ok: false, error: body.error || "No checkpoint for that log position." };
     }
     return {
@@ -1109,17 +1080,13 @@ export class LokWorld {
         logHash: body.logHash,
         summary: body.summary || "0",
         inboundConsumed: body.inboundConsumed || "0",
-        kekOut: body.kekOut,
       },
     };
   }
 
-  undoWithdraw(tokenId: string, amount: string): LokResult {
-    const cmd = { op: "undoWithdraw", tokenId, amount };
-    const res = this.apply(cmd, false);
-    if (!res.ok) return res;
-    this.notePersisted(cmd);
-    return { ok: true };
+  /** KEK withdraw undo is retired. Nothing is appended. */
+  undoWithdraw(_tokenId: string, _amount: string): LokResult {
+    return KEK_RETIRED;
   }
 
   itemOf(tokenId: string, itemId: string): string {

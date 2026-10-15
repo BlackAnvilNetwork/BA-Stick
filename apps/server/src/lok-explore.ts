@@ -112,6 +112,7 @@ function describe(entry: RawEntry, logTokenId: string, nameOf: (tokenId: string)
       text = `${character} joined the log`;
       break;
     }
+    // Historical log kinds. New appends are refused; these labels only describe an old entry.
     case "depositKek": {
       character = who(token) || owner;
       text = `${character} deposited ${amount} legacy KEK`;

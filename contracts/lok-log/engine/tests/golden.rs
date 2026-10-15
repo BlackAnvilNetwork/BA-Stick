@@ -9,8 +9,8 @@ use lok_engine::{
 };
 
 const GENESIS_TAG: &str = "0x8a8d1f348a2311fc4d6271c76e697ff6d99152a86984976269678b04ab4eb413";
-const BODY_HASH: &str = "0x7f3fcc38e49cecc713b43b66ad375eae92e94b6247265b3bfdec80dc1c6c231f";
-const DIGEST: &str = "0x2b8bb71ec27564ba4d05efee4f8c9778481c488a57fc3e8fc533d8eb335521ca";
+const BODY_HASH: &str = "0x0da4d29fd8c0892590468c9b2f8fa5e402388553fa6912e3f72a8cc671ee6d19";
+const DIGEST: &str = "0x468f094a906981db2314b95d81ecf4461999c90bd877993fc3ff24828d6bdfed";
 const GENESIS_ROOT: &str = "0x0c0d7ba0dd69dcda2fe24de603679f65ae5dbdaec43f4ba9f3dfa8c6b444761c";
 const UNIQUE_ID: &str = "16326979768789847505458237212507241523594462770995321419559994427250918491098";
 const FUNGIBLE_ID: &str = "89658009947691115780873220689577698189678099276092329480841579491160997392175";
@@ -37,7 +37,6 @@ fn golden_checkpoint() -> Checkpoint {
         ruleset_hash: word(0x44),
         summary: golden_summary(),
         inbound_consumed: 9,
-        kek_out: U256::from_u128(250u128 * 1_000_000_000_000_000_000u128),
         exports: vec![
             Export { item_id: U256::from_u64(0xabc), amount: 1 },
             Export { item_id: U256::from_u64(0xdef), amount: 40 },
@@ -91,7 +90,6 @@ fn spawn_chains_from_the_genesis_anchor() {
             assert_eq!(entry_hash, engine.head());
             assert_ne!(state_root, prev_hash);
             assert_eq!(summary, U256::from_u64(1).bitor(U256::from_u64(3).shl(16)));
-            assert_eq!(engine.state().get(&Key::Kek), U256::ZERO);
             assert_eq!(engine.state().get(&Key::Level), U256::from_u64(1));
             assert_eq!(engine.state().root(), state_root);
         }
@@ -104,10 +102,10 @@ fn state_root_ignores_insertion_order() {
     let a = vec![
         (Key::Level, U256::from_u64(1)),
         (Key::Item(item), U256::from_u64(1)),
-        (Key::Kek, U256::ZERO),
+        (Key::Gold, U256::ZERO),
     ];
     let b = vec![
-        (Key::Kek, U256::ZERO),
+        (Key::Gold, U256::ZERO),
         (Key::Item(item), U256::from_u64(1)),
         (Key::Level, U256::from_u64(1)),
     ];

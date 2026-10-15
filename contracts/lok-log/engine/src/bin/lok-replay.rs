@@ -62,12 +62,11 @@ fn main() -> ExitCode {
                 );
                 for character in &report.characters {
                     println!(
-                        "token={} state_root={} summary={} kek={} solvency={}",
+                        "token={} state_root={} summary={} gold={}",
                         character.token_id,
                         hex32(&character.state_root),
                         character.summary.to_hex(),
-                        character.kek,
-                        character.solvency_kek
+                        character.gold
                     );
                 }
                 ExitCode::SUCCESS

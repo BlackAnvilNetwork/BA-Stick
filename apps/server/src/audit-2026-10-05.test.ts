@@ -16,20 +16,20 @@ function tmp(prefix: string): string {
   return mkdtempSync(join(tmpdir(), prefix));
 }
 
-function deposit(lok: LokWorld, tokenId: string, amount: string, nonce: string) {
-  lok.noteCustodyInbound({ kind: "depositKek", tokenId, nonce, amount });
-  return lok.depositKek(tokenId, amount, nonce);
+function fundItem(lok: LokWorld, tokenId: string, amount: string, nonce: string) {
+  lok.noteCustodyInbound({ kind: "importItem", tokenId, nonce, itemId: "7", amount });
+  return lok.importItem(tokenId, "7", amount, nonce);
 }
 
-/** Two characters, a deposit, and a send: four journal lines after the first snapshot. */
+/** Two characters, an item import, and a send: four journal lines after the first snapshot. */
 function seeded(dir: string) {
   const lok = LokWorld.open(dir, undefined, {});
   const a = lok.spawn("char-a", "Ada", 0);
   const b = lok.spawn("char-b", "Bea", 1);
   assert.ok(a.ok && b.ok);
   if (!a.ok || !b.ok) throw new Error("spawn failed");
-  assert.equal(deposit(lok, a.tokenId, "10", "1").ok, true);
-  assert.equal(lok.sendKek(a.tokenId, b.tokenId, "1").ok, true);
+  assert.equal(fundItem(lok, a.tokenId, "10", "1").ok, true);
+  assert.equal(lok.sendItem(a.tokenId, b.tokenId, "7", "1").ok, true);
   return { lok, a: a.tokenId, b: b.tokenId };
 }
 
@@ -77,16 +77,16 @@ test("a torn final journal line is cut off so the next append does not corrupt t
   const { lok, a, b } = seeded(dir);
   const len = lok.length;
   const journal = join(dir, "lok-world.jsonl");
-  appendFileSync(journal, '{"seq":' + (len + 1) + ',"cmd":{"op":"sendKek","from":"' + a);
+  appendFileSync(journal, '{"seq":' + (len + 1) + ',"cmd":{"op":"sendItem","from":"' + a);
   const reopened = LokWorld.open(dir, undefined, {});
   assert.equal(reopened.length, len);
   assert.equal(readFileSync(journal, "utf8").endsWith("\n"), true);
   assert.equal(readdirSync(dir).some((name) => name.startsWith("lok-world.jsonl.torn-")), true);
   // Before the fix this append was concatenated onto the fragment and the next open threw.
-  assert.equal(reopened.sendKek(a, b, "1").ok, true);
+  assert.equal(reopened.sendItem(a, b, "7", "1").ok, true);
   const third = LokWorld.open(dir, undefined, {});
   assert.equal(third.length, len + 1);
-  assert.equal(third.kekOf(b), "2");
+  assert.equal(third.itemOf(b, "7"), "2");
 });
 
 test("a complete final journal record without its newline is kept and terminated", () => {
@@ -98,11 +98,11 @@ test("a complete final journal record without its newline is kept and terminated
   writeFileSync(journal, text.slice(0, -1));
   const reopened = LokWorld.open(dir, undefined, {});
   assert.equal(reopened.length, len);
-  assert.equal(reopened.kekOf(b), "1");
-  assert.equal(reopened.sendKek(a, b, "1").ok, true);
+  assert.equal(reopened.itemOf(b, "7"), "1");
+  assert.equal(reopened.sendItem(a, b, "7", "1").ok, true);
   const third = LokWorld.open(dir, undefined, {});
   assert.equal(third.length, len + 1);
-  assert.equal(third.kekOf(b), "2");
+  assert.equal(third.itemOf(b, "7"), "2");
 });
 
 test("a duplicated journal line is refused instead of applied twice", () => {
@@ -111,9 +111,9 @@ test("a duplicated journal line is refused instead of applied twice", () => {
   const journal = join(dir, "lok-world.jsonl");
   const lines = readFileSync(journal, "utf8").split("\n").filter(Boolean);
   const last = lines[lines.length - 1]!;
-  assert.match(last, /sendKek/);
+  assert.match(last, /sendItem/);
   appendFileSync(journal, last + "\n");
-  // Without the seq check the engine accepts the second sendKek and b ends with 2 KEK.
+  // Without the seq check the engine accepts the second send and b ends with 2 of the item.
   assert.throws(() => LokWorld.open(dir, undefined, {}), /seq mismatch/);
   void b;
 });

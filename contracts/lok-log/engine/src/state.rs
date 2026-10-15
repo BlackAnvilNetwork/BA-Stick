@@ -6,7 +6,7 @@ use crate::abi::{keccak256, Buf};
 use crate::u256::U256;
 
 /// Map keys. Declaration order is the `BTreeMap` order for the scalar fields.
-/// `Item` sorts last, then by item id. Spawn does not credit `Kek`. The world log credits a deposit, never a transfer.
+/// `Item` sorts last, then by item id. Tag 8 is retired (it was spendable KEK). Spawn does not credit gold.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Key {
     TokenId,
@@ -17,7 +17,6 @@ pub enum Key {
     SubjobXp,
     Location,
     UnspentPoints,
-    Kek,
     Item(U256),
     /// Learned ability. Value is 1. Key data is keccak256 of the ability id.
     Ability(U256),
@@ -67,12 +66,6 @@ impl State {
         self.map.insert(Key::SubjobXp, U256::ZERO);
         self.map.insert(Key::Location, U256::ZERO);
         self.map.insert(Key::UnspentPoints, U256::ZERO);
-        // Deposit-only. Spawn does not grant KEK.
-        self.map.insert(Key::Kek, U256::ZERO);
-    }
-
-    pub(crate) fn set_kek(&mut self, amount: U256) {
-        self.map.insert(Key::Kek, amount);
     }
 
     pub(crate) fn set_gold(&mut self, amount: U256) {
@@ -224,7 +217,6 @@ fn key_tag(key: &Key) -> u8 {
         Key::SubjobXp => 5,
         Key::Location => 6,
         Key::UnspentPoints => 7,
-        Key::Kek => 8,
         Key::Item(_) => 9,
         Key::Ability(_) => 10,
         Key::Craft(_) => 11,

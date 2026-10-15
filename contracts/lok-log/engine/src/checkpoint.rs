@@ -20,7 +20,6 @@ pub struct Checkpoint {
     pub ruleset_hash: [u8; 32],
     pub summary: U256,
     pub inbound_consumed: u64,
-    pub kek_out: U256,
     pub exports: Vec<Export>,
 }
 
@@ -38,8 +37,8 @@ pub fn encode_checkpoint(c: &Checkpoint) -> Vec<u8> {
     head.b256(&c.ruleset_hash);
     head.u256(&c.summary);
     head.u64(c.inbound_consumed);
-    head.u256(&c.kek_out);
-    let head_words = 10u64;
+    // 8 static words, then the offset to `exports`. Tag for the retired kekOut word is gone.
+    let head_words = 9u64;
     head.u256(&U256::from_u64(head_words * 32));
 
     let mut tail = Buf::new();

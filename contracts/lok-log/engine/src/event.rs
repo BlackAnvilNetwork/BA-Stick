@@ -63,25 +63,15 @@ pub fn craft_skill_validated_at(logged_seq: Option<u64>) -> bool {
 pub enum Input {
     /// First log event. Must name the same token and job the genesis anchor was built from.
     Spawn { token_id: U256, starting_job: u8 },
-    /// Log image of a KekVault deposit. Credits KEK the vault already holds. Not a mint.
-    /// `nonce` is that character's inbound id (shared with item imports) and may be applied once.
-    DepositKek { token_id: U256, amount: U256, nonce: u64 },
-    /// Log image of an item import. Credits items already burned into the log. Not a mint of KEK.
-    /// `nonce` is that character's inbound id (shared with KEK deposits) and may be applied once.
+    /// Log image of an item import. Credits items already burned into the log.
+    /// `nonce` is that character's inbound id and may be applied once.
     ImportItem { token_id: U256, item_id: U256, amount: U256, nonce: u64 },
     /// Move a stack from the in-game bag onto the log. No chain inbound nonce.
-    /// Not counted in inboundConsumed. Credits spendable items; does not mint KEK.
+    /// Not counted in inboundConsumed. Credits spendable items.
     BagImport { token_id: U256, item_id: U256, amount: U256 },
     /// Burns spendable items out of the log (the export side of a checkpoint). Escrowed listings are not spendable.
     ExportItem { token_id: U256, item_id: U256, amount: U256 },
-    /// Decreases spendable KEK. Escrowed bids are not spendable, so they cannot be withdrawn.
-    /// This is the log image of `kekOut`. It does not submit an onchain withdrawal.
-    WithdrawKek { token_id: U256, amount: U256 },
-    /// In-game price. Debits spendable KEK only. Escrowed bids stay locked.
-    /// Not a mint, not `kekOut`, and not an onchain withdrawal.
-    SpendKek { token_id: U256, amount: U256 },
     SendItem { from: U256, to: U256, item_id: U256, amount: U256 },
-    SendKek { from: U256, to: U256, amount: U256 },
     List { listing_id: U256, seller: U256, item_id: U256, amount: U256 },
     Bid { listing_id: U256, bidder: U256, amount: U256 },
     Cancel { listing_id: U256, seller: U256 },
@@ -105,10 +95,8 @@ pub enum Input {
     /// Craft skill level for this character. Must be strictly higher than the logged level.
     /// Does not store XP and does not credit items or KEK.
     CraftSkill { token_id: U256, skill_id: String, level: u32 },
-    /// Drops the named skill-node ids so they can be learned again. Does not spend KEK.
+    /// Drops the named skill-node ids so they can be learned again. Does not spend gold.
     RespecSkills { token_id: U256, node_ids: Vec<String> },
-    /// Debit spendable KEK and drop skill-node ids in one apply. Not a mint and not kekOut.
-    PaidRespecSkills { token_id: U256, amount: U256, node_ids: Vec<String> },
     /// Order-book ask. The stack leaves spendable items and is held at \min_price\.
     /// \listed_at\ is a unix second from the server. This log has no clock of its own.
     Ask {
@@ -158,8 +146,7 @@ pub enum Input {
         tx_hash: [u8; 32],
         log_index: u64,
     },
-    /// Debit in-game gold and drop skill-node ids in one apply. Mirrors PaidRespecSkills
-    /// but spends gold rather than KEK. Not a mint and not kekOut.
+    /// Debit in-game gold and drop skill-node ids in one apply.
     GoldPaidRespec {
         token_id: U256,
         amount: U256,
@@ -197,12 +184,6 @@ pub fn event_id(input: &Input) -> [u8; 32] {
             buf.u256(token_id);
             buf.u8(*starting_job);
         }
-        Input::DepositKek { token_id, amount, nonce } => {
-            buf.b256(&domain(b"LOK_DEPOSIT_KEK_V1"));
-            buf.u256(token_id);
-            buf.u256(amount);
-            buf.u64(*nonce);
-        }
         Input::ImportItem { token_id, item_id, amount, nonce } => {
             buf.b256(&domain(b"LOK_IMPORT_ITEM_V1"));
             buf.u256(token_id);
@@ -222,27 +203,11 @@ pub fn event_id(input: &Input) -> [u8; 32] {
             buf.u256(item_id);
             buf.u256(amount);
         }
-        Input::WithdrawKek { token_id, amount } => {
-            buf.b256(&domain(b"LOK_WITHDRAW_KEK_V1"));
-            buf.u256(token_id);
-            buf.u256(amount);
-        }
-        Input::SpendKek { token_id, amount } => {
-            buf.b256(&domain(b"LOK_SPEND_KEK_V1"));
-            buf.u256(token_id);
-            buf.u256(amount);
-        }
         Input::SendItem { from, to, item_id, amount } => {
             buf.b256(&domain(b"LOK_SEND_ITEM_V1"));
             buf.u256(from);
             buf.u256(to);
             buf.u256(item_id);
-            buf.u256(amount);
-        }
-        Input::SendKek { from, to, amount } => {
-            buf.b256(&domain(b"LOK_SEND_KEK_V1"));
-            buf.u256(from);
-            buf.u256(to);
             buf.u256(amount);
         }
         Input::List { listing_id, seller, item_id, amount } => {
@@ -310,15 +275,6 @@ pub fn event_id(input: &Input) -> [u8; 32] {
         Input::RespecSkills { token_id, node_ids } => {
             buf.b256(&domain(b"LOK_RESPEC_SKILLS_V1"));
             buf.u256(token_id);
-            buf.u64(node_ids.len() as u64);
-            for id in node_ids {
-                push_label(&mut buf, id);
-            }
-        }
-        Input::PaidRespecSkills { token_id, amount, node_ids } => {
-            buf.b256(&domain(b"LOK_PAID_RESPEC_SKILLS_V1"));
-            buf.u256(token_id);
-            buf.u256(amount);
             buf.u64(node_ids.len() as u64);
             for id in node_ids {
                 push_label(&mut buf, id);

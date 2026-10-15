@@ -18,14 +18,13 @@ contract GoldenTest is Base {
         c.rulesetHash = 0x4444444444444444444444444444444444444444444444444444444444444444;
         c.summary = 42 | (uint256(3) << 16) | (uint256(1) << 24) | (uint256(123456) << 32) | (uint256(17) << 96);
         c.inboundConsumed = 9;
-        c.kekOut = 250 ether;
         c.exports = new CharacterCheckpoint.Export[](2);
         c.exports[0] = CharacterCheckpoint.Export(0xabc, 1);
         c.exports[1] = CharacterCheckpoint.Export(0xdef, 40);
     }
 
     // Domain-independent values, pinned here and recomputed independently by verify.mjs.
-    bytes32 constant GOLDEN_BODY_HASH = 0x7f3fcc38e49cecc713b43b66ad375eae92e94b6247265b3bfdec80dc1c6c231f;
+    bytes32 constant GOLDEN_BODY_HASH = 0x0da4d29fd8c0892590468c9b2f8fa5e402388553fa6912e3f72a8cc671ee6d19;
     bytes32 constant GOLDEN_GENESIS_ROOT = 0x0c0d7ba0dd69dcda2fe24de603679f65ae5dbdaec43f4ba9f3dfa8c6b444761c;
     uint256 constant GOLDEN_UNIQUE_ID =
         16326979768789847505458237212507241523594462770995321419559994427250918491098;

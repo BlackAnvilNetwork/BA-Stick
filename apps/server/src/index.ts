@@ -259,7 +259,7 @@ import {
   settlementUnitSymbol,
 } from "./settlement-chain";
 import { loadEezClientConfig, type EezSyncBuyClientConfig } from "./eez-sync";
-import { guardedKekMove, withPlayerCharge } from "./kek-guard";
+import { guardedGoldMove, withPlayerCharge } from "./gold-guard";
 import { characterNameKey, normalizeCharacterName } from "./character-name";
 import { randomBytes } from "node:crypto";
 import { authAllowlist, authVerifyClient, clientAddress, dropAuthConnection, issueAuthChallenge, resolveAuthOrigin, verifyAuthLogin, isEthAddress } from "./wallet-auth";
@@ -1179,7 +1179,7 @@ function spendLogGold(
     if (!ok) return { ok: false as const, error: "Character NFT ownership required." };
     const token = lokToken(p);
     if (!token) return { ok: false as const, error: "Could not open your log identity." };
-    return guardedKekMove(token, async () => {
+    return guardedGoldMove(token, async () => {
       let bal: bigint;
       let cost: bigint;
       try {
@@ -1694,7 +1694,7 @@ function handleSkillRespec(p: Player) {
     payAndClear: async (amount, nodeIds) => {
       const token = lokToken(p);
       if (!token) return { ok: false, error: "Could not open your log identity." };
-      return guardedKekMove(token, async () => {
+      return guardedGoldMove(token, async () => {
         let bal: bigint;
         let cost: bigint;
         try {
