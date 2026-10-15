@@ -4,8 +4,9 @@
  * are quarantined (#214 policy) so one bad fill cannot freeze AH for everyone.
  */
 import { settlementCurrencyView } from "@bellgrave/config";
-import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { durableWrite } from "./durable-write";
 import { preferFinalizedTip, settlementConfirmations } from "./settlement-confirmations";
 import { settlementChainId } from "./settlement-chain";
 import {
@@ -260,9 +261,7 @@ export function writeAskFilledCursor(
     writeWatcherCursor({ path, cursor, chainId: opts.chainId, address: opts.address });
     return;
   }
-  const tmp = path + ".tmp";
-  writeFileSync(tmp, JSON.stringify({ cursor: cursor.toString() }));
-  renameSync(tmp, path);
+  durableWrite(path, JSON.stringify({ cursor: cursor.toString() }));
 }
 
 export async function scanAskFilled(opts: {

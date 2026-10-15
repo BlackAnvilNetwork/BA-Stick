@@ -2,8 +2,9 @@
  * Per-character / per-wallet rate limits for lok/list, lok/cancel, lok/reclaim (H-1).
  * Also enforces a minimum listing lifetime before cancel and a global LISTING gas budget.
  */
-import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { durableWrite } from "./durable-write";
 import { defaultLokDir } from "./lok-world";
 import { opsAlert } from "./ops-log";
 
@@ -48,10 +49,7 @@ function readGlobalBudget(dataDir?: string): GlobalBudget {
 }
 
 function writeGlobalBudget(row: GlobalBudget, dataDir?: string): void {
-  const path = globalBudgetPath(dataDir);
-  const tmp = path + ".tmp";
-  writeFileSync(tmp, JSON.stringify(row, null, 2) + "\n");
-  renameSync(tmp, path);
+  durableWrite(globalBudgetPath(dataDir), JSON.stringify(row, null, 2) + "\n");
 }
 
 export function consumeGlobalListingTxBudget(opts?: {

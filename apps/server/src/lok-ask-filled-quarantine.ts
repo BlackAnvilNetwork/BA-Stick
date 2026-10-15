@@ -10,9 +10,10 @@
  *   pnpm --filter @bellgrave/server lok:replay-ask-filled --list
  *   pnpm --filter @bellgrave/server lok:replay-ask-filled <id> [dataDir]
  */
-import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { AskFilled } from "./ah-escrow";
+import { durableWrite } from "./durable-write";
 import { opsAlert } from "./ops-log";
 
 export const ASK_FILLED_QUARANTINE_FILE = "lok-ask-filled-quarantine.json";
@@ -71,9 +72,7 @@ export function loadAskFilledQuarantine(path: string): QuarantinedAskFill[] {
 }
 
 export function writeAskFilledQuarantine(path: string, entries: QuarantinedAskFill[]): void {
-  const tmp = path + ".tmp";
-  writeFileSync(tmp, JSON.stringify({ entries } satisfies QuarantineFile, null, 2));
-  renameSync(tmp, path);
+  durableWrite(path, JSON.stringify({ entries } satisfies QuarantineFile, null, 2));
 }
 
 export function loadMirroredFillKeys(path: string): Set<string> {
@@ -88,9 +87,7 @@ export function loadMirroredFillKeys(path: string): Set<string> {
 }
 
 export function writeMirroredFillKeys(path: string, keys: Set<string>): void {
-  const tmp = path + ".tmp";
-  writeFileSync(tmp, JSON.stringify({ keys: [...keys] } satisfies MirroredFile, null, 2));
-  renameSync(tmp, path);
+  durableWrite(path, JSON.stringify({ keys: [...keys] } satisfies MirroredFile, null, 2));
 }
 
 export class AskFilledQuarantine {

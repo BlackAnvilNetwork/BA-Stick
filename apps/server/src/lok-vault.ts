@@ -5,7 +5,7 @@
 import { isSettlementChain, settlementCurrencyView } from "@bellgrave/config";
 import { createPublicClient, createWalletClient, http, keccak256, toBytes, type Chain, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { renameSync, writeFileSync } from "node:fs";
+import { durableWrite } from "./durable-write";
 import { withOwnerKeyQueue } from "./owner-tx-queue";
 import { resolvePublicRpcUrl } from "./public-rpc";
 
@@ -81,9 +81,7 @@ function redact(text: string, secrets: string[]): string {
 }
 
 export function writeTextAtomic(path: string, text: string): void {
-  const tmp = path + ".tmp";
-  writeFileSync(tmp, text);
-  renameSync(tmp, path);
+  durableWrite(path, text);
 }
 
 function isAddress(value: string): boolean {

@@ -7,9 +7,7 @@ import {
   mkdirSync,
   openSync,
   readFileSync,
-  renameSync,
   truncateSync,
-  writeFileSync,
   writeSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
@@ -18,6 +16,7 @@ import { resolveNetworkName } from "@bellgrave/config";
 import type { LokListingView, LokSnapshot } from "@bellgrave/protocol";
 import { characterNameKey, normalizeCharacterName } from "./character-name";
 import { acquireDataDirLock } from "./data-dir-lock";
+import { durableWrite } from "./durable-write";
 import { exploreDocument, type LokExplorePage } from "./lok-explore";
 import { defaultWasmPath, loadLokExports, lokCall, lokOut, type LokExports } from "./lok-engine";
 import { TickCoalesce, type CoalescedEvent } from "./log-coalesce";
@@ -171,9 +170,7 @@ function fileStamp(): string {
 }
 
 function atomicWrite(path: string, text: string) {
-  const tmp = path + ".tmp";
-  writeFileSync(tmp, text);
-  renameSync(tmp, path);
+  durableWrite(path, text);
 }
 
 /** Bytes of the append journal already included in a snapshot. Old full-file logs have none. */

@@ -4,8 +4,9 @@
  *
  * #285: live ownerOf writes must not clobber a confirmed Transfer block with block=0.
  */
-import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { durableWrite } from "./durable-write";
 import { defaultLokDir } from "./lok-world";
 import { readCharacterNftOwner } from "./lok-vault";
 
@@ -54,9 +55,7 @@ export class NftOwnerCache {
   }
 
   private persist(): void {
-    const tmp = this.path + ".tmp";
-    writeFileSync(tmp, JSON.stringify({ owners: this.owners } satisfies CacheFile, null, 2) + "\n");
-    renameSync(tmp, this.path);
+    durableWrite(this.path, JSON.stringify({ owners: this.owners } satisfies CacheFile, null, 2) + "\n");
   }
 
   get(tokenId: string): string | null {
