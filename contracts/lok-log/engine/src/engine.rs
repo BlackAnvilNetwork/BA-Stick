@@ -83,6 +83,8 @@ pub enum EngineError {
     BountyMismatch,
     /// PvP bounty amount is not the fixed 1×10^18 wei ruleset value.
     BadBountyAmount,
+    /// This tx hash and log index already mirrored a PvP escrow event.
+    DuplicatePvpFill,
 }
 
 impl fmt::Display for EngineError {
@@ -130,6 +132,7 @@ impl fmt::Display for EngineError {
             Self::NoBounty => write!(f, "no open pvp bounty"),
             Self::BountyMismatch => write!(f, "pvp bounty does not match"),
             Self::BadBountyAmount => write!(f, "pvp bounty must be 1e18 wei"),
+            Self::DuplicatePvpFill => write!(f, "pvp receipt already mirrored"),
         }
     }
 }

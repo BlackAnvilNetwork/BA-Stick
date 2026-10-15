@@ -604,6 +604,7 @@ describe("LOK_OPS_STATUS_TOKEN required on all production chains", () => {
       LOK_CHAIN_RPC: "https://rpc.chiado.gnosis.gateway.fm",
       LOK_LISTING_KEY: "0x" + "44".repeat(32),
       LOK_OPS_STATUS_TOKEN: "test-token",
+      LOK_PVP_BOUNTY: "0x" + "55".repeat(20),
     });
     assert.equal(r.ok, true);
   });

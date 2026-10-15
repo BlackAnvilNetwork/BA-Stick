@@ -10,7 +10,7 @@ contract PvpBountyFixture is Script {
     function run() external {
         vm.startBroadcast();
         MockOwnerNft nft = new MockOwnerNft();
-        PvpBounty bounty = new PvpBounty(address(nft), msg.sender, msg.sender);
+        PvpBounty bounty = new PvpBounty(address(nft), msg.sender, msg.sender, 0);
         vm.stopBroadcast();
         console.log("PVP_BOUNTY", address(bounty));
         console.log("NFT", address(nft));

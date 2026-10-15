@@ -64,6 +64,14 @@ pub struct Listing {
     pub book: bool,
 }
 
+/// PvP mirrors mutate the bounty map. Undo must restore it with the characters.
+fn input_mutates_pvp(input: &Input) -> bool {
+    matches!(
+        input,
+        Input::PvpBountyOpen { .. } | Input::PvpBountyCancel { .. } | Input::PvpKill { .. }
+    )
+}
+
 /// Listing commands are the only applies that copy the order book for undo.
 fn input_mutates_listings(input: &Input) -> bool {
     matches!(
@@ -126,6 +134,8 @@ pub struct World {
     listings: BTreeMap<U256, Listing>,
     /// token_id → open head-bounty. Rebuilt by replay. No settlement balance.
     pvp_bounties: BTreeMap<U256, OpenPvpBounty>,
+    /// `(tx_hash, log_index)` already mirrored. Same receipt cannot open, cancel, or kill twice.
+    pvp_fill_keys: BTreeSet<([u8; 32], u64)>,
     next_seq: u64,
     /// Ruleset this process is attesting. Stamped into drafted checkpoints. Not stored in the log.
     /// A reload starts at zero until the server sets it again.
@@ -138,6 +148,7 @@ impl World {
             characters: BTreeMap::new(),
             listings: BTreeMap::new(),
             pvp_bounties: BTreeMap::new(),
+            pvp_fill_keys: BTreeSet::new(),
             next_seq: 0,
             ruleset_hash: [0u8; 32],
         }
@@ -253,6 +264,14 @@ impl World {
     /// Open PvP head-bounty for a character, if any.
     pub fn pvp_bounty(&self, token_id: &U256) -> Option<&OpenPvpBounty> {
         self.pvp_bounties.get(token_id)
+    }
+
+    fn reject_duplicate_pvp(&self, tx_hash: &[u8; 32], log_index: u64) -> Result<(), EngineError> {
+        if self.pvp_fill_keys.contains(&(*tx_hash, log_index)) {
+            Err(EngineError::DuplicatePvpFill)
+        } else {
+            Ok(())
+        }
     }
 
     /// All open PvP bounties (token_id, bounty).
@@ -608,18 +627,23 @@ impl World {
         } else {
             None
         };
+        let saved_pvp = if input_mutates_pvp(&input) {
+            Some((self.pvp_bounties.clone(), self.pvp_fill_keys.clone()))
+        } else {
+            None
+        };
         let saved_chars: Vec<(U256, Option<Character>)> = touch
             .iter()
             .map(|id| (*id, self.characters.get(id).cloned()))
             .collect();
         if let Err(err) = self.effects(&input, &touch, None) {
-            self.restore_apply(saved_chars, saved_listings, saved_seq);
+            self.restore_apply(saved_chars, saved_listings, saved_pvp, saved_seq);
             return Err(err);
         }
         match self.link_at(&input, &touch, saved_seq) {
             Ok(event) => Ok(event),
             Err(err) => {
-                self.restore_apply(saved_chars, saved_listings, saved_seq);
+                self.restore_apply(saved_chars, saved_listings, saved_pvp, saved_seq);
                 Err(err)
             }
         }
@@ -629,6 +653,7 @@ impl World {
         &mut self,
         saved_chars: Vec<(U256, Option<Character>)>,
         saved_listings: Option<BTreeMap<U256, Listing>>,
+        saved_pvp: Option<(BTreeMap<U256, OpenPvpBounty>, BTreeSet<([u8; 32], u64)>)>,
         saved_seq: u64,
     ) {
         for (id, prev) in saved_chars {
@@ -643,6 +668,10 @@ impl World {
         }
         if let Some(listings) = saved_listings {
             self.listings = listings;
+        }
+        if let Some((bounties, keys)) = saved_pvp {
+            self.pvp_bounties = bounties;
+            self.pvp_fill_keys = keys;
         }
         self.next_seq = saved_seq;
     }
@@ -1220,9 +1249,10 @@ impl World {
                 token_id,
                 amount_wei,
                 area_id,
-                tx_hash: _,
-                log_index: _,
+                tx_hash,
+                log_index,
             } => {
+                self.reject_duplicate_pvp(tx_hash, *log_index)?;
                 if *amount_wei != U256::from_u64(PVP_BOUNTY_WEI) {
                     return Err(EngineError::BadBountyAmount);
                 }
@@ -1238,9 +1268,10 @@ impl World {
             Input::PvpBountyCancel {
                 token_id,
                 area_id,
-                tx_hash: _,
-                log_index: _,
+                tx_hash,
+                log_index,
             } => {
+                self.reject_duplicate_pvp(tx_hash, *log_index)?;
                 parse_label(area_id)?;
                 if !self.characters.contains_key(token_id) {
                     return Err(EngineError::NotSpawned);
@@ -1256,9 +1287,10 @@ impl World {
                 slayer,
                 area_id,
                 amount_wei,
-                tx_hash: _,
-                log_index: _,
+                tx_hash,
+                log_index,
             } => {
+                self.reject_duplicate_pvp(tx_hash, *log_index)?;
                 if victim == slayer {
                     return Err(EngineError::SelfTransfer);
                 }
@@ -1456,8 +1488,10 @@ impl World {
                 token_id,
                 amount_wei,
                 area_id,
-                ..
+                tx_hash,
+                log_index,
             } => {
+                self.pvp_fill_keys.insert((*tx_hash, *log_index));
                 self.pvp_bounties.insert(
                     *token_id,
                     OpenPvpBounty {
@@ -1467,11 +1501,23 @@ impl World {
                 );
                 Ok(())
             }
-            Input::PvpBountyCancel { token_id, .. } => {
+            Input::PvpBountyCancel {
+                token_id,
+                tx_hash,
+                log_index,
+                ..
+            } => {
+                self.pvp_fill_keys.insert((*tx_hash, *log_index));
                 self.pvp_bounties.remove(token_id);
                 Ok(())
             }
-            Input::PvpKill { victim, .. } => {
+            Input::PvpKill {
+                victim,
+                tx_hash,
+                log_index,
+                ..
+            } => {
+                self.pvp_fill_keys.insert((*tx_hash, *log_index));
                 self.pvp_bounties.remove(victim);
                 Ok(())
             }

@@ -240,7 +240,8 @@ contract Deploy is Script {
         );
         d.ahEscrow = new AhEscrow(deployer, address(d.nft), payable(c.feeRecipient));
         // LISTING EOA is the PvP operator (claim after verified slay), same as AH listing role.
-        d.pvpBounty = new PvpBounty(address(d.nft), deployer, c.listing);
+        uint256 pvpDelay = block.chainid == 31337 ? 0 : 60;
+        d.pvpBounty = new PvpBounty(address(d.nft), deployer, c.listing, pvpDelay);
 
         // wiring
         d.nft.setState(address(d.checkpoint));

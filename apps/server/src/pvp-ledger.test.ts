@@ -49,6 +49,10 @@ describe("pvp ledger mirrors", () => {
         true,
       );
       assert.equal(lok.hasPvpBounty(tokenA), false);
+
+      const replay = lok.pvpBountyOpen(tokenA, PVP_BOUNTY_WEI, "ash_pit", openRx.txHash, openRx.logIndex);
+      assert.equal(replay.ok, false);
+      if (!replay.ok) assert.match(replay.error ?? "", /already mirrored/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

@@ -70,6 +70,13 @@ fn open_cancel_kill_lifecycle() {
     // Slayer's bounty stays open.
     assert!(world.pvp_bounty(&n(1)).is_some());
 
+    assert_eq!(
+        world
+            .append_pvp_bounty_open(n(1), n(ONE_XDAI), "ash_pit".into(), TX, 0)
+            .unwrap_err(),
+        EngineError::DuplicatePvpFill
+    );
+
     // No double claim.
     assert_eq!(
         world

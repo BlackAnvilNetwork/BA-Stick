@@ -235,6 +235,45 @@ export function collectChainFillKeys(logText: string): Set<string> {
   return keys;
 }
 
+const PVP_MIRROR_TYPES = new Set(["pvpBountyOpen", "pvpBountyCancel", "pvpKill"]);
+
+/** Build fillKeys from PvP escrow mirrors already on the engine document. */
+export function collectPvpFillKeys(logText: string): Set<string> {
+  const keys = new Set<string>();
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(logText);
+  } catch {
+    return keys;
+  }
+  if (!parsed || typeof parsed !== "object") return keys;
+  const characters = (parsed as { characters?: unknown }).characters;
+  if (!Array.isArray(characters)) return keys;
+  for (const row of characters) {
+    if (!row || typeof row !== "object") continue;
+    const entries = (row as { entries?: unknown }).entries;
+    if (!Array.isArray(entries)) continue;
+    for (const entry of entries) {
+      if (!entry || typeof entry !== "object") continue;
+      const input = (entry as { input?: unknown }).input;
+      if (!input || typeof input !== "object") continue;
+      const body = input as { type?: unknown; txHash?: unknown; logIndex?: unknown };
+      if (typeof body.type !== "string" || !PVP_MIRROR_TYPES.has(body.type)) continue;
+      if (typeof body.txHash !== "string" || !body.txHash.startsWith("0x")) continue;
+      let idx: string;
+      if (typeof body.logIndex === "number" && Number.isFinite(body.logIndex)) {
+        idx = String(body.logIndex);
+      } else if (typeof body.logIndex === "string" && /^\d+$/.test(body.logIndex)) {
+        idx = body.logIndex;
+      } else {
+        continue;
+      }
+      keys.add(normalizeFillKey(body.txHash + "-" + idx));
+    }
+  }
+  return keys;
+}
+
 /**
  * One hash chain per character. The wasm engine accepts or rejects every move.
  * Deposit credits KEK the caller already holds in custody. It does not mint.
@@ -264,6 +303,8 @@ export class LokWorld {
   private chainFills = new Map<string, ChainFillInbound>();
   /** fillKeys already journaled as ChainFill (txHash-logIndex). Source of truth for AskFilled replay. */
   private appliedChainFillKeys = new Set<string>();
+  /** PvP mirror fillKeys (txHash-logIndex). A receipt cannot open, cancel, and kill as three events. */
+  private appliedPvpFillKeys = new Set<string>();
   /** Bytes of lok-world.jsonl already folded into the snapshot. */
   private journalBytes = 0;
   /** Accepted events since the snapshot on disk was rewritten. */
@@ -314,6 +355,7 @@ export class LokWorld {
     this.bind = this.readBind();
     this.refresh();
     this.appliedChainFillKeys = collectChainFillKeys(this.logDocument());
+    this.appliedPvpFillKeys = collectPvpFillKeys(this.logDocument());
     this.reconcileBind();
     this.pruneExpiredReservations();
     if (!existsSync(this.logPath)) this.snapshotLog();
@@ -691,7 +733,9 @@ export class LokWorld {
     txHash: string,
     logIndex: number | string,
   ): LokResult {
-    return this.apply({
+    const dup = this.rejectDuplicatePvp(txHash, logIndex);
+    if (dup) return dup;
+    const res = this.apply({
       op: "pvpBountyOpen",
       tokenId,
       amountWei,
@@ -699,6 +743,8 @@ export class LokWorld {
       txHash,
       logIndex,
     });
+    if (res.ok) this.rememberPvpFill(txHash, logIndex);
+    return res;
   }
 
   /** Mirror an on-chain PvP bounty cancel/refund. */
@@ -708,13 +754,17 @@ export class LokWorld {
     txHash: string,
     logIndex: number | string,
   ): LokResult {
-    return this.apply({
+    const dup = this.rejectDuplicatePvp(txHash, logIndex);
+    if (dup) return dup;
+    const res = this.apply({
       op: "pvpBountyCancel",
       tokenId,
       areaId,
       txHash,
       logIndex,
     });
+    if (res.ok) this.rememberPvpFill(txHash, logIndex);
+    return res;
   }
 
   /**
@@ -729,7 +779,9 @@ export class LokWorld {
     txHash: string,
     logIndex: number | string,
   ): LokResult {
-    return this.apply({
+    const dup = this.rejectDuplicatePvp(txHash, logIndex);
+    if (dup) return dup;
+    const res = this.apply({
       op: "pvpKill",
       victim,
       slayer,
@@ -738,6 +790,23 @@ export class LokWorld {
       txHash,
       logIndex,
     });
+    if (res.ok) this.rememberPvpFill(txHash, logIndex);
+    return res;
+  }
+
+  private pvpFillKey(txHash: string, logIndex: number | string): string {
+    return normalizeFillKey(txHash + "-" + logIndex);
+  }
+
+  private rejectDuplicatePvp(txHash: string, logIndex: number | string): LokResult | null {
+    if (this.appliedPvpFillKeys.has(this.pvpFillKey(txHash, logIndex))) {
+      return { ok: false, error: "pvp receipt already mirrored" };
+    }
+    return null;
+  }
+
+  private rememberPvpFill(txHash: string, logIndex: number | string) {
+    this.appliedPvpFillKeys.add(this.pvpFillKey(txHash, logIndex));
   }
 
   /**

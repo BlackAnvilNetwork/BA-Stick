@@ -28,7 +28,8 @@ contract DeployPvpBountyGnosis is Script {
         require(nft != address(0) && admin != address(0) && operator != address(0), "bad addresses");
 
         vm.startBroadcast();
-        PvpBounty bounty = new PvpBounty(nft, admin, operator);
+        // 60s guardian window before executeClaim pays the snapshotted slayer.
+        PvpBounty bounty = new PvpBounty(nft, admin, operator, 60);
         vm.stopBroadcast();
 
         console.log("PVP_BOUNTY", address(bounty));

@@ -31,11 +31,31 @@ Fixed `amountWei` = `1000000000000000000`. Linked onto victim (and slayer for
 
 ## On-chain
 
-`contracts/lok-log/src/PvpBounty.sol` — player `place` (**1 xDAI** / 1e18 wei),
-operator/owner `cancel`, operator `claim`. Settlement value never hits the
-character log — the server verifies the place receipt (or recovers
-`BountyOpened`), then appends `pvpBountyOpen` / `pvpBountyCancel` / `pvpKill`
-mirrors.
+`contracts/lok-log/src/PvpBounty.sol` — player `place` (**1 xDAI** / 1e18 wei).
+`cancel` refunds the **original payer** (`payerOf`), including while paused and
+after the NFT transfers. The server also cancels on CharacterNFT `Transfer`.
+
+`proposeClaim(victim, slayer, expectedSlayer)` snapshots `ownerOf(slayer)` and
+reverts (`SlayerMoved`) if that owner is not the wallet that scored the kill.
+`executeClaim` pays the snapshotted address after `claimDelay` (0 on anvil, 60s
+on Gnosis), not whoever owns the slayer NFT later. Guardian `vetoClaim` drops a
+proposal without paying. Pause blocks propose and execute; it does not block cancel.
+
+OPERATOR_ROLE is the LISTING hot key. It can still propose a claim for any open
+bounty — that is the kill attestation. The delay is the guardian's window to
+veto or pause. Admin and guardian must be a Safe. The server logs
+`pvp_bounty_claim_proposed` and `pvp_bounty_claimed` on stderr. Never put
+`LOK_OWNER_KEY` or `PRIVATE_KEY` on the game host.
+
+The log mirror requires a decoded `BountyOpened` / `BountyCancelled` /
+`BountyClaimed` log. `txHash-logIndex` is stored once; a second mirror of the
+same receipt is rejected. Synthetic receipts stay off unless the chain is anvil
+and `LOK_PVP_BOUNTY` is unset, or `LOK_PVP_SYNTHETIC=1`.
+
+Gear and prebuffs are not clamped in Ash Pit. Skill-tree bonuses stay on as
+well (#291). Job level is still capped at 30 / support 15. Ember Vigil does not
+fire inside a PvP area, so a bounty claim is not deferred. Party members cannot
+strike each other. Abilities aimed at another player use the same strike gate.
 
 ## Server WS
 
@@ -52,7 +72,11 @@ mirrors.
 - Bounty unit: **1 xDAI** (`BOUNTY_WEI = 1e18`)
 - Additive script: `DeployPvpBountyGnosis.s.sol` (+ `broadcast-deploy-pvp-bounty-gnosis.sh`)
 - Against official NFT `0x48aFeC…289F`; ADMIN `0x08cD…4e01`; OPERATOR = LISTING `0xbFa2…9E76`
-- Live address: `0x02bDDCaF5a19fD9Be7f39fC7419F794CECE9E64e` (`deployments/gnosis.json`)
+- Previous address `0x02bDDCaF5a19fD9Be7f39fC7419F794CECE9E64e` is the pre-fix
+  bytecode (single `claim`, pays current `ownerOf`). Redeploy with
+  `DeployPvpBountyGnosis` (60s `claimDelay`) and replace `LOK_PVP_BOUNTY`
+  before production boot. The checked-in `deployments/gnosis.json` still names
+  the old address until that deploy.
 - Env: `NETWORK=gnosis` fills `LOK_PVP_BOUNTY`
 - Operator: **`LOK_LISTING_KEY` only** (LISTING `0xbFa2…`). Never put the admin key on the server.
 - Key placement: local → `apps/server/.env.local`; production → host secrets for the Node process on PORT 8787 (see `docs/gnosis-launch.md`).

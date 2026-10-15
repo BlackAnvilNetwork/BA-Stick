@@ -14,7 +14,7 @@ contract DeployPvpBountyAnvil is Script {
         address nft = vm.envAddress("NFT");
         address deployer = msg.sender;
         vm.startBroadcast();
-        PvpBounty bounty = new PvpBounty(nft, deployer, deployer);
+        PvpBounty bounty = new PvpBounty(nft, deployer, deployer, 0);
         vm.stopBroadcast();
         console.log("PVP_BOUNTY", address(bounty));
         console.log("NFT", nft);
