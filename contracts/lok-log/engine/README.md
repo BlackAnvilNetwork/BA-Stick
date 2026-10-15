@@ -48,7 +48,7 @@ Exit 0 prints the head, state root, and summary. Exit 1 is a bad hash. Exit 2 is
 
 ## Loot: ItemDrop and LootDrop
 
-`lootDrop` is the loot counter. Like `harvest` it counts and never credits items or KEK; mob loot is logged with it. `itemDrop` is closed for new appends (`ClosedMint`). `itemDrop` entries already on a log at `seq <= HISTORICAL_ITEM_DROP_MAX_SEQ` (174, the last seq of the quarantined pre-#206 live log) replay as the item credit they were when written. A logged `itemDrop` past that seq is refused on replay too, so it cannot mint. Committed entries are never rewritten into `lootDrop`; that would change their hashes. `tests/historical_item_drop.rs` replays fixtures copied from that log.
+`lootDrop` is the loot counter. Like `harvest` it counts and never credits items or KEK; mob loot is logged with it. `itemDrop` is `ClosedMint` on append and on replay. `seq` is not in the entry hash, so a low seq does not credit items. A log that still contains `itemDrop` does not open; clear it. Rewriting a committed `itemDrop` into `lootDrop` would change its hash. `tests/historical_item_drop.rs` keeps the pre-#206 fixtures and expects them to be refused.
 
 ## Wasm pin
 

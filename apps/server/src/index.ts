@@ -989,7 +989,7 @@ function logLokDrop(p: Player, itemId: number, amount: number) {
   if (!Number.isInteger(itemId) || itemId <= 0 || amount <= 0) return;
   const token = lokToken(p);
   if (!token) return;
-  // LootDrop is a counter like Harvest. It does not mint; ItemDrop is closed for new appends.
+  // LootDrop is a counter like Harvest. It does not mint. ItemDrop is ClosedMint on append and on replay.
   const res = lok.lootDrop(token, String(itemId), String(amount));
   if (!res.ok) pushLog(p, "Loot was not written to your log: " + res.error);
 }

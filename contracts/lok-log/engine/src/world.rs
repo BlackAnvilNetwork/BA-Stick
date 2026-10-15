@@ -15,7 +15,7 @@ use crate::abi::keccak256;
 use crate::chain::{Chain, CharacterLogDocument, LoggedEntry, ReplayStop, WorldDocument};
 use crate::checkpoint::{Checkpoint, Export};
 use crate::engine::{gold_err, parse_label, EngineError};
-use crate::event::{entry_hash, item_drop_credits_at, Input};
+use crate::event::{entry_hash, Input};
 use crate::gold;
 use crate::ids::{genesis_root, world_genesis};
 use crate::state::{label_key, Key, State};
@@ -831,7 +831,7 @@ impl World {
                 }
             }
             // The document's chains are not a permission to skip a debit. affected() is the
-            // same check a new append uses, including historical ItemDrop at its logged seq.
+            // same check a new append uses. ItemDrop is ClosedMint at every seq.
             let expected = world.affected_at(&input, Some(seq)).map_err(|reason| ReplayStop::Rejected {
                 index: seq,
                 reason,
@@ -869,7 +869,9 @@ impl World {
         Ok(world)
     }
 
-    fn affected_at(&self, input: &Input, logged_seq: Option<u64>) -> Result<BTreeSet<U256>, EngineError> {
+    /// Characters this command touches. Load and apply share this check. The logged seq is
+    /// unused here: `ItemDrop` is `ClosedMint` at every seq.
+    fn affected_at(&self, input: &Input, _logged_seq: Option<u64>) -> Result<BTreeSet<U256>, EngineError> {
         let mut touch = BTreeSet::new();
         match input {
             Input::Spawn { token_id, .. } => {
@@ -948,23 +950,9 @@ impl World {
                 }
                 touch.insert(*token_id);
             }
-            // A new ItemDrop append is closed. A logged ItemDrop at or below
-            // HISTORICAL_ITEM_DROP_MAX_SEQ still names one character, same as when it was written.
-            Input::ItemDrop { token_id, item_id, amount } => {
-                if !logged_seq.is_some_and(item_drop_credits_at) {
-                    return Err(EngineError::ClosedMint);
-                }
-                if *amount == U256::ZERO {
-                    return Err(EngineError::ZeroAmount);
-                }
-                if *item_id == U256::ZERO {
-                    return Err(EngineError::BadId);
-                }
-                if !self.characters.contains_key(token_id) {
-                    return Err(EngineError::NotSpawned);
-                }
-                touch.insert(*token_id);
-            }
+            // ItemDrop never credits. seq is not in the entry hash, so a low seq is not a
+            // historical allowlist. Mob loot is LootDrop.
+            Input::ItemDrop { .. } => return Err(EngineError::ClosedMint),
             Input::LootDrop { token_id, item_id, amount } => {
                 if *amount == U256::ZERO {
                     return Err(EngineError::ZeroAmount);
@@ -1274,17 +1262,7 @@ impl World {
                 }
                 Ok(())
             }
-            Input::ItemDrop { token_id, item_id, amount } => {
-                // Historical log entries (seq <= HISTORICAL_ITEM_DROP_MAX_SEQ) still credit.
-                // A later logged ItemDrop is refused even on replay. affected() refuses a new append.
-                if !logged_seq.is_some_and(item_drop_credits_at) {
-                    return Err(EngineError::ClosedMint);
-                }
-                if touch.contains(token_id) {
-                    self.credit_item(*token_id, *item_id, *amount)?;
-                }
-                Ok(())
-            }
+            Input::ItemDrop { .. } => Err(EngineError::ClosedMint),
             Input::LootDrop { token_id, item_id, amount } => {
                 // Counter only, like Harvest. Does not credit spendable items or KEK.
                 if touch.contains(token_id) {

@@ -542,21 +542,14 @@ test("a new item drop append cannot mint an arbitrary credit", () => {
   assert.equal(lok.dropOf(a.tokenId, "7"), "0");
 });
 
-test("a committed pre-#206 log with minting ItemDrop entries still opens and credits", () => {
-  // Tokens 1 and 4 copied unmodified from the quarantined live log. #206 refused it at seq 21.
+test("a pre-#206 log with ItemDrop entries refuses to open", () => {
   const fixture = readFileSync(
     new URL("../../../contracts/lok-log/engine/tests/fixtures/pre-206-item-drop-world.json", import.meta.url),
     "utf8",
   );
   const dir = mkdtempSync(join(tmpdir(), "lok-historical-"));
   writeFileSync(join(dir, "lok-world.json"), fixture);
-  const lok = LokWorld.open(dir, undefined, {});
-  assert.equal(lok.length, 42);
-  // Every historically credited drop was exported later, so the replayed balances are empty.
-  assert.equal(lok.itemOf("4", "1029"), "0");
-  assert.equal(lok.itemOf("4", "1057"), "0");
-  assert.equal(lok.levelOf("4"), 5);
-  assert.equal(lok.dropOf("4", "1029"), "0");
+  assert.throws(() => LokWorld.open(dir, undefined, {}), /cannot mint/i);
 });
 
 test("bag import does not consume the chain inbound nonce", () => {

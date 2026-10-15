@@ -471,7 +471,7 @@ export class LokWorld {
     return this.apply({ op: "harvest", tokenId, materialId, amount });
   }
 
-  /** Closed: the engine refuses every new ItemDrop append (ClosedMint). Log mob loot with lootDrop. */
+  /** Closed: the engine refuses ItemDrop on append and on replay (ClosedMint). Log mob loot with lootDrop. */
   itemDrop(tokenId: string, itemId: string, amount: string): LokResult {
     return this.apply({ op: "itemDrop", tokenId, itemId, amount });
   }

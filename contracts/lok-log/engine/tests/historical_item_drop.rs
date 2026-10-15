@@ -1,26 +1,19 @@
-//! Regression: committed logs written before #206 must replay exactly as they were written.
+//! `ItemDrop` is a closed mint at every seq.
 //!
-//! Before #206 an `ItemDrop` entry credited spendable items. #206 reinterpreted it as a
-//! non-minting counter, so the live log stopped replaying at seq 21 (`list` of 6 x item 1029)
-//! with `insufficient item`. Committed entries are never reinterpreted: a historical `ItemDrop`
-//! still credits on replay, a NEW `ItemDrop` append is refused (`ClosedMint`), and mob loot is
-//! logged as the non-minting `LootDrop` counter.
+//! Before #206 an `ItemDrop` entry credited spendable items. A later cutoff credited those
+//! entries only when `seq <= 174`. `seq` is not part of the entry hash, so a rebuilt log could
+//! still mint by reusing a low seq. Logs may be cleared, so every `ItemDrop` is `ClosedMint`
+//! on append and on replay. Mob loot is the non-minting `LootDrop` counter.
 //!
-//! Only `ItemDrop` entries at `seq <= HISTORICAL_ITEM_DROP_MAX_SEQ` (174, the last seq of the
-//! quarantined log) credit. A later `ItemDrop` is refused even on replay, so a forged entry with a
-//! valid hash chain cannot mint.
-//!
-//! The fixtures are tokens 1 and 4 copied unmodified (same hashes, same seq) from the quarantined
-//! live log `apps/server/data/lok-world.json.bak-pre-aacc7c8-20261005-151212`. The pinned heads and
-//! state roots were produced by the engine at 7da6228 (before #206) and, for the lone-character
-//! log, by the engine before 04da65a.
+//! The fixtures are tokens 1 and 4 copied unmodified from the quarantined live log
+//! `apps/server/data/lok-world.json.bak-pre-aacc7c8-20261005-151212`. They must not open.
 
 use lok_engine::{
-    craft_skill_validated_at, entry_hash, event_id, genesis_root, load_world, parse_b256, parse_log,
-    parse_world_log, replay, replay_world, set_craft_validate_min_seq, CharacterLogDocument, Engine,
-    EngineError, Input, Key, LogDocument, LoggedEntry, ReplayStop, U256, World, WorldDocument,
-    HISTORICAL_CRAFT_VALIDATE_MIN_SEQ, HISTORICAL_CRAFT_VALIDATE_MIN_SEQ_FRESH,
-    HISTORICAL_CRAFT_VALIDATE_MIN_SEQ_LEGACY, HISTORICAL_ITEM_DROP_MAX_SEQ,
+    craft_skill_validated_at, entry_hash, event_id, genesis_root, load_world, parse_log, parse_world_log,
+    replay, replay_world, set_craft_validate_min_seq, CharacterLogDocument, Engine, EngineError, Input,
+    Key, LoggedEntry, ReplayStop, U256, World, WorldDocument, HISTORICAL_CRAFT_VALIDATE_MIN_SEQ,
+    HISTORICAL_CRAFT_VALIDATE_MIN_SEQ_FRESH, HISTORICAL_CRAFT_VALIDATE_MIN_SEQ_LEGACY,
+    HISTORICAL_ITEM_DROP_MAX_SEQ,
 };
 
 struct CraftCutoffGuard;
@@ -33,17 +26,8 @@ impl Drop for CraftCutoffGuard {
 const WORLD: &str = include_str!("fixtures/pre-206-item-drop-world.json");
 const CHARACTER: &str = include_str!("fixtures/pre-206-item-drop-character.json");
 
-const WORLD_HEAD: &str = "0xa0de5916755575b556b10c639881f7ff28c2ce18c43ff931991df900bf0f7e0c";
-const TOKEN1_ROOT: &str = "0xb722422d3d630396e5a2893407dd43a38454d3539725b939351de6241d6f7339";
-const TOKEN4_ROOT: &str = "0xeda898afffd855490de16281993a5c4b0e8d5afb1aa63f598f7df392fd40dc45";
-const TOKEN1_HEAD: &str = "0xc3531a6c414c92a856f91f0c5e412ec257f4176c9aa0dcd3abf51a036d5909c6";
-
 fn n(v: u64) -> U256 {
     U256::from_u64(v)
-}
-
-fn b(hex: &str) -> [u8; 32] {
-    parse_b256(hex).expect("pinned hash")
 }
 
 fn world_doc() -> WorldDocument {
@@ -59,73 +43,55 @@ fn world_doc_through(last: u64) -> WorldDocument {
     doc
 }
 
-#[test]
-fn committed_pre_206_world_log_replays_with_its_original_head_and_roots() {
-    let doc = world_doc();
-    let has_item_drop = doc
-        .characters
+fn first_item_drop_seq(doc: &WorldDocument) -> u64 {
+    doc.characters
         .iter()
         .flat_map(|c| c.entries.iter())
-        .any(|e| matches!(e.input, Input::ItemDrop { .. }));
-    assert!(has_item_drop, "fixture must carry minting ItemDrop entries");
-
-    let report = match replay_world(&doc) {
-        Ok(report) => report,
-        Err(stop) => panic!("pre-#206 log must replay; #206 semantics stop at seq 21 (insufficient item): {stop:?}"),
-    };
-    assert_eq!(report.entries, 42);
-    assert_eq!(report.head, b(WORLD_HEAD));
-    let root_of = |token: u64| {
-        report
-            .characters
-            .iter()
-            .find(|s| s.token_id == n(token))
-            .map(|s| s.state_root)
-            .expect("character replayed")
-    };
-    assert_eq!(root_of(1), b(TOKEN1_ROOT));
-    assert_eq!(root_of(4), b(TOKEN4_ROOT));
+        .filter(|e| matches!(e.input, Input::ItemDrop { .. }))
+        .map(|e| e.seq)
+        .min()
+        .expect("fixture has an ItemDrop")
 }
 
 #[test]
-fn historical_item_drop_credits_the_stack_the_seq_21_list_spends() {
-    // Through seq 20: six 1029 drops and five 1057 drops, all still spendable.
-    let world = load_world(&world_doc_through(20)).expect("prefix replays");
-    assert_eq!(world.item_balance(&n(4), &n(1029)), Some(n(6)));
-    assert_eq!(world.item_balance(&n(4), &n(1057)), Some(n(5)));
-    // A historical credit is not a LootDrop counter.
-    assert_eq!(world.dropped(&n(4), &n(1029)), Some(U256::ZERO));
-    assert_eq!(world.gold_balance(&n(4)), Some(U256::ZERO));
-
-    // Seq 21 lists all six. This is the entry #206 rejected with `insufficient item`.
-    let world = load_world(&world_doc_through(21)).expect("seq 21 list replays");
-    assert_eq!(world.item_balance(&n(4), &n(1029)), Some(U256::ZERO));
-    assert!(world.listing(&n(1)).is_some());
-
-    // Full fixture: every credited drop was later exported, so nothing is left over.
-    let world = load_world(&world_doc()).expect("full fixture replays");
-    assert_eq!(world.item_balance(&n(4), &n(1029)), Some(U256::ZERO));
-    assert_eq!(world.item_balance(&n(4), &n(1057)), Some(U256::ZERO));
-    assert_eq!(world.item_balance(&n(1), &n(1057)), Some(U256::ZERO));
+fn a_pre_206_item_drop_log_is_refused() {
+    let doc = world_doc();
+    let first = first_item_drop_seq(&doc);
+    assert!(first <= HISTORICAL_ITEM_DROP_MAX_SEQ);
+    let before = world_doc_through(first - 1);
+    assert!(
+        load_world(&before).is_ok(),
+        "entries before the first ItemDrop still open"
+    );
+    match replay_world(&doc) {
+        Err(ReplayStop::Rejected { index, reason: EngineError::ClosedMint }) => assert_eq!(index, first),
+        other => panic!("ItemDrop must not credit: {other:?}"),
+    }
+    match load_world(&world_doc_through(first)) {
+        Err(ReplayStop::Rejected { index, reason: EngineError::ClosedMint }) => assert_eq!(index, first),
+        other => panic!("the first ItemDrop must refuse the prefix: {other:?}"),
+    }
 }
 
 #[test]
-fn lone_engine_replays_a_historical_item_drop_then_its_export() {
+fn lone_pre_206_character_log_is_refused_at_its_item_drop() {
     let doc = parse_log(CHARACTER).expect("fixture parses");
-    assert!(matches!(doc.entries[3].input, Input::ItemDrop { .. }));
-    assert!(matches!(doc.entries[4].input, Input::ExportItem { .. }));
-    let report = match replay(&doc) {
-        Ok(report) => report,
-        Err(stop) => panic!("lone replay of a pre-#206 character log must succeed: {stop:?}"),
-    };
-    assert_eq!(report.entries, 9);
-    assert_eq!(report.head, b(TOKEN1_HEAD));
-    assert_eq!(report.state_root, b(TOKEN1_ROOT));
+    let index = doc
+        .entries
+        .iter()
+        .position(|e| matches!(e.input, Input::ItemDrop { .. }))
+        .expect("character fixture has an ItemDrop") as u64;
+    assert!(matches!(doc.entries[index as usize].input, Input::ItemDrop { .. }));
+    assert_eq!(
+        replay(&doc).unwrap_err(),
+        ReplayStop::Rejected { index, reason: EngineError::ClosedMint }
+    );
 }
 
 #[test]
 fn new_item_drop_append_is_closed_and_loot_drop_counts_without_minting() {
-    let mut world = load_world(&world_doc()).expect("fixture replays");
+    let mut world = World::new();
+    world.append_spawn(n(4), 0).unwrap();
     let len = world.character_len(&n(4)).unwrap();
     let head = world.character_head(&n(4)).unwrap();
 
@@ -157,15 +123,14 @@ fn new_item_drop_append_is_closed_and_loot_drop_counts_without_minting() {
         EngineError::NotSpawned
     );
 
-    // Old entries and the new counter replay together.
-    let again = load_world(&world.to_document()).expect("mixed log replays");
+    let again = load_world(&world.to_document()).expect("loot counter replays");
     assert_eq!(again.head(), world.head());
     assert_eq!(again.dropped(&n(4), &n(1029)), Some(n(2)));
     assert_eq!(again.item_balance(&n(4), &n(1029)), Some(U256::ZERO));
 }
 
 #[test]
-fn lone_engine_refuses_a_new_item_drop_but_replays_a_logged_one() {
+fn lone_engine_refuses_item_drop_on_append_and_on_replay() {
     let mut engine = Engine::open(n(1), 0);
     engine.apply(Input::Spawn { token_id: n(1), starting_job: 0 }).unwrap();
     let len = engine.len();
@@ -174,24 +139,19 @@ fn lone_engine_refuses_a_new_item_drop_but_replays_a_logged_one() {
         EngineError::ClosedMint
     );
     assert_eq!(engine.len(), len);
-    engine
-        .replay_logged(Input::ItemDrop { token_id: n(1), item_id: n(4), amount: n(1) }, HISTORICAL_ITEM_DROP_MAX_SEQ)
-        .expect("a logged ItemDrop at the historical bound replays as its credit");
-    let len = engine.len();
-    assert_eq!(
-        engine
-            .replay_logged(
-                Input::ItemDrop { token_id: n(1), item_id: n(4), amount: n(1) },
-                HISTORICAL_ITEM_DROP_MAX_SEQ + 1
-            )
-            .unwrap_err(),
-        EngineError::ClosedMint
-    );
-    assert_eq!(engine.len(), len);
-    assert_eq!(engine.state().get(&Key::Item(n(4))), n(1));
+    for seq in [0, HISTORICAL_ITEM_DROP_MAX_SEQ, HISTORICAL_ITEM_DROP_MAX_SEQ + 1] {
+        assert_eq!(
+            engine
+                .replay_logged(Input::ItemDrop { token_id: n(1), item_id: n(4), amount: n(1) }, seq)
+                .unwrap_err(),
+            EngineError::ClosedMint
+        );
+        assert_eq!(engine.len(), len);
+    }
+    assert_eq!(engine.state().get(&Key::Item(n(4))), U256::ZERO);
     assert_eq!(engine.state().get(&Key::Drop(n(4))), U256::ZERO);
     engine.apply(Input::LootDrop { token_id: n(1), item_id: n(4), amount: n(3) }).unwrap();
-    assert_eq!(engine.state().get(&Key::Item(n(4))), n(1));
+    assert_eq!(engine.state().get(&Key::Item(n(4))), U256::ZERO);
     assert_eq!(engine.state().get(&Key::Drop(n(4))), n(3));
 }
 
@@ -396,51 +356,13 @@ fn synthetic_drop_doc(drop_seq: u64) -> WorldDocument {
 }
 
 #[test]
-fn logged_item_drop_credits_at_the_bound_and_is_refused_past_it_on_replay() {
-    let at = load_world(&synthetic_drop_doc(HISTORICAL_ITEM_DROP_MAX_SEQ)).expect("seq 174 is historical");
-    assert_eq!(at.item_balance(&n(1), &n(7)), Some(n(5)));
-
-    for seq in [HISTORICAL_ITEM_DROP_MAX_SEQ + 1, 10_000] {
+fn a_hashed_item_drop_is_refused_at_every_seq() {
+    // Spawn is seq 0. The drop seq must be later or the document is a conflicting log
+    // before the mint check runs.
+    for seq in [1, HISTORICAL_ITEM_DROP_MAX_SEQ, HISTORICAL_ITEM_DROP_MAX_SEQ + 1, 10_000] {
         match load_world(&synthetic_drop_doc(seq)) {
             Err(ReplayStop::Rejected { index, reason: EngineError::ClosedMint }) => assert_eq!(index, seq),
             other => panic!("ItemDrop at seq {seq} must not credit on replay: {other:?}"),
         }
     }
-}
-
-#[test]
-fn forged_item_drop_appended_to_the_real_log_with_a_valid_hash_is_refused() {
-    let world = load_world(&world_doc()).expect("fixture replays");
-    let head = world.character_head(&n(4)).unwrap();
-    let index = world.character_len(&n(4)).unwrap();
-    let forged = Input::ItemDrop { token_id: n(4), item_id: n(1029), amount: n(1_000_000) };
-    let mut doc = world_doc();
-    doc.characters[1].entries.push(LoggedEntry {
-        hash: entry_hash(&head, index, &forged),
-        input: forged,
-        seq: HISTORICAL_ITEM_DROP_MAX_SEQ + 1,
-    });
-    match load_world(&doc) {
-        Err(ReplayStop::Rejected { index, reason: EngineError::ClosedMint }) => {
-            assert_eq!(index, HISTORICAL_ITEM_DROP_MAX_SEQ + 1)
-        }
-        other => panic!("forged ItemDrop must not mint: {other:?}"),
-    }
-}
-
-#[test]
-fn lone_replay_refuses_an_item_drop_past_the_bound() {
-    let mut doc: LogDocument = parse_log(CHARACTER).expect("fixture parses");
-    let head = replay(&doc).expect("fixture replays").head;
-    let forged = Input::ItemDrop { token_id: n(1), item_id: n(1057), amount: n(9) };
-    let index = doc.entries.len() as u64;
-    doc.entries.push(LoggedEntry {
-        hash: entry_hash(&head, index, &forged),
-        input: forged,
-        seq: HISTORICAL_ITEM_DROP_MAX_SEQ + 1,
-    });
-    assert_eq!(
-        replay(&doc).unwrap_err(),
-        ReplayStop::Rejected { index, reason: EngineError::ClosedMint }
-    );
 }
