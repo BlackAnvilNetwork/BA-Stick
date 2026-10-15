@@ -32,7 +32,9 @@ import {AhEscrow} from "../src/AhEscrow.sol";
 ///   3. proposer: rulesets.propose(hash, delay, uri) (first ruleset; wait out the 48h timelock)
 ///   4. rotator service: checkpoint.addSigner(sessionKey, expiry)
 ///   5. If TIMELOCK unset: Safe setUpgradeAuthority(timelock) on NFT/Factory/Checkpoint/Rulesets
-///   6. Enable imports/exports only after Items minter + policy: setImportsEnabled / setExportsEnabled
+///   6. Enable imports/exports only after Items minter + policy: setImportsEnabled / setExportsEnabled.
+///      setExportsEnabled(true) reverts until maxExportsPerCheckpoint, maxAmountPerExport, and
+///      maxExportUnitsPerCheckpoint are all non-zero.
 /// Then verify implementations (see script/verify-deploy.sh + docs/gnosis-launch.md).
 ///
 /// UUPS upgrades: production must route through TimelockController via `upgradeAuthority`.

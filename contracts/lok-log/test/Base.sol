@@ -73,6 +73,10 @@ abstract contract Base is Test {
         cp.setItems(address(items));
         // Tests exercise import/export paths; production leaves these false until policy is live.
         cp.setImportsEnabled(true);
+        // Tests mint small stacks. Production must set its own caps before enabling exports.
+        cp.setMaxExportsPerCheckpoint(8);
+        cp.setMaxAmountPerExport(10_000);
+        cp.setMaxExportUnitsPerCheckpoint(10_000);
         cp.setExportsEnabled(true);
         rulesets.grantRole(rulesets.PROPOSER_ROLE(), proposer);
         factory.setStartingJob(1, true);

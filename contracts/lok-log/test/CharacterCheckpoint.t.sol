@@ -347,6 +347,55 @@ contract CharacterCheckpointTest is Base {
         cp.importItem(tokenId, ITEM_SWORD, 1);
     }
 
+    function test_exportsCannotEnableWithoutCaps() public {
+        vm.startPrank(admin);
+        cp.setExportsEnabled(false);
+        cp.setMaxExportsPerCheckpoint(0);
+        cp.setMaxAmountPerExport(0);
+        cp.setMaxExportUnitsPerCheckpoint(0);
+        vm.expectRevert(CharacterCheckpoint.ExportCapsUnset.selector);
+        cp.setExportsEnabled(true);
+        vm.stopPrank();
+    }
+
+    function test_export_rejectsAmountAboveCap() public {
+        vm.prank(admin);
+        cp.setMaxAmountPerExport(5);
+        CharacterCheckpoint.Checkpoint memory c = _next();
+        c.exports = _export(ITEM_ORE, 6);
+        _expectRevert(c, CharacterCheckpoint.BadExport.selector);
+    }
+
+    function test_export_rejectsTotalUnitsAboveCap() public {
+        vm.startPrank(admin);
+        cp.setMaxAmountPerExport(40);
+        cp.setMaxExportUnitsPerCheckpoint(30);
+        vm.stopPrank();
+        CharacterCheckpoint.Checkpoint memory c = _next();
+        c.exports = new CharacterCheckpoint.Export[](2);
+        c.exports[0] = CharacterCheckpoint.Export(ITEM_ORE, 20);
+        c.exports[1] = CharacterCheckpoint.Export(ITEM_SWORD, 11);
+        _expectRevert(c, CharacterCheckpoint.BadExport.selector);
+    }
+
+    function test_export_rejectsTooManyLines() public {
+        vm.prank(admin);
+        cp.setMaxExportsPerCheckpoint(1);
+        CharacterCheckpoint.Checkpoint memory c = _next();
+        c.exports = new CharacterCheckpoint.Export[](2);
+        c.exports[0] = CharacterCheckpoint.Export(ITEM_SWORD, 1);
+        c.exports[1] = CharacterCheckpoint.Export(ITEM_ORE, 1);
+        _expectRevert(c, CharacterCheckpoint.BadExport.selector);
+    }
+
+    function test_export_revertsWhenACapIsCleared() public {
+        vm.prank(admin);
+        cp.setMaxAmountPerExport(0);
+        CharacterCheckpoint.Checkpoint memory c = _next();
+        c.exports = _export(ITEM_SWORD, 1);
+        _expectRevert(c, CharacterCheckpoint.ExportCapsUnset.selector);
+    }
+
     function test_export_revertsWhenExportsDisabled() public {
         vm.prank(admin);
         cp.setExportsEnabled(false);
