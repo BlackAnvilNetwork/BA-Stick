@@ -85,7 +85,32 @@ import {
   paleHollowMoveMul,
   paleHollowPlaceOnDryLand,
   paleHollowWalkable,
+  PVP_BOUNTY_WEI,
 } from "@bellgrave/config";
+import {
+  ASH_PIT as ASH_PIT_AREA,
+  areaAtPlayer,
+  canPvpStrike,
+  effectivePvpMainLevel,
+  formatCapNotice,
+  pvpAbilityAllowed,
+  pvpAreaSpawn,
+  syntheticPvpReceipt,
+} from "./pvp";
+import {
+  pvpBountyAddress,
+  pvpBountyClientConfig,
+  pvpSyntheticReceiptsAllowed,
+} from "./pvp-bounty";
+import {
+  chainPvpCancel,
+  chainPvpClaim,
+  readPvpBountyOpen,
+  receiptFromOpenBounty,
+  receiptFromPlaceTx,
+  startPvpBountyWatcher,
+} from "./pvp-bounty-tx";
+import { opsAlert } from "./ops-log";
 import {
   SHINY_CLONE_COUNT,
   SHINY_FLEE_RELOCATE_MS,
@@ -294,6 +319,7 @@ import {
   kickMember,
   leaveParty,
   onPlayerDisconnect,
+  isSameParty,
   partyAllyWallets,
 } from "./party";
 
@@ -715,8 +741,9 @@ const lok: LokWorld = await (async (): Promise<LokWorld> => {
         notifyAhEscrowFill(fill);
       },
     });
+    startPvpBountyWatcher(world, { dataDir: defaultLokDir() });
     startNftTransferAskCancelWatcher(world, {
-      onOwnershipChange: (change) => {
+      onOwnershipChange: async (change) => {
         if (change.from && change.from !== change.to) {
           const reason =
             "Character NFT #" +
@@ -729,6 +756,7 @@ const lok: LokWorld = await (async (): Promise<LokWorld> => {
             releaseCharacterFromRoster(change.charId, reason);
           }
           kickWalletSessions(change.from, reason);
+          await refundPvpBountyOnTransfer(change.tokenId);
         }
       },
     });
@@ -2575,10 +2603,24 @@ function meleeApproach(
 /** Keep closing on engaged target until in swing range. */
 function chaseEngaged(p: Player) {
   const mob = findMob(p.targetId);
-  if (!mob || !mob.alive) return;
-  const d = dist(p.x, p.z, mob.x, mob.z);
+  if (mob && mob.alive) {
+    const d = dist(p.x, p.z, mob.x, mob.z);
+    if (d <= MELEE_RANGE) return;
+    const pt = meleeApproach(p.x, p.z, mob.x, mob.z);
+    if (pt) p.moveTo = pt;
+    return;
+  }
+  const foe =
+    (p.targetId ? players.get(p.targetId.toLowerCase()) : undefined) ??
+    (p.targetId ? playerByIdOrName(p.targetId) : undefined);
+  if (foe && foe.wallet !== p.wallet && foe.hp > 0) chaseEngagedPlayer(p, foe);
+}
+
+/** Close on an engaged PvP target. */
+function chaseEngagedPlayer(p: Player, foe: Player) {
+  const d = dist(p.x, p.z, foe.x, foe.z);
   if (d <= MELEE_RANGE) return;
-  const pt = meleeApproach(p.x, p.z, mob.x, mob.z);
+  const pt = meleeApproach(p.x, p.z, foe.x, foe.z);
   if (pt) p.moveTo = pt;
 }
 
@@ -2826,6 +2868,7 @@ function snapshotFor(p: Player): SnapshotMessage {
       job: pl.job,
       gender: pl.gender ?? "male",
       buffs: playerBuffs(pl),
+      pvpBounty: playerHasOpenBounty(pl) || undefined,
     });
   }
   // Corpses only while fading — then they vanish until MOB_RESPAWN_MS later.
@@ -2955,8 +2998,36 @@ function snapshotFor(p: Player): SnapshotMessage {
       job: p.job,
       gender: p.gender ?? "male",
       subjob: p.subjob,
-      subLevel: p.subjob && p.level >= SUBJOB_UNLOCK_LEVEL ? subjobLevel(p.level) : 0,
+      subLevel: (() => {
+        const area = areaAtPlayer(p.x, p.z);
+        const eff = effectivePvpMainLevel(p.level, area);
+        return p.subjob && eff >= SUBJOB_UNLOCK_LEVEL ? subjobLevel(eff) : 0;
+      })(),
       level: p.level,
+      /** Effective combat level under area caps (Ash Pit = min(level, 30)). */
+      combatLevel: effectivePvpMainLevel(p.level, areaAtPlayer(p.x, p.z)),
+      pvp: (() => {
+        const area = areaAtPlayer(p.x, p.z);
+        const tokenId = lok.tokenFor(p.charId);
+        const bounty = tokenId ? lok.pvpBountyOf(tokenId) : undefined;
+        return {
+          areaId: area?.id ?? null,
+          areaName: area?.name ?? null,
+          levelCap: area?.levelCap ?? null,
+          bountyOpen: !!bounty,
+          bountyAreaId: bounty?.areaId ?? null,
+          bountyWei: bounty?.amountWei ?? null,
+          ashPit: {
+            id: ASH_PIT_AREA.id,
+            name: ASH_PIT_AREA.name,
+            bounds: ASH_PIT_AREA.bounds,
+            spawn: ASH_PIT_AREA.spawn,
+            levelCap: ASH_PIT_AREA.levelCap,
+            blurb: ASH_PIT_AREA.blurb,
+          },
+          escrow: pvpBountyClientConfig(),
+        };
+      })(),
       xp: p.xp,
       dust: p.dust,
       claimedStarter: p.claimedStarter,
@@ -2979,6 +3050,7 @@ function snapshotFor(p: Player): SnapshotMessage {
         return {
           ...view,
           ahEscrow: ahEscrowClientConfig(),
+          pvpBounty: pvpBountyClientConfig(),
           eezSyncBuy: cachedEezSyncBuy,
           characterMint: cachedCharacterMint,
           withdrawDelaySec: null,
@@ -3232,7 +3304,9 @@ function playerEquipmentStats(p: Player) {
 
 /** Recompute max HP/MP from job, skill-tree, and equipped catalog bonuses. */
 function syncVitals(p: Player, refill = true) {
-  const v = combinedJobVitals(p.job, p.level, p.subjob);
+  const area = areaAtPlayer(p.x, p.z);
+  const level = effectivePvpMainLevel(p.level, area);
+  const v = combinedJobVitals(p.job, level, p.subjob);
   const tree = aggregateSkillBonuses(p.skillUnlocked);
   const gear = playerEquipmentStats(p);
   p.maxHp = v.maxHp + tree.maxHp + (gear.hp ?? 0);
@@ -3247,9 +3321,12 @@ function syncVitals(p: Player, refill = true) {
 }
 
 function playerCombatStats(p: Player) {
+  // Ash Pit / PvP areas clamp effective main level (stats + support half-cap).
+  const area = areaAtPlayer(p.x, p.z);
+  const level = effectivePvpMainLevel(p.level, area);
   const derived = deriveCharacterAttributes(
     p.job,
-    p.level,
+    level,
     p.subjob,
     p.skillUnlocked,
     p.freeStats,
@@ -3525,7 +3602,384 @@ function respawnAtHub(p: Player, reason = "You fallâ€¦ and wake in the Shard
   for (const m of mobs) {
     if (m.targetId === p.wallet) m.targetId = null;
   }
+  // Leaving the arena clears open bounty via cancel if still open (non-kill exit).
+  syncVitals(p, false);
   pushLog(p, reason);
+}
+
+function playerTokenId(p: Player): string | null {
+  return lok.tokenFor(p.charId);
+}
+
+function playerHasOpenBounty(p: Player): boolean {
+  const tokenId = playerTokenId(p);
+  return !!tokenId && lok.hasPvpBounty(tokenId);
+}
+
+/** Party members do not hit each other. Both fighters need an open bounty in the same arena. */
+function pvpStrikeBlock(attacker: Player, foe: Player): string | null {
+  if (isSameParty(attacker.wallet, foe.wallet)) return "You cannot attack a party member.";
+  const gate = canPvpStrike(attacker, foe, playerHasOpenBounty(foe));
+  if (!gate.ok) return gate.reason;
+  if (!playerHasOpenBounty(attacker)) return "Place a bounty on your head before fighting here.";
+  return null;
+}
+
+/** Ember Vigil does not stand a marked fighter back up inside a PvP area. */
+function pvpReraiseBlocked(p: Player): boolean {
+  return !!areaAtPlayer(p.x, p.z);
+}
+
+const pvpAreaSeen = new Map<string, string | null>();
+
+function notePvpAreaBoundary(p: Player) {
+  const id = areaAtPlayer(p.x, p.z)?.id ?? null;
+  const prev = pvpAreaSeen.get(p.wallet);
+  if (prev === undefined) {
+    pvpAreaSeen.set(p.wallet, id);
+    return;
+  }
+  if (prev !== id) {
+    pvpAreaSeen.set(p.wallet, id);
+    syncVitals(p, false);
+  }
+}
+
+async function refundPvpBountyOnTransfer(tokenId: string) {
+  const open = lok.pvpBountyOf(tokenId);
+  if (!open) return;
+  const cancelled = await resolvePvpCancelReceipt(tokenId, open.areaId);
+  if (!cancelled.ok) {
+    console.error("[bellgrave] NFT transfer bounty refund failed: " + cancelled.error);
+    return;
+  }
+  const res = lok.pvpBountyCancel(tokenId, open.areaId, cancelled.txHash, cancelled.logIndex);
+  if (!res.ok) {
+    console.error("[bellgrave] NFT transfer bounty mirror failed: " + (res.error ?? ""));
+    return;
+  }
+  opsAlert({
+    level: "warn",
+    event: "pvp_bounty_transfer_refund",
+    msg: "Refunded PvP bounty to the original payer after NFT transfer token=" + tokenId,
+    dedupeKey: "pvp-xfer-" + tokenId,
+  });
+}
+
+function appendPvpOpenWithReceipt(
+  tokenId: string,
+  areaId: string,
+  txHash: string,
+  logIndex: number,
+): { ok: true } | { ok: false; error: string } {
+  const res = lok.pvpBountyOpen(tokenId, PVP_BOUNTY_WEI, areaId, txHash, logIndex);
+  return res.ok ? { ok: true } : { ok: false, error: res.error ?? "Bounty open failed." };
+}
+
+async function resolvePvpCancelReceipt(
+  tokenId: string,
+  areaId: string,
+): Promise<{ ok: true; txHash: string; logIndex: number } | { ok: false; error: string }> {
+  if (pvpBountyAddress() && !pvpSyntheticReceiptsAllowed()) {
+    const chain = await chainPvpCancel(tokenId);
+    if (!chain.ok) return chain;
+    return { ok: true, txHash: chain.receipt.txHash, logIndex: chain.receipt.logIndex };
+  }
+  if (!pvpSyntheticReceiptsAllowed()) {
+    return { ok: false, error: "PvP bounty cancel needs LOK_PVP_BOUNTY + operator key." };
+  }
+  const receipt = syntheticPvpReceipt(`cancel:${tokenId}:${areaId}`);
+  return { ok: true, txHash: receipt.txHash, logIndex: receipt.logIndex };
+}
+
+function warpIntoPit(p: Player, pit: typeof ASH_PIT_AREA, refill: boolean) {
+  const spawn = pvpAreaSpawn(pit);
+  stopRest(p);
+  if (refill) clearJobBuffs(p);
+  p.x = spawn.x;
+  p.z = spawn.z;
+  p.facing = spawn.facing;
+  p.moveTo = null;
+  p.targetId = null;
+  p.zoneId = pit.zoneId;
+  syncUnitY(p);
+  syncVitals(p, refill);
+}
+
+/** Teleport into Ash Pit after on-chain place (or synthetic when allowed). */
+function handlePvpJoin(p: Player, areaId = ASH_PIT_AREA.id, placeTxHash?: string) {
+  if (areaId !== ASH_PIT_AREA.id) {
+    pushLog(p, "Unknown PvP arena.");
+    return;
+  }
+  const pit = ASH_PIT_AREA;
+  const tokenId = playerTokenId(p);
+  if (!tokenId) {
+    pushLog(p, "Your character is not on the log yet.");
+    return;
+  }
+  if (lok.hasPvpBounty(tokenId)) {
+    warpIntoPit(p, pit, false);
+    pushLog(p, `Already marked — returned to ${pit.name}.`);
+    send(p.ws, snapshotFor(p));
+    return;
+  }
+
+  void (async () => {
+    const live = pvpBountyAddress() && !pvpSyntheticReceiptsAllowed();
+    if (live) {
+      const onChain = await readPvpBountyOpen(tokenId);
+      if (!onChain) {
+        const cfg = pvpBountyClientConfig();
+        if (!cfg?.address || cfg.address === "0x0000000000000000000000000000000000000000") {
+          pushLog(p, "PvpBounty is not configured.");
+          return;
+        }
+        pushLog(p, "Pay 1 xDAI to place your head-bounty, then Join again.");
+        send(p.ws, {
+          type: "pvp/placeNeeded",
+          areaId: pit.id,
+          tokenId,
+          bountyWei: PVP_BOUNTY_WEI,
+          address: cfg.address,
+          rpcUrl: cfg.rpcUrl,
+          chainId: cfg.chainId,
+        });
+        return;
+      }
+      let verified: Awaited<ReturnType<typeof receiptFromPlaceTx>>;
+      if (placeTxHash) {
+        verified = await receiptFromPlaceTx(placeTxHash, tokenId);
+      } else {
+        // Already escrowed — recover BountyOpened for the log mirror.
+        verified = await receiptFromOpenBounty(tokenId);
+      }
+      if (!verified.ok) {
+        pushLog(p, verified.error);
+        return;
+      }
+      const opened = appendPvpOpenWithReceipt(
+        tokenId,
+        pit.id,
+        verified.receipt.txHash,
+        verified.receipt.logIndex,
+      );
+      if (!opened.ok) {
+        pushLog(p, opened.error);
+        return;
+      }
+    } else {
+      if (!pvpSyntheticReceiptsAllowed()) {
+        pushLog(p, "Set LOK_PVP_BOUNTY for live escrow, or LOK_PVP_SYNTHETIC=1 for local stubs.");
+        return;
+      }
+      const receipt = syntheticPvpReceipt(`open:${tokenId}:${pit.id}`);
+      const opened = appendPvpOpenWithReceipt(tokenId, pit.id, receipt.txHash, receipt.logIndex);
+      if (!opened.ok) {
+        pushLog(p, opened.error);
+        return;
+      }
+    }
+
+    warpIntoPit(p, pit, true);
+    pushLog(p, `Joined ${pit.name} — 1 xDAI on your head.`);
+    pushLog(p, formatCapNotice(pit, p.level));
+    pushLog(p, "Click marked players to fight. If you fall, your bounty pays the slayer — then rejoin.");
+    send(p.ws, {
+      type: "pvp/joined",
+      areaId: pit.id,
+      areaName: pit.name,
+      bountyWei: PVP_BOUNTY_WEI,
+      levelCap: pit.levelCap,
+    });
+    send(p.ws, snapshotFor(p));
+  })().catch((err) => {
+    pushLog(p, err instanceof Error ? err.message : "PvP join failed.");
+  });
+}
+
+/** Cancel bounty on-chain (operator) + kick back to the hub. */
+function handlePvpLeave(p: Player) {
+  const tokenId = playerTokenId(p);
+  if (!tokenId) {
+    pushLog(p, "Your character is not on the log yet.");
+    return;
+  }
+  const open = lok.pvpBountyOf(tokenId);
+  void (async () => {
+    if (open) {
+      const cancelled = await resolvePvpCancelReceipt(tokenId, open.areaId);
+      if (!cancelled.ok) {
+        pushLog(p, cancelled.error);
+        return;
+      }
+      const res = lok.pvpBountyCancel(tokenId, open.areaId, cancelled.txHash, cancelled.logIndex);
+      if (!res.ok) {
+        pushLog(p, res.error ?? "Bounty cancel failed.");
+        return;
+      }
+    } else if (pvpBountyAddress() && !pvpSyntheticReceiptsAllowed()) {
+      // On-chain open without log (crash mid-join) — still refund.
+      const onChain = await readPvpBountyOpen(tokenId);
+      if (onChain) {
+        const cancelled = await chainPvpCancel(tokenId);
+        if (!cancelled.ok) {
+          pushLog(p, cancelled.error);
+          return;
+        }
+      }
+    }
+    respawnAtHub(p, "You leave the Ash Pit — bounty reclaimed. Rejoin anytime.");
+    send(p.ws, { type: "pvp/left", areaId: open?.areaId ?? ASH_PIT_AREA.id });
+    send(p.ws, snapshotFor(p));
+  })().catch((err) => {
+    pushLog(p, err instanceof Error ? err.message : "PvP leave failed.");
+  });
+}
+
+/** Place while standing in arena — prefer pvp/join (handles escrow). */
+function handlePvpBountyPlace(p: Player) {
+  handlePvpJoin(p, ASH_PIT_AREA.id);
+}
+
+/** Cancel without warp — prefer pvp/leave. */
+function handlePvpBountyCancel(p: Player) {
+  handlePvpLeave(p);
+}
+
+/**
+ * PvP slay: on-chain claim → `pvpKill` → kick victim. Victim rejoins with a new place.
+ */
+function handlePvpSlay(slayer: Player, victim: Player, areaId: string) {
+  const victimToken = playerTokenId(victim);
+  const slayerToken = playerTokenId(slayer);
+  if (!victimToken || !slayerToken) {
+    kickPvpLoser(victim, null, "You fall… and wake in the Shard Dwellings.");
+    return;
+  }
+  const open = lok.pvpBountyOf(victimToken);
+  if (!open || open.areaId !== areaId) {
+    kickPvpLoser(victim, null, "You fall… and wake in the Shard Dwellings.");
+    return;
+  }
+
+  void (async () => {
+    let txHash: string;
+    let logIndex: number;
+    if (pvpBountyAddress() && !pvpSyntheticReceiptsAllowed()) {
+      const claimed = await chainPvpClaim(victimToken, slayerToken, slayer.wallet);
+      if (!claimed.ok) {
+        if (claimed.error.includes("no longer owns")) {
+          const cancelled = await resolvePvpCancelReceipt(victimToken, areaId);
+          if (cancelled.ok) {
+            lok.pvpBountyCancel(victimToken, areaId, cancelled.txHash, cancelled.logIndex);
+          }
+          pushLog(slayer, "The slayer character changed hands. The bounty was refunded to the placer.");
+        } else {
+          pushLog(slayer, claimed.error);
+        }
+        kickPvpLoser(victim, null, "You fall… and wake in the Shard Dwellings.");
+        return;
+      }
+      txHash = claimed.receipt.txHash;
+      logIndex = claimed.receipt.logIndex;
+    } else if (pvpSyntheticReceiptsAllowed()) {
+      const receipt = syntheticPvpReceipt(`kill:${victimToken}:${slayerToken}:${areaId}`);
+      txHash = receipt.txHash;
+      logIndex = receipt.logIndex;
+    } else {
+      pushLog(slayer, "PvP kill failed — escrow not configured.");
+      kickPvpLoser(victim, null, "You fall… and wake in the Shard Dwellings.");
+      return;
+    }
+
+    const res = lok.pvpKill(victimToken, slayerToken, areaId, open.amountWei, txHash, logIndex);
+    if (!res.ok) {
+      pushLog(slayer, res.error ?? "PvP kill ledger failed.");
+      kickPvpLoser(victim, null, "You fall… and wake in the Shard Dwellings.");
+      return;
+    }
+    if (slayer.targetId === victim.wallet) slayer.targetId = null;
+    if (victim.targetId === slayer.wallet) victim.targetId = null;
+    for (const pl of players.values()) {
+      if (pl.targetId === victim.wallet) pl.targetId = null;
+    }
+    pushLog(slayer, `You claim ${victim.name}'s bounty (${open.amountWei} wei).`);
+    kickPvpLoser(
+      victim,
+      {
+        slayerName: slayer.name,
+        slayerWallet: slayer.wallet,
+        areaId,
+        bountyWei: open.amountWei,
+      },
+      `${slayer.name} claimed your bounty. Kicked to the Shard Dwellings — Join again to fight.`,
+    );
+    send(slayer.ws, snapshotFor(slayer));
+  })().catch((err) => {
+    pushLog(slayer, err instanceof Error ? err.message : "PvP slay failed.");
+    kickPvpLoser(victim, null, "You fall… and wake in the Shard Dwellings.");
+  });
+}
+
+/** Hub warp + clear bounty state after a lost fight (bounty already cleared by pvpKill). */
+function kickPvpLoser(
+  victim: Player,
+  slain:
+    | {
+        slayerName: string;
+        slayerWallet: string;
+        areaId: string;
+        bountyWei: string;
+      }
+    | null,
+  reason: string,
+) {
+  respawnAtHub(victim, reason);
+  syncVitals(victim, false);
+  if (slain) {
+    send(victim.ws, {
+      type: "pvp/slain",
+      ...slain,
+      canRejoin: true,
+    });
+  }
+  send(victim.ws, snapshotFor(victim));
+}
+
+/** In-flight auto-cancels so the tick loop does not double-spend operator txs. */
+const pvpAreaCancelInFlight = new Set<string>();
+
+/** Auto-cancel bounty when the marked player leaves the arena without a kill. */
+function tickPvpBountyArea(p: Player) {
+  const tokenId = playerTokenId(p);
+  if (!tokenId) return;
+  const open = lok.pvpBountyOf(tokenId);
+  if (!open) return;
+  const area = areaAtPlayer(p.x, p.z);
+  if (area && area.id === open.areaId) return;
+  if (pvpAreaCancelInFlight.has(tokenId)) return;
+  pvpAreaCancelInFlight.add(tokenId);
+  void (async () => {
+    try {
+      const cancelled = await resolvePvpCancelReceipt(tokenId, open.areaId);
+      if (!cancelled.ok) {
+        pushLog(p, cancelled.error);
+        return;
+      }
+      const res = lok.pvpBountyCancel(tokenId, open.areaId, cancelled.txHash, cancelled.logIndex);
+      if (res.ok) {
+        pushLog(p, "You left the arena — bounty reclaimed.");
+        syncVitals(p, false);
+      } else {
+        pushLog(p, res.error ?? "Bounty cancel failed.");
+      }
+    } catch (err) {
+      pushLog(p, err instanceof Error ? err.message : "PvP area cancel failed.");
+    } finally {
+      pvpAreaCancelInFlight.delete(tokenId);
+    }
+  })();
 }
 
 function clearJobBuffs(p: Player) {
@@ -3580,6 +4034,23 @@ function handleAbility(p: Player, id: AbilityId, targetId?: string) {
   if (now < p.petrifyUntil) {
     pushLog(p, "You are petrified.");
     return;
+  }
+  const pvpArea = areaAtPlayer(p.x, p.z);
+  if (pvpArea && !isWeaponTpAbilityId(id) && !pvpAbilityAllowed(p.job, p.level, p.subjob, id, pvpArea)) {
+    pushLog(p, `${abilityLabel(id)} is sealed by the ${pvpArea.name} level cap.`);
+    return;
+  }
+  if (targetId) {
+    const foe =
+      players.get(targetId.toLowerCase()) ??
+      playerByIdOrName(targetId);
+    if (foe && foe.wallet !== p.wallet) {
+      const block = pvpStrikeBlock(p, foe);
+      if (block) {
+        pushLog(p, block);
+        return;
+      }
+    }
   }
   if (isWeaponTpAbilityId(id)) {
     resolveWeaponTpAbility(p, id as WeaponTpAbilityId, targetId, now, {
@@ -4262,9 +4733,100 @@ function playerMoveSpeed(p: Player, now: number): number {
   return speed;
 }
 
+function playerSwingPvp(p: Player, foe: Player, now: number) {
+  const block = pvpStrikeBlock(p, foe);
+  if (block) return;
+  const gate = canPvpStrike(p, foe, playerHasOpenBounty(foe));
+  if (!gate.ok) return;
+  const d = dist(p.x, p.z, foe.x, foe.z);
+  if (d > MELEE_RANGE) return;
+  if (now < p.nextSwingAt) return;
+
+  const haste = playerHastePct(p, now);
+  const weaponDelay = p.equip.main ? getItem(p.equip.main)?.delayMs : undefined;
+  let delay = resolveSwingDelayMs(weaponDelay, haste);
+  if (now < p.slowUntil) {
+    const slowAmt = now < p.moveUntil && p.movePct < 0 ? -p.movePct : 0.22;
+    delay = Math.floor(delay * (1 + slowAmt));
+  }
+  p.nextSwingAt = now + delay;
+  p.facing = facingTo(p.x, p.z, foe.x, foe.z);
+  p.anim = "melee";
+  p.animUntil = now + Math.max(160, Math.min(delay * 0.9, 520));
+
+  if (now < p.blindUntil && Math.random() < 0.45) {
+    pushLog(p, "You swing wild (Blind)!");
+    return;
+  }
+
+  const stance = playerStance(p);
+  const stats = playerCombatStats(p);
+  const foeStats = playerCombatStats(foe);
+  const physical =
+    p.job !== "time_mage" && p.job !== "sorcerer" && p.job !== "cleric";
+  let att = attackFromStats(stats, stance, playerWeaponBonus(p), {
+    physical: meleeUsesWeaponAttack(p.job),
+  });
+  const tree = playerTreeBonuses(p);
+  att += tree.atk;
+  if (physical || playerHasJob(p, "fighter")) {
+    att = Math.max(1, Math.floor(att * autoAttackFighterAttackMul(p, now, physical)));
+  }
+  let def = playerDefense(foeStats.vit, playerEquipmentStats(foe).def ?? 0);
+  let acc = stats.dex + 40 + tree.acc + (playerEquipmentStats(p).acc ?? 0);
+  acc += autoAttackFighterAccBonus(p, now);
+  const eva = evasionFromAgi(Math.max(0, foeStats.agi - fighterEvaPenalty(foe, now)));
+  if (Math.random() > hitChance(acc, eva)) {
+    pushLog(p, "You miss.");
+    pushLog(foe, `${p.name} misses you.`);
+    return;
+  }
+  let critChance = physical ? 0.08 : stance === "flux" ? 0.12 : 0.05;
+  critChance += critFromAgi(stats.agi) + fighterCritBonus(p, now) + tree.crit;
+  const crit = Math.random() < critChance;
+  let dmg = physicalDamage(
+    att,
+    def,
+    autoAttackFStr(p, stats, foeStats.vit, stance),
+    crit,
+  );
+  if (now < p.perpetualUntil) dmg = Math.floor(dmg * 1.15);
+  if (playerHasJob(p, "battle_mage")) {
+    dmg += battleMageEnSpellBonus(p, now, playerCombatStats(p).int);
+  }
+  dmg = Math.max(0, Math.floor(dmg * playerPhysDtMul(foe, now)));
+  dmg = absorbStoneskin(foe, now, dmg);
+  dmg = absorbHealShield(foe, now, dmg);
+  dmg = Math.max(0, Math.floor(dmg * fighterDefenseMul(foe, now)));
+  const wall = absorbManaWall(foe, now, dmg);
+  dmg = wall.dmg;
+  if (dmg <= 0) {
+    pushLog(p, `${foe.name} shrugs off your blow.`);
+    return;
+  }
+  foe.hp -= dmg;
+  const tpGain = Math.floor(80 * (playerHasJob(p, "fighter") ? fighterTpGainMul(p, now) : 1));
+  p.tp = Math.min(3000, p.tp + tpGain);
+  const hitNote = crit ? " (Critical!)" : "";
+  pushLog(p, `You hit ${foe.name} for ${dmg}${hitNote}.`);
+  pushLog(foe, `${p.name} hits you for ${dmg}${hitNote}.`);
+
+  if (foe.hp <= 0) {
+    foe.reraiseUntil = 0;
+    handlePvpSlay(p, foe, gate.area.id);
+  }
+}
+
 function playerSwing(p: Player, now: number) {
   if (p.anim === "rest") return;
   if (p.aether) return;
+  const foe =
+    (p.targetId ? players.get(p.targetId.toLowerCase()) : undefined) ??
+    (p.targetId ? playerByIdOrName(p.targetId) : undefined);
+  if (foe && foe.wallet !== p.wallet && foe.hp > 0) {
+    playerSwingPvp(p, foe, now);
+    return;
+  }
   const mob = findMob(p.targetId);
   if (!mob || !mob.alive) return;
   const d = dist(p.x, p.z, mob.x, mob.z);
@@ -4548,7 +5110,14 @@ function resolveMobPendingCast(mob: Mob, now: number) {
       }
     }
     if (target.hp <= 0) {
-      if (downPlayer(target, now) === "fallen" && mob.shiny && !mob.shinyClone) {
+      const inPvp = pvpReraiseBlocked(target);
+      if (inPvp) {
+        target.reraiseUntil = 0;
+        respawnAtHub(target);
+      } else {
+        downPlayer(target, now);
+      }
+      if ((inPvp || target.hp <= 0) && mob.shiny && !mob.shinyClone) {
         shinyFleeAfterPlayerKill(mob, now);
         pushLog(target, mob.name + " flees into the Hollow...");
       }
@@ -4777,7 +5346,14 @@ function mobSwing(mob: Mob, now: number) {
   // A redirected hit lands on (and can drop) the Knight instead of the target.
   for (const downed of guard ? [nearest, guard] : [nearest]) {
     if (downed.hp > 0) continue;
-    if (downPlayer(downed, now) === "fallen" && mob.shiny && !mob.shinyClone) {
+    const inPvp = pvpReraiseBlocked(downed);
+    if (inPvp) {
+      downed.reraiseUntil = 0;
+      respawnAtHub(downed);
+    } else {
+      downPlayer(downed, now);
+    }
+    if ((inPvp || downed.hp <= 0) && mob.shiny && !mob.shinyClone) {
       shinyFleeAfterPlayerKill(mob, now);
       pushLog(downed, mob.name + " flees into the Hollow...");
     }
@@ -4863,7 +5439,14 @@ function tickSimBody() {
 
     if (now < p.poisonUntil && p.poisonTick > 0 && tick % TICK_HZ === 0) {
       p.hp = Math.max(0, p.hp - p.poisonTick);
-      if (p.hp <= 0) downPlayer(p, now);
+      if (p.hp <= 0) {
+        if (pvpReraiseBlocked(p)) {
+          p.reraiseUntil = 0;
+          respawnAtHub(p, "The poison takes you… you wake in the Shard Dwellings.");
+        } else {
+          downPlayer(p, now);
+        }
+      }
     }
 
     // Auto-close to melee while engaged
@@ -4947,6 +5530,9 @@ function tickSimBody() {
     }
 
     playerSwing(p, now);
+    notePvpAreaBoundary(p);
+    // Leaving Ash Pit with an open bounty auto-cancels (refund mirror).
+    tickPvpBountyArea(p);
   }
 
   // Pale Hollow field AI — safe / proximity / sight / sound + link
@@ -5769,6 +6355,7 @@ function onMessage(ws: WebSocket, data: string) {
       break;
     case "engage": {
       const mob = findMob(msg.targetId);
+      const foe = !mob ? playerByIdOrName(String(msg.targetId ?? "")) : undefined;
       if (mob && mob.alive && !withinEngageRange(p.x, p.z, mob.x, mob.z)) {
         // #62: no pulling or hate on mobs across the map.
         pushLog(p, `${mob.name} is too far away to engage.`);
@@ -5784,6 +6371,23 @@ function onMessage(ws: WebSocket, data: string) {
             ? `Engaged ${mob.name} — closing in.`
             : `Engaged ${mob.name}.`,
         );
+      } else if (foe && foe.wallet !== p.wallet && foe.hp > 0) {
+        const block = pvpStrikeBlock(p, foe);
+        if (block) {
+          pushLog(p, block);
+        } else if (!withinEngageRange(p.x, p.z, foe.x, foe.z)) {
+          pushLog(p, `${foe.name} is too far away to engage.`);
+        } else {
+          stopRest(p, "You break rest to engage.");
+          p.targetId = foe.wallet;
+          chaseEngagedPlayer(p, foe);
+          pushLog(
+            p,
+            dist(p.x, p.z, foe.x, foe.z) > MELEE_RANGE
+              ? `Engaged ${foe.name} — closing in.`
+              : `Engaged ${foe.name}.`,
+          );
+        }
       } else if (msg.targetId === JOB_MASTER.id) {
         handleNpcInteract(p, JOB_MASTER.id);
       } else if (msg.targetId === TRAINER.id) {
@@ -5791,6 +6395,22 @@ function onMessage(ws: WebSocket, data: string) {
       }
       break;
     }
+    case "pvp/join":
+      handlePvpJoin(
+        p,
+        typeof msg.areaId === "string" ? msg.areaId : ASH_PIT_AREA.id,
+        typeof msg.placeTxHash === "string" ? msg.placeTxHash : undefined,
+      );
+      break;
+    case "pvp/leave":
+      handlePvpLeave(p);
+      break;
+    case "pvp/bountyPlace":
+      handlePvpBountyPlace(p);
+      break;
+    case "pvp/bountyCancel":
+      handlePvpBountyCancel(p);
+      break;
     case "disengage":
       p.targetId = null;
       break;

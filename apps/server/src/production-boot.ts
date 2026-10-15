@@ -22,6 +22,35 @@ const ESCROW_ABI = parseAbi([
   "function hasRole(bytes32 role, address account) view returns (bool)",
   "function LISTING_ROLE() view returns (bytes32)",
 ]);
+const PVP_BOUNTY_ABI = parseAbi([
+  "function hasRole(bytes32 role, address account) view returns (bool)",
+  "function OPERATOR_ROLE() view returns (bytes32)",
+  "function claimDelay() view returns (uint256)",
+]);
+
+/** Production propose/execute bounties must leave a guardian a window to veto. */
+export const PVP_PRODUCTION_CLAIM_DELAY_MIN = 60n;
+/** Matches `PvpBounty` constructor cap. */
+export const PVP_PRODUCTION_CLAIM_DELAY_MAX = 7n * 24n * 60n * 60n;
+
+export function assertPvpProductionClaimDelay(delay: bigint): ProductionBootResult {
+  if (delay < PVP_PRODUCTION_CLAIM_DELAY_MIN) {
+    return {
+      ok: false,
+      error:
+        "PvpBounty.claimDelay " +
+        delay.toString() +
+        "s is below the production minimum of 60s",
+    };
+  }
+  if (delay > PVP_PRODUCTION_CLAIM_DELAY_MAX) {
+    return {
+      ok: false,
+      error: "PvpBounty.claimDelay " + delay.toString() + "s exceeds 7 days",
+    };
+  }
+  return { ok: true };
+}
 const FACTORY_ABI = parseAbi(["function mintFee() view returns (uint256)"]);
 
 export function isProductionSettlementChain(env: NodeJS.ProcessEnv = process.env): boolean {
@@ -54,16 +83,34 @@ export function assertProductionEnvShape(env: NodeJS.ProcessEnv = process.env): 
   const rpc = env.LOK_CHAIN_RPC?.trim() || env.LOK_PUBLIC_RPC?.trim();
   const listingKey = env.LOK_LISTING_KEY?.trim() || listingRoleKey(env);
   const statusToken = env.LOK_OPS_STATUS_TOKEN?.trim();
+  const pvpBounty = env.LOK_PVP_BOUNTY?.trim() || "";
+
+  // Admin / deployer keys must never sit on a production host. LISTING covers
+  // AhEscrow LISTING_ROLE + PvpBounty OPERATOR_ROLE.
+  if (env.LOK_OWNER_KEY?.trim()) {
+    return {
+      ok: false,
+      error:
+        "LOK_OWNER_KEY must not be set on production settlement chains — use LOK_LISTING_KEY only (LISTING EOA)",
+    };
+  }
+  if (env.PRIVATE_KEY?.trim()) {
+    return {
+      ok: false,
+      error:
+        "PRIVATE_KEY must not be set on production settlement chains — use LOK_LISTING_KEY only (LISTING EOA)",
+    };
+  }
 
   const missing: string[] = [];
   if (!nft) missing.push("LOK_NFT");
   if (!factory) missing.push("LOK_FACTORY");
   if (!escrow) missing.push("LOK_AH_ESCROW");
   if (!rpc) missing.push("LOK_CHAIN_RPC");
+  // LISTING EOA only — never put admin/owner keys on the server for AhEscrow or PvpBounty.
   if (!listingKey) missing.push("LOK_LISTING_KEY");
-  if (!statusToken) {
-    missing.push("LOK_OPS_STATUS_TOKEN");
-  }
+  if (!statusToken) missing.push("LOK_OPS_STATUS_TOKEN");
+  if (!/^0x[0-9a-fA-F]{40}$/.test(pvpBounty)) missing.push("LOK_PVP_BOUNTY");
   if (missing.length) {
     return {
       ok: false,
@@ -110,16 +157,36 @@ export async function assertProductionContractsLive(
       },
       transport: http(rpc),
     });
+    const bounty = (env.LOK_PVP_BOUNTY?.trim() || "") as `0x${string}`;
     for (const [label, addr] of [
       ["NFT", nft],
       ["Factory", factory],
       ["AhEscrow", escrow],
+      ["PvpBounty", bounty],
     ] as const) {
       const code = await pub.getBytecode({ address: addr });
       if (!code || code === "0x") {
         return { ok: false, error: label + " has no bytecode at " + addr };
       }
     }
+    let claimDelay: bigint;
+    try {
+      claimDelay = await pub.readContract({
+        address: bounty,
+        abi: PVP_BOUNTY_ABI,
+        functionName: "claimDelay",
+      });
+    } catch {
+      return {
+        ok: false,
+        error:
+          "PvpBounty at " +
+          bounty +
+          " has no claimDelay — redeploy the propose/execute contract (single-claim bytecode cannot be used)",
+      };
+    }
+    const delayOk = assertPvpProductionClaimDelay(claimDelay);
+    if (!delayOk.ok) return delayOk;
     const fee = await pub.readContract({
       address: factory,
       abi: FACTORY_ABI,
@@ -175,6 +242,23 @@ export async function assertProductionContractsLive(
           return {
             ok: false,
             error: "LOK_LISTING_KEY address " + acct.address + " lacks LISTING_ROLE on AhEscrow",
+          };
+        }
+        const opRole = await pub.readContract({
+          address: bounty,
+          abi: PVP_BOUNTY_ABI,
+          functionName: "OPERATOR_ROLE",
+        });
+        const isOp = await pub.readContract({
+          address: bounty,
+          abi: PVP_BOUNTY_ABI,
+          functionName: "hasRole",
+          args: [opRole, acct.address],
+        });
+        if (!isOp) {
+          return {
+            ok: false,
+            error: "LOK_LISTING_KEY address " + acct.address + " lacks OPERATOR_ROLE on PvpBounty",
           };
         }
       } catch (err) {

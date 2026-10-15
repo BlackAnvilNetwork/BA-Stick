@@ -7,6 +7,9 @@ export type OpsAlertEvent =
   | "watcher_lag"
   | "nft_transfer_cancel_dropped"
   | "ask_filled_quarantine"
+  | "pvp_bounty_claim_proposed"
+  | "pvp_bounty_claimed"
+  | "pvp_bounty_transfer_refund"
   | "ops";
 
 export type OpsAlert = {
