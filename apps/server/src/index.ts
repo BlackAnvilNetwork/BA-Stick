@@ -181,7 +181,7 @@ import {
 } from "./fighter-abilities";
 import { resolveWeaponTpAbility } from "./weapon-tp-abilities";
 import { clearSorcererBuffs, resolveSorcererAbility } from "./sorcerer-abilities";
-import { clearClericBuffs, absorbHealShield, resolveClericAbility } from "./cleric-abilities";
+import { clearClericBuffs, absorbHealShield, resolveClericAbility, resolveLethal } from "./cleric-abilities";
 import { gearHealPotency, gearRegen, meleeAtkBonus } from "./gear-combat";
 import {
   absorbStoneskin,
@@ -402,6 +402,7 @@ type Player = {
   regenUntil: number;
   regenTick: number;
   reraiseUntil: number;
+  fallenUntil: number;
   healAbsorbUntil: number;
   healAbsorbHp: number;
   sacredLightUntil: number;
@@ -2819,7 +2820,7 @@ function snapshotFor(p: Player): SnapshotMessage {
       mp: pl.mp,
       maxMp: pl.maxMp,
       tp: pl.tp,
-      anim: pl.anim,
+      anim: pl.hp <= 0 && Date.now() < pl.fallenUntil ? "dead" : pl.anim,
       animUntil: pl.animUntil,
       targetId: pl.targetId,
       job: pl.job,
@@ -3185,6 +3186,7 @@ function createPlayer(
     regenUntil: 0,
     regenTick: 0,
     reraiseUntil: 0,
+    fallenUntil: 0,
     healAbsorbUntil: 0,
     healAbsorbHp: 0,
     sacredLightUntil: 0,
@@ -3490,9 +3492,26 @@ function stopRest(p: Player, reason?: string) {
   else pushLog(p, "You stop resting.");
 }
 
+function downPlayer(p: Player, now: number): "reraise" | "fallen" | "already" {
+  const outcome = resolveLethal(p, now);
+  if (outcome === "reraise") {
+    p.sacredLightUntil = now + 2200;
+    p.anim = "idle";
+    pushLog(p, "Ember Vigil — you rise in sacred light!");
+  } else if (outcome === "fallen") {
+    p.moveTo = null;
+    p.targetId = null;
+    p.anim = "dead";
+    p.animUntil = 0;
+    pushLog(p, "You fall. A cleric can recall you.");
+  }
+  return outcome;
+}
+
 function respawnAtHub(p: Player, reason = "You fallâ€¦ and wake in the Shard Dwellings.") {
   stopRest(p);
   clearJobBuffs(p);
+  p.fallenUntil = 0;
   p.hp = Math.max(1, Math.floor(p.maxHp * 0.3));
   p.x = PH_HUB_SPAWN.x;
   p.z = PH_HUB_SPAWN.z;
@@ -3554,6 +3573,10 @@ function playerWeaponBonus(p: Player): number {
 
 function handleAbility(p: Player, id: AbilityId, targetId?: string) {
   const now = Date.now();
+  if (p.hp <= 0 && now < p.fallenUntil) {
+    pushLog(p, "You are fallen.");
+    return;
+  }
   if (now < p.petrifyUntil) {
     pushLog(p, "You are petrified.");
     return;
@@ -4525,17 +4548,9 @@ function resolveMobPendingCast(mob: Mob, now: number) {
       }
     }
     if (target.hp <= 0) {
-      if (now < target.reraiseUntil) {
-        target.reraiseUntil = 0;
-        target.hp = Math.max(1, Math.floor(target.maxHp * 0.25));
-        target.sacredLightUntil = now + 2200;
-        pushLog(target, "Ember Vigil — you rise in sacred light!");
-      } else {
-        respawnAtHub(target);
-        if (mob.shiny && !mob.shinyClone) {
-          shinyFleeAfterPlayerKill(mob, now);
-          pushLog(target, mob.name + " flees into the Hollow...");
-        }
+      if (downPlayer(target, now) === "fallen" && mob.shiny && !mob.shinyClone) {
+        shinyFleeAfterPlayerKill(mob, now);
+        pushLog(target, mob.name + " flees into the Hollow...");
       }
     }
   }
@@ -4572,6 +4587,7 @@ function mobSwing(mob: Mob, now: number) {
   for (const p of players.values()) {
     // Ghost Step — invisible to chase / aggro
     if (now < p.ghostStepUntil) continue;
+    if (p.hp <= 0) continue;
     const d = dist(mob.x, mob.z, p.x, p.z);
     if (d > 16) continue;
     // Prefer current target + high enmity (Knight Provoke/Flash)
@@ -4761,18 +4777,9 @@ function mobSwing(mob: Mob, now: number) {
   // A redirected hit lands on (and can drop) the Knight instead of the target.
   for (const downed of guard ? [nearest, guard] : [nearest]) {
     if (downed.hp > 0) continue;
-    if (now < downed.reraiseUntil) {
-      downed.reraiseUntil = 0;
-      downed.hp = Math.max(1, Math.floor(downed.maxHp * 0.25));
-      downed.sacredLightUntil = now + 2200;
-      pushLog(downed, "Ember Vigil — you rise in sacred light!");
-    } else {
-      const killer = mob;
-      respawnAtHub(downed);
-      if (killer.shiny && !killer.shinyClone) {
-        shinyFleeAfterPlayerKill(killer, now);
-        pushLog(downed, killer.name + " flees into the Hollow...");
-      }
+    if (downPlayer(downed, now) === "fallen" && mob.shiny && !mob.shinyClone) {
+      shinyFleeAfterPlayerKill(mob, now);
+      pushLog(downed, mob.name + " flees into the Hollow...");
     }
   }
 }
@@ -4841,21 +4848,22 @@ function tickSimBody() {
     // Catch overcapped XP (e.g. earned before leveling existed)
     tryLevelUp(p);
 
+    if (p.fallenUntil > 0 && p.hp <= 0 && now >= p.fallenUntil) {
+      respawnAtHub(p);
+    }
+    if (p.hp <= 0 && now < p.fallenUntil) {
+      p.moveTo = null;
+      p.targetId = null;
+      p.anim = "dead";
+      continue;
+    }
+
     // Regain TP while Flux
     if (p.flux && tick % 20 === 0) p.tp = Math.min(3000, p.tp + 5);
 
     if (now < p.poisonUntil && p.poisonTick > 0 && tick % TICK_HZ === 0) {
       p.hp = Math.max(0, p.hp - p.poisonTick);
-      if (p.hp <= 0) {
-        if (now < p.reraiseUntil) {
-          p.reraiseUntil = 0;
-          p.hp = Math.max(1, Math.floor(p.maxHp * 0.25));
-          p.sacredLightUntil = now + 2200;
-          pushLog(p, "Ember Vigil — you rise in sacred light!");
-        } else {
-          respawnAtHub(p, "The poison takes you… you wake in the Shard Dwellings.");
-        }
-      }
+      if (p.hp <= 0) downPlayer(p, now);
     }
 
     // Auto-close to melee while engaged
@@ -5744,6 +5752,10 @@ function onMessage(ws: WebSocket, data: string) {
       claimStarter(p);
       break;
     case "move":
+      if (p.hp <= 0 && Date.now() < p.fallenUntil) {
+        pushLog(p, "You are fallen.");
+        break;
+      }
       // Manual move cancels engage so chase doesn't overwrite the click/WASD
       if (p.targetId) p.targetId = null;
       p.moveTo = clampPlayerMove(p.x, p.z, msg.x, msg.z);
