@@ -115,6 +115,9 @@ pub struct World {
     characters: BTreeMap<U256, Character>,
     listings: BTreeMap<U256, Listing>,
     next_seq: u64,
+    /// Ruleset this process is attesting. Stamped into drafted checkpoints. Not stored in the log.
+    /// A reload starts at zero until the server sets it again.
+    ruleset_hash: [u8; 32],
 }
 
 impl World {
@@ -123,6 +126,7 @@ impl World {
             characters: BTreeMap::new(),
             listings: BTreeMap::new(),
             next_seq: 0,
+            ruleset_hash: [0u8; 32],
         }
     }
 
@@ -566,6 +570,15 @@ impl World {
         self.next_seq = saved_seq;
     }
 
+    /// Ruleset hash stamped into the next drafted checkpoint. Not written to the log.
+    pub fn set_ruleset_hash(&mut self, hash: [u8; 32]) {
+        self.ruleset_hash = hash;
+    }
+
+    pub fn ruleset_hash(&self) -> [u8; 32] {
+        self.ruleset_hash
+    }
+
     /// Draft the checkpoint for `(committed, to_index]`. Does not mark it committed.
     pub fn checkpoint_span(&self, token_id: &U256, to_index: u64) -> Result<Checkpoint, EngineError> {
         let from_index = self.characters.get(token_id).ok_or(EngineError::NotSpawned)?.committed;
@@ -605,7 +618,7 @@ impl World {
             from_index,
             to_index,
             log_hash,
-            ruleset_hash: [0u8; 32],
+            ruleset_hash: self.ruleset_hash,
             summary,
             inbound_consumed: inbound_count(&ch.entries[..to_index as usize], token_id),
             exports,
@@ -757,6 +770,7 @@ impl World {
         }
         // Keep sequence numbers monotonic so a dropped seq is never reused against a surviving copy.
         rebuilt.next_seq = rebuilt.next_seq.max(self.next_seq);
+        rebuilt.ruleset_hash = self.ruleset_hash;
         *self = rebuilt;
         Ok(())
     }

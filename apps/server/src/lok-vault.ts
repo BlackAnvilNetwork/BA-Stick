@@ -18,7 +18,7 @@ import { resolvePublicRpcUrl } from "./public-rpc";
  * deployments/gnosis.json) does not match this bundle. Re-propose before that ruleset is used.
  * This change does not submit that transaction.
  */
-export const LOCAL_RULESET_WASM_SHA256 = "77b98aa2445b0b4c886bef59dd689cc43f7f6e057ec3a6b5708f7b0844238e99";
+export const LOCAL_RULESET_WASM_SHA256 = "59d043288b9f693d4ab0ef81fb8b0f7fbd0bcba6e22ae4874df945020abe8f7d";
 
 /**
  * Ruleset id derived from the wasm pin: `keccak256(utf8(LOCAL_RULESET_WASM_SHA256))`.

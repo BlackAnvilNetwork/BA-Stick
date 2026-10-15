@@ -9,7 +9,7 @@ use serde_json::{json, Value};
 use crate::chain::{input_to_json, load_world, parse_input, parse_world_log, replay_stop_message};
 use crate::engine::EngineError;
 use crate::event::Input;
-use crate::u256::U256;
+use crate::u256::{parse_b256, U256};
 use crate::world::World;
 
 pub struct Gate {
@@ -64,6 +64,15 @@ impl Gate {
         }
         if op == "checkpoint" {
             return checkpoint_json(&self.world, &value);
+        }
+        if op == "setRuleset" {
+            let raw = value.get("rulesetHash").and_then(|v| v.as_str()).unwrap_or("");
+            let hash = match parse_b256(raw) {
+                Ok(hash) => hash,
+                Err(()) => return fail("bad rulesetHash"),
+            };
+            self.world.set_ruleset_hash(hash);
+            return json!({ "ok": true, "rulesetHash": hex32(&hash) }).to_string();
         }
         if op == "undoWithdraw" || op == "withdrawCount" || op == "depositKek" || op == "withdrawKek" || op == "spendKek" || op == "sendKek" || op == "paidRespecSkills" {
             return fail("KEK custody is retired");
@@ -142,16 +151,31 @@ fn checkpoint_json(world: &World, value: &Value) -> String {
         None => return fail("character is not spawned"),
     };
     match world.checkpoint_covering(&token, from_index, to_index) {
-        Ok(c) => json!({
-            "ok": true,
-            "prevRoot": hex32(&c.prev_root),
-            "newRoot": hex32(&c.new_root),
-            "fromIndex": c.from_index.to_string(),
-            "toIndex": c.to_index.to_string(),
-            "logHash": hex32(&c.log_hash),
-            "summary": c.summary.to_dec(),
-            "inboundConsumed": c.inbound_consumed.to_string(),
-        }).to_string(),
+        Ok(c) => {
+            let exports: Vec<Value> = c
+                .exports
+                .iter()
+                .map(|export| {
+                    json!({
+                        "itemId": export.item_id.to_dec(),
+                        "amount": export.amount,
+                    })
+                })
+                .collect();
+            json!({
+                "ok": true,
+                "prevRoot": hex32(&c.prev_root),
+                "newRoot": hex32(&c.new_root),
+                "fromIndex": c.from_index.to_string(),
+                "toIndex": c.to_index.to_string(),
+                "logHash": hex32(&c.log_hash),
+                "rulesetHash": hex32(&c.ruleset_hash),
+                "summary": c.summary.to_dec(),
+                "inboundConsumed": c.inbound_consumed.to_string(),
+                "exports": exports,
+            })
+            .to_string()
+        }
         Err(err) => fail(&err.to_string()),
     }
 }
@@ -328,6 +352,38 @@ mod tests {
             world: gate.world.clone(),
         };
         serde_json::from_str(&cloned.apply_command(r#"{"op":"state"}"#)).unwrap()
+    }
+
+    #[test]
+    fn checkpoint_stamps_the_ruleset_and_lists_exports() {
+        let mut gate = Gate::open("").unwrap();
+        assert!(apply(&mut gate, r#"{"op":"spawn","tokenId":"1","startingJob":3}"#)["ok"].as_bool().unwrap());
+        let bare = apply(&mut gate, r#"{"op":"checkpoint","tokenId":"1","fromIndex":"0"}"#);
+        assert_eq!(bare["ok"], true);
+        assert_eq!(
+            bare["rulesetHash"],
+            "0x0000000000000000000000000000000000000000000000000000000000000000"
+        );
+        assert!(bare["exports"].as_array().unwrap().is_empty());
+
+        let hash = "0x1111111111111111111111111111111111111111111111111111111111111111";
+        let bad = apply(&mut gate, r#"{"op":"setRuleset","rulesetHash":"0x1234"}"#);
+        assert_eq!(bad["ok"], false);
+        assert!(apply(&mut gate, &format!(r#"{{"op":"setRuleset","rulesetHash":"{hash}"}}"#))["ok"].as_bool().unwrap());
+        assert!(apply(&mut gate, r#"{"op":"importItem","tokenId":"1","itemId":"7","amount":"2","nonce":"1"}"#)["ok"].as_bool().unwrap());
+        assert!(apply(&mut gate, r#"{"op":"exportItem","tokenId":"1","itemId":"7","amount":"2"}"#)["ok"].as_bool().unwrap());
+        let stamped = apply(&mut gate, r#"{"op":"checkpoint","tokenId":"1","fromIndex":"0"}"#);
+        assert_eq!(stamped["rulesetHash"], hash);
+        assert_eq!(stamped["exports"][0]["itemId"], "7");
+        assert_eq!(stamped["exports"][0]["amount"], 2);
+
+        let mut again = Gate::open(&gate.document_json()).unwrap();
+        let reopened = apply(&mut again, r#"{"op":"checkpoint","tokenId":"1","fromIndex":"0"}"#);
+        assert_eq!(
+            reopened["rulesetHash"],
+            "0x0000000000000000000000000000000000000000000000000000000000000000"
+        );
+        assert_eq!(reopened["exports"][0]["itemId"], "7");
     }
 
     #[test]
