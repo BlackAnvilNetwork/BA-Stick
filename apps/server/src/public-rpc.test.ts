@@ -32,6 +32,22 @@ describe("public-rpc (#272)", () => {
     assert.equal(url, "https://rpc.gnosischain.com");
   });
 
+  it("prefers a non-secret loopback LOK_CHAIN_RPC over the anvil profile default", () => {
+    const url = resolvePublicRpcUrl({
+      LOK_CHAIN_ID: "31337",
+      LOK_CHAIN_RPC: "http://127.0.0.1:18545",
+    });
+    assert.equal(url, "http://127.0.0.1:18545");
+    assert.equal(
+      resolvePublicRpcUrl({
+        LOK_CHAIN_ID: "31337",
+        LOK_CHAIN_RPC: "http://localhost:18545/",
+        LOK_PUBLIC_RPC: "https://gnosis-rpc.publicnode.com",
+      }),
+      "https://gnosis-rpc.publicnode.com",
+    );
+  });
+
   it("assertPublicRpcSafe refuses secret public override", () => {
     const r = assertPublicRpcSafe({
       NETWORK: "gnosis",
