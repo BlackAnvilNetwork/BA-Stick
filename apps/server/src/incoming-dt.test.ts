@@ -129,6 +129,8 @@ test("mob magic bolt pending hit is flagged magic", () => {
     nextAbilityAt: 0,
     atkBuffUntil: 0,
     atkBuffMul: 1,
+    shellUntil: NOW + 60_000,
+    shellMagMul: 0.75,
     atkDownUntil: 0,
     atkDownMul: 1,
     addleUntil: 0,

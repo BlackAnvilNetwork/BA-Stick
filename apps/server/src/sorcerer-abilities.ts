@@ -13,6 +13,7 @@ import { signatureWeaponEquipped } from "./starter-kit";
 import { kitLevel } from "./support-job";
 import { withGearMab } from "./gear-combat";
 import type { AbilityId } from "@bellgrave/protocol";
+import { activeMobEnhances, stripMobEnhances, takeMobHit } from "./mob-enhances";
 
 export type SorcererPlayer = {
   level: number;
@@ -126,10 +127,12 @@ function applyNukeHit(
   element: SorcererElement,
   now: number,
 ) {
-  m.hp = Math.max(0, m.hp - dmg);
+  const dealt = takeMobHit(m, dmg, "magic", now);
+  m.hp = Math.max(0, m.hp - dealt);
   m.scImpactUntil = now + 900;
   m.scImpactElement = element;
-  p.enmity = Math.min(10_000, p.enmity + Math.floor(dmg * 0.35));
+  p.enmity = Math.min(10_000, p.enmity + Math.floor(dealt * 0.35));
+  return dealt;
 }
 
 export function clearSorcererBuffs(p: SorcererPlayer) {
@@ -326,12 +329,13 @@ export function resolveSorcererAbility(
       const dmg = elementalDamage(p, def.potency, now, cascadeBonus, combatStats);
       p.elementalSealUntil = 0;
       let hits = 0;
+      let dealt = 0;
       for (const m of mobsInRadius(hooks.allMobs(), cx, cz, def.aoe)) {
-        applyNukeHit(p, m, dmg, def.element, now);
+        dealt += applyNukeHit(p, m, dmg, def.element, now);
         hits += 1;
         if (m.hp <= 0) hooks.onMobKill(p, m, now);
       }
-      hooks.pushLog(p, `${def.label} â€” ${dmg} on ${hits} foe(s)!`);
+      hooks.pushLog(p, `${def.label} â€” ${dealt} on ${hits} foe(s)!`);
       return true;
     }
 
@@ -358,8 +362,8 @@ export function resolveSorcererAbility(
     p.animUntil = now + 580;
     const dmg = elementalDamage(p, def.potency, now, cascadeBonus, combatStats);
     p.elementalSealUntil = 0;
-    applyNukeHit(p, m, dmg, def.element, now);
-    hooks.pushLog(p, `${def.label} â€” ${dmg} on ${m.name ?? "foe"}!`);
+    const dealt = applyNukeHit(p, m, dmg, def.element, now);
+    hooks.pushLog(p, `${def.label} â€” ${dealt} on ${m.name ?? "foe"}!`);
     if (m.hp <= 0) hooks.onMobKill(p, m, now);
     return true;
   }
@@ -374,6 +378,24 @@ export function resolveSorcererAbility(
     }
     if (hooks.dist(p.x, p.z, mob.x, mob.z) > (def.range ?? 12)) {
       hooks.pushLog(p, "Too far.");
+      return true;
+    }
+    if (id === "sc_unweave") {
+      const pending = activeMobEnhances(mob, now);
+      if (pending.length === 0) {
+        hooks.pushLog(p, `${def.label} — nothing to unravel on ${mob.name ?? "foe"}.`);
+        return true;
+      }
+      if (!spendMp(p, mpCost, now)) {
+        hooks.pushLog(p, "Not enough MP.");
+        return true;
+      }
+      const stripped = stripMobEnhances(mob, now);
+      payRecast();
+      p.facing = hooks.facingTo(p.x, p.z, mob.x, mob.z);
+      p.anim = "cast";
+      p.animUntil = now + 520;
+      hooks.pushLog(p, `${def.label} — ${stripped.join(", ")} stripped from ${mob.name ?? "foe"}.`);
       return true;
     }
     if (!spendMp(p, mpCost, now)) {
@@ -410,28 +432,8 @@ export function resolveSorcererAbility(
       hooks.pushLog(p, `${def.label} â€” roots hold ${mob.name ?? "foe"}.`);
       return true;
     }
-    if (id === "sc_unweave") {
-      let stripped = 0;
-      if (mob.falseGuardUntil && mob.falseGuardUntil > now) {
-        mob.falseGuardUntil = 0;
-        stripped += 1;
-      }
-      // Clear residual impact flashes / defensive feints only â€” not your enfeebles
-      if (mob.scImpactUntil > now) {
-        mob.scImpactUntil = 0;
-        mob.scImpactElement = null;
-        stripped += 1;
-      }
-      hooks.pushLog(
-        p,
-        stripped > 0
-          ? `${def.label} â€” buffs stripped from ${mob.name ?? "foe"}.`
-          : `${def.label} â€” nothing to unravel on ${mob.name ?? "foe"}.`,
-      );
-      return true;
-    }
     if (id === "sc_life_leech") {
-      const dmg = elementalDamage(p, def.potency ?? 45, now, false, combatStats);
+      const dmg = takeMobHit(mob, elementalDamage(p, def.potency ?? 45, now, false, combatStats), "magic", now);
       mob.hp = Math.max(0, mob.hp - dmg);
       const heal = Math.floor(dmg * 0.6);
       p.hp = Math.min(p.maxHp, p.hp + heal);
@@ -455,7 +457,7 @@ export function resolveSorcererAbility(
       return true;
     }
     if (id === "sc_gloom_stun") {
-      const dmg = Math.floor(elementalDamage(p, 35, now, false, combatStats) * 0.5);
+      const dmg = takeMobHit(mob, Math.floor(elementalDamage(p, 35, now, false, combatStats) * 0.5), "magic", now);
       mob.hp = Math.max(0, mob.hp - dmg);
       mob.stunUntil = now + (def.durationMs ?? 5_000);
       mob.scImpactUntil = now + 800;

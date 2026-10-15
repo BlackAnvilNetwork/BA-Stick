@@ -271,6 +271,7 @@ import { authAllowlist, authVerifyClient, clientAddress, dropAuthConnection, iss
 import { defaultLokDir, LokWorld } from "./lok-world";
 import { flushGameRoll, loadGameRoll, rollIndex, rollUnit } from "./game-roll";
 import { cheapestBait, fishGatherRefusal } from "./fishing";
+import { emptyMobEnhances, takeMobHit } from "./mob-enhances";
 import {
   ailmentLabel,
   applyAilment,
@@ -518,6 +519,14 @@ type Mob = {
   pendingCastMagic: boolean;
   atkBuffUntil: number;
   atkBuffMul: number;
+  protectUntil: number;
+  protectPhysMul: number;
+  shellUntil: number;
+  shellMagMul: number;
+  hasteUntil: number;
+  hastePct: number;
+  stoneskinUntil: number;
+  stoneskinAbsorb: number;
   /** Idle wander waypoint (NaN = none). */
   roamTx: number;
   roamTz: number;
@@ -1978,8 +1987,7 @@ function spawnFieldMob(
     pendingCastSlowMs: 0,
     pendingCastMovePct: 0,
     pendingCastMagic: false,
-    atkBuffUntil: 0,
-    atkBuffMul: 1,
+    ...emptyMobEnhances(),
     roamTx: Number.NaN,
     roamTz: Number.NaN,
     // Stagger first wander so packs don't sync-step
@@ -2740,8 +2748,14 @@ function mobBuffs(m: Mob): UnitSnapshot["buffs"] {
     ...emptyBuffs(),
     quickenUntil: m.quickenUntil,
     slowUntil: m.slowUntil,
-    hasteUntil: 0,
-    hastePct: 0,
+    hasteUntil: m.hasteUntil,
+    hastePct: now < m.hasteUntil ? m.hastePct : 0,
+    protectUntil: m.protectUntil,
+    protectPhysMul: now < m.protectUntil ? m.protectPhysMul : 1,
+    shellUntil: m.shellUntil,
+    shellMagMul: now < m.shellUntil ? m.shellMagMul : 1,
+    stoneskinUntil: m.stoneskinUntil,
+    berserkUntil: m.atkBuffUntil,
     moveUntil: m.gravityUntil,
     movePct: now < m.gravityUntil ? -m.gravityPct : 0,
     bindUntil: m.bindUntil,
@@ -4340,6 +4354,7 @@ function playerSwing(p: Player, now: number) {
   if (playerHasJob(p, "battle_mage")) {
     dmg += battleMageEnSpellBonus(p, now, playerCombatStats(p).int);
   }
+  dmg = takeMobHit(mob, dmg, "physical", now);
   mob.hp -= dmg;
   noteMobHit(mob, p.wallet);
   if (now < mob.sleepUntil) mob.sleepUntil = 0;
@@ -4370,7 +4385,7 @@ function playerSwing(p: Player, now: number) {
 
   const doubleChance = playerHasJob(p, "fighter") ? fighterDoubleAttackChance(p, now) : 0;
   if (mob.hp > 0 && doubleChance > 0 && rollUnit("combat.player.double") < doubleChance) {
-    const dmg2 = Math.max(1, Math.floor(dmg * 0.85));
+    const dmg2 = takeMobHit(mob, Math.max(1, Math.floor(dmg * 0.85)), "physical", now);
     mob.hp -= dmg2;
     p.tp = Math.min(3000, p.tp + Math.floor(tpGain * 0.6));
     pushLog(p, `Double attack! ${dmg2} on ${mob.name}.`);
@@ -4696,8 +4711,8 @@ function mobSwing(mob: Mob, now: number) {
   if (ability.ok) {
     if (ability.pending) scheduleMobPendingCast(mob, now, nearest.wallet, ability.pending);
   } else {
-    const swingSlow = now < mob.slowUntil ? mob.swingPenalty : 0;
-    mob.nextSwingAt = now + swingDelayMs(2400, -swingSlow);
+    const haste = now < mob.hasteUntil ? mob.hastePct : 0;
+    mob.nextSwingAt = now + swingDelayMs(2400, haste);
     // Picked once per swing and resolved straight on the Knight (their own
     // evasion, armor and DT incl. Interpose's 0.75) — never re-redirected.
     guard = mobAutoIsMagic(mob, now) ? null : findInterposeGuard(nearest, players.values(), now, dist);

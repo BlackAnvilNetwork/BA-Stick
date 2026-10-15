@@ -10,6 +10,7 @@ import {
 import { signatureWeaponEquipped } from "./starter-kit";
 import { kitLevel } from "./support-job";
 import { withGearMab } from "./gear-combat";
+import { takeMobHit, type MobEnhanceHost } from "./mob-enhances";
 import type { AbilityId } from "@bellgrave/protocol";
 
 export type KnightPlayer = {
@@ -62,7 +63,7 @@ export type KnightMob = {
   nextSwingAt: number;
   stunUntil: number;
   blindUntil: number;
-};
+} & MobEnhanceHost;
 
 export type KnightHooks = {
   pushLog: (p: KnightPlayer, msg: string) => void;
@@ -288,7 +289,7 @@ export function resolveKnightAbility(
     spend();
     p.facing = hooks.facingTo(p.x, p.z, m.x, m.z);
     const { str, vit } = combatStats;
-    const dmg = Math.max(1, Math.floor((def.potency ?? 28) + str * 0.8 + vit * 0.3));
+    const dmg = takeMobHit(m, Math.max(1, Math.floor((def.potency ?? 28) + str * 0.8 + vit * 0.3)), "physical", now);
     m.hp -= dmg;
     m.stunUntil = now + (def.durationMs ?? 5_000);
     m.targetId = p.wallet;
@@ -450,7 +451,7 @@ export function resolveKnightAbility(
     }
     spend();
     p.facing = hooks.facingTo(p.x, p.z, m.x, m.z);
-    const dmg = divineNuke(p, def.potency ?? 55, combatStats);
+    const dmg = takeMobHit(m, divineNuke(p, def.potency ?? 55, combatStats), "magic", now);
     m.hp -= dmg;
     m.targetId = p.wallet;
     spikeEnmity(p, id === "kn_holy" ? 1200 : 450);
