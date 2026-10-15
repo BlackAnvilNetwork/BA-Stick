@@ -69,6 +69,17 @@ test("starter stacks stay distinct from a later drop and cannot be laundered", (
   assert.equal(inv.length, 0);
 });
 
+test("HQ stacks stay separate and are not spent by a normal take", () => {
+  const inv: { tokenId: number; amount: number; starter?: boolean; hq?: boolean }[] = [];
+  addStack(inv, 102, 1, false, false);
+  addStack(inv, 102, 1, false, true);
+  assert.equal(inv.length, 2);
+  assert.equal(takeStack(inv, 102, 1), true);
+  assert.deepEqual(inv, [{ tokenId: 102, amount: 1, hq: true }]);
+  assert.equal(takeStack(inv, 102, 1), false);
+  assert.equal(inv.length, 1);
+});
+
 test("signature weapons gate on weapon family (crafted upgrades keep the kit)", () => {
   const bronze = {
     equip: { main: 102 },

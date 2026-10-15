@@ -1,9 +1,10 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { EQUIP_SLOTS } from "@bellgrave/items";
 import { durableWrite } from "./durable-write";
 import { withPlayerCharge } from "./gold-guard";
 
-export type SavedStack = { tokenId: number; amount: number; starter?: boolean };
+export type SavedStack = { tokenId: number; amount: number; starter?: boolean; hq?: boolean };
 
 export type PlayerProgress = {
   version: 1;
@@ -12,6 +13,8 @@ export type PlayerProgress = {
   inventory: SavedStack[];
   baseMats: Record<string, number>;
   equip: Record<string, number | null>;
+  /** Slots wearing a high-quality piece. Omitted on older saves. */
+  equipHq?: Partial<Record<string, true>>;
   craftSkills: Record<string, { level: number; xp: number }>;
   learned: string[];
   skillUnlocked: string[];
@@ -62,10 +65,11 @@ function atomicWrite(path: string, text: string): void {
 
 function isStack(value: unknown): value is SavedStack {
   if (!value || typeof value !== "object") return false;
-  const row = value as { tokenId?: unknown; amount?: unknown; starter?: unknown };
+  const row = value as { tokenId?: unknown; amount?: unknown; starter?: unknown; hq?: unknown };
   if (!Number.isSafeInteger(row.tokenId) || (row.tokenId as number) <= 0) return false;
   if (!Number.isSafeInteger(row.amount) || (row.amount as number) <= 0) return false;
-  return row.starter === undefined || typeof row.starter === "boolean";
+  if (row.starter !== undefined && typeof row.starter !== "boolean") return false;
+  return row.hq === undefined || row.hq === true;
 }
 
 export function readPlayerProgress(path: string): PlayerProgress | null {
@@ -86,6 +90,16 @@ export function readPlayerProgress(path: string): PlayerProgress | null {
   if (!Number.isSafeInteger(row.xp) || (row.xp as number) < 0) throw new Error("character progress has bad xp.");
   if (!Array.isArray(row.inventory) || !row.inventory.every(isStack)) {
     throw new Error("character progress has a bad bag.");
+  }
+  if (row.equipHq !== undefined) {
+    if (!row.equipHq || typeof row.equipHq !== "object" || Array.isArray(row.equipHq)) {
+      throw new Error("character progress has bad HQ gear.");
+    }
+    for (const [slot, flag] of Object.entries(row.equipHq as Record<string, unknown>)) {
+      if (!EQUIP_SLOTS.includes(slot as (typeof EQUIP_SLOTS)[number]) || flag !== true) {
+        throw new Error("character progress has bad HQ gear.");
+      }
+    }
   }
   if (typeof row.logItemsMoved !== "boolean") throw new Error("character progress has no ledger flag.");
   if (!Array.isArray(row.learned)) throw new Error("character progress has bad learned abilities.");

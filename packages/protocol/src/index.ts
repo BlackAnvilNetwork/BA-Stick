@@ -62,13 +62,19 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("engage"), targetId: z.string().min(1).max(64) }),
   z.object({ type: z.literal("disengage") }),
   z.object({ type: z.literal("ability"), id: AbilityId, targetId: z.string().min(1).max(64).optional() }),
-  z.object({ type: z.literal("equip"), slot: EquipSlot, tokenId: z.number().int().nonnegative().nullable() }),
-  z.object({ type: z.literal("item/use"), tokenId: z.number().int().nonnegative() }),
+  z.object({
+    type: z.literal("equip"),
+    slot: EquipSlot,
+    tokenId: z.number().int().nonnegative().nullable(),
+    hq: z.boolean().optional(),
+  }),
+  z.object({ type: z.literal("item/use"), tokenId: z.number().int().nonnegative(), hq: z.boolean().optional() }),
   /** Throw away one bag stack. Starter stacks are allowed. This is not a sale and is not written to the log. */
   z.object({
     type: z.literal("item/discard"),
     tokenId: z.number().int().positive(),
     starter: z.boolean().optional(),
+    hq: z.boolean().optional(),
   }),
   z.object({ type: z.literal("claim/starter") }),
   /** Change main job (Job Master). Sprite follows main. */
@@ -320,7 +326,7 @@ export type UnitSnapshot = {
   deathAt?: number;
 };
 
-export type InventorySlot = { tokenId: number; amount: number; starter?: boolean };
+export type InventorySlot = { tokenId: number; amount: number; starter?: boolean; hq?: boolean };
 
 
 export type PartyMemberSnapshot = {
@@ -489,6 +495,8 @@ export type SnapshotMessage = {
     claimedStarter: boolean;
     inventory: InventorySlot[];
     equip: Equipment;
+    /** Slots whose equipped piece is high quality. Absent or empty means normal quality. */
+    equipHq?: Partial<Record<EquipSlot, true>>;
     /** Base precursor mats (Pale Hollow gather/drops) — NFT-bound later. */
     baseMats: Record<string, number>;
     /** Craft skill ranks (smithing, cooking, …). */

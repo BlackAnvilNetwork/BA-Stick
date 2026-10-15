@@ -1,7 +1,7 @@
 import type { JobId } from "@bellgrave/combat";
 import { getItem, ITEM, type WeaponFamily } from "@bellgrave/items";
 
-export type ItemStack = { tokenId: number; amount: number; starter?: boolean };
+export type ItemStack = { tokenId: number; amount: number; starter?: boolean; hq?: boolean };
 
 /**
  * Create-time weapon per combat job.
@@ -64,25 +64,48 @@ export function starterAmount(inv: ItemStack[], tokenId: number): number {
   return n;
 }
 
-/** Starter stacks never merge with a later drop of the same item id. */
-export function addStack(inv: ItemStack[], tokenId: number, amount: number, starter = false): void {
+/** Starter stacks and HQ stacks never merge with a normal stack of the same item id. */
+export function addStack(inv: ItemStack[], tokenId: number, amount: number, starter = false, hq = false): void {
   if (amount <= 0) return;
-  const row = inv.find((i) => i.tokenId === tokenId && !!i.starter === starter);
+  const row = inv.find((i) => i.tokenId === tokenId && !!i.starter === starter && !!i.hq === hq);
   if (row) row.amount += amount;
-  else if (starter) inv.push({ tokenId, amount, starter: true });
-  else inv.push({ tokenId, amount });
+  else {
+    const next: ItemStack = { tokenId, amount };
+    if (starter) next.starter = true;
+    if (hq) next.hq = true;
+    inv.push(next);
+  }
 }
 
 /**
  * Spend a normal stack before a starter stack so crafting cannot turn
  * starter gear into a sellable result.
  */
-export function takeStack(inv: ItemStack[], tokenId: number, amount: number): boolean {
+/** Normal-quality amount that can move to the log. Starter and HQ stacks stay in the bag. */
+export function nqAmount(inv: ItemStack[], tokenId: number): number {
+  let n = 0;
+  for (const row of inv) if (row.tokenId === tokenId && !row.starter && !row.hq) n += row.amount;
+  return n;
+}
+
+export function hqOwned(inv: ItemStack[], tokenId: number): number {
+  let n = 0;
+  for (const row of inv) if (row.tokenId === tokenId && row.hq && row.amount > 0) n += row.amount;
+  return n;
+}
+
+function takeFiltered(
+  inv: ItemStack[],
+  tokenId: number,
+  amount: number,
+  match: (row: ItemStack) => boolean,
+): boolean {
   if (amount <= 0) return false;
-  if (stackAmount(inv, tokenId) < amount) return false;
   const rows = inv
-    .filter((row) => row.tokenId === tokenId)
+    .filter((row) => row.tokenId === tokenId && match(row))
     .sort((a, b) => Number(!!a.starter) - Number(!!b.starter));
+  const have = rows.reduce((sum, row) => sum + row.amount, 0);
+  if (have < amount) return false;
   let need = amount;
   for (const row of rows) {
     if (need <= 0) break;
@@ -96,9 +119,19 @@ export function takeStack(inv: ItemStack[], tokenId: number, amount: number): bo
   return true;
 }
 
+/** Spend normal quality only. HQ stays in the bag so a log move cannot strip it. */
+export function takeStack(inv: ItemStack[], tokenId: number, amount: number): boolean {
+  return takeFiltered(inv, tokenId, amount, (row) => !row.hq);
+}
+
+/** Spend one high-quality stack. */
+export function takeHqStack(inv: ItemStack[], tokenId: number, amount: number): boolean {
+  return takeFiltered(inv, tokenId, amount, (row) => !!row.hq && !row.starter);
+}
+
 /** Delete one flagged stack. Returns how many were removed. Not a sale. */
-export function discardStack(inv: ItemStack[], tokenId: number, starter: boolean): number {
-  const idx = inv.findIndex((row) => row.tokenId === tokenId && !!row.starter === starter);
+export function discardStack(inv: ItemStack[], tokenId: number, starter: boolean, hq = false): number {
+  const idx = inv.findIndex((row) => row.tokenId === tokenId && !!row.starter === starter && !!row.hq === hq);
   if (idx < 0) return 0;
   const removed = inv[idx]!.amount;
   inv.splice(idx, 1);

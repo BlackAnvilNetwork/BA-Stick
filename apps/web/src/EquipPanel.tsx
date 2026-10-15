@@ -13,6 +13,8 @@ import {
 import {
   aggregateEquipmentStatsScaled,
   getItem,
+  hqAmount,
+  hqStats,
   itemIcon,
   itemName,
   scaleGearStat,
@@ -33,7 +35,7 @@ function isMatKind(kind: string | undefined): boolean {
   return kind === "base" || kind === "intermediate" || kind === "filler" || kind === "bait";
 }
 
-type BagRow = { tokenId: number; amount: number; starter?: boolean };
+type BagRow = { tokenId: number; amount: number; starter?: boolean; hq?: boolean };
 
 type SlotDef = { id: EquipSlot; label: string };
 
@@ -78,7 +80,7 @@ export function EquipPanel({ you, me, onClose }: Props) {
     you.skillUnlocked ?? [],
     you.freeStats ?? {},
   );
-  const gearStats = aggregateEquipmentStatsScaled(you.equip, you.level);
+  const gearStats = aggregateEquipmentStatsScaled(you.equip, you.level, you.equipHq);
   const stats = {
     str: derived.total.str + (gearStats.str ?? 0),
     dex: derived.total.dex + (gearStats.dex ?? 0),
@@ -268,12 +270,16 @@ function BagItemRow({
   const ilevel = def?.craftLevel ?? 1;
   const isEquipment = def?.kind === "equipment";
   const isUnderleveled = isEquipment && you.level < ilevel;
-  const statsLine = isUnderleveled && def?.stats
-    ? formatScaledStats(def.stats, you.level, ilevel)
-    : formatPrimaryEffects(def?.stats, def?.consume?.hp);
+  const shownStats = item.hq ? hqStats(def?.stats) : def?.stats;
+  const shownHp = item.hq && def?.consume?.hp ? hqAmount(def.consume.hp) : def?.consume?.hp;
+  const statsLine = isUnderleveled && shownStats
+    ? formatScaledStats(shownStats, you.level, ilevel)
+    : formatPrimaryEffects(shownStats, shownHp);
   const jobsLine = formatJobs(def?.jobRestrict);
   const actions = showActions ? bagItemActions(item, you) : null;
-  const equipped = Object.values(you.equip).includes(item.tokenId);
+  const equipped = (Object.entries(you.equip) as [EquipSlot, number | null][]).some(
+    ([slot, id]) => id === item.tokenId && !!you.equipHq?.[slot] === !!item.hq,
+  );
 
   return (
     <div className={`equip-bag-card${equipped ? " equipped" : ""}`}>
@@ -289,7 +295,7 @@ function BagItemRow({
       />
       <div className="equip-bag-card-body">
         <div className="equip-item-name">
-          {itemName(item.tokenId)}{item.starter ? " (starter)" : ""}
+          {item.hq ? "HQ " : ""}{itemName(item.tokenId)}{item.starter ? " (starter)" : ""}
           <span className="equip-item-qty"> x{item.amount}</span>
         </div>
         {statsLine ? <div className="equip-item-stats">{statsLine}</div> : null}
@@ -323,7 +329,7 @@ function bagItemActions(item: BagRow, you: SnapshotMessage["you"]) {
 
   if (def?.kind === "equipment" && def.slot) {
     const slot = def.slot;
-    const equipped = you.equip[slot] === tokenId;
+    const equipped = you.equip[slot] === tokenId && !!you.equipHq?.[slot] === !!item.hq;
     const jobs = def.jobRestrict;
     const jobAllowed =
       !jobs ||
@@ -344,21 +350,21 @@ function bagItemActions(item: BagRow, you: SnapshotMessage["you"]) {
       label: equipped ? "Unequip" : `Equip ${slot}`,
       disabled: !equipped && !!reason,
       title: reason,
-      onClick: () => send({ type: "equip", slot, tokenId: equipped ? null : tokenId }),
+      onClick: () => send({ type: "equip", slot, tokenId: equipped ? null : tokenId, hq: item.hq === true }),
     });
   }
   if (def?.kind === "consumable" && def.consume) {
     btns.push({
       key: "use",
       label: "Use",
-      onClick: () => send({ type: "item/use", tokenId }),
+      onClick: () => send({ type: "item/use", tokenId, hq: item.hq === true }),
     });
   }
   btns.push({
     key: "discard",
     label: "Discard",
     title: item.starter ? "Starter gear cannot be sold or exported. Discard destroys it." : "Destroy this stack",
-    onClick: () => send({ type: "item/discard", tokenId, starter: !!item.starter }),
+    onClick: () => send({ type: "item/discard", tokenId, starter: !!item.starter, hq: item.hq === true }),
   });
   if (!btns.length) return null;
   return (
@@ -473,7 +479,7 @@ function EquipCell({
   return (
     <button
       type="button"
-      title={equipped ? `${itemName(equipped)} (click to unequip)` : `${slot.label} — empty`}
+      title={equipped ? `${you.equipHq?.[slot.id] ? "HQ " : ""}${itemName(equipped)} (click to unequip)` : `${slot.label} — empty`}
       onClick={() => equipped && send({ type: "equip", slot: slot.id, tokenId: null })}
       disabled={!equipped}
       className={`equip-cell live${equipped ? " filled" : ""}`}
