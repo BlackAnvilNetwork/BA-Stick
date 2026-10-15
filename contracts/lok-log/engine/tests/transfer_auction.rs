@@ -3,7 +3,7 @@
 use std::process::Command;
 
 use lok_engine::{
-    entry_hash, fungible_id, replay_world, unique_id, EngineError, Input, U256, World,
+    entry_hash, fungible_id, load_world, replay_world, unique_id, EngineError, Input, U256, World,
 };
 
 fn n(v: u64) -> U256 {
@@ -276,4 +276,31 @@ fn gold_spend_and_paid_respec_leave_no_kek_out() {
     assert_eq!(world.gold_balance(&n(1)), Some(n(4000)));
     let drafted = world.checkpoint_span(&n(1), world.character_len(&n(1)).unwrap()).unwrap();
     assert!(drafted.exports.is_empty());
+}
+
+#[test]
+fn bag_export_debits_without_becoming_a_checkpoint_export() {
+    let ore = fungible_id("iron_ore");
+    let mut world = two_characters();
+    import_item(&mut world, n(1), ore, n(5)).unwrap();
+    world.append_bag_export(n(1), ore, n(2)).unwrap();
+    assert_eq!(world.item_balance(&n(1), &ore), Some(n(3)));
+    let bag_only = world.checkpoint_span(&n(1), world.character_len(&n(1)).unwrap()).unwrap();
+    assert!(bag_only.exports.is_empty(), "a bag move is not an ERC-1155 mint");
+
+    world.append_export_item(n(1), ore, n(1)).unwrap();
+    assert_eq!(world.item_balance(&n(1), &ore), Some(n(2)));
+    let drafted = world.checkpoint_span(&n(1), world.character_len(&n(1)).unwrap()).unwrap();
+    assert_eq!(drafted.exports.len(), 1);
+    assert_eq!(drafted.exports[0].item_id, ore);
+    assert_eq!(drafted.exports[0].amount, 1);
+
+    let loaded = load_world(&world.to_document()).expect("replay");
+    assert_eq!(loaded.item_balance(&n(1), &ore), Some(n(2)));
+    assert!(matches!(
+        loaded.character_entries(&n(1)).unwrap().iter().rev().nth(1).map(|e| &e.input),
+        Some(Input::BagExport { .. })
+    ));
+    let chain = loaded.character_entries(&n(1)).unwrap().last().unwrap();
+    assert!(matches!(chain.input, Input::ExportItem { .. }));
 }

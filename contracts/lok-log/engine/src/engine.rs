@@ -228,6 +228,7 @@ impl Engine {
                 self.credit_inbound(*token_id, *nonce, |engine| engine.credit_item(*token_id, *item_id, *amount))
             }
             Input::BagImport { token_id, item_id, amount } => self.credit_item(*token_id, *item_id, *amount),
+            Input::BagExport { token_id, item_id, amount } => self.debit_item(*token_id, *item_id, *amount),
             Input::ExportItem { token_id, item_id, amount } => self.debit_item(*token_id, *item_id, *amount),
             Input::SendItem { from, to, item_id, amount } => self.transfer_item(*from, *to, *item_id, *amount),
             Input::List { .. }

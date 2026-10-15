@@ -370,7 +370,8 @@ export function rememberLedger(path: string, build: (flags: LedgerFlags) => Play
 
 /**
  * First boot for a character with no save: copy the log's spendable items into the bag,
- * then export them off the log so a drop is not spendable twice.
+ * then bag-export them off the log so a drop is not spendable twice. That move is not
+ * a checkpoint ERC-1155 export.
  * Every later pass copies any stack that is about to leave the log and was not copied yet.
  * Level stays the logged level. XP is not in the log, so a first save starts the level at 0 XP.
  * Learned trainer abilities, skill-tree nodes, and craft skill levels hydrate from the log,

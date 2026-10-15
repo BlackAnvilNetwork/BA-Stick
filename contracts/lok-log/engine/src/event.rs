@@ -69,7 +69,12 @@ pub enum Input {
     /// Move a stack from the in-game bag onto the log. No chain inbound nonce.
     /// Not counted in inboundConsumed. Credits spendable items.
     BagImport { token_id: U256, item_id: U256, amount: U256 },
-    /// Burns spendable items out of the log (the export side of a checkpoint). Escrowed listings are not spendable.
+    /// Move a stack from the log back into the in-game bag. Debits spendable items.
+    /// Not a checkpoint export: it does not mint ERC-1155.
+    BagExport { token_id: U256, item_id: U256, amount: U256 },
+    /// Burns spendable items out of the log as a chain withdrawal. Packed into
+    /// `Checkpoint.exports` and minted when exports are enabled. Escrowed listings
+    /// are not spendable. A bag move is `BagExport`, not this.
     ExportItem { token_id: U256, item_id: U256, amount: U256 },
     SendItem { from: U256, to: U256, item_id: U256, amount: U256 },
     List { listing_id: U256, seller: U256, item_id: U256, amount: U256 },
@@ -193,6 +198,12 @@ pub fn event_id(input: &Input) -> [u8; 32] {
         }
         Input::BagImport { token_id, item_id, amount } => {
             buf.b256(&domain(b"LOK_BAG_IMPORT_V1"));
+            buf.u256(token_id);
+            buf.u256(item_id);
+            buf.u256(amount);
+        }
+        Input::BagExport { token_id, item_id, amount } => {
+            buf.b256(&domain(b"LOK_BAG_EXPORT_V1"));
             buf.u256(token_id);
             buf.u256(item_id);
             buf.u256(amount);

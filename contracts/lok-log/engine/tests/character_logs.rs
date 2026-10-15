@@ -414,8 +414,12 @@ fn expected_ore(w: &World) -> U256 {
                 continue;
             }
             match &e.input {
-                Input::ImportItem { amount, .. } => inn = inn.checked_add(*amount).unwrap(),
-                Input::ExportItem { amount, .. } => out = out.checked_add(*amount).unwrap(),
+                Input::ImportItem { amount, .. } | Input::BagImport { amount, .. } => {
+                    inn = inn.checked_add(*amount).unwrap()
+                }
+                Input::ExportItem { amount, .. } | Input::BagExport { amount, .. } => {
+                    out = out.checked_add(*amount).unwrap()
+                }
                 _ => {}
             }
         }

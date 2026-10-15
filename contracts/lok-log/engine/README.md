@@ -65,7 +65,8 @@ Exit 0 prints the head, state root, and summary. Exit 1 is a bad hash. Exit 2 is
 | `append_gold_spend` | `goldSpend` (trainer / craft / respec sinks) | that character |
 | `append_gold_sell` | `goldSell` (NPC buy-back; burns items, credits gold) | that character |
 | `append_import_item` | `importItem` (per-character inbound nonce) | that character |
-| `append_export_item` | `exportItem` (spendable balance only) | that character |
+| `append_bag_export` | `bagExport` (back to the bag; not a checkpoint mint) | that character |
+| `append_export_item` | `exportItem` (chain withdrawal; packed into checkpoint exports) | that character |
 | `append_send_item` | `sendItem` | sender and recipient |
 | `append_list` | `list` (item escrow; no KEK bid) | seller |
 | `append_cancel` | `cancel` | seller |
@@ -78,7 +79,7 @@ The payload (and therefore `event_id`) is the same on every log that carries the
 
 Reads: `gold_balance`, `item_balance`, `listing`, `listings`. `apply` is the same append path with an `Input`.
 
-Listing escrows the item out of the seller's spendable balance, so that quantity cannot be transferred, exported, or listed again. Cancel is seller-only and returns the item. A KEK bid, settle, fill, or buy is refused and is not appended. Live payment is an AhEscrow `chainFill`, which puts the stack in the buyer's inbox and does not move gold. Sender and recipient must already be spawned. Sending to yourself fails. A short balance fails closed and is not appended.
+A bag export debits spendable items and is not included in checkpoint `exports`. `exportItem` is the chain withdrawal: the same debit, and the span's checkpoint lists it for ERC-1155 minting when exports are enabled. Listing escrows the item out of the seller's spendable balance, so that quantity cannot be transferred, exported, or listed again. Cancel is seller-only and returns the item. A KEK bid, settle, fill, or buy is refused and is not appended. Live payment is an AhEscrow `chainFill`, which puts the stack in the buyer's inbox and does not move gold. Sender and recipient must already be spawned. Sending to yourself fails. A short balance fails closed and is not appended.
 
 `lok-replay` of a document with `"type": "characters"` replays those chains and still stops at the first bad hash (exit 1) before applying it or anything after it. An empty legacy `{"type":"world","entries":[]}` file still opens. A non-empty legacy world log is refused, because that single chain cannot be split into per-character checkpoints.
 
