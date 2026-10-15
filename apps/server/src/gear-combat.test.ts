@@ -13,6 +13,7 @@ import {
 import { getItem } from "@bellgrave/items";
 import { gearDef, gearMab, playerDefenseWithGear, withGearMab } from "./gear-combat";
 import { mobAutoAttackRoll, targetPhysDef, type MobJobCombatant } from "./mob-job-ai";
+import { resetGameRollForTests, scriptNextRollsForTests } from "./game-roll";
 import { resolveSorcererAbility, type SorcererMob, type SorcererPlayer } from "./sorcerer-abilities";
 
 const IRON_MAIL = 5; // body, def 20
@@ -126,24 +127,29 @@ function fighterMob(level: number): MobJobCombatant {
   };
 }
 
-test("mob physical hits roll against gear def, but never drop to 0", (t) => {
-  t.mock.method(Math, "random", () => 0); // always hit
-  const mob = fighterMob(30);
-  const vit = 20;
-  const bare = mobAutoAttackRoll(mob, { vit, agi: 10 }, 1_000);
-  const sameAsVitOnly = mobAutoAttackRoll(mob, { vit, agi: 10, def: playerDefense(vit) }, 1_000);
-  const armored = mobAutoAttackRoll(mob, { vit, agi: 10, def: playerDefense(vit, 60) }, 1_000);
-  const tank = mobAutoAttackRoll(mob, { vit, agi: 10, def: playerDefense(vit, 100_000) }, 1_000);
-  assert.equal(bare.hit, true);
-  assert.equal(bare.anim, "melee");
-  // No gear def = exactly the old VIT-only number.
-  assert.equal(sameAsVitOnly.dmg, bare.dmg);
-  assert.ok(armored.dmg < bare.dmg, `armor should cut damage (${armored.dmg} vs ${bare.dmg})`);
-  // physicalDamage's 0.1 ratio floor bounds the reduction; never 0 or negative.
-  assert.ok(tank.dmg >= 1);
-  assert.ok(tank.dmg >= Math.floor(bare.dmg * 0.1) - 1);
-  assert.equal(targetPhysDef({ vit, agi: 0 }), defenseFromVit(vit));
-  assert.equal(targetPhysDef({ vit, agi: 0, def: -5 }), 1);
+test("mob physical hits roll against gear def, but never drop to 0", () => {
+  resetGameRollForTests();
+  scriptNextRollsForTests([0, 0, 0, 0]); // always hit
+  try {
+    const mob = fighterMob(30);
+    const vit = 20;
+    const bare = mobAutoAttackRoll(mob, { vit, agi: 10 }, 1_000);
+    const sameAsVitOnly = mobAutoAttackRoll(mob, { vit, agi: 10, def: playerDefense(vit) }, 1_000);
+    const armored = mobAutoAttackRoll(mob, { vit, agi: 10, def: playerDefense(vit, 60) }, 1_000);
+    const tank = mobAutoAttackRoll(mob, { vit, agi: 10, def: playerDefense(vit, 100_000) }, 1_000);
+    assert.equal(bare.hit, true);
+    assert.equal(bare.anim, "melee");
+    // No gear def = exactly the old VIT-only number.
+    assert.equal(sameAsVitOnly.dmg, bare.dmg);
+    assert.ok(armored.dmg < bare.dmg, `armor should cut damage (${armored.dmg} vs ${bare.dmg})`);
+    // physicalDamage's 0.1 ratio floor bounds the reduction; never 0 or negative.
+    assert.ok(tank.dmg >= 1);
+    assert.ok(tank.dmg >= Math.floor(bare.dmg * 0.1) - 1);
+    assert.equal(targetPhysDef({ vit, agi: 0 }), defenseFromVit(vit));
+    assert.equal(targetPhysDef({ vit, agi: 0, def: -5 }), 1);
+  } finally {
+    resetGameRollForTests();
+  }
 });
 
 test("more gear def never increases physical damage", () => {

@@ -11,6 +11,7 @@ import { signatureWeaponEquipped } from "./starter-kit";
 import { kitLevel } from "./support-job";
 import { withGearMab, withHealPotency } from "./gear-combat";
 import type { AbilityId } from "@bellgrave/protocol";
+import { rollUnit } from "./game-roll";
 
 export type BattleMagePlayer = {
   level: number;
@@ -504,7 +505,7 @@ export function resolveBattleMageAbility(
     const failChance = resistSkip ? 0 : 0.12;
 
     if (id === "bm_dia") {
-      if (!resistSkip && Math.random() < failChance) {
+      if (!resistSkip && rollUnit("battlemage." + id) < failChance) {
         hooks.pushLog(p, `${def.label} resisted.`);
         return true;
       }
@@ -515,7 +516,7 @@ export function resolveBattleMageAbility(
       return true;
     }
     if (id === "bm_bio") {
-      if (!resistSkip && Math.random() < failChance) {
+      if (!resistSkip && rollUnit("battlemage." + id) < failChance) {
         hooks.pushLog(p, `${def.label} resisted.`);
         return true;
       }
@@ -529,7 +530,7 @@ export function resolveBattleMageAbility(
       return true;
     }
     if (id === "bm_slow") {
-      if (!resistSkip && Math.random() < failChance) {
+      if (!resistSkip && rollUnit("battlemage." + id) < failChance) {
         hooks.pushLog(p, `${def.label} resisted.`);
         return true;
       }
@@ -537,28 +538,28 @@ export function resolveBattleMageAbility(
       m.swingPenalty = 0.28;
       hooks.pushLog(p, `${def.label} — foe drags.`);
     } else if (id === "bm_paralyze") {
-      if (!resistSkip && Math.random() < failChance + 0.08) {
+      if (!resistSkip && rollUnit("battlemage." + id) < failChance + 0.08) {
         hooks.pushLog(p, `${def.label} resisted.`);
         return true;
       }
       m.paraUntil = now + dur;
       hooks.pushLog(p, `${def.label} — muscles lock.`);
     } else if (id === "bm_silence") {
-      if (!resistSkip && Math.random() < failChance) {
+      if (!resistSkip && rollUnit("battlemage." + id) < failChance) {
         hooks.pushLog(p, `${def.label} resisted.`);
         return true;
       }
       m.silenceUntil = now + dur;
       hooks.pushLog(p, `${def.label} — muted.`);
     } else if (id === "bm_blind") {
-      if (!resistSkip && Math.random() < failChance) {
+      if (!resistSkip && rollUnit("battlemage." + id) < failChance) {
         hooks.pushLog(p, `${def.label} resisted.`);
         return true;
       }
       m.blindUntil = now + dur;
       hooks.pushLog(p, `${def.label} — veiled.`);
     } else if (id === "bm_gravity") {
-      if (!resistSkip && Math.random() < failChance) {
+      if (!resistSkip && rollUnit("battlemage." + id) < failChance) {
         hooks.pushLog(p, `${def.label} resisted.`);
         return true;
       }
@@ -568,14 +569,14 @@ export function resolveBattleMageAbility(
       m.swingPenalty = Math.max(m.swingPenalty, 0.2);
       hooks.pushLog(p, `${def.label} — weight crushes.`);
     } else if (id === "bm_bind") {
-      if (!resistSkip && Math.random() < failChance + 0.05) {
+      if (!resistSkip && rollUnit("battlemage." + id) < failChance + 0.05) {
         hooks.pushLog(p, `${def.label} resisted.`);
         return true;
       }
       m.bindUntil = now + dur;
       hooks.pushLog(p, `${def.label} — chained.`);
     } else if (id === "bm_sleep") {
-      if (!resistSkip && Math.random() < failChance + 0.1) {
+      if (!resistSkip && rollUnit("battlemage." + id) < failChance + 0.1) {
         hooks.pushLog(p, `${def.label} resisted.`);
         return true;
       }
