@@ -16,6 +16,7 @@ import {
   weaponTypeFromTokenId,
   type JobId,
 } from "@bellgrave/combat";
+import { takeMobHit, type MobEnhanceHost } from "./mob-enhances";
 
 export type WeaponTpPlayer = {
   wallet: string;
@@ -49,7 +50,7 @@ export type WeaponTpMob = {
   atkDownUntil: number;
   atkDownMul: number;
   diaUntil: number;
-};
+} & MobEnhanceHost;
 
 export type WeaponTpCtx = {
   pushLog: (p: WeaponTpPlayer, msg: string) => void;
@@ -162,7 +163,7 @@ export function resolveWeaponTpAbility(
     );
     const core = Math.max(1, Math.floor(base * def.ftp));
     const bonus = Math.max(0, Math.floor(core * tpMul));
-    const hit = core + bonus;
+    const hit = takeMobHit(mob, core + bonus, "physical", now);
     totalBonus += bonus;
     parts.push(hit);
     total += hit;

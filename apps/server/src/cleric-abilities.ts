@@ -12,6 +12,7 @@ import { kitLevel } from "./support-job";
 import { gearHealPotency, withGearMab, withHealPotency } from "./gear-combat";
 import type { AbilityId } from "@bellgrave/protocol";
 import { ailmentLabel, clearAilments, diseasedHeal, naTargets } from "./player-ailments";
+import { takeMobHit, type MobEnhanceHost } from "./mob-enhances";
 
 export type ClericPlayer = {
   level: number;
@@ -81,7 +82,7 @@ export type ClericMob = {
   swingPenalty: number;
   silenceUntil: number;
   paraUntil: number;
-};
+} & MobEnhanceHost;
 
 export type ClericHooks = {
   pushLog: (p: ClericPlayer, msg: string) => void;
@@ -536,7 +537,7 @@ export function resolveClericAbility(
     spend();
     p.facing = hooks.facingTo(p.x, p.z, m.x, m.z);
     const double = consumeDivineSeal(p);
-    const dmg = divineNuke(p, def.potency ?? 65, double, combatStats);
+    const dmg = takeMobHit(m, divineNuke(p, def.potency ?? 65, double, combatStats), "magic", now);
     m.hp -= dmg;
     p.sacredLightUntil = now + 800;
     p.anim = "cast";

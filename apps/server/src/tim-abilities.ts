@@ -12,6 +12,7 @@ import {
 import { signatureWeaponEquipped } from "./starter-kit";
 import { kitLevel } from "./support-job";
 import { withGearMab, withHealPotency } from "./gear-combat";
+import { takeMobHit, type MobEnhanceHost } from "./mob-enhances";
 import type { AbilityId } from "@bellgrave/protocol";
 
 export type TimPlayer = {
@@ -71,7 +72,7 @@ export type TimMob = {
   addleUntil: number;
   silenceUntil: number;
   paraUntil: number;
-};
+} & MobEnhanceHost;
 
 
 export function staffEquipped(p: TimPlayer): boolean {
@@ -119,7 +120,7 @@ function chronaShatter(
   const { mnd } = stats;
   let dmg = Math.floor((28 + mnd * 2.2) * aetherAmp(p));
   if (sealBonus) dmg = Math.floor(dmg * 1.2);
-  dmg = withGearMab(p, dmg);
+  dmg = takeMobHit(m, withGearMab(p, dmg), "magic", now);
   const interruptMs = sealBonus ? 2800 : 2000;
   m.hp = Math.max(0, m.hp - dmg);
   m.nextSwingAt = Math.max(m.nextSwingAt, now + interruptMs);
@@ -413,7 +414,7 @@ export function resolveTimAbility(
       let killed = 0;
       let totalDmg = 0;
       for (const m of hits) {
-        const dmg = temporalDistortionDamage(p, m, now, combatStats);
+        const dmg = takeMobHit(m, temporalDistortionDamage(p, m, now, combatStats), "magic", now);
         totalDmg += dmg;
         m.hp = Math.max(0, m.hp - dmg);
         m.petrifyUntil = now + 60_000;

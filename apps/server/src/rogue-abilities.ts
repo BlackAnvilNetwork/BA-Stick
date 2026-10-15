@@ -12,6 +12,7 @@ import {
   type JobId,
 } from "@bellgrave/combat";
 import { signatureWeaponEquipped } from "./starter-kit";
+import { takeMobHit } from "./mob-enhances";
 import { kitLevel } from "./support-job";
 import type { AbilityId } from "@bellgrave/protocol";
 import { rollIndex } from "./game-roll";
@@ -235,7 +236,7 @@ export function resolveRogueAbility(
     const level = Math.max(1, m.level ?? 1);
     const mobStats = jobStatsAtLevel(job, level);
     const mobDef = defenseFromVit(mobStats.vit);
-    const dmg = physicalDamage(att, mobDef, fStr(str, mobStats.vit), false);
+    const dmg = takeMobHit(m, physicalDamage(att, mobDef, fStr(str, mobStats.vit), false), "physical", now);
     m.hp -= dmg;
     const heal = Math.min(p.maxHp - p.hp, Math.floor(dmg * 0.85));
     p.hp += heal;

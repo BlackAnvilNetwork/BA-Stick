@@ -45,6 +45,14 @@ export type MobJobCombatant = {
   nextAbilityAt: number;
   atkBuffUntil: number;
   atkBuffMul: number;
+  protectUntil?: number;
+  protectPhysMul?: number;
+  shellUntil?: number;
+  shellMagMul?: number;
+  hasteUntil?: number;
+  hastePct?: number;
+  stoneskinUntil?: number;
+  stoneskinAbsorb?: number;
   atkDownUntil: number;
   atkDownMul: number;
   addleUntil: number;
@@ -129,7 +137,11 @@ export type MobAbilityId =
   | "mob_mend"
   | "mob_shield_bash"
   | "mob_backstab"
-  | "mob_arc_blade";
+  | "mob_arc_blade"
+  | "mob_protect"
+  | "mob_shell"
+  | "mob_haste"
+  | "mob_stoneskin";
 
 type AbilityPick = {
   id: MobAbilityId;
@@ -147,6 +159,7 @@ const JOB_ABILITIES: Record<JobId, AbilityPick[]> = {
     { id: "mob_power_strike", label: "Power Strike", mp: 0, recastMs: 7_000, minRange: 0, maxRange: MELEE_RANGE + 0.6 },
   ],
   knight: [
+    { id: "mob_protect", label: "Protect", mp: 0, recastMs: 18_000, minRange: 0, maxRange: 14 },
     { id: "mob_shield_bash", label: "Shield Bash", mp: 0, recastMs: 10_000, minRange: 0, maxRange: MELEE_RANGE + 0.6 },
     { id: "mob_power_strike", label: "Shield Smash", mp: 0, recastMs: 8_000, minRange: 0, maxRange: MELEE_RANGE + 0.6 },
   ],
@@ -154,21 +167,55 @@ const JOB_ABILITIES: Record<JobId, AbilityPick[]> = {
     { id: "mob_backstab", label: "Backstab", mp: 0, recastMs: 9_000, minRange: 0, maxRange: MELEE_RANGE + 0.5 },
   ],
   sorcerer: [
+    { id: "mob_shell", label: "Shell", mp: 12, recastMs: 18_000, minRange: 0, maxRange: ABILITY_RANGE },
     { id: "mob_ember_bolt", label: "Ember Lance", mp: 8, recastMs: 5_500, minRange: 0, maxRange: ABILITY_RANGE },
   ],
   cleric: [
+    { id: "mob_protect", label: "Protect", mp: 12, recastMs: 18_000, minRange: 0, maxRange: 14 },
     { id: "mob_mend", label: "Ashmend", mp: 10, recastMs: 12_000, minRange: 0, maxRange: 14 },
     { id: "mob_ember_bolt", label: "Sacred Bolt", mp: 8, recastMs: 6_500, minRange: 0, maxRange: ABILITY_RANGE },
   ],
   time_mage: [
+    { id: "mob_haste", label: "Haste", mp: 10, recastMs: 18_000, minRange: 0, maxRange: ABILITY_RANGE },
     { id: "mob_slow", label: "Slow", mp: 10, recastMs: 14_000, minRange: 0, maxRange: ABILITY_RANGE },
     { id: "mob_ember_bolt", label: "Chrono Spark", mp: 8, recastMs: 6_000, minRange: 0, maxRange: ABILITY_RANGE },
   ],
   battle_mage: [
+    { id: "mob_stoneskin", label: "Stoneskin", mp: 14, recastMs: 18_000, minRange: 0, maxRange: ABILITY_RANGE },
     { id: "mob_arc_blade", label: "Arc Blade", mp: 6, recastMs: 7_000, minRange: 0, maxRange: MELEE_RANGE + 1.2 },
     { id: "mob_ember_bolt", label: "Rune Bolt", mp: 8, recastMs: 6_500, minRange: 2.5, maxRange: ABILITY_RANGE },
   ],
 };
+
+const SELF_BUFFS: ReadonlySet<MobAbilityId> = new Set([
+  "mob_protect",
+  "mob_shell",
+  "mob_haste",
+  "mob_stoneskin",
+  "mob_berserk",
+]);
+
+function selfBuffUp(mob: MobJobCombatant, id: MobAbilityId, now: number): boolean {
+  switch (id) {
+    case "mob_protect":
+      return (mob.protectUntil ?? 0) > now;
+    case "mob_shell":
+      return (mob.shellUntil ?? 0) > now;
+    case "mob_haste":
+      return (mob.hasteUntil ?? 0) > now;
+    case "mob_stoneskin":
+      return (mob.stoneskinUntil ?? 0) > now && (mob.stoneskinAbsorb ?? 0) > 0;
+    case "mob_berserk":
+      return mob.atkBuffUntil > now;
+    default:
+      return false;
+  }
+}
+
+function pace(mob: MobJobCombatant, now: number, baseMs: number): void {
+  const haste = (mob.hasteUntil ?? 0) > now ? mob.hastePct ?? 0 : 0;
+  mob.nextSwingAt = now + swingDelayMs(baseMs, haste);
+}
 
 /** Cast tell duration before damage / Slow resolve (ms). */
 export const MOB_CAST_WINDUP_MS = 550;
@@ -211,12 +258,17 @@ export function tryMobJobAbility(mob: MobJobCombatant, hooks: MobAbilityHooks): 
     "mob_ember_bolt",
     "mob_slow",
     "mob_mend",
+    "mob_protect",
+    "mob_shell",
+    "mob_haste",
+    "mob_stoneskin",
   ]);
   const ready = picks.filter(
     (a) =>
       dist >= a.minRange &&
       dist <= a.maxRange &&
       mob.mp >= a.mp &&
+      !selfBuffUp(mob, a.id, now) &&
       !(silenced && CAST_IDS.has(a.id)),
   );
   if (ready.length === 0) return { ok: false };
@@ -225,6 +277,9 @@ export function tryMobJobAbility(mob: MobJobCombatant, hooks: MobAbilityHooks): 
   if (mob.hp < mob.maxHp * 0.45) {
     const mend = ready.find((a) => a.id === "mob_mend");
     if (mend) choice = mend;
+  } else if (mob.hp >= mob.maxHp * 0.7) {
+    const ward = ready.find((a) => SELF_BUFFS.has(a.id));
+    if (ward) choice = ward;
   }
 
   mob.mp = Math.max(0, mob.mp - choice.mp);
@@ -239,8 +294,44 @@ export function tryMobJobAbility(mob: MobJobCombatant, hooks: MobAbilityHooks): 
       mob.atkBuffMul = 1.35;
       mob.anim = "cast";
       mob.animUntil = now + MOB_CAST_ANIM_MS;
-      mob.nextSwingAt = now + 900;
+      pace(mob, now, 900);
       pushLog(`${mob.name} flies into a Berserk rage!`);
+      return { ok: true };
+    }
+    case "mob_protect": {
+      mob.protectUntil = now + 20_000;
+      mob.protectPhysMul = 0.75;
+      mob.anim = "cast";
+      mob.animUntil = now + MOB_CAST_ANIM_MS;
+      pace(mob, now, 1100);
+      pushLog(`${mob.name} casts Protect.`);
+      return { ok: true };
+    }
+    case "mob_shell": {
+      mob.shellUntil = now + 20_000;
+      mob.shellMagMul = 0.75;
+      mob.anim = "cast";
+      mob.animUntil = now + MOB_CAST_ANIM_MS;
+      pace(mob, now, 1100);
+      pushLog(`${mob.name} casts Shell.`);
+      return { ok: true };
+    }
+    case "mob_haste": {
+      mob.hasteUntil = now + 20_000;
+      mob.hastePct = 0.25;
+      mob.anim = "cast";
+      mob.animUntil = now + MOB_CAST_ANIM_MS;
+      pace(mob, now, 1100);
+      pushLog(`${mob.name} casts Haste.`);
+      return { ok: true };
+    }
+    case "mob_stoneskin": {
+      mob.stoneskinUntil = now + 24_000;
+      mob.stoneskinAbsorb = Math.max(16, mob.level * 3);
+      mob.anim = "cast";
+      mob.animUntil = now + MOB_CAST_ANIM_MS;
+      pace(mob, now, 1100);
+      pushLog(`${mob.name} casts Stoneskin.`);
       return { ok: true };
     }
     case "mob_mend": {
@@ -248,7 +339,7 @@ export function tryMobJobAbility(mob: MobJobCombatant, hooks: MobAbilityHooks): 
       mob.hp = Math.min(mob.maxHp, mob.hp + heal);
       mob.anim = "cast";
       mob.animUntil = now + MOB_CAST_ANIM_MS;
-      mob.nextSwingAt = now + 1100;
+      pace(mob, now, 1100);
       pushLog(`${mob.name} mends for ${heal} HP.`);
       return { ok: true };
     }
@@ -256,7 +347,7 @@ export function tryMobJobAbility(mob: MobJobCombatant, hooks: MobAbilityHooks): 
       // Wind-up first — Slow resolves after MOB_CAST_WINDUP_MS so the tell leads.
       mob.anim = "cast";
       mob.animUntil = now + MOB_CAST_ANIM_MS;
-      mob.nextSwingAt = now + swingDelayMs(2200, 0);
+      pace(mob, now, 2200);
       return {
         ok: true,
         pending: {
@@ -278,7 +369,7 @@ export function tryMobJobAbility(mob: MobJobCombatant, hooks: MobAbilityHooks): 
       }
       mob.anim = "melee";
       mob.animUntil = now + 480;
-      mob.nextSwingAt = now + swingDelayMs(2600, 0);
+      pace(mob, now, 2600);
       applyPlayerDamage(dmg, `${mob.name} Shield Bashes you for ${dmg}.`);
       return { ok: true };
     }
@@ -290,7 +381,7 @@ export function tryMobJobAbility(mob: MobJobCombatant, hooks: MobAbilityHooks): 
       dmg = Math.max(1, Math.floor(dmg * (crit ? 1.4 : 1.15)));
       mob.anim = "melee";
       mob.animUntil = now + 420;
-      mob.nextSwingAt = now + swingDelayMs(2200, 0);
+      pace(mob, now, 2200);
       applyPlayerDamage(dmg, crit ? `${mob.name} Backstabs you for ${dmg} (Critical)!` : `${mob.name} Backstabs you for ${dmg}.`);
       return { ok: true };
     }
@@ -301,7 +392,7 @@ export function tryMobJobAbility(mob: MobJobCombatant, hooks: MobAbilityHooks): 
       dmg = Math.max(1, Math.floor(dmg * 1.3));
       mob.anim = "melee";
       mob.animUntil = now + 500;
-      mob.nextSwingAt = now + swingDelayMs(2500, 0);
+      pace(mob, now, 2500);
       applyPlayerDamage(dmg, `${mob.name} uses ${choice.label} for ${dmg}.`);
       return { ok: true };
     }
@@ -319,7 +410,7 @@ export function tryMobJobAbility(mob: MobJobCombatant, hooks: MobAbilityHooks): 
       dmg = Math.max(1, Math.floor(dmg * 1.2));
       mob.anim = "melee";
       mob.animUntil = now + 460;
-      mob.nextSwingAt = now + swingDelayMs(2300, 0);
+      pace(mob, now, 2300);
       applyPlayerDamage(dmg, `${mob.name}'s Arc Blade hits for ${dmg}.`);
       return { ok: true };
     }
@@ -330,7 +421,7 @@ export function tryMobJobAbility(mob: MobJobCombatant, hooks: MobAbilityHooks): 
       let dmg = Math.max(1, power - resist + 6);
       mob.anim = "cast";
       mob.animUntil = now + MOB_CAST_ANIM_MS;
-      mob.nextSwingAt = now + swingDelayMs(2400, 0);
+      pace(mob, now, 2400);
       return {
         ok: true,
         pending: {

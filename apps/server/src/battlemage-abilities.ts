@@ -12,6 +12,7 @@ import { kitLevel } from "./support-job";
 import { withGearMab, withHealPotency } from "./gear-combat";
 import type { AbilityId } from "@bellgrave/protocol";
 import { rollUnit } from "./game-roll";
+import { activeMobEnhances, stripMobEnhances, takeMobHit } from "./mob-enhances";
 
 export type BattleMagePlayer = {
   level: number;
@@ -292,7 +293,12 @@ export function resolveBattleMageAbility(
     spend();
     p.facing = hooks.facingTo(p.x, p.z, m.x, m.z);
     const bonus = p.enSpellBonus + combatStats.int * 0.5;
-    const dmg = withGearMab(p, Math.max(1, Math.floor((def.potency ?? 200) + bonus * 4)));
+    const dmg = takeMobHit(
+      m,
+      withGearMab(p, Math.max(1, Math.floor((def.potency ?? 200) + bonus * 4))),
+      "magic",
+      now,
+    );
     m.hp -= dmg;
     p.enSpellUntil = 0;
     p.enSpellBonus = 0;
@@ -476,7 +482,7 @@ export function resolveBattleMageAbility(
       for (const hit of hooks.allMobs()) {
         if (!hit.alive) continue;
         if (hooks.dist(m.x, m.z, hit.x, hit.z) > r) continue;
-        const d = Math.max(1, Math.floor(dmg * (hit.id === m.id ? 1 : 0.75)));
+        const d = takeMobHit(hit, Math.max(1, Math.floor(dmg * (hit.id === m.id ? 1 : 0.75))), "magic", now);
         hit.hp -= d;
         if (hit.sleepUntil > now) hit.sleepUntil = 0;
         total += d;
@@ -487,6 +493,7 @@ export function resolveBattleMageAbility(
       hooks.pushLog(p, `${def.label} — ${total} total ember damage!`);
       return true;
     }
+    dmg = takeMobHit(m, dmg, "magic", now);
     m.hp -= dmg;
     if (m.sleepUntil > now) m.sleepUntil = 0;
     p.anim = "cast";
@@ -497,6 +504,18 @@ export function resolveBattleMageAbility(
   }
 
   if (def.category === "enfeeble") {
+    if (id === "bm_dispel") {
+      if (activeMobEnhances(m, now).length === 0) {
+        hooks.pushLog(p, `${def.label} — nothing to unravel.`);
+        return true;
+      }
+      spend();
+      const stripped = stripMobEnhances(m, now);
+      p.anim = "cast";
+      p.animUntil = now + castAnimMs;
+      hooks.pushLog(p, `${def.label} — ${stripped.join(", ")} unraveled.`);
+      return true;
+    }
     spend();
     if (corrupt) p.corruptReady = false;
     if (lock) p.lockspellReady = false;
@@ -582,18 +601,6 @@ export function resolveBattleMageAbility(
       }
       m.sleepUntil = now + dur;
       hooks.pushLog(p, `${def.label} — deep sleep.`);
-    } else if (id === "bm_dispel") {
-      let stripped = 0;
-      if (m.falseGuardUntil > now) {
-        m.falseGuardUntil = 0;
-        stripped += 1;
-      }
-      hooks.pushLog(
-        p,
-        stripped > 0
-          ? `${def.label} — buffs unraveled.`
-          : `${def.label} — nothing to unravel.`,
-      );
     }
     p.anim = "cast";
     p.animUntil = now + castAnimMs;
