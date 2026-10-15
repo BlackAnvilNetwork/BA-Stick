@@ -1,6 +1,9 @@
 //! Per-character checkpoints and item conservation. KEK custody is retired.
 
-use lok_engine::{event_id, genesis_root, Engine, EngineError, Input, Key, U256, World};
+use lok_engine::{
+    entry_hash, event_id, genesis_root, load_world, Engine, EngineError, Input, Key, LoggedEntry,
+    ReplayStop, U256, World, WorldDocument,
+};
 
 fn n(v: u64) -> U256 {
     U256::from_u64(v)
@@ -246,6 +249,159 @@ fn total_ore(w: &World, ore: U256) -> U256 {
         }
     }
     t
+}
+
+fn push_forged(doc: &mut WorldDocument, token: U256, input: Input, seq: u64) {
+    let ch = doc.characters.iter_mut().find(|c| c.token_id == token).unwrap();
+    let prev = ch
+        .entries
+        .last()
+        .map(|e| e.hash)
+        .unwrap_or_else(|| genesis_root(&token, ch.starting_job));
+    let index = ch.entries.len() as u64;
+    let hash = entry_hash(&prev, index, &input);
+    ch.entries.push(LoggedEntry { hash, input, seq });
+}
+
+#[test]
+fn load_rejects_a_one_sided_send_that_would_mint() {
+    let ore = lok_engine::fungible_id("iron_ore");
+    let mut world = spawn_pair();
+    import_item(&mut world, n(1), ore, n(5)).unwrap();
+    world.append_send_item(n(1), n(2), ore, n(2)).unwrap();
+    let honest = load_world(&world.to_document()).unwrap();
+    assert_eq!(honest.item_balance(&n(2), &ore), Some(n(2)));
+
+    let mut forged = world.to_document();
+    let sender = forged.characters.iter_mut().find(|c| c.token_id == n(1)).unwrap();
+    assert!(matches!(sender.entries.pop().unwrap().input, Input::SendItem { .. }));
+    assert!(matches!(
+        load_world(&forged).unwrap_err(),
+        ReplayStop::Rejected { reason: EngineError::ConflictingLog, .. }
+    ));
+}
+
+#[test]
+fn load_rejects_an_ask_recorded_only_on_another_chain() {
+    let ore = lok_engine::fungible_id("iron_ore");
+    let mut world = spawn_pair();
+    import_item(&mut world, n(1), ore, n(4)).unwrap();
+    let mut doc = world.to_document();
+    let seq = doc.characters.iter().flat_map(|c| c.entries.iter().map(|e| e.seq)).max().unwrap() + 1;
+    push_forged(
+        &mut doc,
+        n(2),
+        Input::Ask {
+            listing_id: n(7),
+            seller: n(1),
+            item_id: ore,
+            amount: n(1),
+            min_price: n(10),
+            listed_at: 1_700_000_000,
+        },
+        seq,
+    );
+    assert!(matches!(
+        load_world(&doc).unwrap_err(),
+        ReplayStop::Rejected { reason: EngineError::ConflictingLog, .. }
+    ));
+}
+
+#[test]
+fn load_rejects_a_chain_fill_missing_the_seller() {
+    let ore = lok_engine::fungible_id("iron_ore");
+    let mut world = spawn_pair();
+    import_item(&mut world, n(1), ore, n(1)).unwrap();
+    world
+        .append_ask(n(10), n(1), ore, n(1), n(100), 1_700_000_000)
+        .unwrap();
+    world
+        .append_chain_fill(n(10), n(2), n(100), ore, n(1), n(1), [9u8; 32], 0)
+        .unwrap();
+    let honest = load_world(&world.to_document()).unwrap();
+    assert_eq!(honest.inbox_balance(&n(2), &ore), Some(n(1)));
+
+    let mut forged = world.to_document();
+    let seller = forged.characters.iter_mut().find(|c| c.token_id == n(1)).unwrap();
+    assert!(matches!(seller.entries.pop().unwrap().input, Input::ChainFill { .. }));
+    assert!(matches!(
+        load_world(&forged).unwrap_err(),
+        ReplayStop::Rejected { reason: EngineError::ConflictingLog, .. }
+    ));
+}
+
+#[test]
+fn load_rejects_spawn_of_another_token_without_panicking() {
+    let mut doc = WorldDocument {
+        characters: vec![lok_engine::CharacterLogDocument {
+            token_id: n(9),
+            starting_job: 1,
+            entries: vec![],
+        }],
+    };
+    push_forged(
+        &mut doc,
+        n(9),
+        Input::Spawn { token_id: n(1), starting_job: 1 },
+        0,
+    );
+    assert!(matches!(
+        load_world(&doc).unwrap_err(),
+        ReplayStop::Rejected { reason: EngineError::ConflictingLog, .. }
+    ));
+}
+
+#[test]
+fn load_rejects_seq_overflow_without_panicking() {
+    let mut world = World::new();
+    world.append_spawn(n(1), 1).unwrap();
+    world.append_gold_earn(n(1), "quest".into(), n(10), 1).unwrap();
+    let mut doc = world.to_document();
+    let entry = doc.characters[0].entries.last_mut().unwrap();
+    assert!(matches!(entry.input, Input::GoldEarn { .. }));
+    entry.seq = u64::MAX;
+    assert!(matches!(
+        load_world(&doc).unwrap_err(),
+        ReplayStop::Rejected {
+            index,
+            reason: EngineError::Overflow,
+        } if index == u64::MAX
+    ));
+}
+
+#[test]
+fn honest_log_reloads_including_a_craft_refund() {
+    let mut world = World::new();
+    world.append_spawn(n(1), 1).unwrap();
+    world.append_gold_earn(n(1), "quest".into(), n(1_000), 1).unwrap();
+    world.append_gold_spend(n(1), "craft".into(), n(400)).unwrap();
+    world
+        .append_gold_earn(n(1), "craft_refund".into(), n(400), 1)
+        .unwrap();
+    let loaded = load_world(&world.to_document()).unwrap();
+    assert_eq!(loaded.gold_balance(&n(1)), Some(n(1_000)));
+    assert_eq!(
+        world.append_gold_earn(n(1), "craft_refund".into(), n(1), 1).unwrap_err(),
+        EngineError::EarnCap
+    );
+}
+
+#[test]
+fn legacy_cancel_does_not_return_a_book_ask() {
+    let ore = lok_engine::fungible_id("iron_ore");
+    let mut world = spawn_pair();
+    import_item(&mut world, n(1), ore, n(1)).unwrap();
+    world.append_ask(n(10), n(1), ore, n(1), n(50), 1_700_000_000).unwrap();
+    assert_eq!(
+        world.append_cancel(n(10), n(1)).unwrap_err(),
+        EngineError::UnknownListing
+    );
+    assert!(world.listing(&n(10)).is_some());
+    assert_eq!(world.item_balance(&n(1), &ore), Some(n(0)));
+    assert_eq!(world.inbox_balance(&n(1), &ore), Some(n(0)));
+    world.append_cancel_ask(n(10), n(1)).unwrap();
+    assert!(world.listing(&n(10)).is_none());
+    assert_eq!(world.inbox_balance(&n(1), &ore), Some(n(1)));
 }
 
 fn expected_ore(w: &World) -> U256 {

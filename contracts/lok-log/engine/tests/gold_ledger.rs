@@ -120,20 +120,48 @@ fn gold_source_cap_and_total_cap() {
 }
 
 #[test]
-fn craft_refund_is_exempt_from_earn_caps() {
+fn craft_refund_restores_only_unrefunded_craft_spends() {
     use lok_engine::GOLD_SOURCE_CRAFT_REFUND;
     let token = n(9);
     let mut engine = Engine::open(token, 1);
     spawn(&mut engine, token, 1);
 
-    // Fill the daily total via normal sources so any further earn is refused.
-    let quest_cap = gold_source_cap("quest");
-    let drop_cap = gold_source_cap("drop");
+    assert_eq!(
+        engine
+            .apply(Input::GoldEarn {
+                token_id: token,
+                source: GOLD_SOURCE_CRAFT_REFUND.into(),
+                amount: n(1),
+                day: 1,
+            })
+            .unwrap_err(),
+        EngineError::EarnCap
+    );
+    assert_eq!(engine.state().get(&Key::Gold), n(0));
+
     engine
         .apply(Input::GoldEarn {
             token_id: token,
             source: "quest".into(),
-            amount: n(quest_cap),
+            amount: n(3_000),
+            day: 1,
+        })
+        .unwrap();
+    engine
+        .apply(Input::GoldSpend {
+            token_id: token,
+            sink: "craft".into(),
+            amount: n(2_050),
+        })
+        .unwrap();
+    assert_eq!(engine.state().get(&Key::Gold), n(950));
+
+    let quest_left = gold_source_cap("quest") - 3_000;
+    engine
+        .apply(Input::GoldEarn {
+            token_id: token,
+            source: "quest".into(),
+            amount: n(quest_left),
             day: 1,
         })
         .unwrap();
@@ -141,11 +169,11 @@ fn craft_refund_is_exempt_from_earn_caps() {
         .apply(Input::GoldEarn {
             token_id: token,
             source: "drop".into(),
-            amount: n(drop_cap),
+            amount: n(gold_source_cap("drop")),
             day: 1,
         })
         .unwrap();
-    let harvest_amt = GOLD_DAILY_TOTAL_CAP - quest_cap - drop_cap;
+    let harvest_amt = GOLD_DAILY_TOTAL_CAP - gold_source_cap("quest") - gold_source_cap("drop");
     engine
         .apply(Input::GoldEarn {
             token_id: token,
@@ -166,16 +194,48 @@ fn craft_refund_is_exempt_from_earn_caps() {
         EngineError::EarnCap
     );
 
-    // craft_refund still credits (restores a refused craft fee) past both caps.
+    // The refund is not an earn, so it still lands after the daily cap is full.
     engine
         .apply(Input::GoldEarn {
             token_id: token,
             source: GOLD_SOURCE_CRAFT_REFUND.into(),
-            amount: n(2050),
+            amount: n(2_050),
             day: 1,
         })
         .unwrap();
-    assert_eq!(engine.state().get(&Key::Gold), n(GOLD_DAILY_TOTAL_CAP + 2050));
+    assert_eq!(engine.state().get(&Key::Gold), n(GOLD_DAILY_TOTAL_CAP));
+    assert_eq!(
+        engine
+            .apply(Input::GoldEarn {
+                token_id: token,
+                source: GOLD_SOURCE_CRAFT_REFUND.into(),
+                amount: n(1),
+                day: 1,
+            })
+            .unwrap_err(),
+        EngineError::EarnCap
+    );
+    assert_eq!(engine.state().get(&Key::Gold), n(GOLD_DAILY_TOTAL_CAP));
+
+    engine
+        .apply(Input::GoldSpend {
+            token_id: token,
+            sink: "trainer".into(),
+            amount: n(100),
+        })
+        .unwrap();
+    assert_eq!(
+        engine
+            .apply(Input::GoldEarn {
+                token_id: token,
+                source: GOLD_SOURCE_CRAFT_REFUND.into(),
+                amount: n(100),
+                day: 1,
+            })
+            .unwrap_err(),
+        EngineError::EarnCap
+    );
+    assert_eq!(engine.state().get(&Key::Gold), n(GOLD_DAILY_TOTAL_CAP - 100));
 }
 
 #[test]

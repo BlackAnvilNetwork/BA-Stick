@@ -485,16 +485,23 @@ impl World {
 
     /// Apply one command. On failure nothing is appended to any character log.
     pub fn apply(&mut self, input: Input) -> Result<AppliedEvent, EngineError> {
-        let touch = self.affected(&input)?;
+        let touch = self.affected_at(&input, None)?;
         let characters = self.characters.clone();
         let listings = self.listings.clone();
+        let seq = self.next_seq;
         if let Err(err) = self.effects(&input, &touch, None) {
             self.characters = characters;
             self.listings = listings;
             return Err(err);
         }
-        let seq = self.next_seq;
-        Ok(self.link_at(&input, &touch, seq))
+        match self.link_at(&input, &touch, seq) {
+            Ok(event) => Ok(event),
+            Err(err) => {
+                self.characters = characters;
+                self.listings = listings;
+                Err(err)
+            }
+        }
     }
 
     /// Draft the checkpoint for `(committed, to_index]`. Does not mark it committed.
@@ -560,7 +567,7 @@ impl World {
     /// so surviving hashes stay valid.
     ///
     /// Without this a rebase after a one-sided commit would drop a debit that a counterparty has
-    /// already committed the matching credit for, creating KEK or items from nothing.
+    /// already committed the matching credit for, creating items from nothing.
     pub fn rebase(&mut self, token_id: U256) -> Result<(), EngineError> {
         if !self.characters.contains_key(&token_id) {
             return Err(EngineError::NotSpawned);
@@ -760,10 +767,25 @@ impl World {
                     });
                 }
             }
+            // The document's chains are not a permission to skip a debit. affected() is the
+            // same check a new append uses, including historical ItemDrop at its logged seq.
+            let expected = world.affected_at(&input, Some(seq)).map_err(|reason| ReplayStop::Rejected {
+                index: seq,
+                reason,
+            })?;
+            if expected != touch {
+                return Err(ReplayStop::Rejected {
+                    index: seq,
+                    reason: EngineError::ConflictingLog,
+                });
+            }
             world
                 .effects(&input, &touch, Some(seq))
                 .map_err(|reason| ReplayStop::Rejected { index: seq, reason })?;
-            let event = world.link_at(&input, &touch, seq);
+            let event = world.link_at(&input, &touch, seq).map_err(|reason| ReplayStop::Rejected {
+                index: seq,
+                reason,
+            })?;
             for link in &event.links {
                 let expected = tokens[&link.token_id];
                 if link.entry_hash != expected {
@@ -774,13 +796,17 @@ impl World {
                     });
                 }
                 head.insert(link.token_id, link.entry_hash);
-                *next_index.get_mut(&link.token_id).expect("index") += 1;
+                let slot = next_index.get_mut(&link.token_id).ok_or(ReplayStop::Rejected {
+                    index: seq,
+                    reason: EngineError::ConflictingLog,
+                })?;
+                *slot += 1;
             }
         }
         Ok(world)
     }
 
-    fn affected(&self, input: &Input) -> Result<BTreeSet<U256>, EngineError> {
+    fn affected_at(&self, input: &Input, logged_seq: Option<u64>) -> Result<BTreeSet<U256>, EngineError> {
         let mut touch = BTreeSet::new();
         match input {
             Input::Spawn { token_id, .. } => {
@@ -832,10 +858,15 @@ impl World {
                 if listing.seller != *seller {
                     return Err(EngineError::NotSeller);
                 }
-                touch.insert(*seller);
-                if let Some(prev) = listing.high_bidder {
-                    touch.insert(prev);
+                // Book asks return through cancelAsk, after AhEscrow. A legacy cancel must not
+                // put the stack back in the inbox on its own.
+                if listing.book {
+                    return Err(EngineError::UnknownListing);
                 }
+                if listing.high_bidder.is_some() {
+                    return Err(EngineError::KekRetired);
+                }
+                touch.insert(*seller);
             }
             Input::Settle { .. } => return Err(EngineError::KekRetired),
             Input::LevelUp { token_id, level } => {
@@ -854,10 +885,23 @@ impl World {
                 }
                 touch.insert(*token_id);
             }
-            // A new ItemDrop append is closed. Logged ItemDrop entries replay through
-            // load() -> effects(), which never calls affected(); effects() credits them only at
-            // seq <= HISTORICAL_ITEM_DROP_MAX_SEQ.
-            Input::ItemDrop { .. } => return Err(EngineError::ClosedMint),
+            // A new ItemDrop append is closed. A logged ItemDrop at or below
+            // HISTORICAL_ITEM_DROP_MAX_SEQ still names one character, same as when it was written.
+            Input::ItemDrop { token_id, item_id, amount } => {
+                if !logged_seq.is_some_and(item_drop_credits_at) {
+                    return Err(EngineError::ClosedMint);
+                }
+                if *amount == U256::ZERO {
+                    return Err(EngineError::ZeroAmount);
+                }
+                if *item_id == U256::ZERO {
+                    return Err(EngineError::BadId);
+                }
+                if !self.characters.contains_key(token_id) {
+                    return Err(EngineError::NotSpawned);
+                }
+                touch.insert(*token_id);
+            }
             Input::LootDrop { token_id, item_id, amount } => {
                 if *amount == U256::ZERO {
                     return Err(EngineError::ZeroAmount);
@@ -1238,9 +1282,8 @@ impl World {
             }
             Input::GoldSpend { token_id, sink, amount } => {
                 if touch.contains(token_id) {
-                    parse_label(sink)?;
                     let ch = self.characters.get_mut(token_id).ok_or(EngineError::NotSpawned)?;
-                    gold::debit_spend(&mut ch.state, *amount).map_err(gold_err)?;
+                    gold::debit_spend_for(&mut ch.state, sink, *amount).map_err(gold_err)?;
                 }
                 Ok(())
             }
@@ -1375,10 +1418,15 @@ impl World {
         Ok(())
     }
 
-    fn link_at(&mut self, input: &Input, touch: &BTreeSet<U256>, seq: u64) -> AppliedEvent {
+    fn link_at(&mut self, input: &Input, touch: &BTreeSet<U256>, seq: u64) -> Result<AppliedEvent, EngineError> {
+        let bumped = if self.next_seq <= seq {
+            Some(seq.checked_add(1).ok_or(EngineError::Overflow)?)
+        } else {
+            None
+        };
         let mut links = Vec::new();
         for token in touch {
-            let ch = self.characters.get_mut(token).expect("affected character is spawned");
+            let ch = self.characters.get_mut(token).ok_or(EngineError::NotSpawned)?;
             let index = ch.chain.len();
             let prev_hash = ch.chain.head();
             let hash = entry_hash(&prev_hash, index, input);
@@ -1395,10 +1443,10 @@ impl World {
                 entry_hash: hash,
             });
         }
-        if self.next_seq <= seq {
-            self.next_seq = seq + 1;
+        if let Some(next) = bumped {
+            self.next_seq = next;
         }
-        AppliedEvent { seq, links }
+        Ok(AppliedEvent { seq, links })
     }
 
     fn root_at(&self, token_id: &U256, index: u64) -> Result<[u8; 32], EngineError> {
@@ -1544,18 +1592,15 @@ impl World {
         if listing.seller != seller {
             return Err(EngineError::NotSeller);
         }
-        if listing.book {
-            if touch.contains(&listing.seller) {
-                self.credit_inbox(listing.seller, listing.item_id, listing.amount)?;
-            }
-            self.listings.remove(&listing_id);
-            return Ok(());
+        if listing.book || listing.high_bidder.is_some() {
+            return Err(if listing.book {
+                EngineError::UnknownListing
+            } else {
+                EngineError::KekRetired
+            });
         }
         if touch.contains(&listing.seller) {
             self.credit_item(listing.seller, listing.item_id, listing.amount)?;
-        }
-        if listing.high_bidder.is_some() {
-            return Err(EngineError::KekRetired);
         }
         self.listings.remove(&listing_id);
         Ok(())

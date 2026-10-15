@@ -21,21 +21,24 @@ pub const GOLD_MAX_DAY: u64 = 100_000;
 /// Earn source used by `GoldSell`.
 pub const GOLD_SOURCE_NPC_SELL: &str = "npc_sell";
 
-/// Restores a craft fee after the log refuses the Craft. Not a faucet earn —
-/// must not hit per-source or daily total caps (or the player loses the fee).
+/// Restores a craft fee after the log refuses the Craft. Not a faucet:
+/// it can only return gold previously spent on the `craft` sink, and it does
+/// not count against per-source or daily earn caps.
 pub const GOLD_SOURCE_CRAFT_REFUND: &str = "craft_refund";
+
+/// Gold spend sink the server uses for crafting. Only this sink is refundable.
+pub const GOLD_SINK_CRAFT: &str = "craft";
 
 const LABEL_MAX: usize = 128;
 
 /// Per-source daily earn cap. Unknown sources get the default.
-/// `craft_refund` is uncapped (see [`credit_earn`]).
+/// `craft_refund` is not an earn; [`credit_earn`] bounds it by unrefunded craft spends.
 pub fn gold_source_cap(source: &str) -> u64 {
     match source {
         "quest" => 20_000,
         "drop" => 15_000,
         "harvest" => 15_000,
         GOLD_SOURCE_NPC_SELL => 10_000,
-        GOLD_SOURCE_CRAFT_REFUND => u64::MAX,
         _ => 5_000,
     }
 }
@@ -80,20 +83,19 @@ pub fn credit_earn(state: &mut State, source: &str, amount: U256, day: u64) -> R
         return Err(GoldError::ZeroAmount);
     }
 
-    let current_day = day_u64(&state.get(&Key::GoldDay));
-    if current_day == 0 || day > current_day {
-        state.clear_gold_earn_counters();
-        state.set_gold_day(day);
-    } else if day < current_day {
-        return Err(GoldError::StaleDay);
-    }
-
-    // craft_refund restores a prior spend — credit the balance only, skip earn caps.
+    // A craft refund restores a prior craft spend. It skips earn caps, and it
+    // cannot credit gold that was never spent on the craft sink.
     if source == GOLD_SOURCE_CRAFT_REFUND {
+        let have = state.get(&Key::GoldCraftRefundable);
+        let left = have.checked_sub(amount).ok_or(GoldError::EarnCap)?;
         let next_bal = state.get(&Key::Gold).checked_add(amount).ok_or(GoldError::Overflow)?;
+        roll_day(state, day)?;
+        state.set_gold_craft_refundable(left);
         state.set_gold(next_bal);
         return Ok(());
     }
+
+    roll_day(state, day)?;
 
     let source_key = label_key(source);
     let source_cap = U256::from_u64(gold_source_cap(source));
@@ -115,6 +117,38 @@ pub fn credit_earn(state: &mut State, source: &str, amount: U256, day: u64) -> R
     state.set_gold(next_bal);
     state.set_gold_earned_day(next_day);
     state.set_gold_earned_source(source_key, next_source);
+    Ok(())
+}
+
+fn roll_day(state: &mut State, day: u64) -> Result<(), GoldError> {
+    let current_day = day_u64(&state.get(&Key::GoldDay));
+    if current_day == 0 || day > current_day {
+        state.clear_gold_earn_counters();
+        state.set_gold_day(day);
+    } else if day < current_day {
+        return Err(GoldError::StaleDay);
+    }
+    Ok(())
+}
+
+/// Debit spendable gold. A `craft` sink increases the refundable counter so a
+/// later `craft_refund` can restore that amount and nothing more.
+pub fn debit_spend_for(state: &mut State, sink: &str, amount: U256) -> Result<(), GoldError> {
+    parse_source(sink)?;
+    if sink == GOLD_SINK_CRAFT {
+        state
+            .get(&Key::GoldCraftRefundable)
+            .checked_add(amount)
+            .ok_or(GoldError::Overflow)?;
+    }
+    debit_spend(state, amount)?;
+    if sink == GOLD_SINK_CRAFT {
+        let next = state
+            .get(&Key::GoldCraftRefundable)
+            .checked_add(amount)
+            .ok_or(GoldError::Overflow)?;
+        state.set_gold_craft_refundable(next);
+    }
     Ok(())
 }
 

@@ -37,6 +37,8 @@ pub enum Key {
     GoldEarnedDay,
     /// Per-source gold earned on `GoldDay`. Key data is keccak256 of the source label.
     GoldEarnedSource(U256),
+    /// Craft-sink gold that has not been refunded. Absent when zero, so other roots stay put.
+    GoldCraftRefundable,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -93,6 +95,14 @@ impl State {
             self.map.remove(&Key::GoldEarnedSource(source));
         } else {
             self.map.insert(Key::GoldEarnedSource(source), amount);
+        }
+    }
+
+    pub(crate) fn set_gold_craft_refundable(&mut self, amount: U256) {
+        if amount == U256::ZERO {
+            self.map.remove(&Key::GoldCraftRefundable);
+        } else {
+            self.map.insert(Key::GoldCraftRefundable, amount);
         }
     }
 
@@ -227,6 +237,7 @@ fn key_tag(key: &Key) -> u8 {
         Key::GoldDay => 16,
         Key::GoldEarnedDay => 17,
         Key::GoldEarnedSource(_) => 18,
+        Key::GoldCraftRefundable => 19,
     }
 }
 
