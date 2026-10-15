@@ -404,6 +404,26 @@ fn legacy_cancel_does_not_return_a_book_ask() {
     assert_eq!(world.inbox_balance(&n(1), &ore), Some(n(1)));
 }
 
+#[test]
+fn a_failed_earn_rolls_back_only_the_touched_character() {
+    let mut world = spawn_pair();
+    world.append_gold_earn(n(2), "quest".into(), n(500), 3).unwrap();
+    let other_gold = world.gold_balance(&n(2));
+    let other_len = world.character_entries(&n(2)).unwrap().len();
+    let other_head = world.character_head(&n(2));
+    world.append_gold_earn(n(1), "quest".into(), n(20_000), 4).unwrap();
+    let capped_len = world.character_entries(&n(1)).unwrap().len();
+    let capped_head = world.character_head(&n(1));
+    let err = world.append_gold_earn(n(1), "quest".into(), n(1), 4).unwrap_err();
+    assert_eq!(err, EngineError::EarnCap);
+    assert_eq!(world.gold_balance(&n(1)), Some(n(20_000)));
+    assert_eq!(world.character_entries(&n(1)).unwrap().len(), capped_len);
+    assert_eq!(world.character_head(&n(1)), capped_head);
+    assert_eq!(world.gold_balance(&n(2)), other_gold);
+    assert_eq!(world.character_entries(&n(2)).unwrap().len(), other_len);
+    assert_eq!(world.character_head(&n(2)), other_head);
+}
+
 fn expected_ore(w: &World) -> U256 {
     let mut seen = std::collections::BTreeSet::new();
     let mut inn = U256::ZERO;

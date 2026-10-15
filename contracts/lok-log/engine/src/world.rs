@@ -61,6 +61,23 @@ pub struct Listing {
     pub book: bool,
 }
 
+/// Listing commands are the only applies that copy the order book for undo.
+fn input_mutates_listings(input: &Input) -> bool {
+    matches!(
+        input,
+        Input::List { .. }
+            | Input::Bid { .. }
+            | Input::Cancel { .. }
+            | Input::Settle { .. }
+            | Input::Ask { .. }
+            | Input::Fill { .. }
+            | Input::Buy { .. }
+            | Input::CancelAsk { .. }
+            | Input::ReclaimAsk { .. }
+            | Input::ChainFill { .. }
+    )
+}
+
 /// Unsold asks can be reclaimed after this many seconds. The log has no clock;
 /// the ask event stores the server time and reclaim compares the server time.
 pub const ASK_WINDOW_SEC: u64 = 7 * 24 * 60 * 60;
@@ -495,24 +512,55 @@ impl World {
     }
 
     /// Apply one command. On failure nothing is appended to any character log.
+    ///
+    /// Undo copies only the characters this command touches, and the order book
+    /// only when the command can change a listing. A gold, craft, or loot append
+    /// does not clone the rest of the world.
     pub fn apply(&mut self, input: Input) -> Result<AppliedEvent, EngineError> {
         let touch = self.affected_at(&input, None)?;
-        let characters = self.characters.clone();
-        let listings = self.listings.clone();
-        let seq = self.next_seq;
+        let saved_seq = self.next_seq;
+        let saved_listings = if input_mutates_listings(&input) {
+            Some(self.listings.clone())
+        } else {
+            None
+        };
+        let saved_chars: Vec<(U256, Option<Character>)> = touch
+            .iter()
+            .map(|id| (*id, self.characters.get(id).cloned()))
+            .collect();
         if let Err(err) = self.effects(&input, &touch, None) {
-            self.characters = characters;
-            self.listings = listings;
+            self.restore_apply(saved_chars, saved_listings, saved_seq);
             return Err(err);
         }
-        match self.link_at(&input, &touch, seq) {
+        match self.link_at(&input, &touch, saved_seq) {
             Ok(event) => Ok(event),
             Err(err) => {
-                self.characters = characters;
-                self.listings = listings;
+                self.restore_apply(saved_chars, saved_listings, saved_seq);
                 Err(err)
             }
         }
+    }
+
+    fn restore_apply(
+        &mut self,
+        saved_chars: Vec<(U256, Option<Character>)>,
+        saved_listings: Option<BTreeMap<U256, Listing>>,
+        saved_seq: u64,
+    ) {
+        for (id, prev) in saved_chars {
+            match prev {
+                Some(ch) => {
+                    self.characters.insert(id, ch);
+                }
+                None => {
+                    self.characters.remove(&id);
+                }
+            }
+        }
+        if let Some(listings) = saved_listings {
+            self.listings = listings;
+        }
+        self.next_seq = saved_seq;
     }
 
     /// Draft the checkpoint for `(committed, to_index]`. Does not mark it committed.
