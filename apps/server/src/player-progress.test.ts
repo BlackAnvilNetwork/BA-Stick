@@ -28,7 +28,7 @@ function reconcileArgs(dir: string, world: LokWorld) {
     levelOf: (id: string) => world.levelOf(id),
     itemsOf: (id: string) => world.view(id).items,
     abilitiesOf: (id: string) => world.abilitiesOf(id),
-    exportItem: (id: string, itemId: string, amount: string) => world.exportItem(id, itemId, amount),
+    exportItem: (id: string, itemId: string, amount: string) => world.bagExport(id, itemId, amount),
     skillPointsForLevel: (level: number) => level,
     skillUnlocked: () => ["time_mage_0"],
     slugOf: (id: number) => (id === 1057 ? "pale-dust" : null),
@@ -151,7 +151,7 @@ test("partial item migration copies remaining log stacks before export", () => {
     ...args,
     exportItem: (id, itemId, amount) => {
       exports += 1;
-      return lok.exportItem(id, itemId, amount);
+      return lok.bagExport(id, itemId, amount);
     },
   });
   assert.equal(result[0]?.moved, 1);
@@ -254,7 +254,7 @@ test("a failed export does not drop a stack that arrives on the next boot", () =
     ...args,
     exportItem: (id, itemId, amount) => {
       if (itemId === "8" && failEight) return { ok: false, error: "export failed" };
-      return lok.exportItem(id, itemId, amount);
+      return lok.bagExport(id, itemId, amount);
     },
   });
   const mid = readPlayerProgress(join(dir, "players", "char-g.json"));
@@ -475,7 +475,7 @@ test("a replayed placeholder row gets no save and exports nothing off the log", 
     chars: [{ charId: "replayed:" + token, tokenId: token }, ...args.chars],
     exportItem: (id: string, itemId: string, amount: string) => {
       exports++;
-      return lok.exportItem(id, itemId, amount);
+      return lok.bagExport(id, itemId, amount);
     },
   });
   assert.deepEqual(

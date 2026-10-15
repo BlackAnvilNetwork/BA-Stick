@@ -407,6 +407,18 @@ export class LokWorld {
     return tokenId + ":" + nonce;
   }
 
+  /**
+   * Move spendable items from the log into the in-game bag.
+   * This is not a checkpoint ERC-1155 export.
+   */
+  bagExport(tokenId: string, itemId: string, amount: string): LokResult {
+    return this.apply({ op: "bagExport", tokenId, itemId, amount });
+  }
+
+  /**
+   * Chain withdrawal. The engine packs this into checkpoint exports.
+   * The bag move is bagExport. Live minting stays off until exports are enabled.
+   */
   exportItem(tokenId: string, itemId: string, amount: string): LokResult {
     return this.apply({ op: "exportItem", tokenId, itemId, amount });
   }

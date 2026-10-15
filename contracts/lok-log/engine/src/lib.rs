@@ -6,7 +6,9 @@
 //! and KEK-priced bid, settle, fill, and buy return `KekRetired` without appending.
 //! Asks, chain fills, item list/cancel, and gold sinks remain.
 //! Level-up, ability, craft, harvest, loot-drop counters, and bag imports are per character and
-//! do not mint items. Bag imports credit items without a chain inbound nonce. Each character has their own hash chain.
+//! do not mint items. Bag imports credit items without a chain inbound nonce. Bag exports debit
+//! spendable items back to the bag and are not checkpoint ERC-1155 exports. `ExportItem` is the
+//! chain withdrawal packed into `Checkpoint.exports`. Each character has their own hash chain.
 //! `LootDrop` is the loot counter and never credits items. `ItemDrop` is closed for new appends
 //! (`ClosedMint`); entries already on a log at `seq <= HISTORICAL_ITEM_DROP_MAX_SEQ` replay as the
 //! item credit they were when written, and any later one is refused even on replay.

@@ -341,6 +341,11 @@ pub(crate) fn parse_input(value: &serde_json::Value) -> Result<Input, String> {
             item_id: req_u256(value, "itemId")?,
             amount: req_u256(value, "amount")?,
         }),
+        "bagExport" => Ok(Input::BagExport {
+            token_id: req_u256(value, "tokenId")?,
+            item_id: req_u256(value, "itemId")?,
+            amount: req_u256(value, "amount")?,
+        }),
         "exportItem" => Ok(Input::ExportItem {
             token_id: req_u256(value, "tokenId")?,
             item_id: req_u256(value, "itemId")?,
@@ -562,6 +567,12 @@ pub(crate) fn input_to_json(input: &Input) -> serde_json::Value {
         }),
         Input::BagImport { token_id, item_id, amount } => serde_json::json!({
             "type": "bagImport",
+            "tokenId": s(token_id),
+            "itemId": s(item_id),
+            "amount": s(amount),
+        }),
+        Input::BagExport { token_id, item_id, amount } => serde_json::json!({
+            "type": "bagExport",
             "tokenId": s(token_id),
             "itemId": s(item_id),
             "amount": s(amount),

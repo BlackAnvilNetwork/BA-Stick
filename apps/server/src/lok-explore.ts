@@ -241,6 +241,11 @@ function describe(entry: RawEntry, logTokenId: string, nameOf: (tokenId: string)
       text = `${character} imported ${item} x${amount} from the bag`;
       break;
     }
+    case "bagExport": {
+      character = who(token) || owner;
+      text = `${character} exported ${item} x${amount} to the bag`;
+      break;
+    }
     case "ask": {
       const seller = field(input, "seller");
       character = who(seller) || seller || owner;

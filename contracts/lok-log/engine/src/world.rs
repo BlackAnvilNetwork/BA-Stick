@@ -330,6 +330,17 @@ impl World {
         self.apply(Input::BagImport { token_id, item_id, amount })
     }
 
+    /// Debit spendable items back to the in-game bag. Not a checkpoint export.
+    pub fn append_bag_export(
+        &mut self,
+        token_id: U256,
+        item_id: U256,
+        amount: U256,
+    ) -> Result<AppliedEvent, EngineError> {
+        self.apply(Input::BagExport { token_id, item_id, amount })
+    }
+
+    /// Chain withdrawal. Packed into checkpoint exports. Not the bag move.
     pub fn append_export_item(
         &mut self,
         token_id: U256,
@@ -527,6 +538,7 @@ impl World {
         let mut exports = Vec::new();
         for entry in &ch.entries[from_index as usize..to_index as usize] {
             match &entry.input {
+                // BagExport returns a stack to the in-game bag. Only ExportItem is a chain mint.
                 Input::ExportItem { token_id: who, item_id, amount } if who == token_id => {
                     exports.push(Export {
                         item_id: *item_id,
@@ -914,7 +926,7 @@ impl World {
                 }
                 touch.insert(*token_id);
             }
-            Input::BagImport { token_id, item_id, amount } => {
+            Input::BagImport { token_id, item_id, amount } | Input::BagExport { token_id, item_id, amount } => {
                 if *amount == U256::ZERO {
                     return Err(EngineError::ZeroAmount);
                 }
@@ -1171,7 +1183,7 @@ impl World {
                 }
                 Ok(())
             }
-            Input::ExportItem { token_id, item_id, amount } => {
+            Input::BagExport { token_id, item_id, amount } | Input::ExportItem { token_id, item_id, amount } => {
                 if touch.contains(token_id) {
                     self.debit_item(*token_id, *item_id, *amount)?;
                 }

@@ -816,7 +816,7 @@ function reconcilePlayers(world: LokWorld): number {
       const sub = progress.subjob && isJobId(progress.subjob) ? progress.subjob : null;
       return freeSkillHubs(job, sub, progress.skillUnlocked);
     },
-    exportItem: (id, itemId, amount) => world.exportItem(id, itemId, amount),
+    exportItem: (id, itemId, amount) => world.bagExport(id, itemId, amount),
     skillPointsForLevel: (level) => skillPointsGrantedForLevels(0, level),
     skillUnlocked: (charId) => {
       const row = world.boundChars().find((c) => c.charId === charId);
@@ -1064,7 +1064,7 @@ function handleLokExport(p: Player, tokenId: number, amount: number) {
     // Log-bag export uses the catalog id. Launch fungibles also resolve a chain id for
     // operators (mint/withdraw path not wired yet). Equipment has no unique Items id.
     const chainFungible = isLaunchExportableFungible(tokenId) ? catalogIdToChainFungibleId(tokenId) : null;
-    const res = lok.exportItem(token, String(tokenId), String(amount));
+    const res = lok.bagExport(token, String(tokenId), String(amount));
     if (!res.ok) {
       pushLog(p, res.error);
       return;
@@ -1077,7 +1077,9 @@ function handleLokExport(p: Player, tokenId: number, amount: number) {
     rememberPlayer(p);
     const chainNote =
       chainFungible != null
-        ? " Chain fungible id 0x" + chainFungible.toString(16) + " (Items mint not submitted)."
+        ? " Chain fungible id 0x" +
+          chainFungible.toString(16) +
+          " is not withdrawn; this is a bag export."
         : " No chain withdrawal was submitted.";
     pushLog(p, "Exported " + itemLabel(tokenId) + " x" + amount + " to your bag." + chainNote);
     send(p.ws, snapshotFor(p));
