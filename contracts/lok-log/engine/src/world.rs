@@ -41,6 +41,9 @@ struct Character {
     inbox: BTreeMap<U256, U256>,
     /// Skill ids removed by respec and not learned again. Rebuilt by replay.
     dropped_skills: BTreeSet<String>,
+    /// Post-event `(state root, summary)`, one per log entry. Written in `link_at` after `effects`.
+    /// A historical checkpoint reads this. It is not in the JSON log; `load` fills it by linking again.
+    projections: Vec<([u8; 32], U256)>,
 }
 
 /// An auction listing. The item amount is escrowed out of the seller's spendable
@@ -1221,6 +1224,7 @@ impl World {
                         craft_skills: BTreeMap::new(),
                         inbox: BTreeMap::new(),
                         dropped_skills: BTreeSet::new(),
+                        projections: Vec::new(),
                     },
                 );
                 Ok(())
@@ -1487,15 +1491,20 @@ impl World {
         let mut links = Vec::new();
         for token in touch {
             let ch = self.characters.get_mut(token).ok_or(EngineError::NotSpawned)?;
+            if ch.projections.len() != ch.entries.len() {
+                return Err(EngineError::ConflictingLog);
+            }
             let index = ch.chain.len();
             let prev_hash = ch.chain.head();
             let hash = entry_hash(&prev_hash, index, input);
+            let projection = (ch.state.root(), ch.state.summary());
             ch.chain.push(input.clone(), hash);
             ch.entries.push(LoggedEntry {
                 hash,
                 input: input.clone(),
                 seq,
             });
+            ch.projections.push(projection);
             links.push(CharacterLink {
                 token_id: *token,
                 index,
@@ -1521,17 +1530,16 @@ impl World {
         if index == 0 {
             return Ok((genesis_root(token_id, ch.starting_job), U256::ZERO));
         }
+        if ch.projections.len() != ch.entries.len() {
+            return Err(EngineError::ConflictingLog);
+        }
+        // The tail is the live sheet. Every earlier index was stored when that entry linked,
+        // which is the sheet after every event with seq <= that entry. Another character's later
+        // command does not rewrite it.
         if index == ch.entries.len() as u64 {
             return Ok((ch.state.root(), ch.state.summary()));
         }
-        let seq_limit = ch.entries[index as usize - 1].seq;
-        let mut doc = self.to_document();
-        for character in &mut doc.characters {
-            character.entries.retain(|entry| entry.seq <= seq_limit);
-        }
-        let replayed = World::load(&doc).map_err(|_| EngineError::ConflictingLog)?;
-        let state = replayed.character_state(token_id).ok_or(EngineError::NotSpawned)?;
-        Ok((state.root(), state.summary()))
+        Ok(ch.projections[index as usize - 1])
     }
 
     fn credit_inbound(
