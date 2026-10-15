@@ -23,27 +23,41 @@ export function rpcUrlLooksSecret(url: string | null | undefined): boolean {
   }
 }
 
+/** Loopback operator RPC (throwaway anvil, local node). Remote public hosts are not local. */
+function rpcUrlIsLocal(url: string): boolean {
+  try {
+    const host = new URL(url).hostname.replace(/^\[|\]$/g, "").toLowerCase();
+    return host === "127.0.0.1" || host === "localhost" || host === "0.0.0.0" || host === "::1";
+  } catch {
+    return false;
+  }
+}
+
+function plainRpcUrl(raw: string | undefined): string {
+  const cleaned = raw?.trim().replace(/\/$/, "") ?? "";
+  if (!cleaned || rpcUrlLooksSecret(cleaned)) return "";
+  if (/^https?:\/\//i.test(cleaned) || cleaned.startsWith("ws")) return cleaned;
+  return "";
+}
+
 /**
- * RPC URL safe to hand to browsers.
- * Prefer explicit LOK_PUBLIC_RPC when non-secret; else profile public URLs.
- * Never fall back to a secret-looking LOK_CHAIN_RPC.
+ * RPC URL safe to hand to browsers and to use for this process's chain reads.
+ * Prefer explicit LOK_PUBLIC_RPC when non-secret.
+ * A non-secret loopback LOK_CHAIN_RPC wins over the profile default so a
+ * throwaway anvil on a port other than 8545 is the chain we actually read.
+ * Remote or secret operator RPCs still lose to the public profile URLs.
  */
 export function resolvePublicRpcUrl(env: NodeJS.ProcessEnv = process.env): string | null {
-  const explicit = env.LOK_PUBLIC_RPC?.trim().replace(/\/$/, "") ?? "";
-  if (explicit && !rpcUrlLooksSecret(explicit)) {
-    if (/^https?:\/\//i.test(explicit) || explicit.startsWith("ws")) return explicit;
-  }
+  const explicit = plainRpcUrl(env.LOK_PUBLIC_RPC);
+  if (explicit) return explicit;
+  const chain = plainRpcUrl(env.LOK_CHAIN_RPC);
+  if (chain && rpcUrlIsLocal(chain)) return chain;
   const profile = networkProfile(env as Record<string, string | undefined>);
   for (const url of profile.rpcUrls) {
-    const cleaned = url.trim().replace(/\/$/, "");
-    if (cleaned && !rpcUrlLooksSecret(cleaned)) return cleaned;
+    const cleaned = plainRpcUrl(url);
+    if (cleaned) return cleaned;
   }
-  // Anvil / local: allow plain LOK_CHAIN_RPC when it is not secret-looking
-  const chain = env.LOK_CHAIN_RPC?.trim().replace(/\/$/, "") ?? "";
-  if (chain && !rpcUrlLooksSecret(chain) && (/^https?:\/\//i.test(chain) || chain.startsWith("ws"))) {
-    return chain;
-  }
-  return null;
+  return chain || null;
 }
 
 /** Production: public RPC must be set (or profile-resolvable) and must not be the secret chain RPC. */
