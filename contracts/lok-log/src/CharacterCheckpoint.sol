@@ -171,6 +171,9 @@ contract CharacterCheckpoint is
 
     /// Same signature as CharacterState.initialize so Deploy.s.sol wiring is unchanged; call setRulesets/setItems after.
     function initialize(address admin, address nft_, address rotator, address guardian) external initializer {
+        if (admin == address(0) || nft_ == address(0) || rotator == address(0) || guardian == address(0)) {
+            revert ZeroAddress();
+        }
         __AccessControl_init();
         __Pausable_init();
         __ReentrancyGuard_init();

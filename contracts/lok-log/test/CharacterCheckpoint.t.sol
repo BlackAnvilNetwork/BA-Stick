@@ -9,6 +9,7 @@ import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol"
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 contract CharacterCheckpointTest is Base {
     // ============================================================ checkpoints
@@ -647,6 +648,22 @@ contract CharacterCheckpointTest is Base {
         CharacterCheckpoint impl = new CharacterCheckpoint();
         vm.expectRevert();
         impl.initialize(admin, address(nft), rotator, guardian);
+    }
+
+    function test_initialize_rejectsZeroAddress() public {
+        CharacterCheckpoint impl = new CharacterCheckpoint();
+        bytes memory init = abi.encodeCall(CharacterCheckpoint.initialize, (address(0), address(nft), rotator, guardian));
+        vm.expectRevert(CharacterCheckpoint.ZeroAddress.selector);
+        new ERC1967Proxy(address(impl), init);
+        init = abi.encodeCall(CharacterCheckpoint.initialize, (admin, address(0), rotator, guardian));
+        vm.expectRevert(CharacterCheckpoint.ZeroAddress.selector);
+        new ERC1967Proxy(address(impl), init);
+        init = abi.encodeCall(CharacterCheckpoint.initialize, (admin, address(nft), address(0), guardian));
+        vm.expectRevert(CharacterCheckpoint.ZeroAddress.selector);
+        new ERC1967Proxy(address(impl), init);
+        init = abi.encodeCall(CharacterCheckpoint.initialize, (admin, address(nft), rotator, address(0)));
+        vm.expectRevert(CharacterCheckpoint.ZeroAddress.selector);
+        new ERC1967Proxy(address(impl), init);
     }
 
     // ---------------------------------------------------------------- helpers
