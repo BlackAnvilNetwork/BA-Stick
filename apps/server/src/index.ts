@@ -265,6 +265,7 @@ import { randomBytes } from "node:crypto";
 import { authAllowlist, authVerifyClient, clientAddress, dropAuthConnection, issueAuthChallenge, resolveAuthOrigin, verifyAuthLogin, isEthAddress } from "./wallet-auth";
 import { defaultLokDir, LokWorld } from "./lok-world";
 import { flushGameRoll, loadGameRoll, rollIndex, rollUnit } from "./game-roll";
+import { cheapestBait, fishGatherRefusal } from "./fishing";
 import { readPlayerProgress, reconcileCharacterProgress, playerProgressPath, rememberLedger, chargeSkillRespec, RESPEC_GOLD_COST, shouldChargeForAbility, type PlayerProgress } from "./player-progress";
 import { debugCheatsEnabled } from "./debug-cheats";
 import {
@@ -4919,6 +4920,11 @@ function handleGather(p: Player, nodeId: string) {
     pushLog(p, `${node.name} is depleted. Wait for regrowth.`);
     return;
   }
+  const fishBlock = fishGatherRefusal(node.kind, p.equip.main, p.inventory);
+  if (fishBlock) {
+    pushLog(p, fishBlock);
+    return;
+  }
   stopRest(p, "You break rest to gather.");
   p.targetId = null;
   p.moveTo = null;
@@ -4952,12 +4958,26 @@ function tickGathering(p: Player, now: number) {
     pushLog(p, "Move closer to gather.");
     return;
   }
+  let baitNote = "";
+  if (node.kind === "fish") {
+    const fishBlock = fishGatherRefusal(node.kind, p.equip.main, p.inventory);
+    if (fishBlock) {
+      pushLog(p, fishBlock);
+      return;
+    }
+    const bait = cheapestBait(p.inventory);
+    if (!bait || !takeItem(p.inventory, bait.tokenId, 1)) {
+      pushLog(p, "You need bait to fish.");
+      return;
+    }
+    baitNote = ` Used ${bait.label}.`;
+  }
   const yieldId = node.yields[rollIndex("gather.yield", node.yields.length)] ?? node.yields[0];
   grantBaseMat(p, yieldId, 1);
   logLokHarvest(p, yieldId, 1);
   node.readyAt = now + node.respawnMs;
   relocateGatherNode(fieldNodes, node);
-  pushLog(p, `Got ${matDisplayName(yieldId)} ×1.`);
+  pushLog(p, `Got ${matDisplayName(yieldId)} ×1.${baitNote}`);
   send(p.ws, snapshotFor(p));
 }
 
