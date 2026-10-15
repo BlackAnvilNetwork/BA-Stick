@@ -11,6 +11,7 @@ import { signatureWeaponEquipped } from "./starter-kit";
 import { kitLevel } from "./support-job";
 import { gearHealPotency, withGearMab, withHealPotency } from "./gear-combat";
 import type { AbilityId } from "@bellgrave/protocol";
+import { ailmentLabel, clearAilments, diseasedHeal, naTargets } from "./player-ailments";
 
 export type ClericPlayer = {
   level: number;
@@ -53,6 +54,13 @@ export type ClericPlayer = {
   healAbsorbHp: number;
   sacredLightUntil: number;
   blindUntil: number;
+  poisonUntil: number;
+  poisonTick: number;
+  paraUntil: number;
+  silenceUntil: number;
+  diseaseUntil: number;
+  petrifyUntil: number;
+  curseUntil: number;
   /** Sum of equipped healPotency (percent). Optional — filled by the server before resolve. */
   gearHealPotency?: number;
 };
@@ -167,6 +175,7 @@ function applyHeal(
   hooks: ClericHooks,
   label: string,
 ) {
+  amount = diseasedHeal(amount, target.diseaseUntil, now);
   target.hp = Math.min(target.maxHp, target.hp + amount);
   if (caster.solaceRite) {
     const shield = Math.max(1, Math.floor(amount * 0.35));
@@ -451,23 +460,18 @@ export function resolveClericAbility(
     return true;
   }
 
-  // -na / erase — MVP clears one debuff category on ally
-  if (
-    id === "cl_poisona" ||
-    id === "cl_paralyna" ||
-    id === "cl_blindna" ||
-    id === "cl_silena" ||
-    id === "cl_viruna" ||
-    id === "cl_stona" ||
-    id === "cl_cursna" ||
-    id === "cl_erase"
-  ) {
-    spend();
+  const na = naTargets(id);
+  if (na) {
     const ally = resolveAlly(p, targetId, hooks, def.range ?? 12);
-    if (id === "cl_blindna" || id === "cl_erase") ally.blindUntil = 0;
+    const cleared = clearAilments(ally, now, na);
+    if (cleared.length === 0) {
+      hooks.pushLog(p, `${def.label} — nothing to ease.`);
+      return true;
+    }
+    spend();
     p.anim = "cast";
     p.animUntil = now + 450;
-    hooks.pushLog(p, `${def.label} — ailments eased.`);
+    hooks.pushLog(p, `${def.label} — ${cleared.map(ailmentLabel).join(", ")} eased.`);
     return true;
   }
 

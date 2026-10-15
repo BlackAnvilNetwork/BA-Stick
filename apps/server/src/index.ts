@@ -271,6 +271,14 @@ import { authAllowlist, authVerifyClient, clientAddress, dropAuthConnection, iss
 import { defaultLokDir, LokWorld } from "./lok-world";
 import { flushGameRoll, loadGameRoll, rollIndex, rollUnit } from "./game-roll";
 import { cheapestBait, fishGatherRefusal } from "./fishing";
+import {
+  ailmentLabel,
+  applyAilment,
+  clearAilments,
+  curseTaken,
+  diseasedHeal,
+  mobBoltAilment,
+} from "./player-ailments";
 import { readPlayerProgress, reconcileCharacterProgress, playerProgressPath, rememberLedger, chargeSkillRespec, RESPEC_GOLD_COST, shouldChargeForAbility, type PlayerProgress } from "./player-progress";
 import { debugCheatsEnabled } from "./debug-cheats";
 import {
@@ -397,6 +405,13 @@ type Player = {
   healAbsorbHp: number;
   sacredLightUntil: number;
   blindUntil: number;
+  poisonUntil: number;
+  poisonTick: number;
+  paraUntil: number;
+  silenceUntil: number;
+  diseaseUntil: number;
+  petrifyUntil: number;
+  curseUntil: number;
   spellbladeUntil: number;
   spellbladeFlashUntil: number;
   focusWeave: boolean;
@@ -2664,7 +2679,6 @@ function playerBuffs(p: Player): UnitSnapshot["buffs"] {
     timeSealUntil: p.timeSealUntil,
     overclockUntil: p.overclockUntil,
     perpetualUntil: p.perpetualUntil,
-    petrifyUntil: 0,
     tdImpactUntil: 0,
     bulwarkUntil: p.bulwarkUntil,
     sentinelUntil: p.sentinelUntil,
@@ -2713,6 +2727,10 @@ function playerBuffs(p: Player): UnitSnapshot["buffs"] {
     healAbsorbHp: now < p.healAbsorbUntil ? p.healAbsorbHp : 0,
     regenUntil: p.regenUntil,
     blindUntil: p.blindUntil,
+    silenceUntil: p.silenceUntil,
+    paraUntil: p.paraUntil,
+    petrifyUntil: p.petrifyUntil,
+    bioUntil: p.poisonUntil,
   };
 }
 
@@ -3157,6 +3175,13 @@ function createPlayer(
     healAbsorbHp: 0,
     sacredLightUntil: 0,
     blindUntil: 0,
+    poisonUntil: 0,
+    poisonTick: 0,
+    paraUntil: 0,
+    silenceUntil: 0,
+    diseaseUntil: 0,
+    petrifyUntil: 0,
+    curseUntil: 0,
     nextSwingAt: 0,
     animUntil: 0,
     walkUntil: 0,
@@ -3489,6 +3514,7 @@ function clearJobBuffs(p: Player) {
   clearSorcererBuffs(p as import("./sorcerer-abilities").SorcererPlayer);
   clearClericBuffs(p as import("./cleric-abilities").ClericPlayer);
   clearBattleMageBuffs(p);
+  clearAilments(p, Date.now());
 }
 
 function playerPhysDtMul(p: Player, now: number): number {
@@ -3514,6 +3540,10 @@ function playerWeaponBonus(p: Player): number {
 
 function handleAbility(p: Player, id: AbilityId, targetId?: string) {
   const now = Date.now();
+  if (now < p.petrifyUntil) {
+    pushLog(p, "You are petrified.");
+    return;
+  }
   if (isWeaponTpAbilityId(id)) {
     resolveWeaponTpAbility(p, id as WeaponTpAbilityId, targetId, now, {
       pushLog: (pl, msg) => pushLog(pl as Player, msg),
@@ -3540,6 +3570,13 @@ function handleAbility(p: Player, id: AbilityId, targetId?: string) {
     }
   }
     // Dispatch by kit ownership — main or support job may grant the ability
+  if (
+    now < p.silenceUntil &&
+    (isSorcererAbilityId(id) || isClericAbilityId(id) || isTimAbilityId(id) || isBattleMageAbilityId(id))
+  ) {
+    pushLog(p, "You are silenced.");
+    return;
+  }
   if (isRogueAbilityId(id) && playerHasJob(p, "rogue")) {
     resolveRogueAbility(p, id, targetId, now, {
       pushLog: (pl, msg) => pushLog(pl as Player, msg),
@@ -4132,23 +4169,23 @@ function handleUseItem(p: Player, tokenId: number, hq = false) {
     return;
   }
   const parts: string[] = [];
+  const now = Date.now();
   const heal = consume.hp && consume.hp > 0 ? (hq ? hqAmount(consume.hp) : consume.hp) : 0;
   const focus = consume.mp && consume.mp > 0 ? (hq ? hqAmount(consume.mp) : consume.mp) : 0;
   if (heal > 0) {
-    p.hp = Math.min(p.maxHp, p.hp + heal);
-    parts.push(`+${heal} HP`);
+    const gained = diseasedHeal(heal, p.diseaseUntil, now);
+    p.hp = Math.min(p.maxHp, p.hp + gained);
+    parts.push(`+${gained} HP`);
   }
   if (focus > 0) {
     p.mp = Math.min(p.maxMp, p.mp + focus);
     parts.push(`+${focus} MP`);
   }
   if (consume.statusClear) {
-    // Clear common player ailment timers when catalog asks for a status wipe.
     const key = consume.statusClear.toLowerCase();
-    const now = Date.now();
     if (key === "all" || key === "poison" || key === "ailments") {
+      clearAilments(p, now);
       p.slowUntil = Math.min(p.slowUntil, now);
-      p.blindUntil = Math.min(p.blindUntil, now);
       if (p.movePct < 0) p.moveUntil = Math.min(p.moveUntil, now);
     }
     parts.push("cleared ailments");
@@ -4196,6 +4233,16 @@ function playerSwing(p: Player, now: number) {
   const d = dist(p.x, p.z, mob.x, mob.z);
   if (d > MELEE_RANGE) return;
   if (now < p.nextSwingAt) return;
+  if (now < p.petrifyUntil) {
+    p.nextSwingAt = now + 800;
+    pushLog(p, "You are petrified.");
+    return;
+  }
+  if (now < p.paraUntil && rollUnit("combat.player.para") < 0.35) {
+    p.nextSwingAt = now + 800;
+    pushLog(p, "You seize up (Paralyze).");
+    return;
+  }
 
   const haste = playerHastePct(p, now);
   const weaponDelay = p.equip.main ? getItem(p.equip.main)?.delayMs : undefined;
@@ -4405,6 +4452,7 @@ function applyPendingMobDamage(
     return;
   }
   if (now < mob.addleUntil) dmg = Math.max(1, Math.floor(dmg * 0.65));
+  dmg = curseTaken(dmg, target.curseUntil, now);
   target.hp = Math.max(0, target.hp - dmg);
   if (target.miseryRite) {
     target.miseryEmpowerUntil = now + 15_000;
@@ -4454,6 +4502,13 @@ function resolveMobPendingCast(mob: Mob, now: number) {
   }
   if (kind === "damage") {
     applyPendingMobDamage(mob, target, now, dmg, log, magic);
+    if (magic && target.hp > 0) {
+      const spec = mobBoltAilment(mob.job, !!(mob.shiny && !mob.shinyClone));
+      if (spec && rollUnit("combat.mob.ailment") < spec.chance) {
+        applyAilment(target, spec.kind, now, spec.durationMs, spec.poisonTick ?? 0);
+        pushLog(target, `${mob.name}'s magic leaves you ${ailmentLabel(spec.kind)}.`);
+      }
+    }
     if (target.hp <= 0) {
       if (now < target.reraiseUntil) {
         target.reraiseUntil = 0;
@@ -4613,6 +4668,7 @@ function mobSwing(mob: Mob, now: number) {
       return;
     }
     if (now < mob.addleUntil) dmg = Math.max(1, Math.floor(dmg * 0.65));
+    dmg = curseTaken(dmg, victim.curseUntil, now);
     victim.hp = Math.max(0, victim.hp - dmg);
     if (victim.miseryRite) {
       victim.miseryEmpowerUntil = now + 15_000;
@@ -4773,6 +4829,20 @@ function tickSimBody() {
     // Regain TP while Flux
     if (p.flux && tick % 20 === 0) p.tp = Math.min(3000, p.tp + 5);
 
+    if (now < p.poisonUntil && p.poisonTick > 0 && tick % TICK_HZ === 0) {
+      p.hp = Math.max(0, p.hp - p.poisonTick);
+      if (p.hp <= 0) {
+        if (now < p.reraiseUntil) {
+          p.reraiseUntil = 0;
+          p.hp = Math.max(1, Math.floor(p.maxHp * 0.25));
+          p.sacredLightUntil = now + 2200;
+          pushLog(p, "Ember Vigil — you rise in sacred light!");
+        } else {
+          respawnAtHub(p, "The poison takes you… you wake in the Shard Dwellings.");
+        }
+      }
+    }
+
     // Auto-close to melee while engaged
     chaseEngaged(p);
 
@@ -4843,7 +4913,8 @@ function tickSimBody() {
         p.mp = Math.min(p.maxMp, p.mp + tickMp);
       }
       if (now < p.regenUntil && p.regenTick > 0) {
-        p.hp = Math.min(p.maxHp, p.hp + p.regenTick);
+        const tickHp = diseasedHeal(p.regenTick, p.diseaseUntil, now);
+        p.hp = Math.min(p.maxHp, p.hp + tickHp);
       }
       // Passive gear regen (Heart Ring, etc.) — once per second, replay-safe (catalog only).
       const gearHp = gearRegen(p);
