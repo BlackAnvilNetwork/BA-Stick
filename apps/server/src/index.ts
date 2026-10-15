@@ -110,6 +110,8 @@ import {
   getCraftableItem,
   EQUIP_SLOTS,
   getItem,
+  hqAmount,
+  hqCraftChance,
   isLaunchExportableFungible,
   npcSellTotalGold,
   npcSellUnitGold,
@@ -126,8 +128,11 @@ import {
   STARTER_WEAPON,
   addStack,
   discardStack,
+  hqOwned,
+  nqAmount,
   stackAmount,
   starterAmount,
+  takeHqStack,
   takeStack,
 } from "./starter-kit";
 import { createPaleHollowMobs, createPaleHollowNodes, relocateGatherNode, type FieldNode } from "./pale-hollow-world";
@@ -298,6 +303,8 @@ type Player = {
   claimedStarter: boolean;
   inventory: InventorySlot[];
   equip: Equipment;
+  /** True when the piece in that slot was equipped from an HQ stack. */
+  equipHq: Partial<Record<EquipSlot, true>>;
   x: number;
   y: number;
   z: number;
@@ -843,6 +850,13 @@ function applySaved(p: Player, saved: PlayerProgress) {
   p.inventory = saved.inventory.map((row) => ({ ...row }));
   p.baseMats = { ...saved.baseMats };
   p.equip = { ...emptyEquipment(), ...saved.equip };
+  p.equipHq = {};
+  if (saved.equipHq) {
+    for (const slot of EQUIP_SLOTS) {
+      if (saved.equipHq[slot] === true) p.equipHq[slot] = true;
+    }
+  }
+  reconcileEquipQuality(p);
   p.craftSkills = saved.craftSkills as Player["craftSkills"];
   p.learned = [...saved.learned] as AbilityId[];
   p.skillUnlocked = [...saved.skillUnlocked];
@@ -867,9 +881,11 @@ function rememberPlayer(p: Player) {
         tokenId: row.tokenId,
         amount: row.amount,
         ...(row.starter ? { starter: true } : {}),
+        ...(row.hq ? { hq: true as const } : {}),
       })),
       baseMats: { ...p.baseMats },
       equip: { ...p.equip },
+      ...(Object.keys(p.equipHq).length > 0 ? { equipHq: { ...p.equipHq } } : {}),
       craftSkills: p.craftSkills,
       learned: [...p.learned],
       skillUnlocked: [...p.skillUnlocked],
@@ -1014,12 +1030,16 @@ function handleLokImport(p: Player, tokenId: number, amount: number) {
   void requireLiveCharacterOwner(p).then((ok) => {
     if (!ok) return;
     const starter = starterAmount(p.inventory, tokenId);
-    const plain = stackAmount(p.inventory, tokenId) - starter;
+    const plain = nqAmount(p.inventory, tokenId);
     if (starter > 0 && amount > plain) {
       pushLog(
         p,
         "Starter gear cannot be imported, listed, traded, or exported. Discard it from your bag if you do not want it. Nothing was moved.",
       );
+      return;
+    }
+    if (hqOwned(p.inventory, tokenId) > 0 && amount > plain) {
+      pushLog(p, "HQ pieces stay in the bag. They are not log items. Nothing was moved.");
       return;
     }
     if (!Number.isInteger(amount) || amount <= 0 || plain < amount) {
@@ -1051,6 +1071,8 @@ function handleLokImport(p: Player, tokenId: number, amount: number) {
       pushLog(p, res.error);
       return;
     }
+    reconcileEquipQuality(p);
+    rememberPlayer(p);
     pushLog(p, "Imported " + itemLabel(tokenId) + " x" + amount + " from your bag into the log.");
     send(p.ws, snapshotFor(p));
   });
@@ -2594,8 +2616,32 @@ function invAmount(inv: InventorySlot[], tokenId: number): number {
   return stackAmount(inv, tokenId);
 }
 
-function addItem(inv: InventorySlot[], tokenId: number, amount: number) {
-  addStack(inv, tokenId, amount, false);
+function addItem(inv: InventorySlot[], tokenId: number, amount: number, hq = false) {
+  addStack(inv, tokenId, amount, false, hq);
+}
+
+function ownsQuality(inv: InventorySlot[], tokenId: number, hq: boolean): boolean {
+  return inv.some((row) => row.tokenId === tokenId && row.amount > 0 && !!row.hq === hq);
+}
+
+/** Drop an HQ flag the bag no longer supports, and clear a slot whose item is gone. */
+function reconcileEquipQuality(p: Player) {
+  for (const slot of EQUIP_SLOTS) {
+    const id = p.equip[slot];
+    if (id == null) {
+      delete p.equipHq[slot];
+      continue;
+    }
+    const wantHq = !!p.equipHq[slot];
+    if (ownsQuality(p.inventory, id, wantHq)) continue;
+    if (ownsQuality(p.inventory, id, !wantHq)) {
+      if (wantHq) delete p.equipHq[slot];
+      else p.equipHq[slot] = true;
+      continue;
+    }
+    p.equip[slot] = null;
+    delete p.equipHq[slot];
+  }
 }
 
 function takeItem(inv: InventorySlot[], tokenId: number, amount: number): boolean {
@@ -2883,6 +2929,7 @@ function snapshotFor(p: Player): SnapshotMessage {
       claimedStarter: p.claimedStarter,
       inventory: p.inventory,
       equip: p.equip,
+      equipHq: { ...p.equipHq },
       baseMats: { ...p.baseMats },
       craftSkills: cloneCraftSkills(p.craftSkills),
       zoneId: p.zoneId,
@@ -3012,6 +3059,7 @@ function createPlayer(
     claimedStarter: false,
     inventory: [],
     equip: emptyEquipment(),
+    equipHq: {},
     x: PH_HUB_SPAWN.x,
     y: paleHollowHeight(PH_HUB_SPAWN.x, PH_HUB_SPAWN.z),
     z: PH_HUB_SPAWN.z,
@@ -3133,7 +3181,12 @@ function createPlayer(
 
 /** Equipment stats scaled by player level vs item level (#103). */
 function playerEquipmentStats(p: Player) {
-  return aggregateEquipmentStatsScaled(p.equip, p.level);
+  const hqSlots: Partial<Record<EquipSlot, true>> = {};
+  for (const slot of EQUIP_SLOTS) {
+    const id = p.equip[slot];
+    if (id != null && p.equipHq[slot] && ownsQuality(p.inventory, id, true)) hqSlots[slot] = true;
+  }
+  return aggregateEquipmentStatsScaled(p.equip, p.level, hqSlots);
 }
 
 /** Recompute max HP/MP from job, skill-tree, and equipped catalog bonuses. */
@@ -3358,6 +3411,8 @@ function claimStarter(p: Player) {
   addStack(p.inventory, STARTER_POTION_ID, STARTER_POTION_AMOUNT, true);
   p.claimedStarter = true;
   p.equip.main = weapon.tokenId;
+  delete p.equipHq.main;
+  reconcileEquipQuality(p);
   // #273: persist before the 15s save loop so a crash cannot re-grant.
   rememberPlayer(p);
   // Not written to the log. A later real drop of the same id is a separate, sellable stack.
@@ -3367,8 +3422,8 @@ function claimStarter(p: Player) {
   );
 }
 
-function handleDiscard(p: Player, tokenId: number, starter: boolean) {
-  const removed = discardStack(p.inventory, tokenId, starter);
+function handleDiscard(p: Player, tokenId: number, starter: boolean, hq = false) {
+  const removed = discardStack(p.inventory, tokenId, starter, hq);
   if (removed <= 0) {
     pushLog(p, "Nothing to discard.");
     return;
@@ -3377,17 +3432,13 @@ function handleDiscard(p: Player, tokenId: number, starter: boolean) {
   // syncBaseMatsToInventory refills the bag from baseMats on every snapshot.
   // Without this the discarded stack came straight back and stayed craftable.
   const discarded = getItem(tokenId);
-  if (!starter && discarded && discarded.kind === "base") {
-    const left = stackAmount(p.inventory, tokenId) - starterAmount(p.inventory, tokenId);
+  if (!starter && !hq && discarded && discarded.kind === "base") {
+    const left = nqAmount(p.inventory, tokenId);
     if (left > 0) p.baseMats[discarded.slug] = left;
     else delete p.baseMats[discarded.slug];
   }
+  reconcileEquipQuality(p);
   rememberPlayer(p);
-  if (invAmount(p.inventory, tokenId) <= 0) {
-    for (const slot of EQUIP_SLOTS) {
-      if (p.equip[slot] === tokenId) p.equip[slot] = null;
-    }
-  }
   pushLog(p, "Discarded " + itemLabel(tokenId) + " x" + removed + ".");
   send(p.ws, snapshotFor(p));
 }
@@ -3930,6 +3981,9 @@ function handleJobChange(p: Player, job: JobId) {
     p.equip.main = ITEM.SWORD_IRON;
     p.equip.body = ITEM.MAIL_IRON;
   }
+  delete p.equipHq.main;
+  delete p.equipHq.body;
+  reconcileEquipQuality(p);
   syncVitals(p, true);
   ensureJobHubs(p);
   pushLog(p, `Main job — you are now a ${def.name}.`);
@@ -3992,11 +4046,13 @@ function canJobEquip(p: Player, def: ItemDef): boolean {
   return jobs.has(itemJobKey(p.job) as never) || (!!p.subjob && jobs.has(itemJobKey(p.subjob) as never));
 }
 
-function handleEquip(p: Player, slot: EquipSlot, tokenId: number | null) {
+function handleEquip(p: Player, slot: EquipSlot, tokenId: number | null, hq = false) {
   if (tokenId === null) {
     p.equip[slot] = null;
+    delete p.equipHq[slot];
     if (slot === "main") {
       p.equip.grip = null;
+      delete p.equipHq.grip;
       p.flux = false;
       p.aether = false;
     }
@@ -4005,7 +4061,7 @@ function handleEquip(p: Player, slot: EquipSlot, tokenId: number | null) {
     rememberPlayer(p);
     return;
   }
-  if (invAmount(p.inventory, tokenId) <= 0) {
+  if (!ownsQuality(p.inventory, tokenId, hq)) {
     pushLog(p, "You do not own that item.");
     return;
   }
@@ -4029,17 +4085,24 @@ function handleEquip(p: Player, slot: EquipSlot, tokenId: number | null) {
     return;
   }
   if (slot === "main") {
-    if (def.twoHand) p.equip.sub = null;
-    else p.equip.grip = null;
+    if (def.twoHand) {
+      p.equip.sub = null;
+      delete p.equipHq.sub;
+    } else {
+      p.equip.grip = null;
+      delete p.equipHq.grip;
+    }
   }
 
   p.equip[slot] = tokenId;
+  if (hq) p.equipHq[slot] = true;
+  else delete p.equipHq[slot];
   syncVitals(p, false);
-  pushLog(p, `Equipped ${def.name} on ${slot}.`);
+  pushLog(p, `Equipped ${hq ? "HQ " : ""}${def.name} on ${slot}.`);
   rememberPlayer(p);
 }
 
-function handleUseItem(p: Player, tokenId: number) {
+function handleUseItem(p: Player, tokenId: number, hq = false) {
   const def = getItem(tokenId);
   const consume = def?.consume;
   if (!def || def.kind !== "consumable" || !consume) {
@@ -4063,18 +4126,21 @@ function handleUseItem(p: Player, tokenId: number) {
     pushLog(p, "Scrolls are not usable yet.");
     return;
   }
-  if (!takeItem(p.inventory, tokenId, 1)) {
+  const spent = hq ? takeHqStack(p.inventory, tokenId, 1) : takeItem(p.inventory, tokenId, 1);
+  if (!spent) {
     pushLog(p, `No ${def.name} left.`);
     return;
   }
   const parts: string[] = [];
-  if (consume.hp && consume.hp > 0) {
-    p.hp = Math.min(p.maxHp, p.hp + consume.hp);
-    parts.push(`+${consume.hp} HP`);
+  const heal = consume.hp && consume.hp > 0 ? (hq ? hqAmount(consume.hp) : consume.hp) : 0;
+  const focus = consume.mp && consume.mp > 0 ? (hq ? hqAmount(consume.mp) : consume.mp) : 0;
+  if (heal > 0) {
+    p.hp = Math.min(p.maxHp, p.hp + heal);
+    parts.push(`+${heal} HP`);
   }
-  if (consume.mp && consume.mp > 0) {
-    p.mp = Math.min(p.maxMp, p.mp + consume.mp);
-    parts.push(`+${consume.mp} MP`);
+  if (focus > 0) {
+    p.mp = Math.min(p.maxMp, p.mp + focus);
+    parts.push(`+${focus} MP`);
   }
   if (consume.statusClear) {
     // Clear common player ailment timers when catalog asks for a status wipe.
@@ -4091,9 +4157,10 @@ function handleUseItem(p: Player, tokenId: number) {
     // Food buff stats are not simulated yet; still spend the item + any hp/mp.
     parts.push(`meal (${consume.foodDurationSec}s)`);
   }
+  const usedName = (hq ? "HQ " : "") + def.name;
   pushLog(
     p,
-    parts.length ? `Used ${def.name}: ${parts.join(", ")}.` : `Used ${def.name}.`,
+    parts.length ? `Used ${usedName}: ${parts.join(", ")}.` : `Used ${usedName}.`,
   );
 }
 
@@ -5032,15 +5099,27 @@ async function handleCraft(p: Player, itemId: number) {
       if (!logged.ok) {
         return { ok: false as const, error: "Craft was not written to your log: " + logged.error };
       }
+      const chance = hqCraftChance(def.kind, skillLv, def.craftLevel ?? skillLv);
+      let hqQty = 0;
+      if (chance > 0) {
+        for (let i = 0; i < outQty; i++) {
+          if (rollUnit("craft.hq") < chance) hqQty += 1;
+        }
+      }
+      const nqQty = outQty - hqQty;
       if (def.kind === "base") grantBaseMat(p, def.slug, outQty);
-      else addItem(p.inventory, def.id, outQty);
+      else {
+        if (nqQty > 0) addItem(p.inventory, def.id, nqQty);
+        if (hqQty > 0) addItem(p.inventory, def.id, hqQty, true);
+      }
       const prevLv = p.craftSkills[skill]?.level ?? 1;
       grantCraftXp(p, skill, craftXpForRecipe(def.craftLevel ?? skillLv, skillLv));
       const nextLv = p.craftSkills[skill]?.level ?? prevLv;
       const levelNote = nextLv > prevLv ? " " + skill + " rose to " + nextLv + "!" : "";
       const qtyNote = outQty > 1 ? " x" + outQty : "";
+      const hqNote = hqQty <= 0 ? "" : hqQty === outQty ? " HQ!" : " (" + hqQty + " HQ)";
       rememberPlayer(p);
-      pushLog(p, "Crafted " + def.name + qtyNote + "." + levelNote);
+      pushLog(p, "Crafted " + def.name + qtyNote + "." + hqNote + levelNote);
       send(p.ws, snapshotFor(p));
       return { ok: true as const };
     },
@@ -5621,14 +5700,14 @@ function onMessage(ws: WebSocket, data: string) {
       handleAbility(p, msg.id, msg.targetId);
       break;
     case "equip":
-      handleEquip(p, msg.slot, msg.tokenId);
+      handleEquip(p, msg.slot, msg.tokenId, !!msg.hq);
       break;
     case "item/use":
       stopRest(p);
-      handleUseItem(p, msg.tokenId);
+      handleUseItem(p, msg.tokenId, !!msg.hq);
       break;
     case "item/discard":
-      handleDiscard(p, msg.tokenId, !!msg.starter);
+      handleDiscard(p, msg.tokenId, !!msg.starter, !!msg.hq);
       break;
     case "npc/interact":
       handleNpcInteract(p, msg.npcId);

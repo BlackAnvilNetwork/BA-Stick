@@ -11,6 +11,8 @@
 } from "./types";
 export {
   EQUIP_SLOTS,
+  hqAmount,
+  hqCraftChance,
   hqStats,
   budgetPoints,
   craftGoldCost,
@@ -61,7 +63,7 @@ export {
 } from "./exportable-slugs";
 
 import { CATALOG_BY_ID } from "./catalog.generated";
-import { EQUIP_SLOTS, scaleGearStat, type Equipment, type EquipSlot, type ItemDef, type ItemStats } from "./types";
+import { EQUIP_SLOTS, hqStats, scaleGearStat, type Equipment, type EquipSlot, type ItemDef, type ItemStats } from "./types";
 
 /** MVP legacy IDs â€” stable across catalog regen. */
 export const ITEM = {
@@ -97,9 +99,14 @@ export function emptyEquipment(): Equipment {
   return Object.fromEntries(EQUIP_SLOTS.map((slot) => [slot, null])) as Equipment;
 }
 
-/** Sum catalog stats for items equipped in their authored slots. */
+function equippedStats(def: ItemDef, hq: boolean | undefined): ItemStats {
+  return hq ? hqStats(def.stats) : (def.stats ?? {});
+}
+
+/** Sum catalog stats for items equipped in their authored slots. HQ slots use hqStats. */
 export function aggregateEquipmentStats(
   equipment: Partial<Record<EquipSlot, number | null | undefined>>,
+  hqSlots?: Partial<Record<EquipSlot, boolean>>,
 ): ItemStats {
   const total: ItemStats = {};
   for (const slot of EQUIP_SLOTS) {
@@ -107,7 +114,7 @@ export function aggregateEquipmentStats(
     if (tokenId == null) continue;
     const def = getItem(tokenId);
     if (!def || def.slot !== slot) continue;
-    for (const [key, value] of Object.entries(def.stats ?? {}) as [keyof ItemStats, number][]) {
+    for (const [key, value] of Object.entries(equippedStats(def, hqSlots?.[slot])) as [keyof ItemStats, number][]) {
       total[key] = (total[key] ?? 0) + value;
     }
   }
@@ -126,6 +133,7 @@ export function aggregateEquipmentStats(
 export function aggregateEquipmentStatsScaled(
   equipment: Partial<Record<EquipSlot, number | null | undefined>>,
   playerLevel: number,
+  hqSlots?: Partial<Record<EquipSlot, boolean>>,
 ): ItemStats {
   const total: ItemStats = {};
   for (const slot of EQUIP_SLOTS) {
@@ -134,7 +142,7 @@ export function aggregateEquipmentStatsScaled(
     const def = getItem(tokenId);
     if (!def || def.slot !== slot) continue;
     const itemIlvl = def.craftLevel ?? 1;
-    for (const [key, value] of Object.entries(def.stats ?? {}) as [keyof ItemStats, number][]) {
+    for (const [key, value] of Object.entries(equippedStats(def, hqSlots?.[slot])) as [keyof ItemStats, number][]) {
       const scaled = scaleGearStat(value, playerLevel, itemIlvl);
       total[key] = (total[key] ?? 0) + scaled;
     }

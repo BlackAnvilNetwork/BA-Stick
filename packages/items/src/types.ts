@@ -125,14 +125,33 @@ export function craftOutputQty(def: Pick<ItemDef, "name" | "craftOutputQty">): n
   return m ? Math.max(1, Number(m[1])) : 1;
 }
 
+/** HQ = NQ × 1.25 (ceil) for one numeric field. */
+export function hqAmount(n: number): number {
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Math.ceil(n * 1.25);
+}
+
 /** HQ = NQ × 1.25 (ceil) for numeric combat fields. */
 export function hqStats(nq: ItemStats | undefined): ItemStats {
   if (!nq) return {};
   const out: ItemStats = {};
   for (const [k, v] of Object.entries(nq) as [keyof ItemStats, number | undefined][]) {
-    if (typeof v === "number") out[k] = Math.ceil(v * 1.25);
+    if (typeof v === "number") out[k] = hqAmount(v);
   }
   return out;
+}
+
+/**
+ * Chance a finished craft is high quality.
+ * Equipment and consumables only. 2% at the recipe level, +1% per skill level
+ * above it, never above 25%. Base mats, bait, and intermediates stay normal.
+ */
+export function hqCraftChance(kind: ItemKind, skillLevel: number, recipeLevel: number): number {
+  if (kind !== "equipment" && kind !== "consumable") return 0;
+  if (!Number.isFinite(skillLevel) || !Number.isFinite(recipeLevel)) return 0;
+  if (skillLevel < recipeLevel) return 0;
+  const over = Math.floor(skillLevel) - Math.floor(recipeLevel);
+  return Math.min(0.25, 0.02 + 0.01 * Math.max(0, over));
 }
 
 export function budgetPoints(craftLevel: number): number {
