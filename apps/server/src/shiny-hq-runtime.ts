@@ -15,6 +15,7 @@ import {
   shinyScaledHp,
   type PaleHollowMobDef,
 } from "@bellgrave/config";
+import { rollIndex, rollUnit } from "./game-roll";
 
 export {
   SHINY_CLONE_COUNT,
@@ -54,7 +55,7 @@ export function lookupMobDef(id: string): PaleHollowMobDef | undefined {
 export function rollShinyPromotion(): boolean {
   const env = process.env.SHINY_HQ_CHANCE;
   const override = env != null && env !== "" ? Number(env) : undefined;
-  return Math.random() < shinyHqChance(override);
+  return rollUnit("shiny.promote") < shinyHqChance(override);
 }
 
 export function applyShinyPromotion<
@@ -103,8 +104,8 @@ export function formationOffset(
 }
 
 export function rollShinyMat(archetype: string): string | null {
-  if (Math.random() >= SHINY_MAT_DROP_CHANCE) return null;
+  if (rollUnit("shiny.mat") >= SHINY_MAT_DROP_CHANCE) return null;
   const table = shinyLootTable(archetype);
   if (!table.length) return null;
-  return table[Math.floor(Math.random() * table.length)] ?? null;
+  return table[rollIndex("shiny.mat.pick", table.length)] ?? null;
 }

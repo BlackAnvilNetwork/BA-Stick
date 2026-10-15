@@ -14,6 +14,7 @@ import {
 import { signatureWeaponEquipped } from "./starter-kit";
 import { kitLevel } from "./support-job";
 import type { AbilityId } from "@bellgrave/protocol";
+import { rollIndex } from "./game-roll";
 
 export type RoguePlayer = {
   level: number;
@@ -207,7 +208,7 @@ export function resolveRogueAbility(
     }
     spend();
     p.facing = hooks.facingTo(p.x, p.z, m.x, m.z);
-    const stolen = 8 + Math.floor(Math.random() * 13);
+    const stolen = 8 + rollIndex("rogue.purse-cut", 13);
     hooks.earnGold(p, stolen);
     p.anim = "melee";
     p.animUntil = now + 480;

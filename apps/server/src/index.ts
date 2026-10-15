@@ -264,6 +264,7 @@ import { characterNameKey, normalizeCharacterName } from "./character-name";
 import { randomBytes } from "node:crypto";
 import { authAllowlist, authVerifyClient, clientAddress, dropAuthConnection, issueAuthChallenge, resolveAuthOrigin, verifyAuthLogin, isEthAddress } from "./wallet-auth";
 import { defaultLokDir, LokWorld } from "./lok-world";
+import { flushGameRoll, loadGameRoll, rollIndex, rollUnit } from "./game-roll";
 import { readPlayerProgress, reconcileCharacterProgress, playerProgressPath, rememberLedger, chargeSkillRespec, RESPEC_GOLD_COST, shouldChargeForAbility, type PlayerProgress } from "./player-progress";
 import { debugCheatsEnabled } from "./debug-cheats";
 import {
@@ -668,6 +669,7 @@ const lok: LokWorld = await (async (): Promise<LokWorld> => {
       process.exit(1);
     }
     const world = LokWorld.open(defaultLokDir());
+    loadGameRoll(defaultLokDir());
     configureMintClaimNonceStore(pathJoin(defaultLokDir(), "mint-claim-nonces.json"));
     console.log(
       "[bellgrave] lok log " + world.logPath + " entries=" + world.length + ". " + world.chainNote,
@@ -1206,7 +1208,7 @@ function earnLogGold(p: Player, source: string, amount: number): void {
 
 /** Small gold drip on mob kills (5–25). */
 function mobKillGoldDrop(): number {
-  return 5 + Math.floor(Math.random() * 21);
+  return 5 + rollIndex("gold.mob-kill", 21);
 }
 
 function refuseFundCustody(p: Player, action: string) {
@@ -3302,7 +3304,7 @@ function rewardMobKill(p: Player, mob: Mob, now: number) {
   }
   const dropNotes: string[] = [];
   for (const mat of mob.drops ?? []) {
-    if (Math.random() < 0.65) {
+    if (rollUnit("loot.mat") < 0.65) {
       grantBaseMat(p, mat, 1);
       const def = CATALOG_BY_SLUG[mat];
       if (def) logLokDrop(p, def.id, 1);
@@ -3310,7 +3312,7 @@ function rewardMobKill(p: Player, mob: Mob, now: number) {
     }
   }
   for (const rare of mob.rareDrops ?? []) {
-    if (Math.random() < rare.chance) {
+    if (rollUnit("loot.rare") < rare.chance) {
       const def = CATALOG_BY_SLUG[rare.slug];
       if (def) {
         addItem(p.inventory, def.id, 1);
@@ -4143,7 +4145,7 @@ function playerSwing(p: Player, now: number) {
   p.animUntil = now + Math.max(160, Math.min(delay * 0.9, 520));
 
   // Enemy Blind / Shield Bash daze — same wild-swing chance as mob Blind.
-  if (now < p.blindUntil && Math.random() < 0.45) {
+  if (now < p.blindUntil && rollUnit("combat.player.blind") < 0.45) {
     pushLog(p, "You swing wild (Blind)!");
     return;
   }
@@ -4170,7 +4172,7 @@ function playerSwing(p: Player, now: number) {
   acc += autoAttackFighterAccBonus(p, now);
   let eva = evasionFromAgi(mobStats.agi);
   if (now < mob.falseGuardUntil) eva = Math.max(0, eva - 18);
-  if (Math.random() > hitChance(acc, eva)) {
+  if (rollUnit("combat.player.hit") > hitChance(acc, eva)) {
     pushLog(p, "You miss.");
     return;
   }
@@ -4183,7 +4185,7 @@ function playerSwing(p: Player, now: number) {
   if (now < p.perpetualUntil) critChance += 0.05;
   critChance += fighterCritBonus(p, now);
   critChance += tree.crit;
-  const crit = backbladeReady || killEdgeReady || stormReady || Math.random() < critChance;
+  const crit = backbladeReady || killEdgeReady || stormReady || rollUnit("combat.player.crit") < critChance;
   let dmg = physicalDamage(
     att,
     def,
@@ -4252,7 +4254,7 @@ function playerSwing(p: Player, now: number) {
   pushLog(p, `You hit ${mob.name} for ${dmg}${hitNote}.`);
 
   const doubleChance = playerHasJob(p, "fighter") ? fighterDoubleAttackChance(p, now) : 0;
-  if (mob.hp > 0 && doubleChance > 0 && Math.random() < doubleChance) {
+  if (mob.hp > 0 && doubleChance > 0 && rollUnit("combat.player.double") < doubleChance) {
     const dmg2 = Math.max(1, Math.floor(dmg * 0.85));
     mob.hp -= dmg2;
     p.tp = Math.min(3000, p.tp + Math.floor(tpGain * 0.6));
@@ -4484,12 +4486,12 @@ function mobSwing(mob: Mob, now: number) {
   }
   // Don't start a new swing while a cast tell is still winding up.
   if (mob.pendingCastHitAt) return;
-  if (now < mob.paraUntil && Math.random() < 0.35) {
+  if (now < mob.paraUntil && rollUnit("combat.mob.para") < 0.35) {
     mob.nextSwingAt = now + 800;
     pushLog(nearest, `${mob.name} seizes up (Paralyze).`);
     return;
   }
-  if (now < mob.blindUntil && Math.random() < 0.45) {
+  if (now < mob.blindUntil && rollUnit("combat.mob.blind") < 0.45) {
     mob.nextSwingAt = now + 900;
     pushLog(nearest, `${mob.name} swings wild (Blind)!`);
     return;
@@ -4641,6 +4643,11 @@ function tickSim() {
   try {
     tickSimBody();
   } finally {
+    try {
+      flushGameRoll();
+    } catch (err) {
+      console.error("[game-roll] flush failed", err);
+    }
     const flushed = lok.endTick();
     if (!flushed.ok) {
       for (const err of flushed.errors) console.error("[lok] tick ledger: " + err);
@@ -4945,7 +4952,7 @@ function tickGathering(p: Player, now: number) {
     pushLog(p, "Move closer to gather.");
     return;
   }
-  const yieldId = node.yields[Math.floor(Math.random() * node.yields.length)] ?? node.yields[0];
+  const yieldId = node.yields[rollIndex("gather.yield", node.yields.length)] ?? node.yields[0];
   grantBaseMat(p, yieldId, 1);
   logLokHarvest(p, yieldId, 1);
   node.readyAt = now + node.respawnMs;

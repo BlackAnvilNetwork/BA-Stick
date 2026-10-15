@@ -25,6 +25,7 @@ import {
   type PaleHollowArchetype,
   type PaleHollowMobJob,
 } from "@bellgrave/config";
+import { rollIndex, rollUnit } from "./game-roll";
 
 export type MobJobCombatant = {
   id: string;
@@ -201,7 +202,7 @@ export function tryMobJobAbility(mob: MobJobCombatant, hooks: MobAbilityHooks): 
   const { now, dist, player, vitals, pushLog, applyPlayerDamage } = hooks;
   if (now < (mob.nextAbilityAt ?? 0)) return { ok: false };
   // ~35% chance each ready swing to spend an ability instead of auto
-  if (Math.random() > 0.38) return { ok: false };
+  if (rollUnit("mob.ai.spend") > 0.38) return { ok: false };
 
   const picks = JOB_ABILITIES[mob.job] ?? [];
   const silenced = now < mob.silenceUntil;
@@ -220,7 +221,7 @@ export function tryMobJobAbility(mob: MobJobCombatant, hooks: MobAbilityHooks): 
   );
   if (ready.length === 0) return { ok: false };
   // Prefer self-heal when hurt
-  let choice = ready[Math.floor(Math.random() * ready.length)]!;
+  let choice = ready[rollIndex("mob.ai.pick", ready.length)]!;
   if (mob.hp < mob.maxHp * 0.45) {
     const mend = ready.find((a) => a.id === "mob_mend");
     if (mend) choice = mend;
@@ -271,7 +272,7 @@ export function tryMobJobAbility(mob: MobJobCombatant, hooks: MobAbilityHooks): 
       const def = targetPhysDef(vitals);
       let dmg = physicalDamage(att, def, fStr(stats.str, vitals.vit), false);
       dmg = Math.max(1, Math.floor(dmg * 1.15));
-      if (Math.random() < 0.4) {
+      if (rollUnit("mob.ai.bash-daze") < 0.4) {
         player.blindUntil = Math.max(player.blindUntil, now + 1600);
         pushLog(`${mob.name}'s Shield Bash dazes you!`);
       }
@@ -284,7 +285,7 @@ export function tryMobJobAbility(mob: MobJobCombatant, hooks: MobAbilityHooks): 
     case "mob_backstab": {
       const att = Math.max(1, Math.floor(attackFromStats(stats, false, mobWeaponBonus(mob.job), { physical: true }) * atkMul * downMul));
       const def = targetPhysDef(vitals);
-      const crit = Math.random() < 0.55;
+      const crit = rollUnit("mob.ai.backstab-crit") < 0.55;
       let dmg = physicalDamage(att, def, meleeFStr("rogue", stats, vitals.vit, "none"), crit);
       dmg = Math.max(1, Math.floor(dmg * (crit ? 1.4 : 1.15)));
       mob.anim = "melee";
@@ -365,7 +366,7 @@ export function mobAutoAttackRoll(
   const atkMul = (now < mob.atkBuffUntil ? mob.atkBuffMul || 1 : 1) * (now < mob.atkDownUntil ? mob.atkDownMul || 1 : 1);
   const mobAcc = stats.dex + 40;
   const playerEva = evasionFromAgi(target.agi);
-  if (Math.random() > hitChance(mobAcc, playerEva)) {
+  if (rollUnit("mob.ai.auto-hit") > hitChance(mobAcc, playerEva)) {
     return { hit: false, dmg: 0, anim: magic ? "cast" : "melee" };
   }
   if (magic) {

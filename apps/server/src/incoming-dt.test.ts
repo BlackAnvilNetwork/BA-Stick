@@ -15,6 +15,7 @@ import {
   playerMagDtMul,
 } from "./incoming-dt";
 import { tryMobJobAbility, type MobJobCombatant } from "./mob-job-ai";
+import { resetGameRollForTests, scriptNextRollsForTests } from "./game-roll";
 
 const NOW = 1_000_000;
 const LATER = NOW + 60_000;
@@ -148,8 +149,8 @@ test("mob magic bolt pending hit is flagged magic", () => {
     movePct: 0,
     blindUntil: 0,
   };
-  const orig = Math.random;
-  Math.random = () => 0;
+  resetGameRollForTests();
+  scriptNextRollsForTests([0]);
   try {
     const res = tryMobJobAbility(mob, {
       now: NOW,
@@ -164,6 +165,6 @@ test("mob magic bolt pending hit is flagged magic", () => {
     assert.equal(res.ok && res.pending?.type, "damage");
     assert.equal(res.ok && res.pending && "magic" in res.pending && res.pending.magic, true);
   } finally {
-    Math.random = orig;
+    resetGameRollForTests();
   }
 });
