@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { deriveCharacterAttributes, type JobId } from "@bellgrave/combat";
 import { resolveClericAbility, type ClericHooks, type ClericPlayer } from "./cleric-abilities";
+import { applyAilment } from "./player-ailments";
 
 const NOW = 50_000;
 
@@ -48,6 +49,13 @@ function player(wallet: string, hp: number, maxHp = 1_000): ClericPlayer & { sub
     healAbsorbHp: 0,
     sacredLightUntil: 0,
     blindUntil: 0,
+    poisonUntil: 0,
+    poisonTick: 0,
+    paraUntil: 0,
+    silenceUntil: 0,
+    diseaseUntil: 0,
+    petrifyUntil: 0,
+    curseUntil: 0,
   };
 }
 
@@ -103,3 +111,35 @@ for (const id of ["cl_raise", "cl_raise_ii"] as const) {
     assert.match(logs.join(" | "), /not in need of recall/);
   });
 }
+
+test("Toxin Lapse spends MP only when poison is active", () => {
+  const clean = player("0xcaster", 400);
+  const cleanLogs: string[] = [];
+  resolveClericAbility(clean, "cl_poisona", undefined, NOW, hooks(clean, [clean], cleanLogs));
+  assert.equal(clean.mp, 500);
+  assert.equal(clean.recasts.cl_poisona, undefined);
+  assert.match(cleanLogs.join(" | "), /nothing to ease/);
+
+  const caster = player("0xcaster", 400);
+  applyAilment(caster, "poison", NOW, 12_000, 3);
+  const logs: string[] = [];
+  resolveClericAbility(caster, "cl_poisona", undefined, NOW, hooks(caster, [caster], logs));
+  assert.equal(caster.mp, 492);
+  assert.equal(caster.poisonUntil, 0);
+  assert.equal(caster.poisonTick, 0);
+  assert.match(logs.join(" | "), /poisoned eased/);
+});
+
+test("Ashmend on a diseased ally restores half", () => {
+  const healthy = player("0xcaster", 100);
+  const healthyLogs: string[] = [];
+  resolveClericAbility(healthy, "cl_cure", undefined, NOW, hooks(healthy, [healthy], healthyLogs));
+  const healthyGain = healthy.hp - 100;
+
+  const diseased = player("0xcaster", 100);
+  applyAilment(diseased, "disease", NOW, 20_000);
+  const logs: string[] = [];
+  resolveClericAbility(diseased, "cl_cure", undefined, NOW, hooks(diseased, [diseased], logs));
+  assert.ok(healthyGain > 0);
+  assert.equal(diseased.hp - 100, Math.floor(healthyGain * 0.5));
+});
