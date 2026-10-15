@@ -183,6 +183,19 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
     beforeSeq: z.number().int().nonnegative().optional(),
     req: z.number().int().nonnegative().optional(),
   }),
+  /** Teleport into Ash Pit after on-chain place (or anvil synthetic). */
+  z.object({
+    type: z.literal("pvp/join"),
+    areaId: z.string().min(1).max(64).optional(),
+    /** Tx hash of PvpBounty.place — required when live escrow is configured. */
+    placeTxHash: z.string().regex(/^0x[0-9a-fA-F]{64}$/).optional(),
+  }),
+  /** Cancel bounty and return to the hub. */
+  z.object({ type: z.literal("pvp/leave") }),
+  /** Place 1 xDAI head-bounty while standing in a PvP arena (Ash Pit). */
+  z.object({ type: z.literal("pvp/bountyPlace") }),
+  /** Cancel / reclaim open PvP bounty without dying. */
+  z.object({ type: z.literal("pvp/bountyCancel") }),
 ]);
 export type ClientMessage = z.infer<typeof ClientMessageSchema>;
 
@@ -324,6 +337,8 @@ export type UnitSnapshot = {
   shiny?: boolean;
   /** Unix ms when this mob died — client fades corpse until MOB_DEATH_FADE_MS. */
   deathAt?: number;
+  /** Player has an open PvP head-bounty (Ash Pit) — clickable for engage. */
+  pvpBounty?: boolean;
 };
 
 export type InventorySlot = { tokenId: number; amount: number; starter?: boolean; hq?: boolean };
@@ -407,6 +422,18 @@ export type AhEscrowClientConfig = {
   currency?: SettlementCurrencyView;
 };
 
+/** Client config for PvpBounty.place (fixed 1 xDAI = 1e18 wei). */
+export type PvpBountyClientConfig = {
+  address: string;
+  bountyWei: string;
+  /** Product unit label — always xDAI for the head-bounty. */
+  currency: "xDAI";
+  /** When true, server accepts synthetic receipts — no wallet place needed. */
+  synthetic: boolean;
+  rpcUrl: string;
+  chainId: number;
+};
+
 /** Local / EEZ sync-buy client config (pay from home chain). */
 export type EezSyncBuyClientConfig = {
   syncBuyEnabled: boolean;
@@ -439,6 +466,8 @@ export type LokSnapshot = {
   chain: "engine-only" | "rpc-unwatched" | "watching";
   /** Present when the server exposes a public RPC + AhEscrow address for wallet buys. */
   ahEscrow?: AhEscrowClientConfig | null;
+  /** Present when PvpBounty escrow (or anvil synthetic) is available. */
+  pvpBounty?: PvpBountyClientConfig | null;
   /** Present when EEZ / local mock sync buy is configured. */
   eezSyncBuy?: EezSyncBuyClientConfig | null;
   /** Present when the player should pay createCharacter{value} for the NFT. */
@@ -490,6 +519,26 @@ export type SnapshotMessage = {
     /** Effective support level = floor(main/2). 0 if no subjob. */
     subLevel: number;
     level: number;
+    /** Effective combat level under area caps (e.g. Ash Pit min(level, 30)). */
+    combatLevel?: number;
+    /** Black Anvil PvP arena + bounty status for this character. */
+    pvp?: {
+      areaId: string | null;
+      areaName: string | null;
+      levelCap: number | null;
+      bountyOpen: boolean;
+      bountyAreaId: string | null;
+      bountyWei: string | null;
+      ashPit: {
+        id: string;
+        name: string;
+        bounds: { minX: number; maxX: number; minZ: number; maxZ: number };
+        spawn: { x: number; z: number; facing?: number };
+        levelCap: number;
+        blurb: string;
+      };
+      escrow?: PvpBountyClientConfig | null;
+    };
     xp: number;
     dust: number;
     claimedStarter: boolean;
@@ -582,6 +631,31 @@ export type ServerMessage =
       } | null;
     }
   | { type: "log"; message: string }
+  | {
+      type: "pvp/joined";
+      areaId: string;
+      areaName: string;
+      bountyWei: string;
+      levelCap: number;
+    }
+  | {
+      type: "pvp/placeNeeded";
+      areaId: string;
+      tokenId: string;
+      bountyWei: string;
+      address: string;
+      rpcUrl: string;
+      chainId: number;
+    }
+  | { type: "pvp/left"; areaId: string }
+  | {
+      type: "pvp/slain";
+      slayerName: string;
+      slayerWallet: string;
+      areaId: string;
+      bountyWei: string;
+      canRejoin: boolean;
+    }
   | {
       type: "char/nameCheck";
       available: boolean;

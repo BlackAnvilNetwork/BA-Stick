@@ -76,6 +76,22 @@ For a **single known treasury EOA** that holds `DEFAULT_ADMIN_ROLE`, `EMERGENCY`
 - Official Gnosis / Chiado entrypoint (`DeployChiado`): default **1 xDAI** (`MINT_FEE` unset → `1 ether` wei).
 - Anvil (`Deploy`): default `0.001 ether`.
 
+## PvP bounty (additive)
+
+Ash Pit head-bounty is **1 xDAI** via `PvpBounty.sol`.
+
+**Live (2026-10-14):** `0x02bDDCaF5a19fD9Be7f39fC7419F794CECE9E64e`  
+[gnosisscan](https://gnosisscan.io/address/0x02bDDCaF5a19fD9Be7f39fC7419F794CECE9E64e) · tx `0x2c2f05f3…12aeb`
+
+ADMIN `0x08cD…4e01`, OPERATOR = LISTING `0xbFa2…9E76` (server `LOK_LISTING_KEY` claims/cancels). `NETWORK=gnosis` fills `LOK_PVP_BOUNTY` from `deployments/gnosis.json`.
+
+Re-deploy (rare):
+
+```bash
+set -a && source .env.gnosis && set +a
+CONFIRM_BROADCAST=1 ./script/broadcast-deploy-pvp-bounty-gnosis.sh
+```
+
 ## Deploy + verify
 
 ### Fork dry-run (recommended before go-ahead)
@@ -152,6 +168,17 @@ forge script script/DeployChiado.s.sol:DeployChiado --rpc-url "$RPC_URL" --sig "
 6. Fund listing/rotator with minimal xDAI; sweep leftovers to treasury after ops.
 7. Server: copy `apps/server/.env.gnosis.example` → `.env.local` (`NETWORK=gnosis`, `LOK_LISTING_KEY`, `LOK_DEPLOY_BLOCK`). Blank `LOK_NFT`/`LOK_FACTORY`/`LOK_AH_ESCROW` fill from deploy JSON **only after official deploy** — never the dry-run MockItems Checkpoint. Web: `VITE_WALLETCONNECT_PROJECT_ID` + `VITE_NETWORK=gnosis` (or `VITE_CHAIN_ID=100`).
 8. Confirmations: profile default **30** blocks (~2.5m) on Gnosis/Chiado; watchers prefer `eth_getBlockByNumber("finalized")` when the RPC supports it (`LOK_USE_FINALIZED=0` to disable). Override with `LOK_CONFIRMATIONS`. RPC fallbacks: `LOK_CHAIN_RPC_URLS`.
+
+### Where `LOK_LISTING_KEY` goes
+
+LISTING EOA `0xbFa29a6EE3d1188aa0A9e0c783E5Da620b859E76` (AhEscrow `LISTING_ROLE` + PvpBounty `OPERATOR_ROLE`). **Never** put `LOK_OWNER_KEY` / admin `0x08cD…` on the server — production boot refuses those vars.
+
+| Host | Set the key here |
+|------|------------------|
+| Local / laptop Gnosis | `apps/server/.env.local` → `LOK_LISTING_KEY=0x…` (gitignored; copy from `.env.gnosis.example`) |
+| Production Node process | Process env for `apps/server` on **PORT 8787** — host secret panel, systemd `EnvironmentFile`, Docker/K8s secret, etc. Same name: `LOK_LISTING_KEY` |
+
+No forge/CI deploy target for the game server is checked into this repo. If the listing key for `0xbFa2…` is lost: mint a fresh listing wallet, grant it `LISTING_ROLE` on AhEscrow + `OPERATOR_ROLE` on PvpBounty (admin signer), revoke both from `0xbFa2…`, update host env + pin address if needed.
 
 ## Ops (production server)
 

@@ -55,6 +55,7 @@ import {
 } from "./open-ask-pending";
 import {
   assertProductionEnvShape,
+  assertPvpProductionClaimDelay,
   isProductionSettlementChain,
 } from "./production-boot";
 import { applySettlementDeployFile } from "./settlement-deploy";
@@ -414,6 +415,25 @@ describe("H-2 / M-7 production boot + dry-run denylist", () => {
     if (!r.ok) assert.match(r.error, /LOK_NFT|production/);
   });
 
+  it("refuses LOK_OWNER_KEY / PRIVATE_KEY on production settlement chains", () => {
+    const base = {
+      NETWORK: "gnosis",
+      LOK_CHAIN_ID: "100",
+      LOK_NFT: "0x48aFeC17A56c5Bd32ABDbcAD57f16d3859b1289F",
+      LOK_FACTORY: "0xA78a61c0E16A74eC64F3d876D222F1e46334ac24",
+      LOK_AH_ESCROW: "0x4669488AE862D7cbf979878fCb1e1b9b80fba6Df",
+      LOK_CHAIN_RPC: "https://rpc.gnosischain.com",
+      LOK_LISTING_KEY: "0x" + "11".repeat(32),
+      LOK_OPS_STATUS_TOKEN: "secret",
+    };
+    const owner = assertProductionEnvShape({ ...base, LOK_OWNER_KEY: "0x" + "22".repeat(32) });
+    assert.equal(owner.ok, false);
+    if (!owner.ok) assert.match(owner.error, /LOK_OWNER_KEY must not be set/);
+    const pk = assertProductionEnvShape({ ...base, PRIVATE_KEY: "0x" + "33".repeat(32) });
+    assert.equal(pk.ok, false);
+    if (!pk.ok) assert.match(pk.error, /PRIVATE_KEY must not be set/);
+  });
+
   it("refuses dry-run denylist hits on production without inspect flags", () => {
     const r = assertProductionEnvShape({
       NETWORK: "gnosis",
@@ -457,12 +477,15 @@ describe("H-2 / M-7 production boot + dry-run denylist", () => {
     );
   });
 
-  it("NETWORK=gnosis no longer auto-fills from missing deploy file (dry-run renamed)", () => {
+  it("NETWORK=gnosis fills official deployments/gnosis.json (not dry-run)", () => {
     const env: NodeJS.ProcessEnv = { NETWORK: "gnosis" };
     applySettlementDeployFile(env);
     assert.equal(env.LOK_CHAIN_ID, "100");
-    assert.equal(env.LOK_NFT, undefined);
-    assert.equal(env.LOK_AH_ESCROW, undefined);
+    assert.equal(env.LOK_NFT, "0x48aFeC17A56c5Bd32ABDbcAD57f16d3859b1289F");
+    assert.equal(env.LOK_AH_ESCROW, "0x4669488AE862D7cbf979878fCb1e1b9b80fba6Df");
+    assert.equal(env.LOK_PVP_BOUNTY, "0x02bDDCaF5a19fD9Be7f39fC7419F794CECE9E64e");
+    // Dry-run file is never auto-selected by the gnosis profile.
+    assert.equal(isDryRunAddress(env.LOK_NFT!), false);
   });
 });
 
@@ -573,6 +596,17 @@ describe("LOK_OPS_STATUS_TOKEN required on all production chains", () => {
     if (!r.ok) assert.match(r.error, /LOK_OPS_STATUS_TOKEN/);
   });
 
+  it("requires a production claimDelay of 60s through 7 days", () => {
+    assert.equal(assertPvpProductionClaimDelay(60n).ok, true);
+    assert.equal(assertPvpProductionClaimDelay(7n * 24n * 60n * 60n).ok, true);
+    const zero = assertPvpProductionClaimDelay(0n);
+    assert.equal(zero.ok, false);
+    if (!zero.ok) assert.match(zero.error, /below the production minimum/);
+    const huge = assertPvpProductionClaimDelay(7n * 24n * 60n * 60n + 1n);
+    assert.equal(huge.ok, false);
+    if (!huge.ok) assert.match(huge.error, /exceeds 7 days/);
+  });
+
   it("passes when LOK_OPS_STATUS_TOKEN is set on production chain", () => {
     const r = assertProductionEnvShape({
       LOK_CHAIN_ID: "10200",
@@ -582,6 +616,7 @@ describe("LOK_OPS_STATUS_TOKEN required on all production chains", () => {
       LOK_CHAIN_RPC: "https://rpc.chiado.gnosis.gateway.fm",
       LOK_LISTING_KEY: "0x" + "44".repeat(32),
       LOK_OPS_STATUS_TOKEN: "test-token",
+      LOK_PVP_BOUNTY: "0x" + "55".repeat(20),
     });
     assert.equal(r.ok, true);
   });

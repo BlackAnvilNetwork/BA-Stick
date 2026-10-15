@@ -450,6 +450,43 @@ export function connectSocket() {
       }
     } else if (msg.type === "log") {
       g.pushLog(msg.message);
+    } else if (msg.type === "pvp/joined") {
+      g.setPvpSlainPrompt(null);
+      g.pushLog(`Ash Pit — joined ${msg.areaName} (L${msg.levelCap} cap).`);
+    } else if (msg.type === "pvp/placeNeeded") {
+      // Server asked for an on-chain place — pay then retry Join with the tx hash.
+      void (async () => {
+        const { placePvpBountyWithWallet } = await import("./pvp-place");
+        g.pushLog("Wallet: place 1 xDAI head-bounty to enter Ash Pit…");
+        const placed = await placePvpBountyWithWallet({
+          escrow: {
+            address: msg.address,
+            bountyWei: msg.bountyWei,
+            currency: "xDAI",
+            synthetic: false,
+            rpcUrl: msg.rpcUrl,
+            chainId: msg.chainId,
+          },
+          tokenId: msg.tokenId,
+        });
+        if (!placed.ok) {
+          g.pushLog(placed.error);
+          return;
+        }
+        send({ type: "pvp/join", areaId: msg.areaId, placeTxHash: placed.hash });
+      })();
+    } else if (msg.type === "pvp/left") {
+      g.setPvpSlainPrompt(null);
+      g.pushLog("Left the Ash Pit.");
+    } else if (msg.type === "pvp/slain") {
+      g.setPvpSlainPrompt({
+        slayerName: msg.slayerName,
+        bountyWei: msg.bountyWei,
+        areaId: msg.areaId,
+      });
+      g.pushLog(
+        `${msg.slayerName} claimed your bounty. ${msg.canRejoin ? "Join again to fight." : ""}`,
+      );
     } else if (msg.type === "error") {
       if (authInFlight) {
         authInFlight = false;

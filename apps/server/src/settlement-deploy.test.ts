@@ -40,13 +40,16 @@ describe("applySettlementDeployFile", () => {
     assert.ok(env.LOK_CHAIN_RPC_URLS?.includes(","));
   });
 
-  it("NETWORK=gnosis selects chain 100 + confirmations + explorer without LOK_CHAIN_ID", () => {
+  it("NETWORK=gnosis selects chain 100 + fills official deploy addresses", () => {
     const env: NodeJS.ProcessEnv = { NETWORK: "gnosis" };
     applySettlementDeployFile(env);
     assert.equal(env.LOK_CHAIN_ID, "100");
     assert.equal(env.LOK_CONFIRMATIONS, "30");
     assert.equal(env.LOK_EXPLORER, "https://gnosisscan.io");
     assert.ok(env.LOK_CHAIN_RPC?.includes("gnosis"));
+    assert.equal(env.LOK_NFT, "0x48aFeC17A56c5Bd32ABDbcAD57f16d3859b1289F");
+    assert.equal(env.LOK_AH_ESCROW, "0x4669488AE862D7cbf979878fCb1e1b9b80fba6Df");
+    assert.equal(env.LOK_PVP_BOUNTY, "0x02bDDCaF5a19fD9Be7f39fC7419F794CECE9E64e");
   });
 
   it("does not override existing env on anvil", () => {
@@ -58,6 +61,23 @@ describe("applySettlementDeployFile", () => {
     assert.equal(env.LOK_CHAIN_ID, "31337");
     assert.equal(env.LOK_NFT, "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
     assert.equal(env.LOK_AH_ESCROW, undefined);
+  });
+
+  it("NETWORK=anvil fills PvpBounty + deployer K0 from deployments/anvil.json", () => {
+    const env: NodeJS.ProcessEnv = { NETWORK: "anvil" };
+    applySettlementDeployFile(env);
+    assert.equal(env.LOK_CHAIN_ID, "31337");
+    assert.equal(env.LOK_PVP_BOUNTY, "0xA51c1fc2f0D1a1b8494Ed1FE312d7C3a78Ed91C0");
+    assert.equal(env.LOK_NFT, "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512");
+    assert.equal(
+      env.LOK_LISTING_KEY,
+      "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+    );
+    assert.equal(
+      env.LOK_OWNER_KEY,
+      "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+    );
+    assert.ok(env.LOK_CHAIN_RPC?.includes("8545"));
   });
 
   it("refuses address fill from dry-run-only deploy files unless opted in", () => {
