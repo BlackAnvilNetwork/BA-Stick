@@ -16,6 +16,7 @@
 
 mod abi;
 mod chain;
+mod character_root;
 mod checkpoint;
 mod craft_recipe_data;
 mod engine;
@@ -36,6 +37,9 @@ pub use chain::{
     load_world, parse_any_log, parse_log, parse_world_log, replay, replay_world, AnyLog,
     CharacterLogDocument, LoggedEntry, LogDocument, ReplayReport, ReplayStop, WorldDocument,
     WorldReplayReport,
+};
+pub use character_root::{
+    character_root_leaf, verify_character_root, CharacterRootProof, CharacterRootTree, Sibling,
 };
 pub use checkpoint::{checkpoint_body_hash, eip712_digest, Checkpoint, Export};
 pub use engine::{Engine, EngineError};
