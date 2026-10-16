@@ -176,6 +176,12 @@ pub struct OpenPvpBounty {
 pub struct World {
     characters: BTreeMap<U256, Character>,
     listings: BTreeMap<U256, Listing>,
+    /// `(seller, item_id)` → listing ids. `AlreadyListed` is a key lookup.
+    /// Derived from `listings` and not hashed.
+    seller_items: BTreeMap<(U256, U256), BTreeSet<U256>>,
+    /// Book asks only, keyed by item id. Ordered by cheaper `min_price`, then older
+    /// `listed_at`, then lower listing id. Derived from `listings` and not hashed.
+    book_asks: BTreeMap<U256, BTreeSet<(U256, u64, U256)>>,
     /// token_id → open head-bounty. Rebuilt by replay. No settlement balance.
     pvp_bounties: BTreeMap<U256, OpenPvpBounty>,
     /// `(tx_hash, log_index)` already mirrored. Same receipt cannot open, cancel, or kill twice.
@@ -191,6 +197,8 @@ impl World {
         Self {
             characters: BTreeMap::new(),
             listings: BTreeMap::new(),
+            seller_items: BTreeMap::new(),
+            book_asks: BTreeMap::new(),
             pvp_bounties: BTreeMap::new(),
             pvp_fill_keys: BTreeSet::new(),
             next_seq: 0,
@@ -739,6 +747,9 @@ impl World {
         }
         if let Some(listings) = saved_listings {
             self.listings = listings;
+            // The snapshot is the map only. Rebuild so a failed apply cannot leave
+            // an index entry for a listing the map no longer has.
+            self.rebuild_listing_indexes();
         }
         if let Some((bounties, keys)) = saved_pvp {
             self.pvp_bounties = bounties;
@@ -1107,7 +1118,7 @@ impl World {
                 if self.listings.contains_key(listing_id) {
                     return Err(EngineError::ListingExists);
                 }
-                if self.listings.values().any(|l| l.seller == *seller && l.item_id == *item_id) {
+                if self.seller_listed(*seller, *item_id) {
                     return Err(EngineError::AlreadyListed);
                 }
                 touch.insert(*seller);
@@ -1900,6 +1911,68 @@ impl World {
         Ok(())
     }
 
+    fn seller_listed(&self, seller: U256, item_id: U256) -> bool {
+        self.seller_items.contains_key(&(seller, item_id))
+    }
+
+    fn insert_listing(&mut self, listing: Listing) {
+        if let Some(prev) = self.listings.remove(&listing.id) {
+            self.unindex_listing(&prev);
+        }
+        self.index_listing(&listing);
+        self.listings.insert(listing.id, listing);
+    }
+
+    fn remove_listing(&mut self, listing_id: U256) {
+        if let Some(listing) = self.listings.remove(&listing_id) {
+            self.unindex_listing(&listing);
+        }
+    }
+
+    fn index_listing(&mut self, listing: &Listing) {
+        self.seller_items
+            .entry((listing.seller, listing.item_id))
+            .or_default()
+            .insert(listing.id);
+        if !listing.book {
+            return;
+        }
+        self.book_asks
+            .entry(listing.item_id)
+            .or_default()
+            .insert((listing.min_price, listing.listed_at, listing.id));
+    }
+
+    fn unindex_listing(&mut self, listing: &Listing) {
+        if let Some(ids) = self.seller_items.get_mut(&(listing.seller, listing.item_id)) {
+            ids.remove(&listing.id);
+            if ids.is_empty() {
+                self.seller_items.remove(&(listing.seller, listing.item_id));
+            }
+        }
+        if !listing.book {
+            return;
+        }
+        let Some(asks) = self.book_asks.get_mut(&listing.item_id) else {
+            return;
+        };
+        asks.remove(&(listing.min_price, listing.listed_at, listing.id));
+        if asks.is_empty() {
+            self.book_asks.remove(&listing.item_id);
+        }
+    }
+
+    /// `restore_failed_apply` replaces `listings` from a snapshot. The indexes are not
+    /// snapshotted, so they are rebuilt from the map that was just restored.
+    fn rebuild_listing_indexes(&mut self) {
+        self.seller_items.clear();
+        self.book_asks.clear();
+        let rows: Vec<Listing> = self.listings.values().cloned().collect();
+        for listing in &rows {
+            self.index_listing(listing);
+        }
+    }
+
     fn list(
         &mut self,
         listing_id: U256,
@@ -1914,26 +1987,23 @@ impl World {
         if self.listings.contains_key(&listing_id) {
             return Err(EngineError::ListingExists);
         }
-        if self.listings.values().any(|l| l.seller == seller && l.item_id == item_id) {
+        if self.seller_listed(seller, item_id) {
             return Err(EngineError::AlreadyListed);
         }
         if touch.contains(&seller) {
             self.debit_item(seller, item_id, amount)?;
         }
-        self.listings.insert(
-            listing_id,
-            Listing {
-                id: listing_id,
-                seller,
-                item_id,
-                amount,
-                high_bidder: None,
-                high_bid: U256::ZERO,
-                min_price: U256::ZERO,
-                listed_at: 0,
-                book: false,
-            },
-        );
+        self.insert_listing(Listing {
+            id: listing_id,
+            seller,
+            item_id,
+            amount,
+            high_bidder: None,
+            high_bid: U256::ZERO,
+            min_price: U256::ZERO,
+            listed_at: 0,
+            book: false,
+        });
         Ok(())
     }
 
@@ -1957,7 +2027,7 @@ impl World {
         if touch.contains(&listing.seller) {
             self.credit_item(listing.seller, listing.item_id, listing.amount)?;
         }
-        self.listings.remove(&listing_id);
+        self.remove_listing(listing_id);
         Ok(())
     }
 
@@ -1979,26 +2049,23 @@ impl World {
         if !self.characters.contains_key(&bidder) {
             return Err(EngineError::NotSpawned);
         }
-        let mut best: Option<&Listing> = None;
-        for listing in self.listings.values() {
-            if !listing.book || listing.item_id != item_id || listing.seller == bidder {
+        let Some(asks) = self.book_asks.get(&item_id) else {
+            return Err(EngineError::NoAsk);
+        };
+        for &(min_price, _, listing_id) in asks {
+            // The set is ordered by price, so every later ask is at least this expensive.
+            if max_price.is_some_and(|max| min_price > max) {
+                break;
+            }
+            let Some(listing) = self.listings.get(&listing_id) else {
+                continue;
+            };
+            if listing.seller == bidder {
                 continue;
             }
-            if max_price.is_some_and(|max| listing.min_price > max) {
-                continue;
-            }
-            best = Some(match best {
-                None => listing,
-                Some(cur) => {
-                    let cheaper = listing.min_price < cur.min_price;
-                    let older = listing.min_price == cur.min_price
-                        && (listing.listed_at < cur.listed_at
-                            || (listing.listed_at == cur.listed_at && listing.id < cur.id));
-                    if cheaper || older { listing } else { cur }
-                }
-            });
+            return Ok(listing.clone());
         }
-        best.cloned().ok_or(EngineError::NoAsk)
+        Err(EngineError::NoAsk)
     }
 
     fn ask(
@@ -2023,20 +2090,17 @@ impl World {
         if touch.contains(&seller) {
             self.debit_item(seller, item_id, amount)?;
         }
-        self.listings.insert(
-            listing_id,
-            Listing {
-                id: listing_id,
-                seller,
-                item_id,
-                amount,
-                high_bidder: None,
-                high_bid: U256::ZERO,
-                min_price,
-                listed_at,
-                book: true,
-            },
-        );
+        self.insert_listing(Listing {
+            id: listing_id,
+            seller,
+            item_id,
+            amount,
+            high_bidder: None,
+            high_bid: U256::ZERO,
+            min_price,
+            listed_at,
+            book: true,
+        });
         Ok(())
     }
 
@@ -2067,7 +2131,7 @@ impl World {
         if touch.contains(&buyer) {
             self.credit_inbox(buyer, listing.item_id, listing.amount)?;
         }
-        self.listings.remove(&listing_id);
+        self.remove_listing(listing_id);
         Ok(())
     }
 
@@ -2082,7 +2146,7 @@ impl World {
         if touch.contains(&seller) {
             self.credit_inbox(seller, listing.item_id, listing.amount)?;
         }
-        self.listings.remove(&listing_id);
+        self.remove_listing(listing_id);
         Ok(())
     }
 
@@ -2103,7 +2167,7 @@ impl World {
         if touch.contains(&seller) {
             self.credit_inbox(seller, listing.item_id, listing.amount)?;
         }
-        self.listings.remove(&listing_id);
+        self.remove_listing(listing_id);
         Ok(())
     }
 
@@ -2215,5 +2279,226 @@ fn listing_id_of(input: &Input) -> Option<U256> {
         | Input::CancelAsk { listing_id, .. }
         | Input::ReclaimAsk { listing_id, .. } => Some(*listing_id),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod book_ask_index_tests {
+    use super::*;
+
+    fn n(v: u64) -> U256 {
+        U256::from_u64(v)
+    }
+
+    fn spawn_with_item(world: &mut World, token: u64, item: U256) {
+        world.append_spawn(n(token), 0).unwrap();
+        world.append_import_item(n(token), item, n(4), 1).unwrap();
+    }
+
+    /// Pre-index scan. Cheaper `min_price`, then older `listed_at`, then lower id.
+    fn scan_ask(
+        world: &World,
+        bidder: U256,
+        item_id: U256,
+        max_price: Option<U256>,
+    ) -> Result<Listing, EngineError> {
+        if !world.characters.contains_key(&bidder) {
+            return Err(EngineError::NotSpawned);
+        }
+        let mut best: Option<&Listing> = None;
+        for listing in world.listings.values() {
+            if !listing.book || listing.item_id != item_id || listing.seller == bidder {
+                continue;
+            }
+            if max_price.is_some_and(|max| listing.min_price > max) {
+                continue;
+            }
+            best = Some(match best {
+                None => listing,
+                Some(cur) => {
+                    let cheaper = listing.min_price < cur.min_price;
+                    let older = listing.min_price == cur.min_price
+                        && (listing.listed_at < cur.listed_at
+                            || (listing.listed_at == cur.listed_at && listing.id < cur.id));
+                    if cheaper || older { listing } else { cur }
+                }
+            });
+        }
+        best.cloned().ok_or(EngineError::NoAsk)
+    }
+
+    fn assert_index_matches_map(world: &World) {
+        for (item_id, asks) in &world.book_asks {
+            assert!(!asks.is_empty());
+            for &(min_price, listed_at, listing_id) in asks {
+                let listing = world.listings.get(&listing_id).unwrap_or_else(|| {
+                    panic!("index points at listing {listing_id} which the map no longer has")
+                });
+                assert!(listing.book);
+                assert_eq!(listing.item_id, *item_id);
+                assert_eq!(listing.min_price, min_price);
+                assert_eq!(listing.listed_at, listed_at);
+            }
+        }
+        for ((seller, item_id), ids) in &world.seller_items {
+            assert!(!ids.is_empty());
+            for listing_id in ids {
+                let listing = world.listings.get(listing_id).unwrap_or_else(|| {
+                    panic!("seller index points at listing {listing_id} which the map no longer has")
+                });
+                assert_eq!(listing.seller, *seller);
+                assert_eq!(listing.item_id, *item_id);
+            }
+        }
+        for listing in world.listings.values() {
+            let indexed = world
+                .book_asks
+                .get(&listing.item_id)
+                .is_some_and(|asks| asks.contains(&(listing.min_price, listing.listed_at, listing.id)));
+            assert_eq!(indexed, listing.book);
+            let listed = world
+                .seller_items
+                .get(&(listing.seller, listing.item_id))
+                .is_some_and(|ids| ids.contains(&listing.id));
+            assert!(listed);
+        }
+    }
+
+    #[test]
+    fn indexed_asks_match_the_scan_skip_own_and_drop_on_failed_apply() {
+        let item = n(7);
+        let mut world = World::new();
+        for token in 1..=5 {
+            spawn_with_item(&mut world, token, item);
+        }
+        let t = 1_700_000_000u64;
+        // Three book asks, inserted out of winner order. id 20 wins: cheaper than id 30,
+        // older than id 10. id 10 is the lower id and must not win.
+        world.append_ask(n(30), n(1), item, n(1), n(100), t).unwrap();
+        world.append_ask(n(10), n(2), item, n(1), n(50), t + 80).unwrap();
+        world.append_ask(n(20), n(3), item, n(1), n(50), t + 10).unwrap();
+        // The bidder's own ask is the cheapest row and must be skipped.
+        world.append_ask(n(4), n(4), item, n(1), n(1), t).unwrap();
+        // Legacy rows stay out of the index. A zero price would otherwise win.
+        world.append_list(n(99), n(5), item, n(1)).unwrap();
+
+        let bidder = n(4);
+        let indexed = world.choose_ask_capped(bidder, item, None).unwrap();
+        let scanned = scan_ask(&world, bidder, item, None).unwrap();
+        assert_eq!(indexed.id, n(20));
+        assert_eq!(scanned, indexed);
+        assert_eq!(
+            world.book_asks.get(&item).unwrap().iter().copied().collect::<Vec<_>>(),
+            vec![
+                (n(1), t, n(4)),
+                (n(50), t + 10, n(20)),
+                (n(50), t + 80, n(10)),
+                (n(100), t, n(30)),
+            ]
+        );
+
+        // Same price and time as the winner: the lower id replaces it.
+        world.append_ask(n(15), n(1), item, n(1), n(50), t + 10).unwrap();
+        let indexed = world.choose_ask_capped(bidder, item, None).unwrap();
+        assert_eq!(indexed.id, n(15));
+        assert_eq!(scan_ask(&world, bidder, item, None).unwrap(), indexed);
+        assert_eq!(world.choose_ask_capped(bidder, item, Some(n(49))).unwrap_err(), EngineError::NoAsk);
+        assert_eq!(world.choose_ask_capped(n(9), item, None).unwrap_err(), EngineError::NotSpawned);
+        assert_index_matches_map(&world);
+
+        let loaded = World::load(&world.to_document()).expect("replay");
+        assert_eq!(loaded.choose_ask_capped(bidder, item, None).unwrap().id, n(15));
+        assert_eq!(loaded.book_asks, world.book_asks);
+        assert_eq!(loaded.seller_items, world.seller_items);
+        assert_index_matches_map(&loaded);
+
+        // Effects inserts a cheaper ask, then linking overflows. The restored map must
+        // not keep that ask, and the index must not point at it.
+        let mut failed = world.clone();
+        failed.next_seq = u64::MAX;
+        assert_eq!(
+            failed.append_ask(n(77), n(1), item, n(1), n(2), t + 1).unwrap_err(),
+            EngineError::Overflow
+        );
+        assert!(failed.listing(&n(77)).is_none());
+        assert_index_matches_map(&failed);
+        assert_eq!(failed.choose_ask_capped(bidder, item, None).unwrap().id, n(15));
+        assert_eq!(failed.book_asks, world.book_asks);
+        assert_eq!(failed.seller_items, world.seller_items);
+        assert_eq!(failed.item_balance(&n(1), &item), world.item_balance(&n(1), &item));
+    }
+
+    #[test]
+    fn two_asks_for_one_item_pick_the_cheaper_then_the_older() {
+        let item = n(3);
+        let t = 1_700_000_000u64;
+
+        let mut cheaper = World::new();
+        for token in 1..=3 {
+            spawn_with_item(&mut cheaper, token, item);
+        }
+        // id 1 is newer and has the smaller id. The cheaper price still wins.
+        cheaper.append_ask(n(2), n(1), item, n(1), n(80), t).unwrap();
+        cheaper.append_ask(n(1), n(2), item, n(1), n(40), t + 50).unwrap();
+        let picked = cheaper.choose_ask_capped(n(3), item, None).unwrap();
+        assert_eq!(picked.id, n(1));
+        assert_eq!(scan_ask(&cheaper, n(3), item, None).unwrap(), picked);
+
+        let mut tied = World::new();
+        for token in 1..=3 {
+            spawn_with_item(&mut tied, token, item);
+        }
+        // Same price. id 30 is older. id 10 is newer and smaller, and must not win.
+        tied.append_ask(n(30), n(1), item, n(1), n(40), t).unwrap();
+        tied.append_ask(n(10), n(2), item, n(1), n(40), t + 9).unwrap();
+        let picked = tied.choose_ask_capped(n(3), item, None).unwrap();
+        assert_eq!(picked.id, n(30));
+        assert_eq!(picked.listed_at, t);
+        assert_eq!(scan_ask(&tied, n(3), item, None).unwrap(), picked);
+    }
+
+    #[test]
+    fn already_listed_is_a_seller_item_lookup() {
+        let item = n(7);
+        let other = n(8);
+        let mut world = World::new();
+        spawn_with_item(&mut world, 1, item);
+        world.append_import_item(n(1), item, n(4), 2).unwrap();
+        world.append_import_item(n(1), other, n(2), 3).unwrap();
+        world.append_spawn(n(2), 0).unwrap();
+        world.append_import_item(n(2), item, n(4), 1).unwrap();
+
+        world.append_list(n(10), n(1), item, n(1)).unwrap();
+        assert_eq!(
+            world.append_list(n(11), n(1), item, n(1)).unwrap_err(),
+            EngineError::AlreadyListed
+        );
+        // A different item for the same seller is not AlreadyListed.
+        world.append_list(n(11), n(1), other, n(1)).unwrap();
+        // Another seller can list the same item.
+        world.append_list(n(12), n(2), item, n(1)).unwrap();
+        world.append_cancel(n(12), n(2)).unwrap();
+        world.append_list(n(13), n(2), item, n(1)).unwrap();
+        // A book ask occupies the pair too, so a later list of that item is AlreadyListed.
+        world.append_import_item(n(2), other, n(2), 2).unwrap();
+        world.append_ask(n(14), n(2), other, n(1), n(5), 1_700_000_000).unwrap();
+        assert_eq!(
+            world.append_list(n(15), n(2), other, n(1)).unwrap_err(),
+            EngineError::AlreadyListed
+        );
+        world.append_spawn(n(3), 0).unwrap();
+        world.append_import_item(n(3), item, n(2), 1).unwrap();
+        assert_index_matches_map(&world);
+
+        let mut failed = world.clone();
+        failed.next_seq = u64::MAX;
+        assert_eq!(
+            failed.append_list(n(16), n(3), item, n(1)).unwrap_err(),
+            EngineError::Overflow
+        );
+        assert!(failed.listing(&n(16)).is_none());
+        assert_eq!(failed.seller_items, world.seller_items);
+        assert_eq!(failed.item_balance(&n(3), &item), world.item_balance(&n(3), &item));
+        assert_index_matches_map(&failed);
     }
 }
