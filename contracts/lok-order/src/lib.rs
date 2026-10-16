@@ -37,13 +37,19 @@ pub use context::{
 
 
 /// A commit certificate Malachite produced for one proposed root.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+///
+/// `certificate` is the byte layout the root anchor stores:
+/// height `u64` LE, round `i64` LE, 32-byte next root, `u32` LE signature count,
+/// then each signer as a 32-byte address and a 64-byte Ed25519 signature.
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Committed {
     pub height: u64,
     pub root: [u8; 32],
     pub signatures: usize,
     /// Proposer of the round that decided.
     pub proposer: OrderAddr,
+    /// Non-empty once `Effect::Decide` produced this commit.
+    pub certificate: Vec<u8>,
 }
 
 #[derive(Debug)]
@@ -101,7 +107,7 @@ impl GenesisOrderer {
 
     /// Last certificate this process has. `None` until a round decides.
     pub fn last_commit(&self) -> Option<Committed> {
-        self.last_commit
+        self.last_commit.clone()
     }
 
     pub fn address(&self) -> OrderAddr {
@@ -158,7 +164,7 @@ impl GenesisOrderer {
         }
 
         let committed = decided.ok_or(OrderError::NoDecision { height })?;
-        self.last_commit = Some(committed);
+        self.last_commit = Some(committed.clone());
         Ok(committed)
     }
 }
@@ -188,6 +194,9 @@ mod tests {
         assert_eq!(committed.height, 0);
         assert_eq!(committed.root, root);
         assert_eq!(committed.signatures, 1);
+        assert!(!committed.certificate.is_empty());
+        assert_eq!(&committed.certificate[0..8], &0u64.to_le_bytes());
+        assert_eq!(&committed.certificate[16..48], &root);
         assert_eq!(orderer.last_commit(), Some(committed));
     }
 
@@ -246,11 +255,22 @@ pub(crate) fn handle_effect(
                 certificate.height,
                 certificate.round,
             ));
+            let mut encoded = Vec::with_capacity(52 + certificate.commit_signatures.len() * 96);
+            encoded.extend_from_slice(&Height::as_u64(&certificate.height).to_le_bytes());
+            encoded.extend_from_slice(&certificate.round.as_i64().to_le_bytes());
+            encoded.extend_from_slice(&certificate.value_id.0);
+            let count = u32::try_from(certificate.commit_signatures.len()).unwrap_or(u32::MAX);
+            encoded.extend_from_slice(&count.to_le_bytes());
+            for commit_sig in &certificate.commit_signatures {
+                encoded.extend_from_slice(&commit_sig.address.0);
+                encoded.extend_from_slice(&commit_sig.signature.to_bytes());
+            }
             *decided = Some(Committed {
                 height: Height::as_u64(&certificate.height),
                 root: certificate.value_id.0,
                 signatures: certificate.commit_signatures.len(),
                 proposer,
+                certificate: encoded,
             });
             resume.resume_with(())
         }

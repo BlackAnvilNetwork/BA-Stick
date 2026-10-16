@@ -41,6 +41,7 @@ fn one_signer_does_not_decide_and_two_signers_do() {
         serde_json::from_str(&one.status_json()).expect("status json");
     assert!(one_status["lastCertifiedHeight"].is_null());
     assert!(one_status["lastAnchoredHeight"].is_null());
+    assert!(one_status["commitCertificate"].is_null());
     assert_eq!(one_status["clockSkew"], 0);
     assert_eq!(one_status["peers"].as_array().map(Vec::len), Some(3));
 
@@ -56,6 +57,10 @@ fn one_signer_does_not_decide_and_two_signers_do() {
     let status: serde_json::Value = serde_json::from_str(&two.status_json()).expect("status json");
     assert_eq!(status["lastCertifiedHeight"], 0);
     assert!(status["lastAnchoredHeight"].is_null());
+    let certificate = status["commitCertificate"].as_str().expect("commit certificate");
+    let encoded = hex_encode(&root);
+    assert!(certificate.len() >= 296, "certificate holds the root and a signature");
+    assert_eq!(&certificate[32..96], encoded.as_str());
     assert_eq!(status["clockSkew"], 0);
     let peers = status["peers"].as_array().expect("peers");
     assert_eq!(peers.len(), 3);
@@ -103,4 +108,15 @@ fn three_present_replicas_decide_without_an_anchor() {
     assert_eq!(orderer.clock_skew(), 0);
     let heard = orderer.peers().iter().filter(|peer| peer.heard).count();
     assert_eq!(heard, 3);
+    assert!(!committed.certificate.is_empty());
+}
+
+fn hex_encode(bytes: &[u8]) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut out = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        out.push(HEX[(byte >> 4) as usize] as char);
+        out.push(HEX[(byte & 0xf) as usize] as char);
+    }
+    out
 }

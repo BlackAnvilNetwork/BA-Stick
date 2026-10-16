@@ -11,13 +11,14 @@
  * and it does not wait for a round.
  */
 import { spawn, type ChildProcess } from "node:child_process";
+import { scheduleAnchorPost, type CertifiedBatch } from "./root-anchor";
 
 export type ReplicaPeer = {
   address: string;
   heard: boolean;
 };
 
-/** What `/status` reports for the allowlist. Anchored height stays null until Gnosis. */
+/** What `/status` reports for the allowlist. An anchored height is not taken from this line. */
 export type ReplicaHealth = {
   lastCertifiedHeight: number | null;
   lastAnchoredHeight: null;
@@ -25,6 +26,10 @@ export type ReplicaHealth = {
   peers: ReplicaPeer[];
   /** Allowlisted replica that rolls the world seed. Not the leader when three are configured. */
   seedRoller: string | null;
+  /** 64 hex chars of the last certified next root, when the line carried a certificate. */
+  certifiedRoot?: string | null;
+  /** Hex commit certificate for `certifiedRoot`. Absent until lok-order decides. */
+  commitCertificate?: string | null;
 };
 
 export function emptyReplicaHealth(): ReplicaHealth {
@@ -49,7 +54,17 @@ export function shortOfMajority(peers: readonly { heard: boolean }[] | undefined
   return heard * 2 <= peers.length;
 }
 
-/** Apply one orderer stdout line. An anchored height in the line is ignored. */
+function hexBytes(hex: string): Uint8Array | null {
+  const raw = hex.trim().replace(/^0x/i, "");
+  if (raw.length === 0 || raw.length % 2 !== 0 || !/^[0-9a-fA-F]+$/.test(raw)) return null;
+  const out = new Uint8Array(raw.length / 2);
+  for (let i = 0; i < out.length; i += 1) {
+    out[i] = Number.parseInt(raw.slice(i * 2, i * 2 + 2), 16);
+  }
+  return out;
+}
+
+/** Apply one orderer stdout line. A claimed anchored height in the line is ignored. */
 export function replicaHealthFromLine(line: string, prev: ReplicaHealth): ReplicaHealth {
   let parsed: unknown;
   try {
@@ -70,14 +85,46 @@ export function replicaHealthFromLine(line: string, prev: ReplicaHealth): Replic
   const height = obj.lastCertifiedHeight;
   const skew = obj.clockSkew;
   const roller = obj.seedRoller;
+  const nextHeight =
+    typeof height === "number" ? height : height === null ? null : prev.lastCertifiedHeight;
+  let certifiedRoot = prev.certifiedRoot ?? null;
+  let commitCertificate = prev.commitCertificate ?? null;
+  const rootBytes = typeof obj.root === "string" ? hexBytes(obj.root) : null;
+  const certBytes = typeof obj.commitCertificate === "string" ? hexBytes(obj.commitCertificate) : null;
+  if (typeof nextHeight === "number" && rootBytes?.length === 32 && certBytes && certBytes.length > 0) {
+    certifiedRoot = Buffer.from(rootBytes).toString("hex");
+    commitCertificate = Buffer.from(certBytes).toString("hex");
+  }
   return {
-    lastCertifiedHeight:
-      typeof height === "number" ? height : height === null ? null : prev.lastCertifiedHeight,
+    lastCertifiedHeight: nextHeight,
     lastAnchoredHeight: null,
     clockSkew: typeof skew === "number" ? skew : 0,
     peers,
     seedRoller: typeof roller === "string" ? roller : prev.seedRoller,
+    certifiedRoot,
+    commitCertificate,
   };
+}
+
+/** Parse one orderer line and, when it carries a certificate, queue a local post. */
+export function observeOrdererLine(
+  line: string,
+  prev: ReplicaHealth,
+  env: NodeJS.ProcessEnv = process.env,
+): ReplicaHealth {
+  const health = replicaHealthFromLine(line, prev);
+  const batch = certifiedBatchFromHealth(health);
+  if (batch) scheduleAnchorPost(batch, env);
+  return health;
+}
+
+function certifiedBatchFromHealth(health: ReplicaHealth): CertifiedBatch | null {
+  if (typeof health.lastCertifiedHeight !== "number") return null;
+  if (!health.certifiedRoot || !health.commitCertificate) return null;
+  const nextRoot = hexBytes(health.certifiedRoot);
+  const certificate = hexBytes(health.commitCertificate);
+  if (!nextRoot || nextRoot.length !== 32 || !certificate || certificate.length === 0) return null;
+  return { height: health.lastCertifiedHeight, nextRoot, certificate };
 }
 
 export type SealedOrder = {
@@ -171,7 +218,7 @@ export function startProcessOrderer(bin: string): ProcessOrderer | null {
     while (nl >= 0) {
       const line = stdoutBuf.slice(0, nl).trim();
       stdoutBuf = stdoutBuf.slice(nl + 1);
-      if (line) health = replicaHealthFromLine(line, health);
+      if (line) health = observeOrdererLine(line, health);
       nl = stdoutBuf.indexOf("\n");
     }
   });

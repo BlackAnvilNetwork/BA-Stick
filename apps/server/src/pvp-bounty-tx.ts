@@ -22,6 +22,7 @@ import type { LokResult } from "./lok-world";
 import { pvpBountyAddress, pvpSyntheticReceiptsAllowed } from "./pvp-bounty";
 import { settlementChainId } from "./settlement-chain";
 import { settlementConfirmations } from "./settlement-confirmations";
+import { chainBoundSendGate } from "./root-anchor";
 import { watcherStartBlock } from "./settlement-rpc";
 import { readWatcherCursor, writeWatcherCursor } from "./watcher-cursor";
 
@@ -237,6 +238,8 @@ export async function chainPvpCancel(
   tokenId: string,
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<{ ok: true; receipt: PvpChainReceipt } | { ok: false; error: string }> {
+  const gate = chainBoundSendGate();
+  if (!gate.ok) return gate;
   try {
     return await withOwnerKeyQueue(async () => {
       return withOperatorWallet(env, async ({ wallet, public: pub, account, bounty }) => {
@@ -305,6 +308,8 @@ export async function chainPvpClaim(
   if (!/^0x[0-9a-fA-F]{40}$/.test(expectedSlayer)) {
     return { ok: false, error: "Slayer wallet is not an address." };
   }
+  const gate = chainBoundSendGate();
+  if (!gate.ok) return gate;
   const owner = await readCharacterOwner(slayerTokenId, env);
   if (!owner || owner !== expectedSlayer.toLowerCase()) {
     return {
