@@ -20,6 +20,16 @@ use crate::{
     handle_effect, BatchRoot, Committed, GenesisSet, OrderAddr, OrderCtx, OrderError, OrderHeight,
 };
 
+fn hex_root(root: &[u8; 32]) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut out = String::with_capacity(64);
+    for byte in root {
+        out.push(HEX[(byte >> 4) as usize] as char);
+        out.push(HEX[(byte & 0xf) as usize] as char);
+    }
+    out
+}
+
 /// Strict majority: more than half the voting power.
 ///
 /// For three votes, one signer fails `is_met` and two succeed. For one vote,
@@ -151,7 +161,21 @@ impl AllowlistOrderer {
                 })
             })
             .collect();
+        let committed = self.last_commit;
         serde_json::json!({
+            "committed": committed.is_some(),
+            "height": match certified {
+                Some(height) => serde_json::Value::from(height),
+                None => serde_json::Value::Null,
+            },
+            "root": match committed {
+                Some(commit) => serde_json::Value::String(hex_root(&commit.root)),
+                None => serde_json::Value::Null,
+            },
+            "signatures": match committed {
+                Some(commit) => serde_json::Value::from(commit.signatures),
+                None => serde_json::Value::Null,
+            },
             "lastCertifiedHeight": match certified {
                 Some(height) => serde_json::Value::from(height),
                 None => serde_json::Value::Null,

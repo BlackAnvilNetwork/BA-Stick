@@ -95,6 +95,22 @@ export type BatchOrderer = {
   replicaHealth?: () => ReplicaHealth;
 };
 
+/** A spawned `lok-order`. `stop` ends the process; the tick never calls it. */
+export type ProcessOrderer = BatchOrderer & { stop(): Promise<void> };
+
+/**
+ * The one JSON line `lok-order` reads. `nextRoot` is 32 bytes, written as 64 hex
+ * characters. The tick writes this line and does not wait for the commit.
+ */
+export function orderSubmitLine(height: number, nextRoot: Uint8Array): string {
+  return (
+    JSON.stringify({
+      height,
+      root: Buffer.from(nextRoot).toString("hex"),
+    }) + "\n"
+  );
+}
+
 /**
  * What `tickSim` calls after a successful seal.
  * Always returns. A stopped orderer or a submit that has not committed
@@ -134,7 +150,7 @@ export function loadTickOrderer(env: NodeJS.ProcessEnv = process.env): BatchOrde
 }
 
 /** Spawn the orderer. A binary that cannot start is absent, not fatal. */
-export function startProcessOrderer(bin: string): BatchOrderer | null {
+export function startProcessOrderer(bin: string): ProcessOrderer | null {
   let child: ChildProcess;
   try {
     child = spawn(bin, [], {
@@ -166,6 +182,9 @@ export function startProcessOrderer(bin: string): BatchOrderer | null {
     failed = true;
     console.error("[order] orderer absent", err);
   });
+  child.stdin?.on("error", () => {
+    failed = true;
+  });
   child.on("exit", () => {
     failed = true;
   });
@@ -176,13 +195,16 @@ export function startProcessOrderer(bin: string): BatchOrderer | null {
       if (failed || child.exitCode != null || !stdin || stdin.destroyed || !stdin.writable) {
         throw new Error("orderer absent");
       }
-      const line =
-        JSON.stringify({
-          height,
-          root: Buffer.from(nextRoot).toString("hex"),
-        }) + "\n";
-      // A full buffer still queued the line. Do not wait for the drain.
-      stdin.write(line);
+      // A full buffer still queued the line. Do not wait for the drain or the commit.
+      stdin.write(orderSubmitLine(height, nextRoot));
+    },
+    stop() {
+      failed = true;
+      if (child.exitCode != null || child.signalCode != null) return Promise.resolve();
+      return new Promise((resolve) => {
+        child.once("exit", () => resolve());
+        child.kill();
+      });
     },
   };
 }
