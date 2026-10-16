@@ -26,6 +26,7 @@ import {
   type QuarantinedAskFill,
 } from "./lok-ask-filled-quarantine";
 import { opsAlert, watcherLagAlertBlocks } from "./ops-log";
+import { creditGuildVault } from "./guild-score";
 import { observeEscrowSettlement } from "./root-anchor";
 import { redactRpcUrl } from "./ops-redact";
 import { resolvePublicRpcUrl } from "./public-rpc";
@@ -169,7 +170,10 @@ export function applyAskFilled(
   }
   // buyAsk already moved this xDAI. Count it in the settlement epoch.
   // Do not wait for a later empty bucket, and do not count the same fill twice.
-  if (price > 0n) observeEscrowSettlement(fillKey, price, opts?.log?.settledAtMs);
+  if (price > 0n) {
+    observeEscrowSettlement(fillKey, price, opts?.log?.settledAtMs);
+    creditGuildVault(price);
+  }
 
   const listing = lok.listingOf(fill.listingId);
   if (!listing) {

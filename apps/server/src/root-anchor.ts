@@ -452,6 +452,11 @@ export function anchoredHeight(): number | null {
   return lastPostedHeight;
 }
 
+/** Clock time when this height was posted. Null until that post succeeds. */
+export function anchoredAtMs(height: number): number | null {
+  return anchoredAt.get(height) ?? null;
+}
+
 export function noteCertifiedBatch(batch: CertifiedBatch): void {
   if (!validBatch(batch)) return;
   certified = { height: batch.height, nextRoot: batch.nextRoot.slice() };

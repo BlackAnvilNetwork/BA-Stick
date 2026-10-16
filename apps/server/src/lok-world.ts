@@ -312,6 +312,8 @@ export class LokWorld {
   /** Open game tick. Journal lines stay in memory until endTick fsyncs once. */
   private journalHold = false;
   private journalPending: Buffer[] = [];
+  /** Commands accepted since the last {@link takeCommittedCmds}. Replay does not push. */
+  private committedCmds: Record<string, unknown>[] = [];
   /**
    * One append fd for the life of this world. Out-of-tick ops must not open and
    * close the journal on every call. There is no world close method; process
@@ -1421,8 +1423,19 @@ export class LokWorld {
     return raw.subarray(0, start);
   }
 
+  /**
+   * Journal commands accepted since the previous call.
+   * The tick reads these after `endTick` so a certified batch can name them.
+   */
+  takeCommittedCmds(): Record<string, unknown>[] {
+    const cmds = this.committedCmds;
+    this.committedCmds = [];
+    return cmds;
+  }
+
   /** Append one event. The full document is rewritten only every LOG_SNAPSHOT_EVERY events. */
   private notePersisted(cmd: Record<string, unknown>) {
+    this.committedCmds.push(cmd);
     this.cachedDoc = null;
     const line = JSON.stringify({ seq: this.length, cmd }) + "\n";
     const bytes = Buffer.from(line, "utf8");

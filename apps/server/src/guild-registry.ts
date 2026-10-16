@@ -123,6 +123,22 @@ export function guildMembers(guildId: string): GuildMember[] {
 }
 
 /**
+ * Marks bound to the operator of this guild.
+ * The registered Mark is included. A second Mark is the same guild.
+ */
+export function guildMarkIds(guildId: string): string[] {
+  if (typeof guildId !== "string") return [];
+  const guild = guildsById.get(guildId.trim());
+  if (!guild) return [];
+  const ids = new Set<string>();
+  ids.add(guild.markId);
+  for (const [mark, operator] of markOperator) {
+    if (operator === guild.operatorId) ids.add(mark);
+  }
+  return [...ids];
+}
+
+/**
  * Open the one guild for a bonded operator.
  * `operatorId` and `markId` must already be bonded replicas. The bond is
  * `postedSlashableBond(operatorId)`. A second Mark does not open another guild.

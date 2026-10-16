@@ -1,0 +1,465 @@
+/**
+ * Guild score and the xDAI payout gate.
+ *
+ * A guild's score for an epoch is a pure function of the certified journal
+ * and that epoch's guild membership. It counts distinct characters in the
+ * guild who have at least one certified qualifying event. Qualifying events
+ * are a combat resolution, a gather, a craft, or a trade the journal
+ * committed. Each character contributes at most one. Provisional batches
+ * do not score.
+ *
+ * The Mark must have signed a commit certificate in that epoch or the guild
+ * is ineligible. That signature is a bit, not a multiplier. A second Mark
+ * does not multiply the score. Idle uptime does not pay.
+ *
+ * The player-facing auction fee stays 1% (`AhEscrow` `FEE_BPS = 100`). Of
+ * that fee, 50 bps of the sale is credited to the guild vault and the rest
+ * of the same fee to the treasury. This is not a second fee and not a new
+ * token.
+ *
+ * A payout runs only after that epoch's certified root is anchored and the
+ * one-day challenge delay (`CHALLENGE_DELAY_MS`, 86_400_000 ms) has passed,
+ * and only in proportion to that epoch's scores. If every score is 0, the
+ * xDAI stays in the vault. Nothing here broadcasts, and the tick does not
+ * wait.
+ */
+import { AH_FEE_BPS, AH_FEE_BPS_DENOM, ahFeeSplit } from "@bellgrave/protocol";
+import { guildMarkIds, guildMembers, guilds } from "./guild-registry";
+import { ANCHOR_WAIT, CHALLENGE_DELAY_MS, CHALLENGE_WAIT, anchoredAtMs } from "./root-anchor";
+
+export { CHALLENGE_DELAY_MS };
+
+/** 50 bps of the sale. Half of the existing 1% auction fee. */
+export const GUILD_VAULT_BPS = 50;
+
+/** The other 50 bps of the sale. The treasury side of the same 1% fee. */
+export const TREASURY_BPS = 50;
+
+export type QualifyingKind = "combat" | "gather" | "craft" | "trade";
+
+export type JournalEvent = {
+  characterId: string;
+  kind: string;
+};
+
+export type JournalBatch = {
+  epoch: number;
+  /** True only when a commit certificate covers this batch. */
+  certified: boolean;
+  events: readonly JournalEvent[];
+  /** Replica ids that signed this batch's commit certificate. */
+  signers: readonly string[];
+};
+
+export type EpochMembership = {
+  guildId: string;
+  /** Any one of these Marks signing sets the bit. More than one does not multiply. */
+  markIds: readonly string[];
+  characterIds: readonly string[];
+};
+
+export type GuildScore = {
+  guildId: string;
+  score: number;
+  /** False when no Mark of this guild signed a certified commit in the epoch. */
+  eligible: boolean;
+};
+
+export type GuildPayment = {
+  guildId: string;
+  wei: bigint;
+};
+
+export type GuildPayoutResult = {
+  ok: boolean;
+  error?: string;
+  vaultWei: bigint;
+  paid: GuildPayment[];
+};
+
+type StoredBatch = {
+  epoch: number;
+  height: number;
+  certified: boolean;
+  events: JournalEvent[];
+  signers: string[];
+  membership: EpochMembership[];
+};
+
+const MAX_TRACKED_HEIGHTS = 4096;
+
+let vaultWei = 0n;
+let treasuryWei = 0n;
+const batches: StoredBatch[] = [];
+const heightEpoch = new Map<number, number>();
+const certifiedHeight = new Map<number, number>();
+const epochSigners = new Map<number, Set<string>>();
+const membershipByEpoch = new Map<number, Map<string, { markIds: Set<string>; characterIds: Set<string> }>>();
+
+export function resetGuildScoreForTests(): void {
+  vaultWei = 0n;
+  treasuryWei = 0n;
+  batches.length = 0;
+  heightEpoch.clear();
+  certifiedHeight.clear();
+  epochSigners.clear();
+  membershipByEpoch.clear();
+}
+
+export function guildVaultWei(): bigint {
+  return vaultWei;
+}
+
+export function guildTreasuryWei(): bigint {
+  return treasuryWei;
+}
+
+function sameId(left: string, right: string): boolean {
+  return left.trim().toLowerCase() === right.trim().toLowerCase();
+}
+
+function qualifyingKind(kind: string): QualifyingKind | null {
+  switch (kind) {
+    case "combat":
+    case "pvpKill":
+      return "combat";
+    case "gather":
+    case "harvest":
+      return "gather";
+    case "craft":
+      return "craft";
+    case "trade":
+    case "chainFill":
+    case "buy":
+    case "fill":
+    case "settle":
+      return "trade";
+    default:
+      return null;
+  }
+}
+
+/**
+ * 50 bps of `priceWei` to the guild vault and 50 bps to the treasury.
+ * Both come out of the existing 1% fee. A rounding wei of that fee stays
+ * with the treasury. The player-facing fee is unchanged.
+ */
+export function guildAuctionSplit(priceWei: bigint): { feeWei: bigint; vaultWei: bigint; treasuryWei: bigint } {
+  const { feeWei } = ahFeeSplit(priceWei);
+  if (AH_FEE_BPS !== GUILD_VAULT_BPS + TREASURY_BPS) {
+    throw new Error("Guild vault and treasury must be the existing 1% fee.");
+  }
+  const splitVault = (priceWei * BigInt(GUILD_VAULT_BPS)) / BigInt(AH_FEE_BPS_DENOM);
+  const treasury = feeWei > splitVault ? feeWei - splitVault : 0n;
+  return { feeWei, vaultWei: splitVault, treasuryWei: treasury };
+}
+
+/** Credit the guild share of one sale. Does not pay a guild and does not broadcast. */
+export function creditGuildVault(priceWei: bigint): { vaultWei: bigint; treasuryWei: bigint } {
+  const split = guildAuctionSplit(priceWei);
+  vaultWei += split.vaultWei;
+  treasuryWei += split.treasuryWei;
+  return split;
+}
+
+function pushEvent(
+  events: JournalEvent[],
+  token: unknown,
+  kind: QualifyingKind,
+  characterId: (tokenId: string) => string | null,
+): void {
+  if (typeof token !== "string") return;
+  const trimmed = token.trim();
+  if (!trimmed) return;
+  const id = characterId(trimmed)?.trim() || trimmed;
+  if (!id) return;
+  events.push({ characterId: id, kind });
+}
+
+/**
+ * Qualifying events in journal commands the world just committed.
+ * Loot, gold, and level-ups are not qualifying.
+ */
+export function qualifyingEventsFromJournalCmds(
+  cmds: readonly Record<string, unknown>[],
+  characterId: (tokenId: string) => string | null,
+): JournalEvent[] {
+  const events: JournalEvent[] = [];
+  for (const cmd of cmds) {
+    const op = cmd.op;
+    if (op === "harvest") pushEvent(events, cmd.tokenId, "gather", characterId);
+    else if (op === "craft") pushEvent(events, cmd.tokenId, "craft", characterId);
+    else if (op === "pvpKill" || op === "combat") pushEvent(events, cmd.slayer ?? cmd.tokenId, "combat", characterId);
+    else if (op === "chainFill" || op === "buy" || op === "fill" || op === "settle" || op === "trade") {
+      pushEvent(events, cmd.buyer ?? cmd.bidder ?? cmd.tokenId, "trade", characterId);
+      pushEvent(events, cmd.seller, "trade", characterId);
+    }
+  }
+  return events;
+}
+
+function copyMembership(rows: readonly EpochMembership[]): EpochMembership[] {
+  return rows.map((row) => ({
+    guildId: row.guildId,
+    markIds: row.markIds.slice(),
+    characterIds: row.characterIds.slice(),
+  }));
+}
+
+function liveMembership(): EpochMembership[] {
+  const rows: EpochMembership[] = [];
+  for (const guild of guilds()) {
+    rows.push({
+      guildId: guild.id,
+      markIds: guildMarkIds(guild.id),
+      characterIds: guildMembers(guild.id).map((member) => member.characterId),
+    });
+  }
+  return rows;
+}
+
+function rememberMembership(epoch: number, rows: readonly EpochMembership[]): void {
+  let slot = membershipByEpoch.get(epoch);
+  if (!slot) {
+    slot = new Map();
+    membershipByEpoch.set(epoch, slot);
+  }
+  for (const row of rows) {
+    const found = slot.get(row.guildId) ?? { markIds: new Set<string>(), characterIds: new Set<string>() };
+    for (const mark of row.markIds) {
+      const trimmed = mark.trim();
+      if (trimmed) found.markIds.add(trimmed);
+    }
+    for (const character of row.characterIds) {
+      const trimmed = character.trim();
+      if (trimmed) found.characterIds.add(trimmed);
+    }
+    slot.set(row.guildId, found);
+  }
+}
+
+function membershipRows(epoch: number): EpochMembership[] {
+  const slot = membershipByEpoch.get(epoch);
+  if (!slot || slot.size === 0) return liveMembership();
+  const rows: EpochMembership[] = [];
+  for (const [guildId, row] of slot) {
+    rows.push({ guildId, markIds: [...row.markIds], characterIds: [...row.characterIds] });
+  }
+  return rows;
+}
+
+function rememberHeight(epoch: number, height: number): void {
+  if (height < 0) return;
+  heightEpoch.set(height, epoch);
+  if (heightEpoch.size <= MAX_TRACKED_HEIGHTS) return;
+  for (const tracked of heightEpoch.keys()) {
+    const pending = batches.some((batch) => batch.height === tracked && !batch.certified);
+    if (pending) continue;
+    heightEpoch.delete(tracked);
+    if (heightEpoch.size <= MAX_TRACKED_HEIGHTS) break;
+  }
+}
+
+function noteCertifiedHeight(epoch: number, height: number): void {
+  const prev = certifiedHeight.get(epoch) ?? -1;
+  if (height > prev) certifiedHeight.set(epoch, height);
+}
+
+/**
+ * Record one tick's journal events as a provisional batch.
+ * A later commit certificate is what certifies them. Empty events still
+ * record the height so a signature on that tick can count.
+ */
+export function noteGuildBatch(args: { epoch: number; height: number; events: readonly JournalEvent[] }): void {
+  if (!Number.isInteger(args.epoch)) return;
+  const roster = liveMembership();
+  rememberMembership(args.epoch, roster);
+  if (args.height >= 0) rememberHeight(args.epoch, args.height);
+  if (args.events.length === 0) return;
+  const events = args.events.map((event) => ({ characterId: event.characterId, kind: event.kind }));
+  const existing = batches.find((batch) => batch.epoch === args.epoch && batch.height === args.height);
+  if (existing) {
+    if (!existing.certified) {
+      existing.events = events;
+      existing.membership = copyMembership(roster);
+    }
+    return;
+  }
+  batches.push({
+    epoch: args.epoch,
+    height: args.height,
+    certified: false,
+    events,
+    signers: [],
+    membership: copyMembership(roster),
+  });
+}
+
+/**
+ * Signer addresses inside a lok-order commit certificate.
+ * Layout: height u64 LE, round i64 LE, 32-byte root, count u32 LE,
+ * then each signer as a 32-byte address and a 64-byte signature.
+ */
+export function commitCertificateSigners(certificate: Uint8Array): string[] {
+  if (!(certificate instanceof Uint8Array) || certificate.length < 52) return [];
+  const copy = new Uint8Array(certificate);
+  const view = new DataView(copy.buffer);
+  const count = view.getUint32(48, true);
+  if (count < 1 || count > 10_000) return [];
+  const signers: string[] = [];
+  let offset = 52;
+  for (let i = 0; i < count; i += 1) {
+    if (offset + 96 > copy.length) break;
+    signers.push(Buffer.from(copy.subarray(offset, offset + 32)).toString("hex"));
+    offset += 96;
+  }
+  return signers;
+}
+
+/** Mark the batch at `height` certified and record who signed it. */
+export function certifyGuildBatch(height: number, certificate: Uint8Array): void {
+  if (!Number.isInteger(height) || height < 0) return;
+  const signers = commitCertificateSigners(certificate);
+  if (signers.length === 0) return;
+  let epoch = heightEpoch.get(height) ?? null;
+  for (const batch of batches) {
+    if (batch.height !== height) continue;
+    batch.certified = true;
+    batch.signers = signers.slice();
+    epoch = batch.epoch;
+  }
+  if (epoch == null) return;
+  noteCertifiedHeight(epoch, height);
+  const signed = epochSigners.get(epoch) ?? new Set<string>();
+  for (const signer of signers) signed.add(signer);
+  epochSigners.set(epoch, signed);
+  heightEpoch.delete(height);
+}
+
+function journalFor(epoch: number): JournalBatch[] {
+  const rows: JournalBatch[] = [];
+  for (const batch of batches) {
+    if (batch.epoch !== epoch) continue;
+    rows.push({
+      epoch: batch.epoch,
+      certified: batch.certified,
+      events: batch.events.map((event) => ({ characterId: event.characterId, kind: event.kind })),
+      signers: batch.signers.slice(),
+    });
+  }
+  const signed = epochSigners.get(epoch);
+  if (signed && signed.size > 0) {
+    rows.push({ epoch, certified: true, events: [], signers: [...signed] });
+  }
+  return rows;
+}
+
+function epochAnchoredAt(epoch: number): number | null {
+  const height = certifiedHeight.get(epoch);
+  if (height == null || height < 0) return null;
+  return anchoredAtMs(height);
+}
+
+/**
+ * Score one epoch. Provisional batches are ignored. A character counts once.
+ * No Mark signature yields an ineligible guild and a score of 0.
+ */
+export function guildScore(
+  journal: readonly JournalBatch[],
+  epoch: number,
+  membership: readonly EpochMembership[],
+): GuildScore[] {
+  const certified = journal.filter((batch) => batch.epoch === epoch && batch.certified);
+  const signers: string[] = [];
+  for (const batch of certified) {
+    for (const signer of batch.signers) signers.push(signer);
+  }
+  const scores: GuildScore[] = [];
+  for (const guild of membership) {
+    const eligible = guild.markIds.some((mark) => signers.some((signer) => sameId(mark, signer)));
+    if (!eligible) {
+      scores.push({ guildId: guild.guildId, score: 0, eligible: false });
+      continue;
+    }
+    const counted = new Set<string>();
+    for (const batch of certified) {
+      for (const event of batch.events) {
+        if (!qualifyingKind(event.kind)) continue;
+        const character = event.characterId.trim();
+        if (!character) continue;
+        if (!guild.characterIds.some((member) => sameId(member, character))) continue;
+        counted.add(character.toLowerCase());
+      }
+    }
+    scores.push({ guildId: guild.guildId, score: counted.size, eligible: true });
+  }
+  return scores;
+}
+
+/**
+ * Pay the vault in proportion to scores.
+ * Refuses until the epoch root is anchored and the one-day delay has passed.
+ * A zero total leaves `vaultWei` unchanged.
+ */
+export function guildPayout(args: {
+  vaultWei: bigint;
+  scores: readonly { guildId: string; score: number }[];
+  anchoredAtMs: number | null;
+  nowMs: number;
+}): GuildPayoutResult {
+  const held = args.vaultWei;
+  if (held < 0n || args.anchoredAtMs == null || !Number.isFinite(args.anchoredAtMs)) {
+    return { ok: false, error: ANCHOR_WAIT, vaultWei: held, paid: [] };
+  }
+  if (!Number.isFinite(args.nowMs) || args.nowMs - args.anchoredAtMs < CHALLENGE_DELAY_MS) {
+    return { ok: false, error: CHALLENGE_WAIT, vaultWei: held, paid: [] };
+  }
+  let total = 0;
+  for (const row of args.scores) {
+    if (row.score > 0) total += row.score;
+  }
+  if (total === 0) return { ok: true, vaultWei: held, paid: [] };
+  const totalScore = BigInt(total);
+  const paid: GuildPayment[] = [];
+  let spent = 0n;
+  for (const row of args.scores) {
+    if (row.score <= 0) continue;
+    const wei = (held * BigInt(row.score)) / totalScore;
+    if (wei <= 0n) continue;
+    paid.push({ guildId: row.guildId, wei });
+    spent += wei;
+  }
+  return { ok: true, vaultWei: held - spent, paid };
+}
+
+/**
+ * Score the epochs this process has noted and pay when the gate is open.
+ * Synchronous. A refusal leaves the vault where it is.
+ */
+export function settleGuildPayouts(nowMs: number): GuildPayoutResult {
+  const epochs = new Set<number>();
+  for (const epoch of membershipByEpoch.keys()) epochs.add(epoch);
+  for (const epoch of certifiedHeight.keys()) epochs.add(epoch);
+  for (const batch of batches) epochs.add(batch.epoch);
+  const ordered = [...epochs].sort((a, b) => a - b);
+  let vault = vaultWei;
+  let result: GuildPayoutResult = { ok: true, vaultWei: vault, paid: [] };
+  for (const epoch of ordered) {
+    const scores = guildScore(journalFor(epoch), epoch, membershipRows(epoch));
+    const decision = guildPayout({
+      vaultWei: vault,
+      scores,
+      anchoredAtMs: epochAnchoredAt(epoch),
+      nowMs,
+    });
+    if (!decision.ok) return { ...decision, vaultWei: vault };
+    if (decision.paid.length === 0) {
+      result = { ...decision, vaultWei: vault };
+      continue;
+    }
+    vault = decision.vaultWei;
+    result = decision;
+  }
+  vaultWei = vault;
+  return { ...result, vaultWei: vault };
+}
