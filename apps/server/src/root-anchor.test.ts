@@ -20,6 +20,8 @@ import { chainPvpCancel, chainPvpClaim } from "./pvp-bounty-tx";
 import { provisionalChainLink } from "./seal-tick-batch";
 import {
   ANCHOR_WAIT,
+  CHALLENGE_DELAY_MS,
+  CHALLENGE_WAIT,
   anchoredHeight,
   beginChainWithdrawal,
   chainBoundSendGate,
@@ -27,6 +29,7 @@ import {
   noteCertifiedBatch,
   postCertifiedBatch,
   resetRootAnchorForTests,
+  setChallengeClockForTests,
   type CertifiedBatch,
 } from "./root-anchor";
 import {
@@ -115,7 +118,9 @@ test("a successful post sets /status lastAnchoredHeight", async () => {
     assert.equal(posted, 1);
     assert.equal(anchoredHeight(), 4);
     assert.equal(statusHeight(), 4);
-    assert.equal(chainBoundSendGate().ok, true);
+    const held = chainBoundSendGate();
+    assert.equal(held.ok, false);
+    if (!held.ok) assert.equal(held.error, CHALLENGE_WAIT);
 
     const next = new Uint8Array(32);
     next[0] = 0xcd;
@@ -242,6 +247,121 @@ test("owner, private, and listing keys do not post", async () => {
   }
 });
 
+test("chain-bound sends wait one day after the anchor", async () => {
+  resetRootAnchorForTests();
+  try {
+    assert.equal(CHALLENGE_DELAY_MS, 24 * 60 * 60 * 1000);
+    let now = 1_700_000_000_000;
+    setChallengeClockForTests(() => now);
+    noteCertifiedBatch(batch);
+    const posted = await postCertifiedBatch(batch, {
+      env: { LOK_CHAIN_ID: "31337" },
+      poster: async () => true,
+    });
+    assert.equal(posted, true);
+    assert.equal(anchoredHeight(), 4);
+    assert.equal(statusHeight(), 4);
+
+    const mintEnv = {
+      LOK_DEV_SERVER_MINT: "1",
+      LOK_CHAIN_RPC: "http://127.0.0.1:1",
+      LOK_FACTORY: "0x" + "11".repeat(20),
+      LOK_NFT: "0x" + "22".repeat(20),
+      LOK_OWNER_KEY: "0x" + "33".repeat(32),
+    };
+    const escrowEnv = {
+      LOK_CHAIN_RPC: "http://127.0.0.1:1",
+      LOK_LISTING_KEY: "0x" + "44".repeat(32),
+    };
+    const bountyEnv = {
+      LOK_CHAIN_RPC: "http://127.0.0.1:1",
+      LOK_PVP_BOUNTY: "0x" + "55".repeat(20),
+      LOK_LISTING_KEY: "0x" + "44".repeat(32),
+    };
+
+    async function sends() {
+      return {
+        mint: await serverMintCharacterFor("1", 1, "0x" + "ab".repeat(20), mintEnv),
+        ask: await openAskOnchain({
+          listingId: "1",
+          sellerTokenId: "1",
+          itemId: "1",
+          amount: "1",
+          priceWei: "1",
+          env: escrowEnv,
+        }),
+        cancel: await chainPvpCancel("1", bountyEnv),
+        claim: await chainPvpClaim("1", "2", "0x" + "ab".repeat(20), bountyEnv),
+        withdrawal: beginChainWithdrawal(),
+      };
+    }
+
+    const early = await sends();
+    for (const result of [early.mint, early.ask, early.cancel, early.claim, early.withdrawal]) {
+      assert.equal(result.ok, false);
+      if (!result.ok) assert.equal(result.error, CHALLENGE_WAIT);
+    }
+    assert.equal(inGameWaitsForAnchor("play"), false);
+    assert.equal(inGameWaitsForAnchor("combat"), false);
+    assert.equal(inGameWaitsForAnchor("movement"), false);
+    assert.equal(inGameWaitsForAnchor("loot"), false);
+    assert.equal(inGameWaitsForAnchor("tick"), false);
+    const dir = mkdtempSync(join(tmpdir(), "lok-challenge-loot-"));
+    const lok = LokWorld.open(dir, undefined, {});
+    const spawned = lok.spawn("char-a", "Ada", 0);
+    assert.equal(spawned.ok, true);
+    if (spawned.ok) assert.equal(lok.lootDrop(spawned.tokenId, "7", "1").ok, true);
+    const tick = submitOnSimTick(null, { ok: true, height: 4, nextRoot: root });
+    assert.equal(tick.tickFailed, false);
+    assert.equal(tick.status, "provisional");
+    assert.equal(anchoredHeight(), 4);
+
+    now += 60_000;
+    const claimDelayFloor = chainBoundSendGate();
+    assert.equal(claimDelayFloor.ok, false);
+    if (!claimDelayFloor.ok) assert.equal(claimDelayFloor.error, CHALLENGE_WAIT);
+
+    now += CHALLENGE_DELAY_MS - 60_000 - 1;
+    const almost = chainBoundSendGate();
+    assert.equal(almost.ok, false);
+    if (!almost.ok) assert.equal(almost.error, CHALLENGE_WAIT);
+
+    now += 1;
+    assert.equal(chainBoundSendGate().ok, true);
+    const open = await sends();
+    assert.equal(open.withdrawal.ok, true);
+    if (open.withdrawal.ok) assert.equal(open.withdrawal.submitted, false);
+    for (const result of [open.mint, open.ask, open.cancel, open.claim]) {
+      assert.equal(result.ok, false);
+      if (!result.ok) {
+        assert.notEqual(result.error, CHALLENGE_WAIT);
+        assert.notEqual(result.error, ANCHOR_WAIT);
+      }
+    }
+
+    const later = new Uint8Array(32);
+    later[0] = 0xcd;
+    const nextBatch: CertifiedBatch = { height: 5, nextRoot: later, certificate };
+    noteCertifiedBatch(nextBatch);
+    const unanchored = chainBoundSendGate();
+    assert.equal(unanchored.ok, false);
+    if (!unanchored.ok) assert.equal(unanchored.error, ANCHOR_WAIT);
+    const nextPosted = await postCertifiedBatch(nextBatch, {
+      env: { LOK_CHAIN_ID: "31337" },
+      poster: async () => true,
+    });
+    assert.equal(nextPosted, true);
+    assert.equal(anchoredHeight(), 5);
+    const restarted = chainBoundSendGate();
+    assert.equal(restarted.ok, false);
+    if (!restarted.ok) assert.equal(restarted.error, CHALLENGE_WAIT);
+    now += CHALLENGE_DELAY_MS;
+    assert.equal(chainBoundSendGate().ok, true);
+  } finally {
+    resetRootAnchorForTests();
+  }
+});
+
 test("the sim tick does not wait for an anchor", () => {
   resetRootAnchorForTests();
   try {
@@ -344,6 +464,8 @@ test(
       assert.equal(anchoredHeight(), null);
       assert.equal(await pub.getTransactionCount({ address: poster.address }), nonceBefore);
 
+      let now = 1_700_000_000_000;
+      setChallengeClockForTests(() => now);
       const posted = await postCertifiedBatch(certified, {
         env: {
           LOK_CHAIN_ID: "31337",
@@ -358,6 +480,14 @@ test(
       assert.equal(posted, true);
       assert.equal(anchoredHeight(), 4);
       assert.equal(statusHeight(), 4);
+      const held = chainBoundSendGate();
+      assert.equal(held.ok, false);
+      if (!held.ok) assert.equal(held.error, CHALLENGE_WAIT);
+      assert.equal(inGameWaitsForAnchor("loot"), false);
+      assert.equal(inGameWaitsForAnchor("combat"), false);
+      const early = beginChainWithdrawal();
+      assert.equal(early.ok, false);
+      now += CHALLENGE_DELAY_MS;
       assert.equal(chainBoundSendGate().ok, true);
       const withdrawal = beginChainWithdrawal();
       assert.equal(withdrawal.ok, true);
@@ -404,7 +534,10 @@ test(
         env: { LOK_CHAIN_RPC: anvil.rpc },
       });
       assert.equal(ask.ok, false);
-      if (!ask.ok) assert.notEqual(ask.error, ANCHOR_WAIT);
+      if (!ask.ok) {
+        assert.notEqual(ask.error, ANCHOR_WAIT);
+        assert.notEqual(ask.error, CHALLENGE_WAIT);
+      }
       assert.equal(await pub.getTransactionCount({ address: poster.address }), nonceBefore + 1);
     } finally {
       anvil?.stop();
