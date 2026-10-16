@@ -1,8 +1,8 @@
 //! Per-character checkpoints and item conservation. KEK custody is retired.
 
 use lok_engine::{
-    entry_hash, event_id, genesis_root, keccak256, load_world, parse_world_log, Engine, EngineError,
-    Gate, Input, Key, LoggedEntry, ReplayStop, U256, World, WorldDocument,
+    entry_hash, event_id, genesis_root, keccak256, load_world, parse_world_log, replay_world, Engine,
+    EngineError, Gate, Input, Key, LoggedEntry, ReplayStop, U256, World, WorldDocument,
 };
 
 fn n(v: u64) -> U256 {
@@ -236,6 +236,96 @@ fn random_ops_commits_and_rebases_conserve_items() {
             assert_eq!(total_ore(&w, ore), expected_ore(&w), "seed {seed}: items not conserved");
         }
     }
+}
+
+/// Deterministic fuzz: a seeded mix of spawn, import, send, list, and cancel
+/// exports a document that replays from genesis to the same head and state roots.
+#[test]
+fn seeded_mix_replays_to_the_same_head_and_state_roots() {
+    let ore = lok_engine::fungible_id("iron_ore");
+    let mut saw_spawn = false;
+    let mut saw_import = false;
+    let mut saw_send = false;
+    let mut saw_list = false;
+    let mut saw_cancel = false;
+    for seed in 1u64..=40 {
+        let mut x = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        let mut next = move |m: u64| {
+            x ^= x << 13;
+            x ^= x >> 7;
+            x ^= x << 17;
+            x % m
+        };
+        let mut w = World::new();
+        let mut spawned = 0u64;
+        let mut listing = 0u64;
+        let mut open: Vec<(u64, u64)> = Vec::new();
+        for _ in 0..60 {
+            let kind = if spawned == 0 { 0 } else { next(5) };
+            match kind {
+                0 => {
+                    let id = if spawned < 3 { spawned + 1 } else { 1 + next(3) };
+                    if w.append_spawn(n(id), 1).is_ok() {
+                        spawned = spawned.max(id);
+                        saw_spawn = true;
+                    }
+                }
+                1 => {
+                    let a = 1 + next(spawned);
+                    if import_item(&mut w, n(a), ore, n(1 + next(5))).is_ok() {
+                        saw_import = true;
+                    }
+                }
+                2 => {
+                    let a = 1 + next(spawned);
+                    let mut b = 1 + next(spawned);
+                    if b == a {
+                        b = 1 + (b % spawned);
+                    }
+                    if a != b && w.append_send_item(n(a), n(b), ore, n(1 + next(5))).is_ok() {
+                        saw_send = true;
+                    }
+                }
+                3 => {
+                    listing += 1;
+                    let a = 1 + next(spawned);
+                    if w.append_list(n(listing), n(a), ore, n(1 + next(5))).is_ok() {
+                        open.push((listing, a));
+                        saw_list = true;
+                    }
+                }
+                _ => {
+                    let (id, seller) = if !open.is_empty() && next(2) == 0 {
+                        open[next(open.len() as u64) as usize]
+                    } else if listing == 0 {
+                        (1, 1 + next(spawned))
+                    } else {
+                        (1 + next(listing), 1 + next(spawned))
+                    };
+                    if w.append_cancel(n(id), n(seller)).is_ok() {
+                        open.retain(|(open_id, _)| *open_id != id);
+                        saw_cancel = true;
+                    }
+                }
+            }
+            assert_eq!(total_ore(&w, ore), expected_ore(&w), "seed {seed}: items not conserved");
+        }
+
+        let doc = w.to_document();
+        let report = replay_world(&doc).unwrap_or_else(|stop| panic!("seed {seed}: replay stopped: {stop:?}"));
+        assert_eq!(report.head, w.head(), "seed {seed}: replayed head");
+        let live = w.snapshots();
+        assert_eq!(report.characters.len(), live.len(), "seed {seed}: character count");
+        for (live_ch, replayed) in live.iter().zip(&report.characters) {
+            assert_eq!(replayed.token_id, live_ch.token_id, "seed {seed}: character order");
+            assert_eq!(
+                replayed.state_root, live_ch.state_root,
+                "seed {seed}: state root for token {}",
+                live_ch.token_id
+            );
+        }
+    }
+    assert!(saw_spawn && saw_import && saw_send && saw_list && saw_cancel, "seeded mix never applied every op");
 }
 
 fn total_ore(w: &World, ore: U256) -> U256 {
