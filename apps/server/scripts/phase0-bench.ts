@@ -75,13 +75,19 @@ function benchCoalescedTick(): number {
     if (!spawned.ok) throw new Error(spawned.error);
     tokens.push(spawned.tokenId);
   }
+  const killIndex = new Map<string, string>();
+  for (const token of tokens) {
+    const killed = lok.kill(token, "hare");
+    if (!killed.ok) throw new Error(killed.error);
+    killIndex.set(token, killed.killIndex);
+  }
   const t0 = performance.now();
   lok.beginTick();
   for (const token of tokens) {
     for (let n = 0; n < 20; n++) {
       const harvested = lok.harvest(token, "ore", "1");
       if (!harvested.ok) throw new Error(harvested.error);
-      const dropped = lok.lootDrop(token, "7", "1");
+      const dropped = lok.lootDrop(token, "7", "1", killIndex.get(token) ?? "");
       if (!dropped.ok) throw new Error(dropped.error);
       const earned = lok.goldEarn(token, "drop", "1", 2);
       if (!earned.ok) throw new Error(earned.error);

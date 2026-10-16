@@ -36,7 +36,7 @@ const leaderKey = new Uint8Array(leader.publicKey.toBytes());
 const leaderSecret = new Uint8Array(leader.secretKey);
 const ROLL_BYTES = Uint8Array.from([9, 8, 7, 6]);
 const OTHER_KEY = `0x${"ab".repeat(32)}`;
-const PINNED_WASM = "ae2fb7556c254cf9fddfdae0919dd1bdba12dfcd00b15d22c8c4bb43fd76a950";
+const PINNED_WASM = "546808d6d83697e94b9a04da3f4aeba052a9e8e4d659838249bbde9d2b1ca66d";
 
 beforeEach(() => {
   resetRulesetPinForTests();

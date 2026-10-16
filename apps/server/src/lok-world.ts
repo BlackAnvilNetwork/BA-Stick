@@ -80,6 +80,7 @@ type ApplyBody = {
   entry?: unknown;
   len?: number;
   state?: EngineState;
+  links?: { tokenId?: string; index?: number }[];
 };
 
 type BindChar = { charId: string; tokenId: string; name: string; job: number; wallet?: string };
@@ -284,7 +285,13 @@ function coalescedCmd(row: CoalescedEvent): Record<string, unknown> {
     return { op: "harvest", tokenId: row.tokenId, materialId: row.materialId, amount: row.amount };
   }
   if (row.op === "lootDrop") {
-    return { op: "lootDrop", tokenId: row.tokenId, itemId: row.itemId, amount: row.amount };
+    return {
+      op: "lootDrop",
+      tokenId: row.tokenId,
+      itemId: row.itemId,
+      amount: row.amount,
+      killIndex: Number(row.killIndex),
+    };
   }
   return { op: "goldEarn", tokenId: row.tokenId, source: row.source, amount: row.amount, day: row.day };
 }
@@ -324,6 +331,8 @@ export class LokWorld {
   /** Snapshot is due, but the tick must return before the full rewrite. */
   private snapshotDeferred = false;
   private snapshotQueued = false;
+  /** Links from the last accepted apply. `kill` reads its character index here. */
+  private lastLinks: { tokenId?: string; index?: number }[] = [];
   /** Live document for the explorer. Cleared when an event is appended. */
   private cachedDoc: string | null = null;
   /** Proof rows for the cached document. */
@@ -341,6 +350,7 @@ export class LokWorld {
     this.chainNote = mode.note;
     this.exp = loadLokExports(wasmPath);
     this.exp.lok_set_craft_validate_min_seq(craftValidateMinSeqForNetwork(env));
+    this.exp.lok_set_loot_kill_min_seq(craftValidateMinSeqForNetwork(env));
     const text = existsSync(this.logPath) ? readFileSync(this.logPath, "utf8") : "";
     const cursor = journalCursor(text);
     const opened = lokCall(this.exp, text, (ptr, len) => this.exp.lok_open(ptr, len));
@@ -548,12 +558,24 @@ export class LokWorld {
     return this.apply({ op: "itemDrop", tokenId, itemId, amount });
   }
 
-  /** Loot drop counter. Like harvest: records the drop without minting spendable items. */
-  lootDrop(tokenId: string, itemId: string, amount: string): LokResult {
+  /**
+   * Mob kill on this character's log. Does not credit items, gold, or XP.
+   * `killIndex` is the index a later loot drop names.
+   */
+  kill(tokenId: string, mobId: string): { ok: true; killIndex: string } | { ok: false; error: string } {
+    const res = this.apply({ op: "kill", tokenId, mobId });
+    if (!res.ok) return res;
+    const index = this.lastLinks.find((link) => link.tokenId === tokenId)?.index;
+    if (typeof index !== "number") return { ok: false, error: "kill was not linked" };
+    return { ok: true, killIndex: String(index) };
+  }
+
+  /** Loot drop counter. Names a kill already on this log. Does not mint spendable items. */
+  lootDrop(tokenId: string, itemId: string, amount: string, killIndex: string): LokResult {
     if (this.coalesce) {
-      return this.coalesce.add({ op: "lootDrop", tokenId, itemId, amount });
+      return this.coalesce.add({ op: "lootDrop", tokenId, itemId, amount, killIndex });
     }
-    return this.apply({ op: "lootDrop", tokenId, itemId, amount });
+    return this.apply({ op: "lootDrop", tokenId, itemId, amount, killIndex: Number(killIndex) });
   }
 
   /**
@@ -1330,6 +1352,7 @@ export class LokWorld {
     if (!body.ok) return { ok: false, error: body.error || "rejected" };
     if (body.state) this.state = body.state;
     if (typeof body.len === "number") this.length = body.len;
+    this.lastLinks = body.links ?? [];
     if (record && body.entry) this.notePersisted(cmd);
     return { ok: true };
   }

@@ -1069,12 +1069,24 @@ function logLokHarvest(p: Player, materialId: string, amount: number) {
   }
 }
 
-function logLokDrop(p: Player, itemId: number, amount: number) {
+function logLokKill(p: Player, mobId: string): string | null {
+  const token = lokToken(p);
+  if (!token) return null;
+  const label = /^[\x20-\x7e]{1,128}$/.test(mobId) ? mobId : "mob";
+  const res = lok.kill(token, label);
+  if (!res.ok) {
+    pushLog(p, "Kill was not written to your log: " + res.error);
+    return null;
+  }
+  return res.killIndex;
+}
+
+function logLokDrop(p: Player, itemId: number, amount: number, killIndex: string) {
   if (!Number.isInteger(itemId) || itemId <= 0 || amount <= 0) return;
   const token = lokToken(p);
   if (!token) return;
-  // LootDrop is a counter like Harvest. It does not mint. ItemDrop is ClosedMint on append and on replay.
-  const res = lok.lootDrop(token, String(itemId), String(amount));
+  // LootDrop is a counter like Harvest. It names the kill and does not mint.
+  const res = lok.lootDrop(token, String(itemId), String(amount), killIndex);
   if (!res.ok) pushLog(p, "Loot was not written to your log: " + res.error);
 }
 
@@ -3585,11 +3597,12 @@ function rewardMobKill(p: Player, mob: Mob, now: number) {
     } else pushLog(recip, `Party credit — ${mob.name} down. +${goldDrop} gold, +${xpGain} XP.`);
   }
   const dropNotes: string[] = [];
+  const killIndex = logLokKill(p, mob.name);
   for (const mat of mob.drops ?? []) {
     if (rollUnit("loot.mat") < 0.65) {
       grantBaseMat(p, mat, 1);
       const def = CATALOG_BY_SLUG[mat];
-      if (def) logLokDrop(p, def.id, 1);
+      if (def && killIndex) logLokDrop(p, def.id, 1, killIndex);
       dropNotes.push(matDisplayName(mat));
     }
   }
@@ -3598,12 +3611,12 @@ function rewardMobKill(p: Player, mob: Mob, now: number) {
       const def = CATALOG_BY_SLUG[rare.slug];
       if (def) {
         addItem(p.inventory, def.id, 1);
-        logLokDrop(p, def.id, 1);
+        if (killIndex) logLokDrop(p, def.id, 1, killIndex);
         dropNotes.push(def.name);
       } else {
         grantBaseMat(p, rare.slug, 1);
         const rareDef = CATALOG_BY_SLUG[rare.slug];
-        if (rareDef) logLokDrop(p, rareDef.id, 1);
+        if (rareDef && killIndex) logLokDrop(p, rareDef.id, 1, killIndex);
         dropNotes.push(matDisplayName(rare.slug));
       }
     }
@@ -3614,7 +3627,7 @@ function rewardMobKill(p: Player, mob: Mob, now: number) {
     if (shinyMat) {
       grantBaseMat(p, shinyMat, 1);
       const def = CATALOG_BY_SLUG[shinyMat];
-      if (def) logLokDrop(p, def.id, 1);
+      if (def && killIndex) logLokDrop(p, def.id, 1, killIndex);
       dropNotes.push(matDisplayName(shinyMat));
     }
     despawnShinyClones(mob, now);

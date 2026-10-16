@@ -50,6 +50,48 @@ pub fn craft_skill_validated_at(logged_seq: Option<u64>) -> bool {
     }
 }
 
+/// Legacy logs: a `LootDrop` below this global seq may omit its kill index.
+/// Same bound as craft validation. The quarantined pre-#206 log ends at seq 174.
+pub const HISTORICAL_LOOT_KILL_MIN_SEQ_LEGACY: u64 = 175;
+
+/// Fresh networks (Chiado, Gnosis): every logged loot drop must name a kill.
+pub const HISTORICAL_LOOT_KILL_MIN_SEQ_FRESH: u64 = 0;
+
+/// Default runtime bound — legacy anvil quarantine. The game server sets
+/// [`HISTORICAL_LOOT_KILL_MIN_SEQ_FRESH`] on Chiado/Gnosis before `lok_open`.
+pub const HISTORICAL_LOOT_KILL_MIN_SEQ: u64 = HISTORICAL_LOOT_KILL_MIN_SEQ_LEGACY;
+
+static LOOT_KILL_MIN_SEQ: AtomicU64 = AtomicU64::new(HISTORICAL_LOOT_KILL_MIN_SEQ_LEGACY);
+
+/// Override the loot-kill cutoff (per network / ruleset). Call before replaying a log.
+pub fn set_loot_kill_min_seq(min_seq: u64) {
+    LOOT_KILL_MIN_SEQ.store(min_seq, Ordering::SeqCst);
+}
+
+/// Current loot-kill cutoff (global world seq).
+pub fn loot_kill_min_seq() -> u64 {
+    LOOT_KILL_MIN_SEQ.load(Ordering::SeqCst)
+}
+
+/// True when a loot drop must name a kill already on that character's log.
+/// New appends (`None`) always require it. Logged entries require it only at
+/// or after [`loot_kill_min_seq`].
+pub fn loot_kill_required(logged_seq: Option<u64>) -> bool {
+    match logged_seq {
+        None => true,
+        Some(seq) => seq >= loot_kill_min_seq(),
+    }
+}
+
+/// `Kill` for this character, or `PvpKill` where they are the slayer.
+pub fn kill_justifies(token: &U256, input: &Input) -> bool {
+    match input {
+        Input::Kill { token_id, .. } => token_id == token,
+        Input::PvpKill { slayer, .. } => slayer == token,
+        _ => false,
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Input {
     /// First log event. Must name the same token and job the genesis anchor was built from.
@@ -84,8 +126,18 @@ pub enum Input {
     /// Closed mint. Refused on append and on replay (`ClosedMint`). A low `seq` does not
     /// credit items. Mob loot is `LootDrop`.
     ItemDrop { token_id: U256, item_id: U256, amount: U256 },
+    /// Mob kill on this character's log. Does not credit items, gold, XP, or KEK.
+    /// A later `LootDrop` names this event's index on the same log.
+    Kill { token_id: U256, mob_id: String },
     /// Loot drop counter. Like Harvest: records the drop, does not credit spendable items or KEK.
-    LootDrop { token_id: U256, item_id: U256, amount: U256 },
+    /// `kill_index` is this character's log index of a [`Input::Kill`] or of a [`Input::PvpKill`]
+    /// where they are the slayer. `None` replays only below [`HISTORICAL_LOOT_KILL_MIN_SEQ`].
+    LootDrop {
+        token_id: U256,
+        item_id: U256,
+        amount: U256,
+        kill_index: Option<u64>,
+    },
     /// Craft skill level for this character. Must be strictly higher than the logged level.
     /// Does not store XP and does not credit items or KEK.
     CraftSkill { token_id: U256, skill_id: String, level: u32 },
@@ -290,11 +342,21 @@ pub fn event_id(input: &Input) -> [u8; 32] {
             buf.u256(item_id);
             buf.u256(amount);
         }
-        Input::LootDrop { token_id, item_id, amount } => {
+        Input::Kill { token_id, mob_id } => {
+            buf.b256(&domain(b"LOK_KILL_V1"));
+            buf.u256(token_id);
+            push_label(&mut buf, mob_id);
+        }
+        Input::LootDrop { token_id, item_id, amount, kill_index } => {
             buf.b256(&domain(b"LOK_LOOT_DROP_V1"));
             buf.u256(token_id);
             buf.u256(item_id);
             buf.u256(amount);
+            // Logs written before the kill reference omit this word. Encoding it
+            // on every drop would change those entry hashes.
+            if let Some(index) = kill_index {
+                buf.u64(*index);
+            }
         }
         Input::CraftSkill { token_id, skill_id, level } => {
             buf.b256(&domain(b"LOK_CRAFT_SKILL_V1"));

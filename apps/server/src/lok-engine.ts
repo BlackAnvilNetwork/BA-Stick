@@ -9,6 +9,8 @@ export type LokExports = {
   lok_out_len: () => number;
   /** Per-network craft validation cutoff; call before lok_open. */
   lok_set_craft_validate_min_seq: (minSeq: number) => void;
+  /** Per-network loot-kill cutoff; call before lok_open. */
+  lok_set_loot_kill_min_seq: (minSeq: number) => void;
   lok_open: (ptr: number, len: number) => number;
   lok_apply: (ptr: number, len: number) => number;
   lok_document: () => number;

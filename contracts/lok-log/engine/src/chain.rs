@@ -458,11 +458,22 @@ pub(crate) fn parse_input(value: &serde_json::Value) -> Result<Input, String> {
             item_id: req_u256(value, "itemId")?,
             amount: req_u256(value, "amount")?,
         }),
-        "lootDrop" => Ok(Input::LootDrop {
+        "kill" => Ok(Input::Kill {
             token_id: req_u256(value, "tokenId")?,
-            item_id: req_u256(value, "itemId")?,
-            amount: req_u256(value, "amount")?,
+            mob_id: req_label(value, "mobId")?,
         }),
+        "lootDrop" => {
+            let kill_index = match value.get("killIndex") {
+                None => None,
+                Some(_) => Some(req_u64(value, "killIndex")?),
+            };
+            Ok(Input::LootDrop {
+                token_id: req_u256(value, "tokenId")?,
+                item_id: req_u256(value, "itemId")?,
+                amount: req_u256(value, "amount")?,
+                kill_index,
+            })
+        }
         "craftSkill" => {
             let level = req_u64(value, "level")?;
             if level == 0 || level > u64::from(u32::MAX) {
@@ -722,12 +733,23 @@ Input::CancelAsk { listing_id, seller } => serde_json::json!({
             "itemId": s(item_id),
             "amount": s(amount),
         }),
-        Input::LootDrop { token_id, item_id, amount } => serde_json::json!({
-            "type": "lootDrop",
+        Input::Kill { token_id, mob_id } => serde_json::json!({
+            "type": "kill",
             "tokenId": s(token_id),
-            "itemId": s(item_id),
-            "amount": s(amount),
+            "mobId": mob_id,
         }),
+        Input::LootDrop { token_id, item_id, amount, kill_index } => {
+            let mut value = serde_json::json!({
+                "type": "lootDrop",
+                "tokenId": s(token_id),
+                "itemId": s(item_id),
+                "amount": s(amount),
+            });
+            if let Some(index) = kill_index {
+                value["killIndex"] = serde_json::json!(index);
+            }
+            value
+        },
         Input::CraftSkill { token_id, skill_id, level } => serde_json::json!({
             "type": "craftSkill",
             "tokenId": s(token_id),

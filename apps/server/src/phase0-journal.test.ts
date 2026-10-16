@@ -25,13 +25,16 @@ test("a tick merges harvest, loot, and gold into one journal line each", () => {
   assert.equal(spawned.ok, true);
   if (!spawned.ok) return;
   const token = spawned.tokenId;
+  const killed = lok.kill(token, "hare");
+  assert.equal(killed.ok, true);
+  if (!killed.ok) return;
   const before = readFileSync(lok.journalPath).length;
 
   lok.beginTick();
   assert.equal(lok.harvest(token, "ore", "2").ok, true);
   assert.equal(lok.harvest(token, "ore", "3").ok, true);
-  assert.equal(lok.lootDrop(token, "7", "1").ok, true);
-  assert.equal(lok.lootDrop(token, "7", "4").ok, true);
+  assert.equal(lok.lootDrop(token, "7", "1", killed.killIndex).ok, true);
+  assert.equal(lok.lootDrop(token, "7", "4", killed.killIndex).ok, true);
   assert.equal(lok.goldEarn(token, "drop", "5", 3).ok, true);
   assert.equal(lok.goldEarn(token, "drop", "6", 3).ok, true);
   // Still queued: the journal has not grown yet.
