@@ -32,6 +32,7 @@ import {
   type ReplicaHealth,
   type ReplicaPeer,
 } from "./order-submit";
+import { anchoredHeight } from "./root-anchor";
 import {
   settlementRpcStats,
   watcherLagBlocks,
@@ -87,8 +88,8 @@ export type OpsStatusBody = {
   };
   /** Height of the last `Effect::Decide`. Null until a majority commits. */
   lastCertifiedHeight: number | null;
-  /** Null until the Gnosis anchor gate. This phase does not post roots. */
-  lastAnchoredHeight: null;
+  /** Height of the last root the anchor accepted. Null until that post succeeds. */
+  lastAnchoredHeight: number | null;
   /** Local harness skew, in milliseconds. Present even when it is 0. */
   clockSkew: number;
   /** Allowlist entries and whether this process has heard them. */
@@ -170,7 +171,7 @@ export function buildOpsStatus(deps: OpsHealthDeps): OpsStatusBody {
       recent: recentOpsAlerts(),
     },
     lastCertifiedHeight: replica.lastCertifiedHeight,
-    lastAnchoredHeight: null,
+    lastAnchoredHeight: anchoredHeight(),
     clockSkew: replica.clockSkew,
     peers: replica.peers,
     seedRoller: replica.seedRoller,

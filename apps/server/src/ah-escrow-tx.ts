@@ -24,6 +24,7 @@ import { cancelTxRecordStore } from "./cancel-tx-record";
 import { consumeGlobalListingTxBudget } from "./lok-list-rate";
 import { openAskPendingStore } from "./open-ask-pending";
 import { withOwnerKeyQueue } from "./owner-tx-queue";
+import { chainBoundSendGate } from "./root-anchor";
 import { settlementConfirmations } from "./settlement-confirmations";
 
 const AH_ABI = [
@@ -333,6 +334,8 @@ export async function replacePendingOpenAsk(opts: {
     }
     if (resolved.action === "open") {
       // Ask is open — cancel it (1 conf inside queue).
+      const gate = chainBoundSendGate();
+      if (!gate.ok) return gate;
       try {
         const budget = consumeGlobalListingTxBudget({ dataDir: opts.dataDir });
         if (!budget.ok) return budget;
@@ -356,6 +359,8 @@ export async function replacePendingOpenAsk(opts: {
       }
     }
     // Still in mempool at the same nonce — replace with a fee-bumped 0-value self send.
+    const replaceGate = chainBoundSendGate();
+    if (!replaceGate.ok) return replaceGate;
     try {
       let maxFeePerGas: bigint | undefined;
       let maxPriorityFeePerGas: bigint | undefined;
@@ -412,6 +417,8 @@ export async function openAskOnchain(opts: {
   env?: NodeJS.ProcessEnv;
   dataDir?: string;
 }): Promise<{ ok: true; hash: Hex } | { ok: false; error: string; chainOpen?: boolean }> {
+  const gate = chainBoundSendGate();
+  if (!gate.ok) return gate;
   return withOwnerKeyQueue(async () => {
     const c = client(opts.env);
     if (!c.ok) return c;
@@ -749,6 +756,8 @@ async function cancelAskOnchainUnlocked(opts: {
       return verifiedRecordedOrAlreadyClosed();
     }
 
+    const gate = chainBoundSendGate();
+    if (!gate.ok) return gate;
     const budget = consumeGlobalListingTxBudget({ dataDir: opts.dataDir });
     if (!budget.ok) return budget;
 

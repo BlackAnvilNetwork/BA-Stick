@@ -6,6 +6,7 @@ import { isSettlementChain, settlementCurrencyView } from "@bellgrave/config";
 import { createPublicClient, createWalletClient, http, keccak256, toBytes, type Chain, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { durableWrite } from "./durable-write";
+import { chainBoundSendGate } from "./root-anchor";
 import { withOwnerKeyQueue } from "./owner-tx-queue";
 import { resolvePublicRpcUrl } from "./public-rpc";
 
@@ -567,6 +568,8 @@ export async function linkCharacterNft(
     }
 
     const dest = [...accepted][0]!;
+    const gate = chainBoundSendGate();
+    if (!gate.ok) return gate;
     return withOwnerKeyQueue(async () => {
       const wallet = createWalletClient({
         account,
@@ -735,6 +738,8 @@ export async function serverMintCharacterFor(
   }
   if (!isAddress(toWallet)) return { ok: false, error: "Bad mint destination." };
   if (!Number.isInteger(job) || job < 0 || job > 255) return { ok: false, error: "That job cannot be minted." };
+  const gate = chainBoundSendGate();
+  if (!gate.ok) return gate;
   try {
     const chainId = await chainIdOf(env.rpc);
     if (BigInt(chainId) !== LOCAL_ANVIL_CHAIN_ID) {

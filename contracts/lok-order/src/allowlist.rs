@@ -24,14 +24,18 @@ use crate::{
     handle_effect, BatchRoot, Committed, GenesisSet, OrderAddr, OrderCtx, OrderError, OrderHeight,
 };
 
-fn hex_root(root: &[u8; 32]) -> String {
+fn hex_bytes(bytes: &[u8]) -> String {
     const HEX: &[u8; 16] = b"0123456789abcdef";
-    let mut out = String::with_capacity(64);
-    for byte in root {
+    let mut out = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
         out.push(HEX[(byte >> 4) as usize] as char);
         out.push(HEX[(byte & 0xf) as usize] as char);
     }
     out
+}
+
+fn hex_root(root: &[u8; 32]) -> String {
+    hex_bytes(root)
 }
 
 /// Strict majority: more than half the voting power.
@@ -189,7 +193,7 @@ impl AllowlistOrderer {
     }
 
     pub fn last_commit(&self) -> Option<Committed> {
-        self.last_commit
+        self.last_commit.clone()
     }
 
     pub fn leader_at(&self, height: u64) -> OrderAddr {
@@ -259,12 +263,12 @@ impl AllowlistOrderer {
     /// When the certificate proposer differs from the round-0 proposer of that
     /// height, the leader is the certificate proposer: the living replica.
     fn reported_leader(&self) -> OrderAddr {
-        if let Some(commit) = self.last_commit {
+        if let Some(commit) = self.last_commit.as_ref() {
             if commit.proposer != self.leader_at(commit.height) {
                 return commit.proposer;
             }
         }
-        let at = self.last_commit.map(|commit| commit.height).unwrap_or(0);
+        let at = self.last_commit.as_ref().map(|commit| commit.height).unwrap_or(0);
         self.leader_at(at)
     }
 
@@ -273,6 +277,7 @@ impl AllowlistOrderer {
         let leader = self.reported_leader();
         let failed_over = self
             .last_commit
+            .as_ref()
             .is_some_and(|commit| commit.proposer != self.leader_at(commit.height));
         if failed_over {
             if let Some(other) = self
@@ -283,7 +288,7 @@ impl AllowlistOrderer {
                 return other.address;
             }
         }
-        let at = self.last_commit.map(|commit| commit.height).unwrap_or(0);
+        let at = self.last_commit.as_ref().map(|commit| commit.height).unwrap_or(0);
         self.seed_roller_at(at)
     }
 
@@ -444,13 +449,14 @@ impl AllowlistOrderer {
         0
     }
 
-    /// Gnosis anchor is a later gate. This phase has no anchored height.
+    /// This process does not post roots. The server records an anchored height
+    /// only after the root anchor accepts the certificate.
     pub fn last_anchored_height(&self) -> Option<u64> {
         None
     }
 
     pub fn status_json(&self) -> String {
-        let certified = self.last_commit.map(|commit| commit.height);
+        let certified = self.last_commit.as_ref().map(|commit| commit.height);
         let peers: Vec<_> = self
             .peers()
             .into_iter()
@@ -462,18 +468,18 @@ impl AllowlistOrderer {
                 })
             })
             .collect();
-        let committed = self.last_commit;
+        let committed = self.last_commit.clone();
         serde_json::json!({
             "committed": committed.is_some(),
             "height": match certified {
                 Some(height) => serde_json::Value::from(height),
                 None => serde_json::Value::Null,
             },
-            "root": match committed {
+            "root": match &committed {
                 Some(commit) => serde_json::Value::String(hex_root(&commit.root)),
                 None => serde_json::Value::Null,
             },
-            "signatures": match committed {
+            "signatures": match &committed {
                 Some(commit) => serde_json::Value::from(commit.signatures),
                 None => serde_json::Value::Null,
             },
@@ -482,6 +488,12 @@ impl AllowlistOrderer {
                 None => serde_json::Value::Null,
             },
             "lastAnchoredHeight": serde_json::Value::Null,
+            "commitCertificate": match &committed {
+                Some(commit) if !commit.certificate.is_empty() => {
+                    serde_json::Value::String(hex_bytes(&commit.certificate))
+                }
+                _ => serde_json::Value::Null,
+            },
             "clockSkew": self.clock_skew(),
             "peers": peers,
             "leader": self.reported_leader().to_string(),
@@ -601,8 +613,8 @@ impl AllowlistOrderer {
         } else if self.directory_leader.is_some() {
             self.directory_leader = Some(committed.proposer);
         }
-        self.certified.push(committed);
-        self.last_commit = Some(committed);
+        self.certified.push(committed.clone());
+        self.last_commit = Some(committed.clone());
         Ok(committed)
     }
 }
