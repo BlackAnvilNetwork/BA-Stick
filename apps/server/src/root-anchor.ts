@@ -189,6 +189,17 @@ export function postedSlashableBonds(): bigint {
   return postedBondsWei;
 }
 
+/**
+ * Bond posted for one signer id. Zero when that id has no posting.
+ * The cap override is not a bond for this id. This does not invent an amount.
+ */
+export function postedSlashableBond(id: string): bigint {
+  const bondId = id.trim();
+  if (!bondId) return 0n;
+  const found = postedBonds.find((bond) => bond.id === bondId);
+  return found?.amountWei ?? 0n;
+}
+
 /** 10% of the bonds posted now. Floors. Zero bonds are a zero cap. */
 export function epochXdaiCapWei(bondsWei: bigint = postedBondsWei): bigint {
   if (bondsWei <= 0n) return 0n;
