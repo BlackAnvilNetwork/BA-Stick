@@ -120,6 +120,14 @@ pub struct AllowlistOrderer {
     uncertified: Option<ProposalOnly>,
     /// Set when the previous directory leader was removed. Lookup keeps this address.
     directory_leader: Option<OrderAddr>,
+    /// Increments when a killed leader's round is skipped and a new proposer decides.
+    epoch: u64,
+    /// Steps on which a Malachite timeout was elapsed. Not a wall clock.
+    logical_time: u64,
+    in_flight: Vec<String>,
+    provisional_inputs: Vec<String>,
+    certified_inputs: Vec<String>,
+    dropped: Vec<String>,
 }
 
 impl AllowlistOrderer {
@@ -167,6 +175,12 @@ impl AllowlistOrderer {
             certified: Vec::new(),
             uncertified: None,
             directory_leader: None,
+            epoch: 0,
+            logical_time: 0,
+            in_flight: Vec::new(),
+            provisional_inputs: Vec::new(),
+            certified_inputs: Vec::new(),
+            dropped: Vec::new(),
         }
     }
 
@@ -221,6 +235,111 @@ impl AllowlistOrderer {
             return leader;
         }
         leader_address(&self.validators, self.open_height())
+    }
+
+    pub fn epoch(&self) -> u64 {
+        self.epoch
+    }
+
+    /// How many Malachite timeouts this process has elapsed. The unit is a step, not a sleep.
+    pub fn logical_time(&self) -> u64 {
+        self.logical_time
+    }
+
+    /// Roller for the open epoch.
+    ///
+    /// Before a failover this is the round-0 roller. After a kill, the leader is
+    /// the living certificate proposer and the roller is the other living replica.
+    pub fn epoch_seed_roller(&self) -> OrderAddr {
+        self.reported_roller()
+    }
+
+    /// Status leader. A killed round-0 proposer is not this address.
+    ///
+    /// When the certificate proposer differs from the round-0 proposer of that
+    /// height, the leader is the certificate proposer: the living replica.
+    fn reported_leader(&self) -> OrderAddr {
+        if let Some(commit) = self.last_commit {
+            if commit.proposer != self.leader_at(commit.height) {
+                return commit.proposer;
+            }
+        }
+        let at = self.last_commit.map(|commit| commit.height).unwrap_or(0);
+        self.leader_at(at)
+    }
+
+    /// Status seed roller. After a kill this is the present replica that is not the leader.
+    fn reported_roller(&self) -> OrderAddr {
+        let leader = self.reported_leader();
+        let failed_over = self
+            .last_commit
+            .is_some_and(|commit| commit.proposer != self.leader_at(commit.height));
+        if failed_over {
+            if let Some(other) = self
+                .replicas
+                .iter()
+                .find(|replica| replica.present && replica.address != leader)
+            {
+                return other.address;
+            }
+        }
+        let at = self.last_commit.map(|commit| commit.height).unwrap_or(0);
+        self.seed_roller_at(at)
+    }
+
+    pub fn in_flight(&self) -> &[String] {
+        &self.in_flight
+    }
+
+    pub fn dropped_inputs(&self) -> &[String] {
+        &self.dropped
+    }
+
+    /// Ids already listed on the certified prefix. They are not in flight.
+    pub fn record_certified_inputs(&mut self, ids: &[&str]) {
+        for id in ids {
+            let id = (*id).to_string();
+            if !self.certified_inputs.iter().any(|kept| kept == &id) {
+                self.certified_inputs.push(id.clone());
+            }
+            self.in_flight.retain(|seen| seen != &id);
+            self.provisional_inputs.retain(|seen| seen != &id);
+        }
+    }
+
+    /// The leader accepted `id`. It stays in flight until a certified batch lists it.
+    pub fn accept_input(&mut self, id: &str) {
+        if self.certified_inputs.iter().any(|kept| kept == id)
+            || self.dropped.iter().any(|seen| seen == id)
+            || self.in_flight.iter().any(|seen| seen == id)
+        {
+            return;
+        }
+        self.in_flight.push(id.to_string());
+    }
+
+    /// False when section 6 has dropped this id. A new id is accepted.
+    pub fn replay_input(&mut self, id: &str) -> bool {
+        if self.dropped.iter().any(|seen| seen == id) {
+            return false;
+        }
+        self.accept_input(id);
+        true
+    }
+
+    /// Section 6: in-flight ids and ids that sat only on a discarded provisional batch are dropped.
+    fn drop_unadopted_inputs(&mut self) {
+        let mut lost = std::mem::take(&mut self.in_flight);
+        lost.append(&mut self.provisional_inputs);
+        for id in lost {
+            if self.certified_inputs.iter().any(|kept| kept == &id)
+                || self.dropped.iter().any(|seen| seen == &id)
+            {
+                continue;
+            }
+            self.dropped.push(id);
+        }
+        self.dropped.sort();
     }
 
     /// Mark the directory leader absent and stop its state.
@@ -296,6 +415,7 @@ impl AllowlistOrderer {
             ));
         }
         let proposed = proposed.ok_or(OrderError::NoDecision { height })?;
+        self.provisional_inputs = std::mem::take(&mut self.in_flight);
         self.uncertified = Some(proposed);
         Ok(proposed)
     }
@@ -331,7 +451,6 @@ impl AllowlistOrderer {
 
     pub fn status_json(&self) -> String {
         let certified = self.last_commit.map(|commit| commit.height);
-        let at = certified.unwrap_or(0);
         let peers: Vec<_> = self
             .peers()
             .into_iter()
@@ -365,17 +484,23 @@ impl AllowlistOrderer {
             "lastAnchoredHeight": serde_json::Value::Null,
             "clockSkew": self.clock_skew(),
             "peers": peers,
-            "leader": self.leader_at(at).to_string(),
+            "leader": self.reported_leader().to_string(),
             "directoryLeader": self.lookup_leader().to_string(),
-            "seedRoller": self.seed_roller_at(at).to_string(),
+            "seedRoller": self.reported_roller().to_string(),
+            "epoch": self.epoch,
+            "logicalTime": self.logical_time,
+            "inFlight": self.in_flight.clone(),
+            "dropped": self.dropped.clone(),
         })
         .to_string()
     }
 
     /// Run one height. Fewer than two signing replicas leaves the batch provisional.
     ///
-    /// The caller does not wait on a timeout. Messages already queued are ferried
-    /// until the states go idle or one of them yields `Effect::Decide`.
+    /// Messages already queued are ferried until the states go idle or one of
+    /// them yields `Effect::Decide`. If the proposer of a round is absent, that
+    /// round's Propose, Prevote, and Precommit timeouts are elapsed on the next
+    /// step of `logical_time`. This does not sleep.
     pub fn commit(&mut self, height: u64, root: [u8; 32]) -> Result<Committed, OrderError> {
         let order_height = OrderHeight(height);
         for replica in &mut self.replicas {
@@ -390,6 +515,7 @@ impl AllowlistOrderer {
         let mut pending = Some(BatchRoot(root));
         let mut decided: Option<Committed> = None;
         let mut steps = 0u32;
+        let mut elapsed = 0u64;
         loop {
             if steps > 2048 {
                 break;
@@ -433,6 +559,7 @@ impl AllowlistOrderer {
                         });
                         if replica.present && !queued {
                             replica.queue.push_back(Input::TimeoutElapsed(timeout));
+                            elapsed = elapsed.saturating_add(1);
                         }
                     }
                 }
@@ -465,7 +592,13 @@ impl AllowlistOrderer {
         }
 
         let committed = decided.ok_or(OrderError::NoDecision { height })?;
-        if self.directory_leader.is_some() {
+        self.logical_time = self.logical_time.saturating_add(elapsed);
+        let round0 = leader_address(&self.validators, height);
+        if committed.proposer != round0 {
+            self.epoch = self.epoch.saturating_add(1);
+            self.directory_leader = Some(committed.proposer);
+            self.drop_unadopted_inputs();
+        } else if self.directory_leader.is_some() {
             self.directory_leader = Some(committed.proposer);
         }
         self.certified.push(committed);

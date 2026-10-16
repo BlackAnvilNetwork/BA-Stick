@@ -11,8 +11,11 @@ use serde::Deserialize;
 
 #[derive(Deserialize)]
 struct Submit {
-    height: u64,
-    root: String,
+    #[serde(default)]
+    op: Option<String>,
+    height: Option<u64>,
+    root: Option<String>,
+    id: Option<String>,
 }
 
 fn decode_root(hex: &str) -> Option<[u8; 32]> {
@@ -56,15 +59,62 @@ fn main() {
                 continue;
             }
         };
-        let Some(root) = decode_root(&submit.root) else {
-            eprintln!("lok-order refused: root must be 32 bytes");
-            continue;
-        };
-        match orderer.commit(submit.height, root) {
-            Ok(_) => write_status(&mut stdout, &orderer),
-            Err(err) => {
+        match submit.op.as_deref() {
+            Some("kill-leader") => {
+                orderer.kill_leader();
                 write_status(&mut stdout, &orderer);
-                eprintln!("lok-order provisional: {err}");
+            }
+            Some("keep") => {
+                let Some(id) = submit.id.as_deref() else {
+                    eprintln!("lok-order refused: keep needs an id");
+                    continue;
+                };
+                orderer.record_certified_inputs(&[id]);
+                write_status(&mut stdout, &orderer);
+            }
+            Some("accept-input") => {
+                let Some(id) = submit.id.as_deref() else {
+                    eprintln!("lok-order refused: accept-input needs an id");
+                    continue;
+                };
+                orderer.accept_input(id);
+                write_status(&mut stdout, &orderer);
+            }
+            Some("propose") => {
+                let (Some(height), Some(root_hex)) = (submit.height, submit.root.as_deref()) else {
+                    eprintln!("lok-order refused: propose needs a height and a root");
+                    continue;
+                };
+                let Some(root) = decode_root(root_hex) else {
+                    eprintln!("lok-order refused: root must be 32 bytes");
+                    continue;
+                };
+                if let Err(err) = orderer.propose_only(height, root) {
+                    write_status(&mut stdout, &orderer);
+                    eprintln!("lok-order provisional: {err}");
+                } else {
+                    write_status(&mut stdout, &orderer);
+                }
+            }
+            Some(other) => {
+                eprintln!("lok-order refused: unknown op {other}");
+            }
+            None => {
+                let (Some(height), Some(root_hex)) = (submit.height, submit.root.as_deref()) else {
+                    eprintln!("lok-order refused: commit needs a height and a root");
+                    continue;
+                };
+                let Some(root) = decode_root(root_hex) else {
+                    eprintln!("lok-order refused: root must be 32 bytes");
+                    continue;
+                };
+                match orderer.commit(height, root) {
+                    Ok(_) => write_status(&mut stdout, &orderer),
+                    Err(err) => {
+                        write_status(&mut stdout, &orderer);
+                        eprintln!("lok-order provisional: {err}");
+                    }
+                }
             }
         }
     }

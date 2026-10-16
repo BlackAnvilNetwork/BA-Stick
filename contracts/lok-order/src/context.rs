@@ -250,18 +250,21 @@ pub fn allowlist_validator_set(keys: &[ed25519::PrivateKey; 3]) -> GenesisSet {
 
 /// Proposer Malachite selects at round 0 for this height.
 pub fn leader_address(set: &GenesisSet, height: u64) -> OrderAddr {
-    let proposer = OrderCtx.select_proposer(set, OrderHeight(height), Round::new(0));
+    proposer_at(set, height, 0)
+}
+
+/// Proposer Malachite selects for this height and round.
+pub fn proposer_at(set: &GenesisSet, height: u64, round: u32) -> OrderAddr {
+    let proposer = OrderCtx.select_proposer(set, OrderHeight(height), Round::new(round));
     *Validator::address(proposer)
 }
 
-/// Seed roller for this height.
+/// Next allowlisted replica after `leader`.
 ///
-/// With one replica the roller is the leader. With three, the roller is the
-/// next allowlisted replica after the leader, so the two addresses differ.
-/// The epoch seed formula is unchanged; this only names who rolls it.
-pub fn seed_roller_address(set: &GenesisSet, height: u64) -> OrderAddr {
+/// With one replica the roller is the leader. With three, the roller is not
+/// the leader. The epoch seed formula is unchanged; this only names who rolls it.
+pub fn roller_after(set: &GenesisSet, leader: OrderAddr) -> OrderAddr {
     let count = ValidatorSet::count(set);
-    let leader = leader_address(set, height);
     if count <= 1 {
         return leader;
     }
@@ -273,6 +276,11 @@ pub fn seed_roller_address(set: &GenesisSet, height: u64) -> OrderAddr {
         .expect("leader is in the allowlist");
     let roller_index = (leader_index + 1) % count;
     *Validator::address(ValidatorSet::get_by_index(set, roller_index).expect("seed roller"))
+}
+
+/// Seed roller for this height: the next replica after the round-0 leader.
+pub fn seed_roller_address(set: &GenesisSet, height: u64) -> OrderAddr {
+    roller_after(set, leader_address(set, height))
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
