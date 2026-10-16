@@ -306,6 +306,7 @@ import { authAllowlist, authVerifyClient, clientAddress, dropAuthConnection, iss
 import { defaultLokDir, LokWorld } from "./lok-world";
 import { flushGameRoll, loadGameRoll, rollIndex, rollUnit } from "./game-roll";
 import { sealParentRoot, sealTickBatch } from "./seal-tick-batch";
+import { loadTickOrderer, submitOnSimTick } from "./order-submit";
 import { rollPvpAutoAttack } from "./pvp-auto-rolls";
 import { cheapestBait, fishGatherRefusal } from "./fishing";
 import { emptyMobEnhances, takeMobHit } from "./mob-enhances";
@@ -672,6 +673,8 @@ const SEAL_RULESET_HASH = hexToBytes(LOCAL_RULESET_HASH);
  * The envelope records these 32 zero bytes.
  */
 const SEAL_GNOSIS_UNFETCHED = new Uint8Array(32);
+/** Absent unless `LOK_ORDER_BIN` starts the one-validator Malachite process. */
+const tickOrderer = loadTickOrderer();
 /** Pale Hollow Segment A field mobs. */
 let mobs: Mob[] = spawnSegmentAPack();
 let fieldNodes: FieldNode[] = createPaleHollowNodes();
@@ -5518,15 +5521,20 @@ function tickSim() {
       try {
         const inputs = tickIndexInputs(tick);
         const parentRoot = sealParentRoot();
+        const chainLink = lok.characterRootTreeRoot();
         const sealed = sealTickBatch({
           inputs,
           rollBytes: new Uint8Array(0),
           rulesetHash: SEAL_RULESET_HASH,
           gnosisRandomness: SEAL_GNOSIS_UNFETCHED,
           parentRoot,
-          chainLink: lok.characterRootTreeRoot(),
+          chainLink,
         });
         if (!sealed.ok) console.error("[seal] tick batch rejected: " + sealed.error);
+        else {
+          // Do not wait for a round. A missing or refusing orderer stays provisional.
+          submitOnSimTick(tickOrderer, { ok: true, height: sealed.height, nextRoot: chainLink });
+        }
       } catch (err) {
         console.error("[seal] tick batch failed", err);
       }

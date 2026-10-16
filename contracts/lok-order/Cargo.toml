@@ -1,0 +1,20 @@
+[package]
+name = "lok-order"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+description = "In-process Malachite orderer for a Bellgrave genesis of one validator"
+license = "MIT"
+publish = false
+
+[dependencies]
+informalsystems-malachitebft-core-consensus = { version = "0.5.0", default-features = false, features = ["std"] }
+informalsystems-malachitebft-core-types = "0.5.0"
+informalsystems-malachitebft-signing-ed25519 = { version = "0.5.0", features = ["rand", "std"] }
+rand = "0.8"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[lib]
+name = "lok_order"
+path = "src/lib.rs"
