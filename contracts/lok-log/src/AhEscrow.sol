@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
+import {GuildVault} from "./GuildVault.sol";
 
 /// @dev Minimal NFT ownership read used at fill time (CharacterNFT).
 interface ICharacterOwnerOf {
@@ -14,13 +15,18 @@ interface ICharacterOwnerOf {
 /// @notice First-party auction-house payment escrow. Buyers pay **native ETH**
 ///         (EOA, Safe, or EEZ `CrossChainProxy` with `msg.value`). At fill, ETH
 ///         goes to `ownerOf(sellerTokenId)` (never a client-supplied address),
-///         minus a 1% marketplace fee to `feeRecipient`. This contract does not
-///         hold a long-lived player balance, and the character log never credits
-///         settlement ETH. Upstream EEZ `periphery/Bridge.sol` is test-only; do
-///         not treat it as this contract.
+///         minus a 1% marketplace fee. That fee is split: `vaultBps` of the sale
+///         (starting at 50) is sent to the guild vault, and `treasuryBps`
+///         (starting at 50) is sent to `feeRecipient`. The player-facing fee
+///         stays 1%. There is no second fee and no new token. The two shares
+///         change only after `SHARE_DELAY`, the ruleset timelock floor (one day,
+///         `RulesetRegistry.MIN_DELAY`). This contract does not hold a long-lived
+///         player balance, and the character log never credits settlement ETH.
+///         Upstream EEZ `periphery/Bridge.sol` is test-only; do not treat it as
+///         this contract.
 ///
 ///         Flow: LISTING_ROLE opens an ask that mirrors a log listing id → buyer
-///         calls `buyAsk{value}` → fee + seller paid → `AskFilled` is emitted →
+///         calls `buyAsk{value}` → fee split + seller paid → `AskFilled` is emitted →
 ///         the game server appends a log `chainFill` (items only).
 ///
 ///         Listing ids are single-use: once opened, filled, or cancelled they
@@ -44,6 +50,12 @@ contract AhEscrow is Pausable, EIP712 {
     /// @notice 1% of sale price (fee = price * FEE_BPS / BPS_DENOM, floor).
     uint256 public constant FEE_BPS = 100;
     uint256 public constant BPS_DENOM = 10_000;
+    /// @notice Starting guild-vault share of the sale. The treasury share starts as the rest of `FEE_BPS`.
+    uint256 public constant VAULT_BPS_START = 50;
+    /// @notice Ruleset timelock floor (`RulesetRegistry.MIN_DELAY`, one day). Solidity cannot
+    ///         copy another contract's constant into this one, so the test locks them together.
+    ///         There is no setter for this delay.
+    uint64 public constant SHARE_DELAY = 1 days;
 
     struct Ask {
         uint256 sellerTokenId;
@@ -54,8 +66,22 @@ contract AhEscrow is Pausable, EIP712 {
         bool used;
     }
 
+    struct PendingFeeShares {
+        uint256 vaultBps;
+        uint256 treasuryBps;
+        uint64 readyAt;
+    }
+
     ICharacterOwnerOf public immutable characterNft;
+    /// @notice Treasury. Receives `treasuryBps` of the sale. Rotating the address does not change the share.
     address payable public feeRecipient;
+    /// @notice Guild pool. Receives `vaultBps` of the sale and does not pay guilds in this slice.
+    address payable public immutable guildVault;
+    /// @notice Live vault share of the sale, in bps. Starts at 50. Changes only via `executeFeeShares`.
+    uint256 public vaultBps;
+    /// @notice Live treasury share of the sale, in bps. Starts at 50. `vaultBps + treasuryBps == FEE_BPS`.
+    uint256 public treasuryBps;
+    PendingFeeShares public pendingFeeShares;
 
     mapping(uint256 listingId => Ask) public asks;
     mapping(bytes32 role => mapping(address account => bool)) private _roles;
@@ -80,6 +106,9 @@ contract AhEscrow is Pausable, EIP712 {
     );
     event AskCancelled(uint256 indexed listingId);
     event FeeRecipientSet(address indexed feeRecipient);
+    event FeeSharesProposed(uint256 vaultBps, uint256 treasuryBps, uint64 readyAt);
+    event FeeSharesSet(uint256 vaultBps, uint256 treasuryBps);
+    event FeeSharesCancelled(uint256 vaultBps, uint256 treasuryBps);
     event RoleGranted(bytes32 indexed role, address indexed account, address indexed sender);
     event RoleRevoked(bytes32 indexed role, address indexed account, address indexed sender);
 
@@ -95,6 +124,9 @@ contract AhEscrow is Pausable, EIP712 {
     error NotOwner();
     error BadSignature();
     error Expired();
+    error BadShares();
+    error TooEarly();
+    error NoPendingShares();
 
     modifier onlyRole(bytes32 role) {
         if (!_roles[role][msg.sender]) revert Unauthorized();
@@ -110,15 +142,19 @@ contract AhEscrow is Pausable, EIP712 {
 
     /// @param admin Temporary admin (Deploy hands over to multisig). Also receives GUARDIAN_ROLE.
     /// @param nft_ Character NFT whose `ownerOf` receives sale proceeds at fill.
-    /// @param feeRecipient_ Multisig/admin treasury for the 1% fee.
+    /// @param feeRecipient_ Treasury for the treasury share of the 1% fee.
     constructor(address admin, address nft_, address payable feeRecipient_) EIP712("AhEscrow", "1") {
         if (admin == address(0) || nft_ == address(0) || feeRecipient_ == address(0)) revert BadAddress();
         characterNft = ICharacterOwnerOf(nft_);
         feeRecipient = feeRecipient_;
+        guildVault = payable(address(new GuildVault(address(this))));
+        vaultBps = VAULT_BPS_START;
+        treasuryBps = FEE_BPS - VAULT_BPS_START;
         _grant(DEFAULT_ADMIN_ROLE, admin);
         _grant(LISTING_ROLE, admin);
         _grant(GUARDIAN_ROLE, admin);
         emit FeeRecipientSet(feeRecipient_);
+        emit FeeSharesSet(vaultBps, treasuryBps);
     }
 
     function hasRole(bytes32 role, address account) external view returns (bool) {
@@ -136,11 +172,42 @@ contract AhEscrow is Pausable, EIP712 {
         }
     }
 
-    /// @notice Multisig/admin may rotate the fee treasury.
+    /// @notice Multisig/admin may rotate the treasury address. This does not change either share.
     function setFeeRecipient(address payable to) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (to == address(0)) revert BadAddress();
         feeRecipient = to;
         emit FeeRecipientSet(to);
+    }
+
+    /// @notice Schedule a new vault/treasury split. Live shares stay put until `executeFeeShares`
+    ///         after `SHARE_DELAY`. The two shares must still sum to `FEE_BPS` (the player fee stays 1%).
+    ///         There is no setter that applies a split in the same transaction.
+    function proposeFeeShares(uint256 nextVaultBps, uint256 nextTreasuryBps) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (nextVaultBps > FEE_BPS || nextTreasuryBps > FEE_BPS || nextVaultBps + nextTreasuryBps != FEE_BPS) {
+            revert BadShares();
+        }
+        uint64 readyAt = uint64(block.timestamp) + SHARE_DELAY;
+        pendingFeeShares = PendingFeeShares({vaultBps: nextVaultBps, treasuryBps: nextTreasuryBps, readyAt: readyAt});
+        emit FeeSharesProposed(nextVaultBps, nextTreasuryBps, readyAt);
+    }
+
+    /// @notice Apply a split that has waited out the ruleset timelock floor. Admin (the Safe) executes.
+    function executeFeeShares() external onlyRole(DEFAULT_ADMIN_ROLE) {
+        PendingFeeShares memory pending = pendingFeeShares;
+        if (pending.readyAt == 0) revert NoPendingShares();
+        if (block.timestamp < pending.readyAt) revert TooEarly();
+        vaultBps = pending.vaultBps;
+        treasuryBps = pending.treasuryBps;
+        delete pendingFeeShares;
+        emit FeeSharesSet(pending.vaultBps, pending.treasuryBps);
+    }
+
+    /// @notice Drop a scheduled split. Live shares are unchanged.
+    function cancelFeeShares() external onlyRole(DEFAULT_ADMIN_ROLE) {
+        PendingFeeShares memory pending = pendingFeeShares;
+        if (pending.readyAt == 0) revert NoPendingShares();
+        delete pendingFeeShares;
+        emit FeeSharesCancelled(pending.vaultBps, pending.treasuryBps);
     }
 
     /// @notice Guardian pause: blocks openAsk / buyAsk. Cancel remains available.
@@ -157,6 +224,19 @@ contract AhEscrow is Pausable, EIP712 {
     function quoteFee(uint256 priceWei) public pure returns (uint256 feeWei, uint256 sellerNetWei) {
         feeWei = (priceWei * FEE_BPS) / BPS_DENOM;
         sellerNetWei = priceWei - feeWei;
+    }
+
+    /// @notice Floor each share the same way `quoteFee` floors (`price * bps / BPS_DENOM`).
+    ///         When the two floors sum to less than the 1% fee, the leftover wei stays with
+    ///         the treasury so the seller still nets `price - fee` and this contract holds nothing.
+    function quoteFeeShares(uint256 priceWei) public view returns (uint256 vaultWei, uint256 treasuryWei) {
+        uint256 feeWei = (priceWei * FEE_BPS) / BPS_DENOM;
+        vaultWei = (priceWei * vaultBps) / BPS_DENOM;
+        treasuryWei = (priceWei * treasuryBps) / BPS_DENOM;
+        if (vaultWei > feeWei) vaultWei = feeWei;
+        uint256 routed = vaultWei + treasuryWei;
+        if (routed < feeWei) treasuryWei += feeWei - routed;
+        else if (routed > feeWei) treasuryWei = feeWei - vaultWei;
     }
 
     function _grant(bytes32 role, address account) private {
@@ -258,16 +338,7 @@ contract AhEscrow is Pausable, EIP712 {
 
         address owner = characterNft.ownerOf(sellerTokenId);
         if (owner == address(0)) revert BadAddress();
-        address payable payout = payable(owner);
-
-        (uint256 feeWei, uint256 sellerNet) = quoteFee(price);
-
-        if (feeWei > 0) {
-            (bool feePaid,) = feeRecipient.call{value: feeWei}("");
-            if (!feePaid) revert TransferFailed();
-        }
-        (bool paid,) = payout.call{value: sellerNet}("");
-        if (!paid) revert TransferFailed();
+        uint256 feeWei = _payFeeAndSeller(price, payable(owner));
 
         uint256 excess = msg.value - price;
         if (excess > 0) {
@@ -275,7 +346,26 @@ contract AhEscrow is Pausable, EIP712 {
             if (!refunded) revert TransferFailed();
         }
 
-        emit AskFilled(listingId, msg.sender, buyerTokenId, payout, price, feeWei, itemId, amount);
+        emit AskFilled(listingId, msg.sender, buyerTokenId, owner, price, feeWei, itemId, amount);
+    }
+
+    /// @dev Pays the floored vault share, the treasury share of the 1% fee, then the seller.
+    ///      Isolated so `_fill` stays under the stack limit.
+    function _payFeeAndSeller(uint256 price, address payable payout) private returns (uint256 feeWei) {
+        uint256 sellerNet;
+        (feeWei, sellerNet) = quoteFee(price);
+        (uint256 vaultWei, uint256 treasuryWei) = quoteFeeShares(price);
+
+        if (vaultWei > 0) {
+            (bool vaultPaid,) = guildVault.call{value: vaultWei}("");
+            if (!vaultPaid) revert TransferFailed();
+        }
+        if (treasuryWei > 0) {
+            (bool feePaid,) = feeRecipient.call{value: treasuryWei}("");
+            if (!feePaid) revert TransferFailed();
+        }
+        (bool paid,) = payout.call{value: sellerNet}("");
+        if (!paid) revert TransferFailed();
     }
 
     /// @dev Naked ETH is rejected; payment must go through `buyAsk`.

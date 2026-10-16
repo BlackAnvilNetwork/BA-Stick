@@ -61,6 +61,13 @@ const ESC_ABI = [
     inputs: [],
     outputs: [{ type: "address" }],
   },
+  {
+    type: "function",
+    name: "guildVault",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "address" }],
+  },
 ] as const;
 const NFT_ABI = [
   {
@@ -163,6 +170,11 @@ describe("support 8357719: EEZ mock sync buy (throwaway anvil)", { skip: !canRun
       abi: ESC_ABI,
       functionName: "feeRecipient",
     })) as Hex;
+    const vault = (await pub.readContract({
+      address: ESCROW,
+      abi: ESC_ABI,
+      functionName: "guildVault",
+    })) as Hex;
     await pub.waitForTransactionReceipt({
       hash: await lister.writeContract({
         address: nft,
@@ -181,6 +193,8 @@ describe("support 8357719: EEZ mock sync buy (throwaway anvil)", { skip: !canRun
       }),
     });
     const fee = P / 100n;
+    const vaultShare = (P * 50n) / 10_000n;
+    const treasuryShare = (P * 50n) / 10_000n;
     const sellerNet = P - fee;
     const start = BigInt(String(await rpc("eth_blockNumber", [])));
     for (const id of ids) {
@@ -197,6 +211,7 @@ describe("support 8357719: EEZ mock sync buy (throwaway anvil)", { skip: !canRun
       buyer: await pub.getBalance({ address: buyer.address }),
       seller: await pub.getBalance({ address: payout }),
       fee: await pub.getBalance({ address: feeTo }),
+      vault: await pub.getBalance({ address: vault }),
       mock: await pub.getBalance({ address: MOCK }),
     });
     const spend = async (id: bigint, value: bigint) => {
@@ -243,6 +258,7 @@ describe("support 8357719: EEZ mock sync buy (throwaway anvil)", { skip: !canRun
         buyerNet: before.buyer - after.buyer - gas,
         seller: after.seller - before.seller,
         fee: after.fee - before.fee,
+        vault: after.vault - before.vault,
         mock: after.mock - before.mock,
       };
     };
@@ -264,7 +280,9 @@ describe("support 8357719: EEZ mock sync buy (throwaway anvil)", { skip: !canRun
     const inbox = (lok.view(b.tokenId) as { inbox: { tokenId: number; amount: string }[] }).inbox;
     assert.equal(exact.status, "success");
     assert.equal(exact.seller, sellerNet);
-    assert.equal(exact.fee, fee);
+    assert.equal(exact.fee, treasuryShare);
+    assert.equal(exact.vault, vaultShare);
+    assert.equal(exact.fee + exact.vault, fee);
     assert.equal(exact.buyerNet, P);
     assert.equal(again.status, "reverted");
     assert.equal(again.seller, 0n);
@@ -277,7 +295,8 @@ describe("support 8357719: EEZ mock sync buy (throwaway anvil)", { skip: !canRun
     assert.deepEqual(lok.openBookListings().map((r) => r.id), [String(ids[2])]);
     assert.equal(excess.status, "success");
     assert.equal(excess.seller, sellerNet);
-    assert.equal(excess.fee, fee);
+    assert.equal(excess.fee, treasuryShare);
+    assert.equal(excess.vault, vaultShare);
     assert.equal(excess.buyerNet, P, "excess refunded to buyer");
   });
 });
