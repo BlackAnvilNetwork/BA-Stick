@@ -6,7 +6,10 @@
 //! without protoc or a second host. A genesis of one still commits at threshold
 //! 1. The allowlist runs three states and ferries their consensus messages.
 //! The TypeScript tick only submits a height and a 32-byte root. It does not
-//! run a round. A commit is still only `Effect::Decide`.
+//! run a round. A commit is still only `Effect::Decide`. Killing the current
+//! leader marks that validator absent. The other two are still a majority of
+//! the original three, so they commit the next batch. A session reconnects
+//! to the new leader.
 
 mod allowlist;
 mod context;
@@ -19,12 +22,14 @@ use informalsystems_malachitebft_core_consensus::{
     Resumable, SignedConsensusMsg, State, ValuePayload,
 };
 use informalsystems_malachitebft_core_types::{
-    Context, Height, SigningProvider, SigningProviderExt, ThresholdParams, Validator,
+    Context, Height, SigningProvider, SigningProviderExt, ThresholdParams, Timeout, Validator,
 };
 use informalsystems_malachitebft_signing_ed25519::{Ed25519, PrivateKey};
 use rand::rngs::OsRng;
 
-pub use allowlist::{majority_threshold, AllowlistOrderer, PeerView};
+pub use allowlist::{
+    majority_threshold, AllowlistOrderer, PeerView, PlayerSession, ProposalOnly, Reconnect,
+};
 pub use context::{
     allowlist_validator_set, genesis_validator_set, leader_address, seed_roller_address, BatchRoot,
     GenesisSet, OrderAddr, OrderCtx, OrderHeight,
@@ -37,6 +42,8 @@ pub struct Committed {
     pub height: u64,
     pub root: [u8; 32],
     pub signatures: usize,
+    /// Proposer of the round that decided.
+    pub proposer: OrderAddr,
 }
 
 #[derive(Debug)]
@@ -126,6 +133,7 @@ impl GenesisOrderer {
             }
             let mut followups = Vec::new();
             let mut outbound = Vec::new();
+            let mut scheduled = Vec::new();
             let step: Result<(), ConsensusError<OrderCtx>> = process!(
                 input: input,
                 state: &mut self.state,
@@ -139,6 +147,7 @@ impl GenesisOrderer {
                     &mut decided,
                     &mut followups,
                     &mut outbound,
+                    &mut scheduled,
                 )
             );
             step.map_err(|err: ConsensusError<OrderCtx>| OrderError::Consensus(err.to_string()))?;
@@ -198,16 +207,20 @@ pub(crate) fn handle_effect(
     decided: &mut Option<Committed>,
     followups: &mut Vec<Input<OrderCtx>>,
     outbound: &mut Vec<SignedConsensusMsg<OrderCtx>>,
+    scheduled: &mut Vec<Timeout>,
 ) -> Result<informalsystems_malachitebft_core_consensus::Resume<OrderCtx>, &'static str> {
     Ok(match effect {
         Effect::PublishConsensusMsg(msg, resume) => {
             outbound.push(msg);
             resume.resume_with(())
         }
+        Effect::ScheduleTimeout(timeout, resume) => {
+            scheduled.push(timeout);
+            resume.resume_with(())
+        }
         Effect::ResetTimeouts(resume)
         | Effect::CancelAllTimeouts(resume)
         | Effect::CancelTimeout(_, resume)
-        | Effect::ScheduleTimeout(_, resume)
         | Effect::StartRound(_, _, _, _, resume)
         | Effect::PublishLivenessMsg(_, resume)
         | Effect::RepublishVote(_, resume)
@@ -228,10 +241,16 @@ pub(crate) fn handle_effect(
             resume.resume_with(())
         }
         Effect::Decide(certificate, _extensions, resume) => {
+            let proposer = *Validator::address(OrderCtx.select_proposer(
+                validators,
+                certificate.height,
+                certificate.round,
+            ));
             *decided = Some(Committed {
                 height: Height::as_u64(&certificate.height),
                 root: certificate.value_id.0,
                 signatures: certificate.commit_signatures.len(),
+                proposer,
             });
             resume.resume_with(())
         }
