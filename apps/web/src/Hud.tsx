@@ -566,6 +566,7 @@ export function Hud() {
   const logs = useGame((s) => s.logs);
   const connected = useGame((s) => s.connected);
   const phase = useGame((s) => s.phase);
+  const storedLight = useGame((s) => s.light);
   const wallet = useGame((s) => s.wallet);
   const selectedTarget = useGame((s) => s.selectedTarget);
   const npcDialog = useGame((s) => s.npcDialog);
@@ -767,10 +768,14 @@ export function Hud() {
           <div className="hud-vitals-dock">
           <div className="hud-identity">
             {you.name} · Lv.{you.level} · <span className="job">{jobName}{subName}</span>
-            {lightVerdict && !lightVerdict.ok ? (
-              <span className="offline" role="status">
+            <span className="provisional" data-leader-view={storedLight.leaderView}>
+              {" "}
+              · provisional
+            </span>
+            {storedLight.committed || lightVerdict?.ok ? (
+              <span className="committed" data-committed-view="committed">
                 {" "}
-                · light client {lightVerdict.stage}
+                · committed
               </span>
             ) : null}
             {!connected && <span className="offline"> · OFFLINE</span>}

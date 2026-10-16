@@ -893,6 +893,12 @@ textarea {
 .hud-identity .offline {
   color: var(--danger);
 }
+.hud-identity .provisional {
+  color: var(--gold);
+}
+.hud-identity .committed {
+  color: var(--text-dim);
+}
 
 .hud-vitals {
   display: flex;

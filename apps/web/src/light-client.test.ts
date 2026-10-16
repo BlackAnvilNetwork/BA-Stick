@@ -5,8 +5,10 @@
  */
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import type { SnapshotMessage } from "@bellgrave/protocol";
 import { bls12_381 } from "@noble/curves/bls12-381.js";
 import { concatBytes, keccak256 } from "viem";
+import { useGame } from "./state";
 import {
   checkWebLightClient,
   type CharacterRootClaim,
@@ -210,6 +212,69 @@ test("a bad leaf sibling stops at leaf after a valid certificate and character r
   });
   assert.equal(rejected.ok, false);
   if (!rejected.ok) assert.equal(rejected.stage, "leaf");
+});
+
+test("a flipped state leaf fails after the certificate and character root", () => {
+  const world = passingWorld();
+  const value = new Uint8Array(world.leaf.value);
+  value[value.length - 1] ^= 0x01;
+  const rejected = checkWebLightClient({
+    certificate: world.certificate,
+    character: world.character,
+    leaf: { ...world.leaf, value },
+  });
+  assert.equal(rejected.ok, false);
+  if (!rejected.ok) assert.equal(rejected.stage, "leaf");
+});
+
+test("the web client keeps a leader snapshot provisional and commits only a passing proof", () => {
+  const world = passingWorld();
+  useGame.setState({
+    wallet: null,
+    snapshot: null,
+    light: { leaderView: "provisional", committed: null },
+  });
+  useGame.getState().setSnapshot({
+    type: "snapshot",
+    tick: 8,
+    you: {},
+    units: [],
+    log: [],
+    party: null,
+    partyInvite: null,
+  } as unknown as SnapshotMessage);
+  assert.equal(useGame.getState().light.leaderView, "provisional");
+  assert.equal(useGame.getState().light.committed, null);
+
+  const bad = passingWorld();
+  const value = new Uint8Array(bad.leaf.value);
+  value[value.length - 1] ^= 0x01;
+  useGame.getState().setSnapshot({
+    type: "snapshot",
+    tick: 9,
+    you: {},
+    units: [],
+    log: [],
+    party: null,
+    partyInvite: null,
+    lightClient: { ...bad, leaf: { ...bad.leaf, value } },
+  } as unknown as SnapshotMessage);
+  assert.equal(useGame.getState().light.leaderView, "provisional");
+  assert.equal(useGame.getState().light.committed, null);
+
+  useGame.getState().setSnapshot({
+    type: "snapshot",
+    tick: 10,
+    you: {},
+    units: [],
+    log: [],
+    party: null,
+    partyInvite: null,
+    lightClient: world,
+  } as unknown as SnapshotMessage);
+  assert.equal(useGame.getState().light.leaderView, "provisional");
+  assert.equal(useGame.getState().light.committed?.ok, true);
+  assert.equal(useGame.getState().snapshot?.type, "snapshot");
 });
 
 test("an empty character-root tree is 32 zero bytes and an empty state root is keccak of empty bytes", () => {

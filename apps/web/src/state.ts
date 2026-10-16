@@ -9,6 +9,7 @@ import type {
   UnitSnapshot,
 } from "@bellgrave/protocol";
 import { create } from "zustand";
+import { checkWebLightClient, lightClientFromSnapshot, type WebLightResult } from "./light-client";
 
 type Phase = "boot" | "auth" | "create" | "select" | "play";
 
@@ -66,6 +67,8 @@ type GameState = {
     };
   } | null;
   snapshot: SnapshotMessage | null;
+  /** Leader snapshots stay provisional. A passing light proof is the committed view. */
+  light: { leaderView: "provisional"; committed: Extract<WebLightResult, { ok: true }> | null };
   logs: string[];
   selectedTarget: string | null;
   npcDialog: NpcDialog | null;
@@ -106,6 +109,7 @@ export const useGame = create<GameState>((set, get) => ({
   pendingCreateEnter: false,
   characterMint: null,
   snapshot: null,
+  light: { leaderView: "provisional", committed: null },
   logs: [],
   selectedTarget: null,
   npcDialog: null,
@@ -150,8 +154,15 @@ export const useGame = create<GameState>((set, get) => ({
       selectedTarget = serverTarget;
     }
     const mint = snapshot.you?.lok?.characterMint;
+    const payload = lightClientFromSnapshot(snapshot);
+    const verdict = payload ? checkWebLightClient(payload) : null;
+    const light = {
+      leaderView: "provisional" as const,
+      committed: verdict?.ok ? verdict : get().light.committed,
+    };
     set({
       ...(mint !== undefined ? { characterMint: mint ?? null } : {}),
+      light,
       snapshot,
       logs: snapshot.log ?? prev?.log ?? get().logs,
       selectedTarget,
@@ -172,7 +183,7 @@ export const useGame = create<GameState>((set, get) => ({
 }));
 
 /** Dev-only: console / visual QA can inject play snapshots without a wallet. */
-if (import.meta.env.DEV && typeof window !== "undefined") {
+if (import.meta.env?.DEV && typeof window !== "undefined") {
   (window as unknown as { __useGame?: typeof useGame }).__useGame = useGame;
 }
 
