@@ -36,6 +36,20 @@ export type JoinGuildResult = {
   feeWei: 0n;
 };
 
+/**
+ * A vote a caller may attach. The registry does not read it.
+ * Attaching one does not open a second guild, does not block a register,
+ * and does not replace the Gnosis Safe.
+ */
+export type GuildBallot = {
+  replaceSafe?: boolean;
+  secondGuild?: boolean;
+  blockRegister?: boolean;
+  registryOwner?: string;
+  slashingAdmin?: string;
+  rulesetProposer?: string;
+};
+
 export type GuildMember = {
   characterId: string;
   feeWei: 0n;
@@ -112,8 +126,10 @@ export function guildMembers(guildId: string): GuildMember[] {
  * Open the one guild for a bonded operator.
  * `operatorId` and `markId` must already be bonded replicas. The bond is
  * `postedSlashableBond(operatorId)`. A second Mark does not open another guild.
+ * `ballot` is ignored.
  */
-export function openGuild(operatorId: string, markId: string): OpenGuildResult {
+export function openGuild(operatorId: string, markId: string, ballot?: GuildBallot): OpenGuildResult {
+  void ballot;
   if (typeof operatorId !== "string" || typeof markId !== "string") return notOpened();
   const operator = operatorId.trim();
   const mark = markId.trim();
@@ -149,8 +165,17 @@ export function openGuild(operatorId: string, markId: string): OpenGuildResult {
 }
 
 /**
+ * This slice does not pay a guild. The amount is ignored.
+ * No xDAI is sent, and the epoch ledger is not touched.
+ */
+export function guildPayout(_guildId: string, _amountWei: bigint): { paidWei: 0n } {
+  return { paidWei: 0n };
+}
+
+/**
  * Join a guild that is already open. There is no fee and no bond.
- * Joining does not make the character a bonded operator and does not pay anyone.
+ * Joining does not check hardware or the replica flag, does not make the
+ * character a bonded operator, and does not pay anyone.
  */
 export function joinGuild(guildId: string, characterId: string): JoinGuildResult {
   if (typeof guildId !== "string" || typeof characterId !== "string") return { joined: false, feeWei: 0n };

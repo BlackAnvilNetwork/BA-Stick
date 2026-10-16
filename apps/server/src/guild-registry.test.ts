@@ -18,11 +18,13 @@ import {
   votingSet,
   votingSetCommitThreshold,
 } from "./bonded-admission";
+import { allowEpochSettlementForTests } from "./epoch-cap-fixture";
 import { meleeAtkBonus, withGearMab } from "./gear-combat";
 import { gameRollCount } from "./game-roll";
 import {
   guildForOperator,
   guildMembers,
+  guildPayout,
   guilds,
   joinGuild,
   openGuild,
@@ -30,9 +32,13 @@ import {
 } from "./guild-registry";
 import { incomingMagicDamage } from "./incoming-dt";
 import { installedGameMode } from "./installed-game-mode";
+import { LOCAL_RULESET_WASM_SHA256 } from "./lok-vault";
 import { submitOnSimTick } from "./order-submit";
 import { PINNED_GNOSIS_LISTING_ADDRESS } from "./production-boot";
 import {
+  chainBoundSendGate,
+  chainBoundXdaiSend,
+  epochSettledXdai,
   notePostedSlashableBond,
   postedSlashableBond,
   postedSlashableBonds,
@@ -115,7 +121,7 @@ describe("guild registry", { concurrency: false }, () => {
     }
   });
 
-  test("joining a guild is free", () => {
+  test("joining a guild is free and does not require a bond", async () => {
     reset();
     try {
       postReplicaBond("operator-a", "replica", 9n);
@@ -123,6 +129,18 @@ describe("guild registry", { concurrency: false }, () => {
       assert.equal(opened.opened, true);
       const guildId = opened.guild?.id ?? "";
       const bonds = postedSlashableBonds();
+      const settled = epochSettledXdai();
+      const mode = await installedGameMode(
+        { LOK_REPLICA: "1" },
+        {
+          readResources: () => {
+            throw new Error("hardware");
+          },
+        },
+      );
+      assert.equal(mode.mode, "validator");
+      assert.equal(mode.ticksWorld, false);
+      assert.equal(mode.leads, false);
 
       assert.deepEqual(joinGuild("guild:missing", "character-1"), { joined: false, feeWei: 0n });
       assert.deepEqual(joinGuild(guildId, "character-1"), { joined: true, feeWei: 0n });
@@ -142,6 +160,8 @@ describe("guild registry", { concurrency: false }, () => {
       assert.equal(guildForOperator("phone"), null);
       assert.equal(votingSet().length, 1);
       assert.equal(postedSlashableBonds(), bonds);
+      assert.equal(epochSettledXdai(), settled);
+      assert.equal(postedSlashableBond("character-1"), 0n);
     } finally {
       reset();
     }
@@ -205,6 +225,10 @@ describe("guild registry", { concurrency: false }, () => {
           "utf8",
         );
         assert.match(sol, /uint256 public constant FEE_BPS = 100;/);
+        assert.equal(
+          LOCAL_RULESET_WASM_SHA256,
+          "ae2fb7556c254cf9fddfdae0919dd1bdba12dfcd00b15d22c8c4bb43fd76a950",
+        );
         assert.equal("payout" in (opened.guild ?? {}), false);
         assert.equal("payoutWei" in (opened.guild ?? {}), false);
         assert.equal(calls.length, 0);
@@ -240,6 +264,7 @@ describe("guild registry", { concurrency: false }, () => {
       assert.equal(gameRollCount(), rolls);
       assert.equal("damage" in guild, false);
       assert.equal("loot" in guild, false);
+      assert.equal("crit" in guild, false);
       assert.equal("combat" in guild, false);
       assert.equal("advantage" in guild, false);
       assert.deepEqual(Object.keys(guild).sort(), ["bondWei", "id", "markId", "operatorId"]);
@@ -269,6 +294,17 @@ describe("guild registry", { concurrency: false }, () => {
         opened: false,
         guild: null,
       });
+      assert.deepEqual(
+        openGuild(
+          "0xbFa29a6EE3d1188aa0A9e0c783E5Da620b859E76",
+          "0xbFa29a6EE3d1188aa0A9e0c783E5Da620b859E76",
+        ),
+        { opened: false, guild: null },
+      );
+      assert.deepEqual(
+        openGuild(PINNED_GNOSIS_LISTING_ADDRESS.slice(2), PINNED_GNOSIS_LISTING_ADDRESS.slice(2)),
+        { opened: false, guild: null },
+      );
       assert.equal(guilds().length, 0);
       assert.equal(votingSet().length, 0);
       assert.equal(postedSlashableBond("validator-1"), 0n);
@@ -326,6 +362,84 @@ describe("guild registry", { concurrency: false }, () => {
         globalThis.fetch = prev;
       }
     } finally {
+      reset();
+    }
+  });
+
+  test("no payout function moves xDAI", async () => {
+    reset();
+    try {
+      await allowEpochSettlementForTests(1000n);
+      assert.equal(chainBoundSendGate().ok, true);
+      assert.deepEqual(postReplicaBond("operator-a", "replica", 100n), { joined: true, amountWei: 100n });
+      const opened = openGuild("operator-a", "operator-a");
+      assert.equal(opened.opened, true);
+      const guildId = opened.guild?.id ?? "";
+      assert.deepEqual(joinGuild(guildId, "character-1"), { joined: true, feeWei: 0n });
+      const settled = epochSettledXdai();
+      const bonds = postedSlashableBonds();
+      const paid = guildPayout(guildId, 50n);
+      assert.deepEqual(paid, { paidWei: 0n });
+      assert.equal(epochSettledXdai(), settled);
+      assert.equal(postedSlashableBonds(), bonds);
+      assert.equal(postedSlashableBond("operator-a"), 100n);
+      assert.equal(postedSlashableBond("character-1"), 0n);
+      const sent = chainBoundXdaiSend("mint", 1n);
+      assert.equal(sent.ok, true);
+      assert.equal(epochSettledXdai(), settled + 1n);
+      assert.deepEqual(guildPayout(guildId, 50n), { paidWei: 0n });
+      assert.equal(epochSettledXdai(), settled + 1n);
+    } finally {
+      reset();
+    }
+  });
+
+  test("a vote cannot open a second guild or block a valid register", () => {
+    reset();
+    const prevOwner = process.env.LOK_OWNER_KEY;
+    const prevPrivate = process.env.PRIVATE_KEY;
+    process.env.LOK_OWNER_KEY = PINNED_GNOSIS_LISTING_ADDRESS;
+    process.env.PRIVATE_KEY = "0x" + "11".repeat(32);
+    try {
+      const ballot = {
+        replaceSafe: true,
+        secondGuild: true,
+        blockRegister: true,
+        registryOwner: PINNED_GNOSIS_LISTING_ADDRESS,
+        slashingAdmin: "0x1111111111111111111111111111111111111111",
+        rulesetProposer: "replica-1",
+      };
+      assert.deepEqual(postReplicaBond("operator-a", "replica", 5n), { joined: true, amountWei: 5n });
+      assert.deepEqual(postReplicaBond("mark-2", "replica", 6n), { joined: true, amountWei: 6n });
+      const adminBefore = registryAdmin();
+
+      const opened = openGuild("operator-a", "operator-a", ballot);
+      assert.equal(opened.opened, true);
+      assert.equal(opened.guild?.id, "guild:operator-a");
+      assert.equal(opened.guild?.operatorId, "operator-a");
+      assert.notEqual(opened.guild?.operatorId, process.env.LOK_OWNER_KEY);
+      assert.notEqual(opened.guild?.operatorId, process.env.PRIVATE_KEY);
+      assert.equal(guilds().length, 1);
+
+      const again = openGuild("operator-a", "mark-2", ballot);
+      assert.equal(again.opened, false);
+      assert.equal(again.guild?.id, opened.guild?.id);
+      assert.equal(again.guild?.operatorId, "operator-a");
+      assert.equal(guilds().length, 1);
+      assert.equal(guildForOperator("mark-2"), null);
+      assert.deepEqual(registryAdmin(), adminBefore);
+      assert.deepEqual(registryAdmin(), {
+        registryOwner: "gnosis-safe",
+        slashingAdmin: "gnosis-safe",
+        rulesetProposer: "gnosis-safe",
+      });
+      assert.equal(postedSlashableBond("operator-a"), 5n);
+      assert.equal(postedSlashableBond("mark-2"), 6n);
+    } finally {
+      if (prevOwner === undefined) delete process.env.LOK_OWNER_KEY;
+      else process.env.LOK_OWNER_KEY = prevOwner;
+      if (prevPrivate === undefined) delete process.env.PRIVATE_KEY;
+      else process.env.PRIVATE_KEY = prevPrivate;
       reset();
     }
   });
