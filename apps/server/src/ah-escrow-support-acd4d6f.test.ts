@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import { ASK_FILLED_TOPIC, applyAskFilled, decodeAskFilled, fillKeyOf, scanAskFilled } from "./ah-escrow";
+import { allowEpochSettlementForTests } from "./epoch-cap-fixture";
 import {
   AskFilledQuarantine,
   MirroredFills,
@@ -20,6 +21,7 @@ const addrPad = (a: string) => a.slice(2).toLowerCase().padStart(64, "0");
 
 describe("support acd4d6f: AskFilled mirror crash window", () => {
   it("a fill journaled before lok-ask-filled-mirrored.json was written is not quarantined on restart", async () => {
+    await allowEpochSettlementForTests(10n ** 24n);
     const dir = mkdtempSync(join(tmpdir(), "lok-ah-crash-"));
     const lok = LokWorld.open(dir, undefined, {});
     const s = lok.spawn("seller", "Seller", 1);

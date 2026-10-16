@@ -16,9 +16,10 @@
  *
  * Chain-bound xDAI settled in one epoch is at most 10% of the slashable bonds
  * posted then. The epoch is the 10-second seed epoch. Mint fees, AhEscrow
- * value, PvpBounty payouts, and withdrawal value share that total. In-game
- * gold does not. The posted bond total is an input; this module does not
- * choose one. Zero bonds cap the epoch at zero.
+ * buyAsk value, PvpBounty executeClaim payouts, and withdrawal value share
+ * that total. Opening an ask does not settle xDAI. In-game gold does not.
+ * The posted bond total is an input; this module does not choose one.
+ * Zero bonds cap the epoch at zero.
  *
  * `withdrawKek` and bag export are not chain withdrawals. `beginChainWithdrawal`
  * is the hold those sends must pass, and it does not broadcast.
@@ -179,6 +180,30 @@ export function chainBoundXdaiSend(
   }
   epochSettledWei += amountWei;
   return { ok: true, kind, epoch };
+}
+
+/**
+ * Count ask xDAI in the epoch where `buyAsk` settles it.
+ * Opening an ask does not call this.
+ */
+export function admitEscrowFill(
+  priceWei: bigint,
+): { ok: true; kind: "escrow"; epoch: number } | { ok: false; error: string } {
+  const admitted = chainBoundXdaiSend("escrow", priceWei);
+  if (!admitted.ok) return admitted;
+  return { ok: true, kind: "escrow", epoch: admitted.epoch };
+}
+
+/**
+ * Count a bounty payout in the epoch where `executeClaim` pays it.
+ * `proposeClaim` does not call this.
+ */
+export function admitBountyPayout(
+  amountWei: bigint,
+): { ok: true; kind: "bounty"; epoch: number } | { ok: false; error: string } {
+  const admitted = chainBoundXdaiSend("bounty", amountWei);
+  if (!admitted.ok) return admitted;
+  return { ok: true, kind: "bounty", epoch: admitted.epoch };
 }
 
 /** Give back an admission that did not settle, when the epoch is still the same. */

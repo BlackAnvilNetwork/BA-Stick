@@ -11,6 +11,8 @@ import { join } from "node:path";
 import { describe, test } from "node:test";
 import { createPublicClient, http, toHex, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
+import { PVP_BOUNTY_WEI } from "@bellgrave/config";
+import { applyAskFilled } from "./ah-escrow";
 import { openAskOnchain } from "./ah-escrow-tx";
 import { LokWorld } from "./lok-world";
 import { serverMintCharacterFor } from "./lok-vault";
@@ -25,6 +27,7 @@ import {
   EPOCH_MS,
   EPOCH_XDAI_CAP_REFUSAL,
   anchoredHeight,
+  admitBountyPayout,
   beginChainWithdrawal,
   chainBoundSendGate,
   chainBoundXdaiSend,
@@ -644,38 +647,92 @@ test("epoch xDAI stays within 10% of the posted slashable bonds", async () => {
     assert.equal(epochSettledXdai(), 0n);
 
     setPostedSlashableBonds(100n);
-    const askOver = await openAskOnchain({
+    const escrowEnv = {
+      LOK_CHAIN_RPC: "http://127.0.0.1:1",
+      LOK_LISTING_KEY: "0x" + "44".repeat(32),
+    };
+    const askOpen = await openAskOnchain({
       listingId: "1",
       sellerTokenId: "1",
       itemId: "1",
       amount: "1",
-      priceWei: "11",
-      env: { LOK_CHAIN_RPC: "http://127.0.0.1:1", LOK_LISTING_KEY: "0x" + "44".repeat(32) },
+      priceWei: "10",
+      env: escrowEnv,
     });
-    assert.equal(askOver.ok, false);
-    if (!askOver.ok) assert.equal(askOver.error, EPOCH_XDAI_CAP_REFUSAL);
+    assert.equal(askOpen.ok, false);
+    if (!askOpen.ok) assert.notEqual(askOpen.error, EPOCH_XDAI_CAP_REFUSAL);
     assert.equal(epochSettledXdai(), 0n);
 
-    const claimOver = await chainPvpClaim("1", "2", "0x" + "ab".repeat(20), {
-      LOK_CHAIN_RPC: "http://127.0.0.1:1",
-      LOK_PVP_BOUNTY: "0x" + "55".repeat(20),
-      LOK_LISTING_KEY: "0x" + "44".repeat(32),
-    });
-    assert.equal(claimOver.ok, false);
-    if (!claimOver.ok) assert.equal(claimOver.error, EPOCH_XDAI_CAP_REFUSAL);
-    assert.equal(epochSettledXdai(), 0n);
-
-    const askFit = await openAskOnchain({
-      listingId: "2",
-      sellerTokenId: "1",
-      itemId: "1",
+    const buyer = lok.spawn("char-b", "Bea", 0);
+    assert.equal(buyer.ok, true);
+    if (!buyer.ok) return;
+    lok.noteCustodyInbound({
+      kind: "importItem",
+      tokenId: spawned.tokenId,
+      nonce: "1",
+      itemId: "111",
       amount: "1",
-      priceWei: "4",
-      env: { LOK_CHAIN_RPC: "http://127.0.0.1:1", LOK_LISTING_KEY: "0x" + "44".repeat(32) },
     });
-    assert.equal(askFit.ok, false);
-    if (!askFit.ok) assert.notEqual(askFit.error, EPOCH_XDAI_CAP_REFUSAL);
+    assert.equal(lok.importItem(spawned.tokenId, "111", "1", "1").ok, true);
+    const listed = lok.ask(spawned.tokenId, "111", "1", "10", 1_700_000_000);
+    assert.equal(listed.ok, true);
+    if (!listed.ok || !listed.listingId) return;
+    const fillOf = (priceWei: string, key: string) =>
+      applyAskFilled(
+        lok,
+        {
+          listingId: listed.listingId!,
+          buyer: "0x" + "bb".repeat(20),
+          buyerTokenId: buyer.tokenId,
+          sellerPayout: "0x" + "aa".repeat(20),
+          priceWei,
+          feeWei: "0",
+          itemId: "111",
+          amount: "1",
+        },
+        key,
+      );
+
+    assert.equal(chainBoundXdaiSend("withdrawal", 10n).ok, true);
+    assert.equal(epochSettledXdai(), 10n);
+    const fillHeld = fillOf("10", "0xfill-held");
+    assert.equal(fillHeld.ok, false);
+    if (!fillHeld.ok) {
+      assert.equal(fillHeld.kind, "wait");
+      assert.equal(fillHeld.error, EPOCH_XDAI_CAP_REFUSAL);
+    }
+    assert.equal(epochSettledXdai(), 10n);
+    assert.ok(lok.listingOf(listed.listingId));
+
+    const bountyOver = admitBountyPayout(BigInt(PVP_BOUNTY_WEI));
+    assert.equal(bountyOver.ok, false);
+    if (!bountyOver.ok) assert.equal(bountyOver.error, EPOCH_XDAI_CAP_REFUSAL);
+    assert.equal(epochSettledXdai(), 10n);
+
+    now += EPOCH_MS;
     assert.equal(epochSettledXdai(), 0n);
+    const fillSettled = fillOf("10", "0xfill-held");
+    assert.equal(fillSettled.ok, true);
+    assert.equal(epochSettledXdai(), 10n);
+    const extra = chainBoundXdaiSend("mint", 1n);
+    assert.equal(extra.ok, false);
+    if (!extra.ok) assert.equal(extra.error, EPOCH_XDAI_CAP_REFUSAL);
+
+    now += EPOCH_MS;
+    assert.equal(epochSettledXdai(), 0n);
+    const endBucket = admitBountyPayout(10n);
+    assert.equal(endBucket.ok, true);
+    now += EPOCH_MS;
+    const startBucket = admitBountyPayout(10n);
+    assert.equal(startBucket.ok, true);
+    now += EPOCH_MS;
+    assert.equal(epochSettledXdai(), 0n);
+    const firstPay = admitBountyPayout(10n);
+    assert.equal(firstPay.ok, true);
+    const secondPay = admitBountyPayout(10n);
+    assert.equal(secondPay.ok, false);
+    if (!secondPay.ok) assert.equal(secondPay.error, EPOCH_XDAI_CAP_REFUSAL);
+    assert.equal(epochSettledXdai(), 10n);
   } finally {
     resetRootAnchorForTests();
   }

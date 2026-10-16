@@ -26,6 +26,7 @@ import {
   type QuarantinedAskFill,
 } from "./lok-ask-filled-quarantine";
 import { opsAlert, watcherLagAlertBlocks } from "./ops-log";
+import { admitEscrowFill, releaseEpochXdai } from "./root-anchor";
 import { redactRpcUrl } from "./ops-redact";
 import { resolvePublicRpcUrl } from "./public-rpc";
 import { readWatcherCursor, writeWatcherCursor } from "./watcher-cursor";
@@ -81,7 +82,8 @@ type RpcLog = {
 
 export type ApplyAskFilledResult =
   | { ok: true; kind: "applied" | "replay" }
-  | { ok: false; kind: "quarantine"; error: string; reason: AskFillQuarantineReason };
+  | { ok: false; kind: "quarantine"; error: string; reason: AskFillQuarantineReason }
+  | { ok: false; kind: "wait"; error: string };
 
 export function decodeAskFilled(log: { topics?: string[]; data?: string }): AskFilled | null {
   const topics = log.topics ?? [];
@@ -158,8 +160,19 @@ export function applyAskFilled(
     return { ok: true, kind: "replay" };
   }
 
+  let price: bigint;
+  try {
+    price = BigInt(fill.priceWei);
+  } catch {
+    price = -1n;
+  }
+  // buyAsk settles this xDAI. Count it now, and refuse the fill when this epoch cannot take it.
+  const settled = admitEscrowFill(price);
+  if (!settled.ok) return { ok: false, kind: "wait", error: settled.error };
+
   const listing = lok.listingOf(fill.listingId);
   if (!listing) {
+    releaseEpochXdai(price, settled.epoch);
     return {
       ok: false,
       kind: "quarantine",
@@ -188,6 +201,7 @@ export function applyAskFilled(
     return { ok: true, kind: "applied" };
   }
 
+  releaseEpochXdai(price, settled.epoch);
   const reason = reasonFromEngineError(res.error);
   return { ok: false, kind: "quarantine", error: res.error, reason };
 }
@@ -312,6 +326,8 @@ export async function scanAskFilled(opts: {
       const key = fillKeyOf(log);
       const res = opts.apply(fill, key, log);
       if (res.ok) continue;
+      // The epoch cannot take this fill yet. Hold the cursor so a later epoch can.
+      if (res.kind === "wait") return { cursor: from };
       if (opts.quarantine) {
         const entry: QuarantinedAskFill = {
           id: key,

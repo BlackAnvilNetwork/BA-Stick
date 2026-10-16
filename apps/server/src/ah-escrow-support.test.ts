@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import { ASK_FILLED_TOPIC, applyAskFilled, scanAskFilled } from "./ah-escrow";
+import { allowEpochSettlementForTests } from "./epoch-cap-fixture";
 import { AskFilledQuarantine, MirroredFills, askFilledMirroredPath, askFilledQuarantinePath } from "./lok-ask-filled-quarantine";
 import { LokWorld } from "./lok-world";
 
@@ -51,7 +52,8 @@ function world() {
   return { lok, seller: s, buyer: b, list, dir };
 }
 
-function scan(lok: LokWorld, dir: string, logs: unknown[], head = 0x20) {
+async function scan(lok: LokWorld, dir: string, logs: unknown[], head = 0x20) {
+  await allowEpochSettlementForTests(10n ** 24n);
   const quarantine = new AskFilledQuarantine(askFilledQuarantinePath(dir));
   const mirrored = new MirroredFills(askFilledMirroredPath(dir));
   return scanAskFilled({
@@ -70,7 +72,7 @@ function scan(lok: LokWorld, dir: string, logs: unknown[], head = 0x20) {
 const inboxQty = (lok: LokWorld, token: string) =>
   (lok.view(token).inbox ?? []).filter((r) => String(r.tokenId) === "111").reduce((n, r) => n + Number(r.amount), 0);
 
-describe("support: AskFilled watcher vs log state", () => {
+describe("support: AskFilled watcher vs log state", { concurrency: false }, () => {
   it("a re-scanned (already mirrored) fill is skipped, not applied twice", async () => {
     const { lok, buyer, list, dir } = world();
     const id = list("500");
