@@ -87,6 +87,10 @@ contract DeployTest is Test {
         assertEq(address(d.ahEscrow.characterNft()), address(d.nft));
         assertEq(d.ahEscrow.feeRecipient(), feeRecipient);
         assertEq(d.ahEscrow.FEE_BPS(), 100);
+        assertEq(d.ahEscrow.vaultBps(), 50);
+        assertEq(d.ahEscrow.treasuryBps(), 50);
+        assertEq(d.ahEscrow.SHARE_DELAY(), 1 days);
+        assertEq(d.ahEscrow.guildVault().balance, 0);
         assertTrue(d.rulesets.hasRole(d.rulesets.PROPOSER_ROLE(), proposer));
         assertTrue(d.rulesets.hasRole(d.rulesets.EMERGENCY_ROLE(), admin));
         assertEq(d.rulesets.minDelay(), 48 hours);
@@ -225,7 +229,9 @@ contract DeployTest is Test {
             mintFee: 1 ether
         });
         vm.chainId(100);
-        vm.expectRevert(abi.encodeWithSelector(Deploy.BadConfig.selector, "feeRecipient must be distinct from admin Safe"));
+        vm.expectRevert(
+            abi.encodeWithSelector(Deploy.BadConfig.selector, "feeRecipient must be distinct from admin Safe")
+        );
         s.validateConfig(c);
     }
 
