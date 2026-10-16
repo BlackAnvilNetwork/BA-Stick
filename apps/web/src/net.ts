@@ -9,6 +9,7 @@ import {
 import { burnerIdentityAllowed } from "./burner-identity";
 import { connectInjectedWallet, injectedWalletAvailable } from "./injected-login";
 import { clearPendingMint, clearPendingMintIfTokenBound } from "./pending-mint";
+import { setReplicaAllowlist } from "./light-client";
 import { useGame } from "./state";
 import { setPreferredPayoutWallet } from "./wallet";
 import { defaultRpcUrl, walletConnectConfigured } from "./walletconnect";
@@ -444,6 +445,9 @@ export function connectSocket() {
       g.setCharacters(list);
       g.setHasCharacter(list.length > 0 || msg.hasCharacter);
       if ("characterMint" in msg) g.setCharacterMint(msg.characterMint ?? null);
+      if (msg.replicaAllowlist && msg.replicaAllowlist.length > 0) {
+        setReplicaAllowlist(msg.replicaAllowlist);
+      }
       clearPendingMintIfTokenBound(
         msg.wallet,
         list.map((c) => c.tokenId),

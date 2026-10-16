@@ -26,6 +26,14 @@
  * a 32-byte ABI word, then the 32-byte key data, then the 32-byte value.
  * An empty state root is keccak256 of empty bytes. A one-entry map's root
  * is that single leaf.
+ *
+ * A live snapshot may carry the lok-order blob instead of this object: height
+ * `u64` LE, round `i64` LE, the 32-byte next root, `u32` LE signature count,
+ * then each signer as a 32-byte address and a 64-byte signature. That blob is
+ * parsed into `LightCertificate` before the same check. Replica public keys
+ * come from `setReplicaAllowlist`, not from bytes inside the proof. The root
+ * is the one the signatures covered. A claimed root they did not cover is
+ * rejected.
  */
 import { ed25519 } from "@noble/curves/ed25519.js";
 import { concatBytes, keccak256 } from "viem";
@@ -34,6 +42,11 @@ const VOTE_DOMAIN = new TextEncoder().encode("lok-order-vote-v1");
 const PRECOMMIT = 2;
 const REPLICA_KEY_BYTES = 32;
 const REPLICA_SIG_BYTES = 64;
+const HEADER_BYTES = 52;
+const SIGNER_BYTES = 96;
+
+/** Allowlisted replica public keys. A snapshot proof cannot add to this list. */
+let allowlistedReplicas: Uint8Array[] = [];
 
 /** Sibling on the path from a leaf to a root. */
 export type Sibling = {
@@ -99,6 +112,26 @@ export type WebLightResult =
   | { ok: false; stage: WebLightStage };
 
 /**
+ * Replace the replica public keys this client already trusts.
+ * Hex or 32-byte keys. Duplicates and any other length are dropped.
+ * Keys named inside a snapshot are not read here.
+ */
+export function setReplicaAllowlist(keys: readonly (Uint8Array | string)[]): void {
+  const next: Uint8Array[] = [];
+  const seen = new Set<string>();
+  for (const key of keys) {
+    const bytes = typeof key === "string" ? readBytes(key) : key instanceof Uint8Array ? key : null;
+    if (!bytes || bytes.length !== REPLICA_KEY_BYTES) continue;
+    const copy = copyBytes(bytes);
+    const id = bytesId(copy);
+    if (seen.has(id)) continue;
+    seen.add(id);
+    next.push(copy);
+  }
+  allowlistedReplicas = next;
+}
+
+/**
  * Strict majority of a replica set, matching `majority_threshold`.
  * A set of one needs one signature. A set of three needs two.
  */
@@ -112,7 +145,7 @@ export function commitThreshold(replicaCount: number): number | null {
  * Character and leaf fields are not read when an earlier stage fails.
  */
 export function checkWebLightClient(payload: WebLightPayload): WebLightResult {
-  const nextRoot = acceptCertificate(payload.certificate);
+  const nextRoot = acceptCertificate(certificateForCheck(payload));
   if (!nextRoot) return { ok: false, stage: "certificate" };
 
   const characterRoot = acceptCharacterRoot(nextRoot, payload.character);
@@ -125,16 +158,77 @@ export function checkWebLightClient(payload: WebLightPayload): WebLightResult {
 }
 
 /**
- * Payload attached to a snapshot, if the server sent one.
- * A snapshot with no `lightClient` field returns null. The HUD stays as it was.
- * A present payload that cannot be read still goes through the checker and
- * fails at the certificate.
+ * Proof on a live snapshot.
+ * A missing field, an empty certificate, or a proof that cannot be read is an
+ * empty certificate. The check fails, and the committed view is cleared.
  */
-export function lightClientFromSnapshot(snapshot: object): WebLightPayload | null {
-  if (!("lightClient" in snapshot)) return null;
+export function lightClientFromSnapshot(snapshot: object): WebLightPayload {
+  if (!snapshot || typeof snapshot !== "object" || !("lightClient" in snapshot)) return unsignedPayload();
   const wire = (snapshot as { lightClient?: unknown }).lightClient;
-  if (wire == null) return null;
+  if (wire == null) return unsignedPayload();
   return decodeLightClient(wire) ?? unsignedPayload();
+}
+
+/**
+ * A lok-order blob becomes a `LightCertificate` whose replicas are the allowlist.
+ * The certificate root is the signed next root. A different claimed root is dropped.
+ */
+function certificateForCheck(payload: WebLightPayload): LightCertificate {
+  const certificate = payload.certificate as LightCertificate | Uint8Array;
+  if (!(certificate instanceof Uint8Array)) return certificate;
+  const claimed = (payload as { claimedRoot?: unknown }).claimedRoot;
+  return lightCertificateFromBlob(certificate, claimed instanceof Uint8Array ? claimed : new Uint8Array());
+}
+
+function lightCertificateFromBlob(bytes: Uint8Array, claimedRoot: Uint8Array): LightCertificate {
+  const parsed = parseCommitBlob(bytes);
+  const replicas = allowlistedReplicas.map((key) => copyBytes(key));
+  const threshold = commitThreshold(replicas.length);
+  const signedRoot = parsed?.nextRoot;
+  if (!parsed || threshold === null || !signedRoot || !sameBytes(signedRoot, claimedRoot)) {
+    return unsignedPayload().certificate;
+  }
+  return {
+    replicas,
+    threshold,
+    height: parsed.height,
+    round: parsed.round,
+    root: copyBytes(signedRoot),
+    signatures: parsed.signers.map((signer) => ({
+      publicKey: copyBytes(signer.address),
+      signature: copyBytes(signer.signature),
+    })),
+  };
+}
+
+function parseCommitBlob(bytes: Uint8Array): {
+  height: number;
+  round: number;
+  nextRoot: Uint8Array;
+  signers: { address: Uint8Array; signature: Uint8Array }[];
+} | null {
+  if (!(bytes instanceof Uint8Array) || bytes.length < HEADER_BYTES) return null;
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const height = view.getBigUint64(0, true);
+  const round = view.getBigInt64(8, true);
+  if (height > BigInt(Number.MAX_SAFE_INTEGER)) return null;
+  if (round > BigInt(Number.MAX_SAFE_INTEGER) || round < BigInt(Number.MIN_SAFE_INTEGER)) return null;
+  const count = view.getUint32(48, true);
+  if (bytes.length !== HEADER_BYTES + count * SIGNER_BYTES) return null;
+  const signers: { address: Uint8Array; signature: Uint8Array }[] = [];
+  for (let i = 0; i < count; i++) {
+    const at = HEADER_BYTES + i * SIGNER_BYTES;
+    signers.push({
+      address: bytes.slice(at, at + REPLICA_KEY_BYTES),
+      signature: bytes.slice(at + REPLICA_KEY_BYTES, at + SIGNER_BYTES),
+    });
+  }
+  return {
+    height: Number(height),
+    round: Number(round),
+    nextRoot: bytes.slice(16, 48),
+    signers,
+  };
 }
 
 function acceptCertificate(certificate: LightCertificate): Uint8Array | null {
@@ -308,9 +402,16 @@ function decodeLightClient(wire: unknown): WebLightPayload | null {
   if (!wire || typeof wire !== "object") return null;
   const row = wire as Record<string, unknown>;
   if (isBytePayload(row)) return row as WebLightPayload;
-  const replicas = readKeyList(row.replicas);
-  const signatures = readPrecommits(row.signatures);
-  const root = readBytes(row.root);
+  if (typeof row.certificate === "string" || row.certificate instanceof Uint8Array) {
+    return payloadFromCommitBlob(row);
+  }
+  return null;
+}
+
+/** Lok-order blob plus the character proof. Replica lists on the wire are ignored. */
+function payloadFromCommitBlob(row: Record<string, unknown>): WebLightPayload | null {
+  const certificateBytes = readBytes(row.certificate);
+  const claimedRoot = readBytes(row.claimedRoot);
   const characterRoot = readBytes(row.characterRoot);
   const keyData = readBytes(row.keyData);
   const value = readBytes(row.value);
@@ -318,31 +419,20 @@ function decodeLightClient(wire: unknown): WebLightPayload | null {
   const characterSiblings = readSiblings(row.characterSiblings);
   const leafSiblings = readSiblings(row.leafSiblings);
   if (
-    !replicas ||
-    !signatures ||
-    !root ||
+    !certificateBytes ||
+    !claimedRoot ||
     !characterRoot ||
     !keyData ||
     !value ||
     tokenId === null ||
     !characterSiblings ||
     !leafSiblings ||
-    typeof row.threshold !== "number" ||
-    typeof row.height !== "number" ||
-    typeof row.round !== "number" ||
     typeof row.tag !== "number"
   ) {
     return null;
   }
   return {
-    certificate: {
-      replicas,
-      threshold: row.threshold,
-      height: row.height,
-      round: row.round,
-      root,
-      signatures,
-    },
+    certificate: lightCertificateFromBlob(certificateBytes, claimedRoot),
     character: { tokenId, characterRoot, siblings: characterSiblings },
     leaf: { tag: row.tag, keyData, value, siblings: leafSiblings },
   };
@@ -352,31 +442,6 @@ function isBytePayload(row: Record<string, unknown>): boolean {
   const certificate = row.certificate;
   if (!certificate || typeof certificate !== "object") return false;
   return (certificate as { root?: unknown }).root instanceof Uint8Array;
-}
-
-function readKeyList(value: unknown): Uint8Array[] | null {
-  if (!Array.isArray(value)) return null;
-  const keys: Uint8Array[] = [];
-  for (const item of value) {
-    const key = readBytes(item);
-    if (!key) return null;
-    keys.push(key);
-  }
-  return keys;
-}
-
-function readPrecommits(value: unknown): ReplicaPrecommit[] | null {
-  if (!Array.isArray(value)) return null;
-  const signatures: ReplicaPrecommit[] = [];
-  for (const item of value) {
-    if (!item || typeof item !== "object") return null;
-    const row = item as { publicKey?: unknown; signature?: unknown };
-    const publicKey = readBytes(row.publicKey);
-    const signature = readBytes(row.signature);
-    if (!publicKey || !signature) return null;
-    signatures.push({ publicKey, signature });
-  }
-  return signatures;
 }
 
 function readSiblings(value: unknown): Sibling[] | null {
