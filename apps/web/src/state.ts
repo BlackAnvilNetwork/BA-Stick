@@ -154,12 +154,11 @@ export const useGame = create<GameState>((set, get) => ({
       selectedTarget = serverTarget;
     }
     const mint = snapshot.you?.lok?.characterMint;
-    const payload = lightClientFromSnapshot(snapshot);
-    const verdict = payload ? checkWebLightClient(payload) : null;
-    // A failed certificate or character root does not store the leaf.
+    const verdict = checkWebLightClient(lightClientFromSnapshot(snapshot));
+    // A failed certificate, character root, or leaf does not stay committed.
     const light = {
       leaderView: "provisional" as const,
-      committed: verdict?.ok === true ? verdict : null,
+      committed: verdict.ok === true ? verdict : null,
     };
     set({
       ...(mint !== undefined ? { characterMint: mint ?? null } : {}),

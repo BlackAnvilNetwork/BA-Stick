@@ -737,8 +737,7 @@ export function Hud() {
   const tabIds = bookByCategory.get(activeBookTab) ?? [];
 
   if (phase !== "play" || !snapshot || !me) return null;
-  const lightPayload = lightClientFromSnapshot(snapshot);
-  const lightVerdict = lightPayload ? checkWebLightClient(lightPayload) : null;
+  const lightVerdict = checkWebLightClient(lightClientFromSnapshot(snapshot));
   const you = snapshot.you;
   const potions = you.inventory.reduce((n, i) => n + (i.tokenId === ITEM.POTION ? i.amount : 0), 0);
   const shortWallet = wallet ? `${wallet.slice(0, 6)}…${wallet.slice(-4)}` : "";
@@ -772,7 +771,7 @@ export function Hud() {
               {" "}
               · provisional
             </span>
-            {lightVerdict?.ok ? (
+            {storedLight.committed && lightVerdict.ok ? (
               <span className="committed" data-committed-view="committed">
                 {" "}
                 · committed

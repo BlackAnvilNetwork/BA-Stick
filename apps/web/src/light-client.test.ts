@@ -9,10 +9,17 @@ import type { SnapshotMessage } from "@bellgrave/protocol";
 import { bls12_381 } from "@noble/curves/bls12-381.js";
 import { ed25519 } from "@noble/curves/ed25519.js";
 import { concatBytes, keccak256 } from "viem";
+import {
+  encodeCommitCertificate,
+  snapshotLightClient,
+  type SnapshotLightProof,
+} from "../../server/src/web-light-snapshot.ts";
 import { useGame } from "./state";
 import {
   checkWebLightClient,
   commitThreshold,
+  lightClientFromSnapshot,
+  setReplicaAllowlist,
   type CharacterRootClaim,
   type LightCertificate,
   type ReplicaPrecommit,
@@ -722,4 +729,313 @@ function filled(byte: number): Uint8Array {
 
 function keccak(data: Uint8Array): Uint8Array {
   return new Uint8Array(keccak256(data, "bytes"));
+}
+
+test("a good certificate, character root, and leaf on a live snapshot pass", () => {
+  setReplicaAllowlist(replicaKeys);
+  assert.equal(commitThreshold(3), 2);
+  assert.equal(commitThreshold(1), 1);
+  const world = passingWorld();
+  const lightClient = liveWire(world);
+  assert.equal("leaderPublicKey" in lightClient, false);
+  assert.equal("replicas" in lightClient, false);
+  assert.equal(lightClient.certificate.length > 52 * 2, true);
+  assert.equal(lightClient.characterSiblings.length, 1);
+  assert.equal(lightClient.leafSiblings.length, 1);
+  const encoded = bytesOf(lightClient.certificate);
+  assert.equal(encoded[0], HEIGHT);
+  assert.equal(encoded[7], 0);
+  assert.equal(encoded.length, 52 + 2 * 96);
+
+  useGame.setState({ wallet: null, snapshot: null, light: { leaderView: "provisional", committed: null } });
+  useGame.getState().setSnapshot(snap(10, lightClient));
+  assert.equal(useGame.getState().light.leaderView, "provisional");
+  assert.equal(useGame.getState().light.committed?.ok, true);
+  const verdict = checkWebLightClient(lightClientFromSnapshot(snap(10, lightClient)));
+  assert.equal(verdict.ok, true);
+});
+
+test("one configured replica commits with its own signature", () => {
+  const world = passingWorld();
+  const alone = ed25519.keygen();
+  const publicKey = new Uint8Array(alone.publicKey);
+  setReplicaAllowlist([publicKey]);
+  const certificate = encodeCommitCertificate({
+    height: HEIGHT,
+    round: ROUND,
+    nextRoot: world.certificate.root,
+    signers: [
+      {
+        address: publicKey,
+        signature: ed25519.sign(specPrecommit(HEIGHT, ROUND, world.certificate.root, publicKey), alone.secretKey),
+      },
+    ],
+  });
+  useGame.getState().setSnapshot(snap(2, liveWire(world, certificate)));
+  assert.equal(useGame.getState().light.committed?.ok, true);
+  assert.equal(useGame.getState().light.leaderView, "provisional");
+});
+
+test("keys in the proof do not count, and one of three is short", () => {
+  setReplicaAllowlist(replicaKeys);
+  const world = passingWorld();
+  const one = commitOver(world.certificate.root, [0]);
+  let characterReads = 0;
+  let leafReads = 0;
+  const rejected = checkWebLightClient({
+    certificate: blobOf(one),
+    claimedRoot: world.certificate.root,
+    get character() {
+      characterReads += 1;
+      return world.character;
+    },
+    get leaf() {
+      leafReads += 1;
+      return world.leaf;
+    },
+  } as unknown as WebLightPayload);
+  assert.equal(rejected.ok, false);
+  if (!rejected.ok) assert.equal(rejected.stage, "certificate");
+  assert.equal(characterReads, 0);
+  assert.equal(leafReads, 0);
+
+  const outsider = ed25519.keygen();
+  const outsiderKey = new Uint8Array(outsider.publicKey);
+  const forged = encodeCommitCertificate({
+    height: HEIGHT,
+    round: ROUND,
+    nextRoot: world.certificate.root,
+    signers: [
+      {
+        address: outsiderKey,
+        signature: ed25519.sign(
+          specPrecommit(HEIGHT, ROUND, world.certificate.root, outsiderKey),
+          outsider.secretKey,
+        ),
+      },
+    ],
+  });
+  const wire = snapshotLightClient({
+    commitCertificateHex: hexOf(forged),
+    certifiedRootHex: hexOf(world.certificate.root),
+    tokenId: world.character.tokenId.toString(10),
+    proof: proofOf(world),
+  });
+  const stuffed = { ...wire, leaderPublicKey: hexOf(outsiderKey), replicas: [hexOf(outsiderKey)] };
+  const verdict = checkWebLightClient(lightClientFromSnapshot(snap(3, stuffed)));
+  assert.equal(verdict.ok, false);
+  if (!verdict.ok) assert.equal(verdict.stage, "certificate");
+
+  setReplicaAllowlist([]);
+  const ignored = checkWebLightClient(lightClientFromSnapshot(snap(4, liveWire(passingWorld()))));
+  assert.equal(ignored.ok, false);
+  if (!ignored.ok) assert.equal(ignored.stage, "certificate");
+});
+
+test("a bad certificate, a flipped sibling, and a flipped leaf each fail and clear the committed view", () => {
+  setReplicaAllowlist(replicaKeys);
+  const world = passingWorld();
+  useGame.setState({ wallet: null, snapshot: null, light: { leaderView: "provisional", committed: null } });
+
+  useGame.getState().setSnapshot(snap(8));
+  assert.equal(useGame.getState().light.leaderView, "provisional");
+  assert.equal(useGame.getState().light.committed, null);
+  const skipped = checkWebLightClient(lightClientFromSnapshot(snap(8)));
+  assert.equal(skipped.ok, false);
+  if (!skipped.ok) assert.equal(skipped.stage, "certificate");
+
+  useGame.getState().setSnapshot(snap(9, liveWire(world)));
+  assert.equal(useGame.getState().light.committed?.ok, true);
+
+  useGame.getState().setSnapshot(snap(10));
+  assert.equal(useGame.getState().light.committed, null);
+  assert.equal(useGame.getState().light.leaderView, "provisional");
+
+  useGame.getState().setSnapshot(snap(11, liveWire(world)));
+  assert.equal(useGame.getState().light.committed?.ok, true);
+  const badCert = liveWire(world);
+  const flippedCert = bytesOf(badCert.certificate);
+  flippedCert[flippedCert.length - 1]! ^= 0x01;
+  badCert.certificate = hexOf(flippedCert);
+  let characterReads = 0;
+  const certFail = checkWebLightClient({
+    ...lightClientFromSnapshot(snap(12, badCert)),
+    get character() {
+      characterReads += 1;
+      return world.character;
+    },
+  });
+  assert.equal(certFail.ok, false);
+  if (!certFail.ok) assert.equal(certFail.stage, "certificate");
+  assert.equal(characterReads, 0);
+  useGame.getState().setSnapshot(snap(12, badCert));
+  assert.equal(useGame.getState().light.committed, null);
+
+  useGame.getState().setSnapshot(snap(13, liveWire(world)));
+  assert.equal(useGame.getState().light.committed?.ok, true);
+  const flippedSibling = liveWire(world);
+  const sibling = flippedSibling.characterSiblings[0]!;
+  const siblingBytes = bytesOf(sibling.hash);
+  siblingBytes[0]! ^= 0x01;
+  sibling.hash = hexOf(siblingBytes);
+  let leafReads = 0;
+  const siblingFail = checkWebLightClient({
+    ...lightClientFromSnapshot(snap(14, flippedSibling)),
+    get leaf() {
+      leafReads += 1;
+      return world.leaf;
+    },
+  });
+  assert.equal(siblingFail.ok, false);
+  if (!siblingFail.ok) assert.equal(siblingFail.stage, "character_root");
+  assert.equal(leafReads, 0);
+  useGame.getState().setSnapshot(snap(14, flippedSibling));
+  assert.equal(useGame.getState().light.committed, null);
+  assert.equal(useGame.getState().light.leaderView, "provisional");
+
+  useGame.getState().setSnapshot(snap(15, liveWire(world)));
+  assert.equal(useGame.getState().light.committed?.ok, true);
+  const flippedLeaf = liveWire(world);
+  const leafValue = bytesOf(flippedLeaf.value);
+  leafValue[leafValue.length - 1]! ^= 0x01;
+  flippedLeaf.value = hexOf(leafValue);
+  const leafFail = checkWebLightClient(lightClientFromSnapshot(snap(16, flippedLeaf)));
+  assert.equal(leafFail.ok, false);
+  if (!leafFail.ok) assert.equal(leafFail.stage, "leaf");
+  useGame.getState().setSnapshot(snap(16, flippedLeaf));
+  assert.equal(useGame.getState().light.committed, null);
+});
+
+test("the orderer snapshot with no certificate stays provisional and clears a committed view", () => {
+  setReplicaAllowlist(replicaKeys);
+  const world = passingWorld();
+  useGame.setState({ wallet: null, snapshot: null, light: { leaderView: "provisional", committed: null } });
+  useGame.getState().setSnapshot(snap(20, liveWire(world)));
+  assert.equal(useGame.getState().light.committed?.ok, true);
+
+  const empty = snapshotLightClient({
+    commitCertificateHex: null,
+    certifiedRootHex: null,
+    tokenId: "2",
+  });
+  assert.equal(empty.certificate, "");
+  assert.equal(empty.characterSiblings.length, 0);
+  assert.equal(empty.tag, 0);
+  useGame.getState().setSnapshot(snap(21, empty));
+  assert.equal(useGame.getState().light.leaderView, "provisional");
+  assert.equal(useGame.getState().light.committed, null);
+  const verdict = checkWebLightClient(lightClientFromSnapshot(snap(21, empty)));
+  assert.equal(verdict.ok, false);
+  if (!verdict.ok) assert.equal(verdict.stage, "certificate");
+});
+
+test("a claimed root the signatures did not cover is not committed", () => {
+  setReplicaAllowlist(replicaKeys);
+  const world = passingWorld();
+  useGame.setState({ wallet: null, snapshot: null, light: { leaderView: "provisional", committed: null } });
+  useGame.getState().setSnapshot(snap(30, liveWire(world)));
+  assert.equal(useGame.getState().light.committed?.ok, true);
+
+  const wire = liveWire(world);
+  const claimed = bytesOf(wire.claimedRoot);
+  claimed[0]! ^= 0xff;
+  wire.claimedRoot = hexOf(claimed);
+  let characterReads = 0;
+  const verdict = checkWebLightClient({
+    ...lightClientFromSnapshot(snap(31, wire)),
+    get character() {
+      characterReads += 1;
+      return world.character;
+    },
+  });
+  assert.equal(verdict.ok, false);
+  if (!verdict.ok) assert.equal(verdict.stage, "certificate");
+  assert.equal(characterReads, 0);
+  useGame.getState().setSnapshot(snap(31, wire));
+  assert.equal(useGame.getState().light.committed, null);
+  assert.equal(useGame.getState().light.leaderView, "provisional");
+});
+
+test("a live snapshot of an empty character-root tree stops at the character root", () => {
+  setReplicaAllowlist(replicaKeys);
+  const emptyCharacter = new Uint8Array(32);
+  const emptyState = keccak(new Uint8Array());
+  const certificate = encodeCommitCertificate({
+    height: HEIGHT,
+    round: ROUND,
+    nextRoot: emptyCharacter,
+    signers: [0, 1].map((index) => ({
+      address: replicaKeys[index]!,
+      signature: ed25519.sign(
+        specPrecommit(HEIGHT, ROUND, emptyCharacter, replicaKeys[index]!),
+        replicas[index]!.secretKey,
+      ),
+    })),
+  });
+  const rejected = checkWebLightClient({
+    certificate,
+    claimedRoot: emptyCharacter,
+    character: { tokenId: 1n, characterRoot: emptyState, siblings: [] },
+    leaf: { tag: 0, keyData: ZEROS, value: word(1n), siblings: [] },
+  } as unknown as WebLightPayload);
+  assert.equal(rejected.ok, false);
+  if (!rejected.ok) assert.equal(rejected.stage, "character_root");
+});
+
+function proofOf(world: WebLightPayload): SnapshotLightProof {
+  return {
+    tokenId: world.character.tokenId,
+    characterRoot: world.character.characterRoot,
+    characterSiblings: world.character.siblings,
+    tag: world.leaf.tag,
+    keyData: world.leaf.keyData,
+    value: world.leaf.value,
+    leafSiblings: world.leaf.siblings,
+  };
+}
+
+function blobOf(certificate: LightCertificate): Uint8Array {
+  return encodeCommitCertificate({
+    height: certificate.height,
+    round: certificate.round,
+    nextRoot: certificate.root,
+    signers: certificate.signatures.map((entry) => ({
+      address: entry.publicKey,
+      signature: entry.signature,
+    })),
+  });
+}
+
+function liveWire(world: WebLightPayload, certificate = blobOf(world.certificate)) {
+  return snapshotLightClient({
+    commitCertificateHex: hexOf(certificate),
+    certifiedRootHex: hexOf(world.certificate.root),
+    tokenId: world.character.tokenId.toString(10),
+    proof: proofOf(world),
+  });
+}
+
+function snap(tick: number, lightClient?: SnapshotMessage["lightClient"]): SnapshotMessage {
+  return {
+    type: "snapshot",
+    tick,
+    you: {} as SnapshotMessage["you"],
+    units: [],
+    log: [],
+    party: null,
+    partyInvite: null,
+    ...(lightClient ? { lightClient } : {}),
+  };
+}
+
+function hexOf(bytes: Uint8Array): string {
+  let out = "";
+  for (const byte of bytes) out += byte.toString(16).padStart(2, "0");
+  return out;
+}
+
+function bytesOf(value: string): Uint8Array {
+  const out = new Uint8Array(value.length / 2);
+  for (let i = 0; i < out.length; i++) out[i] = Number.parseInt(value.slice(i * 2, i * 2 + 2), 16);
+  return out;
 }
