@@ -64,7 +64,7 @@ Only replicas vote; validators and light clients verify what the voting set cert
 | --- | --- | --- | --- | --- |
 | Light | Mobile, web | Latest signed head, its own character's state and proof | Follows commit certificates, verifies its own character against the committed root, watches its own chain events, relays inputs | None |
 | Validator | Installed game (default), any PC node | Full journal, replayed state | Replays every committed batch to the claimed root, serves sync to others, watches Gnosis, publishes fraud evidence | None |
-| Replica (a Mark, to players) | PC or server, opt-in | Full journal plus the hot live world | Receives every batch from the leader, signs commit certificates, votes in elections, can be elected. A bonded Mark may register one guild | Bond on Gnosis (allowlist during the first phase) |
+| Replica (a Mark, to players) | PC or server, opt-in | Full journal plus the hot live world | Receives every batch from the leader, signs commit certificates, votes in elections, can be elected. A bonded Mark may register one guild | Posts a bond to join the voting set. The posted amount is the bond |
 | Leader | The best-uptime replica, one per encounter group at a time | The live world | Ticks at 20 Hz, sequences inputs and rolls, produces batches | Elected by replicas, fenced by epoch |
 
 A hosted server is simply a node configured as a replica that is eligible to lead. An installed game is a validator unless its owner enables the replica flag, and the flag is gated by a resource self-check ("can I hold a replica?") and a reachability check. Resource profiles for validator and replica are published after the Phase 0 load test produces baseline numbers.
@@ -146,7 +146,7 @@ A batch is committed when it carries a valid certificate. Only committed batches
 
 ### Commit threshold
 
-The threshold is a parameter pinned in the genesis batch. While the replica set is a small allowlist of known hosts, it is a simple majority, which tolerates crashed replicas. Once admission opens by bond and replicas can be adversarial, it becomes more than two thirds of the set, which tolerates a minority of dishonest replicas but needs at least four of them. A one-replica genesis uses a threshold of one, so a single server commits its own batches and the "no notaries" case needs no special code.
+The threshold is a parameter pinned in the genesis batch. While the replica set is a small allowlist of known hosts, it is a simple majority, which tolerates crashed replicas. Open bonded admission keeps that majority. The threshold becomes more than two thirds of the set once four replicas are bonded, which tolerates a minority of dishonest replicas. A one-replica genesis uses a threshold of one, so a single server commits its own batches and the "no notaries" case needs no special code.
 
 ### Equivocation
 
@@ -233,7 +233,7 @@ Gnosis is not on the failover path; it holds who may vote, what was committed, a
 
 | Contract | Holds | Used for |
 | --- | --- | --- |
-| Replica registry | The replica set, each replica's bond, entry and exit with an unbonding delay, and the seed-roller rotation | Pins the voting set and threshold in genesis; admits replicas by bond |
+| Replica registry | The replica set, each replica's bond, entry and exit with an unbonding delay, and the seed-roller rotation | A local registry admits a replica by the bond it posts. The Gnosis Safe stays registry owner, slashing admin, and ruleset proposer. The commit threshold stays a majority until four replicas are bonded |
 | Root anchor | Periodic committed roots with their commit certificates | Cold-start recovery, a public record, and the reference for chain-bound actions |
 | Equivocation court | Pairs of conflicting signed envelopes | Slashes the signer's bond when two batches share an epoch and height but differ in next root |
 | Existing game contracts | `CharacterCheckpoint` roots, `AhEscrow`, `PvpBounty` | Chain-bound state; escrow and bounty transactions still go through the listing key |
@@ -243,8 +243,9 @@ The bond is denominated in xDAI, so no new token is introduced.
 ### Admission
 
 1. Phase one: the replica set is an allowlist of hosted nodes that you operate, and the threshold is a majority.
-2. Phase two: anyone may post the bond to join the registry once the equivocation court exists and at least four replicas are bonded, at which point the threshold moves to more than two thirds.
-3. Validators and light clients never need a bond or a registry entry.
+2. Open bonded admission. A replica joins the voting set by posting a bond. The posted amount is the bond. There is no minimum, default, or ceiling. The registry is local and does not broadcast to Gnosis mainnet or Chiado. Joining does not stop the 20 Hz tick. Registry owner, slashing admin, and ruleset proposer stay the Gnosis Safe until a vote of bonded replicas exists. This step does not create that vote and does not transfer admin. The commit threshold stays a majority.
+3. Once four replicas are bonded, the threshold moves to more than two thirds. Opening admission does not take that step.
+4. Validators and light clients do not post a bond and do not join the replica set. The listing key stays outside the set. A phone stays a light client.
 
 ### Fraud evidence
 
@@ -415,7 +416,7 @@ The order puts a correct, fast engine first, then fault tolerance with three hos
 5. Root anchor on Gnosis and gating of chain-bound actions on anchored roots. Roll proofs for light clients and contracts follow once the roll circuit exists.
 6. Installed game with a bundled node in validator mode, and a web client with light verification. Gate: the per-character proof API and the commitment over character roots are in place.
 7. Mobile light client.
-8. Equivocation court and open bonded admission, with the threshold moving above two thirds at four or more replicas. Commit certificates are BLS12-381 from the first replica. Gnosis verifies them with the EIP-2537 precompiles (Pectra, 30 Apr 2025). Player session keys stay ECDSA.
+8. Equivocation court, then open bonded admission. The Gnosis Safe stays admin until a vote of bonded replicas exists, and the commit threshold stays a majority. The threshold moves above two thirds once four replicas are bonded. Commit certificates are BLS12-381 from the first replica. Gnosis verifies them with the EIP-2537 precompiles (Pectra, 30 Apr 2025). Player session keys stay ECDSA.
 9. Guild registry. One guild per bonded operator. Joining stays free. No payouts yet.
 10. Guild vault. The 1% auction fee splits 50/50 between the vault and the treasury. Scores are a pure function of certified events. Payouts wait for an anchored root and the challenge delay, which starts at one day.
 11. Per-encounter leases, only if the load test shows the single-leader ceiling is reached. Gate: hand-off specification and two-process harness.
