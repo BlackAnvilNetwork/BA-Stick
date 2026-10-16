@@ -15,6 +15,7 @@ import {
   submitEquivocationPair,
   type CourtBallot,
 } from "./equivocation-court";
+import { observeSignedBatch, resetNotedBatchesForTests } from "./equivocation-watch";
 import { submitOnSimTick } from "./order-submit";
 import {
   notePostedSlashableBond,
@@ -102,6 +103,7 @@ function signed(
 function reset(): void {
   resetEquivocationCourtForTests();
   resetRootAnchorForTests();
+  resetNotedBatchesForTests();
 }
 
 describe("equivocation court", { concurrency: false }, () => {
@@ -278,6 +280,117 @@ describe("equivocation court", { concurrency: false }, () => {
       } finally {
         globalThis.fetch = prev;
       }
+    } finally {
+      reset();
+    }
+  });
+
+  test("the server submits a conflicting pair it is holding", () => {
+    reset();
+    try {
+      const id = equivocationSignerId(leaderKey);
+      const bond = 77n;
+      notePostedSlashableBond(id, bond);
+      const left = signed({ nextRoot: hash(0x31) });
+      const right = signed({ nextRoot: hash(0x32) });
+      const calls: string[] = [];
+      const prev = globalThis.fetch;
+      globalThis.fetch = (async (_input: unknown, init?: { body?: unknown }) => {
+        calls.push(typeof init?.body === "string" ? init.body : "");
+        return new Response("refused", { status: 500 });
+      }) as typeof fetch;
+      try {
+        const held = observeSignedBatch(left, leaderKey);
+        assert.equal(held instanceof Promise, false);
+        assert.deepEqual(held, { slashed: false });
+        assert.deepEqual(signerSlash(leaderKey), { slashed: false });
+
+        const result = observeSignedBatch(right, leaderKey);
+        assert.equal(result instanceof Promise, false);
+        assert.deepEqual(result, { slashed: true, amountWei: bond });
+        assert.equal(postedSlashableBond(id), bond);
+        assert.deepEqual(signerSlash(leaderKey), { slashed: true, amountWei: bond });
+        assert.equal(calls.length, 0);
+
+        const third = signed({ nextRoot: hash(0x33) });
+        assert.deepEqual(observeSignedBatch(third, leaderKey), { slashed: true, amountWei: bond });
+        assert.equal(postedSlashableBond(id), bond);
+
+        const tick = submitOnSimTick(null, { ok: true, height: left.height, nextRoot: left.nextRoot });
+        assert.equal(tick.tickFailed, false);
+        assert.equal(tick.status, "provisional");
+        assert.equal(calls.length, 0);
+      } finally {
+        globalThis.fetch = prev;
+      }
+    } finally {
+      reset();
+    }
+  });
+
+  test("the server submits zero when that signer posted no bond", () => {
+    reset();
+    try {
+      const id = equivocationSignerId(leaderKey);
+      assert.equal(postedSlashableBond(id), 0n);
+      setPostedSlashableBonds(10n ** 18n);
+      const left = signed({ nextRoot: hash(0x41) });
+      const right = signed({ nextRoot: hash(0x42) });
+      assert.deepEqual(observeSignedBatch(left, leaderKey), { slashed: false });
+      const result = observeSignedBatch(right, leaderKey);
+      assert.equal(result instanceof Promise, false);
+      assert.deepEqual(result, { slashed: true, amountWei: 0n });
+      assert.deepEqual(signerSlash(leaderKey), { slashed: true, amountWei: 0n });
+      assert.equal(postedSlashableBonds(), 10n ** 18n);
+      assert.equal(postedSlashableBond(id), 0n);
+    } finally {
+      reset();
+    }
+  });
+
+  test("the server does not submit a pair that does not conflict", () => {
+    reset();
+    try {
+      notePostedSlashableBond(equivocationSignerId(leaderKey), 50n);
+      notePostedSlashableBond(equivocationSignerId(otherKey), 80n);
+      const root = hash(0x31);
+      observeSignedBatch(signed({ nextRoot: root, inputs: Uint8Array.from([1]) }), leaderKey);
+      assert.deepEqual(
+        observeSignedBatch(signed({ nextRoot: root, inputs: Uint8Array.from([2]) }), leaderKey),
+        { slashed: false },
+      );
+
+      resetNotedBatchesForTests();
+      resetEquivocationCourtForTests();
+      observeSignedBatch(signed({ epoch: 4, nextRoot: hash(0x31) }), leaderKey);
+      assert.deepEqual(
+        observeSignedBatch(signed({ epoch: 5, nextRoot: hash(0x32) }), leaderKey),
+        { slashed: false },
+      );
+
+      resetNotedBatchesForTests();
+      observeSignedBatch(signed({ height: 9, nextRoot: hash(0x31) }), leaderKey);
+      assert.deepEqual(
+        observeSignedBatch(signed({ height: 10, nextRoot: hash(0x32) }), leaderKey),
+        { slashed: false },
+      );
+
+      resetNotedBatchesForTests();
+      const badLeft = signed({ nextRoot: hash(0x31) });
+      const badRight = signed({ nextRoot: hash(0x31) });
+      badRight.nextRoot = hash(0x32);
+      observeSignedBatch(badLeft, leaderKey);
+      assert.deepEqual(observeSignedBatch(badRight, leaderKey), { slashed: false });
+
+      resetNotedBatchesForTests();
+      observeSignedBatch(signed({ nextRoot: hash(0x51) }, leaderSecret), leaderKey);
+      assert.deepEqual(
+        observeSignedBatch(signed({ nextRoot: hash(0x52) }, otherSecret), otherKey),
+        { slashed: false },
+      );
+      assert.deepEqual(signerSlash(leaderKey), { slashed: false });
+      assert.deepEqual(signerSlash(otherKey), { slashed: false });
+      assert.equal(postedSlashableBonds(), 130n);
     } finally {
       reset();
     }
