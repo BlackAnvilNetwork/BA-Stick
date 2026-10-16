@@ -12,7 +12,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::abi::keccak256;
-use crate::chain::{Chain, CharacterLogDocument, LoggedEntry, ReplayStop, WorldDocument};
+use crate::chain::{Chain, CharacterLogDocument, Entry, LoggedEntry, ReplayStop, WorldDocument};
 use crate::checkpoint::{Checkpoint, Export};
 use crate::engine::{gold_err, parse_label, EngineError};
 use crate::event::{entry_hash, Input};
@@ -26,7 +26,8 @@ struct Character {
     starting_job: u8,
     state: State,
     chain: Chain,
-    entries: Vec<LoggedEntry>,
+    /// Global seq of each chain link, in order. The input is owned by the chain entry.
+    seqs: Vec<u64>,
     /// Onchain `logIndex`: events `[0, committed)` are committed. Rebase keeps this prefix.
     committed: u64,
     /// Deposit and import nonces consumed on this character. Next accepted nonce is this plus one.
@@ -44,6 +45,31 @@ struct Character {
     /// Post-event `(state root, summary)`, one per log entry. Written in `link_at` after `effects`.
     /// A historical checkpoint reads this. It is not in the JSON log; `load` fills it by linking again.
     projections: Vec<([u8; 32], U256)>,
+}
+
+impl Character {
+    fn log_len(&self) -> u64 {
+        self.seqs.len() as u64
+    }
+
+    fn aligned(&self) -> bool {
+        self.projections.len() == self.seqs.len() && self.chain.len() == self.log_len()
+    }
+
+    /// JSON and replay still see hash, input, and seq. The input is cloned from the chain here, not stored again.
+    fn logged_entries(&self) -> Vec<LoggedEntry> {
+        debug_assert!(self.chain.len() == self.log_len());
+        self.chain
+            .entries()
+            .iter()
+            .zip(self.seqs.iter())
+            .map(|(entry, seq)| LoggedEntry {
+                hash: entry.hash,
+                input: entry.input.clone(),
+                seq: *seq,
+            })
+            .collect()
+    }
 }
 
 /// Sheet fields `effects` can change. The log, chain, and projections are not copied:
@@ -198,8 +224,8 @@ impl World {
     pub fn len(&self) -> u64 {
         let mut seqs = BTreeSet::new();
         for ch in self.characters.values() {
-            for entry in &ch.entries {
-                seqs.insert(entry.seq);
+            for seq in &ch.seqs {
+                seqs.insert(*seq);
             }
         }
         seqs.len() as u64
@@ -314,15 +340,15 @@ impl World {
     }
 
     pub fn character_len(&self, token_id: &U256) -> Option<u64> {
-        self.characters.get(token_id).map(|ch| ch.entries.len() as u64)
+        self.characters.get(token_id).map(|ch| ch.log_len())
     }
 
     pub fn character_head(&self, token_id: &U256) -> Option<[u8; 32]> {
         self.characters.get(token_id).map(|ch| ch.chain.head())
     }
 
-    pub fn character_entries(&self, token_id: &U256) -> Option<&[LoggedEntry]> {
-        self.characters.get(token_id).map(|ch| ch.entries.as_slice())
+    pub fn character_entries(&self, token_id: &U256) -> Option<Vec<LoggedEntry>> {
+        self.characters.get(token_id).map(|ch| ch.logged_entries())
     }
 
     pub fn committed_index(&self, token_id: &U256) -> Option<u64> {
@@ -355,7 +381,7 @@ impl World {
                 .map(|(token_id, ch)| CharacterLogDocument {
                     token_id: *token_id,
                     starting_job: ch.starting_job,
-                    entries: ch.entries.clone(),
+                    entries: ch.logged_entries(),
                 })
                 .collect(),
         }
@@ -751,14 +777,18 @@ impl World {
         to_index: u64,
     ) -> Result<Checkpoint, EngineError> {
         let ch = self.characters.get(token_id).ok_or(EngineError::NotSpawned)?;
-        if to_index <= from_index || to_index > ch.entries.len() as u64 {
+        if to_index <= from_index || to_index > ch.log_len() {
             return Err(EngineError::BadRange);
         }
         let prev_root = self.root_at(token_id, from_index)?;
         let (new_root, summary) = self.projection_at(token_id, to_index)?;
-        let log_hash = ch.entries[to_index as usize - 1].hash;
+        if !ch.aligned() {
+            return Err(EngineError::ConflictingLog);
+        }
+        let links = ch.chain.entries();
+        let log_hash = links[to_index as usize - 1].hash;
         let mut exports = Vec::new();
-        for entry in &ch.entries[from_index as usize..to_index as usize] {
+        for entry in &links[from_index as usize..to_index as usize] {
             match &entry.input {
                 // BagExport returns a stack to the in-game bag. Only ExportItem is a chain mint.
                 Input::ExportItem { token_id: who, item_id, amount } if who == token_id => {
@@ -778,7 +808,7 @@ impl World {
             log_hash,
             ruleset_hash: self.ruleset_hash,
             summary,
-            inbound_consumed: inbound_count(&ch.entries[..to_index as usize], token_id),
+            inbound_consumed: inbound_count(&links[..to_index as usize], token_id),
             exports,
         })
     }
@@ -811,9 +841,9 @@ impl World {
         // seq -> listing id, and listing id -> seqs, for dependency tracking.
         let mut seq_listing: BTreeMap<u64, U256> = BTreeMap::new();
         for ch in self.characters.values() {
-            for e in &ch.entries {
-                if let Some(id) = listing_id_of(&e.input) {
-                    seq_listing.insert(e.seq, id);
+            for (entry, seq) in ch.chain.entries().iter().zip(ch.seqs.iter()) {
+                if let Some(id) = listing_id_of(&entry.input) {
+                    seq_listing.insert(*seq, id);
                 }
             }
         }
@@ -821,13 +851,13 @@ impl World {
         // 1. Required set: every committed seq plus everything those depend on, to a fixed point.
         let mut required: BTreeSet<u64> = BTreeSet::new();
         for ch in self.characters.values() {
-            for e in &ch.entries[..ch.committed as usize] {
-                required.insert(e.seq);
+            for seq in &ch.seqs[..ch.committed as usize] {
+                required.insert(*seq);
             }
             // Spawn is the character's existence (its onchain genesis); a rebase never removes it.
-            for e in &ch.entries {
-                if matches!(e.input, Input::Spawn { .. }) {
-                    required.insert(e.seq);
+            for (entry, seq) in ch.chain.entries().iter().zip(ch.seqs.iter()) {
+                if matches!(entry.input, Input::Spawn { .. }) {
+                    required.insert(*seq);
                 }
             }
         }
@@ -835,9 +865,9 @@ impl World {
             let before = required.len();
             for ch in self.characters.values() {
                 // (1)+(2): a chain keeps a prefix, so everything before its last required entry is required.
-                if let Some(last) = ch.entries.iter().rposition(|e| required.contains(&e.seq)) {
-                    for e in &ch.entries[..=last] {
-                        required.insert(e.seq);
+                if let Some(last) = ch.seqs.iter().rposition(|seq| required.contains(seq)) {
+                    for seq in &ch.seqs[..=last] {
+                        required.insert(*seq);
                     }
                 }
             }
@@ -867,14 +897,14 @@ impl World {
         let mut dropped: BTreeSet<u64> = BTreeSet::new();
         {
             let ch = &self.characters[&token_id];
-            for e in &ch.entries[ch.committed as usize..] {
-                if !required.contains(&e.seq) {
-                    dropped.insert(e.seq);
+            for seq in &ch.seqs[ch.committed as usize..] {
+                if !required.contains(seq) {
+                    dropped.insert(*seq);
                 }
             }
         }
         let mut keep_len: BTreeMap<U256, usize> =
-            self.characters.iter().map(|(id, ch)| (*id, ch.entries.len())).collect();
+            self.characters.iter().map(|(id, ch)| (*id, ch.seqs.len())).collect();
         loop {
             let before = dropped.len();
             // A dropped listing event drops every later event on that listing.
@@ -897,9 +927,9 @@ impl World {
             }
             // Truncate each chain at its first dropped entry; the rest of that chain depends on it.
             for (id, ch) in &self.characters {
-                if let Some(first) = ch.entries.iter().position(|e| dropped.contains(&e.seq)) {
-                    for e in &ch.entries[first..] {
-                        dropped.insert(e.seq);
+                if let Some(first) = ch.seqs.iter().position(|seq| dropped.contains(seq)) {
+                    for seq in &ch.seqs[first..] {
+                        dropped.insert(*seq);
                     }
                     let k = keep_len.get_mut(id).expect("keep_len has every character");
                     *k = (*k).min(first);
@@ -923,7 +953,7 @@ impl World {
         let mut rebuilt = World::load(&doc).map_err(|_| EngineError::ConflictingLog)?;
         for (id, n) in committed {
             if let Some(ch) = rebuilt.characters.get_mut(&id) {
-                ch.committed = n.min(ch.entries.len() as u64);
+                ch.committed = n.min(ch.log_len());
             }
         }
         // Keep sequence numbers monotonic so a dropped seq is never reused against a surviving copy.
@@ -1439,7 +1469,7 @@ impl World {
                         starting_job: *starting_job,
                         state,
                         chain: Chain::new(genesis_root(token_id, *starting_job)),
-                        entries: Vec::new(),
+                        seqs: Vec::new(),
                         committed: 0,
                         inbound_applied: 0,
                         abilities: BTreeSet::new(),
@@ -1739,7 +1769,7 @@ impl World {
         }
         for token in touch {
             let ch = self.characters.get(token).ok_or(EngineError::NotSpawned)?;
-            if ch.projections.len() != ch.entries.len() {
+            if !ch.aligned() {
                 return Err(EngineError::ConflictingLog);
             }
         }
@@ -1756,17 +1786,13 @@ impl World {
         let mut links = Vec::new();
         for token in touch {
             let ch = self.characters.get_mut(token).expect("prepare_link found the character");
-            debug_assert_eq!(ch.projections.len(), ch.entries.len());
+            debug_assert!(ch.aligned());
             let index = ch.chain.len();
             let prev_hash = ch.chain.head();
             let hash = entry_hash(&prev_hash, index, input);
             let projection = (ch.state.root(), ch.state.summary());
             ch.chain.push(input.clone(), hash);
-            ch.entries.push(LoggedEntry {
-                hash,
-                input: input.clone(),
-                seq,
-            });
+            ch.seqs.push(seq);
             ch.projections.push(projection);
             links.push(CharacterLink {
                 token_id: *token,
@@ -1792,19 +1818,19 @@ impl World {
 
     fn projection_at(&self, token_id: &U256, index: u64) -> Result<([u8; 32], U256), EngineError> {
         let ch = self.characters.get(token_id).ok_or(EngineError::NotSpawned)?;
-        if index > ch.entries.len() as u64 {
+        if index > ch.log_len() {
             return Err(EngineError::BadRange);
         }
         if index == 0 {
             return Ok((genesis_root(token_id, ch.starting_job), U256::ZERO));
         }
-        if ch.projections.len() != ch.entries.len() {
+        if !ch.aligned() {
             return Err(EngineError::ConflictingLog);
         }
         // The tail is the live sheet. Every earlier index was stored when that entry linked,
         // which is the sheet after every event with seq <= that entry. Another character's later
         // command does not rewrite it.
-        if index == ch.entries.len() as u64 {
+        if index == ch.log_len() {
             return Ok((ch.state.root(), ch.state.summary()));
         }
         Ok(ch.projections[index as usize - 1])
@@ -2217,7 +2243,7 @@ fn fit_u32(amount: U256) -> Result<u32, EngineError> {
     Ok(value)
 }
 
-fn inbound_count(entries: &[LoggedEntry], token_id: &U256) -> u64 {
+fn inbound_count(entries: &[Entry], token_id: &U256) -> u64 {
     entries
         .iter()
         .filter(|entry| match &entry.input {

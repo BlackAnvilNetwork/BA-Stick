@@ -53,6 +53,10 @@ impl Chain {
         self.head = entry.prev_hash;
         Some(entry.hash)
     }
+
+    pub(crate) fn entries(&self) -> &[Entry] {
+        &self.entries
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
