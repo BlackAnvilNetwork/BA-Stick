@@ -58,6 +58,7 @@ fn this_genesis_does_not_depend_on_risc_zero() {
         include_str!("../Cargo.toml"),
         include_str!("../../Cargo.toml"),
         include_str!("../../program/Cargo.toml"),
+        include_str!("../../script/Cargo.toml"),
     ];
     for manifest in manifests {
         let lower = manifest.to_ascii_lowercase();
@@ -66,6 +67,14 @@ fn this_genesis_does_not_depend_on_risc_zero() {
         assert!(!lower.contains("risczero"), "{manifest}");
     }
     assert!(include_str!("../../program/Cargo.toml").contains("sp1-zkvm"));
+    let host = include_str!("../../script/src/main.rs");
+    assert!(host.contains(".execute("));
+    assert!(host.contains("is not accepted on this genesis"));
+    assert!(!host.contains(".setup("));
+    assert!(!host.contains(".prove("));
+    assert!(!host.contains("verifying_key"));
+    assert!(!host.contains("risc0-zkvm"));
+    assert!(!host.to_ascii_lowercase().contains("poseidon"));
     assert!(include_str!("../../Cargo.toml").contains("patch-2.0.2-sp1-6.0.0"));
     assert!(include_str!("../../Cargo.toml").contains("tiny-keccak"));
 }
