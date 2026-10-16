@@ -176,6 +176,9 @@ pub struct OpenPvpBounty {
 pub struct World {
     characters: BTreeMap<U256, Character>,
     listings: BTreeMap<U256, Listing>,
+    /// `(seller, item_id)` → listing ids. `AlreadyListed` is a key lookup.
+    /// Derived from `listings` and not hashed.
+    seller_items: BTreeMap<(U256, U256), BTreeSet<U256>>,
     /// Book asks only, keyed by item id. Ordered by cheaper `min_price`, then older
     /// `listed_at`, then lower listing id. Derived from `listings` and not hashed.
     book_asks: BTreeMap<U256, BTreeSet<(U256, u64, U256)>>,
@@ -194,6 +197,7 @@ impl World {
         Self {
             characters: BTreeMap::new(),
             listings: BTreeMap::new(),
+            seller_items: BTreeMap::new(),
             book_asks: BTreeMap::new(),
             pvp_bounties: BTreeMap::new(),
             pvp_fill_keys: BTreeSet::new(),
@@ -745,7 +749,7 @@ impl World {
             self.listings = listings;
             // The snapshot is the map only. Rebuild so a failed apply cannot leave
             // an index entry for a listing the map no longer has.
-            self.rebuild_book_asks();
+            self.rebuild_listing_indexes();
         }
         if let Some((bounties, keys)) = saved_pvp {
             self.pvp_bounties = bounties;
@@ -1114,7 +1118,7 @@ impl World {
                 if self.listings.contains_key(listing_id) {
                     return Err(EngineError::ListingExists);
                 }
-                if self.listings.values().any(|l| l.seller == *seller && l.item_id == *item_id) {
+                if self.seller_listed(*seller, *item_id) {
                     return Err(EngineError::AlreadyListed);
                 }
                 touch.insert(*seller);
@@ -1907,21 +1911,29 @@ impl World {
         Ok(())
     }
 
+    fn seller_listed(&self, seller: U256, item_id: U256) -> bool {
+        self.seller_items.contains_key(&(seller, item_id))
+    }
+
     fn insert_listing(&mut self, listing: Listing) {
         if let Some(prev) = self.listings.remove(&listing.id) {
-            self.unindex_book_ask(&prev);
+            self.unindex_listing(&prev);
         }
-        self.index_book_ask(&listing);
+        self.index_listing(&listing);
         self.listings.insert(listing.id, listing);
     }
 
     fn remove_listing(&mut self, listing_id: U256) {
         if let Some(listing) = self.listings.remove(&listing_id) {
-            self.unindex_book_ask(&listing);
+            self.unindex_listing(&listing);
         }
     }
 
-    fn index_book_ask(&mut self, listing: &Listing) {
+    fn index_listing(&mut self, listing: &Listing) {
+        self.seller_items
+            .entry((listing.seller, listing.item_id))
+            .or_default()
+            .insert(listing.id);
         if !listing.book {
             return;
         }
@@ -1931,7 +1943,13 @@ impl World {
             .insert((listing.min_price, listing.listed_at, listing.id));
     }
 
-    fn unindex_book_ask(&mut self, listing: &Listing) {
+    fn unindex_listing(&mut self, listing: &Listing) {
+        if let Some(ids) = self.seller_items.get_mut(&(listing.seller, listing.item_id)) {
+            ids.remove(&listing.id);
+            if ids.is_empty() {
+                self.seller_items.remove(&(listing.seller, listing.item_id));
+            }
+        }
         if !listing.book {
             return;
         }
@@ -1944,18 +1962,14 @@ impl World {
         }
     }
 
-    /// `restore_failed_apply` replaces `listings` from a snapshot. The index is not
-    /// snapshotted, so it is rebuilt from the map that was just restored.
-    fn rebuild_book_asks(&mut self) {
+    /// `restore_failed_apply` replaces `listings` from a snapshot. The indexes are not
+    /// snapshotted, so they are rebuilt from the map that was just restored.
+    fn rebuild_listing_indexes(&mut self) {
+        self.seller_items.clear();
         self.book_asks.clear();
-        let book: Vec<(U256, U256, u64, U256)> = self
-            .listings
-            .values()
-            .filter(|listing| listing.book)
-            .map(|listing| (listing.item_id, listing.min_price, listing.listed_at, listing.id))
-            .collect();
-        for (item_id, min_price, listed_at, id) in book {
-            self.book_asks.entry(item_id).or_default().insert((min_price, listed_at, id));
+        let rows: Vec<Listing> = self.listings.values().cloned().collect();
+        for listing in &rows {
+            self.index_listing(listing);
         }
     }
 
@@ -1973,7 +1987,7 @@ impl World {
         if self.listings.contains_key(&listing_id) {
             return Err(EngineError::ListingExists);
         }
-        if self.listings.values().any(|l| l.seller == seller && l.item_id == item_id) {
+        if self.seller_listed(seller, item_id) {
             return Err(EngineError::AlreadyListed);
         }
         if touch.contains(&seller) {
@@ -2326,12 +2340,27 @@ mod book_ask_index_tests {
                 assert_eq!(listing.listed_at, listed_at);
             }
         }
+        for ((seller, item_id), ids) in &world.seller_items {
+            assert!(!ids.is_empty());
+            for listing_id in ids {
+                let listing = world.listings.get(listing_id).unwrap_or_else(|| {
+                    panic!("seller index points at listing {listing_id} which the map no longer has")
+                });
+                assert_eq!(listing.seller, *seller);
+                assert_eq!(listing.item_id, *item_id);
+            }
+        }
         for listing in world.listings.values() {
             let indexed = world
                 .book_asks
                 .get(&listing.item_id)
                 .is_some_and(|asks| asks.contains(&(listing.min_price, listing.listed_at, listing.id)));
             assert_eq!(indexed, listing.book);
+            let listed = world
+                .seller_items
+                .get(&(listing.seller, listing.item_id))
+                .is_some_and(|ids| ids.contains(&listing.id));
+            assert!(listed);
         }
     }
 
@@ -2380,6 +2409,7 @@ mod book_ask_index_tests {
         let loaded = World::load(&world.to_document()).expect("replay");
         assert_eq!(loaded.choose_ask_capped(bidder, item, None).unwrap().id, n(15));
         assert_eq!(loaded.book_asks, world.book_asks);
+        assert_eq!(loaded.seller_items, world.seller_items);
         assert_index_matches_map(&loaded);
 
         // Effects inserts a cheaper ask, then linking overflows. The restored map must
@@ -2394,6 +2424,81 @@ mod book_ask_index_tests {
         assert_index_matches_map(&failed);
         assert_eq!(failed.choose_ask_capped(bidder, item, None).unwrap().id, n(15));
         assert_eq!(failed.book_asks, world.book_asks);
+        assert_eq!(failed.seller_items, world.seller_items);
         assert_eq!(failed.item_balance(&n(1), &item), world.item_balance(&n(1), &item));
+    }
+
+    #[test]
+    fn two_asks_for_one_item_pick_the_cheaper_then_the_older() {
+        let item = n(3);
+        let t = 1_700_000_000u64;
+
+        let mut cheaper = World::new();
+        for token in 1..=3 {
+            spawn_with_item(&mut cheaper, token, item);
+        }
+        // id 1 is newer and has the smaller id. The cheaper price still wins.
+        cheaper.append_ask(n(2), n(1), item, n(1), n(80), t).unwrap();
+        cheaper.append_ask(n(1), n(2), item, n(1), n(40), t + 50).unwrap();
+        let picked = cheaper.choose_ask_capped(n(3), item, None).unwrap();
+        assert_eq!(picked.id, n(1));
+        assert_eq!(scan_ask(&cheaper, n(3), item, None).unwrap(), picked);
+
+        let mut tied = World::new();
+        for token in 1..=3 {
+            spawn_with_item(&mut tied, token, item);
+        }
+        // Same price. id 30 is older. id 10 is newer and smaller, and must not win.
+        tied.append_ask(n(30), n(1), item, n(1), n(40), t).unwrap();
+        tied.append_ask(n(10), n(2), item, n(1), n(40), t + 9).unwrap();
+        let picked = tied.choose_ask_capped(n(3), item, None).unwrap();
+        assert_eq!(picked.id, n(30));
+        assert_eq!(picked.listed_at, t);
+        assert_eq!(scan_ask(&tied, n(3), item, None).unwrap(), picked);
+    }
+
+    #[test]
+    fn already_listed_is_a_seller_item_lookup() {
+        let item = n(7);
+        let other = n(8);
+        let mut world = World::new();
+        spawn_with_item(&mut world, 1, item);
+        world.append_import_item(n(1), item, n(4), 2).unwrap();
+        world.append_import_item(n(1), other, n(2), 3).unwrap();
+        world.append_spawn(n(2), 0).unwrap();
+        world.append_import_item(n(2), item, n(4), 1).unwrap();
+
+        world.append_list(n(10), n(1), item, n(1)).unwrap();
+        assert_eq!(
+            world.append_list(n(11), n(1), item, n(1)).unwrap_err(),
+            EngineError::AlreadyListed
+        );
+        // A different item for the same seller is not AlreadyListed.
+        world.append_list(n(11), n(1), other, n(1)).unwrap();
+        // Another seller can list the same item.
+        world.append_list(n(12), n(2), item, n(1)).unwrap();
+        world.append_cancel(n(12), n(2)).unwrap();
+        world.append_list(n(13), n(2), item, n(1)).unwrap();
+        // A book ask occupies the pair too, so a later list of that item is AlreadyListed.
+        world.append_import_item(n(2), other, n(2), 2).unwrap();
+        world.append_ask(n(14), n(2), other, n(1), n(5), 1_700_000_000).unwrap();
+        assert_eq!(
+            world.append_list(n(15), n(2), other, n(1)).unwrap_err(),
+            EngineError::AlreadyListed
+        );
+        world.append_spawn(n(3), 0).unwrap();
+        world.append_import_item(n(3), item, n(2), 1).unwrap();
+        assert_index_matches_map(&world);
+
+        let mut failed = world.clone();
+        failed.next_seq = u64::MAX;
+        assert_eq!(
+            failed.append_list(n(16), n(3), item, n(1)).unwrap_err(),
+            EngineError::Overflow
+        );
+        assert!(failed.listing(&n(16)).is_none());
+        assert_eq!(failed.seller_items, world.seller_items);
+        assert_eq!(failed.item_balance(&n(3), &item), world.item_balance(&n(3), &item));
+        assert_index_matches_map(&failed);
     }
 }
