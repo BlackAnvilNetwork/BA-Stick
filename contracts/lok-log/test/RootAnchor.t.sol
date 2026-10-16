@@ -70,11 +70,28 @@ contract RootAnchorTest is Test {
         anchor.checkpointBlob(bytes32(uint256(1)));
     }
 
+    function test_versioned_blob_hash_uses_the_eip4844_prefix() public view {
+        bytes memory commitment = new bytes(48);
+        for (uint256 i = 0; i < 48; i++) commitment[i] = bytes1(uint8(0x11));
+        assertEq(
+            anchor.versionedBlobHash(commitment),
+            hex"01a127dff9f9bbfa1dff5275a99464123998e95bf11dd579f2ffcab301bc7350"
+        );
+    }
+
+    function test_a_checkpoint_without_a_blob_is_not_stored() public {
+        bytes memory commitment = new bytes(48);
+        commitment[0] = 0xab;
+        vm.expectRevert(RootAnchor.BlobNotPosted.selector);
+        anchor.postCheckpointBlob(commitment, keccak256("checkpoint-bytes"));
+    }
+
     function test_postCheckpointBlob_stores_commitment_and_keccak() public {
         bytes memory commitment = new bytes(48);
         commitment[0] = 0xab;
         commitment[47] = 0xcd;
         bytes32 checkpointKeccak = keccak256("checkpoint-bytes");
+        _setBlob(commitment);
 
         vm.expectEmit(true, false, false, true);
         emit RootAnchor.CheckpointBlobPosted(checkpointKeccak, commitment);
@@ -96,10 +113,12 @@ contract RootAnchorTest is Test {
         bytes memory commitment = new bytes(48);
         commitment[0] = 0x11;
         bytes32 checkpointKeccak = keccak256("checkpoint-bytes");
+        _setBlob(commitment);
         anchor.postCheckpointBlob(commitment, checkpointKeccak);
 
         bytes memory other = new bytes(48);
         other[0] = 0x22;
+        _setBlob(other);
         vm.expectRevert(abi.encodeWithSelector(RootAnchor.CheckpointBlobConflict.selector, checkpointKeccak));
         anchor.postCheckpointBlob(other, checkpointKeccak);
 
@@ -117,5 +136,11 @@ contract RootAnchorTest is Test {
         anchor.postCheckpointBlob(new bytes(49), checkpointKeccak);
         vm.expectRevert(abi.encodeWithSelector(RootAnchor.CheckpointBlobMissing.selector, checkpointKeccak));
         anchor.checkpointBlob(checkpointKeccak);
+    }
+
+    function _setBlob(bytes memory commitment) internal {
+        bytes32[] memory hashes = new bytes32[](1);
+        hashes[0] = anchor.versionedBlobHash(commitment);
+        vm.blobhashes(hashes);
     }
 }

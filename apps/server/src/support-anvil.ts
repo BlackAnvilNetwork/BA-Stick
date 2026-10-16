@@ -14,25 +14,41 @@ export const SUPPORT_LOK = join(SUPPORT_ROOT, "contracts", "lok-log");
 export const SUPPORT_ANVIL_K0 =
   "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" as const;
 
-export function resolveAnvilBin(): string | null {
-  for (const candidate of [
-    process.env.ANVIL_PATH,
-    "anvil",
-    join(process.env.HOME || "", ".foundry/bin/anvil"),
-    "/home/ubuntu/.foundry/bin/anvil",
-  ]) {
-    if (!candidate) continue;
-    try {
-      if (candidate === "anvil") {
-        execFileSync("anvil", ["--version"], { stdio: "ignore" });
-        return "anvil";
-      }
-      if (existsSync(candidate)) return candidate;
-    } catch {
-      /* try next */
-    }
+function foundryHomes(): string[] {
+  return [process.env.HOME, process.env.USERPROFILE].filter((home): home is string => !!home);
+}
+
+function foundryBinCandidates(name: string): string[] {
+  const fileNames = process.platform === "win32" ? [name, `${name}.exe`] : [name];
+  const candidates: string[] = [];
+  for (const home of foundryHomes()) {
+    for (const fileName of fileNames) candidates.push(join(home, ".foundry", "bin", fileName));
+  }
+  candidates.push(join("/home/ubuntu/.foundry/bin", name));
+  return candidates;
+}
+
+function resolveOnPath(name: string): string | null {
+  try {
+    execFileSync(name, ["--version"], { stdio: "ignore", windowsHide: true });
+    return name;
+  } catch {
+    return null;
+  }
+}
+
+function resolveFoundryBin(name: string, override: string | undefined): string | null {
+  if (override && existsSync(override)) return override;
+  const onPath = resolveOnPath(name);
+  if (onPath) return onPath;
+  for (const candidate of foundryBinCandidates(name)) {
+    if (existsSync(candidate)) return candidate;
   }
   return null;
+}
+
+export function resolveAnvilBin(): string | null {
+  return resolveFoundryBin("anvil", process.env.ANVIL_PATH);
 }
 
 export function forgeLibsPresent(lokDir: string = SUPPORT_LOK): boolean {
@@ -43,24 +59,11 @@ export function forgeLibsPresent(lokDir: string = SUPPORT_LOK): boolean {
 }
 
 export function resolveForgeBin(): string | null {
-  for (const candidate of [
-    process.env.FORGE_PATH,
-    "forge",
-    join(process.env.HOME || "", ".foundry/bin/forge"),
-    "/home/ubuntu/.foundry/bin/forge",
-  ]) {
-    if (!candidate) continue;
-    try {
-      if (candidate === "forge") {
-        execFileSync("forge", ["--version"], { stdio: "ignore" });
-        return "forge";
-      }
-      if (existsSync(candidate)) return candidate;
-    } catch {
-      /* try next */
-    }
-  }
-  return null;
+  return resolveFoundryBin("forge", process.env.FORGE_PATH);
+}
+
+export function resolveCastBin(): string | null {
+  return resolveFoundryBin("cast", process.env.CAST_PATH);
 }
 
 export function freePort(): Promise<number> {

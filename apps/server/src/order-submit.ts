@@ -11,6 +11,7 @@
  * and it does not wait for a round.
  */
 import { spawn, type ChildProcess } from "node:child_process";
+import { noteCheckpointLine } from "./checkpoint-blob";
 import { scheduleAnchorPost, type CertifiedBatch } from "./root-anchor";
 
 export type ReplicaPeer = {
@@ -219,7 +220,11 @@ export function startProcessOrderer(bin: string): ProcessOrderer | null {
     while (nl >= 0) {
       const line = stdoutBuf.slice(0, nl).trim();
       stdoutBuf = stdoutBuf.slice(nl + 1);
-      if (line) health = observeOrdererLine(line, health);
+      if (line) {
+        health = observeOrdererLine(line, health);
+        // Batch lines anchor a root. A checkpoint line is a blob. The tick never writes one.
+        noteCheckpointLine(line);
+      }
       nl = stdoutBuf.indexOf("\n");
     }
   });
