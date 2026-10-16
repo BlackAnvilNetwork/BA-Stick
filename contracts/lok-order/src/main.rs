@@ -1,11 +1,12 @@
-//! Read `{height, root}` lines and run the one-validator orderer.
+//! Read `{height, root}` lines and run the three-replica allowlist.
 //!
 //! A caller that only writes a line does not wait for the commit reply.
-//! A missing binary, a refused line, or no commit leaves that batch provisional.
+//! A missing peer, fewer than the majority, a refused line, or no `Effect::Decide`
+//! leaves that batch provisional.
 
 use std::io::{self, BufRead, Write};
 
-use lok_order::GenesisOrderer;
+use lok_order::AllowlistOrderer;
 use serde::Deserialize;
 
 #[derive(Deserialize)]
@@ -26,10 +27,16 @@ fn decode_root(hex: &str) -> Option<[u8; 32]> {
     Some(out)
 }
 
+fn write_status(stdout: &mut impl Write, orderer: &AllowlistOrderer) {
+    let _ = writeln!(stdout, "{}", orderer.status_json());
+    let _ = stdout.flush();
+}
+
 fn main() {
-    let mut orderer = GenesisOrderer::generate();
+    let mut orderer = AllowlistOrderer::generate();
     let stdin = io::stdin();
     let mut stdout = io::stdout();
+    write_status(&mut stdout, &orderer);
     for line in stdin.lock().lines() {
         let line = match line {
             Ok(line) => line,
@@ -54,19 +61,11 @@ fn main() {
             continue;
         };
         match orderer.commit(submit.height, root) {
-            Ok(committed) => {
-                let mut hex = String::with_capacity(64);
-                for byte in committed.root {
-                    hex.push_str(&format!("{byte:02x}"));
-                }
-                let _ = writeln!(
-                    stdout,
-                    "{{\"committed\":true,\"height\":{},\"root\":\"{hex}\",\"signatures\":{}}}",
-                    committed.height, committed.signatures
-                );
-                let _ = stdout.flush();
+            Ok(_) => write_status(&mut stdout, &orderer),
+            Err(err) => {
+                write_status(&mut stdout, &orderer);
+                eprintln!("lok-order provisional: {err}");
             }
-            Err(err) => eprintln!("lok-order provisional: {err}"),
         }
     }
 }

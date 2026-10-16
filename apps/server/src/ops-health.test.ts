@@ -322,6 +322,72 @@ describe("ops health + structured alerts", () => {
     const parsed = JSON.parse(status.body);
     assert.equal(parsed.network, "anvil");
     assert.equal(parsed.ready, true);
+    assert.equal(parsed.lastCertifiedHeight, null);
+    assert.equal(parsed.lastAnchoredHeight, null);
+    assert.equal(parsed.clockSkew, 0);
+    assert.deepEqual(parsed.peers, []);
+  });
+
+  it("/status reports certified height, anchored height, clock skew, and peers", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "lok-ops-"));
+    const deps = {
+      lokReady: () => true,
+      startedAtMs: Date.now(),
+      dataDir: dir,
+      env: { NETWORK: "anvil", LOK_CHAIN_ID: "31337" },
+      remoteAddress: "127.0.0.1",
+      replicaHealth: () => ({
+        lastCertifiedHeight: 4,
+        lastAnchoredHeight: null,
+        clockSkew: 0,
+        peers: [
+          { address: "aa", heard: true },
+          { address: "bb", heard: true },
+          { address: "cc", heard: false },
+        ],
+        seedRoller: "bb",
+      }),
+    };
+
+    async function hit(path: string): Promise<{ status: number; body: string }> {
+      return new Promise((resolve) => {
+        let status = 0;
+        let body = "";
+        const res = {
+          writeHead(code: number) {
+            status = code;
+          },
+          end(chunk?: string) {
+            body = chunk ?? "";
+            resolve({ status, body });
+          },
+        } as unknown as ServerResponse;
+        const req = {
+          url: path,
+          headers: { host: "localhost" },
+          socket: { remoteAddress: "127.0.0.1" },
+        } as unknown as IncomingMessage;
+        assert.equal(handleOpsHttp(req, res, deps), true);
+      });
+    }
+
+    const health = await hit("/health");
+    assert.equal(health.status, 200);
+    const healthBody = JSON.parse(health.body);
+    assert.equal(healthBody.ok, true);
+    assert.equal("lastCertifiedHeight" in healthBody, false);
+
+    const status = await hit("/status");
+    assert.equal(status.status, 200);
+    const parsed = JSON.parse(status.body);
+    assert.equal(parsed.lastCertifiedHeight, 4);
+    assert.equal(parsed.lastAnchoredHeight, null);
+    assert.equal(parsed.clockSkew, 0);
+    assert.equal(parsed.peers.length, 3);
+    assert.equal(parsed.peers[0].address, "aa");
+    assert.equal(parsed.peers[0].heard, true);
+    assert.equal(parsed.peers[2].heard, false);
+    assert.equal(parsed.seedRoller, "bb");
   });
 
   it("POST /ops/replace-open-ask requires auth and wires replacePendingOpenAsk", async () => {

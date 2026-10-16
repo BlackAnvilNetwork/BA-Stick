@@ -194,7 +194,7 @@ impl Validator<OrderCtx> for GenesisValidator {
     }
 }
 
-/// Genesis set. This slice builds it with exactly one validator.
+/// Genesis set. One validator, or the three-replica allowlist.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct GenesisSet {
     validators: Vec<GenesisValidator>,
@@ -218,18 +218,61 @@ impl ValidatorSet<OrderCtx> for GenesisSet {
     }
 }
 
-/// Build the one-validator set from an in-memory Ed25519 key.
-pub fn genesis_validator_set(key: &ed25519::PrivateKey) -> (GenesisSet, OrderAddr) {
+fn validator_from_key(key: &ed25519::PrivateKey) -> GenesisValidator {
     let public_key = key.public_key();
     let address = OrderAddr(*public_key.as_bytes());
+    GenesisValidator {
+        address,
+        public_key,
+        voting_power: 1,
+    }
+}
+
+/// Build the one-validator set from an in-memory Ed25519 key.
+pub fn genesis_validator_set(key: &ed25519::PrivateKey) -> (GenesisSet, OrderAddr) {
+    let validator = validator_from_key(key);
+    let address = validator.address;
     let set = GenesisSet {
-        validators: vec![GenesisValidator {
-            address,
-            public_key,
-            voting_power: 1,
-        }],
+        validators: vec![validator],
     };
     (set, address)
+}
+
+/// Exactly three in-memory Ed25519 identities.
+///
+/// Callers generate the keys. This does not read `LOK_OWNER_KEY`, `PRIVATE_KEY`,
+/// or the listing key.
+pub fn allowlist_validator_set(keys: &[ed25519::PrivateKey; 3]) -> GenesisSet {
+    GenesisSet {
+        validators: keys.iter().map(validator_from_key).collect(),
+    }
+}
+
+/// Proposer Malachite selects at round 0 for this height.
+pub fn leader_address(set: &GenesisSet, height: u64) -> OrderAddr {
+    let proposer = OrderCtx.select_proposer(set, OrderHeight(height), Round::new(0));
+    *Validator::address(proposer)
+}
+
+/// Seed roller for this height.
+///
+/// With one replica the roller is the leader. With three, the roller is the
+/// next allowlisted replica after the leader, so the two addresses differ.
+/// The epoch seed formula is unchanged; this only names who rolls it.
+pub fn seed_roller_address(set: &GenesisSet, height: u64) -> OrderAddr {
+    let count = ValidatorSet::count(set);
+    let leader = leader_address(set, height);
+    if count <= 1 {
+        return leader;
+    }
+    let leader_index = (0..count)
+        .find(|index| {
+            Validator::address(ValidatorSet::get_by_index(set, *index).expect("leader index"))
+                == &leader
+        })
+        .expect("leader is in the allowlist");
+    let roller_index = (leader_index + 1) % count;
+    *Validator::address(ValidatorSet::get_by_index(set, roller_index).expect("seed roller"))
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
