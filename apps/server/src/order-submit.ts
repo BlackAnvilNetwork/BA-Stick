@@ -162,13 +162,14 @@ export function orderSubmitLine(height: number, nextRoot: Uint8Array): string {
  * What `tickSim` calls after a successful seal.
  * Always returns. A stopped orderer or a submit that has not committed
  * leaves `tickFailed` false so the 20 Hz loop keeps playing.
+ * `blob` is null. A 20 Hz batch is not packaged as a blob.
  */
 export function submitOnSimTick(
   orderer: BatchOrderer | null | undefined,
   sealed: { ok: true; height: number; nextRoot: Uint8Array } | { ok: false },
   peers?: readonly { heard: boolean }[],
-): { tickFailed: false; status: OrderSubmitResult } {
-  return { tickFailed: false, status: submitSealedBatch(orderer, sealed, peers) };
+): { tickFailed: false; status: OrderSubmitResult; blob: null } {
+  return { tickFailed: false, status: submitSealedBatch(orderer, sealed, peers), blob: null };
 }
 
 export function submitSealedBatch(
