@@ -1,13 +1,18 @@
 /**
  * Post a certified lok-order batch to the local root anchor.
  *
- * A batch is anchored only after `post` succeeds. A status line that claims
- * an anchored height does not count. Gnosis mainnet (100) and Chiado (10200)
- * are refused. The listing key is not read. Combat, movement, loot, and the
- * 20 Hz tick do not call this module.
+ * The posted `nextRoot` is the character-root tree the orderer certified.
+ * A batch is anchored only after `post` succeeds and `isAnchored` reads back.
+ * A status line that claims an anchored height does not count. Gnosis mainnet
+ * (100) and Chiado (10200) are refused, and the RPC must be loopback anvil.
  *
- * There is no withdrawal broadcast on the server. `withdrawKek` and bag export
- * do not send a transaction, so they have nothing to hold.
+ * The signer is `LOK_ANCHOR_POSTER_KEY`. This module does not sign with
+ * `LOK_OWNER_KEY`, `PRIVATE_KEY`, or `LOK_LISTING_KEY`. Combat, movement,
+ * and the 20 Hz tick do not call this module. The one-day challenge delay
+ * is not started.
+ *
+ * `withdrawKek` and bag export are not chain withdrawals. `beginChainWithdrawal`
+ * is the hold those sends must pass, and it does not broadcast.
  */
 import {
   createPublicClient,
@@ -64,7 +69,7 @@ export function noteCertifiedBatch(batch: CertifiedBatch): void {
 
 /**
  * Chain-bound sends depend on the latest certified root. They proceed only
- * when that exact root has been posted.
+ * when that exact root has been posted. Play, movement, and combat do not.
  */
 export function chainBoundSendGate(): { ok: true } | { ok: false; error: string } {
   if (!certified) return { ok: false, error: ANCHOR_WAIT };
@@ -73,6 +78,23 @@ export function chainBoundSendGate(): { ok: true } | { ok: false; error: string 
     return { ok: false, error: ANCHOR_WAIT };
   }
   return { ok: true };
+}
+
+/** In-game actions are not held for the anchor. */
+export function inGameWaitsForAnchor(_action: "play" | "movement" | "combat"): false {
+  return false;
+}
+
+/**
+ * Hold a chain withdrawal until the certified root is posted.
+ * This does not sign or broadcast a withdrawal.
+ */
+export function beginChainWithdrawal():
+  | { ok: true; submitted: false }
+  | { ok: false; error: string } {
+  const gate = chainBoundSendGate();
+  if (!gate.ok) return gate;
+  return { ok: true, submitted: false };
 }
 
 function validBatch(batch: CertifiedBatch): boolean {
@@ -109,6 +131,28 @@ function chainRefused(env: NodeJS.ProcessEnv): boolean {
   return /gnosischain|chiado|gnosis\.gateway/i.test(rpc);
 }
 
+function normKey(value: string | undefined): string | null {
+  const trimmed = value?.trim() ?? "";
+  if (!trimmed) return null;
+  const hex = trimmed.replace(/^0x/i, "");
+  if (!/^[0-9a-fA-F]{64}$/.test(hex)) return null;
+  return hex.toLowerCase();
+}
+
+/** True when the anchor signer is missing or is an owner, private, or listing key. */
+export function posterKeyRefused(env: NodeJS.ProcessEnv): boolean {
+  const poster = normKey(env.LOK_ANCHOR_POSTER_KEY);
+  if (!poster) return true;
+  const forbidden = [env.LOK_OWNER_KEY, env.PRIVATE_KEY, env.LOK_LISTING_KEY]
+    .map((key) => normKey(key))
+    .filter((key): key is string => key != null);
+  return forbidden.includes(poster);
+}
+
+function localAnvilRpc(rpc: string): boolean {
+  return /^https?:\/\/(127\.0\.0\.1|localhost):\d+\/?$/i.test(rpc.trim());
+}
+
 /**
  * Record the batch only when the poster accepts it. A refused chain or a
  * failed post leaves `anchoredHeight` unchanged.
@@ -123,6 +167,7 @@ export async function postCertifiedBatch(
   const existing = anchored.get(batch.height);
   if (existing && bytesEqual(existing, batch.nextRoot)) return true;
   if (lastPostedHeight != null && batch.height <= lastPostedHeight) return false;
+  if (!opts?.poster && posterKeyRefused(env)) return false;
   let ok = false;
   try {
     ok = opts?.poster ? await opts.poster(batch) : await postToLocalAnvil(batch, env);
@@ -151,9 +196,9 @@ export function scheduleAnchorPost(batch: CertifiedBatch, env: NodeJS.ProcessEnv
 async function postToLocalAnvil(batch: CertifiedBatch, env: NodeJS.ProcessEnv): Promise<boolean> {
   const address = env.LOK_ROOT_ANCHOR?.trim() ?? "";
   const rpc = env.LOK_CHAIN_RPC?.trim() ?? "";
-  const key = env.LOK_OWNER_KEY?.trim() ?? "";
+  const key = env.LOK_ANCHOR_POSTER_KEY?.trim() ?? "";
   if (!/^0x[0-9a-fA-F]{40}$/.test(address)) return false;
-  if (!rpc || !/^0x[0-9a-fA-F]{64}$/.test(key)) return false;
+  if (!localAnvilRpc(rpc) || posterKeyRefused(env) || !/^0x[0-9a-fA-F]{64}$/.test(key)) return false;
   const transport = http(rpc);
   const pub = createPublicClient({ transport });
   const id = await pub.getChainId();

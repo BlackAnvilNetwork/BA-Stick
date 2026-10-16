@@ -53,4 +53,13 @@ contract RootAnchorTest is Test {
         vm.expectRevert(abi.encodeWithSelector(RootAnchor.HeightNotAfterAnchor.selector, uint64(3), uint64(9)));
         anchor.post(3, root, certificate);
     }
+
+    function test_a_zero_root_is_still_an_anchor() public {
+        anchor.post(1, bytes32(0), certificate);
+        assertTrue(anchor.hasAnchor());
+        assertEq(anchor.lastAnchoredHeight(), 1);
+        assertTrue(anchor.isAnchored(1, bytes32(0)));
+        (bytes32 stored,) = anchor.anchoredRoot(1);
+        assertEq(stored, bytes32(0));
+    }
 }
