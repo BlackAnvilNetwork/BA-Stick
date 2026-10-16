@@ -56,6 +56,23 @@ test("a tick merges harvest, loot, and gold into one journal line each", () => {
   assert.equal(journalOps(again).filter((op) => op === "harvest").length, 1);
 });
 
+test("an out-of-tick goldEarn is on the reopened world after the writer is dropped", () => {
+  const dir = mkdtempSync(join(tmpdir(), "lok-journal-fd-"));
+  const token = (() => {
+    const lok = LokWorld.open(dir, undefined, {});
+    const spawned = lok.spawn("char-a", "Ada", 0);
+    assert.equal(spawned.ok, true);
+    if (!spawned.ok) return "";
+    assert.equal(lok.goldEarn(spawned.tokenId, "quest", "100", 1).ok, true);
+    return spawned.tokenId;
+  })();
+  assert.notEqual(token, "");
+  const journal = readFileSync(join(dir, "lok-world.jsonl"), "utf8");
+  assert.match(journal, /"op":"goldEarn"/);
+  const again = LokWorld.open(dir, undefined, {});
+  assert.equal(again.goldOf(token), "100");
+});
+
 test("outside a tick each harvest is its own journal line", () => {
   const lok = world();
   const spawned = lok.spawn("char-a", "Ada", 0);
