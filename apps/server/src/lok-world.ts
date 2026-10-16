@@ -1,6 +1,5 @@
 import {
   appendFileSync,
-  closeSync,
   copyFileSync,
   existsSync,
   fsyncSync,
@@ -312,6 +311,12 @@ export class LokWorld {
   /** Open game tick. Journal lines stay in memory until endTick fsyncs once. */
   private journalHold = false;
   private journalPending: Buffer[] = [];
+  /**
+   * One append fd for the life of this world. Out-of-tick ops must not open and
+   * close the journal on every call. There is no world close method; process
+   * exit releases the fd. Durability is the fsync before the op returns.
+   */
+  private journalFd: number | null = null;
   private coalesce: TickCoalesce | null = null;
   /** Snapshot is due, but the tick must return before the full rewrite. */
   private snapshotDeferred = false;
@@ -1399,26 +1404,30 @@ export class LokWorld {
     this.flushJournal(false);
   }
 
+  /** Open the journal append fd once. Later flushes reuse it and still fsync. */
+  private journalAppendFd(): number {
+    if (this.journalFd === null) this.journalFd = openSync(this.journalPath, "a");
+    return this.journalFd;
+  }
+
   /**
-   * Write every buffered journal line and fsync once.
-   * A tick asks for a background snapshot so the rewrite does not block the sim.
+   * Write every buffered journal line and fsync once on the append fd held for
+   * this world. The fsync finishes before this returns, including out-of-tick
+   * applies. A tick asks for a background snapshot so the rewrite does not
+   * block the sim; the journal fsync itself stays on this call.
    */
   private flushJournal(backgroundSnapshot: boolean) {
     if (this.journalPending.length > 0) {
       const payload = Buffer.concat(this.journalPending);
       this.journalPending = [];
-      const fd = openSync(this.journalPath, "a");
-      try {
-        let off = 0;
-        while (off < payload.length) {
-          const wrote = writeSync(fd, payload, off, payload.length - off);
-          if (wrote <= 0) throw new Error("lok journal write stalled");
-          off += wrote;
-        }
-        fsyncSync(fd);
-      } finally {
-        closeSync(fd);
+      const fd = this.journalAppendFd();
+      let off = 0;
+      while (off < payload.length) {
+        const wrote = writeSync(fd, payload, off, payload.length - off);
+        if (wrote <= 0) throw new Error("lok journal write stalled");
+        off += wrote;
       }
+      fsyncSync(fd);
     }
     if (this.sinceSnapshot < LOG_SNAPSHOT_EVERY) return;
     if (backgroundSnapshot) this.scheduleSnapshot();
