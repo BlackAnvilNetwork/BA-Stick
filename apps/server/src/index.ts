@@ -305,7 +305,7 @@ import { hexToBytes } from "viem";
 import { authAllowlist, authVerifyClient, clientAddress, dropAuthConnection, issueAuthChallenge, resolveAuthOrigin, verifyAuthLogin, isEthAddress } from "./wallet-auth";
 import { defaultLokDir, LokWorld } from "./lok-world";
 import { flushGameRoll, loadGameRoll, rollIndex, rollUnit } from "./game-roll";
-import { provisionalChainLink, sealParentRoot, sealTickBatch } from "./seal-tick-batch";
+import { sealParentRoot, sealTickBatch } from "./seal-tick-batch";
 import { rollPvpAutoAttack } from "./pvp-auto-rolls";
 import { cheapestBait, fishGatherRefusal } from "./fishing";
 import { emptyMobEnhances, takeMobHit } from "./mob-enhances";
@@ -5514,6 +5514,7 @@ function tickSim() {
     } else {
       // endTick and flushGameRoll write their bytes and do not return them.
       // Seal a big-endian encoding of this tick index only. The roll tape is unchanged.
+      // nextRoot is the character-root tree, not keccak(parent || inputsCommitment).
       try {
         const inputs = tickIndexInputs(tick);
         const parentRoot = sealParentRoot();
@@ -5523,7 +5524,7 @@ function tickSim() {
           rulesetHash: SEAL_RULESET_HASH,
           gnosisRandomness: SEAL_GNOSIS_UNFETCHED,
           parentRoot,
-          chainLink: provisionalChainLink(parentRoot, inputs),
+          chainLink: lok.characterRootTreeRoot(),
         });
         if (!sealed.ok) console.error("[seal] tick batch rejected: " + sealed.error);
       } catch (err) {

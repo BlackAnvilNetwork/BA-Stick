@@ -12,6 +12,8 @@ export type LokExports = {
   lok_open: (ptr: number, len: number) => number;
   lok_apply: (ptr: number, len: number) => number;
   lok_document: () => number;
+  /** 64 lowercase hex characters of the character-root tree, no 0x prefix. */
+  lok_character_root: () => number;
 };
 
 const here = dirname(fileURLToPath(import.meta.url));
