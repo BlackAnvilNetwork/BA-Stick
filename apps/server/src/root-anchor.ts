@@ -8,8 +8,11 @@
  *
  * The signer is `LOK_ANCHOR_POSTER_KEY`. This module does not sign with
  * `LOK_OWNER_KEY`, `PRIVATE_KEY`, or `LOK_LISTING_KEY`. Combat, movement,
- * and the 20 Hz tick do not call this module. The one-day challenge delay
- * is not started.
+ * loot, and the 20 Hz tick do not wait on this module.
+ *
+ * A successful post sets the anchored height immediately. Chain-bound sends
+ * still wait one day from that anchor. The day is the ruleset timelock floor
+ * (`RulesetRegistry.MIN_DELAY` is 1 day). It is not `PvpBounty.claimDelay`.
  *
  * `withdrawKek` and bag export are not chain withdrawals. `beginChainWithdrawal`
  * is the hold those sends must pass, and it does not broadcast.
@@ -25,6 +28,18 @@ import {
 import { privateKeyToAccount } from "viem/accounts";
 
 export const ANCHOR_WAIT = "Waiting for an anchored root.";
+
+/** One day. Same floor as `RulesetRegistry.MIN_DELAY`. Not `PvpBounty.claimDelay`. */
+export const CHALLENGE_DELAY_MS = 24 * 60 * 60 * 1000;
+
+export const CHALLENGE_WAIT = "Waiting for the one-day challenge delay.";
+
+let readClock: () => number = () => Date.now();
+
+/** Tests advance this instead of waiting out the day. Production uses `Date.now`. */
+export function setChallengeClockForTests(now: () => number): void {
+  readClock = now;
+}
 
 const ANVIL_CHAIN_ID = 31337;
 const ROOT_ANCHOR_ABI = parseAbi([
@@ -47,14 +62,17 @@ type AnchoredRoot = {
 
 let certified: AnchoredRoot | null = null;
 let anchored = new Map<number, Uint8Array>();
+let anchoredAt = new Map<number, number>();
 let lastPostedHeight: number | null = null;
 const posting = new Set<number>();
 
 export function resetRootAnchorForTests(): void {
   certified = null;
   anchored = new Map();
+  anchoredAt = new Map();
   lastPostedHeight = null;
   posting.clear();
+  readClock = () => Date.now();
 }
 
 /** Latest height whose post succeeded. Null until then. */
@@ -69,7 +87,8 @@ export function noteCertifiedBatch(batch: CertifiedBatch): void {
 
 /**
  * Chain-bound sends depend on the latest certified root. They proceed only
- * when that exact root has been posted. Play, movement, and combat do not.
+ * when that exact root has been posted and one day has passed from that post.
+ * Play, movement, combat, and loot do not.
  */
 export function chainBoundSendGate(): { ok: true } | { ok: false; error: string } {
   if (!certified) return { ok: false, error: ANCHOR_WAIT };
@@ -77,17 +96,23 @@ export function chainBoundSendGate(): { ok: true } | { ok: false; error: string 
   if (!posted || !bytesEqual(posted, certified.nextRoot)) {
     return { ok: false, error: ANCHOR_WAIT };
   }
+  const postedAt = anchoredAt.get(certified.height);
+  if (postedAt == null || readClock() - postedAt < CHALLENGE_DELAY_MS) {
+    return { ok: false, error: CHALLENGE_WAIT };
+  }
   return { ok: true };
 }
 
-/** In-game actions are not held for the anchor. */
-export function inGameWaitsForAnchor(_action: "play" | "movement" | "combat"): false {
+/** In-game actions are not held for the anchor or the challenge delay. */
+export function inGameWaitsForAnchor(
+  _action: "play" | "movement" | "combat" | "loot" | "tick",
+): false {
   return false;
 }
 
 /**
- * Hold a chain withdrawal until the certified root is posted.
- * This does not sign or broadcast a withdrawal.
+ * Hold a chain withdrawal until the certified root is posted and one day
+ * has passed from that anchor. This does not sign or broadcast a withdrawal.
  */
 export function beginChainWithdrawal():
   | { ok: true; submitted: false }
@@ -118,6 +143,7 @@ function bytesEqual(left: Uint8Array, right: Uint8Array): boolean {
 
 function remember(batch: CertifiedBatch): void {
   anchored.set(batch.height, batch.nextRoot.slice());
+  if (!anchoredAt.has(batch.height)) anchoredAt.set(batch.height, readClock());
   if (lastPostedHeight == null || batch.height > lastPostedHeight) {
     lastPostedHeight = batch.height;
   }
