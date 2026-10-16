@@ -22,8 +22,29 @@ import { resolvePublicRpcUrl } from "./public-rpc";
 export const LOCAL_RULESET_WASM_SHA256 = "ae2fb7556c254cf9fddfdae0919dd1bdba12dfcd00b15d22c8c4bb43fd76a950";
 
 /**
+ * SP1 verifying key of `contracts/lok-log/sp1` (sp1-zkvm 6.9.0).
+ * This is the `bytes32()` digest `cargo prove vkey` prints for that guest.
+ * A proof under any other key is not a batch of this world. The key changes
+ * only after `RulesetRegistry.MIN_DELAY` (one day). This pin is not a proof.
+ */
+export const LOCAL_SP1_VERIFYING_KEY = "0x00be4fce8613fcbf00a32a17381c8f54b6632eaf74d9a35192986ce93160cf93";
+
+/** Wasm digest and SP1 verifying key for this ruleset. The digest is not a function of the key. */
+export type RulesetRecord = {
+  wasmSha256: string;
+  verifyingKey: string;
+};
+
+/** The pinned ruleset. `wasmSha256` is `LOCAL_RULESET_WASM_SHA256`. */
+export const LOCAL_RULESET_RECORD: RulesetRecord = {
+  wasmSha256: LOCAL_RULESET_WASM_SHA256,
+  verifyingKey: LOCAL_SP1_VERIFYING_KEY,
+};
+
+/**
  * Ruleset id derived from the wasm pin: `keccak256(utf8(LOCAL_RULESET_WASM_SHA256))`.
  * Used for local anvil acceptance. The Gnosis propose in deployments/gnosis.json is the previous pin.
+ * The verifying key is not an input to this hash.
  */
 export const LOCAL_RULESET_HASH = keccak256(toBytes(LOCAL_RULESET_WASM_SHA256));
 

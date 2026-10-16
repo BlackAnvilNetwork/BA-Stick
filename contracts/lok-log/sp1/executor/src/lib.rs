@@ -3,7 +3,8 @@
 //! `state_roots` replays a lok-engine log and returns each character's
 //! `State::root`. That root is the keccak256 Merkle tree the contracts already
 //! use. An empty world is `keccak256("")`. The guest commits those bytes.
-//! It does not hash with Poseidon, and it does not pin a verifying key.
+//! It does not hash with Poseidon. The verifying key is pinned beside the
+//! wasm digest, not in this crate.
 
 use lok_engine::{
     commit_entries, parse_any_log, replay, replay_world, AnyLog, Key, ReplayStop, U256,

@@ -23,6 +23,7 @@ import { timingSafeEqual } from "node:crypto";
 import { bls12_381 } from "@noble/curves/bls12-381.js";
 import { concatBytes, keccak256 } from "viem";
 import { fallbackEpochSeed } from "./fallback-epoch-seed";
+import { proofVerifyingKeyAccepted } from "./ruleset-record";
 
 /** Keccak digest length used for commitments, roots, and the ruleset hash. */
 export const HASH_BYTES = 32;
@@ -49,7 +50,8 @@ export type BatchReject =
   | "roll_commitment_mismatch"
   | "bad_leader_key"
   | "missing_signature"
-  | "bad_signature";
+  | "bad_signature"
+  | "foreign_verifying_key";
 
 /**
  * One batch a leader can hand to another process.
@@ -76,6 +78,12 @@ export type BatchEnvelope = {
   epochSeed: Uint8Array;
   /** 32-byte keccak of inputsCommitment || epochSeed || rollBytes. */
   rollCommitment: Uint8Array;
+  /**
+   * SP1 verifying key this proof was made under (`0x` and 64 hex chars).
+   * Absent when the batch carries no proof. Any other key is not a batch of
+   * this world. This field is not checked against wasm replay.
+   */
+  proofVerifyingKey?: string;
   /**
    * 96-byte BLS12-381 G2 signature over {@link leaderSigningMessage}.
    * Absent until the producer attaches one.
@@ -204,6 +212,9 @@ export function acceptBatch(
   }
   if (!sameHash(envelope.rulesetHash, expectedRuleset)) {
     return { ok: false, error: "wrong_ruleset" };
+  }
+  if (!proofVerifyingKeyAccepted(envelope.proofVerifyingKey)) {
+    return { ok: false, error: "foreign_verifying_key" };
   }
   const commitment = commitInputs(envelope.inputs);
   if (!sameHash(envelope.inputsCommitment, commitment)) {

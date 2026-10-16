@@ -1,5 +1,6 @@
 //! The SP1 guest commits `state_roots`. These checks run the same function on
-//! the host. They do not invent a proof and they do not pin a verifying key.
+//! the host. They do not invent a proof. The verifying key is pinned in the
+//! ruleset record.
 
 use lok_engine::{commit_entries, keccak256, Engine, Input, Key, Outcome, State, U256};
 use lok_sp1_executor::state_roots;
