@@ -38,6 +38,7 @@ import {
   type Hex,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
+import { postReplicaBond } from "./bonded-admission";
 import { durableWrite } from "./durable-write";
 
 export const ANCHOR_WAIT = "Waiting for an anchored root.";
@@ -165,13 +166,15 @@ export function parsePostedSlashableBonds(raw: string | undefined): { id: string
 }
 
 /**
- * Production boot records each posted bond. Call this after `configureEpochLedger`
- * so the note is written into that data dir. An unset variable notes nothing
- * and leaves a bond file from an earlier boot in place.
+ * Production boot records each posted bond and admits that replica to the
+ * voting set. The amount is the wei in the pair. Call this after
+ * `configureEpochLedger` so the note is written into that data dir. An unset
+ * variable notes nothing and leaves a bond file from an earlier boot in place.
+ * Zero and negative postings do not join and do not invent a bond.
  */
 export function recordPostedSlashableBonds(env: NodeJS.ProcessEnv = process.env): void {
   for (const bond of parsePostedSlashableBonds(env.LOK_POSTED_SLASHABLE_BONDS)) {
-    notePostedSlashableBond(bond.id, bond.amountWei);
+    postReplicaBond(bond.id, "replica", bond.amountWei);
   }
 }
 

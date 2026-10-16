@@ -20,6 +20,9 @@
  * Joining does not stop the 20 Hz tick. Nothing is broadcast. Gnosis mainnet
  * and Chiado are not called. The bond is the one `notePostedSlashableBond`
  * records, so the equivocation court slashes the amount the operator posted.
+ *
+ * Server boot admits through `recordPostedSlashableBonds`, which calls
+ * `postReplicaBond` with the wei that was posted.
  */
 import { notePostedSlashableBond, postedSlashableBond } from "./root-anchor";
 import { PINNED_GNOSIS_LISTING_ADDRESS } from "./production-boot";
