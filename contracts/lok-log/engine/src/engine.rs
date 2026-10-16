@@ -210,10 +210,10 @@ impl Engine {
         }
         let index = self.chain.len();
         let prev_hash = self.chain.head();
-        let link = entry_hash(&prev_hash, index, &input);
+        let link = entry_hash(&prev_hash, index, &input, &[0u8; 32]);
         let state_root = self.state.root();
         let summary = self.state.summary();
-        self.chain.push(input, link);
+        self.chain.push(input, link, [0u8; 32]);
         Ok(Outcome::Applied {
             index,
             prev_hash,

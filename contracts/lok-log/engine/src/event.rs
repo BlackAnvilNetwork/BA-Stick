@@ -452,11 +452,15 @@ Input::CancelAsk { listing_id, seller } => {
     keccak256(&buf.bytes)
 }
 
-/// `keccak256(abi.encode(prev, index, eventId))`. Static, so the link does not depend on state bytes.
-pub fn entry_hash(prev: &[u8; 32], index: u64, input: &Input) -> [u8; 32] {
+/// `keccak256(prev || index || eventId)`, plus the ruleset word when it is not 32 zero bytes.
+/// A zero ruleset is left off so existing links keep their digest. The link does not depend on state bytes.
+pub fn entry_hash(prev: &[u8; 32], index: u64, input: &Input, ruleset: &[u8; 32]) -> [u8; 32] {
     let mut buf = Buf::new();
     buf.b256(prev);
     buf.u64(index);
     buf.b256(&event_id(input));
+    if *ruleset != [0u8; 32] {
+        buf.b256(ruleset);
+    }
     keccak256(&buf.bytes)
 }

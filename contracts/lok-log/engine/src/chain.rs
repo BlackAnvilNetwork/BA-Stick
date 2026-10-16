@@ -11,6 +11,8 @@ pub struct Entry {
     pub prev_hash: [u8; 32],
     pub hash: [u8; 32],
     pub input: Input,
+    /// Ruleset word that was inside this link. Not rewritten when the live ruleset changes.
+    pub ruleset_hash: [u8; 32],
 }
 
 #[derive(Clone, Debug)]
@@ -35,7 +37,7 @@ impl Chain {
         self.entries.len() as u64
     }
 
-    pub fn push(&mut self, input: Input, hash: [u8; 32]) {
+    pub fn push(&mut self, input: Input, hash: [u8; 32], ruleset_hash: [u8; 32]) {
         let index = self.len();
         let prev_hash = self.head;
         self.entries.push(Entry {
@@ -43,6 +45,7 @@ impl Chain {
             prev_hash,
             hash,
             input,
+            ruleset_hash,
         });
         self.head = hash;
     }
@@ -72,6 +75,8 @@ pub struct LoggedEntry {
     pub input: Input,
     /// Global order shared by every character log that carries this payload. Not part of the hash.
     pub seq: u64,
+    /// Ruleset word stored with this link. Absent JSON is 32 zero bytes, which `entry_hash` leaves out.
+    pub ruleset_hash: [u8; 32],
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -126,7 +131,8 @@ pub fn replay(doc: &LogDocument) -> Result<ReplayReport, ReplayStop> {
     let mut engine = Engine::open(doc.token_id, doc.starting_job);
     for (i, entry) in doc.entries.iter().enumerate() {
         let index = i as u64;
-        let computed = entry_hash(&engine.head(), index, &entry.input);
+        // A lone character engine has no ruleset. World replay checks the word stored on the entry.
+        let computed = entry_hash(&engine.head(), index, &entry.input, &[0u8; 32]);
         if computed != entry.hash {
             return Err(ReplayStop::BadHash {
                 index,
@@ -265,7 +271,12 @@ fn parse_entries(value: &serde_json::Value, require_seq: bool) -> Result<Vec<Log
         } else {
             i as u64
         };
-        entries.push(LoggedEntry { hash, input, seq });
+        let ruleset_hash = if ent.get("rulesetHash").is_none() {
+            [0u8; 32]
+        } else {
+            req_b256(ent, "rulesetHash").map_err(|e| format!("entry {i}: {e}"))?
+        };
+        entries.push(LoggedEntry { hash, input, seq, ruleset_hash });
     }
     Ok(entries)
 }

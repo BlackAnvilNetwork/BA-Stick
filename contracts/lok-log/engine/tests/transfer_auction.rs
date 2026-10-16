@@ -78,17 +78,19 @@ fn overspend_is_rejected_and_does_not_append() {
             character.entries[index as usize - 1].hash
         };
         // The chain head is the last entry hash, which matches character_head after a non-empty log.
-        let hash = entry_hash(&prev, index, &send);
+        let hash = entry_hash(&prev, index, &send, &[0u8; 32]);
         character.entries.push(lok_engine::LoggedEntry {
             hash,
             input: send.clone(),
             seq,
+            ruleset_hash: [0u8; 32],
         });
     }
     doc.characters[0].entries.push(lok_engine::LoggedEntry {
         hash: [0u8; 32],
         input: Input::SendItem { from: n(1), to: n(2), item_id: ore, amount: n(1) },
         seq: seq + 1,
+        ruleset_hash: [0u8; 32],
     });
     match replay_world(&doc).unwrap_err() {
         lok_engine::ReplayStop::Rejected { index, reason } => {
