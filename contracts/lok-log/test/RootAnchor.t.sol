@@ -86,6 +86,19 @@ contract RootAnchorTest is Test {
         anchor.postCheckpointBlob(commitment, keccak256("checkpoint-bytes"));
     }
 
+    function test_a_commitment_that_does_not_match_the_blob_is_not_stored() public {
+        bytes memory commitment = new bytes(48);
+        commitment[0] = 0xab;
+        bytes32 checkpointKeccak = keccak256("checkpoint-bytes");
+        bytes32[] memory hashes = new bytes32[](1);
+        hashes[0] = bytes32(uint256(2));
+        vm.blobhashes(hashes);
+        vm.expectRevert(RootAnchor.BlobNotPosted.selector);
+        anchor.postCheckpointBlob(commitment, checkpointKeccak);
+        vm.expectRevert(abi.encodeWithSelector(RootAnchor.CheckpointBlobMissing.selector, checkpointKeccak));
+        anchor.checkpointBlob(checkpointKeccak);
+    }
+
     function test_postCheckpointBlob_stores_commitment_and_keccak() public {
         bytes memory commitment = new bytes(48);
         commitment[0] = 0xab;

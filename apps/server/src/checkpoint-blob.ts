@@ -5,9 +5,11 @@
  * checkpoint bytes is posted as a blob transaction. A 20 Hz batch line is
  * not, and the tick does not call this module.
  *
- * `cast` builds the blob and its 48-byte KZG commitment. The transaction
- * calls `RootAnchor.postCheckpointBlob`. The anchor stores that commitment
- * and keccak256 of the checkpoint bytes. It does not store the bytes.
+ * `cast send --blob --path` publishes the checkpoint. Cast packs the file
+ * into one blob and puts the 48-byte KZG commitment in the sidecar. The
+ * transaction calls `RootAnchor.postCheckpointBlob`. The anchor stores that
+ * commitment and keccak256 of the checkpoint bytes. It does not store the
+ * bytes.
  * Gnosis mainnet (100) and Chiado (10200) are refused. Validators keep the
  * checkpoint bytes after the blob file is deleted.
  */
@@ -31,12 +33,12 @@ const ANVIL_CHAIN_ID = 31337;
 const FIELD_ELEMENTS = 4096;
 const FIELD_BYTES = 32;
 const PAYLOAD_PER_FIELD = 31;
-const HEADER_BYTES = 5;
 const BURN = "0x0000000000000000000000000000000000000001";
 
 export const BLOB_BYTES = FIELD_ELEMENTS * FIELD_BYTES;
 export const BLOB_COMMITMENT_BYTES = 48;
-export const MAX_CHECKPOINT_BYTES = FIELD_ELEMENTS * PAYLOAD_PER_FIELD - HEADER_BYTES;
+/** One length word, then 31 payload bytes in each of the other field elements. */
+export const MAX_CHECKPOINT_BYTES = (FIELD_ELEMENTS - 1) * PAYLOAD_PER_FIELD;
 
 const ANCHOR_ABI = parseAbi([
   "function postCheckpointBlob(bytes commitment, bytes32 checkpointKeccak)",
@@ -99,23 +101,42 @@ export function packageCertifiedCheckpoint(checkpoint: CertifiedCheckpoint): Pac
   };
 }
 
-/** Recover the checkpoint bytes from a blob this module packaged. */
+/**
+ * Recover checkpoint bytes from the blob `cast send --blob --path` submits.
+ * The first field element is a big-endian length. Each later element carries
+ * 31 payload bytes. The anchor does not store this blob.
+ */
 export function checkpointBytesFromBlob(blob: Uint8Array): Uint8Array | null {
   if (blob.length !== BLOB_BYTES) return null;
-  const payload = new Uint8Array(FIELD_ELEMENTS * PAYLOAD_PER_FIELD);
-  for (let i = 0; i < FIELD_ELEMENTS; i += 1) {
-    const field = i * FIELD_BYTES;
-    if (blob[field] !== 0) return null;
-    payload.set(blob.subarray(field + 1, field + FIELD_BYTES), i * PAYLOAD_PER_FIELD);
+  for (let field = 0; field < FIELD_ELEMENTS; field += 1) {
+    if (blob[field * FIELD_BYTES] !== 0) return null;
   }
-  if (payload[0] !== 0) return null;
-  const length = new DataView(payload.buffer, payload.byteOffset, payload.byteLength).getUint32(1, false);
-  if (length === 0 || length > MAX_CHECKPOINT_BYTES) return null;
-  const end = HEADER_BYTES + length;
-  for (let i = end; i < payload.length; i += 1) {
-    if (payload[i] !== 0) return null;
+  const view = new DataView(blob.buffer, blob.byteOffset, blob.byteLength);
+  const length = Number(view.getBigUint64(1, false));
+  if (!Number.isInteger(length) || length <= 0 || length > MAX_CHECKPOINT_BYTES) return null;
+  for (let i = 9; i < FIELD_BYTES; i += 1) {
+    if (blob[i] !== 0) return null;
   }
-  return payload.slice(HEADER_BYTES, end);
+  const out = new Uint8Array(length);
+  let pos = 0;
+  let field = 1;
+  while (pos < length) {
+    const take = Math.min(PAYLOAD_PER_FIELD, length - pos);
+    const start = field * FIELD_BYTES;
+    out.set(blob.subarray(start + 1, start + 1 + take), pos);
+    for (let i = 1 + take; i < FIELD_BYTES; i += 1) {
+      if (blob[start + i] !== 0) return null;
+    }
+    pos += take;
+    field += 1;
+  }
+  for (let rest = field; rest < FIELD_ELEMENTS; rest += 1) {
+    const start = rest * FIELD_BYTES;
+    for (let i = 1; i < FIELD_BYTES; i += 1) {
+      if (blob[start + i] !== 0) return null;
+    }
+  }
+  return out;
 }
 
 /**
@@ -223,19 +244,22 @@ async function postBlobToLocalAnvil(
   const file = join(dir, "checkpoint.bin");
   try {
     writeFileSync(file, bytes);
-    blobTxAttempts += 1;
     const probed = parseBlobTx(castHex(["mktx", ...castBlobArgs(key, rpc, file), BURN], rpc));
     if (!probed) return { ok: false };
     const commitment = probed.commitment;
     if (!bytesEqual(versionedBlobHash(commitment), probed.versionedHash)) return { ok: false };
+    if (!bytesEqual(blobFromCheckpoint(bytes), probed.blob)) return { ok: false };
+    const recovered = checkpointBytesFromBlob(probed.blob);
+    if (!recovered || !bytesEqual(recovered, bytes)) return { ok: false };
     const already = await readAnchor(pub, address as Hex, checkpointKeccakBytes);
     if (already && bytesEqual(already.commitment, commitment)) {
       return { ok: true, blob: probed.blob, checkpointKeccak: checkpointKeccakBytes };
     }
     if (already) return { ok: false };
-    const raw = castHex(
+    blobTxAttempts += 1;
+    const sent = castSendReceipt(
       [
-        "mktx",
+        "send",
         ...castBlobArgs(key, rpc, file),
         address,
         "postCheckpointBlob(bytes,bytes32)",
@@ -244,19 +268,16 @@ async function postBlobToLocalAnvil(
       ],
       rpc,
     );
-    const signed = parseBlobTx(raw);
-    if (!signed || !bytesEqual(signed.commitment, commitment)) return { ok: false };
-    const hash = await sendRawTransaction(rpc, raw);
-    const receipt = await pub.waitForTransactionReceipt({ hash });
+    const receipt = await pub.waitForTransactionReceipt({ hash: sent.hash });
     if (receipt.status !== "success") return { ok: false };
-    const tx = await pub.getTransaction({ hash });
+    const tx = await pub.getTransaction({ hash: sent.hash });
     if (tx.type !== "eip4844") return { ok: false };
     const blobHash = tx.blobVersionedHashes?.[0];
-    if (!blobHash || !bytesEqual(toBytes(blobHash), signed.versionedHash)) return { ok: false };
+    if (!blobHash || !bytesEqual(toBytes(blobHash), probed.versionedHash)) return { ok: false };
     const stored = await readAnchor(pub, address as Hex, checkpointKeccakBytes);
     if (!stored || !bytesEqual(stored.commitment, commitment)) return { ok: false };
     if (!bytesEqual(stored.checkpointKeccak, checkpointKeccakBytes)) return { ok: false };
-    return { ok: true, blob: signed.blob, checkpointKeccak: checkpointKeccakBytes };
+    return { ok: true, blob: probed.blob, checkpointKeccak: checkpointKeccakBytes };
   } catch (err) {
     console.error("[checkpoint-blob] local blob post failed", err instanceof Error ? err.message : err);
     return { ok: false };
@@ -265,27 +286,34 @@ async function postBlobToLocalAnvil(
   }
 }
 
-/** The signed blob transaction is larger than a Windows command line. Send it over RPC. */
-async function sendRawTransaction(rpc: string, raw: string): Promise<Hex> {
-  const res = await fetch(rpc, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      jsonrpc: "2.0",
-      id: 1,
-      method: "eth_sendRawTransaction",
-      params: [raw],
-    }),
-  });
-  const body = (await res.json()) as { result?: string; error?: { message?: string } };
-  if (!body.result || !body.result.startsWith("0x")) {
-    throw new Error(body.error?.message || "anvil rejected the blob transaction");
-  }
-  return body.result as Hex;
-}
-
 function castBlobArgs(key: string, rpc: string, file: string): string[] {
   return ["--private-key", key, "--rpc-url", rpc, "--gas-limit", "500000", "--blob", "--path", file];
+}
+
+function castSendReceipt(args: string[], rpc: string): { hash: Hex } {
+  const bin = resolveCastBin();
+  if (!bin) throw new Error("cast not found");
+  const out = execFileSync(bin, args, {
+    encoding: "utf8",
+    maxBuffer: 8 * 1024 * 1024,
+    windowsHide: true,
+    timeout: 60_000,
+    env: { ...process.env, ETH_RPC_URL: rpc },
+  });
+  const fields = new Map<string, string>();
+  for (const line of out.split(/\r?\n/)) {
+    const match = /^([A-Za-z][A-Za-z0-9]*)\s+(\S+)/.exec(line.trim());
+    if (match) fields.set(match[1].toLowerCase(), match[2]);
+  }
+  const hash = fields.get("transactionhash");
+  if (!hash?.startsWith("0x") || hash.length !== 66) {
+    throw new Error("cast send returned no transaction hash");
+  }
+  const status = fields.get("status") ?? "";
+  if (status !== "1" && status !== "0x1" && status.toLowerCase() !== "success") {
+    throw new Error("cast send blob transaction was not successful");
+  }
+  return { hash: hash as Hex };
 }
 
 function castHex(args: string[], rpc: string): string {
@@ -406,15 +434,17 @@ function validCheckpoint(checkpoint: CertifiedCheckpoint): boolean {
   );
 }
 
+/** Same 31-byte packing `cast send --blob --path` uses for one blob. */
 function blobFromCheckpoint(bytes: Uint8Array): Uint8Array {
-  const payload = new Uint8Array(FIELD_ELEMENTS * PAYLOAD_PER_FIELD);
-  payload[0] = 0;
-  new DataView(payload.buffer).setUint32(1, bytes.length, false);
-  payload.set(bytes, HEADER_BYTES);
   const blob = new Uint8Array(BLOB_BYTES);
-  for (let i = 0; i < FIELD_ELEMENTS; i += 1) {
-    const src = i * PAYLOAD_PER_FIELD;
-    blob.set(payload.subarray(src, src + PAYLOAD_PER_FIELD), i * FIELD_BYTES + 1);
+  new DataView(blob.buffer).setBigUint64(1, BigInt(bytes.length), false);
+  let pos = 0;
+  let field = 1;
+  while (pos < bytes.length) {
+    const take = Math.min(PAYLOAD_PER_FIELD, bytes.length - pos);
+    blob.set(bytes.subarray(pos, pos + take), field * FIELD_BYTES + 1);
+    pos += take;
+    field += 1;
   }
   return blob;
 }

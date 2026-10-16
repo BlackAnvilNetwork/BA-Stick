@@ -4,7 +4,8 @@
  * A 20 Hz batch is not a blob. The validator copy stays after the blob is gone.
  */
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test } from "node:test";
@@ -105,15 +106,39 @@ describe("checkpoint blobs", { concurrency: false }, () => {
       });
       assert.equal(ok, false);
     }
-    const remote = await publishCheckpointFromLine(checkpointLine(bytes), {
-      env: {
-        LOK_CHAIN_ID: "31337",
-        LOK_CHAIN_RPC: "https://rpc.gnosischain.com",
-        LOK_ROOT_ANCHOR: "0x" + "11".repeat(20),
-        LOK_ANCHOR_POSTER_KEY: ANCHOR_POSTER_KEY,
-      },
-    });
-    assert.equal(remote, false);
+    for (const rpc of ["https://rpc.gnosischain.com", "https://rpc.chiadochain.net"]) {
+      const remote = await publishCheckpointFromLine(checkpointLine(bytes), {
+        env: {
+          LOK_CHAIN_ID: "31337",
+          LOK_CHAIN_RPC: rpc,
+          LOK_ROOT_ANCHOR: "0x" + "11".repeat(20),
+          LOK_ANCHOR_POSTER_KEY: ANCHOR_POSTER_KEY,
+        },
+      });
+      assert.equal(remote, false);
+    }
+    assert.equal(blobTxAttemptCount(), 0);
+  });
+
+  test("owner, private, and listing keys do not publish a blob", async () => {
+    resetCheckpointBlobsForTests();
+    const shared = "0x" + "11".repeat(32);
+    const base = {
+      LOK_CHAIN_ID: "31337",
+      LOK_CHAIN_RPC: "http://127.0.0.1:9",
+      LOK_ROOT_ANCHOR: "0x" + "33".repeat(20),
+      LOK_ANCHOR_POSTER_KEY: shared,
+    };
+    for (const extra of [
+      { LOK_OWNER_KEY: shared },
+      { PRIVATE_KEY: shared },
+      { LOK_LISTING_KEY: shared },
+    ]) {
+      const ok = await publishCheckpointFromLine(checkpointLine(new Uint8Array([0x01])), {
+        env: { ...base, ...extra },
+      });
+      assert.equal(ok, false);
+    }
     assert.equal(blobTxAttemptCount(), 0);
   });
 
@@ -163,6 +188,7 @@ describe("checkpoint blobs", { concurrency: false }, () => {
     { skip: !supportAnvilAvailable || !resolveCastBin(), timeout: 180_000 },
     async () => {
       resetCheckpointBlobsForTests();
+      resetRootAnchorForTests();
       let anvil: ThrowawayAnvil | undefined;
       try {
         anvil = await startThrowawayAnvil();
@@ -202,24 +228,6 @@ describe("checkpoint blobs", { concurrency: false }, () => {
         };
         const pub = createPublicClient({ transport: http(anvil.rpc) });
         const nonceBefore = await pub.getTransactionCount({ address: poster.address });
-
-        const tickRoot = new Uint8Array(32);
-        tickRoot[0] = 0x44;
-        const tick = submitOnSimTick(null, { ok: true, height: 2, nextRoot: tickRoot });
-        assert.equal(tick.blob, null);
-        assert.equal(await pub.getTransactionCount({ address: poster.address }), nonceBefore);
-
-        const posted = await publishCheckpointFromLine(checkpointLine(bytes), { env, dataDir: dir });
-        assert.equal(posted, true);
-        assert.equal(blobTxAttemptCount(), 1);
-        assert.equal(await pub.getTransactionCount({ address: poster.address }), nonceBefore + 1);
-
-        const block = await pub.getBlock({ blockTag: "latest", includeTransactions: true });
-        const tx = block.transactions.find((item) => item.from.toLowerCase() === poster.address.toLowerCase());
-        assert.ok(tx);
-        assert.equal(tx.type, "eip4844");
-        assert.equal(tx.blobVersionedHashes?.length, 1);
-
         const abi = [
           {
             type: "function",
@@ -232,6 +240,46 @@ describe("checkpoint blobs", { concurrency: false }, () => {
             ],
           },
         ] as const;
+
+        const tickRoot = new Uint8Array(32);
+        tickRoot[0] = 0x44;
+        const tick = submitOnSimTick(null, { ok: true, height: 2, nextRoot: tickRoot });
+        assert.equal(tick.blob, null);
+        assert.equal(await pub.getTransactionCount({ address: poster.address }), nonceBefore);
+
+        const batchOk = await postCertifiedBatch(
+          { height: 7, nextRoot: tickRoot, certificate },
+          { env },
+        );
+        assert.equal(batchOk, true);
+        assert.equal(await pub.getTransactionCount({ address: poster.address }), nonceBefore + 1);
+        const batchBlock = await pub.getBlock({ blockTag: "latest", includeTransactions: true });
+        const batchTx = batchBlock.transactions.find(
+          (item) => item.from.toLowerCase() === poster.address.toLowerCase(),
+        );
+        assert.ok(batchTx);
+        assert.equal(batchTx.type, "eip1559");
+        assert.equal(batchTx.blobVersionedHashes, undefined);
+        await assert.rejects(
+          pub.readContract({
+            address,
+            abi,
+            functionName: "checkpointBlob",
+            args: [toHex(checkpointKeccak(tickRoot))],
+          }),
+        );
+
+        const posted = await publishCheckpointFromLine(checkpointLine(bytes), { env, dataDir: dir });
+        assert.equal(posted, true);
+        assert.equal(blobTxAttemptCount(), 1);
+        assert.equal(await pub.getTransactionCount({ address: poster.address }), nonceBefore + 2);
+
+        const block = await pub.getBlock({ blockTag: "latest", includeTransactions: true });
+        const tx = block.transactions.find((item) => item.from.toLowerCase() === poster.address.toLowerCase());
+        assert.ok(tx);
+        assert.equal(tx.type, "eip4844");
+        assert.equal(tx.blobVersionedHashes?.length, 1);
+
         const [commitment, storedKeccak] = await pub.readContract({
           address,
           abi,
@@ -249,6 +297,8 @@ describe("checkpoint blobs", { concurrency: false }, () => {
         for (let i = 1; i < 32; i += 1) assert.equal(versioned[i], digest[i]);
 
         assert.equal(publishedBlobExists(dir, keccak), true);
+        const publishedPath = join(dir, "blobs", Buffer.from(keccak).toString("hex"));
+        assert.deepEqual(checkpointBytesFromBlob(new Uint8Array(readFileSync(publishedPath))), bytes);
         assert.deepEqual(readKeptCheckpoint(dir, keccak), bytes);
         losePublishedBlob(dir, keccak);
         assert.equal(publishedBlobExists(dir, keccak), false);
@@ -265,15 +315,65 @@ describe("checkpoint blobs", { concurrency: false }, () => {
 
         const repeat = await publishCheckpointFromLine(checkpointLine(bytes), { env, dataDir: dir });
         assert.equal(repeat, true);
-        assert.equal(await pub.getTransactionCount({ address: poster.address }), nonceBefore + 1);
+        assert.equal(await pub.getTransactionCount({ address: poster.address }), nonceBefore + 2);
 
+        const mismatchFile = join(dir, "mismatch.bin");
+        writeFileSync(mismatchFile, new Uint8Array([0x05]));
+        const castBin = resolveCastBin();
+        assert.ok(castBin);
+        const badKeccak = checkpointKeccak(new Uint8Array([0x05]));
+        let rejected = false;
+        try {
+          const out = execFileSync(
+            castBin,
+            [
+              "send",
+              "--private-key",
+              ANCHOR_POSTER_KEY,
+              "--rpc-url",
+              anvil.rpc,
+              "--gas-limit",
+              "500000",
+              "--blob",
+              "--path",
+              mismatchFile,
+              address,
+              "postCheckpointBlob(bytes,bytes32)",
+              "0x" + "11".repeat(48),
+              toHex(badKeccak),
+            ],
+            { encoding: "utf8", windowsHide: true, timeout: 60_000 },
+          );
+          rejected = /status\s+(0x0|0)(\s|$)/.test(out);
+        } catch {
+          rejected = true;
+        }
+        assert.equal(rejected, true);
+        const [unchanged] = await pub.readContract({
+          address,
+          abi,
+          functionName: "checkpointBlob",
+          args: [toHex(keccak)],
+        });
+        assert.deepEqual(toBytes(unchanged), commitmentBytes);
+        await assert.rejects(
+          pub.readContract({
+            address,
+            abi,
+            functionName: "checkpointBlob",
+            args: [toHex(badKeccak)],
+          }),
+        );
+
+        const attempts = blobTxAttemptCount();
         const gnosis = await publishCheckpointFromLine(checkpointLine(new Uint8Array([0x05])), {
           env: { ...env, LOK_CHAIN_ID: "100" },
         });
         assert.equal(gnosis, false);
-        assert.equal(await pub.getTransactionCount({ address: poster.address }), nonceBefore + 1);
+        assert.equal(blobTxAttemptCount(), attempts);
       } finally {
         anvil?.stop();
+        resetRootAnchorForTests();
         resetCheckpointBlobsForTests();
       }
     },

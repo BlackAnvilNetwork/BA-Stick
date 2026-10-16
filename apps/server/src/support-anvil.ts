@@ -122,7 +122,22 @@ export async function startThrowawayAnvil(): Promise<ThrowawayAnvil> {
     rpc,
     proc,
     stop: () => {
-      proc.kill("SIGTERM");
+      const pid = proc.pid;
+      try {
+        proc.kill();
+      } catch {
+        /* already exited */
+      }
+      if (process.platform === "win32" && pid) {
+        try {
+          execFileSync("taskkill", ["/PID", String(pid), "/T", "/F"], {
+            stdio: "ignore",
+            windowsHide: true,
+          });
+        } catch {
+          /* already exited */
+        }
+      }
     },
   };
 }
