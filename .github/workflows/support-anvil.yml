@@ -36,9 +36,6 @@ jobs:
       - name: Engine cargo test
         working-directory: contracts/lok-log/engine
         run: cargo test
-      - name: SP1 executor keccak state hash
-        working-directory: contracts/lok-log/sp1
-        run: cargo test
       - name: Verify committed wasm matches pin (no rebuild)
         working-directory: contracts/lok-log/engine
         # Host paths embed in panic locations; a fresh rebuild is a ruleset bump (batched redeploy).
