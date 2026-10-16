@@ -28,7 +28,7 @@ import { timingSafeEqual } from "node:crypto";
 import { bls12_381 } from "@noble/curves/bls12-381.js";
 import { concatBytes, keccak256 } from "viem";
 import { fallbackEpochSeed } from "./fallback-epoch-seed";
-import { proofResultMatchesReplay, storeAcceptedProof } from "./proof-replay";
+import { judgeTickProof, storeAcceptedProof } from "./proof-replay";
 import { proofVerifyingKeyAccepted } from "./ruleset-record";
 
 /** Keccak digest length used for commitments, roots, and the ruleset hash. */
@@ -232,10 +232,14 @@ export function acceptBatch(
   if (!sameHash(envelope.rulesetHash, expectedRuleset)) {
     return { ok: false, error: "wrong_ruleset" };
   }
-  if (envelope.proofVerifyingKey !== undefined) {
-    if (!proofResultMatchesReplay(envelope.inputs, envelope.proofResult)) {
-      return { ok: false, error: "proof_disagrees" };
-    }
+  if (envelope.proofVerifyingKey !== undefined || envelope.proofResult !== undefined) {
+    const verdict = judgeTickProof({
+      prover: "sp1",
+      verifyingKey: envelope.proofVerifyingKey ?? "",
+      result: envelope.proofResult ?? new Uint8Array(),
+      log: envelope.inputs,
+    });
+    if (!verdict.ok) return { ok: false, error: verdict.error };
   }
   if (!proofVerifyingKeyAccepted(envelope.proofVerifyingKey)) {
     return { ok: false, error: "foreign_verifying_key" };

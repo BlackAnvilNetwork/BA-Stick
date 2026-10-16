@@ -317,7 +317,7 @@ import { flushGameRoll, loadGameRoll, rollIndex, rollUnit } from "./game-roll";
 import { observeSignedBatch } from "./equivocation-watch";
 import { sealParentRoot, sealTickBatch, sealView, takeSealedSignedBatch } from "./seal-tick-batch";
 import { emptyReplicaHealth, loadTickOrderer, submitOnSimTick } from "./order-submit";
-import { executeOnSimTick, loadSp1Executor } from "./sp1-execute";
+import { executeOnSimTick, loadSp1Executor, takeArrivedSp1Proof } from "./sp1-execute";
 import { snapshotFor as attachLightProof } from "./web-light-snapshot";
 import { installedGameMode, replicaMayTick, type InstalledGameMode } from "./installed-game-mode";
 import { rollPvpAutoAttack } from "./pvp-auto-rolls";
@@ -689,8 +689,8 @@ const SEAL_GNOSIS_UNFETCHED = new Uint8Array(32);
 /** Absent unless `LOK_ORDER_BIN` starts the three-replica Malachite process. */
 const tickOrderer = loadTickOrderer();
 /**
- * Absent unless `LOK_SP1_BIN` starts the executor. The tick does not wait for it,
- * and its result does not accept or reject a batch.
+ * Absent unless `LOK_SP1_BIN` starts the executor. The tick does not wait for it.
+ * A proof that has already arrived is compared with replay of the pinned wasm.
  */
 const tickSp1 = loadSp1Executor();
 /** Pale Hollow Segment A field mobs. */
@@ -5565,6 +5565,9 @@ function tickSim() {
         const inputs = tickIndexInputs(tick);
         const parentRoot = sealParentRoot();
         const chainLink = lok.characterRootTreeRoot();
+        // An arrived SP1 proof is compared with replay of the pinned wasm.
+        // No proof: do not wait, and do not reject the batch for that.
+        const arrivedProof = takeArrivedSp1Proof(tickSp1);
         const sealed = sealTickBatch({
           inputs,
           rollBytes: new Uint8Array(0),
@@ -5572,6 +5575,7 @@ function tickSim() {
           gnosisRandomness: SEAL_GNOSIS_UNFETCHED,
           parentRoot,
           chainLink,
+          arrivedProof,
         });
         const signedBatch = takeSealedSignedBatch();
         if (!sealed.ok) {
@@ -5599,10 +5603,9 @@ function tickSim() {
     }
     // Score and the payout gate. Provisional batches stay unpaid. This does not wait.
     settleGuildPayouts(Date.now());
-    // SP1 replays this process's engine log. The state hash stays keccak.
-    // A missing executor, or an execution still running, returns immediately.
-    // The tick does not wait for a proof and does not read this result.
-    // A proof on a batch is checked in acceptBatch, not here.
+    // Queue the next SP1 execution after the seal. This does not wait.
+    // Keccak stays the state hash. A proof that has not arrived was already
+    // absent above, and that absence did not reject the batch.
     executeOnSimTick(tickSp1, () => lok.logDocument());
   }
 }

@@ -17,7 +17,15 @@ import { fallbackEpochSeed } from "./fallback-epoch-seed";
 import { defaultWasmPath, loadLokExports, lokCall, lokOut } from "./lok-engine";
 import { LOCAL_RULESET_WASM_SHA256, LOCAL_SP1_VERIFYING_KEY } from "./lok-vault";
 import { acceptedProof, resetAcceptedProofsForTests, storeAcceptedProof } from "./proof-replay";
-import { resetRulesetPinForTests } from "./ruleset-record";
+import { RULESET_MIN_DELAY_MS, resetRulesetPinForTests } from "./ruleset-record";
+import {
+  provisionalChainLink,
+  sealParentRoot,
+  sealTickBatch,
+  sealView,
+  takeSealedSignedBatch,
+} from "./seal-tick-batch";
+import { executeOnSimTick, startSp1Process, takeArrivedSp1Proof, type Sp1Executor } from "./sp1-execute";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const INDEX = path.join(HERE, "index.ts");
@@ -126,6 +134,7 @@ function decide(batch: BatchEnvelope) {
 test("the pinned wasm digest and verifying key are unchanged", () => {
   assert.equal(LOCAL_RULESET_WASM_SHA256, PINNED_WASM);
   assert.equal(LOCAL_SP1_VERIFYING_KEY, "0x00be4fce8613fcbf00a32a17381c8f54b6632eaf74d9a35192986ce93160cf93");
+  assert.equal(RULESET_MIN_DELAY_MS, 86_400_000);
   const actual = createHash("sha256").update(readFileSync(defaultWasmPath())).digest("hex");
   assert.equal(actual, PINNED_WASM);
 });
@@ -186,9 +195,111 @@ test("the tick does not wait on wasm replay or proving", () => {
   const indexSrc = readFileSync(INDEX, "utf8");
   const sealSrc = readFileSync(SEAL, "utf8");
   assert.match(indexSrc, /executeOnSimTick\(\s*tickSp1,\s*\(\)\s*=>\s*lok\.logDocument\(\)\s*\)/);
+  assert.match(indexSrc, /takeArrivedSp1Proof\(\s*tickSp1\s*\)/);
+  assert.match(indexSrc, /arrivedProof/);
+  assert.match(sealSrc, /judgeTickProof\(args\.arrivedProof\)/);
   assert.equal(indexSrc.includes("replayPinnedWasm"), false);
   assert.equal(indexSrc.includes("proofResult"), false);
   assert.equal(sealSrc.includes("proofVerifyingKey"), false);
   assert.equal(sealSrc.includes("proofResult"), false);
   assert.equal(sealSrc.includes("await "), false);
+});
+
+function sealArrived(
+  arrivedProof: {
+    prover: string;
+    verifyingKey: string;
+    result: Uint8Array;
+    log: Uint8Array;
+  } | null,
+) {
+  const inputs = Uint8Array.from([7, arrivedProof?.result[0] ?? 0, arrivedProof?.verifyingKey.length ?? 0]);
+  const parent = sealParentRoot();
+  return sealTickBatch({
+    inputs,
+    rollBytes: new Uint8Array(0),
+    rulesetHash: hash(0x33),
+    gnosisRandomness: new Uint8Array(32),
+    parentRoot: parent,
+    chainLink: provisionalChainLink(parent, inputs),
+    arrivedProof,
+  });
+}
+
+async function waitForArrivedProof(executor: Sp1Executor, timeoutMs: number) {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    if (executor.lastResult() && !executor.busy()) {
+      const proof = takeArrivedSp1Proof(executor);
+      if (proof) return proof;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 15));
+  }
+  throw new Error(`no SP1 proof\n${executor.stderr()}`);
+}
+
+test("the server seal compares an arrived SP1 proof", async (t) => {
+  await t.test("a disagreeing proof is ignored and the batch is invalid", async () => {
+    const replay = spawnedReplay();
+    const wrong = flipLast(replay.root);
+    const line = JSON.stringify({
+      ok: true,
+      prover: "sp1",
+      verifyingKey: LOCAL_SP1_VERIFYING_KEY,
+      result: `0x${Buffer.from(wrong).toString("hex")}`,
+    });
+    const executor = startSp1Process(process.execPath, [
+      "-e",
+      `process.stdin.on("data",()=>{process.stdout.write(${JSON.stringify(line + "\n")});process.exit(0)})`,
+    ]);
+    assert.ok(executor);
+    executeOnSimTick(executor, () => new TextDecoder().decode(replay.inputs));
+    const arrived = await waitForArrivedProof(executor, 2_000);
+    const before = sealView();
+    const sealed = sealArrived(arrived);
+    assert.equal(arrived.prover, "sp1");
+    assert.equal(arrived.verifyingKey, LOCAL_SP1_VERIFYING_KEY);
+    assert.deepEqual(sealed, { ok: false, error: "proof_disagrees" });
+    assert.equal(sealView().height, before.height);
+    assert.equal(takeSealedSignedBatch(), null);
+    assert.equal(acceptedProof(replay.inputs, wrong), null);
+    await executor.stop();
+  });
+
+  await t.test("a missing proof does not stall the tick", async () => {
+    const executor = startSp1Process(process.execPath, ["-e", "setInterval(() => {}, 1000)"]);
+    assert.ok(executor);
+    const started = Date.now();
+    executeOnSimTick(executor, () => '{"type":"characters","characters":[]}');
+    const arrived = takeArrivedSp1Proof(executor);
+    const waited = Date.now() - started;
+    assert.equal(arrived, null);
+    assert.ok(waited < 50, `tick waited ${waited}ms`);
+    const before = sealView();
+    const sealed = sealArrived(null);
+    assert.equal(sealed.ok, true);
+    assert.equal(sealView().height, before.height + 1);
+    await executor.stop();
+  });
+
+  await t.test("a proof under another key is not accepted", () => {
+    const before = sealView();
+    const sealed = sealArrived({
+      prover: "sp1",
+      verifyingKey: OTHER_KEY,
+      result: new Uint8Array(32),
+      log: new TextEncoder().encode('{"type":"characters","characters":[]}'),
+    });
+    assert.deepEqual(sealed, { ok: false, error: "foreign_verifying_key" });
+    assert.equal(sealView().height, before.height);
+    assert.equal(takeSealedSignedBatch(), null);
+    const risc = sealArrived({
+      prover: "risc0",
+      verifyingKey: LOCAL_SP1_VERIFYING_KEY,
+      result: new Uint8Array(32),
+      log: new TextEncoder().encode('{"type":"characters","characters":[]}'),
+    });
+    assert.deepEqual(risc, { ok: false, error: "foreign_verifying_key" });
+    assert.equal(sealView().height, before.height);
+  });
 });

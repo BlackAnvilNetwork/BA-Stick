@@ -13,6 +13,12 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { defaultWasmPath, lokCall, lokOut, type LokExports } from "./lok-engine";
 import { LOCAL_RULESET_WASM_SHA256 } from "./lok-vault";
+import { proofVerifyingKeyAccepted } from "./ruleset-record";
+import type { ArrivedSp1Proof } from "./sp1-execute";
+
+export type TickProofVerdict =
+  | { ok: true; waited: false }
+  | { ok: false; error: "proof_disagrees" | "foreign_verifying_key"; ignored: true; waited: false };
 
 const accepted = new Map<string, Uint8Array>();
 
@@ -67,6 +73,22 @@ export function acceptedProof(inputs: Uint8Array, proofResult: Uint8Array): Uint
 
 function proofKey(inputs: Uint8Array, proofResult: Uint8Array): string {
   return createHash("sha256").update(LOCAL_RULESET_WASM_SHA256).update(inputs).update(proofResult).digest("hex");
+}
+
+/**
+ * Compare one arrived SP1 proof with replay of the pinned wasm.
+ * `null` means no proof has arrived: this returns without reading the wasm.
+ */
+export function judgeTickProof(proof: ArrivedSp1Proof | null | undefined): TickProofVerdict {
+  if (proof == null) return { ok: true, waited: false };
+  const prover = proof.prover.trim().toLowerCase().replace(/[_-]/g, "");
+  if (prover !== "sp1" || !proofVerifyingKeyAccepted(proof.verifyingKey)) {
+    return { ok: false, error: "foreign_verifying_key", ignored: true, waited: false };
+  }
+  if (!proofResultMatchesReplay(proof.log, proof.result)) {
+    return { ok: false, error: "proof_disagrees", ignored: true, waited: false };
+  }
+  return { ok: true, waited: false };
 }
 
 function openPinnedWasm(): LokExports | null {
