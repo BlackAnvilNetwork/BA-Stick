@@ -62,4 +62,60 @@ contract RootAnchorTest is Test {
         (bytes32 stored,) = anchor.anchoredRoot(1);
         assertEq(stored, bytes32(0));
     }
+
+    function test_a_batch_post_does_not_record_a_blob() public {
+        anchor.post(4, root, certificate);
+        assertTrue(anchor.isAnchored(4, root));
+        vm.expectRevert(abi.encodeWithSelector(RootAnchor.CheckpointBlobMissing.selector, bytes32(uint256(1))));
+        anchor.checkpointBlob(bytes32(uint256(1)));
+    }
+
+    function test_postCheckpointBlob_stores_commitment_and_keccak() public {
+        bytes memory commitment = new bytes(48);
+        commitment[0] = 0xab;
+        commitment[47] = 0xcd;
+        bytes32 checkpointKeccak = keccak256("checkpoint-bytes");
+
+        vm.expectEmit(true, false, false, true);
+        emit RootAnchor.CheckpointBlobPosted(checkpointKeccak, commitment);
+        anchor.postCheckpointBlob(commitment, checkpointKeccak);
+
+        (bytes memory storedCommitment, bytes32 storedKeccak) = anchor.checkpointBlob(checkpointKeccak);
+        assertEq(storedCommitment, commitment);
+        assertEq(storedKeccak, checkpointKeccak);
+        assertEq(anchor.lastAnchoredHeight(), 0);
+        assertFalse(anchor.hasAnchor());
+
+        anchor.postCheckpointBlob(commitment, checkpointKeccak);
+        (storedCommitment, storedKeccak) = anchor.checkpointBlob(checkpointKeccak);
+        assertEq(storedCommitment, commitment);
+        assertEq(storedKeccak, checkpointKeccak);
+    }
+
+    function test_a_different_commitment_for_the_same_keccak_is_refused() public {
+        bytes memory commitment = new bytes(48);
+        commitment[0] = 0x11;
+        bytes32 checkpointKeccak = keccak256("checkpoint-bytes");
+        anchor.postCheckpointBlob(commitment, checkpointKeccak);
+
+        bytes memory other = new bytes(48);
+        other[0] = 0x22;
+        vm.expectRevert(abi.encodeWithSelector(RootAnchor.CheckpointBlobConflict.selector, checkpointKeccak));
+        anchor.postCheckpointBlob(other, checkpointKeccak);
+
+        (bytes memory storedCommitment,) = anchor.checkpointBlob(checkpointKeccak);
+        assertEq(storedCommitment, commitment);
+    }
+
+    function test_a_commitment_must_be_48_bytes() public {
+        bytes32 checkpointKeccak = keccak256("checkpoint-bytes");
+        vm.expectRevert(RootAnchor.EmptyCommitment.selector);
+        anchor.postCheckpointBlob("", checkpointKeccak);
+        vm.expectRevert(abi.encodeWithSelector(RootAnchor.BadCommitmentLength.selector, uint256(32)));
+        anchor.postCheckpointBlob(new bytes(32), checkpointKeccak);
+        vm.expectRevert(abi.encodeWithSelector(RootAnchor.BadCommitmentLength.selector, uint256(49)));
+        anchor.postCheckpointBlob(new bytes(49), checkpointKeccak);
+        vm.expectRevert(abi.encodeWithSelector(RootAnchor.CheckpointBlobMissing.selector, checkpointKeccak));
+        anchor.checkpointBlob(checkpointKeccak);
+    }
 }
