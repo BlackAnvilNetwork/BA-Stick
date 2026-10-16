@@ -69,6 +69,7 @@ import {
   walletConnectLoginAvailable,
 } from "./net";
 import { stopZoneMusic } from "./zoneMusic";
+import { checkWebLightClient, lightClientFromSnapshot } from "./light-client";
 import { useGame } from "./state";
 // NpcInteractMenu mounts world-anchored under the NPC in WorldScene.
 
@@ -565,6 +566,7 @@ export function Hud() {
   const logs = useGame((s) => s.logs);
   const connected = useGame((s) => s.connected);
   const phase = useGame((s) => s.phase);
+  const storedLight = useGame((s) => s.light);
   const wallet = useGame((s) => s.wallet);
   const selectedTarget = useGame((s) => s.selectedTarget);
   const npcDialog = useGame((s) => s.npcDialog);
@@ -735,6 +737,8 @@ export function Hud() {
   const tabIds = bookByCategory.get(activeBookTab) ?? [];
 
   if (phase !== "play" || !snapshot || !me) return null;
+  const lightPayload = lightClientFromSnapshot(snapshot);
+  const lightVerdict = lightPayload ? checkWebLightClient(lightPayload) : null;
   const you = snapshot.you;
   const potions = you.inventory.reduce((n, i) => n + (i.tokenId === ITEM.POTION ? i.amount : 0), 0);
   const shortWallet = wallet ? `${wallet.slice(0, 6)}…${wallet.slice(-4)}` : "";
@@ -764,6 +768,16 @@ export function Hud() {
           <div className="hud-vitals-dock">
           <div className="hud-identity">
             {you.name} · Lv.{you.level} · <span className="job">{jobName}{subName}</span>
+            <span className="provisional" data-leader-view={storedLight.leaderView}>
+              {" "}
+              · provisional
+            </span>
+            {lightVerdict?.ok ? (
+              <span className="committed" data-committed-view="committed">
+                {" "}
+                · committed
+              </span>
+            ) : null}
             {!connected && <span className="offline"> · OFFLINE</span>}
             <span className="wallet">{shortWallet}</span>
           </div>
