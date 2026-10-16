@@ -1,7 +1,8 @@
 /**
  * A replica joins the local voting set by posting a bond.
  * The posted amount is the bond. Validators, light clients, and the listing
- * key stay out. The Gnosis Safe stays admin. The threshold stays a majority.
+ * key stay out. The Gnosis Safe stays admin. Fewer than four bonded replicas
+ * commit at a majority. Four or more commit at more than two thirds.
  * Joining does not stop the tick and does not broadcast.
  */
 import assert from "node:assert/strict";
@@ -186,14 +187,81 @@ describe("bonded admission", { concurrency: false }, () => {
     }
   });
 
-  test("the commit threshold stays the current majority after replicas bond", () => {
+  test("three bonded replicas still commit at a majority", () => {
+    reset();
+    try {
+      postReplicaBond("replica-a", "replica", 1n);
+      postReplicaBond("replica-b", "replica", 2n);
+      postReplicaBond("replica-c", "replica", 3n);
+      postReplicaBond("validator-1", "validator", 9n);
+      postReplicaBond("phone", "light", 9n);
+      postReplicaBond(PINNED_GNOSIS_LISTING_ADDRESS, "replica", 9n);
+      assert.equal(votingSet().length, 3);
+      assert.equal(votingReplica("validator-1"), null);
+      assert.equal(votingReplica("phone"), null);
+      assert.equal(votingReplica(PINNED_GNOSIS_LISTING_ADDRESS), null);
+      const threshold = votingSetCommitThreshold();
+      assert.equal(threshold, 2);
+      assert.equal(threshold, 1 + Math.floor(3 / 2));
+      assert.equal(bondedCommitThreshold(3), threshold);
+      assert.equal(2 >= threshold!, true);
+      assert.equal(1 >= threshold!, false);
+      assert.deepEqual(registryAdmin(), {
+        registryOwner: "gnosis-safe",
+        slashingAdmin: "gnosis-safe",
+        rulesetProposer: "gnosis-safe",
+      });
+    } finally {
+      reset();
+    }
+  });
+
+  test("four bonded replicas commit at more than two thirds", () => {
+    reset();
+    try {
+      for (let i = 1; i <= 4; i += 1) {
+        const amount = BigInt(i);
+        const joined = postReplicaBond("replica-" + i, "replica", amount, REPLACE_SAFE);
+        assert.deepEqual(joined, { joined: true, amountWei: amount });
+      }
+      postReplicaBond("validator-1", "validator", 9n);
+      postReplicaBond("phone", "light", 9n);
+      postReplicaBond(PINNED_GNOSIS_LISTING_ADDRESS, "replica", 9n);
+      assert.equal(votingSet().length, 4);
+      const threshold = votingSetCommitThreshold();
+      assert.equal(threshold, 3);
+      assert.equal(threshold, Math.floor((2 * 4) / 3) + 1);
+      assert.equal(bondedCommitThreshold(4), threshold);
+      assert.equal(threshold! * 3 > 2 * 4, true);
+      assert.equal((threshold! - 1) * 3 > 2 * 4, false);
+      assert.equal(3 >= threshold!, true);
+      assert.equal(2 >= threshold!, false);
+      postReplicaBond("replica-5", "replica", 5n);
+      assert.equal(votingSet().length, 5);
+      assert.equal(votingSetCommitThreshold(), 4);
+      assert.equal(votingSetCommitThreshold(), Math.floor((2 * 5) / 3) + 1);
+      assert.equal(4 >= votingSetCommitThreshold()!, true);
+      assert.equal(3 >= votingSetCommitThreshold()!, false);
+      assert.deepEqual(registryAdmin(), {
+        registryOwner: "gnosis-safe",
+        slashingAdmin: "gnosis-safe",
+        rulesetProposer: "gnosis-safe",
+      });
+    } finally {
+      reset();
+    }
+  });
+
+  test("the commit threshold is a majority below four and more than two thirds from four", () => {
     reset();
     try {
       assert.equal(bondedCommitThreshold(0), null);
       assert.equal(bondedCommitThreshold(1), 1);
+      assert.equal(bondedCommitThreshold(2), 2);
       assert.equal(bondedCommitThreshold(3), 2);
       assert.equal(bondedCommitThreshold(4), 3);
-      assert.equal(bondedCommitThreshold(7), 4);
+      assert.equal(bondedCommitThreshold(5), 4);
+      assert.equal(bondedCommitThreshold(7), 5);
       postReplicaBond("replica-a", "replica", 1n);
       assert.equal(votingSetCommitThreshold(), 1);
       postReplicaBond("replica-b", "replica", 2n);
@@ -202,7 +270,7 @@ describe("bonded admission", { concurrency: false }, () => {
       assert.equal(votingSetCommitThreshold(), 2);
       for (let i = 0; i < 4; i += 1) postReplicaBond("more-" + i, "replica", 1n);
       assert.equal(votingSet().length, 7);
-      assert.equal(votingSetCommitThreshold(), 4);
+      assert.equal(votingSetCommitThreshold(), 5);
       assert.equal(postedSlashableBonds(), 1n + 2n + 3n + 4n);
     } finally {
       reset();

@@ -146,7 +146,7 @@ A batch is committed when it carries a valid certificate. Only committed batches
 
 ### Commit threshold
 
-The threshold is a parameter pinned in the genesis batch. While the replica set is a small allowlist of known hosts, it is a simple majority, which tolerates crashed replicas. Open bonded admission keeps that majority. The threshold becomes more than two thirds of the set once four replicas are bonded, which tolerates a minority of dishonest replicas. A one-replica genesis uses a threshold of one, so a single server commits its own batches and the "no notaries" case needs no special code.
+The threshold is a parameter pinned in the genesis batch. While the replica set is a small allowlist of known hosts, it is a simple majority, which tolerates crashed replicas. While fewer than four replicas have posted a bond and joined the voting set, open bonded admission keeps that majority: `1 + floor(n / 2)`. Once four or more replicas are bonded, the threshold is more than two thirds of that bonded set: `floor(2n / 3) + 1`, which tolerates a minority of dishonest replicas. Three bonded replicas commit at 2 of 3. Four commit at 3 of 4. Five commit at 4 of 5. Validators, light clients, phones, and the listing key are not in `n`. A one-replica genesis uses a threshold of one, so a single server commits its own batches and the "no notaries" case needs no special code.
 
 ### Equivocation
 
@@ -233,7 +233,7 @@ Gnosis is not on the failover path; it holds who may vote, what was committed, a
 
 | Contract | Holds | Used for |
 | --- | --- | --- |
-| Replica registry | The replica set, each replica's bond, entry and exit with an unbonding delay, and the seed-roller rotation | A local registry admits a replica by the bond it posts. The Gnosis Safe stays registry owner, slashing admin, and ruleset proposer. The commit threshold stays a majority until four replicas are bonded |
+| Replica registry | The replica set, each replica's bond, entry and exit with an unbonding delay, and the seed-roller rotation | A local registry admits a replica by the bond it posts. The Gnosis Safe stays registry owner, slashing admin, and ruleset proposer. Fewer than four bonded replicas commit at a majority. Four or more commit at more than two thirds of the bonded set |
 | Root anchor | Periodic committed roots with their commit certificates | Cold-start recovery, a public record, and the reference for chain-bound actions |
 | Equivocation court | Pairs of conflicting signed envelopes | Slashes the signer's bond when two batches share an epoch and height but differ in next root |
 | Existing game contracts | `CharacterCheckpoint` roots, `AhEscrow`, `PvpBounty` | Chain-bound state; escrow and bounty transactions still go through the listing key |
@@ -243,8 +243,8 @@ The bond is denominated in xDAI, so no new token is introduced.
 ### Admission
 
 1. Phase one: the replica set is an allowlist of hosted nodes that you operate, and the threshold is a majority.
-2. Open bonded admission. A replica joins the voting set by posting a bond. The posted amount is the bond. There is no minimum, default, or ceiling. The registry is local and does not broadcast to Gnosis mainnet or Chiado. Joining does not stop the 20 Hz tick. Registry owner, slashing admin, and ruleset proposer stay the Gnosis Safe until a vote of bonded replicas exists. This step does not create that vote and does not transfer admin. The commit threshold stays a majority.
-3. Once four replicas are bonded, the threshold moves to more than two thirds. Opening admission does not take that step.
+2. Open bonded admission. A replica joins the voting set by posting a bond. The posted amount is the bond. There is no minimum, default, or ceiling. The registry is local and does not broadcast to Gnosis mainnet or Chiado. Joining does not stop the 20 Hz tick. Registry owner, slashing admin, and ruleset proposer stay the Gnosis Safe until a vote of bonded replicas exists. This step does not create that vote and does not transfer admin. The commit threshold stays a majority while fewer than four replicas are bonded.
+3. Once four replicas are bonded, the threshold is more than two thirds of the bonded voting set, `floor(2n / 3) + 1`. The count is replicas that posted a bond and joined. Validators, light clients, phones, and the listing key are not counted. This step does not create a vote that replaces the Safe, does not transfer admin, and does not broadcast to Gnosis mainnet or Chiado. The 20 Hz tick does not wait.
 4. Validators and light clients do not post a bond and do not join the replica set. The listing key stays outside the set. A phone stays a light client.
 
 ### Fraud evidence
@@ -416,7 +416,7 @@ The order puts a correct, fast engine first, then fault tolerance with three hos
 5. Root anchor on Gnosis and gating of chain-bound actions on anchored roots. Roll proofs for light clients and contracts follow once the roll circuit exists.
 6. Installed game with a bundled node in validator mode, and a web client with light verification. Gate: the per-character proof API and the commitment over character roots are in place.
 7. Mobile light client.
-8. Equivocation court, then open bonded admission. The Gnosis Safe stays admin until a vote of bonded replicas exists, and the commit threshold stays a majority. The threshold moves above two thirds once four replicas are bonded. Commit certificates are BLS12-381 from the first replica. Gnosis verifies them with the EIP-2537 precompiles (Pectra, 30 Apr 2025). Player session keys stay ECDSA.
+8. Equivocation court, then open bonded admission. The Gnosis Safe stays admin until a vote of bonded replicas exists. While fewer than four replicas are bonded the commit threshold stays a majority (`1 + floor(n / 2)`). Once four or more are bonded it is more than two thirds of that set (`floor(2n / 3) + 1`). Commit certificates are BLS12-381 from the first replica. Gnosis verifies them with the EIP-2537 precompiles (Pectra, 30 Apr 2025). Player session keys stay ECDSA.
 9. Guild registry. One guild per bonded operator. Joining stays free. No payouts yet.
 10. Guild vault. The 1% auction fee splits 50/50 between the vault and the treasury. Scores are a pure function of certified events. Payouts wait for an anchored root and the challenge delay, which starts at one day.
 11. Per-encounter leases, only if the load test shows the single-leader ceiling is reached. Gate: hand-off specification and two-process harness.
@@ -488,7 +488,7 @@ Without these it is a game with a good audit log. With them it is a world that c
 | Certificate signature scheme | Individual signatures grow with the replica set, and phones and Gnosis pay for each | BLS12-381 aggregate signatures from the first commit certificate. Gnosis EIP-2537 checks them. Player session keys stay ECDSA. There is no later curve migration |
 | World id and protocol version | Without them, clients and replicas on different versions can split silently | Both sit in the genesis batch and in every envelope. An unknown `worldId` or `protocolVersion` is rejected |
 | Anchor and registry interfaces | Hard-wiring Gnosis couples the world to one chain | The anchor, registry, court, and guild vault are small interfaces. Gnosis (chain id 100) is the first deployment. Calls take chain id, contract, and the payload. They do not assume a second chain exists |
-| Epoch and threshold parameters | They are pinned in genesis, so a wrong guess needs a fork | Seed epoch starts at 10 seconds. Commit threshold starts at 1 (one replica), then a majority, then more than two thirds once four replicas are bonded. Changes go out as a certified batch and wait out the ruleset timelock of at least one day |
+| Epoch and threshold parameters | They are pinned in genesis, so a wrong guess needs a fork | Seed epoch starts at 10 seconds. Commit threshold starts at 1 (one replica), stays a majority (`1 + floor(n / 2)`) while fewer than four replicas are bonded, then more than two thirds (`floor(2n / 3) + 1`) once four are bonded. Changes go out as a certified batch and wait out the ruleset timelock of at least one day |
 
 ## 17. What makes it valuable
 

@@ -383,7 +383,7 @@ describe("equivocation court", { concurrency: false }, () => {
       assert.equal(votingSetCommitThreshold(), 3);
       assert.equal(bondedCommitThreshold(4), 3);
       assert.equal(bondedCommitThreshold(3), 2);
-      assert.equal(bondedCommitThreshold(7), 4);
+      assert.equal(bondedCommitThreshold(7), 5);
 
       const calls: string[] = [];
       const prev = globalThis.fetch;

@@ -903,7 +903,7 @@ test("server boot admits LOK_POSTED_SLASHABLE_BONDS into the voting set", () => 
     assert.equal(postedSlashableBond("replica-a"), amount);
     assert.equal(postedSlashableBonds(), amount + 21n);
     assert.equal(votingReplica(listing), null);
-    assert.equal(votingSetCommitThreshold(), 4);
+    assert.equal(votingSetCommitThreshold(), 5);
     assert.deepEqual(registryAdmin(), {
       registryOwner: "gnosis-safe",
       slashingAdmin: "gnosis-safe",
