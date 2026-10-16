@@ -12,6 +12,7 @@
  */
 import { spawn, type ChildProcess } from "node:child_process";
 import { noteCheckpointLine } from "./checkpoint-blob";
+import { certifyGuildBatch, settleGuildPayouts } from "./guild-score";
 import { scheduleAnchorPost, type CertifiedBatch } from "./root-anchor";
 
 export type ReplicaPeer = {
@@ -115,7 +116,11 @@ export function observeOrdererLine(
 ): ReplicaHealth {
   const health = replicaHealthFromLine(line, prev);
   const batch = certifiedBatchFromHealth(health);
-  if (batch) scheduleAnchorPost(batch, env);
+  if (batch) {
+    scheduleAnchorPost(batch, env);
+    certifyGuildBatch(batch.height, batch.certificate);
+    settleGuildPayouts(Date.now());
+  }
   return health;
 }
 

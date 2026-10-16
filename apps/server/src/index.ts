@@ -114,6 +114,7 @@ import {
   startPvpBountyWatcher,
 } from "./pvp-bounty-tx";
 import { guilds, joinGuild } from "./guild-registry";
+import { noteGuildBatch, qualifyingEventsFromJournalCmds, settleGuildPayouts } from "./guild-score";
 import {
   admitEscrowFill,
   configureEpochLedger,
@@ -314,7 +315,7 @@ import { authAllowlist, authVerifyClient, clientAddress, dropAuthConnection, iss
 import { defaultLokDir, LokWorld } from "./lok-world";
 import { flushGameRoll, loadGameRoll, rollIndex, rollUnit } from "./game-roll";
 import { observeSignedBatch } from "./equivocation-watch";
-import { sealParentRoot, sealTickBatch, takeSealedSignedBatch } from "./seal-tick-batch";
+import { sealParentRoot, sealTickBatch, sealView, takeSealedSignedBatch } from "./seal-tick-batch";
 import { emptyReplicaHealth, loadTickOrderer, submitOnSimTick } from "./order-submit";
 import { snapshotFor as attachLightProof } from "./web-light-snapshot";
 import { installedGameMode, replicaMayTick, type InstalledGameMode } from "./installed-game-mode";
@@ -5542,8 +5543,14 @@ function tickSim() {
       console.error("[game-roll] flush failed", err);
     }
     const flushed = lok.endTick();
+    const guildEvents = qualifyingEventsFromJournalCmds(lok.takeCommittedCmds(), (tokenId) => {
+      return lok.charByTokenId(tokenId)?.charId ?? tokenId;
+    });
     if (!flushed.ok) {
       for (const err of flushed.errors) console.error("[lok] tick ledger: " + err);
+      if (guildEvents.length > 0) {
+        noteGuildBatch({ epoch: sealView().epoch, height: -1, events: guildEvents });
+      }
     } else {
       // endTick and flushGameRoll write their bytes and do not return them.
       // Seal a big-endian encoding of this tick index only. The roll tape is unchanged.
@@ -5561,8 +5568,13 @@ function tickSim() {
           chainLink,
         });
         const signedBatch = takeSealedSignedBatch();
-        if (!sealed.ok) console.error("[seal] tick batch rejected: " + sealed.error);
-        else {
+        if (!sealed.ok) {
+          console.error("[seal] tick batch rejected: " + sealed.error);
+          if (guildEvents.length > 0) {
+            noteGuildBatch({ epoch: sealView().epoch, height: -1, events: guildEvents });
+          }
+        } else {
+          noteGuildBatch({ epoch: sealed.epoch, height: sealed.height, events: guildEvents });
           if (signedBatch) observeSignedBatch(signedBatch.batch, signedBatch.signer);
           // Do not wait for a round. A missing orderer, or fewer heard peers than
           // the majority, leaves the batch provisional and the tick returns.
@@ -5574,8 +5586,13 @@ function tickSim() {
         }
       } catch (err) {
         console.error("[seal] tick batch failed", err);
+        if (guildEvents.length > 0) {
+          noteGuildBatch({ epoch: sealView().epoch, height: -1, events: guildEvents });
+        }
       }
     }
+    // Score and the payout gate. Provisional batches stay unpaid. This does not wait.
+    settleGuildPayouts(Date.now());
   }
 }
 
