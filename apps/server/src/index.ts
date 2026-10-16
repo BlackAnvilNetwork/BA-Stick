@@ -257,6 +257,7 @@ import {
   readCharacterGenesisJob,
   readCharacterNftOwner,
   resolveListSellerPayout,
+  LOCAL_RULESET_HASH,
   serverMintCharacterFor,
   verifyCharacterNftOwner,
   type CharacterMintClientConfig,
@@ -300,9 +301,11 @@ import { loadEezClientConfig, type EezSyncBuyClientConfig } from "./eez-sync";
 import { guardedGoldMove, withPlayerCharge } from "./gold-guard";
 import { characterNameKey, normalizeCharacterName } from "./character-name";
 import { randomBytes } from "node:crypto";
+import { hexToBytes } from "viem";
 import { authAllowlist, authVerifyClient, clientAddress, dropAuthConnection, issueAuthChallenge, resolveAuthOrigin, verifyAuthLogin, isEthAddress } from "./wallet-auth";
 import { defaultLokDir, LokWorld } from "./lok-world";
 import { flushGameRoll, loadGameRoll, rollIndex, rollUnit } from "./game-roll";
+import { provisionalChainLink, sealParentRoot, sealTickBatch } from "./seal-tick-batch";
 import { rollPvpAutoAttack } from "./pvp-auto-rolls";
 import { cheapestBait, fishGatherRefusal } from "./fishing";
 import { emptyMobEnhances, takeMobHit } from "./mob-enhances";
@@ -662,6 +665,13 @@ function consumeNameCheckBudget(wallet: string, clientIp: string | undefined): b
 
 /** Unlimited roster until onchain mint-fee gating is enforced. */
 let tick = 0;
+/** Pinned ruleset hash the live seal presents to acceptBatch. */
+const SEAL_RULESET_HASH = hexToBytes(LOCAL_RULESET_HASH);
+/**
+ * Gnosis is not fetched in this pull request.
+ * The envelope records these 32 zero bytes.
+ */
+const SEAL_GNOSIS_UNFETCHED = new Uint8Array(32);
 /** Pale Hollow Segment A field mobs. */
 let mobs: Mob[] = spawnSegmentAPack();
 let fieldNodes: FieldNode[] = createPaleHollowNodes();
@@ -5501,8 +5511,33 @@ function tickSim() {
     const flushed = lok.endTick();
     if (!flushed.ok) {
       for (const err of flushed.errors) console.error("[lok] tick ledger: " + err);
+    } else {
+      // endTick and flushGameRoll write their bytes and do not return them.
+      // Seal a big-endian encoding of this tick index only. The roll tape is unchanged.
+      try {
+        const inputs = tickIndexInputs(tick);
+        const parentRoot = sealParentRoot();
+        const sealed = sealTickBatch({
+          inputs,
+          rollBytes: new Uint8Array(0),
+          rulesetHash: SEAL_RULESET_HASH,
+          gnosisRandomness: SEAL_GNOSIS_UNFETCHED,
+          parentRoot,
+          chainLink: provisionalChainLink(parentRoot, inputs),
+        });
+        if (!sealed.ok) console.error("[seal] tick batch rejected: " + sealed.error);
+      } catch (err) {
+        console.error("[seal] tick batch failed", err);
+      }
     }
   }
+}
+
+/** 8-byte big-endian tick index. The tick does not expose flushed journal or roll bytes. */
+function tickIndexInputs(index: number): Uint8Array {
+  const out = new Uint8Array(8);
+  new DataView(out.buffer).setBigUint64(0, BigInt(index), false);
+  return out;
 }
 
 function tickSimBody() {
