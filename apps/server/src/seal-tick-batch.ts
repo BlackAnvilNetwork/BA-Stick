@@ -30,6 +30,7 @@ import {
   type AcceptBatchResult,
   type BatchEnvelope,
 } from "./batch-envelope";
+import { observeSignedBatch } from "./equivocation-watch";
 import { fallbackEpochSeed } from "./fallback-epoch-seed";
 import { startEpochRoll } from "./game-roll";
 
@@ -53,6 +54,18 @@ const leaderCommitment = new Uint8Array(keccak256(leaderShare, "bytes"));
 /** First parent is 32 zero bytes. A successful seal stores `chainLink` here. */
 let storedParent = new Uint8Array(32);
 let height = 0;
+/** Latest signed envelope from `sealTickBatch`, until the tick takes it. */
+let sealedSigned: { batch: BatchEnvelope; signer: Uint8Array } | null = null;
+
+/**
+ * The signed batch from the latest `sealTickBatch`, then clears it.
+ * Absent when that call did not attach a signature.
+ */
+export function takeSealedSignedBatch(): { batch: BatchEnvelope; signer: Uint8Array } | null {
+  const found = sealedSigned;
+  sealedSigned = null;
+  return found;
+}
 
 export type SealTickBatchArgs = {
   inputs: Uint8Array;
@@ -140,6 +153,7 @@ export function checkSealedTick(
  * The same seed on the next tick does not rewind that cursor.
  */
 export function sealTickBatch(args: SealTickBatchArgs): AcceptBatchResult {
+  sealedSigned = null;
   const inputsCommitment = commitInputs(args.inputs);
   const epochSeed = fallbackEpochSeed(leaderCommitment, args.gnosisRandomness);
   const envelope: BatchEnvelope = {
@@ -158,6 +172,8 @@ export function sealTickBatch(args: SealTickBatchArgs): AcceptBatchResult {
     rollCommitment: commitRoll(inputsCommitment, epochSeed, args.rollBytes),
   };
   envelope.signature = sign(envelope);
+  sealedSigned = { batch: envelope, signer: leaderPublicKey };
+  observeSignedBatch(envelope, leaderPublicKey);
   const result = checkSealedTick(envelope, args.rollBytes, args.rulesetHash, args.chainLink);
   if (result.ok) {
     storedParent = new Uint8Array(args.chainLink);

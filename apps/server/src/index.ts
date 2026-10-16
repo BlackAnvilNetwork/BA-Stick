@@ -312,7 +312,8 @@ import { hexToBytes } from "viem";
 import { authAllowlist, authVerifyClient, clientAddress, dropAuthConnection, issueAuthChallenge, resolveAuthOrigin, verifyAuthLogin, isEthAddress } from "./wallet-auth";
 import { defaultLokDir, LokWorld } from "./lok-world";
 import { flushGameRoll, loadGameRoll, rollIndex, rollUnit } from "./game-roll";
-import { sealParentRoot, sealTickBatch } from "./seal-tick-batch";
+import { observeSignedBatch } from "./equivocation-watch";
+import { sealParentRoot, sealTickBatch, takeSealedSignedBatch } from "./seal-tick-batch";
 import { emptyReplicaHealth, loadTickOrderer, submitOnSimTick } from "./order-submit";
 import { snapshotFor as attachLightProof } from "./web-light-snapshot";
 import { installedGameMode, replicaMayTick, type InstalledGameMode } from "./installed-game-mode";
@@ -5547,6 +5548,8 @@ function tickSim() {
           parentRoot,
           chainLink,
         });
+        const signedBatch = takeSealedSignedBatch();
+        if (signedBatch) observeSignedBatch(signedBatch.batch, signedBatch.signer);
         if (!sealed.ok) console.error("[seal] tick batch rejected: " + sealed.error);
         else {
           // Do not wait for a round. A missing orderer, or fewer heard peers than
