@@ -9,8 +9,15 @@ import {MockOwnerNft} from "./mocks/MockOwnerNft.sol";
 contract ReenterPayout {
     AhEscrow public escrow;
     uint256 public target;
-    constructor(AhEscrow e) { escrow = e; }
-    function arm(uint256 id) external { target = id; }
+
+    constructor(AhEscrow e) {
+        escrow = e;
+    }
+
+    function arm(uint256 id) external {
+        target = id;
+    }
+
     receive() external payable {
         if (target != 0) {
             uint256 id = target;
@@ -109,10 +116,13 @@ contract AhEscrowSupportTest is Test {
         uint256 v = PRICE + uint256(extra) % 1 ether;
         uint256 before = buyer.balance;
         (uint256 fee, uint256 net) = escrow.quoteFee(PRICE);
+        (uint256 vaultWei, uint256 treasuryWei) = escrow.quoteFeeShares(PRICE);
         vm.prank(buyer);
         escrow.buyAsk{value: v}(LISTING, BUYER_TOKEN);
         assertEq(seller.balance, net);
-        assertEq(feeTo.balance, fee);
+        assertEq(feeTo.balance, treasuryWei);
+        assertEq(escrow.guildVault().balance, vaultWei);
+        assertEq(vaultWei + treasuryWei, fee);
         assertEq(buyer.balance, before - PRICE);
         assertEq(address(escrow).balance, 0);
     }

@@ -44,6 +44,7 @@ contract AhEscrowTest is Test {
     function test_buyAsk_paysOwnerOf_minusFee_andEmits() public {
         _open(LISTING, PRICE);
         (uint256 fee, uint256 net) = escrow.quoteFee(PRICE);
+        (uint256 vaultWei, uint256 treasuryWei) = escrow.quoteFeeShares(PRICE);
 
         uint256 beforeSeller = seller.balance;
         uint256 beforeFee = feeTo.balance;
@@ -54,7 +55,9 @@ contract AhEscrowTest is Test {
         escrow.buyAsk{value: PRICE}(LISTING, BUYER_TOKEN);
 
         assertEq(seller.balance, beforeSeller + net);
-        assertEq(feeTo.balance, beforeFee + fee);
+        assertEq(feeTo.balance, beforeFee + treasuryWei);
+        assertEq(escrow.guildVault().balance, vaultWei);
+        assertEq(vaultWei + treasuryWei, fee);
         assertEq(fee + net, PRICE);
         (,,,, bool open, bool used) = escrow.asks(LISTING);
         assertFalse(open);
@@ -65,13 +68,16 @@ contract AhEscrowTest is Test {
         _open(LISTING, PRICE);
         nft.setOwner(SELLER_TOKEN, newOwner);
         (uint256 fee, uint256 net) = escrow.quoteFee(PRICE);
+        (uint256 vaultWei, uint256 treasuryWei) = escrow.quoteFeeShares(PRICE);
 
         vm.prank(buyer);
         escrow.buyAsk{value: PRICE}(LISTING, BUYER_TOKEN);
 
         assertEq(newOwner.balance, net);
         assertEq(seller.balance, 0);
-        assertEq(feeTo.balance, fee);
+        assertEq(feeTo.balance, treasuryWei);
+        assertEq(escrow.guildVault().balance, vaultWei);
+        assertEq(vaultWei + treasuryWei, fee);
     }
 
     function test_buyAsk_refundsExcess_toMsgSender() public {

@@ -39,6 +39,7 @@ contract MockEezSyncBuyTest is Test {
         escrow.openAsk(LISTING, SELLER_TOKEN, ITEM, AMOUNT, PRICE);
 
         (uint256 fee, uint256 net) = escrow.quoteFee(PRICE);
+        (uint256 vaultWei, uint256 treasuryWei) = escrow.quoteFeeShares(PRICE);
         uint256 beforeSeller = sellerHome.balance;
         vm.expectEmit(true, true, true, true);
         emit AhEscrow.AskFilled(LISTING, address(mock), BUYER_TOKEN, sellerHome, PRICE, fee, ITEM, AMOUNT);
@@ -49,7 +50,9 @@ contract MockEezSyncBuyTest is Test {
         mock.syncBuy{value: PRICE}(LISTING, BUYER_TOKEN, deadline, sig);
 
         assertEq(sellerHome.balance, beforeSeller + net);
-        assertEq(feeTo.balance, fee);
+        assertEq(feeTo.balance, treasuryWei);
+        assertEq(escrow.guildVault().balance, vaultWei);
+        assertEq(vaultWei + treasuryWei, fee);
         (,,,, bool open, bool used) = escrow.asks(LISTING);
         assertFalse(open);
         assertTrue(used);
@@ -88,9 +91,8 @@ contract MockEezSyncBuyTest is Test {
     }
 
     function _ownerSig(uint256 listingId) internal view returns (bytes memory) {
-        bytes32 structHash = keccak256(
-            abi.encode(escrow.BUY_ASK_FOR_TYPEHASH(), listingId, BUYER_TOKEN, address(mock), _deadline())
-        );
+        bytes32 structHash =
+            keccak256(abi.encode(escrow.BUY_ASK_FOR_TYPEHASH(), listingId, BUYER_TOKEN, address(mock), _deadline()));
         bytes32 domain = keccak256(
             abi.encode(
                 keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
