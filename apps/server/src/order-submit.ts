@@ -25,10 +25,6 @@ export type BatchOrderer = {
 };
 
 /**
- * Submit after a successful seal. Never throws.
- * Does not wait for a commit certificate.
- */
-/**
  * What `tickSim` calls after a successful seal.
  * Always returns. A stopped orderer or a submit that has not committed
  * leaves `tickFailed` false so the 20 Hz loop keeps playing.

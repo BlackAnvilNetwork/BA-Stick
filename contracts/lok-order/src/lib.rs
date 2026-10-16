@@ -141,7 +141,7 @@ impl GenesisOrderer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use informalsystems_malachitebft_core_types::ThresholdParams;
+    use informalsystems_malachitebft_core_types::{ThresholdParams, ValidatorSet};
 
     #[test]
     fn genesis_of_one_commits_a_submitted_batch() {
