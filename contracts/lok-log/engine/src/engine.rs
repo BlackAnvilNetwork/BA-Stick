@@ -199,10 +199,14 @@ impl Engine {
     }
 
     fn apply_with(&mut self, input: Input, logged: Option<u64>) -> Result<Outcome, EngineError> {
-        let saved = self.state.clone();
-        if let Err(err) = self.apply_local(&input, logged) {
-            self.state = saved;
-            return Err(err);
+        // Roll back a partial sheet on failure. The copy ends with this block, so a
+        // successful apply does not keep the preimage alive across root and append.
+        {
+            let saved = self.state.clone();
+            if let Err(err) = self.apply_local(&input, logged) {
+                self.state = saved;
+                return Err(err);
+            }
         }
         let index = self.chain.len();
         let prev_hash = self.chain.head();
