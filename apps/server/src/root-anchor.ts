@@ -20,9 +20,9 @@
  * and withdrawal value share that total. Opening an ask does not settle xDAI.
  * The buyAsk transfer and the cancel refund are not broadcast until this epoch
  * admits them. In-game gold does not. The denominator is the slashable bonds
- * posted for the epoch, kept in the epoch ledger with the xDAI already charged.
- * A restart reads that ledger. This module does not invent a bond. Until a
- * bond is posted, the cap is zero.
+ * actually posted, read from `slashable-bonds.json` at boot and before a send.
+ * A restart reads that file. This module does not invent a bond. Until a
+ * bond is posted, the cap is zero. Tests may override the loaded total.
  *
  * `withdrawKek` and bag export are not chain withdrawals. `beginChainWithdrawal`
  * is the hold those sends must pass, and it does not broadcast.
@@ -56,8 +56,12 @@ export const EPOCH_XDAI_CAP_REFUSAL =
 export type ChainXdaiKind = "mint" | "escrow" | "bounty" | "withdrawal";
 
 const EPOCH_LEDGER_NAME = "epoch-xdai.json";
+const POSTED_BONDS_NAME = "slashable-bonds.json";
 
 let postedBondsWei = 0n;
+/** Set only by the test setter. Production boot leaves this null and uses the bond file. */
+let bondOverrideWei: bigint | null = null;
+const postedBonds: { id: string; amountWei: bigint }[] = [];
 const settledByEpoch = new Map<number, bigint>();
 const pinnedCharges = new Set<string>();
 const observedEscrowFills = new Map<string, number>();
@@ -110,15 +114,73 @@ export function resetRootAnchorForTests(): void {
   posting.clear();
   clearEpochMemory();
   readClock = () => Date.now();
-  if (dir) rmSync(join(dir, EPOCH_LEDGER_NAME), { force: true });
+  if (dir) {
+    rmSync(join(dir, EPOCH_LEDGER_NAME), { force: true });
+    rmSync(join(dir, POSTED_BONDS_NAME), { force: true });
+  }
 }
 
 /**
- * Posted slashable-bond total, in wei. The cap reads this input.
- * This module does not pick a bond amount.
+ * Record one slashable bond that was posted. The amount is the posting.
+ * The same id replaces its previous amount. Zero removes it.
+ * This does not pick an amount and does not start admission.
+ */
+export function notePostedSlashableBond(id: string, amountWei: bigint): void {
+  const bondId = id.trim();
+  if (!bondId) throw new Error("Posted slashable bond id is empty.");
+  if (amountWei < 0n) throw new Error("Posted slashable bonds cannot be negative.");
+  const at = postedBonds.findIndex((bond) => bond.id === bondId);
+  if (amountWei === 0n) {
+    if (at >= 0) postedBonds.splice(at, 1);
+  } else if (at >= 0) {
+    postedBonds[at] = { id: bondId, amountWei };
+  } else {
+    postedBonds.push({ id: bondId, amountWei });
+  }
+  persistPostedBonds();
+  applyLiveBonds();
+}
+
+/**
+ * `LOK_POSTED_SLASHABLE_BONDS` is `id:wei` pairs separated by commas.
+ * Wei is a decimal integer string. An unset list, an empty list, or wei 0
+ * posts nothing. This does not invent an amount.
+ */
+export function parsePostedSlashableBonds(raw: string | undefined): { id: string; amountWei: bigint }[] {
+  if (!raw || !raw.trim()) return [];
+  const posted: { id: string; amountWei: bigint }[] = [];
+  for (const part of raw.split(",")) {
+    const piece = part.trim();
+    if (!piece) continue;
+    const colon = piece.indexOf(":");
+    if (colon <= 0) continue;
+    const id = piece.slice(0, colon).trim();
+    const wei = piece.slice(colon + 1).trim();
+    if (!id || !/^\d+$/.test(wei)) continue;
+    const amountWei = BigInt(wei);
+    if (amountWei <= 0n) continue;
+    posted.push({ id, amountWei });
+  }
+  return posted;
+}
+
+/**
+ * Production boot records each posted bond. Call this after `configureEpochLedger`
+ * so the note is written into that data dir. An unset variable notes nothing
+ * and leaves a bond file from an earlier boot in place.
+ */
+export function recordPostedSlashableBonds(env: NodeJS.ProcessEnv = process.env): void {
+  for (const bond of parsePostedSlashableBonds(env.LOK_POSTED_SLASHABLE_BONDS)) {
+    notePostedSlashableBond(bond.id, bond.amountWei);
+  }
+}
+
+/**
+ * Test override of the loaded bond total. Production boot does not call this.
  */
 export function setPostedSlashableBonds(wei: bigint): void {
   if (wei < 0n) throw new Error("Posted slashable bonds cannot be negative.");
+  bondOverrideWei = wei;
   postedBondsWei = wei;
   persistLedger();
 }
@@ -161,14 +223,29 @@ function subtractEpoch(epoch: number, amountWei: bigint): void {
 
 function clearEpochMemory(): void {
   postedBondsWei = 0n;
+  bondOverrideWei = null;
+  postedBonds.length = 0;
   settledByEpoch.clear();
   pinnedCharges.clear();
   observedEscrowFills.clear();
   escrowCharges.length = 0;
 }
 
+function sumPostedBonds(): bigint {
+  let total = 0n;
+  for (const bond of postedBonds) total += bond.amountWei;
+  return total;
+}
+
+/** Live denominator: the test override, otherwise the bonds actually posted. */
+function applyLiveBonds(): void {
+  postedBondsWei = bondOverrideWei != null ? bondOverrideWei : sumPostedBonds();
+}
+
+type PostedBondFile = { bonds?: { id?: string; amountWei?: string }[] };
+
 type EpochLedgerFile = {
-  postedBondsWei: string;
+  bondOverrideWei?: string | null;
   settled: Record<string, string>;
   pins: string[];
   fills: Record<string, number>;
@@ -179,6 +256,10 @@ function ledgerPath(): string | null {
   return ledgerDir ? join(ledgerDir, EPOCH_LEDGER_NAME) : null;
 }
 
+function postedBondsPath(): string | null {
+  return ledgerDir ? join(ledgerDir, POSTED_BONDS_NAME) : null;
+}
+
 function persistLedger(): void {
   const path = ledgerPath();
   if (suppressPersist || !path) return;
@@ -187,7 +268,7 @@ function persistLedger(): void {
   const fills: Record<string, number> = {};
   for (const [key, epoch] of observedEscrowFills) fills[key] = epoch;
   const body: EpochLedgerFile = {
-    postedBondsWei: postedBondsWei.toString(),
+    bondOverrideWei: bondOverrideWei == null ? null : bondOverrideWei.toString(),
     settled,
     pins: [...pinnedCharges],
     fills,
@@ -201,19 +282,61 @@ function persistLedger(): void {
   durableWrite(path, JSON.stringify(body) + "\n");
 }
 
-function loadLedger(): void {
-  const path = ledgerPath();
-  if (!path || !existsSync(path)) return;
-  let parsed: EpochLedgerFile;
+function persistPostedBonds(): void {
+  const path = postedBondsPath();
+  if (suppressPersist || !path) return;
+  durableWrite(
+    path,
+    JSON.stringify({
+      bonds: postedBonds.map((bond) => ({ id: bond.id, amountWei: bond.amountWei.toString() })),
+    }) + "\n",
+  );
+}
+
+/** Replace memory with the bonds file. Does not invent a row the file does not contain. */
+function loadPostedBondsFromDisk(): void {
+  const path = postedBondsPath();
+  if (!path) return;
+  postedBonds.length = 0;
+  if (!existsSync(path)) return;
+  let parsed: PostedBondFile;
   try {
-    parsed = JSON.parse(readFileSync(path, "utf8")) as EpochLedgerFile;
+    parsed = JSON.parse(readFileSync(path, "utf8")) as PostedBondFile;
   } catch {
     return;
   }
+  const seen = new Set<string>();
+  for (const row of parsed.bonds ?? []) {
+    if (!row || typeof row.id !== "string") continue;
+    const id = row.id.trim();
+    if (!id || seen.has(id)) continue;
+    if (typeof row.amountWei !== "string" || !/^\d+$/.test(row.amountWei)) continue;
+    const amountWei = BigInt(row.amountWei);
+    if (amountWei <= 0n) continue;
+    seen.add(id);
+    postedBonds.push({ id, amountWei });
+  }
+}
+
+function loadLedger(): void {
   suppressPersist = true;
   try {
-    if (typeof parsed.postedBondsWei === "string" && /^\d+$/.test(parsed.postedBondsWei)) {
-      postedBondsWei = BigInt(parsed.postedBondsWei);
+    loadPostedBondsFromDisk();
+    bondOverrideWei = null;
+    const path = ledgerPath();
+    if (!path || !existsSync(path)) {
+      applyLiveBonds();
+      return;
+    }
+    let parsed: EpochLedgerFile;
+    try {
+      parsed = JSON.parse(readFileSync(path, "utf8")) as EpochLedgerFile;
+    } catch {
+      applyLiveBonds();
+      return;
+    }
+    if (typeof parsed.bondOverrideWei === "string" && /^\d+$/.test(parsed.bondOverrideWei)) {
+      bondOverrideWei = BigInt(parsed.bondOverrideWei);
     }
     if (parsed.settled && typeof parsed.settled === "object") {
       for (const [key, value] of Object.entries(parsed.settled)) {
@@ -241,20 +364,24 @@ function loadLedger(): void {
         landed: row.landed === true,
       });
     }
+    applyLiveBonds();
   } finally {
     suppressPersist = false;
   }
 }
 
-/** Read the epoch ledger from `dir`. Later posts and charges are written there. */
+/**
+ * Boot read. Loads slashable bonds posted in `dir` and the epoch charges.
+ * Does not call the test setter. No bond file means a zero cap.
+ */
 export function configureEpochLedger(dir: string): void {
   ledgerDir = dir;
   loadLedger();
 }
 
 /**
- * Drop process memory and read the ledger again.
- * Bonds posted for the epoch, and xDAI already charged to it, stay.
+ * Drop process memory and read the posted bonds and the epoch charges again.
+ * A posted bond stays. A test override stays only when the setter wrote one.
  */
 export function restartEpochLedger(): void {
   clearEpochMemory();
@@ -302,6 +429,10 @@ export function chainBoundXdaiSend(
 ): { ok: true; kind: ChainXdaiKind; epoch: number } | { ok: false; error: string } {
   const gate = chainBoundSendGate();
   if (!gate.ok) return gate;
+  if (bondOverrideWei == null) {
+    loadPostedBondsFromDisk();
+    applyLiveBonds();
+  }
   if (amountWei < 0n) return { ok: false, error: "Chain-bound xDAI amount is negative." };
   const epoch = epochIndex(atMs ?? readClock());
   const cap = epochXdaiCapWei();

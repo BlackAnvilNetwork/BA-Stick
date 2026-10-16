@@ -113,7 +113,13 @@ import {
   receiptFromPlaceTx,
   startPvpBountyWatcher,
 } from "./pvp-bounty-tx";
-import { admitEscrowFill, configureEpochLedger, pinEpochCharge, releaseEscrowReservation } from "./root-anchor";
+import {
+  admitEscrowFill,
+  configureEpochLedger,
+  pinEpochCharge,
+  recordPostedSlashableBonds,
+  releaseEscrowReservation,
+} from "./root-anchor";
 import { opsAlert } from "./ops-log";
 import {
   SHINY_CLONE_COUNT,
@@ -764,6 +770,7 @@ const lok: LokWorld = await (async (): Promise<LokWorld> => {
       process.exit(1);
     }
     configureEpochLedger(defaultLokDir());
+    recordPostedSlashableBonds(process.env);
     const world = LokWorld.open(defaultLokDir());
     loadGameRoll(defaultLokDir());
     configureMintClaimNonceStore(pathJoin(defaultLokDir(), "mint-claim-nonces.json"));

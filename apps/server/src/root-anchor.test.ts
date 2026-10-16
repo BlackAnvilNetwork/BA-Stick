@@ -43,6 +43,7 @@ import {
   inGameWaitsForAnchor,
   noteCertifiedBatch,
   postCertifiedBatch,
+  recordPostedSlashableBonds,
   resetRootAnchorForTests,
   setChallengeClockForTests,
   setPostedSlashableBonds,
@@ -813,6 +814,71 @@ test("bounty cancel and buyAsk do not broadcast outside the epoch cap", async ()
     if (!past.ok) assert.equal(past.error, EPOCH_XDAI_CAP_REFUSAL);
     assert.equal(buyBroadcasts, 1);
     assert.equal(epochSettledXdai(), 10n);
+  } finally {
+    resetRootAnchorForTests();
+  }
+});
+
+test("boot records LOK_POSTED_SLASHABLE_BONDS and a later unset boot keeps them", async () => {
+  resetRootAnchorForTests();
+  const dir = mkdtempSync(join(tmpdir(), "lok-posted-bonds-"));
+  try {
+    let now = 1_700_000_000_000;
+    setChallengeClockForTests(() => now);
+    noteCertifiedBatch(batch);
+    const posted = await postCertifiedBatch(batch, {
+      env: { LOK_CHAIN_ID: "31337" },
+      poster: async () => true,
+    });
+    assert.equal(posted, true);
+    now += CHALLENGE_DELAY_MS;
+    const half = 5n * ONE_XDAI;
+    configureEpochLedger(dir);
+    recordPostedSlashableBonds({
+      LOK_POSTED_SLASHABLE_BONDS: "ghost:0, host-a:" + half.toString() + ", host-b:" + half.toString(),
+    });
+    assert.equal(postedSlashableBonds(), 10n * ONE_XDAI);
+    assert.equal(epochXdaiCapWei(), ONE_XDAI);
+    assert.equal(chainBoundXdaiSend("mint", ONE_XDAI).ok, true);
+    const over = chainBoundXdaiSend("mint", 1n);
+    assert.equal(over.ok, false);
+    if (!over.ok) assert.equal(over.error, EPOCH_XDAI_CAP_REFUSAL);
+
+    restartEpochLedger();
+    configureEpochLedger(dir);
+    recordPostedSlashableBonds({});
+    assert.equal(postedSlashableBonds(), 10n * ONE_XDAI);
+    assert.equal(epochSettledXdai(), ONE_XDAI);
+    assert.equal(chainBoundXdaiSend("mint", 1n).ok, false);
+    assert.equal(inGameWaitsForAnchor("tick"), false);
+    assert.equal(inGameWaitsForAnchor("combat"), false);
+  } finally {
+    resetRootAnchorForTests();
+  }
+});
+
+test("a boot with no posted bond refuses a positive chain send", async () => {
+  resetRootAnchorForTests();
+  const dir = mkdtempSync(join(tmpdir(), "lok-no-bonds-"));
+  try {
+    let now = 1_700_000_000_000;
+    setChallengeClockForTests(() => now);
+    noteCertifiedBatch(batch);
+    const posted = await postCertifiedBatch(batch, {
+      env: { LOK_CHAIN_ID: "31337" },
+      poster: async () => true,
+    });
+    assert.equal(posted, true);
+    now += CHALLENGE_DELAY_MS;
+    configureEpochLedger(dir);
+    recordPostedSlashableBonds({});
+    assert.equal(postedSlashableBonds(), 0n);
+    const refused = chainBoundXdaiSend("escrow", 1n);
+    assert.equal(refused.ok, false);
+    if (!refused.ok) assert.equal(refused.error, EPOCH_XDAI_CAP_REFUSAL);
+    recordPostedSlashableBonds({ LOK_POSTED_SLASHABLE_BONDS: "" });
+    assert.equal(postedSlashableBonds(), 0n);
+    assert.equal(chainBoundXdaiSend("bounty", 1n).ok, false);
   } finally {
     resetRootAnchorForTests();
   }
