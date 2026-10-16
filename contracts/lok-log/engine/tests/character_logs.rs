@@ -1,8 +1,8 @@
 //! Per-character checkpoints and item conservation. KEK custody is retired.
 
 use lok_engine::{
-    entry_hash, event_id, genesis_root, load_world, Engine, EngineError, Input, Key, LoggedEntry,
-    ReplayStop, U256, World, WorldDocument,
+    entry_hash, event_id, genesis_root, keccak256, load_world, parse_world_log, Engine, EngineError,
+    Gate, Input, Key, LoggedEntry, ReplayStop, U256, World, WorldDocument,
 };
 
 fn n(v: u64) -> U256 {
@@ -259,8 +259,8 @@ fn push_forged(doc: &mut WorldDocument, token: U256, input: Input, seq: u64) {
         .map(|e| e.hash)
         .unwrap_or_else(|| genesis_root(&token, ch.starting_job));
     let index = ch.entries.len() as u64;
-    let hash = entry_hash(&prev, index, &input);
-    ch.entries.push(LoggedEntry { hash, input, seq });
+    let hash = entry_hash(&prev, index, &input, &[0u8; 32]);
+    ch.entries.push(LoggedEntry { hash, input, seq, ruleset_hash: [0u8; 32] });
 }
 
 #[test]
@@ -485,6 +485,98 @@ fn a_rebase_keeps_the_ruleset_hash_stamped_on_checkpoints() {
     let draft = world.checkpoint_span(&n(1), world.character_len(&n(1)).unwrap()).unwrap();
     assert_eq!(draft.ruleset_hash, hash);
     assert_eq!(world.ruleset_hash(), hash);
+}
+
+/// The three-field preimage from before a ruleset word could be appended.
+fn legacy_entry_hash(prev: &[u8; 32], index: u64, input: &Input) -> [u8; 32] {
+    let mut bytes = Vec::with_capacity(96);
+    bytes.extend_from_slice(prev);
+    let mut word = [0u8; 32];
+    word[24..].copy_from_slice(&index.to_be_bytes());
+    bytes.extend_from_slice(&word);
+    bytes.extend_from_slice(&event_id(input));
+    keccak256(&bytes)
+}
+
+#[test]
+fn a_zero_ruleset_changes_every_link_and_two_rulesets_differ() {
+    let mut gate = Gate::open("").unwrap();
+    let spawned: serde_json::Value =
+        serde_json::from_str(&gate.apply_command(r#"{"op":"spawn","tokenId":"1","startingJob":3}"#)).unwrap();
+    assert_eq!(spawned["ok"], true);
+
+    let zero_doc = gate.document_json();
+    let zero_raw: serde_json::Value = serde_json::from_str(&zero_doc).unwrap();
+    assert!(zero_raw["characters"][0]["entries"][0].get("rulesetHash").is_none());
+    let zero_parsed = parse_world_log(&zero_doc).unwrap();
+    let spawn = &zero_parsed.characters[0].entries[0];
+    let prev = genesis_root(&n(1), 3);
+    let old = legacy_entry_hash(&prev, 0, &spawn.input);
+    assert_ne!(spawn.hash, old);
+    assert_eq!(spawn.ruleset_hash, [0u8; 32]);
+    assert_eq!(entry_hash(&prev, 0, &spawn.input, &[0u8; 32]), spawn.hash);
+    assert_ne!(entry_hash(&prev, 0, &spawn.input, &[0u8; 32]), old);
+    assert_ne!(entry_hash(&prev, 0, &spawn.input, &[0xabu8; 32]), spawn.hash);
+
+    let ruleset = [0xabu8; 32];
+    let ruleset_hex = format!("0x{}", hex::encode(ruleset));
+    let set: serde_json::Value = serde_json::from_str(
+        &gate.apply_command(&format!(r#"{{"op":"setRuleset","rulesetHash":"{ruleset_hex}"}}"#)),
+    )
+    .unwrap();
+    assert_eq!(set["ok"], true);
+    let earned: serde_json::Value = serde_json::from_str(&gate.apply_command(
+        r#"{"op":"goldEarn","tokenId":"1","source":"quest","amount":"1","day":"1"}"#,
+    ))
+    .unwrap();
+    assert_eq!(earned["ok"], true, "{earned}");
+
+    let later = [0x55u8; 32];
+    let later_hex = format!("0x{}", hex::encode(later));
+    let moved: serde_json::Value = serde_json::from_str(
+        &gate.apply_command(&format!(r#"{{"op":"setRuleset","rulesetHash":"{later_hex}"}}"#)),
+    )
+    .unwrap();
+    assert_eq!(moved["ok"], true);
+
+    let doc = gate.document_json();
+    let raw: serde_json::Value = serde_json::from_str(&doc).unwrap();
+    let rows = raw["characters"][0]["entries"].as_array().unwrap();
+    assert!(rows[0].get("rulesetHash").is_none());
+    assert_eq!(rows[1]["rulesetHash"], ruleset_hex);
+
+    let parsed = parse_world_log(&doc).unwrap();
+    let logged = &parsed.characters[0].entries;
+    assert_ne!(logged[0].hash, old);
+    assert_eq!(logged[0].hash, entry_hash(&prev, 0, &logged[0].input, &[0u8; 32]));
+    assert_eq!(logged[0].ruleset_hash, [0u8; 32]);
+    assert_eq!(logged[1].ruleset_hash, ruleset);
+    let link0 = logged[0].hash;
+    assert_ne!(logged[1].hash, legacy_entry_hash(&link0, 1, &logged[1].input));
+    assert_ne!(logged[1].hash, entry_hash(&link0, 1, &logged[1].input, &[0u8; 32]));
+    assert_ne!(logged[1].hash, entry_hash(&link0, 1, &logged[1].input, &later));
+    assert_eq!(logged[1].hash, entry_hash(&link0, 1, &logged[1].input, &ruleset));
+
+    let loaded = load_world(&parsed).unwrap();
+    let kept = loaded.character_entries(&n(1)).unwrap();
+    assert_eq!(kept[0].hash, link0);
+    assert_eq!(kept[1].hash, logged[1].hash);
+    assert_eq!(kept[1].ruleset_hash, ruleset);
+    assert_eq!(loaded.ruleset_hash(), [0u8; 32]);
+
+    let mut stripped = raw.clone();
+    stripped["characters"][0]["entries"][1].as_object_mut().unwrap().remove("rulesetHash");
+    assert!(matches!(
+        load_world(&parse_world_log(&stripped.to_string()).unwrap()).unwrap_err(),
+        ReplayStop::BadHash { index: 1, .. }
+    ));
+
+    let mut replaced = raw;
+    replaced["characters"][0]["entries"][1]["rulesetHash"] = serde_json::Value::String(later_hex);
+    assert!(matches!(
+        load_world(&parse_world_log(&replaced.to_string()).unwrap()).unwrap_err(),
+        ReplayStop::BadHash { index: 1, .. }
+    ));
 }
 
 fn expected_ore(w: &World) -> U256 {

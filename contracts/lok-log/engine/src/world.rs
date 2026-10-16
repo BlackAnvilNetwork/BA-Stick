@@ -67,6 +67,7 @@ impl Character {
                 hash: entry.hash,
                 input: entry.input.clone(),
                 seq: *seq,
+                ruleset_hash: entry.ruleset_hash,
             })
             .collect()
     }
@@ -187,8 +188,9 @@ pub struct World {
     /// `(tx_hash, log_index)` already mirrored. Same receipt cannot open, cancel, or kill twice.
     pvp_fill_keys: BTreeSet<([u8; 32], u64)>,
     next_seq: u64,
-    /// Ruleset this process is attesting. Stamped into drafted checkpoints. Not stored in the log.
-    /// A reload starts at zero until the server sets it again.
+    /// Ruleset this process is attesting. Included in each new entry hash and stamped on drafted checkpoints.
+    /// Each stored entry keeps the ruleset it was hashed with. A reload starts this field at zero until
+    /// the server sets it again; replay still checks the word stored on the entry.
     ruleset_hash: [u8; 32],
 }
 
@@ -758,7 +760,8 @@ impl World {
         self.next_seq = saved_seq;
     }
 
-    /// Ruleset hash stamped into the next drafted checkpoint. Not written to the log.
+    /// Ruleset for the next entry hash and the next drafted checkpoint.
+    /// Does not rewrite links already on a log.
     pub fn set_ruleset_hash(&mut self, hash: [u8; 32]) {
         self.ruleset_hash = hash;
     }
@@ -995,7 +998,7 @@ impl World {
             }
         }
 
-        let mut groups: BTreeMap<u64, (Input, BTreeMap<U256, [u8; 32]>)> = BTreeMap::new();
+        let mut groups: BTreeMap<u64, (Input, BTreeMap<U256, ([u8; 32], [u8; 32])>)> = BTreeMap::new();
         for character in &doc.characters {
             for entry in &character.entries {
                 match groups.get_mut(&entry.seq) {
@@ -1006,7 +1009,10 @@ impl World {
                                 reason: EngineError::ConflictingLog,
                             });
                         }
-                        if tokens.insert(character.token_id, entry.hash).is_some() {
+                        if tokens
+                            .insert(character.token_id, (entry.hash, entry.ruleset_hash))
+                            .is_some()
+                        {
                             return Err(ReplayStop::Rejected {
                                 index: entry.seq,
                                 reason: EngineError::ConflictingLog,
@@ -1015,7 +1021,7 @@ impl World {
                     }
                     None => {
                         let mut tokens = BTreeMap::new();
-                        tokens.insert(character.token_id, entry.hash);
+                        tokens.insert(character.token_id, (entry.hash, entry.ruleset_hash));
                         groups.insert(entry.seq, (entry.input.clone(), tokens));
                     }
                 }
@@ -1023,11 +1029,28 @@ impl World {
         }
 
         for (seq, (input, tokens)) in groups {
+            let mut ruleset: Option<[u8; 32]> = None;
+            for (_, (_, word)) in &tokens {
+                match ruleset {
+                    None => ruleset = Some(*word),
+                    Some(prev) if prev != *word => {
+                        return Err(ReplayStop::Rejected {
+                            index: seq,
+                            reason: EngineError::ConflictingLog,
+                        });
+                    }
+                    Some(_) => {}
+                }
+            }
+            let ruleset = ruleset.expect("seq group has an entry");
+            // `commit_link` hashes with the live stamp. Set it to this entry's stored word, then
+            // clear it after the log so a later stamp is not what replay checked.
+            world.set_ruleset_hash(ruleset);
             let touch: BTreeSet<U256> = tokens.keys().copied().collect();
-            for (token, hash) in &tokens {
+            for (token, (hash, _)) in &tokens {
                 let prev = head[token];
                 let index = next_index[token];
-                let computed = entry_hash(&prev, index, &input);
+                let computed = entry_hash(&prev, index, &input, &ruleset);
                 if computed != *hash {
                     return Err(ReplayStop::BadHash {
                         index,
@@ -1056,7 +1079,7 @@ impl World {
                 reason,
             })?;
             for link in &event.links {
-                let expected = tokens[&link.token_id];
+                let (expected, _) = tokens[&link.token_id];
                 if link.entry_hash != expected {
                     return Err(ReplayStop::BadHash {
                         index: link.index,
@@ -1072,6 +1095,7 @@ impl World {
                 *slot += 1;
             }
         }
+        world.set_ruleset_hash([0u8; 32]);
         Ok(world)
     }
 
@@ -1793,9 +1817,10 @@ impl World {
             debug_assert!(ch.aligned());
             let index = ch.chain.len();
             let prev_hash = ch.chain.head();
-            let hash = entry_hash(&prev_hash, index, input);
+            let ruleset = self.ruleset_hash;
+            let hash = entry_hash(&prev_hash, index, input, &ruleset);
             let projection = (ch.state.root(), ch.state.summary());
-            ch.chain.push(input.clone(), hash);
+            ch.chain.push(input.clone(), hash, ruleset);
             ch.seqs.push(seq);
             ch.projections.push(projection);
             links.push(CharacterLink {

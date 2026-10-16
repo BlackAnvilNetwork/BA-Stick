@@ -210,15 +210,15 @@ fn pre_cutoff_craft_of_high_level_recipe_replays_without_skill() {
     // Synthetic pre-#222 character log: Spawn + Craft(9) at seq 10 (below cutoff).
     let spawn = Input::Spawn { token_id: n(1), starting_job: 0 };
     let craft = Input::Craft { token_id: n(1), item_id: n(9), amount: n(1) };
-    let h0 = entry_hash(&genesis_root(&n(1), 0), 0, &spawn);
-    let h1 = entry_hash(&h0, 1, &craft);
+    let h0 = entry_hash(&genesis_root(&n(1), 0), 0, &spawn, &[0u8; 32]);
+    let h1 = entry_hash(&h0, 1, &craft, &[0u8; 32]);
     let doc = WorldDocument {
         characters: vec![CharacterLogDocument {
             token_id: n(1),
             starting_job: 0,
             entries: vec![
-                LoggedEntry { hash: h0, input: spawn, seq: 0 },
-                LoggedEntry { hash: h1, input: craft, seq: 10 },
+                LoggedEntry { hash: h0, input: spawn, seq: 0, ruleset_hash: [0u8; 32] },
+                LoggedEntry { hash: h1, input: craft, seq: 10, ruleset_hash: [0u8; 32] },
             ],
         }],
     };
@@ -228,18 +228,19 @@ fn pre_cutoff_craft_of_high_level_recipe_replays_without_skill() {
     // Same craft at/after the cutoff must refuse without skill.
     let spawn2 = Input::Spawn { token_id: n(2), starting_job: 0 };
     let craft2 = Input::Craft { token_id: n(2), item_id: n(9), amount: n(1) };
-    let g0 = entry_hash(&genesis_root(&n(2), 0), 0, &spawn2);
-    let g1 = entry_hash(&g0, 1, &craft2);
+    let g0 = entry_hash(&genesis_root(&n(2), 0), 0, &spawn2, &[0u8; 32]);
+    let g1 = entry_hash(&g0, 1, &craft2, &[0u8; 32]);
     let post = WorldDocument {
         characters: vec![CharacterLogDocument {
             token_id: n(2),
             starting_job: 0,
             entries: vec![
-                LoggedEntry { hash: g0, input: spawn2, seq: 0 },
+                LoggedEntry { hash: g0, input: spawn2, seq: 0, ruleset_hash: [0u8; 32] },
                 LoggedEntry {
                     hash: g1,
                     input: craft2,
                     seq: HISTORICAL_CRAFT_VALIDATE_MIN_SEQ,
+                    ruleset_hash: [0u8; 32],
                 },
             ],
         }],
@@ -305,15 +306,15 @@ fn fresh_network_cutoff_validates_every_logged_craft() {
 
     let spawn = Input::Spawn { token_id: n(1), starting_job: 0 };
     let craft = Input::Craft { token_id: n(1), item_id: n(9), amount: n(1) };
-    let h0 = entry_hash(&genesis_root(&n(1), 0), 0, &spawn);
-    let h1 = entry_hash(&h0, 1, &craft);
+    let h0 = entry_hash(&genesis_root(&n(1), 0), 0, &spawn, &[0u8; 32]);
+    let h1 = entry_hash(&h0, 1, &craft, &[0u8; 32]);
     let doc = WorldDocument {
         characters: vec![CharacterLogDocument {
             token_id: n(1),
             starting_job: 0,
             entries: vec![
-                LoggedEntry { hash: h0, input: spawn, seq: 0 },
-                LoggedEntry { hash: h1, input: craft, seq: 10 },
+                LoggedEntry { hash: h0, input: spawn, seq: 0, ruleset_hash: [0u8; 32] },
+                LoggedEntry { hash: h1, input: craft, seq: 10, ruleset_hash: [0u8; 32] },
             ],
         }],
     };
@@ -341,15 +342,15 @@ fn historical_bound_is_the_last_seq_of_the_quarantined_log() {
 fn synthetic_drop_doc(drop_seq: u64) -> WorldDocument {
     let spawn = Input::Spawn { token_id: n(1), starting_job: 0 };
     let drop = Input::ItemDrop { token_id: n(1), item_id: n(7), amount: n(5) };
-    let h0 = entry_hash(&genesis_root(&n(1), 0), 0, &spawn);
-    let h1 = entry_hash(&h0, 1, &drop);
+    let h0 = entry_hash(&genesis_root(&n(1), 0), 0, &spawn, &[0u8; 32]);
+    let h1 = entry_hash(&h0, 1, &drop, &[0u8; 32]);
     WorldDocument {
         characters: vec![CharacterLogDocument {
             token_id: n(1),
             starting_job: 0,
             entries: vec![
-                LoggedEntry { hash: h0, input: spawn, seq: 0 },
-                LoggedEntry { hash: h1, input: drop, seq: drop_seq },
+                LoggedEntry { hash: h0, input: spawn, seq: 0, ruleset_hash: [0u8; 32] },
+                LoggedEntry { hash: h1, input: drop, seq: drop_seq, ruleset_hash: [0u8; 32] },
             ],
         }],
     }

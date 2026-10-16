@@ -192,11 +192,15 @@ fn command_to_input(value: &Value, op: &str) -> Result<Input, String> {
 }
 
 fn entry_json(entry: &crate::chain::LoggedEntry) -> Value {
-    json!({
+    let mut value = json!({
         "seq": entry.seq,
         "hash": hex32(&entry.hash),
         "input": input_to_json(&entry.input),
-    })
+    });
+    if entry.ruleset_hash != [0u8; 32] {
+        value["rulesetHash"] = Value::String(hex32(&entry.ruleset_hash));
+    }
+    value
 }
 
 fn hex32(bytes: &[u8; 32]) -> String {
