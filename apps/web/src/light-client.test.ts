@@ -1,18 +1,21 @@
 /**
- * Signs a BLS12-381 epoch-leader certificate in process and checks one
- * character against that next root. The key is generated here. No env secret
- * is read, and nothing is posted.
+ * Signs replica precommits in process and checks one character against that
+ * certified root. Keys are generated here. No env secret is read, and nothing
+ * is posted. A batch-envelope leader signature is not a commit certificate.
  */
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { SnapshotMessage } from "@bellgrave/protocol";
 import { bls12_381 } from "@noble/curves/bls12-381.js";
+import { ed25519 } from "@noble/curves/ed25519.js";
 import { concatBytes, keccak256 } from "viem";
 import { useGame } from "./state";
 import {
   checkWebLightClient,
+  commitThreshold,
   type CharacterRootClaim,
   type LightCertificate,
+  type ReplicaPrecommit,
   type Sibling,
   type StateLeafClaim,
   type WebLightPayload,
@@ -23,7 +26,12 @@ const leader = bls.keygen();
 const leaderKey = new Uint8Array(leader.publicKey.toBytes());
 const leaderSecret = new Uint8Array(leader.secretKey);
 
+const replicas = [ed25519.keygen(), ed25519.keygen(), ed25519.keygen()];
+const replicaKeys = replicas.map((key) => new Uint8Array(key.publicKey));
+
 const ZEROS = new Uint8Array(32);
+const HEIGHT = 5;
+const ROUND = 0;
 
 /**
  * `Key` order from `state.rs`. Declaration order, then the inner id for
@@ -81,6 +89,7 @@ test("a one-leaf character and a two-leaf character both pass certificate, chara
   ]);
   assert.equal(characters.leaves.length, 2);
   assert.deepEqual(characters.root, keccak(concatBytes([characters.leaves[0]!, characters.leaves[1]!])));
+  assert.equal(commitThreshold(3), 2);
 
   const certificate = signed(characters.root);
   const oneOk = checkWebLightClient({
@@ -121,14 +130,69 @@ test("a one-leaf character and a two-leaf character both pass certificate, chara
   }
 });
 
-test("a bad signature stops at the certificate and does not read the character root", () => {
+test("a valid leader signature with no replica certificate stops at the certificate", () => {
   const world = passingWorld();
-  const bad = new Uint8Array(world.certificate.signature!);
-  bad[bad.length - 1]! ^= 0x01;
+  const leaderOnly = leaderEnvelope(world.certificate.root);
   let characterReads = 0;
   let leafReads = 0;
   const rejected = checkWebLightClient({
-    certificate: { ...world.certificate, signature: bad },
+    certificate: leaderOnly as unknown as LightCertificate,
+    get character() {
+      characterReads += 1;
+      return world.character;
+    },
+    get leaf() {
+      leafReads += 1;
+      return world.leaf;
+    },
+  });
+  assert.equal(rejected.ok, false);
+  if (!rejected.ok) assert.equal(rejected.stage, "certificate");
+  assert.equal(characterReads, 0);
+  assert.equal(leafReads, 0);
+  assert.equal(leaderOnly.signature.length, 96);
+});
+
+test("one replica signature is short of the majority and does not read the character root", () => {
+  const world = passingWorld();
+  let characterReads = 0;
+  let leafReads = 0;
+  const rejected = checkWebLightClient({
+    certificate: commitOver(world.certificate.root, [0]),
+    get character() {
+      characterReads += 1;
+      return world.character;
+    },
+    get leaf() {
+      leafReads += 1;
+      return world.leaf;
+    },
+  });
+  assert.equal(rejected.ok, false);
+  if (!rejected.ok) assert.equal(rejected.stage, "certificate");
+  assert.equal(characterReads, 0);
+  assert.equal(leafReads, 0);
+
+  const lowered = checkWebLightClient({
+    certificate: { ...commitOver(world.certificate.root, [0]), threshold: 1 },
+    character: world.character,
+    leaf: world.leaf,
+  });
+  assert.equal(lowered.ok, false);
+  if (!lowered.ok) assert.equal(lowered.stage, "certificate");
+});
+
+test("a bad replica signature stops at the certificate and does not read the character root", () => {
+  const world = passingWorld();
+  const signatures = world.certificate.signatures.map((entry) => ({
+    publicKey: entry.publicKey,
+    signature: new Uint8Array(entry.signature),
+  }));
+  signatures[0]!.signature[signatures[0]!.signature.length - 1]! ^= 0x01;
+  let characterReads = 0;
+  let leafReads = 0;
+  const rejected = checkWebLightClient({
+    certificate: { ...world.certificate, signatures },
     get character() {
       characterReads += 1;
       return world.character;
@@ -144,7 +208,7 @@ test("a bad signature stops at the certificate and does not read the character r
   assert.equal(leafReads, 0);
 
   const missing = checkWebLightClient({
-    certificate: { ...world.certificate, signature: undefined },
+    certificate: { ...world.certificate, signatures: [] },
     character: world.character,
     leaf: world.leaf,
   });
@@ -152,7 +216,10 @@ test("a bad signature stops at the certificate and does not read the character r
   if (!missing.ok) assert.equal(missing.stage, "certificate");
 
   const short = checkWebLightClient({
-    certificate: { ...world.certificate, signature: bad.slice(0, 95) },
+    certificate: {
+      ...world.certificate,
+      signatures: [{ publicKey: replicaKeys[0]!, signature: signatures[0]!.signature.slice(0, 63) }],
+    },
     character: world.character,
     leaf: world.leaf,
   });
@@ -160,13 +227,12 @@ test("a bad signature stops at the certificate and does not read the character r
   if (!short.ok) assert.equal(short.stage, "certificate");
 });
 
-test("a signature over a different nextRoot stops at the certificate", () => {
+test("a precommit over a different root stops at the certificate", () => {
   const world = passingWorld();
   const otherRoot = new Uint8Array(32).fill(0xab);
-  const signature = sign({ ...world.certificate, nextRoot: otherRoot });
   let characterReads = 0;
   const rejected = checkWebLightClient({
-    certificate: { ...world.certificate, signature },
+    certificate: { ...commitOver(otherRoot), root: world.certificate.root },
     get character() {
       characterReads += 1;
       return world.character;
@@ -177,6 +243,27 @@ test("a signature over a different nextRoot stops at the certificate", () => {
   if (!rejected.ok) assert.equal(rejected.stage, "certificate");
   assert.equal(characterReads, 0);
   assert.equal(checkWebLightClient(world).ok, true);
+});
+
+test("a one-replica set commits with its own precommit", () => {
+  const world = passingWorld();
+  const alone = ed25519.keygen();
+  const publicKey = new Uint8Array(alone.publicKey);
+  const certificate: LightCertificate = {
+    replicas: [publicKey],
+    threshold: 1,
+    height: HEIGHT,
+    round: ROUND,
+    root: world.certificate.root,
+    signatures: [precommit(alone.secretKey, publicKey, world.certificate.root)],
+  };
+  assert.equal(commitThreshold(1), 1);
+  const ok = checkWebLightClient({
+    certificate,
+    character: world.character,
+    leaf: world.leaf,
+  });
+  assert.equal(ok.ok, true);
 });
 
 test("a bad character-root sibling stops at character_root even when the leaf would match", () => {
@@ -311,6 +398,70 @@ test("the web client keeps a leader snapshot provisional and commits only a pass
   } as unknown as SnapshotMessage);
   assert.equal(useGame.getState().light.leaderView, "provisional");
   assert.equal(useGame.getState().light.committed, null);
+
+  const leaderOnly = leaderEnvelope(world.certificate.root);
+  useGame.getState().setSnapshot({
+    type: "snapshot",
+    tick: 14,
+    you: {},
+    units: [],
+    log: [],
+    party: null,
+    partyInvite: null,
+    lightClient: {
+      certificate: leaderOnly,
+      character: world.character,
+      leaf: world.leaf,
+    },
+  } as unknown as SnapshotMessage);
+  assert.equal(useGame.getState().light.committed, null);
+
+  useGame.getState().setSnapshot({
+    type: "snapshot",
+    tick: 15,
+    you: {},
+    units: [],
+    log: [],
+    party: null,
+    partyInvite: null,
+    lightClient: {
+      certificate: commitOver(world.certificate.root, [0]),
+      character: world.character,
+      leaf: world.leaf,
+    },
+  } as unknown as SnapshotMessage);
+  assert.equal(useGame.getState().light.committed, null);
+
+  useGame.getState().setSnapshot({
+    type: "snapshot",
+    tick: 16,
+    you: {},
+    units: [],
+    log: [],
+    party: null,
+    partyInvite: null,
+    lightClient: world,
+  } as unknown as SnapshotMessage);
+  assert.equal(useGame.getState().light.committed?.ok, true);
+  const sibling = world.character.siblings[0];
+  assert.ok(sibling);
+  const flipped: Sibling = { hash: new Uint8Array(sibling.hash), left: sibling.left };
+  flipped.hash[0]! ^= 0x01;
+  useGame.getState().setSnapshot({
+    type: "snapshot",
+    tick: 17,
+    you: {},
+    units: [],
+    log: [],
+    party: null,
+    partyInvite: null,
+    lightClient: {
+      certificate: world.certificate,
+      character: { ...world.character, siblings: [flipped] },
+      leaf: world.leaf,
+    },
+  } as unknown as SnapshotMessage);
+  assert.equal(useGame.getState().light.committed, null);
 });
 
 test("an empty character-root tree is 32 zero bytes and an empty state root is keccak of empty bytes", () => {
@@ -370,13 +521,68 @@ function passingWorld(): WebLightPayload {
   };
 }
 
-function signed(nextRoot: Uint8Array): LightCertificate {
-  const certificate = envelope(nextRoot);
-  return { ...certificate, signature: sign(certificate) };
+function signed(root: Uint8Array): LightCertificate {
+  return commitOver(root);
 }
 
-function envelope(nextRoot: Uint8Array): LightCertificate {
+/** Two of the three replicas, unless `signers` says otherwise. */
+function commitOver(root: Uint8Array, signers: readonly number[] = [0, 1]): LightCertificate {
   return {
+    replicas: replicaKeys,
+    threshold: 2,
+    height: HEIGHT,
+    round: ROUND,
+    root,
+    signatures: signers.map((index) => {
+      const key = replicas[index]!;
+      return precommit(key.secretKey, replicaKeys[index]!, root);
+    }),
+  };
+}
+
+function precommit(secretKey: Uint8Array, publicKey: Uint8Array, root: Uint8Array): ReplicaPrecommit {
+  return {
+    publicKey,
+    signature: ed25519.sign(specPrecommit(HEIGHT, ROUND, root, publicKey), secretKey),
+  };
+}
+
+/** Independent of the checker. Same byte layout as `vote_bytes` for a precommit. */
+function specPrecommit(height: number, round: number, root: Uint8Array, address: Uint8Array): Uint8Array {
+  const heightBytes = new Uint8Array(8);
+  const roundBytes = new Uint8Array(8);
+  new DataView(heightBytes.buffer).setBigUint64(0, BigInt(height), false);
+  new DataView(roundBytes.buffer).setBigInt64(0, BigInt(round), false);
+  return concatBytes([
+    new TextEncoder().encode("lok-order-vote-v1"),
+    new Uint8Array([2]),
+    heightBytes,
+    roundBytes,
+    new Uint8Array([1]),
+    root,
+    address,
+  ]);
+}
+
+/**
+ * Epoch-leader batch envelope. This signature is valid and is still not a
+ * replica commit certificate.
+ */
+function leaderEnvelope(nextRoot: Uint8Array): {
+  leaderPublicKey: Uint8Array;
+  signature: Uint8Array;
+  nextRoot: Uint8Array;
+  inputsCommitment: Uint8Array;
+  parentRoot: Uint8Array;
+  rulesetHash: Uint8Array;
+  epochSeed: Uint8Array;
+  rollCommitment: Uint8Array;
+  epoch: number;
+  height: number;
+  worldId: string;
+  protocolVersion: string;
+} {
+  const certificate = {
     leaderPublicKey: leaderKey,
     inputsCommitment: filled(0x11),
     parentRoot: filled(0x22),
@@ -385,19 +591,15 @@ function envelope(nextRoot: Uint8Array): LightCertificate {
     epochSeed: filled(0x44),
     rollCommitment: filled(0x55),
     epoch: 2,
-    height: 5,
+    height: HEIGHT,
     worldId: "bellgrave",
     protocolVersion: "1",
   };
-}
-
-/** Independent of the checker. Same byte layout as `leaderSigningMessage`. */
-function specSigningMessage(certificate: LightCertificate): Uint8Array {
   const epoch = new Uint8Array(8);
   const height = new Uint8Array(8);
   new DataView(epoch.buffer).setBigUint64(0, BigInt(certificate.epoch), false);
   new DataView(height.buffer).setBigUint64(0, BigInt(certificate.height), false);
-  return new Uint8Array(
+  const message = new Uint8Array(
     keccak256(
       concatBytes([
         new TextEncoder().encode("bellgrave-batch-v1"),
@@ -415,10 +617,10 @@ function specSigningMessage(certificate: LightCertificate): Uint8Array {
       "bytes",
     ),
   );
-}
-
-function sign(certificate: LightCertificate, secret: Uint8Array = leaderSecret): Uint8Array {
-  return new Uint8Array(bls.sign(bls.hash(specSigningMessage(certificate)), secret).toBytes());
+  return {
+    ...certificate,
+    signature: new Uint8Array(bls.sign(bls.hash(message), leaderSecret).toBytes()),
+  };
 }
 
 function stateTree(entries: StateEntry[]): {
