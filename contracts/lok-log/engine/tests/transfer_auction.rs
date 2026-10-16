@@ -297,10 +297,11 @@ fn bag_export_debits_without_becoming_a_checkpoint_export() {
 
     let loaded = load_world(&world.to_document()).expect("replay");
     assert_eq!(loaded.item_balance(&n(1), &ore), Some(n(2)));
+    let entries = loaded.character_entries(&n(1)).unwrap();
     assert!(matches!(
-        loaded.character_entries(&n(1)).unwrap().iter().rev().nth(1).map(|e| &e.input),
+        entries.iter().rev().nth(1).map(|e| &e.input),
         Some(Input::BagExport { .. })
     ));
-    let chain = loaded.character_entries(&n(1)).unwrap().last().unwrap();
+    let chain = entries.last().unwrap();
     assert!(matches!(chain.input, Input::ExportItem { .. }));
 }
