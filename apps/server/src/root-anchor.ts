@@ -14,6 +14,12 @@
  * still wait one day from that anchor. The day is the ruleset timelock floor
  * (`RulesetRegistry.MIN_DELAY` is 1 day). It is not `PvpBounty.claimDelay`.
  *
+ * Chain-bound xDAI settled in one epoch is at most 10% of the slashable bonds
+ * posted then. The epoch is the 10-second seed epoch. Mint fees, AhEscrow
+ * value, PvpBounty payouts, and withdrawal value share that total. In-game
+ * gold does not. The posted bond total is an input; this module does not
+ * choose one. Zero bonds cap the epoch at zero.
+ *
  * `withdrawKek` and bag export are not chain withdrawals. `beginChainWithdrawal`
  * is the hold those sends must pass, and it does not broadcast.
  */
@@ -33,6 +39,18 @@ export const ANCHOR_WAIT = "Waiting for an anchored root.";
 export const CHALLENGE_DELAY_MS = 24 * 60 * 60 * 1000;
 
 export const CHALLENGE_WAIT = "Waiting for the one-day challenge delay.";
+
+/** Seed epoch. The spec starts it at 10 seconds. */
+export const EPOCH_MS = 10_000;
+
+export const EPOCH_XDAI_CAP_REFUSAL =
+  "Chain-bound xDAI in this epoch is above 10% of the slashable bonds posted.";
+
+export type ChainXdaiKind = "mint" | "escrow" | "bounty" | "withdrawal";
+
+let postedBondsWei = 0n;
+let epochSettledWei = 0n;
+let settledEpoch: number | null = null;
 
 let readClock: () => number = () => Date.now();
 
@@ -72,7 +90,45 @@ export function resetRootAnchorForTests(): void {
   anchoredAt = new Map();
   lastPostedHeight = null;
   posting.clear();
+  postedBondsWei = 0n;
+  epochSettledWei = 0n;
+  settledEpoch = null;
   readClock = () => Date.now();
+}
+
+/**
+ * Posted slashable-bond total, in wei. The cap reads this input.
+ * This module does not pick a bond amount.
+ */
+export function setPostedSlashableBonds(wei: bigint): void {
+  if (wei < 0n) throw new Error("Posted slashable bonds cannot be negative.");
+  postedBondsWei = wei;
+}
+
+export function postedSlashableBonds(): bigint {
+  return postedBondsWei;
+}
+
+/** 10% of the bonds posted now. Floors. Zero bonds are a zero cap. */
+export function epochXdaiCapWei(bondsWei: bigint = postedBondsWei): bigint {
+  if (bondsWei <= 0n) return 0n;
+  return (bondsWei * 10n) / 100n;
+}
+
+/** Chain-bound xDAI already admitted in the epoch the clock is in. */
+export function epochSettledXdai(): bigint {
+  const epoch = Math.floor(readClock() / EPOCH_MS);
+  if (settledEpoch !== epoch) return 0n;
+  return epochSettledWei;
+}
+
+function rollEpoch(now: number): number {
+  const epoch = Math.floor(now / EPOCH_MS);
+  if (settledEpoch !== epoch) {
+    settledEpoch = epoch;
+    epochSettledWei = 0n;
+  }
+  return epoch;
 }
 
 /** Latest height whose post succeeded. Null until then. */
@@ -103,6 +159,35 @@ export function chainBoundSendGate(): { ok: true } | { ok: false; error: string 
   return { ok: true };
 }
 
+/**
+ * Admit one chain-bound xDAI send for this epoch.
+ * Anchor and the one-day challenge delay still apply.
+ * A send that would put the epoch total above 10% of the bonds posted now is refused
+ * and is not counted. In-game gold is not passed here.
+ */
+export function chainBoundXdaiSend(
+  kind: ChainXdaiKind,
+  amountWei: bigint,
+): { ok: true; kind: ChainXdaiKind; epoch: number } | { ok: false; error: string } {
+  const gate = chainBoundSendGate();
+  if (!gate.ok) return gate;
+  if (amountWei < 0n) return { ok: false, error: "Chain-bound xDAI amount is negative." };
+  const epoch = rollEpoch(readClock());
+  const cap = epochXdaiCapWei();
+  if (epochSettledWei + amountWei > cap) {
+    return { ok: false, error: EPOCH_XDAI_CAP_REFUSAL };
+  }
+  epochSettledWei += amountWei;
+  return { ok: true, kind, epoch };
+}
+
+/** Give back an admission that did not settle, when the epoch is still the same. */
+export function releaseEpochXdai(amountWei: bigint, epoch: number): void {
+  if (amountWei <= 0n) return;
+  if (settledEpoch !== epoch) return;
+  epochSettledWei = epochSettledWei >= amountWei ? epochSettledWei - amountWei : 0n;
+}
+
 /** In-game actions are not held for the anchor or the challenge delay. */
 export function inGameWaitsForAnchor(
   _action: "play" | "movement" | "combat" | "loot" | "tick",
@@ -112,13 +197,20 @@ export function inGameWaitsForAnchor(
 
 /**
  * Hold a chain withdrawal until the certified root is posted and one day
- * has passed from that anchor. This does not sign or broadcast a withdrawal.
+ * has passed from that anchor. Passing `amountWei` also admits that withdrawal
+ * value under the epoch cap. Omitting it does not settle xDAI. This does not
+ * sign or broadcast a withdrawal.
  */
-export function beginChainWithdrawal():
-  | { ok: true; submitted: false }
-  | { ok: false; error: string } {
-  const gate = chainBoundSendGate();
-  if (!gate.ok) return gate;
+export function beginChainWithdrawal(
+  amountWei?: bigint,
+): { ok: true; submitted: false } | { ok: false; error: string } {
+  if (amountWei == null) {
+    const gate = chainBoundSendGate();
+    if (!gate.ok) return gate;
+    return { ok: true, submitted: false };
+  }
+  const admitted = chainBoundXdaiSend("withdrawal", amountWei);
+  if (!admitted.ok) return admitted;
   return { ok: true, submitted: false };
 }
 

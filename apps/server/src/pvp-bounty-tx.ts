@@ -22,7 +22,7 @@ import type { LokResult } from "./lok-world";
 import { pvpBountyAddress, pvpSyntheticReceiptsAllowed } from "./pvp-bounty";
 import { settlementChainId } from "./settlement-chain";
 import { settlementConfirmations } from "./settlement-confirmations";
-import { chainBoundSendGate } from "./root-anchor";
+import { chainBoundSendGate, chainBoundXdaiSend, releaseEpochXdai } from "./root-anchor";
 import { watcherStartBlock } from "./settlement-rpc";
 import { readWatcherCursor, writeWatcherCursor } from "./watcher-cursor";
 
@@ -310,15 +310,22 @@ export async function chainPvpClaim(
   }
   const gate = chainBoundSendGate();
   if (!gate.ok) return gate;
+  const bountyWei = BigInt(PVP_BOUNTY_WEI);
+  const admitted = chainBoundXdaiSend("bounty", bountyWei);
+  if (!admitted.ok) return admitted;
+  const release = () => releaseEpochXdai(bountyWei, admitted.epoch);
   const owner = await readCharacterOwner(slayerTokenId, env);
   if (!owner || owner !== expectedSlayer.toLowerCase()) {
+    release();
     return {
       ok: false,
       error: "Slayer no longer owns that character — bounty will be refunded, not paid to the new owner.",
     };
   }
   try {
-    return await withOwnerKeyQueue(async () => {
+    const result = await withOwnerKeyQueue<
+      { ok: true; receipt: PvpChainReceipt } | { ok: false; error: string }
+    >(async () => {
       return withOperatorWallet(env, async ({ wallet, public: pub, account, bounty }) => {
         const delay = await pub.readContract({
           address: bounty,
@@ -395,7 +402,10 @@ export async function chainPvpClaim(
         return { ok: true, receipt: fields };
       });
     });
+    if (!result.ok) release();
+    return result;
   } catch (err) {
+    release();
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
 }

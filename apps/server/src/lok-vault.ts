@@ -6,7 +6,7 @@ import { isSettlementChain, settlementCurrencyView } from "@bellgrave/config";
 import { createPublicClient, createWalletClient, http, keccak256, toBytes, type Chain, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { durableWrite } from "./durable-write";
-import { chainBoundSendGate } from "./root-anchor";
+import { chainBoundSendGate, chainBoundXdaiSend, releaseEpochXdai } from "./root-anchor";
 import { withOwnerKeyQueue } from "./owner-tx-queue";
 import { resolvePublicRpcUrl } from "./public-rpc";
 
@@ -740,6 +740,9 @@ export async function serverMintCharacterFor(
   if (!Number.isInteger(job) || job < 0 || job > 255) return { ok: false, error: "That job cannot be minted." };
   const gate = chainBoundSendGate();
   if (!gate.ok) return gate;
+  let mintFeeWei: bigint | null = null;
+  let mintEpoch: number | null = null;
+  let mintSent = false;
   try {
     const chainId = await chainIdOf(env.rpc);
     if (BigInt(chainId) !== LOCAL_ANVIL_CHAIN_ID) {
@@ -751,6 +754,10 @@ export async function serverMintCharacterFor(
       abi: FACTORY_ABI,
       functionName: "mintFee",
     });
+    const admitted = chainBoundXdaiSend("mint", fee);
+    if (!admitted.ok) return admitted;
+    mintFeeWei = fee;
+    mintEpoch = admitted.epoch;
     return withOwnerKeyQueue(async () => {
       const account = privateKeyToAccount(env.ownerKey as Hex);
       const wallet = createWalletClient({
@@ -769,8 +776,13 @@ export async function serverMintCharacterFor(
         account,
         chain: chainOf(chainId, env.rpc),
       });
+      mintSent = true;
       const receipt = await pub.waitForTransactionReceipt({ hash });
-      if (receipt.status !== "success") return { ok: false, error: "Server createCharacterFor reverted." };
+      if (receipt.status !== "success") {
+        releaseEpochXdai(fee, admitted.epoch);
+        mintEpoch = null;
+        return { ok: false, error: "Server createCharacterFor reverted." };
+      }
       const held = (
         await pub.readContract({
           address: env.nft as `0x${string}`,
@@ -794,6 +806,9 @@ export async function serverMintCharacterFor(
       return { ok: true, tokenId, hash };
     });
   } catch (err) {
+    if (mintEpoch != null && mintFeeWei != null && !mintSent) {
+      releaseEpochXdai(mintFeeWei, mintEpoch);
+    }
     return { ok: false, error: "Server mint failed. " + redact(String(err), [env.ownerKey]) };
   }
 }

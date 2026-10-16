@@ -24,7 +24,7 @@ import { cancelTxRecordStore } from "./cancel-tx-record";
 import { consumeGlobalListingTxBudget } from "./lok-list-rate";
 import { openAskPendingStore } from "./open-ask-pending";
 import { withOwnerKeyQueue } from "./owner-tx-queue";
-import { chainBoundSendGate } from "./root-anchor";
+import { chainBoundSendGate, chainBoundXdaiSend, releaseEpochXdai } from "./root-anchor";
 import { settlementConfirmations } from "./settlement-confirmations";
 
 const AH_ABI = [
@@ -408,6 +408,15 @@ export async function replacePendingOpenAsk(opts: {
   });
 }
 
+function parseAskPrice(value: string): bigint | null {
+  if (!/^\d+$/.test(value)) return null;
+  try {
+    return BigInt(value);
+  } catch {
+    return null;
+  }
+}
+
 export async function openAskOnchain(opts: {
   listingId: string;
   sellerTokenId: string;
@@ -419,7 +428,22 @@ export async function openAskOnchain(opts: {
 }): Promise<{ ok: true; hash: Hex } | { ok: false; error: string; chainOpen?: boolean }> {
   const gate = chainBoundSendGate();
   if (!gate.ok) return gate;
-  return withOwnerKeyQueue(async () => {
+  const price = parseAskPrice(opts.priceWei);
+  let reserved: { amount: bigint; epoch: number } | null = null;
+  if (price != null) {
+    const admitted = chainBoundXdaiSend("escrow", price);
+    if (!admitted.ok) return admitted;
+    reserved = { amount: price, epoch: admitted.epoch };
+  }
+  const release = () => {
+    if (!reserved) return;
+    releaseEpochXdai(reserved.amount, reserved.epoch);
+    reserved = null;
+  };
+  try {
+    const result = await withOwnerKeyQueue<
+      { ok: true; hash: Hex } | { ok: false; error: string; chainOpen?: boolean }
+    >(async () => {
     const c = client(opts.env);
     if (!c.ok) return c;
     const budget = consumeGlobalListingTxBudget({ dataDir: opts.dataDir });
@@ -505,6 +529,12 @@ export async function openAskOnchain(opts: {
       return { ok: false, error: msg, chainOpen: false };
     }
   });
+    if (!result.ok && result.chainOpen !== true) release();
+    return result;
+  } catch (err) {
+    release();
+    throw err;
+  }
 }
 
 /**
