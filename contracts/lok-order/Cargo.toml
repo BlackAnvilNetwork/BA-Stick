@@ -3,7 +3,7 @@ name = "lok-order"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.85"
-description = "In-process Malachite orderer for a Bellgrave genesis of one validator"
+description = "In-process Malachite orderer for a three-replica allowlist"
 license = "MIT"
 publish = false
 

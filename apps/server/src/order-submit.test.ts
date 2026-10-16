@@ -4,7 +4,13 @@
  */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { submitOnSimTick, submitSealedBatch, type BatchOrderer } from "./order-submit";
+import {
+  emptyReplicaHealth,
+  replicaHealthFromLine,
+  submitOnSimTick,
+  submitSealedBatch,
+  type BatchOrderer,
+} from "./order-submit";
 
 const root = new Uint8Array(32);
 root[0] = 0xab;
@@ -66,6 +72,60 @@ test("a stopped engine or a missing commit does not fail the sim tick", () => {
   assert.equal(pending.tickFailed, false);
   assert.equal(pending.status, "submitted");
   assert.equal(commits, 0);
+});
+
+test("fewer than a majority of heard peers leaves the tick provisional", () => {
+  let calls = 0;
+  const orderer: BatchOrderer = {
+    submit() {
+      calls += 1;
+    },
+  };
+  const sealed = { ok: true as const, height: 1, nextRoot: root };
+  const oneHeard = [
+    { address: "aa", heard: true },
+    { address: "bb", heard: false },
+    { address: "cc", heard: false },
+  ];
+  const short = submitOnSimTick(orderer, sealed, oneHeard);
+  assert.equal(short.tickFailed, false);
+  assert.equal(short.status, "provisional");
+  assert.equal(calls, 0);
+
+  const twoHeard = [
+    { address: "aa", heard: true },
+    { address: "bb", heard: true },
+    { address: "cc", heard: false },
+  ];
+  const majority = submitOnSimTick(orderer, sealed, twoHeard);
+  assert.equal(majority.tickFailed, false);
+  assert.equal(majority.status, "submitted");
+  assert.equal(calls, 1);
+});
+
+test("a replica status line records height, skew, and peers, and drops an anchor", () => {
+  const next = replicaHealthFromLine(
+    JSON.stringify({
+      lastCertifiedHeight: 3,
+      lastAnchoredHeight: 9,
+      clockSkew: 0,
+      peers: [
+        { address: "aa", heard: true },
+        { address: "bb", heard: false },
+        { address: "cc", heard: true },
+      ],
+      seedRoller: "bb",
+      leader: "aa",
+    }),
+    emptyReplicaHealth(),
+  );
+  assert.equal(next.lastCertifiedHeight, 3);
+  assert.equal(next.lastAnchoredHeight, null);
+  assert.equal(next.clockSkew, 0);
+  assert.equal(next.peers.length, 3);
+  assert.equal(next.peers[1]?.heard, false);
+  assert.equal(next.seedRoller, "bb");
+  assert.notEqual(next.seedRoller, "aa");
 });
 
 test("a successful submit returns without a commit", () => {

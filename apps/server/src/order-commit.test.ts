@@ -1,9 +1,10 @@
 /**
- * One validator commits the batch the server submits.
+ * The real lok-order binary commits the batch the server submits.
  *
- * startProcessOrderer writes one JSON line and does not read stdout.
- * This test writes that same line to the real lok-order binary, then reads
- * the commit line. submitOnSimTick still returns without that commit.
+ * startProcessOrderer writes one JSON line and returns without the commit.
+ * This test writes that same line to the binary, then reads the last status
+ * line. Three allowlisted validators print a status line, not a separate
+ * commit object. submitOnSimTick still returns without that status.
  */
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
@@ -119,17 +120,17 @@ async function commitSubmittedLine(bin: string, line: string): Promise<CommitLin
 
   const finished = once(child, "exit");
   child.stdin.write(line);
-  // The write has returned. The commit line is not available yet.
-  const beforeCommit = stdout;
   child.stdin.end();
   const timer = setTimeout(() => child.kill(), 30_000);
   const [code] = await finished;
   clearTimeout(timer);
-  assert.equal(beforeCommit, "");
   assert.equal(code, 0, stderr);
-  const text = stdout.trim();
-  assert.equal(text.includes("\n"), false, text);
-  return parseCommit(text, stderr);
+  const lines = stdout
+    .split("\n")
+    .map((row) => row.trim())
+    .filter((row) => row.length > 0);
+  assert.ok(lines.length >= 1, stderr);
+  return parseCommit(lines[lines.length - 1]!, stderr);
 }
 
 test("one validator commits the batch the server submits", { timeout: 20 * 60 * 1000 }, async () => {
@@ -155,5 +156,5 @@ test("one validator commits the batch the server submits", { timeout: 20 * 60 * 
   const commit = await commitSubmittedLine(bin, line);
   assert.equal(commit.height, height);
   assert.equal(commit.root, Buffer.from(nextRoot).toString("hex"));
-  assert.ok(commit.signatures >= 1);
+  assert.ok(commit.signatures >= 2);
 });

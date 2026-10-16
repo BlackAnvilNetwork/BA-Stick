@@ -1,11 +1,14 @@
-//! One Malachite validator, in process, for a genesis of one.
+//! In-process Malachite orderer.
 //!
 //! The published network engine (`informalsystems-malachitebft-engine` 0.5.0)
 //! depends on libp2p. This crate drives `informalsystems-malachitebft-core-consensus`
-//! 0.5.0 inside the process instead, so a single validator can commit on the
-//! GNU toolchain without protoc or a second host. The TypeScript tick only
-//! submits a height and a 32-byte root. It does not run a round.
+//! 0.5.0 inside the process, so validators can commit on the GNU toolchain
+//! without protoc or a second host. A genesis of one still commits at threshold
+//! 1. The allowlist runs three states and ferries their consensus messages.
+//! The TypeScript tick only submits a height and a 32-byte root. It does not
+//! run a round. A commit is still only `Effect::Decide`.
 
+mod allowlist;
 mod context;
 
 use std::collections::VecDeque;
@@ -13,15 +16,19 @@ use std::fmt;
 
 use informalsystems_malachitebft_core_consensus::{
     process, ConsensusMsg, Effect, Error as ConsensusError, Input, LocallyProposedValue, Params,
-    Resumable, State, ValuePayload,
+    Resumable, SignedConsensusMsg, State, ValuePayload,
 };
 use informalsystems_malachitebft_core_types::{
-    Height, SigningProvider, SigningProviderExt, ThresholdParams,
+    Context, Height, SigningProvider, SigningProviderExt, ThresholdParams, Validator,
 };
 use informalsystems_malachitebft_signing_ed25519::{Ed25519, PrivateKey};
 use rand::rngs::OsRng;
 
-pub use context::{genesis_validator_set, BatchRoot, GenesisSet, OrderAddr, OrderCtx, OrderHeight};
+pub use allowlist::{majority_threshold, AllowlistOrderer, PeerView};
+pub use context::{
+    allowlist_validator_set, genesis_validator_set, leader_address, seed_roller_address, BatchRoot,
+    GenesisSet, OrderAddr, OrderCtx, OrderHeight,
+};
 
 
 /// A commit certificate Malachite produced for one proposed root.
@@ -94,9 +101,15 @@ impl GenesisOrderer {
         self.state.address().clone()
     }
 
+    /// With one replica the seed roller is this validator.
+    pub fn seed_roller(&self) -> OrderAddr {
+        seed_roller_address(self.validator_set(), 0)
+    }
+
     /// Run one height until Malachite decides, or return an error and leave the
     /// caller on the provisional path. Does not invent a commit.
     pub fn commit(&mut self, height: u64, root: [u8; 32]) -> Result<Committed, OrderError> {
+        let address = self.address();
         let mut pending = Some(BatchRoot(root));
         let mut decided: Option<Committed> = None;
         let mut queue = VecDeque::new();
@@ -112,6 +125,7 @@ impl GenesisOrderer {
                 break;
             }
             let mut followups = Vec::new();
+            let mut outbound = Vec::new();
             let step: Result<(), ConsensusError<OrderCtx>> = process!(
                 input: input,
                 state: &mut self.state,
@@ -119,10 +133,12 @@ impl GenesisOrderer {
                 with: effect => handle_effect(
                     effect,
                     &self.key,
+                    &address,
                     &self.validators,
                     &mut pending,
                     &mut decided,
                     &mut followups,
+                    &mut outbound,
                 )
             );
             step.map_err(|err: ConsensusError<OrderCtx>| OrderError::Consensus(err.to_string()))?;
@@ -173,21 +189,26 @@ mod tests {
     }
 }
 
-fn handle_effect(
+pub(crate) fn handle_effect(
     effect: Effect<OrderCtx>,
     key: &PrivateKey,
+    address: &OrderAddr,
     validators: &GenesisSet,
     pending: &mut Option<BatchRoot>,
     decided: &mut Option<Committed>,
     followups: &mut Vec<Input<OrderCtx>>,
+    outbound: &mut Vec<SignedConsensusMsg<OrderCtx>>,
 ) -> Result<informalsystems_malachitebft_core_consensus::Resume<OrderCtx>, &'static str> {
     Ok(match effect {
+        Effect::PublishConsensusMsg(msg, resume) => {
+            outbound.push(msg);
+            resume.resume_with(())
+        }
         Effect::ResetTimeouts(resume)
         | Effect::CancelAllTimeouts(resume)
         | Effect::CancelTimeout(_, resume)
         | Effect::ScheduleTimeout(_, resume)
         | Effect::StartRound(_, _, _, _, resume)
-        | Effect::PublishConsensusMsg(_, resume)
         | Effect::PublishLivenessMsg(_, resume)
         | Effect::RepublishVote(_, resume)
         | Effect::RepublishRoundCertificate(_, resume)
@@ -196,8 +217,13 @@ fn handle_effect(
         | Effect::WalAppend(_, resume) => resume.resume_with(()),
         Effect::GetValidatorSet(_, resume) => resume.resume_with(Some(validators.clone())),
         Effect::GetValue(height, round, _timeout, resume) => {
-            if let Some(value) = pending.take() {
-                followups.push(Input::Propose(LocallyProposedValue::new(height, round, value)));
+            let proposer = OrderCtx.select_proposer(validators, height, round);
+            if Validator::address(proposer) == address {
+                if let Some(value) = pending.take() {
+                    followups.push(Input::Propose(LocallyProposedValue::new(
+                        height, round, value,
+                    )));
+                }
             }
             resume.resume_with(())
         }

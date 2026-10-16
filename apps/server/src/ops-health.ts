@@ -28,6 +28,11 @@ import {
   redactRpcUrl,
 } from "./ops-redact";
 import {
+  emptyReplicaHealth,
+  type ReplicaHealth,
+  type ReplicaPeer,
+} from "./order-submit";
+import {
   settlementRpcStats,
   watcherLagBlocks,
   type SettlementRpcStats,
@@ -43,7 +48,11 @@ export type OpsHealthDeps = {
   remoteAddress?: string | null;
   /** Override replacePendingOpenAsk for unit tests. */
   replacePendingOpenAsk?: typeof replacePendingOpenAsk;
+  /** Allowlist view. Absent means no certified height and no peers yet. */
+  replicaHealth?: () => ReplicaHealth;
 };
+
+export type { ReplicaHealth, ReplicaPeer };
 
 export type OpsRpcStatusView = {
   url: string;
@@ -76,6 +85,16 @@ export type OpsStatusBody = {
     askFilledQuarantine: number;
     recent: ReturnType<typeof recentOpsAlerts>;
   };
+  /** Height of the last `Effect::Decide`. Null until a majority commits. */
+  lastCertifiedHeight: number | null;
+  /** Null until the Gnosis anchor gate. This phase does not post roots. */
+  lastAnchoredHeight: null;
+  /** Local harness skew, in milliseconds. Present even when it is 0. */
+  clockSkew: number;
+  /** Allowlist entries and whether this process has heard them. */
+  peers: ReplicaPeer[];
+  /** Recorded seed-roller identity. Null until the orderer reports one. */
+  seedRoller: string | null;
 };
 
 export function redactSettlementRpcStats(
@@ -131,6 +150,7 @@ export function buildOpsStatus(deps: OpsHealthDeps): OpsStatusBody {
   }
 
   const profile = networkProfile(env as Record<string, string | undefined>);
+  const replica = deps.replicaHealth?.() ?? emptyReplicaHealth();
   return {
     ok: true,
     ready,
@@ -149,6 +169,11 @@ export function buildOpsStatus(deps: OpsHealthDeps): OpsStatusBody {
       askFilledQuarantine: quarantine,
       recent: recentOpsAlerts(),
     },
+    lastCertifiedHeight: replica.lastCertifiedHeight,
+    lastAnchoredHeight: null,
+    clockSkew: replica.clockSkew,
+    peers: replica.peers,
+    seedRoller: replica.seedRoller,
   };
 }
 
