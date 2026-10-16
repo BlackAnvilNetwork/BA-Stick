@@ -309,7 +309,6 @@ contract Deploy is Script {
         console.log("rulesetsImpl        ", d.rulesetsImpl);
         console.log("admin               ", c.admin);
         console.log("feeRecipient        ", c.feeRecipient);
-        console.log("guildVault          ", d.ahEscrow.guildVault());
         console.log("listing             ", c.listing);
         console.log("items               ", c.items);
         console.log("mintFee (wei)       ", c.mintFee);

@@ -110,7 +110,7 @@ contract AhEscrowSupportTest is Test {
         escrow.buyAsk{value: PRICE}(LISTING, BUYER_TOKEN);
     }
 
-    /// Fuzz: fee + sellerNet == price; buyer excess refunded; escrow empty.
+    /// Fuzz: fee + sellerNet == price; buyer excess refunded; escrow holds the fee.
     function testFuzz_excessRefund(uint96 extra) public {
         _open(LISTING, PRICE);
         uint256 v = PRICE + uint256(extra) % 1 ether;
@@ -120,10 +120,11 @@ contract AhEscrowSupportTest is Test {
         vm.prank(buyer);
         escrow.buyAsk{value: v}(LISTING, BUYER_TOKEN);
         assertEq(seller.balance, net);
-        assertEq(feeTo.balance, treasuryWei);
-        assertEq(escrow.guildVault().balance, vaultWei);
+        assertEq(feeTo.balance, 0);
+        assertEq(escrow.vaultHeldWei(), vaultWei);
+        assertEq(escrow.treasuryHeldWei(), treasuryWei);
         assertEq(vaultWei + treasuryWei, fee);
         assertEq(buyer.balance, before - PRICE);
-        assertEq(address(escrow).balance, 0);
+        assertEq(address(escrow).balance, fee);
     }
 }

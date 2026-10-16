@@ -50,8 +50,10 @@ contract MockEezSyncBuyTest is Test {
         mock.syncBuy{value: PRICE}(LISTING, BUYER_TOKEN, deadline, sig);
 
         assertEq(sellerHome.balance, beforeSeller + net);
-        assertEq(feeTo.balance, treasuryWei);
-        assertEq(escrow.guildVault().balance, vaultWei);
+        assertEq(feeTo.balance, 0);
+        assertEq(address(escrow).balance, fee);
+        assertEq(escrow.vaultHeldWei(), vaultWei);
+        assertEq(escrow.treasuryHeldWei(), treasuryWei);
         assertEq(vaultWei + treasuryWei, fee);
         (,,,, bool open, bool used) = escrow.asks(LISTING);
         assertFalse(open);

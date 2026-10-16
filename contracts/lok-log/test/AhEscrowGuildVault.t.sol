@@ -3,11 +3,10 @@ pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
 import {AhEscrow} from "../src/AhEscrow.sol";
-import {GuildVault} from "../src/GuildVault.sol";
 import {RulesetRegistry} from "../src/RulesetRegistry.sol";
 import {MockOwnerNft} from "./mocks/MockOwnerNft.sol";
 
-/// Guild-vault slice: the 1% fee splits 50/50. Shares move only after the ruleset timelock.
+/// Guild-vault slice: the 1% fee is recorded 50/50 and neither share is sent.
 contract AhEscrowGuildVaultTest is Test {
     AhEscrow escrow;
     MockOwnerNft nft;
@@ -36,195 +35,194 @@ contract AhEscrowGuildVaultTest is Test {
         escrow.openAsk(id, SELLER_TOKEN, ITEM, AMOUNT, price);
     }
 
-    function test_zeroVolumeVaultHoldsZero() public view {
-        assertEq(escrow.guildVault().balance, 0);
-        assertEq(address(escrow).balance, 0);
-        assertEq(escrow.vaultBps(), 50);
-        assertEq(escrow.treasuryBps(), 50);
-        assertEq(escrow.vaultBps() + escrow.treasuryBps(), escrow.FEE_BPS());
-        assertEq(escrow.FEE_BPS(), 100);
+    function _attemptApply(address caller) internal {
+        vm.prank(caller);
+        (bool shares,) = address(escrow).call(abi.encodeWithSignature("setFeeShares(uint256,uint256)", 80, 20));
+        assertFalse(shares);
+        vm.prank(caller);
+        (bool vault,) = address(escrow).call(abi.encodeWithSignature("setVaultFeeBps(uint256)", 80));
+        assertFalse(vault);
+        vm.prank(caller);
+        (bool treasury,) = address(escrow).call(abi.encodeWithSignature("setTreasuryFeeBps(uint256)", 20));
+        assertFalse(treasury);
+        vm.prank(caller);
+        (bool proposed,) = address(escrow).call(abi.encodeWithSignature("proposeFeeShares(uint256,uint256)", 80, 20));
+        assertFalse(proposed);
+        vm.prank(caller);
+        (bool executed,) = address(escrow).call(abi.encodeWithSignature("executeFeeShares()"));
+        assertFalse(executed);
+        vm.prank(caller);
+        (bool released,) = address(escrow).call(abi.encodeWithSignature("releaseFeeShares()"));
+        assertFalse(released);
     }
 
-    function test_buyAsk_buyerPaysOnePercent_sellerNetsNinetyNine_sharesAreFiftyBps() public {
+    function test_sharesSumToFeeBps_andStayConstant() public {
+        assertEq(escrow.VAULT_FEE_BPS(), 50);
+        assertEq(escrow.TREASURY_FEE_BPS(), 50);
+        assertEq(escrow.VAULT_FEE_BPS() + escrow.TREASURY_FEE_BPS(), escrow.FEE_BPS());
+        assertEq(escrow.FEE_BPS(), 100);
+        // Same one-day floor as the ruleset timelock. Not Deploy's 48 hours.
+        assertEq(new RulesetRegistry().MIN_DELAY(), 1 days);
+        assertTrue(new RulesetRegistry().MIN_DELAY() != 48 hours);
+    }
+
+    function test_buyAsk_buyerPaysOnePercent_andNeitherShareIsSent() public {
         _open(LISTING, PRICE);
         uint256 beforeBuyer = buyer.balance;
         uint256 beforeSeller = seller.balance;
+        uint256 beforeFee = feeTo.balance;
+        (uint256 fee, uint256 net) = escrow.quoteFee(PRICE);
+        (uint256 vaultWei, uint256 treasuryWei) = escrow.quoteFeeShares(PRICE);
 
         vm.prank(buyer);
         escrow.buyAsk{value: PRICE}(LISTING, BUYER_TOKEN);
 
-        uint256 fee = (PRICE * 100) / 10_000;
-        uint256 vaultWei = (PRICE * 50) / 10_000;
-        uint256 treasuryWei = (PRICE * 50) / 10_000;
-        assertEq(beforeBuyer - buyer.balance, PRICE, "buyer pays the sale price, not a second fee");
-        assertEq(seller.balance - beforeSeller, PRICE - fee, "seller nets 99%");
-        assertEq(seller.balance - beforeSeller, (PRICE * 9900) / 10_000);
-        assertEq(escrow.guildVault().balance, vaultWei, "vault receives 50 bps");
-        assertEq(feeTo.balance, treasuryWei, "treasury receives 50 bps");
-        assertEq(vaultWei + treasuryWei, fee, "50 + 50 = 100 bps");
-        assertEq(address(escrow).balance, 0);
-        assertEq(GuildVault(escrow.guildVault()).escrow(), address(escrow));
+        assertEq(beforeBuyer - buyer.balance, PRICE, "buyer pays the sale price");
+        assertEq(seller.balance - beforeSeller, net, "seller nets price minus the 1% fee");
+        assertEq(fee + net, PRICE);
+        assertEq(vaultWei, (PRICE * 50) / 10_000);
+        assertEq(treasuryWei, (PRICE * 50) / 10_000);
+        assertEq(vaultWei + treasuryWei, fee);
+        assertEq(feeTo.balance, beforeFee, "treasury share is not sent");
+        assertEq(buyer.balance, beforeBuyer - PRICE);
+        assertEq(address(escrow).balance, fee, "the 1% fee stays in escrow");
+        assertEq(escrow.vaultHeldWei(), vaultWei);
+        assertEq(escrow.treasuryHeldWei(), treasuryWei);
+        assertEq(escrow.VAULT_FEE_BPS(), 50);
+        assertEq(escrow.TREASURY_FEE_BPS(), 50);
     }
 
-    function test_quoteFeeShares_floorsLikeQuoteFee() public view {
+    function test_unprivilegedCallerCannotApplyEitherShare() public {
+        _open(LISTING, PRICE);
+        address stranger = makeAddr("stranger");
+        vm.deal(stranger, 1 ether);
+
+        vm.prank(stranger);
+        vm.expectRevert(AhEscrow.NotOwner.selector);
+        escrow.buyAsk{value: PRICE}(LISTING, BUYER_TOKEN);
+
+        _attemptApply(stranger);
+        _attemptApply(buyer);
+
+        vm.prank(buyer);
+        escrow.buyAsk{value: PRICE}(LISTING, BUYER_TOKEN);
+
+        _attemptApply(buyer);
+        assertEq(escrow.VAULT_FEE_BPS(), 50);
+        assertEq(escrow.TREASURY_FEE_BPS(), 50);
+        assertEq(feeTo.balance, 0);
+        assertEq(stranger.balance, 1 ether);
+        assertEq(address(escrow).balance, (PRICE * 100) / 10_000);
+
+        vm.warp(block.timestamp + 1 days);
+        _attemptApply(buyer);
+        _attemptApply(stranger);
+        assertEq(feeTo.balance, 0);
+        assertEq(address(escrow).balance, (PRICE * 100) / 10_000);
+        assertEq(escrow.VAULT_FEE_BPS(), 50);
+        assertEq(escrow.TREASURY_FEE_BPS(), 50);
+    }
+
+    function test_adminCannotApplyEitherShareInThisTransaction() public {
+        _open(LISTING, PRICE);
+        vm.prank(buyer);
+        escrow.buyAsk{value: PRICE}(LISTING, BUYER_TOKEN);
+        uint256 held = address(escrow).balance;
+
+        vm.prank(admin);
+        escrow.setFeeRecipient(payable(makeAddr("next")));
+        _attemptApply(admin);
+
+        assertEq(escrow.VAULT_FEE_BPS(), 50);
+        assertEq(escrow.TREASURY_FEE_BPS(), 50);
+        assertEq(feeTo.balance, 0);
+        assertEq(address(escrow).balance, held);
+
+        vm.warp(block.timestamp + 1 days);
+        _attemptApply(admin);
+        assertEq(address(escrow).balance, held);
+        assertEq(feeTo.balance, 0);
+        assertEq(escrow.VAULT_FEE_BPS() + escrow.TREASURY_FEE_BPS(), escrow.FEE_BPS());
+    }
+
+    function test_quoteFeeShares_floorsLikeQuoteFee_andZeroFeeStaysZero() public view {
+        (uint256 fee0, uint256 net0) = escrow.quoteFee(0);
+        (uint256 vault0, uint256 treasury0) = escrow.quoteFeeShares(0);
+        assertEq(fee0, 0);
+        assertEq(net0, 0);
+        assertEq(vault0, 0);
+        assertEq(treasury0, 0);
+
+        (uint256 fee1,) = escrow.quoteFee(1);
+        (uint256 vault1, uint256 treasury1) = escrow.quoteFeeShares(1);
+        assertEq(fee1, 0);
+        assertEq(vault1, 0);
+        assertEq(treasury1, 0);
+
+        (uint256 fee99, uint256 net99) = escrow.quoteFee(99);
+        (uint256 vault99, uint256 treasury99) = escrow.quoteFeeShares(99);
+        assertEq(fee99, 0);
+        assertEq(net99, 99);
+        assertEq(vault99, 0);
+        assertEq(treasury99, 0);
+
         (uint256 fee100, uint256 net100) = escrow.quoteFee(100);
         (uint256 vault100, uint256 treasury100) = escrow.quoteFeeShares(100);
         assertEq(fee100, 1);
         assertEq(net100, 99);
-        assertEq(vault100, uint256(100 * 50) / 10_000);
         assertEq(vault100, 0);
-        assertEq(treasury100, fee100 - vault100, "leftover wei of the 1% stays with the treasury");
+        assertEq(treasury100, 0);
+        assertEq(fee100 - (vault100 + treasury100), 1);
 
         (uint256 vault200, uint256 treasury200) = escrow.quoteFeeShares(200);
-        assertEq(vault200, uint256(200 * 50) / 10_000);
-        assertEq(treasury200, uint256(200 * 50) / 10_000);
-        assertEq(vault200 + treasury200, 2);
+        assertEq(vault200, 1);
+        assertEq(treasury200, 1);
+        (uint256 fee200,) = escrow.quoteFee(200);
+        assertEq(vault200 + treasury200, fee200);
 
-        (uint256 vault1, uint256 treasury1) = escrow.quoteFeeShares(1);
-        assertEq(vault1, 0);
-        assertEq(treasury1, 0);
+        (uint256 fee300,) = escrow.quoteFee(300);
+        (uint256 vault300, uint256 treasury300) = escrow.quoteFeeShares(300);
+        assertEq(fee300, 3);
+        assertEq(vault300, 1);
+        assertEq(treasury300, 1);
+        assertEq(fee300 - (vault300 + treasury300), 1);
     }
 
-    function test_buyAsk_dustPrice_sellerKeepsPriceWhenFeeFloorsToZero() public {
+    function test_buyAsk_zeroFee_sendsNothingAndHoldsNothing() public {
         _open(LISTING, 99);
         vm.prank(buyer);
         escrow.buyAsk{value: 99}(LISTING, BUYER_TOKEN);
         assertEq(seller.balance, 99);
         assertEq(feeTo.balance, 0);
-        assertEq(escrow.guildVault().balance, 0);
+        assertEq(address(escrow).balance, 0);
+        assertEq(escrow.vaultHeldWei(), 0);
+        assertEq(escrow.treasuryHeldWei(), 0);
     }
 
-    function test_directSend_doesNotFundVault() public {
-        address vault = escrow.guildVault();
+    function test_buyAsk_oneWeiFee_isHeldAndNeitherShareIsSent() public {
+        _open(LISTING, 100);
         vm.prank(buyer);
-        vm.expectRevert(GuildVault.NotEscrow.selector);
-        (bool ok,) = vault.call{value: 1 ether}("");
-        ok;
-        assertEq(vault.balance, 0);
+        escrow.buyAsk{value: 100}(LISTING, BUYER_TOKEN);
+        assertEq(seller.balance, 99);
+        assertEq(feeTo.balance, 0);
+        assertEq(address(escrow).balance, 1);
+        assertEq(escrow.vaultHeldWei(), 0);
+        assertEq(escrow.treasuryHeldWei(), 0);
     }
 
-    function test_feeShares_cannotChangeWithoutTimelock() public {
-        RulesetRegistry rules = new RulesetRegistry();
-        assertEq(escrow.SHARE_DELAY(), rules.MIN_DELAY(), "share delay is the ruleset timelock floor");
-        assertGe(escrow.SHARE_DELAY(), 1 days);
-
-        vm.prank(buyer);
-        vm.expectRevert(AhEscrow.Unauthorized.selector);
-        escrow.proposeFeeShares(80, 20);
-        assertEq(escrow.vaultBps(), 50);
-        assertEq(escrow.treasuryBps(), 50);
-
-        vm.prank(admin);
-        vm.expectRevert(AhEscrow.BadShares.selector);
-        escrow.proposeFeeShares(80, 30);
-        assertEq(escrow.vaultBps(), 50);
-
-        vm.prank(admin);
-        escrow.proposeFeeShares(80, 20);
-        assertEq(escrow.vaultBps(), 50, "propose is not an immediate setter");
-        assertEq(escrow.treasuryBps(), 50);
-        (uint256 pendingVault, uint256 pendingTreasury, uint64 readyAt) = escrow.pendingFeeShares();
-        assertEq(pendingVault, 80);
-        assertEq(pendingTreasury, 20);
-        assertEq(readyAt, uint64(block.timestamp) + escrow.SHARE_DELAY());
-
-        vm.prank(admin);
-        vm.expectRevert(AhEscrow.TooEarly.selector);
-        escrow.executeFeeShares();
-        assertEq(escrow.vaultBps(), 50);
-        assertEq(escrow.treasuryBps(), 50);
-
-        vm.warp(readyAt - 1);
-        vm.prank(admin);
-        vm.expectRevert(AhEscrow.TooEarly.selector);
-        escrow.executeFeeShares();
-        assertEq(escrow.vaultBps(), 50);
-        assertEq(escrow.treasuryBps(), 50);
-
-        vm.prank(buyer);
-        vm.expectRevert(AhEscrow.Unauthorized.selector);
-        escrow.executeFeeShares();
-
-        vm.warp(readyAt);
-        vm.prank(admin);
-        escrow.executeFeeShares();
-        assertEq(escrow.vaultBps(), 80);
-        assertEq(escrow.treasuryBps(), 20);
-        assertEq(escrow.vaultBps() + escrow.treasuryBps(), escrow.FEE_BPS());
-    }
-
-    function test_overwrite_resetsTheTimelock() public {
-        vm.prank(admin);
-        escrow.proposeFeeShares(80, 20);
-        (,, uint64 firstReady) = escrow.pendingFeeShares();
-
-        vm.warp(firstReady - 1);
-        vm.prank(admin);
-        escrow.proposeFeeShares(70, 30);
-        assertEq(escrow.vaultBps(), 50);
-        (,, uint64 secondReady) = escrow.pendingFeeShares();
-        assertEq(secondReady, uint64(block.timestamp) + escrow.SHARE_DELAY());
-
-        vm.warp(firstReady);
-        vm.prank(admin);
-        vm.expectRevert(AhEscrow.TooEarly.selector);
-        escrow.executeFeeShares();
-        assertEq(escrow.vaultBps(), 50);
-        assertEq(escrow.treasuryBps(), 50);
-    }
-
-    function test_cancel_leavesLiveShares() public {
-        vm.prank(admin);
-        escrow.proposeFeeShares(0, 100);
-        vm.prank(admin);
-        escrow.cancelFeeShares();
-        assertEq(escrow.vaultBps(), 50);
-        assertEq(escrow.treasuryBps(), 50);
-        vm.warp(block.timestamp + escrow.SHARE_DELAY());
-        vm.prank(admin);
-        vm.expectRevert(AhEscrow.NoPendingShares.selector);
-        escrow.executeFeeShares();
-        assertEq(escrow.vaultBps(), 50);
-    }
-
-    function test_setFeeRecipient_doesNotChangeShares() public {
-        vm.prank(admin);
-        escrow.setFeeRecipient(payable(makeAddr("next")));
-        assertEq(escrow.vaultBps(), 50);
-        assertEq(escrow.treasuryBps(), 50);
-        assertEq(escrow.guildVault().balance, 0);
-    }
-
-    function test_shareChange_keepsPlayerFeeAtOnePercent() public {
-        vm.prank(admin);
-        escrow.proposeFeeShares(80, 20);
-        (,, uint64 readyAt) = escrow.pendingFeeShares();
-        vm.warp(readyAt);
-        vm.prank(admin);
-        escrow.executeFeeShares();
-
-        _open(LISTING, PRICE);
-        uint256 beforeBuyer = buyer.balance;
-        uint256 beforeSeller = seller.balance;
-        vm.prank(buyer);
-        escrow.buyAsk{value: PRICE}(LISTING, BUYER_TOKEN);
-
-        uint256 fee = (PRICE * escrow.FEE_BPS()) / 10_000;
-        assertEq(beforeBuyer - buyer.balance, PRICE);
-        assertEq(seller.balance - beforeSeller, PRICE - fee);
-        assertEq(escrow.guildVault().balance, (PRICE * 80) / 10_000);
-        assertEq(feeTo.balance, (PRICE * 20) / 10_000);
-        assertEq(escrow.FEE_BPS(), 100);
-    }
-
-    function testFuzz_sharesPartitionTheOnePercentFee(uint96 price) public view {
-        price = uint96(bound(price, 1, type(uint96).max));
+    function testFuzz_sharesFloorInsideTheOnePercentFee(uint256 price) public view {
+        price = bound(price, 0, type(uint128).max);
         (uint256 fee, uint256 net) = escrow.quoteFee(price);
         (uint256 vaultWei, uint256 treasuryWei) = escrow.quoteFeeShares(price);
-        assertEq(fee, (uint256(price) * 100) / 10_000);
-        assertEq(net, uint256(price) - fee);
-        assertEq(vaultWei + treasuryWei, fee);
-        uint256 vaultFloor = (uint256(price) * 50) / 10_000;
-        assertEq(vaultWei, vaultFloor > fee ? fee : vaultFloor);
+        assertEq(fee, (price * 100) / 10_000);
+        assertEq(net, price - fee);
+        assertEq(vaultWei, (price * 50) / 10_000);
+        assertEq(treasuryWei, (price * 50) / 10_000);
+        assertLe(vaultWei + treasuryWei, fee);
+        assertLe(fee - (vaultWei + treasuryWei), 1);
+        if (fee == 0) {
+            assertEq(vaultWei, 0);
+            assertEq(treasuryWei, 0);
+        }
     }
 }

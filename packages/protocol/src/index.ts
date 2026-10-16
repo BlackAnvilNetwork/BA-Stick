@@ -419,12 +419,28 @@ export type LokListingView = {
 /** Matches AhEscrow.FEE_BPS — 1% of sale price (floor). */
 export const AH_FEE_BPS = 100;
 export const AH_FEE_BPS_DENOM = 10_000;
+/** Guild-vault share of the sale. Half of `AH_FEE_BPS`. Not a payout. */
+export const AH_VAULT_FEE_BPS = 50;
+/** Treasury share of the sale. Half of `AH_FEE_BPS`. Not a payout. */
+export const AH_TREASURY_FEE_BPS = 50;
 
 /** Floor split used by AhEscrow.buyAsk / quoteFee. */
 export function ahFeeSplit(priceWei: bigint): { feeWei: bigint; sellerNetWei: bigint } {
   if (priceWei < 0n) throw new Error("priceWei must be non-negative");
   const feeWei = (priceWei * BigInt(AH_FEE_BPS)) / BigInt(AH_FEE_BPS_DENOM);
   return { feeWei, sellerNetWei: priceWei - feeWei };
+}
+
+/**
+ * Floor each share the same way `ahFeeSplit` floors (`price * bps / 10000`).
+ * A zero fee is a zero vault share and a zero treasury share.
+ * The shares are not paid here. In-game gold is not an input.
+ */
+export function ahGuildFeeShares(priceWei: bigint): { feeWei: bigint; vaultWei: bigint; treasuryWei: bigint } {
+  const { feeWei } = ahFeeSplit(priceWei);
+  const vaultWei = (priceWei * BigInt(AH_VAULT_FEE_BPS)) / BigInt(AH_FEE_BPS_DENOM);
+  const treasuryWei = (priceWei * BigInt(AH_TREASURY_FEE_BPS)) / BigInt(AH_FEE_BPS_DENOM);
+  return { feeWei, vaultWei, treasuryWei };
 }
 
 /** Native settlement currency exposed to the client (label + defaults). */

@@ -55,8 +55,10 @@ contract AhEscrowTest is Test {
         escrow.buyAsk{value: PRICE}(LISTING, BUYER_TOKEN);
 
         assertEq(seller.balance, beforeSeller + net);
-        assertEq(feeTo.balance, beforeFee + treasuryWei);
-        assertEq(escrow.guildVault().balance, vaultWei);
+        assertEq(feeTo.balance, beforeFee);
+        assertEq(address(escrow).balance, fee);
+        assertEq(escrow.vaultHeldWei(), vaultWei);
+        assertEq(escrow.treasuryHeldWei(), treasuryWei);
         assertEq(vaultWei + treasuryWei, fee);
         assertEq(fee + net, PRICE);
         (,,,, bool open, bool used) = escrow.asks(LISTING);
@@ -75,8 +77,10 @@ contract AhEscrowTest is Test {
 
         assertEq(newOwner.balance, net);
         assertEq(seller.balance, 0);
-        assertEq(feeTo.balance, treasuryWei);
-        assertEq(escrow.guildVault().balance, vaultWei);
+        assertEq(feeTo.balance, 0);
+        assertEq(address(escrow).balance, fee);
+        assertEq(escrow.vaultHeldWei(), vaultWei);
+        assertEq(escrow.treasuryHeldWei(), treasuryWei);
         assertEq(vaultWei + treasuryWei, fee);
     }
 
