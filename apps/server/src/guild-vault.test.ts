@@ -1,7 +1,7 @@
 /**
  * The auction fee stays 1%. Half is the guild-vault share and half is the
- * treasury share. Neither share is paid here. A change waits on the ruleset
- * timelock. The 20 Hz tick does not wait. In-game gold is outside this fee.
+ * treasury share, and those two amounts sum to the fee. A change waits one day.
+ * The 20 Hz tick does not wait. In-game gold is outside this fee.
  * There is no score and no combat bonus.
  */
 import {
@@ -35,7 +35,7 @@ function root(fill: number): Uint8Array {
 }
 
 describe("guild vault fee split", { concurrency: false }, () => {
-  test("the two shares sum to the 1% fee and are not paid", () => {
+  test("the two shares sum to the 1% fee and a change waits one day", () => {
     resetRootAnchorForTests();
     try {
       const sol = readFileSync(ESCROW_SOL, "utf8");
@@ -44,14 +44,9 @@ describe("guild vault fee split", { concurrency: false }, () => {
       assert.equal(AH_TREASURY_FEE_BPS, 50);
       assert.equal(AH_VAULT_FEE_BPS + AH_TREASURY_FEE_BPS, AH_FEE_BPS);
       assert.match(sol, /uint256 public constant FEE_BPS = 100;/);
-      assert.match(sol, /uint256 public constant VAULT_FEE_BPS = 50;/);
-      assert.match(sol, /uint256 public constant TREASURY_FEE_BPS = 50;/);
-      assert.match(sol, /A change waits on the ruleset timelock/);
-      assert.match(sol, /RulesetRegistry\.MIN_DELAY/);
-      assert.match(sol, /not Deploy's 48 hours/);
-      assert.match(sol, /not `PvpBounty\.claimDelay`/);
-      assert.equal(sol.includes("proposeFeeShares"), false);
-      assert.equal(sol.includes("executeFeeShares"), false);
+      assert.match(sol, /uint64 public constant SHARE_DELAY = 1 days;/);
+      assert.match(sol, /function proposeFeeShares/);
+      assert.match(sol, /function executeFeeShares/);
       assert.equal(sol.includes("function setFeeShares"), false);
       assert.equal(sol.includes("function score"), false);
       assert.equal(sol.includes("goldEarn"), false);
