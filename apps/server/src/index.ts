@@ -113,6 +113,7 @@ import {
   receiptFromPlaceTx,
   startPvpBountyWatcher,
 } from "./pvp-bounty-tx";
+import { admitEscrowFill, configureEpochLedger, pinEpochCharge, releaseEscrowReservation } from "./root-anchor";
 import { opsAlert } from "./ops-log";
 import {
   SHINY_CLONE_COUNT,
@@ -762,6 +763,7 @@ const lok: LokWorld = await (async (): Promise<LokWorld> => {
       console.error("[bellgrave] FATAL production contracts: " + bootLive.error);
       process.exit(1);
     }
+    configureEpochLedger(defaultLokDir());
     const world = LokWorld.open(defaultLokDir());
     loadGameRoll(defaultLokDir());
     configureMintClaimNonceStore(pathJoin(defaultLokDir(), "mint-claim-nonces.json"));
@@ -6183,6 +6185,28 @@ function onMessage(ws: WebSocket, data: string) {
   const wallet = (ws as WebSocket & { wallet?: string }).wallet;
   if (!wallet) {
     send(ws, { type: "error", message: "Authenticate first." });
+    return;
+  }
+
+  if (msg.type === "ah/admitFill") {
+    const admitted = admitEscrowFill(BigInt(msg.priceWei));
+    if (!admitted.ok) {
+      send(ws, { type: "ah/admitFill", req: msg.req, ok: false, error: admitted.error });
+      return;
+    }
+    send(ws, { type: "ah/admitFill", req: msg.req, ok: true, epoch: admitted.epoch });
+    return;
+  }
+
+  if (msg.type === "ah/pinFill") {
+    const epoch = pinEpochCharge(BigInt(msg.priceWei), msg.epoch, msg.paidAtMs, "client:" + msg.req + ":" + msg.priceWei);
+    send(ws, { type: "ah/pinFill", req: msg.req, ok: true, epoch });
+    return;
+  }
+
+  if (msg.type === "ah/releaseFill") {
+    releaseEscrowReservation(BigInt(msg.priceWei), msg.epoch);
+    send(ws, { type: "ah/releaseFill", req: msg.req, ok: true });
     return;
   }
 

@@ -22,7 +22,7 @@ import type { LokResult } from "./lok-world";
 import { pvpBountyAddress, pvpSyntheticReceiptsAllowed } from "./pvp-bounty";
 import { settlementChainId } from "./settlement-chain";
 import { settlementConfirmations } from "./settlement-confirmations";
-import { chainBoundSendGate } from "./root-anchor";
+import { admitBountyPayout, chainBoundSendGate, pinEpochCharge, releaseEpochXdai } from "./root-anchor";
 import { watcherStartBlock } from "./settlement-rpc";
 import { readWatcherCursor, writeWatcherCursor } from "./watcher-cursor";
 
@@ -233,36 +233,64 @@ async function withOperatorWallet<T>(
   return fn({ wallet, public: publicClient, account, bounty: bounty as Hex });
 }
 
-/** Operator cancel — refunds original payer. */
+/**
+ * Operator cancel — refunds the original payer `PVP_BOUNTY_WEI` (1 xDAI).
+ * The refund is not broadcast unless this epoch admits that xDAI.
+ * Zero posted bonds admit nothing.
+ */
 export async function chainPvpCancel(
   tokenId: string,
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<{ ok: true; receipt: PvpChainReceipt } | { ok: false; error: string }> {
-  const gate = chainBoundSendGate();
-  if (!gate.ok) return gate;
+  const bountyWei = BigInt(PVP_BOUNTY_WEI);
+  const admitted = admitBountyPayout(bountyWei);
+  if (!admitted.ok) return admitted;
+  let holding = true;
+  let broadcast = false;
+  const release = () => {
+    if (!holding) return;
+    holding = false;
+    releaseEpochXdai(bountyWei, admitted.epoch);
+  };
   try {
     return await withOwnerKeyQueue(async () => {
       return withOperatorWallet(env, async ({ wallet, public: pub, account, bounty }) => {
-        const hash = await wallet.writeContract({
-          address: bounty,
-          abi: PVP_BOUNTY_ABI,
-          functionName: "cancel",
-          args: [BigInt(tokenId)],
-          account,
-          chain: wallet.chain,
-        });
-        const conf = Number(settlementConfirmations(env));
-        const receipt = await pub.waitForTransactionReceipt({
-          hash,
-          confirmations: conf >= 1 ? conf : 1,
-        });
-        if (receipt.status !== "success") return { ok: false, error: "PvpBounty.cancel reverted" };
-        const fields = eventReceipt(receipt, "BountyCancelled");
-        if (!fields) return { ok: false, error: "PvpBounty.cancel missing event" };
-        return { ok: true, receipt: fields };
+        try {
+          const hash = await wallet.writeContract({
+            address: bounty,
+            abi: PVP_BOUNTY_ABI,
+            functionName: "cancel",
+            args: [BigInt(tokenId)],
+            account,
+            chain: wallet.chain,
+          });
+          broadcast = true;
+          const conf = Number(settlementConfirmations(env));
+          const receipt = await pub.waitForTransactionReceipt({
+            hash,
+            confirmations: conf >= 1 ? conf : 1,
+          });
+          if (receipt.status !== "success") {
+            release();
+            return { ok: false, error: "PvpBounty.cancel reverted" };
+          }
+          const fields = eventReceipt(receipt, "BountyCancelled");
+          if (!fields) {
+            release();
+            return { ok: false, error: "PvpBounty.cancel missing event" };
+          }
+          const paidAt = await blockPaidAtMs(pub, receipt.blockNumber);
+          if (paidAt != null) pinEpochCharge(bountyWei, admitted.epoch, paidAt, hash);
+          holding = false;
+          return { ok: true, receipt: fields };
+        } catch (err) {
+          if (!broadcast) release();
+          throw err;
+        }
       });
     });
   } catch (err) {
+    if (!broadcast) release();
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
 }
@@ -295,9 +323,28 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function blockPaidAtMs(
+  pub: {
+    getBlock: (args: { blockNumber: bigint } | { blockTag: "latest" }) => Promise<{ timestamp: bigint }>;
+  },
+  block: bigint | "latest",
+): Promise<number | undefined> {
+  try {
+    const found =
+      block === "latest"
+        ? await pub.getBlock({ blockTag: "latest" })
+        : await pub.getBlock({ blockNumber: block });
+    return Number(found.timestamp) * 1000;
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * Operator claim. proposeClaim snapshots `expectedSlayer` (must be ownerOf now).
  * executeClaim pays that address after claimDelay, not a later NFT owner.
+ * The payout is admitted in the epoch where executeClaim pays, and refused
+ * when that epoch would pass 10% of the slashable bonds posted then.
  */
 export async function chainPvpClaim(
   victimTokenId: string,
@@ -310,6 +357,7 @@ export async function chainPvpClaim(
   }
   const gate = chainBoundSendGate();
   if (!gate.ok) return gate;
+  const bountyWei = BigInt(PVP_BOUNTY_WEI);
   const owner = await readCharacterOwner(slayerTokenId, env);
   if (!owner || owner !== expectedSlayer.toLowerCase()) {
     return {
@@ -318,7 +366,9 @@ export async function chainPvpClaim(
     };
   }
   try {
-    return await withOwnerKeyQueue(async () => {
+    return await withOwnerKeyQueue<
+      { ok: true; receipt: PvpChainReceipt } | { ok: false; error: string }
+    >(async () => {
       return withOperatorWallet(env, async ({ wallet, public: pub, account, bounty }) => {
         const delay = await pub.readContract({
           address: bounty,
@@ -363,36 +413,56 @@ export async function chainPvpClaim(
           }
           await sleep(waitMs);
         }
-        const hash = await wallet.writeContract({
-          address: bounty,
-          abi: PVP_BOUNTY_ABI,
-          functionName: "executeClaim",
-          args: [BigInt(victimTokenId)],
-          account,
-          chain: wallet.chain,
-        });
-        const receipt = await pub.waitForTransactionReceipt({
-          hash,
-          confirmations: conf >= 1 ? conf : 1,
-        });
-        if (receipt.status !== "success") return { ok: false, error: "PvpBounty.executeClaim reverted" };
-        const fields = eventReceipt(receipt, "BountyClaimed");
-        if (!fields) return { ok: false, error: "PvpBounty.executeClaim missing BountyClaimed" };
-        opsAlert({
-          level: "alert",
-          event: "pvp_bounty_claimed",
-          msg:
-            "PvpBounty claimed victim=" +
-            victimTokenId +
-            " slayer=" +
-            slayerTokenId +
-            " payout=" +
-            expectedSlayer.toLowerCase() +
-            " tx=" +
-            fields.txHash,
-          dedupeKey: "pvp-claim-" + fields.txHash,
-        });
-        return { ok: true, receipt: fields };
+        const predictAt = await blockPaidAtMs(pub, "latest");
+        const admitted = admitBountyPayout(bountyWei, predictAt);
+        if (!admitted.ok) return admitted;
+        let chargedEpoch = admitted.epoch;
+        let claimSent = false;
+        const release = () => releaseEpochXdai(bountyWei, chargedEpoch);
+        try {
+          const hash = await wallet.writeContract({
+            address: bounty,
+            abi: PVP_BOUNTY_ABI,
+            functionName: "executeClaim",
+            args: [BigInt(victimTokenId)],
+            account,
+            chain: wallet.chain,
+          });
+          claimSent = true;
+          const receipt = await pub.waitForTransactionReceipt({
+            hash,
+            confirmations: conf >= 1 ? conf : 1,
+          });
+          if (receipt.status !== "success") {
+            release();
+            return { ok: false, error: "PvpBounty.executeClaim reverted" };
+          }
+          const fields = eventReceipt(receipt, "BountyClaimed");
+          if (!fields) {
+            release();
+            return { ok: false, error: "PvpBounty.executeClaim missing BountyClaimed" };
+          }
+          const paidAt = await blockPaidAtMs(pub, receipt.blockNumber);
+          if (paidAt != null) chargedEpoch = pinEpochCharge(bountyWei, admitted.epoch, paidAt, hash);
+          opsAlert({
+            level: "alert",
+            event: "pvp_bounty_claimed",
+            msg:
+              "PvpBounty claimed victim=" +
+              victimTokenId +
+              " slayer=" +
+              slayerTokenId +
+              " payout=" +
+              expectedSlayer.toLowerCase() +
+              " tx=" +
+              fields.txHash,
+            dedupeKey: "pvp-claim-" + fields.txHash,
+          });
+          return { ok: true, receipt: fields };
+        } catch (err) {
+          if (!claimSent) release();
+          throw err;
+        }
       });
     });
   } catch (err) {

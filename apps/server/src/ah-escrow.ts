@@ -26,6 +26,7 @@ import {
   type QuarantinedAskFill,
 } from "./lok-ask-filled-quarantine";
 import { opsAlert, watcherLagAlertBlocks } from "./ops-log";
+import { observeEscrowSettlement } from "./root-anchor";
 import { redactRpcUrl } from "./ops-redact";
 import { resolvePublicRpcUrl } from "./public-rpc";
 import { readWatcherCursor, writeWatcherCursor } from "./watcher-cursor";
@@ -77,6 +78,8 @@ type RpcLog = {
   blockNumber?: string;
   logIndex?: string;
   transactionHash?: string;
+  /** Block timestamp in ms, when the scanner could read it. The settlement epoch. */
+  settledAtMs?: number;
 };
 
 export type ApplyAskFilledResult =
@@ -157,6 +160,16 @@ export function applyAskFilled(
     mirrored?.add(fillKey);
     return { ok: true, kind: "replay" };
   }
+
+  let price = 0n;
+  try {
+    price = BigInt(fill.priceWei);
+  } catch {
+    price = -1n;
+  }
+  // buyAsk already moved this xDAI. Count it in the settlement epoch.
+  // Do not wait for a later empty bucket, and do not count the same fill twice.
+  if (price > 0n) observeEscrowSettlement(fillKey, price, opts?.log?.settledAtMs);
 
   const listing = lok.listingOf(fill.listingId);
   if (!listing) {
@@ -310,6 +323,9 @@ export async function scanAskFilled(opts: {
       const fill = decodeAskFilled(log);
       if (!fill) continue;
       const key = fillKeyOf(log);
+      if (log.blockNumber && log.settledAtMs == null) {
+        log.settledAtMs = await blockTimestampMs(opts.rpcCall, log.blockNumber);
+      }
       const res = opts.apply(fill, key, log);
       if (res.ok) continue;
       if (opts.quarantine) {
@@ -473,6 +489,19 @@ export function listingRoleKey(env: NodeJS.ProcessEnv = process.env): string | n
   }
   const owner = env.LOK_OWNER_KEY?.trim() || "";
   return /^0x[0-9a-fA-F]{64}$/.test(owner) ? owner : null;
+}
+
+async function blockTimestampMs(
+  rpcCall: (method: string, params: unknown[]) => Promise<unknown>,
+  blockNumber: string,
+): Promise<number | undefined> {
+  try {
+    const block = (await rpcCall("eth_getBlockByNumber", [blockNumber, false])) as { timestamp?: string } | null;
+    if (!block?.timestamp) return undefined;
+    return Number(BigInt(block.timestamp)) * 1000;
+  } catch {
+    return undefined;
+  }
 }
 
 function cmpHex(a: string | undefined, b: string | undefined): number {

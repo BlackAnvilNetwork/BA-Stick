@@ -45,6 +45,14 @@ let nameCheckWaiter:
       timer: ReturnType<typeof setTimeout>;
     }
   | null = null;
+let admitFillWaiter:
+  | {
+      req: number;
+      resolve: (r: { ok: true; epoch: number } | { ok: false; error: string }) => void;
+      timer: ReturnType<typeof setTimeout>;
+    }
+  | null = null;
+let admitFillReq = 0;
 
 /** External wallet used for auth challenge signing (injected / WalletConnect). */
 type ExternalAuth = {
@@ -291,6 +299,66 @@ export function checkCharacterNameAvailable(
   });
 }
 
+/**
+ * Ask the server to reserve this ask price in the current epoch.
+ * buyAsk is not broadcast when this refuses. Zero bonds refuse.
+ */
+export function requestEscrowFillAdmission(
+  priceWei: string,
+): Promise<{ ok: true; epoch: number } | { ok: false; error: string }> {
+  if (!socket || socket.readyState !== WebSocket.OPEN) {
+    return Promise.resolve({ ok: false, error: "Not connected to the server." });
+  }
+  if (!isServerAuthed()) {
+    return Promise.resolve({ ok: false, error: "Sign in before buying." });
+  }
+  if (admitFillWaiter) {
+    clearTimeout(admitFillWaiter.timer);
+    admitFillWaiter.resolve({ ok: false, error: "Epoch cap check superseded." });
+    admitFillWaiter = null;
+  }
+  const req = admitFillReq + 1;
+  admitFillReq = req;
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      if (admitFillWaiter?.req === req) admitFillWaiter = null;
+      resolve({ ok: false, error: "Epoch cap check timed out." });
+    }, 8_000);
+    admitFillWaiter = { req, resolve, timer };
+    socket!.send(JSON.stringify({ type: "ah/admitFill", priceWei, req } satisfies ClientMessage));
+  });
+}
+
+function epochFillRoundTrip(
+  body: { type: "ah/pinFill"; priceWei: string; epoch: number; paidAtMs: number } | { type: "ah/releaseFill"; priceWei: string; epoch: number },
+): Promise<void> {
+  if (!socket || socket.readyState !== WebSocket.OPEN || !isServerAuthed()) return Promise.resolve();
+  const req = admitFillReq + 1;
+  admitFillReq = req;
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      if (admitFillWaiter?.req === req) admitFillWaiter = null;
+      resolve();
+    }, 8_000);
+    admitFillWaiter = {
+      req,
+      timer,
+      resolve: () => resolve(),
+    };
+    socket!.send(JSON.stringify({ ...body, req } satisfies ClientMessage));
+  });
+}
+
+/** Keep a landed buyAsk in the epoch of its receipt. */
+export function pinEscrowFillOnServer(priceWei: string, epoch: number, paidAtMs: number): Promise<void> {
+  return epochFillRoundTrip({ type: "ah/pinFill", priceWei, epoch, paidAtMs });
+}
+
+/** Drop a reservation when buyAsk was not sent or reverted. */
+export function releaseEscrowFillOnServer(priceWei: string, epoch: number): Promise<void> {
+  return epochFillRoundTrip({ type: "ah/releaseFill", priceWei, epoch });
+}
+
 export async function clearExternalWalletAuth(): Promise<void> {
   externalAuth = null;
   await disconnectAppKit();
@@ -447,6 +515,21 @@ export function connectSocket() {
         nameCheckWaiter = null;
         if (msg.available && msg.name) resolve({ ok: true, name: msg.name });
         else resolve({ ok: false, error: msg.error ?? "That name is not available." });
+      }
+    } else if (msg.type === "ah/admitFill") {
+      if (admitFillWaiter && admitFillWaiter.req === msg.req) {
+        clearTimeout(admitFillWaiter.timer);
+        const resolve = admitFillWaiter.resolve;
+        admitFillWaiter = null;
+        if (msg.ok && msg.epoch != null) resolve({ ok: true, epoch: msg.epoch });
+        else resolve({ ok: false, error: msg.error ?? "This epoch cannot take that ask." });
+      }
+    } else if (msg.type === "ah/pinFill" || msg.type === "ah/releaseFill") {
+      if (admitFillWaiter && admitFillWaiter.req === msg.req) {
+        clearTimeout(admitFillWaiter.timer);
+        const resolve = admitFillWaiter.resolve;
+        admitFillWaiter = null;
+        resolve({ ok: true, epoch: msg.type === "ah/pinFill" && msg.epoch != null ? msg.epoch : 0 });
       }
     } else if (msg.type === "log") {
       g.pushLog(msg.message);

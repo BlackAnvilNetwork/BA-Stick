@@ -196,6 +196,30 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("pvp/bountyPlace") }),
   /** Cancel / reclaim open PvP bounty without dying. */
   z.object({ type: z.literal("pvp/bountyCancel") }),
+  /**
+   * Reserve ask xDAI in the current epoch before the client broadcasts buyAsk.
+   * A refusal means the transfer is not sent.
+   */
+  z.object({
+    type: z.literal("ah/admitFill"),
+    priceWei: z.string().regex(/^[1-9][0-9]{0,77}$/),
+    req: z.number().int().nonnegative(),
+  }),
+  /** Move a buyAsk reservation into the receipt's epoch after it lands. */
+  z.object({
+    type: z.literal("ah/pinFill"),
+    priceWei: z.string().regex(/^[1-9][0-9]{0,77}$/),
+    epoch: z.number().int().nonnegative(),
+    paidAtMs: z.number().int().nonnegative(),
+    req: z.number().int().nonnegative(),
+  }),
+  /** The buyAsk transaction was not sent, or it reverted. */
+  z.object({
+    type: z.literal("ah/releaseFill"),
+    priceWei: z.string().regex(/^[1-9][0-9]{0,77}$/),
+    epoch: z.number().int().nonnegative(),
+    req: z.number().int().nonnegative(),
+  }),
 ]);
 export type ClientMessage = z.infer<typeof ClientMessageSchema>;
 
@@ -664,6 +688,15 @@ export type ServerMessage =
       name?: string;
       error?: string;
     }
+  | {
+      type: "ah/admitFill";
+      req: number;
+      ok: boolean;
+      epoch?: number;
+      error?: string;
+    }
+  | { type: "ah/pinFill"; req: number; ok: boolean; epoch?: number; error?: string }
+  | { type: "ah/releaseFill"; req: number; ok: boolean }
   | { type: "pong"; t?: number }
   | { type: "party/invite"; fromId: string; fromName: string; partyId: string; expiresAt: number }
   | {

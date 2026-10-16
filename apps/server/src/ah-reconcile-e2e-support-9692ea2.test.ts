@@ -12,6 +12,8 @@ import { createPublicClient, createWalletClient, http, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { applyAskFilled, scanAskFilled } from "./ah-escrow";
 import { reconcileOpenAsksFromChain } from "./ah-escrow-reconcile";
+import { chainBuyAsk } from "./escrow-buy";
+import { allowEpochSettlementForTests } from "./epoch-cap-fixture";
 import {
   AskFilledQuarantine,
   MirroredFills,
@@ -165,14 +167,22 @@ describe("support 9692ea2: AskFilled while the server was down", { skip: !canRun
       });
       await pub.waitForTransactionReceipt({ hash: h });
     }
-    const hb = await buyerW.writeContract({
-      address: ESCROW,
-      abi: ABI,
-      functionName: "buyAsk",
-      args: [idA, BigInt(buyer)],
-      value: 1_000_000_000_000_000n,
+    await allowEpochSettlementForTests(10n ** 24n);
+    const bought = await chainBuyAsk({
+      priceWei: 1_000_000_000_000_000n,
+      broadcast: async () => {
+        const hb = await buyerW.writeContract({
+          address: ESCROW,
+          abi: ABI,
+          functionName: "buyAsk",
+          args: [idA, BigInt(buyer)],
+          value: 1_000_000_000_000_000n,
+        });
+        const receipt = await pub.waitForTransactionReceipt({ hash: hb });
+        if (receipt.status !== "success") throw new Error("buyAsk reverted");
+      },
     });
-    await pub.waitForTransactionReceipt({ hash: hb });
+    assert.equal(bought.ok, true);
     const hc = await lister.writeContract({ address: ESCROW, abi: ABI, functionName: "cancelAsk", args: [idB] });
     await pub.waitForTransactionReceipt({ hash: hc });
     await rpc("anvil_mine", ["0x3"]);

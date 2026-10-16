@@ -419,7 +419,10 @@ export async function openAskOnchain(opts: {
 }): Promise<{ ok: true; hash: Hex } | { ok: false; error: string; chainOpen?: boolean }> {
   const gate = chainBoundSendGate();
   if (!gate.ok) return gate;
-  return withOwnerKeyQueue(async () => {
+  // Opening an ask does not move xDAI. buyAsk admits the price before that transfer.
+  return withOwnerKeyQueue<
+    { ok: true; hash: Hex } | { ok: false; error: string; chainOpen?: boolean }
+  >(async () => {
     const c = client(opts.env);
     if (!c.ok) return c;
     const budget = consumeGlobalListingTxBudget({ dataDir: opts.dataDir });

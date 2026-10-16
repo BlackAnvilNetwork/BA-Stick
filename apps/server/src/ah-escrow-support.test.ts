@@ -70,7 +70,7 @@ function scan(lok: LokWorld, dir: string, logs: unknown[], head = 0x20) {
 const inboxQty = (lok: LokWorld, token: string) =>
   (lok.view(token).inbox ?? []).filter((r) => String(r.tokenId) === "111").reduce((n, r) => n + Number(r.amount), 0);
 
-describe("support: AskFilled watcher vs log state", () => {
+describe("support: AskFilled watcher vs log state", { concurrency: false }, () => {
   it("a re-scanned (already mirrored) fill is skipped, not applied twice", async () => {
     const { lok, buyer, list, dir } = world();
     const id = list("500");
