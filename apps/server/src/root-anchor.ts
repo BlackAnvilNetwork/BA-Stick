@@ -40,6 +40,7 @@ import {
 import { privateKeyToAccount } from "viem/accounts";
 import { postReplicaBond } from "./bonded-admission";
 import { durableWrite } from "./durable-write";
+import { openGuild } from "./guild-registry";
 
 export const ANCHOR_WAIT = "Waiting for an anchored root.";
 
@@ -146,6 +147,8 @@ export function notePostedSlashableBond(id: string, amountWei: bigint): void {
  * `LOK_POSTED_SLASHABLE_BONDS` is `id:wei` pairs separated by commas.
  * Wei is a decimal integer string. An unset list, an empty list, or wei 0
  * posts nothing. This does not invent an amount.
+ * `operator@mark:wei` is a second Mark for an operator who already posted.
+ * The bond is posted for the Mark. It does not open a second guild.
  */
 export function parsePostedSlashableBonds(raw: string | undefined): { id: string; amountWei: bigint }[] {
   if (!raw || !raw.trim()) return [];
@@ -166,15 +169,38 @@ export function parsePostedSlashableBonds(raw: string | undefined): { id: string
 }
 
 /**
+ * The replica that posted the bond, and the operator that Mark belongs to.
+ * `id` is both. `operator@mark` is a second Mark for that operator.
+ */
+function postedReplica(id: string): { operatorId: string; markId: string } | null {
+  const trimmed = id.trim();
+  if (!trimmed) return null;
+  const at = trimmed.indexOf("@");
+  if (at === -1) return { operatorId: trimmed, markId: trimmed };
+  const operatorId = trimmed.slice(0, at).trim();
+  const markId = trimmed.slice(at + 1).trim();
+  if (!operatorId || !markId || markId.includes("@")) return null;
+  return { operatorId, markId };
+}
+
+/**
  * Production boot records each posted bond and admits that replica to the
  * voting set. The amount is the wei in the pair. Call this after
  * `configureEpochLedger` so the note is written into that data dir. An unset
  * variable notes nothing and leaves a bond file from an earlier boot in place.
  * Zero and negative postings do not join and do not invent a bond.
+ * A replica that joins registers one guild for that operator. A second Mark
+ * for the same operator does not open another guild. This does not pay anyone
+ * and does not broadcast.
  */
 export function recordPostedSlashableBonds(env: NodeJS.ProcessEnv = process.env): void {
   for (const bond of parsePostedSlashableBonds(env.LOK_POSTED_SLASHABLE_BONDS)) {
-    postReplicaBond(bond.id, "replica", bond.amountWei);
+    if (bond.amountWei <= 0n) continue;
+    const who = postedReplica(bond.id);
+    if (!who) continue;
+    const admitted = postReplicaBond(who.markId, "replica", bond.amountWei);
+    if (!admitted.joined || admitted.amountWei <= 0n) continue;
+    openGuild(who.operatorId, who.markId);
   }
 }
 
