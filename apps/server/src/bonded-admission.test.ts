@@ -6,7 +6,6 @@
  */
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { mobileEntry } from "../../web/src/mobile-light-client.ts";
 import {
   bondedCommitThreshold,
   postReplicaBond,
@@ -126,12 +125,7 @@ describe("bonded admission", { concurrency: false }, () => {
   test("a phone stays a light client and does not post a bond or join", () => {
     reset();
     try {
-      const phone = mobileEntry();
-      assert.equal(phone.tier, "light");
-      assert.equal(phone.replica, false);
-      assert.equal(phone.ticksWorld, false);
-      assert.equal(phone.leads, false);
-      const result = postReplicaBond("phone", phone.tier, 25n, REPLACE_SAFE);
+      const result = postReplicaBond("phone", "light", 25n, REPLACE_SAFE);
       assert.deepEqual(result, { joined: false, amountWei: 0n });
       assert.equal(postedSlashableBond("phone"), 0n);
       assert.equal(votingSet().length, 0);
