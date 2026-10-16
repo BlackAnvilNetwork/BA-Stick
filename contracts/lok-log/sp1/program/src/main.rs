@@ -2,7 +2,8 @@
 //!
 //! Reads an engine log, replays it with the lok engine, and commits each
 //! keccak state hash. The public bytes are `State::root`. RISC Zero is not a
-//! prover here, and this guest does not pin a verifying key.
+//! prover here. The verifying key is pinned in the ruleset record beside the
+//! wasm digest; this guest does not embed that key.
 
 #![no_main]
 sp1_zkvm::entrypoint!(main);
