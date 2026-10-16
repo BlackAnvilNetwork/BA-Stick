@@ -643,6 +643,9 @@ describe("equivocation court", { concurrency: false }, () => {
       assert.deepEqual(postReplicaBond("replica-d", "replica", 40n), { joined: true, amountWei: 40n });
       assert.equal(votingSet().length, 4);
       assert.equal(votingSetCommitThreshold(), 3);
+      assert.equal(bondedCommitThreshold(4), 3);
+      assert.equal(bondedCommitThreshold(3), 2);
+      assert.equal(bondedCommitThreshold(7), 5);
 
       const calls: string[] = [];
       const prev = globalThis.fetch;

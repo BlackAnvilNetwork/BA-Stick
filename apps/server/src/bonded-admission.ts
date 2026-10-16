@@ -11,11 +11,11 @@
  * This module does not create the vote that would replace the Safe and does
  * not transfer admin.
  *
- * The commit threshold of this set stays the current majority:
- * `1 + floor(n / 2)`, the same rule as `majority_threshold`. One replica needs
- * one signature. Three need two. Four still use that majority. Moving above
- * two thirds waits until four replicas are bonded, and this module does not
- * do that.
+ * The commit threshold counts replicas in this set. While fewer than four
+ * are bonded it is a majority, `1 + floor(n / 2)`, the same rule as
+ * `majority_threshold`. One replica needs one signature. Three need two.
+ * Once four or more are bonded it is more than two thirds of that set,
+ * `floor(2n / 3) + 1`. Four need three. Five need four.
  *
  * Joining does not stop the 20 Hz tick. Nothing is broadcast. Gnosis mainnet
  * and Chiado are not called. The bond is the one `notePostedSlashableBond`
@@ -77,15 +77,18 @@ export function registryAdmin(): RegistryAdmin {
 }
 
 /**
- * Current majority of `replicaCount`. Empty and non-counts have no threshold.
- * This is not more than two thirds.
+ * Commit threshold of `replicaCount` bonded replicas.
+ * Below four, a majority: `1 + floor(n / 2)`.
+ * At four or more, more than two thirds: `floor(2n / 3) + 1`.
+ * Empty and non-counts have no threshold.
  */
 export function bondedCommitThreshold(replicaCount: number): number | null {
   if (!Number.isSafeInteger(replicaCount) || replicaCount < 1) return null;
-  return 1 + Math.floor(replicaCount / 2);
+  if (replicaCount < 4) return 1 + Math.floor(replicaCount / 2);
+  return Math.floor((2 * replicaCount) / 3) + 1;
 }
 
-/** Majority of the replicas that have joined. */
+/** Commit threshold of the replicas that have joined. */
 export function votingSetCommitThreshold(): number | null {
   return bondedCommitThreshold(voting.size);
 }
