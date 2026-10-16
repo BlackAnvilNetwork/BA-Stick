@@ -4,14 +4,18 @@
 //! consensus messages Malachite already publishes (`SignedConsensusMsg`, the
 //! vote or proposal `ConsensusMsg` plus its signature) between three
 //! `State` values in this process. A commit is still only `Effect::Decide`.
-//! No port is opened.
+//! No port is opened. Marking the current leader absent stops that state.
+//! The other two validators are still a majority of the original three.
 
 use std::collections::VecDeque;
 
 use informalsystems_malachitebft_core_consensus::{
     process, Error as ConsensusError, Input, Params, SignedConsensusMsg, State, ValuePayload,
 };
-use informalsystems_malachitebft_core_types::{Height, ThresholdParam, ThresholdParams};
+use informalsystems_malachitebft_core_types::{
+    Context, Height, Round, ThresholdParam, ThresholdParams, Timeout, TimeoutKind, Validator,
+    ValidatorSet,
+};
 use informalsystems_malachitebft_signing_ed25519::{Ed25519, PrivateKey};
 use rand::rngs::OsRng;
 
@@ -46,6 +50,53 @@ pub fn majority_threshold() -> ThresholdParams {
 pub struct PeerView {
     pub address: OrderAddr,
     pub heard: bool,
+    /// `false` after the harness stops that validator. The allowlist still has three keys.
+    pub present: bool,
+}
+
+/// A proposal the leader published before a majority decided it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ProposalOnly {
+    pub height: u64,
+    pub root: [u8; 32],
+    pub proposer: OrderAddr,
+}
+
+/// The leader a player session is following.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PlayerSession {
+    pub leader: OrderAddr,
+}
+
+impl PlayerSession {
+    pub fn connect(leader: OrderAddr) -> Self {
+        Self { leader }
+    }
+
+    /// Point the session at the directory's leader.
+    ///
+    /// The returned value is the old leader address and the new leader address.
+    pub fn reconnect(&mut self, directory_leader: OrderAddr) -> Reconnect {
+        let old_leader = self.leader;
+        self.leader = directory_leader;
+        Reconnect {
+            old_leader,
+            new_leader: directory_leader,
+        }
+    }
+}
+
+/// Old leader address and new leader address.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Reconnect {
+    pub old_leader: OrderAddr,
+    pub new_leader: OrderAddr,
+}
+
+impl std::fmt::Display for Reconnect {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} {}", self.old_leader, self.new_leader)
+    }
 }
 
 struct Replica {
@@ -65,6 +116,10 @@ pub struct AllowlistOrderer {
     replicas: Vec<Replica>,
     validators: GenesisSet,
     last_commit: Option<Committed>,
+    certified: Vec<Committed>,
+    uncertified: Option<ProposalOnly>,
+    /// Set when the previous directory leader was removed. Lookup keeps this address.
+    directory_leader: Option<OrderAddr>,
 }
 
 impl AllowlistOrderer {
@@ -109,6 +164,9 @@ impl AllowlistOrderer {
             replicas,
             validators,
             last_commit: None,
+            certified: Vec::new(),
+            uncertified: None,
+            directory_leader: None,
         }
     }
 
@@ -134,8 +192,131 @@ impl AllowlistOrderer {
             .map(|replica| PeerView {
                 address: replica.address,
                 heard: replica.heard,
+                present: replica.present,
             })
             .collect()
+    }
+
+    /// Decided batches, in order. A proposal that never reached `Effect::Decide` is absent.
+    pub fn certified_prefix(&self) -> &[Committed] {
+        &self.certified
+    }
+
+    /// The last proposal a leader published without a majority decision.
+    pub fn uncertified(&self) -> Option<ProposalOnly> {
+        self.uncertified
+    }
+
+    /// Height of the next batch. Zero before the first decision.
+    pub fn open_height(&self) -> u64 {
+        self.certified
+            .last()
+            .map(|commit| commit.height.saturating_add(1))
+            .unwrap_or(0)
+    }
+
+    /// Directory entry a session follows.
+    pub fn lookup_leader(&self) -> OrderAddr {
+        if let Some(leader) = self.directory_leader {
+            return leader;
+        }
+        leader_address(&self.validators, self.open_height())
+    }
+
+    /// Mark the directory leader absent and stop its state.
+    ///
+    /// The allowlist stays three keys. The directory then names the next present replica.
+    pub fn kill_leader(&mut self) -> OrderAddr {
+        let dead = self.lookup_leader();
+        for replica in &mut self.replicas {
+            if replica.address == dead {
+                replica.present = false;
+                replica.queue.clear();
+            }
+        }
+        self.directory_leader = Some(self.successor(dead));
+        dead
+    }
+
+    /// The current leader publishes `root`. The proposal is not ferried and is not decided.
+    pub fn propose_only(&mut self, height: u64, root: [u8; 32]) -> Result<ProposalOnly, OrderError> {
+        if height != self.open_height() {
+            return Err(OrderError::NoDecision { height });
+        }
+        let proposer = leader_address(&self.validators, height);
+        let Some(index) = self
+            .replicas
+            .iter()
+            .position(|replica| replica.present && replica.address == proposer)
+        else {
+            return Err(OrderError::NoDecision { height });
+        };
+
+        self.replicas[index].queue.clear();
+        self.replicas[index].queue.push_back(Input::StartHeight(
+            OrderHeight(height),
+            self.validators.clone(),
+        ));
+
+        let mut pending = Some(BatchRoot(root));
+        let mut decided: Option<Committed> = None;
+        let mut proposed: Option<ProposalOnly> = None;
+        let mut steps = 0u32;
+        while proposed.is_none() {
+            if self.replicas[index].queue.is_empty() || steps > 64 {
+                break;
+            }
+            steps += 1;
+            let mut outbound = Vec::new();
+            let mut scheduled = Vec::new();
+            drive_replica(
+                &mut self.replicas[index],
+                &self.validators,
+                &mut pending,
+                &mut decided,
+                &mut outbound,
+                &mut scheduled,
+            )?;
+            for msg in outbound {
+                if let SignedConsensusMsg::Proposal(signed) = msg {
+                    if signed.message.value.0 == root && signed.message.address == proposer {
+                        proposed = Some(ProposalOnly {
+                            height,
+                            root,
+                            proposer,
+                        });
+                    }
+                }
+            }
+        }
+
+        if decided.is_some() {
+            return Err(OrderError::Consensus(
+                "a single leader publish met Effect::Decide".into(),
+            ));
+        }
+        let proposed = proposed.ok_or(OrderError::NoDecision { height })?;
+        self.uncertified = Some(proposed);
+        Ok(proposed)
+    }
+
+    fn successor(&self, dead: OrderAddr) -> OrderAddr {
+        let count = ValidatorSet::count(&self.validators);
+        let dead_index = (0..count)
+            .find(|index| address_at(&self.validators, *index) == dead)
+            .expect("leader is in the allowlist");
+        for step in 1..count {
+            let index = (dead_index + step) % count;
+            let address = address_at(&self.validators, index);
+            if self
+                .replicas
+                .iter()
+                .any(|replica| replica.present && replica.address == address)
+            {
+                return address;
+            }
+        }
+        dead
     }
 
     /// Clock skew of the local harness. The three states share this process clock.
@@ -158,6 +339,7 @@ impl AllowlistOrderer {
                 serde_json::json!({
                     "address": peer.address.to_string(),
                     "heard": peer.heard,
+                    "present": peer.present,
                 })
             })
             .collect();
@@ -184,6 +366,7 @@ impl AllowlistOrderer {
             "clockSkew": self.clock_skew(),
             "peers": peers,
             "leader": self.leader_at(at).to_string(),
+            "directoryLeader": self.lookup_leader().to_string(),
             "seedRoller": self.seed_roller_at(at).to_string(),
         })
         .to_string()
@@ -208,7 +391,7 @@ impl AllowlistOrderer {
         let mut decided: Option<Committed> = None;
         let mut steps = 0u32;
         loop {
-            if steps > 1024 {
+            if steps > 2048 {
                 break;
             }
             let mut progress = false;
@@ -219,15 +402,42 @@ impl AllowlistOrderer {
                 progress = true;
                 steps += 1;
                 let mut outbound = Vec::new();
+                let mut scheduled = Vec::new();
                 drive_replica(
                     &mut self.replicas[i],
                     &self.validators,
                     &mut pending,
                     &mut decided,
                     &mut outbound,
+                    &mut scheduled,
                 )?;
+                if decided.is_none() {
+                    let fire: Vec<Timeout> = scheduled
+                        .into_iter()
+                        .filter(|timeout| {
+                            matches!(
+                                timeout.kind,
+                                TimeoutKind::Propose | TimeoutKind::Prevote | TimeoutKind::Precommit
+                            ) && !proposer_is_present(
+                                &self.replicas,
+                                &self.validators,
+                                order_height,
+                                timeout.round,
+                            )
+                        })
+                        .collect();
+                    for timeout in fire {
+                        let replica = &mut self.replicas[i];
+                        let queued = replica.queue.iter().any(|input| {
+                            matches!(input, Input::TimeoutElapsed(queued) if queued == &timeout)
+                        });
+                        if replica.present && !queued {
+                            replica.queue.push_back(Input::TimeoutElapsed(timeout));
+                        }
+                    }
+                }
                 if outbound.is_empty() {
-                    if steps > 1024 {
+                    if steps > 2048 {
                         break;
                     }
                     continue;
@@ -242,7 +452,7 @@ impl AllowlistOrderer {
                         }
                     }
                 }
-                if steps > 1024 {
+                if steps > 2048 {
                     break;
                 }
             }
@@ -255,6 +465,10 @@ impl AllowlistOrderer {
         }
 
         let committed = decided.ok_or(OrderError::NoDecision { height })?;
+        if self.directory_leader.is_some() {
+            self.directory_leader = Some(committed.proposer);
+        }
+        self.certified.push(committed);
         self.last_commit = Some(committed);
         Ok(committed)
     }
@@ -267,12 +481,30 @@ fn signed_to_input(msg: SignedConsensusMsg<OrderCtx>) -> Input<OrderCtx> {
     }
 }
 
+fn address_at(set: &GenesisSet, index: usize) -> OrderAddr {
+    *Validator::address(ValidatorSet::get_by_index(set, index).expect("allowlist index"))
+}
+
+fn proposer_is_present(
+    replicas: &[Replica],
+    validators: &GenesisSet,
+    height: OrderHeight,
+    round: Round,
+) -> bool {
+    let proposer = OrderCtx.select_proposer(validators, height, round);
+    let address = *Validator::address(proposer);
+    replicas
+        .iter()
+        .any(|replica| replica.present && replica.address == address)
+}
+
 fn drive_replica(
     replica: &mut Replica,
     validators: &GenesisSet,
     pending: &mut Option<BatchRoot>,
     decided: &mut Option<Committed>,
     outbound: &mut Vec<SignedConsensusMsg<OrderCtx>>,
+    scheduled: &mut Vec<Timeout>,
 ) -> Result<(), OrderError> {
     let Some(input) = replica.queue.pop_front() else {
         return Ok(());
@@ -293,6 +525,7 @@ fn drive_replica(
             decided,
             &mut followups,
             outbound,
+            scheduled,
         )
     );
     step.map_err(|err: ConsensusError<OrderCtx>| OrderError::Consensus(err.to_string()))?;
