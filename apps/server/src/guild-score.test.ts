@@ -294,6 +294,38 @@ test("a zero-score epoch leaves the vault untouched", async () => {
   }
 });
 
+test("a later epoch pays when no earlier epoch was noted", async () => {
+  reset();
+  try {
+    postReplicaBond(MARK, "replica", 10n);
+    const opened = openGuild(MARK, MARK);
+    assert.equal(opened.opened, true);
+    joinGuild(opened.guild?.id ?? "", "c1");
+    creditGuildVault(10_000n);
+
+    noteGuildBatch({
+      epoch: 4,
+      height: 9,
+      events: [{ characterId: "c1", kind: "craft" }],
+    });
+    certifyGuildBatch(9, certificate(MARK));
+    const anchorAt = 1_700_000_000_000;
+    setChallengeClockForTests(() => anchorAt);
+    const posted = await postCertifiedBatch(
+      { height: 9, nextRoot: root(9), certificate: certificate(MARK) },
+      { env: { LOK_CHAIN_ID: "31337" }, poster: async () => true },
+    );
+    assert.equal(posted, true);
+
+    const paid = settleGuildPayouts(anchorAt + CHALLENGE_DELAY_MS);
+    assert.equal(paid.ok, true);
+    assert.deepEqual(paid.paid, [{ guildId: "guild:" + MARK, wei: 50n }]);
+    assert.equal(guildVaultWei(), 0n);
+  } finally {
+    reset();
+  }
+});
+
 test("the live tick calls the score and the payout gate", async () => {
   reset();
   const calls: string[] = [];

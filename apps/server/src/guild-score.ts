@@ -437,7 +437,7 @@ export function guildPayout(args: {
  * Synchronous. A refusal leaves the vault where it is.
  */
 export function settleGuildPayouts(nowMs: number): GuildPayoutResult {
-  const epochs = new Set<number>([0]);
+  const epochs = new Set<number>();
   for (const epoch of membershipByEpoch.keys()) epochs.add(epoch);
   for (const epoch of certifiedHeight.keys()) epochs.add(epoch);
   for (const batch of batches) epochs.add(batch.epoch);
