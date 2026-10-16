@@ -5,7 +5,8 @@
  * the `lok-engine` crate inside SP1 and commits `commit_map` (keccak). RISC Zero
  * is not a prover this process will run. This module does not pin a verifying
  * key, does not compare the execution to wasm replay, and does not reject a
- * batch. It does not broadcast to Gnosis or Chiado.
+ * batch. A proof presented on a batch is checked in `acceptBatch`. This module
+ * does not broadcast to Gnosis or Chiado.
  *
  * The 20 Hz tick calls `executeOnSimTick` and returns. Serializing the log and
  * the SP1 execution both happen after that return. A missing binary, or an

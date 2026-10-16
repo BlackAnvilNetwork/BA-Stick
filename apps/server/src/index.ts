@@ -5601,7 +5601,8 @@ function tickSim() {
     settleGuildPayouts(Date.now());
     // SP1 replays this process's engine log. The state hash stays keccak.
     // A missing executor, or an execution still running, returns immediately.
-    // The result is not compared to wasm replay and cannot reject the batch.
+    // The tick does not wait for a proof and does not read this result.
+    // A proof on a batch is checked in acceptBatch, not here.
     executeOnSimTick(tickSp1, () => lok.logDocument());
   }
 }

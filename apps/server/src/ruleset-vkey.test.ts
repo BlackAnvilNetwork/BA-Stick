@@ -30,6 +30,9 @@ const leaderKey = new Uint8Array(leader.publicKey.toBytes());
 const leaderSecret = new Uint8Array(leader.secretKey);
 const ROLL_BYTES = Uint8Array.from([9, 8, 7, 6]);
 const OTHER_KEY = `0x${"ab".repeat(32)}`;
+/** Empty world. Replay of the pinned wasm is 32 zero bytes. */
+const EMPTY_LOG = new TextEncoder().encode('{"type":"characters","characters":[]}');
+const EMPTY_REPLAY = new Uint8Array(32);
 
 let now = 1_700_000_000_000;
 
@@ -44,7 +47,7 @@ function hash(fill: number): Uint8Array {
 }
 
 function signed(proofVerifyingKey?: string): BatchEnvelope {
-  const inputs = Uint8Array.from([1, 2, 3, 4]);
+  const inputs = proofVerifyingKey === undefined ? Uint8Array.from([1, 2, 3, 4]) : EMPTY_LOG;
   const leaderCommitment = hash(0x44);
   const gnosisRandomness = hash(0x55);
   const inputsCommitment = commitInputs(inputs);
@@ -64,6 +67,7 @@ function signed(proofVerifyingKey?: string): BatchEnvelope {
     epochSeed,
     rollCommitment: commitRoll(inputsCommitment, epochSeed, ROLL_BYTES),
     proofVerifyingKey,
+    proofResult: proofVerifyingKey === undefined ? undefined : EMPTY_REPLAY,
   };
   const epoch = new Uint8Array(8);
   const height = new Uint8Array(8);

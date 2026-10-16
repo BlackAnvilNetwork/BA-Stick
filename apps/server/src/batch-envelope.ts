@@ -10,6 +10,11 @@
  * the keccak of `inputsCommitment || epochSeed || rollBytes`, and the
  * replay root equals `nextRoot`.
  *
+ * When the batch carries a proof, this check replays the pinned wasm for
+ * that batch. The proof's result has to be that replay. A disagreement
+ * ignores the proof and the batch is invalid. A batch with no proof does
+ * not replay the wasm and does not need a proof.
+ *
  * The leader signature is BLS12-381 in the Gnosis / EIP-2537 validator
  * convention: a 48-byte G1 public key and a 96-byte G2 signature, checked
  * with `@noble/curves` long signatures. The signed message is the keccak256
@@ -23,6 +28,7 @@ import { timingSafeEqual } from "node:crypto";
 import { bls12_381 } from "@noble/curves/bls12-381.js";
 import { concatBytes, keccak256 } from "viem";
 import { fallbackEpochSeed } from "./fallback-epoch-seed";
+import { proofResultMatchesReplay, storeAcceptedProof } from "./proof-replay";
 import { proofVerifyingKeyAccepted } from "./ruleset-record";
 
 /** Keccak digest length used for commitments, roots, and the ruleset hash. */
@@ -51,7 +57,8 @@ export type BatchReject =
   | "bad_leader_key"
   | "missing_signature"
   | "bad_signature"
-  | "foreign_verifying_key";
+  | "foreign_verifying_key"
+  | "proof_disagrees";
 
 /**
  * One batch a leader can hand to another process.
@@ -81,9 +88,17 @@ export type BatchEnvelope = {
   /**
    * SP1 verifying key this proof was made under (`0x` and 64 hex chars).
    * Absent when the batch carries no proof. Any other key is not a batch of
-   * this world. This field is not checked against wasm replay.
+   * this world. When this field is present, `proofResult` is checked against
+   * replay of the pinned wasm. A disagreement ignores the proof and the
+   * batch is invalid. Agreement still requires this key to be the active pin.
    */
   proofVerifyingKey?: string;
+  /**
+   * Result the proof claims for this batch: the 32-byte character-root tree
+   * from replay of the pinned wasm. Absent when the batch carries no proof.
+   * A different result is ignored, and the batch is invalid.
+   */
+  proofResult?: Uint8Array;
   /**
    * 96-byte BLS12-381 G2 signature over {@link leaderSigningMessage}.
    * Absent until the producer attaches one.
@@ -183,6 +198,10 @@ export function leaderSignatureValid(envelope: BatchEnvelope, signer: Uint8Array
  * Accept `envelope` only when world, protocol, parent, epoch, height,
  * ruleset, inputs commitment, fallback epoch seed, roll commitment,
  * replay root, and the epoch leader's BLS signature all agree.
+ * A proof is accepted only when its result is the pinned-wasm replay and
+ * its verifying key is the active pin. No proof skips that replay.
+ * A disagreement is not stored. A proof is stored only after the rest of
+ * the batch agrees as well.
  */
 export function acceptBatch(
   envelope: BatchEnvelope,
@@ -213,6 +232,11 @@ export function acceptBatch(
   if (!sameHash(envelope.rulesetHash, expectedRuleset)) {
     return { ok: false, error: "wrong_ruleset" };
   }
+  if (envelope.proofVerifyingKey !== undefined) {
+    if (!proofResultMatchesReplay(envelope.inputs, envelope.proofResult)) {
+      return { ok: false, error: "proof_disagrees" };
+    }
+  }
   if (!proofVerifyingKeyAccepted(envelope.proofVerifyingKey)) {
     return { ok: false, error: "foreign_verifying_key" };
   }
@@ -235,6 +259,12 @@ export function acceptBatch(
   }
   if (!leaderSignatureOk(envelope, leaderPublicKey)) {
     return { ok: false, error: "bad_signature" };
+  }
+  if (envelope.proofVerifyingKey !== undefined) {
+    const result = envelope.proofResult;
+    if (!result || !storeAcceptedProof(envelope.inputs, result)) {
+      return { ok: false, error: "proof_disagrees" };
+    }
   }
   return { ok: true, epoch: envelope.epoch, height: envelope.height };
 }
