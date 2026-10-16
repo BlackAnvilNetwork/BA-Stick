@@ -66,14 +66,21 @@ type BlobSidecar = {
 };
 
 let blobTxAttempts = 0;
+let lastPostError = "";
 
 export function resetCheckpointBlobsForTests(): void {
   blobTxAttempts = 0;
+  lastPostError = "";
 }
 
 /** How many times this process started a local blob transaction. */
 export function blobTxAttemptCount(): number {
   return blobTxAttempts;
+}
+
+/** Why the last local blob post returned false. Empty after a success. */
+export function lastCheckpointPostError(): string {
+  return lastPostError;
 }
 
 export function checkpointKeccak(bytes: Uint8Array): Uint8Array {
@@ -219,25 +226,33 @@ export function checkpointFromOrdererLine(line: string): CertifiedCheckpoint | n
   return { kind: "checkpoint", bytes, certificate };
 }
 
+function failPost(reason: string): { ok: false } {
+  lastPostError = reason;
+  return { ok: false };
+}
+
 async function postBlobToLocalAnvil(
   bytes: Uint8Array,
   env: NodeJS.ProcessEnv,
 ): Promise<{ ok: true; blob: Uint8Array; checkpointKeccak: Uint8Array } | { ok: false }> {
+  lastPostError = "";
   const address = env.LOK_ROOT_ANCHOR?.trim() ?? "";
   const rpc = env.LOK_CHAIN_RPC?.trim() ?? "";
   const key = env.LOK_ANCHOR_POSTER_KEY?.trim() ?? "";
-  if (!/^0x[0-9a-fA-F]{40}$/.test(address)) return { ok: false };
-  if (!localAnvilRpc(rpc) || posterKeyRefused(env) || !/^0x[0-9a-fA-F]{64}$/.test(key)) return { ok: false };
-  if (!resolveCastBin()) return { ok: false };
+  if (!/^0x[0-9a-fA-F]{40}$/.test(address)) return failPost("root anchor address is missing");
+  if (!localAnvilRpc(rpc) || posterKeyRefused(env) || !/^0x[0-9a-fA-F]{64}$/.test(key)) {
+    return failPost("local anvil poster is not configured");
+  }
+  if (!resolveCastBin()) return failPost("cast was not found");
   const transport = http(rpc);
   const pub = createPublicClient({ transport });
   let chainId: number;
   try {
     chainId = await pub.getChainId();
-  } catch {
-    return { ok: false };
+  } catch (err) {
+    return failPost(`anvil chain id was not available: ${commandFailure(err)}`);
   }
-  if (chainId !== ANVIL_CHAIN_ID) return { ok: false };
+  if (chainId !== ANVIL_CHAIN_ID) return failPost(`anvil chain id ${chainId}`);
 
   const checkpointKeccakBytes = checkpointKeccak(bytes);
   const dir = mkdtempSync(join(tmpdir(), "lok-checkpoint-blob-"));
@@ -246,36 +261,23 @@ async function postBlobToLocalAnvil(
     writeFileSync(file, bytes);
     const raw = castHex(["mktx", ...castBlobArgs(key, rpc, file), BURN], rpc);
     const probed = parseBlobTx(raw);
-    if (!probed) {
-      console.error(
-        "[checkpoint-blob] cast mktx sidecar was not a single blob transaction",
-        raw.slice(0, 18),
-        raw.length,
-      );
-      return { ok: false };
-    }
+    if (!probed) return failPost(`cast mktx sidecar was not a one-blob transaction (${describeSidecar(raw)})`);
     const commitment = probed.commitment;
     if (!bytesEqual(versionedBlobHash(commitment), probed.versionedHash)) {
-      console.error("[checkpoint-blob] versioned hash does not match the sidecar commitment");
-      return { ok: false };
+      return failPost("sidecar commitment does not match the transaction versioned hash");
     }
     if (!bytesEqual(blobFromCheckpoint(bytes), probed.blob)) {
-      console.error("[checkpoint-blob] cast blob bytes do not match the checkpoint packing");
-      return { ok: false };
+      return failPost("cast packed a blob that is not the checkpoint bytes");
     }
     const recovered = checkpointBytesFromBlob(probed.blob);
     if (!recovered || !bytesEqual(recovered, bytes)) {
-      console.error("[checkpoint-blob] cast blob does not recover the checkpoint bytes");
-      return { ok: false };
+      return failPost("checkpoint bytes could not be read back from the blob");
     }
     const already = await readAnchor(pub, address as Hex, checkpointKeccakBytes);
     if (already && bytesEqual(already.commitment, commitment)) {
       return { ok: true, blob: probed.blob, checkpointKeccak: checkpointKeccakBytes };
     }
-    if (already) {
-      console.error("[checkpoint-blob] anchor already stores a different commitment");
-      return { ok: false };
-    }
+    if (already) return failPost("anchor already stores a different commitment for this checkpoint");
     blobTxAttempts += 1;
     const sent = castSendReceipt(
       [
@@ -289,32 +291,25 @@ async function postBlobToLocalAnvil(
       rpc,
     );
     const receipt = await pub.waitForTransactionReceipt({ hash: sent.hash });
-    if (receipt.status !== "success") {
-      console.error("[checkpoint-blob] blob transaction reverted");
-      return { ok: false };
-    }
+    if (receipt.status !== "success") return failPost(`blob transaction receipt status ${receipt.status}`);
     const tx = await pub.getTransaction({ hash: sent.hash });
-    if (tx.type !== "eip4844") {
-      console.error("[checkpoint-blob] posted transaction was not type eip4844");
-      return { ok: false };
-    }
+    if (tx.type !== "eip4844") return failPost(`blob transaction type ${String(tx.type)}`);
     const blobHash = tx.blobVersionedHashes?.[0];
     if (!blobHash || !bytesEqual(toBytes(blobHash), probed.versionedHash)) {
-      console.error("[checkpoint-blob] posted blob hash does not match the commitment");
-      return { ok: false };
+      return failPost("included transaction blobhash does not match the sidecar commitment");
     }
     const stored = await readAnchor(pub, address as Hex, checkpointKeccakBytes);
     if (!stored || !bytesEqual(stored.commitment, commitment)) {
-      console.error("[checkpoint-blob] anchor did not store the KZG commitment");
-      return { ok: false };
+      return failPost("anchor did not store the sidecar commitment");
     }
     if (!bytesEqual(stored.checkpointKeccak, checkpointKeccakBytes)) {
-      console.error("[checkpoint-blob] anchor did not store the checkpoint keccak");
-      return { ok: false };
+      return failPost("anchor did not store the checkpoint keccak");
     }
     return { ok: true, blob: probed.blob, checkpointKeccak: checkpointKeccakBytes };
   } catch (err) {
-    console.error("[checkpoint-blob] local blob post failed", err instanceof Error ? err.message : err);
+    const detail = commandFailure(err);
+    lastPostError = detail;
+    console.error("[checkpoint-blob] local blob post failed", detail);
     return { ok: false };
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -322,7 +317,23 @@ async function postBlobToLocalAnvil(
 }
 
 function castBlobArgs(key: string, rpc: string, file: string): string[] {
-  return ["--private-key", key, "--rpc-url", rpc, "--gas-limit", "500000", "--blob", "--path", file];
+  return [
+    "--private-key",
+    key,
+    "--rpc-url",
+    rpc,
+    "--gas-limit",
+    "500000",
+    "--gas-price",
+    "20000000000",
+    "--priority-gas-price",
+    "1000000000",
+    "--blob-gas-price",
+    "2000000000",
+    "--blob",
+    "--path",
+    file,
+  ];
 }
 
 function castSendReceipt(args: string[], rpc: string): { hash: Hex } {
@@ -342,11 +353,11 @@ function castSendReceipt(args: string[], rpc: string): { hash: Hex } {
   }
   const hash = fields.get("transactionhash");
   if (!hash?.startsWith("0x") || hash.length !== 66) {
-    throw new Error("cast send returned no transaction hash");
+    throw new Error(`cast send returned no transaction hash\n${redact(out)}`);
   }
   const status = fields.get("status") ?? "";
   if (status !== "1" && status !== "0x1" && status.toLowerCase() !== "success") {
-    throw new Error("cast send blob transaction was not successful");
+    throw new Error(`cast send blob transaction was not successful\n${redact(out)}`);
   }
   return { hash: hash as Hex };
 }
@@ -366,8 +377,42 @@ function castHex(args: string[], rpc: string): string {
     .map((part) => part.trim())
     .reverse()
     .find((part) => part.startsWith("0x"));
-  if (!line) throw new Error("cast returned no hex");
+  if (!line) throw new Error(`cast returned no hex\n${redact(out)}`);
   return line;
+}
+
+function commandFailure(err: unknown): string {
+  if (!(err instanceof Error)) return redact(String(err));
+  const extra = err as Error & { stderr?: string | Buffer; stdout?: string | Buffer };
+  const stderr = textOf(extra.stderr);
+  const stdout = textOf(extra.stdout);
+  return redact(
+    [err.message, stderr ? `stderr:\n${stderr}` : "", stdout ? `stdout:\n${stdout}` : ""].filter(Boolean).join("\n"),
+  );
+}
+
+function textOf(value: string | Buffer | undefined): string {
+  if (!value) return "";
+  const text = typeof value === "string" ? value : value.toString("utf8");
+  return text.length > 4000 ? `${text.slice(0, 4000)}\n…` : text;
+}
+
+function redact(text: string): string {
+  return text.replace(/(--private-key\s+)0x[0-9a-fA-F]+/g, "$1[redacted]");
+}
+
+function describeSidecar(rawHex: string): string {
+  try {
+    const hex = rawHex.trim();
+    if (!hex.startsWith("0x03")) return `prefix ${hex.slice(0, 8)}`;
+    const buf = Buffer.from(hex.slice(2), "hex");
+    const outer = decodeRlp(buf, 1);
+    if (!outer.list) return "outer is not a list";
+    const parts = outer.v.map((item) => (item.list ? `list(${item.v.length})` : `bytes(${item.v.length})`));
+    return `outer ${outer.v.length}: ${parts.join(", ")}`;
+  } catch (err) {
+    return err instanceof Error ? err.message : "undecodable";
+  }
 }
 
 async function readAnchor(
@@ -389,11 +434,15 @@ async function readAnchor(
 }
 
 /**
- * Read the one blob and its 48-byte KZG commitment out of a type-3 transaction.
- * Cast 1.5 packs an EIP-4844 sidecar as `[tx, blobs, commitments, proofs]`.
- * Cast 1.8 packs an EIP-7594 sidecar in the same list with a version byte
- * before the blobs. Commitments stay 48 bytes; cell proofs are a later list.
+ * The KZG commitment and blob from a `cast mktx --blob` transaction.
+ * Cast 1.5 packs `[tx, blobs, commitments, proofs]`. Cast stable packs the
+ * EIP-7594 sidecar in that same list with a version byte before the blobs.
+ * The stored commitment is the 48-byte value whose versioned hash is blobhash(0).
  */
+export function blobSidecarFromCastTx(rawHex: string): BlobSidecar | null {
+  return parseBlobTx(rawHex);
+}
+
 function parseBlobTx(rawHex: string): BlobSidecar | null {
   const hex = rawHex.trim();
   if (!/^0x03[0-9a-fA-F]*$/.test(hex) || hex.length % 2 !== 0) return null;
@@ -406,21 +455,43 @@ function parseBlobTx(rawHex: string): BlobSidecar | null {
     return null;
   }
   if (!outer.list || outer.o !== buf.length) return null;
-  const body = outer.v[0];
-  if (!body?.list) return null;
-  const blobs = outer.v.find(
-    (item) => item.list && item.v.length === 1 && byteItem(item.v[0])?.length === BLOB_BYTES,
-  );
-  const commitments = outer.v.find(
-    (item) => item.list && item.v.length === 1 && byteItem(item.v[0])?.length === BLOB_COMMITMENT_BYTES,
-  );
-  const hashItem = body.v[10];
-  if (!blobs?.list || !commitments?.list || !hashItem?.list || hashItem.v.length !== 1) return null;
-  const commitment = byteItem(commitments.v[0]);
-  const blob = byteItem(blobs.v[0]);
-  const versionedHash = byteItem(hashItem.v[0]);
-  if (!commitment || !blob || !versionedHash || versionedHash.length !== 32) return null;
+  const versionedHash = versionedHashFromBody(outer.v[0]);
+  const blob = singletonBytes(outer, BLOB_BYTES);
+  if (!versionedHash || !blob) return null;
+  const commitment = outer.v
+    .map((item) => (item.list && item.v.length === 1 ? byteItem(item.v[0]) : null))
+    .find(
+      (candidate) =>
+        !!candidate &&
+        candidate.length === BLOB_COMMITMENT_BYTES &&
+        bytesEqual(versionedBlobHash(candidate), versionedHash),
+    );
+  if (!commitment) return null;
   return { commitment, blob, versionedHash };
+}
+
+function versionedHashFromBody(body: Rlp | undefined): Uint8Array | null {
+  if (!body?.list) return null;
+  const direct = body.v[10];
+  if (direct?.list && direct.v.length === 1) {
+    const hash = byteItem(direct.v[0]);
+    if (hash?.length === 32) return hash;
+  }
+  for (const item of body.v) {
+    if (!item.list || item.v.length !== 1) continue;
+    const hash = byteItem(item.v[0]);
+    if (hash?.length === 32 && hash[0] === 0x01) return hash;
+  }
+  return null;
+}
+
+function singletonBytes(outer: Rlp, length: number): Uint8Array | null {
+  for (const item of outer.v) {
+    if (!item.list || item.v.length !== 1) continue;
+    const bytes = byteItem(item.v[0]);
+    if (bytes?.length === length) return bytes;
+  }
+  return null;
 }
 
 function byteItem(item: Rlp | undefined): Uint8Array | null {

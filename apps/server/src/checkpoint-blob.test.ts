@@ -16,10 +16,12 @@ import {
   BLOB_BYTES,
   BLOB_COMMITMENT_BYTES,
   MAX_CHECKPOINT_BYTES,
+  blobSidecarFromCastTx,
   blobTxAttemptCount,
   checkpointBytesFromBlob,
   checkpointFromOrdererLine,
   checkpointKeccak,
+  lastCheckpointPostError,
   losePublishedBlob,
   packageCertifiedCheckpoint,
   publishCheckpointFromLine,
@@ -68,6 +70,25 @@ describe("checkpoint blobs", { concurrency: false }, () => {
     for (let i = 0; i < BLOB_BYTES; i += 32) assert.equal(packed.blob[i], 0);
     assert.deepEqual(checkpointBytesFromBlob(packed.blob), bytes);
     assert.equal(blobTxAttemptCount(), 0);
+  });
+
+  test("both sidecar layouts yield the KZG commitment", () => {
+    const bytes = new TextEncoder().encode("certified-checkpoint");
+    const packed = packageCertifiedCheckpoint(checkpoint(bytes));
+    assert.ok(packed);
+    const commitment = new Uint8Array(BLOB_COMMITMENT_BYTES);
+    commitment[0] = 0x8d;
+    const hash = versionedBlobHash(commitment);
+    const proof = new Uint8Array(BLOB_COMMITMENT_BYTES);
+    proof[0] = 0x22;
+    for (const raw of [legacySidecar(packed.blob, commitment, proof, hash), eip7594Sidecar(packed.blob, commitment, proof, hash)]) {
+      const sidecar = blobSidecarFromCastTx(raw);
+      assert.ok(sidecar);
+      assert.deepEqual(Uint8Array.from(sidecar.commitment), commitment);
+      assert.deepEqual(Uint8Array.from(sidecar.blob), packed.blob);
+      assert.deepEqual(Uint8Array.from(sidecar.versionedHash), hash);
+    }
+    assert.equal(blobSidecarFromCastTx("0x02"), null);
   });
 
   test("an uncertified or oversized body produces no blob", async () => {
@@ -270,7 +291,7 @@ describe("checkpoint blobs", { concurrency: false }, () => {
         );
 
         const posted = await publishCheckpointFromLine(checkpointLine(bytes), { env, dataDir: dir });
-        assert.equal(posted, true);
+        assert.equal(posted, true, lastCheckpointPostError());
         assert.equal(blobTxAttemptCount(), 1);
         assert.equal(await pub.getTransactionCount({ address: poster.address }), nonceBefore + 2);
 
@@ -379,3 +400,53 @@ describe("checkpoint blobs", { concurrency: false }, () => {
     },
   );
 });
+
+function legacySidecar(blob: Uint8Array, commitment: Uint8Array, proof: Uint8Array, hash: Uint8Array): string {
+  return typedBlob([txBody(hash), rlpList([rlpBytes(blob)]), rlpList([rlpBytes(commitment)]), rlpList([rlpBytes(proof)])]);
+}
+
+function eip7594Sidecar(blob: Uint8Array, commitment: Uint8Array, proof: Uint8Array, hash: Uint8Array): string {
+  const cells = Array.from({ length: 4 }, () => rlpBytes(proof));
+  return typedBlob([
+    txBody(hash),
+    Buffer.from([0x01]),
+    rlpList([rlpBytes(blob)]),
+    rlpList([rlpBytes(commitment)]),
+    rlpList(cells),
+  ]);
+}
+
+function txBody(hash: Uint8Array): Buffer {
+  const fields = Array.from({ length: 10 }, () => Buffer.from([0x00]));
+  fields.push(rlpList([rlpBytes(hash)]));
+  fields.push(Buffer.from([0x01]), rlpBytes(new Uint8Array(32)), rlpBytes(new Uint8Array(32)));
+  return rlpList(fields);
+}
+
+function typedBlob(items: Buffer[]): string {
+  return `0x03${rlpList(items).toString("hex")}`;
+}
+
+function rlpBytes(data: Uint8Array): Buffer {
+  if (data.length === 1 && data[0] !== undefined && data[0] <= 0x7f) return Buffer.from(data);
+  if (data.length <= 55) return Buffer.concat([Buffer.from([0x80 + data.length]), data]);
+  const length = lengthBytes(data.length);
+  return Buffer.concat([Buffer.from([0xb7 + length.length]), length, data]);
+}
+
+function rlpList(items: Buffer[]): Buffer {
+  const payload = Buffer.concat(items);
+  if (payload.length <= 55) return Buffer.concat([Buffer.from([0xc0 + payload.length]), payload]);
+  const length = lengthBytes(payload.length);
+  return Buffer.concat([Buffer.from([0xf7 + length.length]), length, payload]);
+}
+
+function lengthBytes(size: number): Buffer {
+  const bytes: number[] = [];
+  let rest = size;
+  while (rest > 0) {
+    bytes.unshift(rest % 256);
+    rest = Math.floor(rest / 256);
+  }
+  return Buffer.from(bytes.length > 0 ? bytes : [0]);
+}
