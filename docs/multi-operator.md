@@ -289,7 +289,17 @@ The live view the player sees is provisional state from the leader, flagged as s
 
 ### What it does not do
 
-It does not replay the world, store the journal, vote, or lead. A mobile build runs the light tier by default and a limited validator mode only when the device is plugged in and on an unmetered connection; background limits on mobile operating systems apply, so that mode is best-effort.
+It does not replay the world, store the journal, vote, or lead.
+
+### Mobile power and background
+
+A phone is not a default replica. Boot stays the light tier. It does not tick the world, lead, or become a replica.
+
+A limited validator mode is eligible only when the device is both plugged in and on an unmetered connection. Unplugged, or metered, stays on the light tier. Eligibility does not start the world tick. The phone's entry stays light: it does not tick, lead, or become a replica.
+
+Background limits on the mobile operating system apply. The eligible mode is best-effort and may be stopped by the OS. This policy sets no CPU, RAM, or disk floor.
+
+That mode grants no combat bonus, no second guild, and not the listing key.
 
 ### Trust boundary
 
@@ -541,7 +551,7 @@ Step 12, if it is built, uses one zkVM: SP1, because it executes this Rust crate
 - [ ] Two published resource profiles (validator, replica) and a "can I hold a replica?" self-check; the installed game defaults to validator.
 - [ ] Client directory with caching, fallback, and reconnect UX.
 - [ ] Checkpoint format and verification so new nodes start from a recent root rather than genesis.
-- [ ] Mobile policy for when the limited validator mode may run (power, network, background limits).
+- [x] Mobile policy for when the limited validator mode may run (power, network, background limits). Section 9: a phone boots on the light tier and is not a default replica. Limited validator mode is eligible only when the device is plugged in and on an unmetered connection. Eligibility does not start the world tick. Background limits make that mode best-effort, and the OS may stop it. No CPU, RAM, or disk floor. No combat bonus, no second guild, and not the listing key.
 - [ ] Installer and docs: a Mark earns the right to lead one guild. Guild xDAI comes only from the auction-fee split, and only for certified play. Uptime pays nothing. Validators and light clients are not paid.
 
 ## 19. Appendix: changes from the earlier design
