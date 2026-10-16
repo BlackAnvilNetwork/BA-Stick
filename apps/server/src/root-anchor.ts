@@ -142,6 +142,40 @@ export function notePostedSlashableBond(id: string, amountWei: bigint): void {
 }
 
 /**
+ * `LOK_POSTED_SLASHABLE_BONDS` is `id:wei` pairs separated by commas.
+ * Wei is a decimal integer string. An unset list, an empty list, or wei 0
+ * posts nothing. This does not invent an amount.
+ */
+export function parsePostedSlashableBonds(raw: string | undefined): { id: string; amountWei: bigint }[] {
+  if (!raw || !raw.trim()) return [];
+  const posted: { id: string; amountWei: bigint }[] = [];
+  for (const part of raw.split(",")) {
+    const piece = part.trim();
+    if (!piece) continue;
+    const colon = piece.indexOf(":");
+    if (colon <= 0) continue;
+    const id = piece.slice(0, colon).trim();
+    const wei = piece.slice(colon + 1).trim();
+    if (!id || !/^\d+$/.test(wei)) continue;
+    const amountWei = BigInt(wei);
+    if (amountWei <= 0n) continue;
+    posted.push({ id, amountWei });
+  }
+  return posted;
+}
+
+/**
+ * Production boot records each posted bond. Call this after `configureEpochLedger`
+ * so the note is written into that data dir. An unset variable notes nothing
+ * and leaves a bond file from an earlier boot in place.
+ */
+export function recordPostedSlashableBonds(env: NodeJS.ProcessEnv = process.env): void {
+  for (const bond of parsePostedSlashableBonds(env.LOK_POSTED_SLASHABLE_BONDS)) {
+    notePostedSlashableBond(bond.id, bond.amountWei);
+  }
+}
+
+/**
  * Test override of the loaded bond total. Production boot does not call this.
  */
 export function setPostedSlashableBonds(wei: bigint): void {

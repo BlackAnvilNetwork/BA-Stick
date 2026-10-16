@@ -5,7 +5,7 @@
  * The tick helper still returns without waiting.
  */
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test } from "node:test";
@@ -42,8 +42,8 @@ import {
   pinEpochCharge,
   inGameWaitsForAnchor,
   noteCertifiedBatch,
-  notePostedSlashableBond,
   postCertifiedBatch,
+  recordPostedSlashableBonds,
   resetRootAnchorForTests,
   setChallengeClockForTests,
   setPostedSlashableBonds,
@@ -819,7 +819,7 @@ test("bounty cancel and buyAsk do not broadcast outside the epoch cap", async ()
   }
 });
 
-test("boot loads posted slashable bonds without the test setter", async () => {
+test("boot records LOK_POSTED_SLASHABLE_BONDS and a later unset boot keeps them", async () => {
   resetRootAnchorForTests();
   const dir = mkdtempSync(join(tmpdir(), "lok-posted-bonds-"));
   try {
@@ -832,11 +832,11 @@ test("boot loads posted slashable bonds without the test setter", async () => {
     });
     assert.equal(posted, true);
     now += CHALLENGE_DELAY_MS;
-    writeFileSync(
-      join(dir, "slashable-bonds.json"),
-      JSON.stringify({ bonds: [{ id: "allowlist-host", amountWei: (10n * ONE_XDAI).toString() }] }) + "\n",
-    );
+    const half = 5n * ONE_XDAI;
     configureEpochLedger(dir);
+    recordPostedSlashableBonds({
+      LOK_POSTED_SLASHABLE_BONDS: "ghost:0, host-a:" + half.toString() + ", host-b:" + half.toString(),
+    });
     assert.equal(postedSlashableBonds(), 10n * ONE_XDAI);
     assert.equal(epochXdaiCapWei(), ONE_XDAI);
     assert.equal(chainBoundXdaiSend("mint", ONE_XDAI).ok, true);
@@ -845,36 +845,40 @@ test("boot loads posted slashable bonds without the test setter", async () => {
     if (!over.ok) assert.equal(over.error, EPOCH_XDAI_CAP_REFUSAL);
 
     restartEpochLedger();
+    configureEpochLedger(dir);
+    recordPostedSlashableBonds({});
     assert.equal(postedSlashableBonds(), 10n * ONE_XDAI);
     assert.equal(epochSettledXdai(), ONE_XDAI);
     assert.equal(chainBoundXdaiSend("mint", 1n).ok, false);
-
-    notePostedSlashableBond("allowlist-host", 20n * ONE_XDAI);
-    now += EPOCH_MS;
-    assert.equal(postedSlashableBonds(), 20n * ONE_XDAI);
-    assert.equal(epochXdaiCapWei(), 2n * ONE_XDAI);
-    assert.equal(chainBoundXdaiSend("bounty", 2n * ONE_XDAI).ok, true);
-    assert.equal(chainBoundXdaiSend("bounty", 1n).ok, false);
-
-    setPostedSlashableBonds(0n);
-    assert.equal(postedSlashableBonds(), 0n);
-    assert.equal(chainBoundXdaiSend("withdrawal", 1n).ok, false);
-
-    const empty = mkdtempSync(join(tmpdir(), "lok-no-bonds-"));
+    assert.equal(inGameWaitsForAnchor("tick"), false);
+    assert.equal(inGameWaitsForAnchor("combat"), false);
+  } finally {
     resetRootAnchorForTests();
+  }
+});
+
+test("a boot with no posted bond refuses a positive chain send", async () => {
+  resetRootAnchorForTests();
+  const dir = mkdtempSync(join(tmpdir(), "lok-no-bonds-"));
+  try {
+    let now = 1_700_000_000_000;
     setChallengeClockForTests(() => now);
     noteCertifiedBatch(batch);
-    assert.equal(
-      await postCertifiedBatch(batch, { env: { LOK_CHAIN_ID: "31337" }, poster: async () => true }),
-      true,
-    );
+    const posted = await postCertifiedBatch(batch, {
+      env: { LOK_CHAIN_ID: "31337" },
+      poster: async () => true,
+    });
+    assert.equal(posted, true);
     now += CHALLENGE_DELAY_MS;
-    configureEpochLedger(empty);
+    configureEpochLedger(dir);
+    recordPostedSlashableBonds({});
     assert.equal(postedSlashableBonds(), 0n);
     const refused = chainBoundXdaiSend("escrow", 1n);
     assert.equal(refused.ok, false);
     if (!refused.ok) assert.equal(refused.error, EPOCH_XDAI_CAP_REFUSAL);
-    assert.equal(inGameWaitsForAnchor("tick"), false);
+    recordPostedSlashableBonds({ LOK_POSTED_SLASHABLE_BONDS: "" });
+    assert.equal(postedSlashableBonds(), 0n);
+    assert.equal(chainBoundXdaiSend("bounty", 1n).ok, false);
   } finally {
     resetRootAnchorForTests();
   }
