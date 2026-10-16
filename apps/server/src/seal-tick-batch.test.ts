@@ -1,8 +1,19 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 import { keccak256 } from "viem";
 import { commitInputs, commitRoll, LEADER_KEY_BYTES, LEADER_SIG_BYTES } from "./batch-envelope";
 import { fallbackEpochSeed } from "./fallback-epoch-seed";
+import {
+  flushGameRoll,
+  gameRollCount,
+  loadGameRoll,
+  resetGameRollForTests,
+  rollUnit,
+  startEpochRoll,
+} from "./game-roll";
 import {
   checkSealedTick,
   provisionalChainLink,
@@ -108,5 +119,72 @@ test("one process seals a tick, links the next parent, and rejects a bad batch",
     assert.deepEqual(rejected, { ok: false, error: "roll_commitment_mismatch" });
     assert.equal(sealView().height, view.height);
     assert.deepEqual(sealParentRoot(), view.parentRoot);
+  });
+
+  await t.test("a successful seal starts the shared tape from the epoch seed, and the same seed does not rewind", () => {
+    const prev = process.env.LOK_ROLL_SEED;
+    delete process.env.LOK_ROLL_SEED;
+    const epochSeed = fallbackEpochSeed(sealView().leaderCommitment, gnosis);
+    const epochHex = Buffer.from(epochSeed).toString("hex");
+    try {
+      resetGameRollForTests();
+      startEpochRoll(epochSeed);
+      const expectedFirst = rollUnit("loot.mat");
+      const expectedSecond = rollUnit("gold.mob-kill");
+      resetGameRollForTests();
+
+      const dir = mkdtempSync(join(tmpdir(), "lok-seal-epoch-"));
+      loadGameRoll(dir);
+      const parent = sealParentRoot();
+      const sealedHeight = sealView().height;
+      const inputs = Uint8Array.from([4, 4, 4]);
+      const sealed = seal(inputs, parent, provisionalChainLink(parent, inputs));
+      assert.deepEqual(sealed, { ok: true, epoch: 0, height: sealedHeight });
+
+      const cursorPath = join(dir, "game-roll.json");
+      const started = JSON.parse(readFileSync(cursorPath, "utf8")) as { seed: string; count: number };
+      assert.equal(started.seed, epochHex);
+      assert.equal(started.count, 0);
+      assert.equal(gameRollCount(), 0);
+
+      const first = rollUnit("loot.mat");
+      assert.equal(first, expectedFirst);
+      assert.equal(gameRollCount(), 1);
+      flushGameRoll();
+      const held = readFileSync(cursorPath, "utf8");
+
+      const parent2 = sealParentRoot();
+      const inputs2 = Uint8Array.from([3, 3, 3]);
+      const again = seal(inputs2, parent2, provisionalChainLink(parent2, inputs2));
+      assert.equal(again.ok, true);
+      assert.equal(gameRollCount(), 1);
+      assert.equal(readFileSync(cursorPath, "utf8"), held);
+
+      const second = rollUnit("gold.mob-kill");
+      assert.equal(second, expectedSecond);
+      assert.notEqual(second, first);
+      assert.equal(gameRollCount(), 2);
+      flushGameRoll();
+
+      const continued = JSON.parse(readFileSync(cursorPath, "utf8")) as { seed: string; count: number };
+      assert.equal(continued.seed, epochHex);
+      assert.equal(continued.count, 2);
+      const tape = readFileSync(join(dir, "game-roll.jsonl"), "utf8").trim().split("\n");
+      assert.deepEqual(
+        tape.map((line) => {
+          const row = JSON.parse(line) as { n: number; tag: string; z: string };
+          assert.match(row.z, /^[0-9a-f]{16}$/);
+          return { n: row.n, tag: row.tag };
+        }),
+        [
+          { n: 1, tag: "loot.mat" },
+          { n: 2, tag: "gold.mob-kill" },
+        ],
+      );
+    } finally {
+      if (prev === undefined) delete process.env.LOK_ROLL_SEED;
+      else process.env.LOK_ROLL_SEED = prev;
+      resetGameRollForTests();
+    }
   });
 });
