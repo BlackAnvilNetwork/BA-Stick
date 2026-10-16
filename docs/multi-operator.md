@@ -171,6 +171,28 @@ Every replica applies the same batches in the same order, so any replica can bec
 - Replicas reject any batch carrying an older epoch, which fences a returning stale leader.
 - One Rust BFT engine orders batches from the first replica, including a genesis of one. Raft is not a phase. A crashed host and a lying host are both in scope once a second machine can sign, and a crash-only protocol cannot tell them apart. The engine is Tendermint-family (Malachite, the maintained Rust implementation). It runs at one validator and at three. The TypeScript server keeps the 20 Hz loop and hands the engine a batch to propose. It does not implement consensus. The lok wasm stays the state machine. An OP Stack, Orbit, or Cosmos SDK chain is not the orderer: those chains do not tick combat at 20 Hz, and they would replace the rules engine.
 
+### Hand-off protocol
+
+The election bullets are the outcome. This is the check a replica applies when a batch or a heartbeat arrives. These messages are not votes, rounds, or any other consensus-internal message. The TypeScript server still does not implement consensus, and this protocol does not choose the leader. The later engine does. What the new leader is allowed to keep is fixed here. This is election and failover hand-off for the whole world, not a per-encounter lease.
+
+| Kind | From | Carries |
+| --- | --- | --- |
+| `heartbeat` | Leader | Epoch, height of the last streamed batch (absent before the first), tip root, logical time |
+| `batch` | Leader | Epoch, height, parent root, next root, ordered input ids |
+| `received` | Replica that stored the batch | Epoch, height, next root, replica id |
+| `reject` | Replica that refused the batch | Epoch, height, replica id, and `parent-mismatch`, `stale-epoch`, or `dropped-input` |
+| `input` | Client | One input id, offered to the leader that client is following |
+
+A `received` message means the replica stored the batch. It is not a commit certificate. Certificates stay in section 5. A certificate is over a batch replicas have already stored, so certified history is a prefix of what a threshold has received, and certified batches are not discarded. The new leader adopts the highest prefix that at least the commit threshold of replicas has stored: the same batches, in order, each parent root equal to the previous next root, starting from 32 zero bytes. Provisional batches past that prefix are discarded. The rule does not create a second committed history.
+
+**Parent-root match.** Each replica stores one parent: the next root of the last batch it stored, or 32 zero bytes before any batch. It stores a `batch` only when that parent matches and the height is the next height. Any other parent or height is `parent-mismatch`. The replica does not move its parent and does not skip ahead. Replicas still apply the same batches in the same order.
+
+**Heartbeat timeout.** Time here is a logical counter, not a wall clock. A `heartbeat` for the open epoch records that counter. The timeout is a genesis count on the same counter. The timer starts at the first heartbeat of the epoch. When the replica's counter reaches the last heartbeat plus that count, and no newer heartbeat for the open epoch has arrived, the replica stops accepting that epoch. A later `batch` for the closed epoch, or for any older epoch, is `stale-epoch` and is not stored. A heartbeat does not reopen a closed epoch. Adopting the threshold prefix opens the next epoch, one greater. That is the increment the election already names. The timeout is not a consensus round timeout. The harness pins the count at 3.
+
+**In-flight inputs.** An input is in flight once the leader has accepted it and no batch in the adopted prefix lists its id. The new leader keeps the threshold prefix and drops every other input id, whether it was still in flight or sat only in a discarded provisional batch. Those ids are not sequenced on the new epoch. An `input` or a `batch` that would place one on the winning chain is `dropped-input`. Losing inputs are not re-applied. A side below the commit threshold keeps ticking provisionally. When the partition heals, that side discards those provisional batches and their inputs and leaves them off the winning chain.
+
+The deterministic harness is two operating-system processes, `apps/server/src/handoff-harness.test.ts`. It advances the logical counter itself. The live tick's chain link is unchanged.
+
 ### Failover experience
 
 Clients hold a wallet session and a directory entry. When the leader changes they reconnect through the directory to the new leader and resume the session. The player sees a brief reconnect and no paused world.
@@ -515,7 +537,7 @@ Step 12, if it is built, uses one zkVM: SP1, because it executes this Rust crate
 
 - [ ] Replica key ceremony, encrypted backup expectations, rotation through a certified batch, and an emergency replace path that keeps play running while keys change. The initial set stays at three until the emergency path has been practiced.
 - [ ] Health endpoint on every node: last certified height, last anchored height, clock skew, peer connectivity.
-- [ ] Hand-off and election protocol specification (messages, parent-root match, timeouts, in-flight inputs) and a deterministic multi-process test harness.
+- [x] Hand-off and election protocol specification (messages, parent-root match, timeouts, in-flight inputs) and a deterministic multi-process test harness. Section 6 states the message kinds, the parent-root match, the heartbeat timeout, and in-flight inputs. `apps/server/src/handoff-harness.test.ts` runs that protocol in two OS processes.
 - [ ] Two published resource profiles (validator, replica) and a "can I hold a replica?" self-check; the installed game defaults to validator.
 - [ ] Client directory with caching, fallback, and reconnect UX.
 - [ ] Checkpoint format and verification so new nodes start from a recent root rather than genesis.
