@@ -314,7 +314,7 @@ import { defaultLokDir, LokWorld } from "./lok-world";
 import { flushGameRoll, loadGameRoll, rollIndex, rollUnit } from "./game-roll";
 import { sealParentRoot, sealTickBatch } from "./seal-tick-batch";
 import { emptyReplicaHealth, loadTickOrderer, submitOnSimTick } from "./order-submit";
-import { snapshotLightClient } from "./web-light-snapshot";
+import { snapshotFor as attachLightProof } from "./web-light-snapshot";
 import { installedGameMode, replicaMayTick, type InstalledGameMode } from "./installed-game-mode";
 import { rollPvpAutoAttack } from "./pvp-auto-rolls";
 import { cheapestBait, fishGatherRefusal } from "./fishing";
@@ -3143,10 +3143,11 @@ function snapshotFor(p: Player): SnapshotMessage {
     log: p.lastLog.slice(-12),
     party: buildPartySnapshot(p.wallet, partyLookup),
     partyInvite: buildInviteView(p.wallet, partyNameOf),
-    lightClient: snapshotLightClient({
+    lightClient: attachLightProof({
       commitCertificateHex: tickOrderer?.replicaHealth?.().commitCertificate,
       certifiedRootHex: tickOrderer?.replicaHealth?.().certifiedRoot,
       tokenId: lok.tokenFor(p.charId),
+      characters: lok.lightCharacters(),
     }),
   };
 }

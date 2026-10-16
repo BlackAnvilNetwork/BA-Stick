@@ -8,6 +8,7 @@
  * beside that certificate.
  */
 import type { WebLightClientMessage, WebLightSibling } from "@bellgrave/protocol";
+import { proveCharacter, type LightCharacter } from "./character-light-proof";
 
 export type LightSibling = { hash: Uint8Array; left: boolean };
 
@@ -70,6 +71,26 @@ export function snapshotLightClient(input: {
     value: hex(proof.value),
     leafSiblings: proof.leafSiblings.map(wireSibling),
   };
+}
+
+/**
+ * What the live `snapshotFor` attaches. The character-root inclusion and the
+ * token-id state leaf are built from the open world. A token that is not in
+ * that world has no proof, so the field stays a failing stand-in.
+ */
+export function snapshotFor(input: {
+  commitCertificateHex?: string | null;
+  certifiedRootHex?: string | null;
+  tokenId?: string | null;
+  characters: readonly LightCharacter[];
+}): WebLightClientMessage {
+  const proof = input.tokenId ? proveCharacter(input.characters, input.tokenId) : null;
+  return snapshotLightClient({
+    commitCertificateHex: input.commitCertificateHex,
+    certifiedRootHex: input.certifiedRootHex,
+    tokenId: input.tokenId,
+    proof,
+  });
 }
 
 function emptyProof(tokenId: string | null | undefined): SnapshotLightProof {
