@@ -75,12 +75,12 @@ impl Gate {
             return json!({ "ok": true, "rulesetHash": hex32(&hash) }).to_string();
         }
         if op == "undoWithdraw" || op == "withdrawCount" || op == "depositKek" || op == "withdrawKek" || op == "spendKek" || op == "sendKek" || op == "paidRespecSkills" {
-            return fail("KEK custody is retired");
+            return fail_engine(&EngineError::KekRetired);
         }
         let value = if op == "fill" || op == "buy" {
             match resolve_buy(&self.world, value, op == "fill") {
                 Ok(v) => v,
-                Err(err) => return fail(&err),
+                Err(err) => return reject(err),
             }
         } else {
             value
@@ -103,7 +103,7 @@ impl Gate {
                 body.insert("entry".into(), json!({ "seq": event.seq, "links": links }));
                 serde_json::to_string(&Value::Object(body)).unwrap_or_else(|_| fail("encode"))
             }
-            Err(err) => fail(&engine_error(&err)),
+            Err(err) => fail_engine(&err),
         }
     }
 }
@@ -115,17 +115,17 @@ fn dec_field(value: &Value, key: &str) -> Result<U256, String> {
 
 /// A buy names an item. The engine selects the cheapest ask and sets the price to that ask.
 /// A fill may name a maximum. The recorded amount is rewritten to the ask so the buyer cannot overpay.
-fn resolve_buy(world: &World, value: Value, capped: bool) -> Result<Value, String> {
-    let bidder = dec_field(&value, "bidder")?;
-    let item_id = dec_field(&value, "itemId")?;
+fn resolve_buy(world: &World, value: Value, capped: bool) -> Result<Value, Reject> {
+    let bidder = dec_field(&value, "bidder").map_err(Reject::Message)?;
+    let item_id = dec_field(&value, "itemId").map_err(Reject::Message)?;
     let chosen = if capped {
-        let amount = dec_field(&value, "amount")?;
-        world.choose_ask(bidder, item_id, amount).map_err(|err| err.to_string())?
+        let amount = dec_field(&value, "amount").map_err(Reject::Message)?;
+        world.choose_ask(bidder, item_id, amount).map_err(Reject::Engine)?
     } else {
-        world.choose_lowest_ask(bidder, item_id).map_err(|err| err.to_string())?
+        world.choose_lowest_ask(bidder, item_id).map_err(Reject::Engine)?
     };
     let mut value = value;
-    let obj = value.as_object_mut().ok_or_else(|| "command must be an object".to_string())?;
+    let obj = value.as_object_mut().ok_or_else(|| Reject::Message("command must be an object".to_string()))?;
     obj.insert("listingId".to_string(), Value::String(chosen.id.to_dec()));
     if capped {
         obj.insert("amount".to_string(), Value::String(chosen.min_price.to_dec()));
@@ -143,12 +143,12 @@ fn checkpoint_json(world: &World, value: &Value) -> String {
         Some(Err(_)) => return fail("bad fromIndex"),
         None => match world.committed_index(&token) {
             Some(n) => n,
-            None => return fail("character is not spawned"),
+            None => return fail_engine(&EngineError::NotSpawned),
         },
     };
     let to_index = match world.character_len(&token) {
         Some(n) => n,
-        None => return fail("character is not spawned"),
+        None => return fail_engine(&EngineError::NotSpawned),
     };
     match world.checkpoint_covering(&token, from_index, to_index) {
         Ok(c) => {
@@ -176,7 +176,7 @@ fn checkpoint_json(world: &World, value: &Value) -> String {
             })
             .to_string()
         }
-        Err(err) => fail(&err.to_string()),
+        Err(err) => fail_engine(&err),
     }
 }
 
@@ -211,12 +211,24 @@ fn self_log_len(world: &World, token_id: &U256) -> u64 {
     world.character_len(token_id).unwrap_or(0)
 }
 
-fn engine_error(err: &EngineError) -> String {
-    err.to_string()
+enum Reject {
+    Message(String),
+    Engine(EngineError),
+}
+
+fn reject(err: Reject) -> String {
+    match err {
+        Reject::Message(message) => fail(&message),
+        Reject::Engine(err) => fail_engine(&err),
+    }
 }
 
 fn fail(message: &str) -> String {
     json!({ "ok": false, "error": message }).to_string()
+}
+
+fn fail_engine(err: &EngineError) -> String {
+    json!({ "ok": false, "error": err.to_string(), "code": err.code() }).to_string()
 }
 
 fn ok_state(world: &World) -> String {
@@ -315,6 +327,7 @@ fn state_body(world: &World) -> serde_json::Map<String, Value> {
 #[cfg(test)]
 mod tests {
     use super::Gate;
+    use crate::engine::EngineError;
 
     fn apply(gate: &mut Gate, cmd: &str) -> serde_json::Value {
         serde_json::from_str(&gate.apply_command(cmd)).expect("json")
@@ -397,6 +410,29 @@ mod tests {
             "0x0000000000000000000000000000000000000000000000000000000000000000"
         );
         assert_eq!(reopened["exports"][0]["itemId"], "7");
+    }
+
+    #[test]
+    fn rejected_apply_keeps_the_message_and_a_stable_code() {
+        assert_eq!(EngineError::ZeroAmount.code(), 5);
+        assert_eq!(EngineError::ClosedMint.code(), 35);
+        assert_ne!(EngineError::ZeroAmount.code(), EngineError::ClosedMint.code());
+
+        let mut gate = Gate::open("").unwrap();
+        assert!(apply(&mut gate, r#"{"op":"spawn","tokenId":"1","startingJob":0}"#)["ok"].as_bool().unwrap());
+        assert!(apply(&mut gate, r#"{"op":"spawn","tokenId":"2","startingJob":0}"#)["ok"].as_bool().unwrap());
+        let before = gate.len();
+
+        let zero = apply(&mut gate, r#"{"op":"sendItem","from":"1","to":"2","itemId":"7","amount":"0"}"#);
+        assert_eq!(zero["ok"], false);
+        assert_eq!(zero["error"], "amount must be greater than zero");
+        assert_eq!(zero["code"], serde_json::json!(EngineError::ZeroAmount.code()));
+
+        let closed = apply(&mut gate, r#"{"op":"itemDrop","tokenId":"1","itemId":"7","amount":"1"}"#);
+        assert_eq!(closed["ok"], false);
+        assert_eq!(closed["error"], "item drop cannot mint");
+        assert_eq!(closed["code"], serde_json::json!(EngineError::ClosedMint.code()));
+        assert_eq!(gate.len(), before);
     }
 
     #[test]

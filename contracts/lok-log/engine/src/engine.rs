@@ -137,6 +137,60 @@ impl fmt::Display for EngineError {
     }
 }
 
+impl EngineError {
+    /// Stable rejection code.
+    ///
+    /// Assigned in enum order, starting at 1. A code stays with its variant.
+    /// Do not renumber. A new variant takes the next unused number.
+    pub fn code(&self) -> u16 {
+        match self {
+            Self::AlreadySpawned => 1,
+            Self::SpawnMismatch => 2,
+            Self::NotSpawned => 3,
+            Self::SelfTransfer => 4,
+            Self::ZeroAmount => 5,
+            Self::InsufficientKek => 6,
+            Self::KekRetired => 7,
+            Self::InsufficientGold => 8,
+            Self::InsufficientItem => 9,
+            Self::Overflow => 10,
+            Self::EarnCap => 11,
+            Self::StaleDay => 12,
+            Self::BadDay => 13,
+            Self::ListingExists => 14,
+            Self::AlreadyListed => 15,
+            Self::UnknownListing => 16,
+            Self::BidNotHigher => 17,
+            Self::NotSeller => 18,
+            Self::NoBid => 19,
+            Self::BadRange => 20,
+            Self::ConflictingLog => 21,
+            Self::ReplayInbound => 22,
+            Self::OutOfOrderInbound => 23,
+            Self::NotOnCharacterLog => 24,
+            Self::BadLevel => 25,
+            Self::AlreadyKnown => 26,
+            Self::BadId => 27,
+            Self::BadCraftSkill => 28,
+            Self::BadCraftLevel => 29,
+            Self::BadCraftRecipe => 30,
+            Self::NoAsk => 31,
+            Self::TooSoon => 32,
+            Self::InsufficientInbox => 33,
+            Self::BadClock => 34,
+            Self::ClosedMint => 35,
+            Self::OverAsk => 36,
+            Self::FillMismatch => 37,
+            Self::BadPrice => 38,
+            Self::AlreadyBounty => 39,
+            Self::NoBounty => 40,
+            Self::BountyMismatch => 41,
+            Self::BadBountyAmount => 42,
+            Self::DuplicatePvpFill => 43,
+        }
+    }
+}
+
 pub(crate) const LABEL_MAX: usize = 128;
 
 pub(crate) fn parse_label(raw: &str) -> Result<&str, EngineError> {
