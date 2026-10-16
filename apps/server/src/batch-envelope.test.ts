@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { concatBytes, keccak256 } from "viem";
 import {
   acceptBatch,
   commitInputs,
@@ -21,17 +22,27 @@ function flipLast(src: Uint8Array): Uint8Array {
   return out;
 }
 
+/** keccak256(inputsCommitment || epochSeed || rollBytes), same viem keccak as the envelope. */
+function boundRoll(
+  inputsCommitment: Uint8Array,
+  epochSeed: Uint8Array,
+  rollBytes: Uint8Array,
+): Uint8Array {
+  return new Uint8Array(keccak256(concatBytes([inputsCommitment, epochSeed, rollBytes]), "bytes"));
+}
+
 function envelope(over: Partial<BatchEnvelope> = {}): BatchEnvelope {
   const inputs = over.inputs ?? Uint8Array.from([1, 2, 3, 4]);
   const leaderCommitment = over.leaderCommitment ?? hash(0x44);
   const gnosisRandomness = over.gnosisRandomness ?? hash(0x55);
+  const inputsCommitment = commitInputs(inputs);
   const epochSeed =
     leaderCommitment.length === HASH_BYTES && gnosisRandomness.length === HASH_BYTES
       ? fallbackEpochSeed(leaderCommitment, gnosisRandomness)
       : hash(0x66);
   return {
     inputs,
-    inputsCommitment: commitInputs(inputs),
+    inputsCommitment,
     parentRoot: hash(0x11),
     nextRoot: hash(0x22),
     rulesetHash: hash(0x33),
@@ -42,7 +53,7 @@ function envelope(over: Partial<BatchEnvelope> = {}): BatchEnvelope {
     leaderCommitment,
     gnosisRandomness,
     epochSeed,
-    rollCommitment: commitInputs(ROLL_BYTES),
+    rollCommitment: boundRoll(inputsCommitment, epochSeed, ROLL_BYTES),
     signature: Uint8Array.from([0xab, 0xcd]),
     ...over,
   };
@@ -66,6 +77,10 @@ test("accepts a batch when parent, ruleset, commitment, and replay root match", 
   assert.equal(batch.gnosisRandomness.length, HASH_BYTES);
   assert.equal(batch.epochSeed.length, HASH_BYTES);
   assert.equal(batch.rollCommitment.length, HASH_BYTES);
+  assert.deepEqual(
+    batch.rollCommitment,
+    boundRoll(batch.inputsCommitment, batch.epochSeed, ROLL_BYTES),
+  );
   assert.ok(batch.signature && batch.signature.length > 0);
   const result = acceptBatch(batch, batch.parentRoot, batch.rulesetHash, batch.nextRoot, {
     epoch: 2,
@@ -145,8 +160,12 @@ test("rejects an epoch seed that is not the recomputed fallback seed", () => {
   assert.deepEqual(result, { ok: false, error: "seed_mismatch" });
 });
 
-test("rejects a roll commitment that is not the keccak of the roll bytes", () => {
-  const batch = envelope({ rollCommitment: hash(0x77) });
+test("rejects a roll commitment hashed without the inputs commitment or the epoch seed", () => {
+  const sample = envelope();
+  const bound = boundRoll(sample.inputsCommitment, sample.epochSeed, ROLL_BYTES);
+  const bytesOnly = commitInputs(ROLL_BYTES);
+  assert.notDeepEqual(bound, bytesOnly);
+  const batch = envelope({ rollCommitment: bytesOnly });
   const result = acceptBatch(batch, batch.parentRoot, batch.rulesetHash, batch.nextRoot, chain(batch));
   assert.deepEqual(result, { ok: false, error: "roll_commitment_mismatch" });
 });

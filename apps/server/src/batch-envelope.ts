@@ -7,14 +7,15 @@
  * check passes only when those match, `inputsCommitment` is the keccak of
  * the input bytes, the claimed `epochSeed` is the fallback seed of the
  * envelope's leader commitment and Gnosis randomness, `rollCommitment` is
- * the keccak of the roll bytes, and the replay root equals `nextRoot`.
+ * the keccak of `inputsCommitment || epochSeed || rollBytes`, and the
+ * replay root equals `nextRoot`.
  *
  * A leader commitment or Gnosis randomness value that is not 32 bytes throws
  * the length error from `fallbackEpochSeed`. `signature` is optional
  * recorded bytes; this module does not verify it.
  */
 import { timingSafeEqual } from "node:crypto";
-import { keccak256 } from "viem";
+import { concatBytes, keccak256 } from "viem";
 import { fallbackEpochSeed } from "./fallback-epoch-seed";
 
 /** Keccak digest length used for commitments, roots, and the ruleset hash. */
@@ -55,7 +56,7 @@ export type BatchEnvelope = {
   gnosisRandomness: Uint8Array;
   /** Claimed epoch seed. Must equal `fallbackEpochSeed(leaderCommitment, gnosisRandomness)`. */
   epochSeed: Uint8Array;
-  /** 32-byte keccak of the roll bytes the caller passes in. */
+  /** 32-byte keccak of inputsCommitment || epochSeed || rollBytes. */
   rollCommitment: Uint8Array;
   /** Leader signature bytes, if the producer attached any. Not verified here. */
   signature?: Uint8Array;
@@ -77,6 +78,18 @@ export type AcceptBatchResult =
 /** Keccak-256 of an opaque byte string, using the repo's viem keccak. */
 export function commitInputs(inputs: Uint8Array): Uint8Array {
   return new Uint8Array(keccak256(inputs, "bytes"));
+}
+
+/**
+ * Roll commitment bound to the inputs and the epoch seed.
+ * Preimage is inputsCommitment || epochSeed || rollBytes.
+ */
+export function commitRoll(
+  inputsCommitment: Uint8Array,
+  epochSeed: Uint8Array,
+  rollBytes: Uint8Array,
+): Uint8Array {
+  return new Uint8Array(keccak256(concatBytes([inputsCommitment, epochSeed, rollBytes]), "bytes"));
 }
 
 function sameHash(a: Uint8Array, b: Uint8Array): boolean {
@@ -122,7 +135,7 @@ export function acceptBatch(
   if (!sameHash(envelope.epochSeed, seed)) {
     return { ok: false, error: "seed_mismatch" };
   }
-  if (!sameHash(envelope.rollCommitment, commitInputs(expected.rollBytes))) {
+  if (!sameHash(envelope.rollCommitment, commitRoll(commitment, seed, expected.rollBytes))) {
     return { ok: false, error: "roll_commitment_mismatch" };
   }
   if (!sameHash(envelope.nextRoot, replayNextRoot)) {
