@@ -1,216 +1,420 @@
 /**
- * Local fixture. Signs an Ed25519 commit certificate in process and checks
- * one character against that root. Nothing is posted to Gnosis.
+ * Signs a BLS12-381 epoch-leader certificate in process and checks one
+ * character against that next root. The key is generated here. No env secret
+ * is read, and nothing is posted.
  */
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { ed25519 } from "@noble/curves/ed25519.js";
+import { bls12_381 } from "@noble/curves/bls12-381.js";
 import { concatBytes, keccak256 } from "viem";
-import { checkWebLightClient, type Sibling, type StateLeafClaim, type WebLightView } from "./light-client";
+import {
+  checkWebLightClient,
+  type CharacterRootClaim,
+  type LightCertificate,
+  type Sibling,
+  type StateLeafClaim,
+  type WebLightPayload,
+} from "./light-client";
 
-const height = 4n;
-const round = 0n;
+const bls = bls12_381.longSignatures;
+const leader = bls.keygen();
+const leaderKey = new Uint8Array(leader.publicKey.toBytes());
+const leaderSecret = new Uint8Array(leader.secretKey);
 
-test("walks a valid certificate, character root, and leaf, and does not look at the leaf when the certificate is bad", () => {
-  const replicas = [secret(), secret(), secret()];
-  const fixture = characterFixture();
-  const certificate = encodeCertificate(
-    height,
-    round,
-    fixture.batchRoot,
-    replicas.slice(0, 2).map((replica) => sign(replica, fixture.batchRoot)),
-  );
+const ZEROS = new Uint8Array(32);
 
-  let lookedAtLeaf = 0;
-  const accepted = checkWebLightClient({
+/**
+ * `Key` order from `state.rs`. Declaration order, then the inner id for
+ * keyed variants. Tag 8 is retired and is not a key.
+ */
+const KEY_RANK: Record<number, number> = {
+  0: 0,
+  1: 1,
+  2: 2,
+  3: 3,
+  4: 4,
+  5: 5,
+  6: 6,
+  7: 7,
+  9: 8,
+  10: 9,
+  11: 10,
+  12: 11,
+  13: 12,
+  14: 13,
+  15: 14,
+  16: 15,
+  17: 16,
+  18: 17,
+  19: 18,
+};
+
+type StateEntry = { tag: number; keyData: Uint8Array; value: Uint8Array };
+
+test("a one-leaf character and a two-leaf character both pass certificate, character root, and leaf", () => {
+  const one = stateTree([{ tag: 0, keyData: ZEROS, value: word(1n) }]);
+  assert.equal(one.leaves.length, 1);
+  assert.deepEqual(one.root, one.leaves[0]);
+
+  const token = { tag: 0, keyData: ZEROS, value: word(7n) };
+  const itemLow = { tag: 9, keyData: word(1n), value: word(9n) };
+  const itemHigh = { tag: 9, keyData: word(2n), value: word(4n) };
+  const ordered = stateTree([itemHigh, itemLow, token]);
+  assert.equal(ordered.sorted[0]?.tag, 0);
+  assert.deepEqual(ordered.sorted[1]?.keyData, word(1n));
+  assert.deepEqual(ordered.sorted[2]?.keyData, word(2n));
+  const oddPair = keccak(concatBytes([ordered.leaves[0]!, ordered.leaves[1]!]));
+  const oddPad = keccak(concatBytes([ordered.leaves[2]!, ordered.leaves[2]!]));
+  assert.deepEqual(ordered.root, keccak(concatBytes([oddPair, oddPad])));
+  assert.equal(ordered.proof(2)[0]?.left, false);
+  assert.deepEqual(ordered.proof(2)[0]?.hash, ordered.leaves[2]);
+
+  const two = stateTree([itemLow, token]);
+  assert.equal(two.leaves.length, 2);
+  assert.deepEqual(two.root, keccak(concatBytes([two.leaves[0]!, two.leaves[1]!])));
+
+  const characters = characterTree([
+    { tokenId: 1n, characterRoot: one.root },
+    { tokenId: 2n, characterRoot: two.root },
+  ]);
+  assert.equal(characters.leaves.length, 2);
+  assert.deepEqual(characters.root, keccak(concatBytes([characters.leaves[0]!, characters.leaves[1]!])));
+
+  const certificate = signed(characters.root);
+  const oneOk = checkWebLightClient({
     certificate,
-    replicas: replicas.map((replica) => replica.publicKey),
-    threshold: 2,
-    character: fixture.character,
-    get leaf(): StateLeafClaim {
-      lookedAtLeaf += 1;
-      return fixture.leaf;
+    character: {
+      tokenId: 1n,
+      characterRoot: one.root,
+      siblings: characters.proof(0),
     },
+    leaf: { tag: 0, keyData: ZEROS, value: word(1n), siblings: [] },
   });
-
-  assert.equal(lookedAtLeaf, 1);
-  assert.equal(accepted.ok, true);
-  if (accepted.ok) {
-    assert.deepEqual(accepted.root, fixture.batchRoot);
-    assert.deepEqual(accepted.characterRoot, fixture.characterRoot);
-    assert.deepEqual(accepted.leaf, fixture.levelLeaf);
+  assert.equal(oneOk.ok, true);
+  if (oneOk.ok) {
+    assert.deepEqual(oneOk.nextRoot, characters.root);
+    assert.deepEqual(oneOk.characterRoot, one.root);
+    assert.deepEqual(oneOk.leaf, one.leaves[0]);
   }
 
-  const bad = new Uint8Array(certificate);
-  bad[bad.length - 1] ^= 0x01;
-  let lookedAfterBadCertificate = 0;
+  const levelIndex = 1;
+  const twoOk = checkWebLightClient({
+    certificate,
+    character: {
+      tokenId: 2n,
+      characterRoot: two.root,
+      siblings: characters.proof(1),
+    },
+    leaf: {
+      tag: itemLow.tag,
+      keyData: itemLow.keyData,
+      value: itemLow.value,
+      siblings: two.proof(levelIndex),
+    },
+  });
+  assert.equal(twoOk.ok, true);
+  if (twoOk.ok) {
+    assert.deepEqual(twoOk.characterRoot, two.root);
+    assert.deepEqual(twoOk.leaf, two.leaves[levelIndex]);
+  }
+});
+
+test("a bad signature stops at the certificate and does not read the character root", () => {
+  const world = passingWorld();
+  const bad = new Uint8Array(world.certificate.signature!);
+  bad[bad.length - 1]! ^= 0x01;
+  let characterReads = 0;
+  let leafReads = 0;
   const rejected = checkWebLightClient({
-    certificate: bad,
-    replicas: replicas.map((replica) => replica.publicKey),
-    threshold: 2,
-    character: fixture.character,
-    get leaf(): StateLeafClaim {
-      lookedAfterBadCertificate += 1;
-      return fixture.leaf;
+    certificate: { ...world.certificate, signature: bad },
+    get character() {
+      characterReads += 1;
+      return world.character;
+    },
+    get leaf() {
+      leafReads += 1;
+      return world.leaf;
     },
   });
   assert.equal(rejected.ok, false);
   if (!rejected.ok) assert.equal(rejected.stage, "certificate");
-  assert.equal(lookedAfterBadCertificate, 0);
+  assert.equal(characterReads, 0);
+  assert.equal(leafReads, 0);
+
+  const missing = checkWebLightClient({
+    certificate: { ...world.certificate, signature: undefined },
+    character: world.character,
+    leaf: world.leaf,
+  });
+  assert.equal(missing.ok, false);
+  if (!missing.ok) assert.equal(missing.stage, "certificate");
+
+  const short = checkWebLightClient({
+    certificate: { ...world.certificate, signature: bad.slice(0, 95) },
+    character: world.character,
+    leaf: world.leaf,
+  });
+  assert.equal(short.ok, false);
+  if (!short.ok) assert.equal(short.stage, "certificate");
 });
 
-test("a character root that misses the certified root does not accept the leaf", () => {
-  const replicas = [secret(), secret(), secret()];
-  const fixture = characterFixture();
-  const certificate = encodeCertificate(
-    height,
-    round,
-    fixture.batchRoot,
-    replicas.slice(0, 2).map((replica) => sign(replica, fixture.batchRoot)),
-  );
-  const flipped: Sibling = {
-    hash: new Uint8Array(fixture.character.siblings[0]!.hash),
-    left: fixture.character.siblings[0]!.left,
-  };
-  flipped.hash[0] ^= 0x01;
-
-  let lookedAtLeaf = 0;
+test("a signature over a different nextRoot stops at the certificate", () => {
+  const world = passingWorld();
+  const otherRoot = new Uint8Array(32).fill(0xab);
+  const signature = sign({ ...world.certificate, nextRoot: otherRoot });
+  let characterReads = 0;
   const rejected = checkWebLightClient({
-    certificate,
-    replicas: replicas.map((replica) => replica.publicKey),
-    threshold: 2,
-    character: { ...fixture.character, siblings: [flipped] },
-    get leaf(): StateLeafClaim {
-      lookedAtLeaf += 1;
-      return fixture.leaf;
+    certificate: { ...world.certificate, signature },
+    get character() {
+      characterReads += 1;
+      return world.character;
+    },
+    leaf: world.leaf,
+  });
+  assert.equal(rejected.ok, false);
+  if (!rejected.ok) assert.equal(rejected.stage, "certificate");
+  assert.equal(characterReads, 0);
+  assert.equal(checkWebLightClient(world).ok, true);
+});
+
+test("a bad character-root sibling stops at character_root even when the leaf would match", () => {
+  const world = passingWorld();
+  const sibling = world.character.siblings[0];
+  assert.ok(sibling);
+  const flipped: Sibling = { hash: new Uint8Array(sibling.hash), left: sibling.left };
+  flipped.hash[0]! ^= 0x01;
+  let leafReads = 0;
+  const rejected = checkWebLightClient({
+    certificate: world.certificate,
+    character: { ...world.character, siblings: [flipped] },
+    get leaf() {
+      leafReads += 1;
+      return world.leaf;
     },
   });
   assert.equal(rejected.ok, false);
-  if (!rejected.ok) assert.equal(rejected.stage, "characterRoot");
-  assert.equal(lookedAtLeaf, 0);
+  if (!rejected.ok) assert.equal(rejected.stage, "character_root");
+  assert.equal(leafReads, 0);
 });
 
-test("the empty character-root tree is 32 zero bytes and does not accept a leaf", () => {
-  const empty = new Uint8Array(32);
-  const emptyState = new Uint8Array(keccak256(new Uint8Array(), "bytes"));
-  assert.notDeepEqual(emptyState, empty);
-
-  const replicas = [secret(), secret(), secret()];
-  const fixture = characterFixture();
-  const certificate = encodeCertificate(
-    height,
-    round,
-    empty,
-    replicas.slice(0, 2).map((replica) => sign(replica, empty)),
-  );
-
-  let lookedAtLeaf = 0;
+test("a bad leaf sibling stops at leaf after a valid certificate and character root", () => {
+  const world = passingWorld();
+  const sibling = world.leaf.siblings[0];
+  assert.ok(sibling);
+  const flipped: Sibling = { hash: new Uint8Array(sibling.hash), left: sibling.left };
+  flipped.hash[0]! ^= 0x01;
   const rejected = checkWebLightClient({
-    certificate,
-    replicas: replicas.map((replica) => replica.publicKey),
-    threshold: 2,
-    character: fixture.character,
-    get leaf(): StateLeafClaim {
-      lookedAtLeaf += 1;
-      return fixture.leaf;
-    },
+    certificate: world.certificate,
+    character: world.character,
+    leaf: { ...world.leaf, siblings: [flipped] },
   });
   assert.equal(rejected.ok, false);
-  if (!rejected.ok) assert.equal(rejected.stage, "characterRoot");
-  assert.equal(lookedAtLeaf, 0);
+  if (!rejected.ok) assert.equal(rejected.stage, "leaf");
 });
 
-type Replica = { secretKey: Uint8Array; publicKey: Uint8Array };
+test("an empty character-root tree is 32 zero bytes and an empty state root is keccak of empty bytes", () => {
+  const emptyCharacter = new Uint8Array(32);
+  const emptyState = keccak(new Uint8Array());
+  assert.notDeepEqual(emptyState, emptyCharacter);
 
-function secret(): Replica {
-  const secretKey = ed25519.utils.randomSecretKey();
-  return { secretKey, publicKey: ed25519.getPublicKey(secretKey) };
-}
-
-function sign(replica: Replica, root: Uint8Array): { address: Uint8Array; signature: Uint8Array } {
-  return {
-    address: replica.publicKey,
-    signature: ed25519.sign(precommitMessage(height, round, root, replica.publicKey), replica.secretKey),
+  const certificate = signed(emptyCharacter);
+  const claim: CharacterRootClaim = {
+    tokenId: 1n,
+    characterRoot: emptyState,
+    siblings: [],
   };
-}
+  const rejected = checkWebLightClient({
+    certificate,
+    character: claim,
+    leaf: { tag: 0, keyData: ZEROS, value: word(1n), siblings: [] },
+  });
+  assert.equal(rejected.ok, false);
+  if (!rejected.ok) assert.equal(rejected.stage, "character_root");
 
-function characterFixture(): {
-  batchRoot: Uint8Array;
-  characterRoot: Uint8Array;
-  levelLeaf: Uint8Array;
-  character: WebLightView["character"];
-  leaf: StateLeafClaim;
-} {
-  const tokenLeaf = keccak(concatBytes([word(0n), word(0n), word(1n)]));
-  const levelLeaf = keccak(concatBytes([word(1n), word(0n), word(1n)]));
-  const characterRoot = keccak(concatBytes([tokenLeaf, levelLeaf]));
-  const otherRoot = new Uint8Array(32).fill(0x22);
-  const ours = keccak(concatBytes([word(1n), characterRoot]));
-  const other = keccak(concatBytes([word(2n), otherRoot]));
-  const batchRoot = keccak(concatBytes([ours, other]));
+  const alone = characterTree([{ tokenId: 4n, characterRoot: emptyState }]);
+  const leaf: StateLeafClaim = { tag: 0, keyData: ZEROS, value: word(1n), siblings: [] };
+  const stateRejected = checkWebLightClient({
+    certificate: signed(alone.root),
+    character: { tokenId: 4n, characterRoot: emptyState, siblings: [] },
+    leaf,
+  });
+  assert.equal(stateRejected.ok, false);
+  if (!stateRejected.ok) assert.equal(stateRejected.stage, "leaf");
+});
+
+/** Two-leaf character under a two-character batch, so both pair hashes are real. */
+function passingWorld(): WebLightPayload {
+  const token = { tag: 0, keyData: ZEROS, value: word(7n) };
+  const item = { tag: 9, keyData: word(1n), value: word(3n) };
+  const state = stateTree([item, token]);
+  assert.deepEqual(state.root, keccak(concatBytes([state.leaves[0]!, state.leaves[1]!])));
+  const other = stateTree([{ tag: 0, keyData: ZEROS, value: word(1n) }]);
+  const characters = characterTree([
+    { tokenId: 1n, characterRoot: other.root },
+    { tokenId: 2n, characterRoot: state.root },
+  ]);
   return {
-    batchRoot,
-    characterRoot,
-    levelLeaf,
+    certificate: signed(characters.root),
     character: {
-      tokenId: 1n,
-      characterRoot,
-      siblings: [{ hash: other, left: false }],
+      tokenId: 2n,
+      characterRoot: state.root,
+      siblings: characters.proof(1),
     },
     leaf: {
-      tag: 1,
-      keyData: word(0n),
-      value: word(1n),
-      siblings: [{ hash: tokenLeaf, left: true }],
+      tag: item.tag,
+      keyData: item.keyData,
+      value: item.value,
+      siblings: state.proof(1),
     },
   };
 }
 
-/** Independent of the checker. Height and round are big-endian, matching `vote_bytes`. */
-function precommitMessage(h: bigint, r: bigint, root: Uint8Array, address: Uint8Array): Uint8Array {
-  const prefix = new TextEncoder().encode("lok-order-vote-v1");
-  assert.equal(prefix.length, 17);
-  const out = new Uint8Array(99);
-  out.set(prefix, 0);
-  out[17] = 2;
-  const view = new DataView(out.buffer);
-  view.setBigUint64(18, h, false);
-  view.setBigInt64(26, r, false);
-  out[34] = 1;
-  out.set(root, 35);
-  out.set(address, 67);
-  return out;
+function signed(nextRoot: Uint8Array): LightCertificate {
+  const certificate = envelope(nextRoot);
+  return { ...certificate, signature: sign(certificate) };
 }
 
-/** Independent of the checker. Height and round are little-endian, matching `lok-order`. */
-function encodeCertificate(
-  h: bigint,
-  r: bigint,
-  root: Uint8Array,
-  signatures: { address: Uint8Array; signature: Uint8Array }[],
-): Uint8Array {
-  const out = new Uint8Array(52 + signatures.length * 96);
-  const view = new DataView(out.buffer);
-  view.setBigUint64(0, h, true);
-  view.setBigInt64(8, r, true);
-  out.set(root, 16);
-  view.setUint32(48, signatures.length, true);
-  let at = 52;
-  for (const signer of signatures) {
-    assert.equal(signer.address.length, 32);
-    assert.equal(signer.signature.length, 64);
-    out.set(signer.address, at);
-    out.set(signer.signature, at + 32);
-    at += 96;
+function envelope(nextRoot: Uint8Array): LightCertificate {
+  return {
+    leaderPublicKey: leaderKey,
+    inputsCommitment: filled(0x11),
+    parentRoot: filled(0x22),
+    nextRoot,
+    rulesetHash: filled(0x33),
+    epochSeed: filled(0x44),
+    rollCommitment: filled(0x55),
+    epoch: 2,
+    height: 5,
+    worldId: "bellgrave",
+    protocolVersion: "1",
+  };
+}
+
+/** Independent of the checker. Same byte layout as `leaderSigningMessage`. */
+function specSigningMessage(certificate: LightCertificate): Uint8Array {
+  const epoch = new Uint8Array(8);
+  const height = new Uint8Array(8);
+  new DataView(epoch.buffer).setBigUint64(0, BigInt(certificate.epoch), false);
+  new DataView(height.buffer).setBigUint64(0, BigInt(certificate.height), false);
+  return new Uint8Array(
+    keccak256(
+      concatBytes([
+        new TextEncoder().encode("bellgrave-batch-v1"),
+        certificate.inputsCommitment,
+        certificate.parentRoot,
+        certificate.nextRoot,
+        certificate.rulesetHash,
+        certificate.epochSeed,
+        certificate.rollCommitment,
+        epoch,
+        height,
+        new TextEncoder().encode(certificate.worldId),
+        new TextEncoder().encode(certificate.protocolVersion),
+      ]),
+      "bytes",
+    ),
+  );
+}
+
+function sign(certificate: LightCertificate, secret: Uint8Array = leaderSecret): Uint8Array {
+  return new Uint8Array(bls.sign(bls.hash(specSigningMessage(certificate)), secret).toBytes());
+}
+
+function stateTree(entries: StateEntry[]): {
+  root: Uint8Array;
+  leaves: Uint8Array[];
+  sorted: StateEntry[];
+  proof: (index: number) => Sibling[];
+} {
+  const sorted = [...entries].sort(compareKey);
+  const leaves = sorted.map(stateLeaf);
+  if (leaves.length === 0) {
+    return { root: keccak(new Uint8Array()), leaves, sorted, proof: () => [] };
   }
-  return out;
+  const layers = merkle(leaves);
+  return {
+    root: layers[layers.length - 1]![0]!,
+    leaves,
+    sorted,
+    proof: (index) => proof(layers, index),
+  };
+}
+
+function characterTree(rows: { tokenId: bigint; characterRoot: Uint8Array }[]): {
+  root: Uint8Array;
+  leaves: Uint8Array[];
+  proof: (index: number) => Sibling[];
+} {
+  const sorted = [...rows].sort((a, b) => (a.tokenId < b.tokenId ? -1 : a.tokenId > b.tokenId ? 1 : 0));
+  if (sorted.length === 0) {
+    return { root: new Uint8Array(32), leaves: [], proof: () => [] };
+  }
+  const leaves = sorted.map((row) => keccak(concatBytes([word(row.tokenId), row.characterRoot])));
+  const layers = merkle(leaves);
+  return {
+    root: layers[layers.length - 1]![0]!,
+    leaves,
+    proof: (index) => proof(layers, index),
+  };
+}
+
+/** `Buf::u8(tag) || key data || value`, then keccak256. Same preimage as `leaf`. */
+function stateLeaf(entry: StateEntry): Uint8Array {
+  const tag = new Uint8Array(32);
+  tag[31] = entry.tag;
+  return keccak(concatBytes([tag, entry.keyData, entry.value]));
+}
+
+function compareKey(a: StateEntry, b: StateEntry): number {
+  const rank = (KEY_RANK[a.tag] ?? 100) - (KEY_RANK[b.tag] ?? 100);
+  if (rank !== 0) return rank;
+  for (let i = 0; i < 32; i++) {
+    const diff = a.keyData[i]! - b.keyData[i]!;
+    if (diff !== 0) return diff;
+  }
+  return 0;
+}
+
+function merkle(leaves: Uint8Array[]): Uint8Array[][] {
+  const layers: Uint8Array[][] = [leaves];
+  while (layers[layers.length - 1]!.length > 1) {
+    const current = layers[layers.length - 1]!;
+    const padded = current.slice();
+    if (padded.length % 2 === 1) padded.push(padded[padded.length - 1]!);
+    const next: Uint8Array[] = [];
+    for (let i = 0; i < padded.length; i += 2) next.push(keccak(concatBytes([padded[i]!, padded[i + 1]!])));
+    layers.push(next);
+  }
+  return layers;
+}
+
+function proof(layers: Uint8Array[][], index: number): Sibling[] {
+  const siblings: Sibling[] = [];
+  let at = index;
+  for (const level of layers.slice(0, -1)) {
+    if (at % 2 === 0) {
+      const hash = at + 1 < level.length ? level[at + 1]! : level[at]!;
+      siblings.push({ hash, left: false });
+    } else {
+      siblings.push({ hash: level[at - 1]!, left: true });
+    }
+    at = Math.floor(at / 2);
+  }
+  return siblings;
 }
 
 function word(value: bigint): Uint8Array {
   const out = new Uint8Array(32);
-  const hexWord = value.toString(16).padStart(64, "0");
-  for (let i = 0; i < 32; i++) out[i] = Number.parseInt(hexWord.slice(i * 2, i * 2 + 2), 16);
+  let rest = value;
+  for (let i = 31; i >= 0; i--) {
+    out[i] = Number(rest & 0xffn);
+    rest >>= 8n;
+  }
   return out;
+}
+
+function filled(byte: number): Uint8Array {
+  return new Uint8Array(32).fill(byte);
 }
 
 function keccak(data: Uint8Array): Uint8Array {
