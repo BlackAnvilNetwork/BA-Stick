@@ -46,6 +46,24 @@ struct Character {
     projections: Vec<([u8; 32], U256)>,
 }
 
+/// Sheet fields `effects` can change. The log, chain, and projections are not copied:
+/// they are appended only after the command is known to succeed.
+struct CharacterSheet {
+    state: State,
+    inbound_applied: u64,
+    abilities: BTreeSet<String>,
+    harvests: BTreeMap<String, U256>,
+    craft_skills: BTreeMap<String, u32>,
+    inbox: BTreeMap<U256, U256>,
+    dropped_skills: BTreeSet<String>,
+}
+
+struct CharacterUndo {
+    token_id: U256,
+    /// `None` when the character did not exist yet (a spawn). Failure removes it.
+    sheet: Option<CharacterSheet>,
+}
+
 /// An auction listing. The item amount is escrowed out of the seller's spendable
 /// balance. KEK-priced bids are retired; book asks settle on AhEscrow.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -616,9 +634,10 @@ impl World {
 
     /// Apply one command. On failure nothing is appended to any character log.
     ///
-    /// Undo copies only the characters this command touches, and the order book
+    /// Undo copies the touched character sheets, not their logs, and the order book
     /// only when the command can change a listing. A gold, craft, or loot append
-    /// does not clone the rest of the world.
+    /// does not clone the rest of the world. Once the command is known to succeed,
+    /// those copies are dropped before the state root and the log append.
     pub fn apply(&mut self, input: Input) -> Result<AppliedEvent, EngineError> {
         let touch = self.affected_at(&input, None)?;
         let saved_seq = self.next_seq;
@@ -632,37 +651,63 @@ impl World {
         } else {
             None
         };
-        let saved_chars: Vec<(U256, Option<Character>)> = touch
-            .iter()
-            .map(|id| (*id, self.characters.get(id).cloned()))
-            .collect();
+        let saved_sheets = self.snapshot_sheets(&touch);
         if let Err(err) = self.effects(&input, &touch, None) {
-            self.restore_apply(saved_chars, saved_listings, saved_pvp, saved_seq);
+            self.restore_failed_apply(saved_sheets, saved_listings, saved_pvp, saved_seq);
             return Err(err);
         }
-        match self.link_at(&input, &touch, saved_seq) {
-            Ok(event) => Ok(event),
-            Err(err) => {
-                self.restore_apply(saved_chars, saved_listings, saved_pvp, saved_seq);
-                Err(err)
-            }
+        if let Err(err) = self.prepare_link(&touch, saved_seq) {
+            self.restore_failed_apply(saved_sheets, saved_listings, saved_pvp, saved_seq);
+            return Err(err);
         }
+        drop(saved_sheets);
+        drop(saved_listings);
+        drop(saved_pvp);
+        Ok(self.commit_link(&input, &touch, saved_seq))
     }
 
-    fn restore_apply(
+    fn snapshot_sheets(&self, touch: &BTreeSet<U256>) -> Vec<CharacterUndo> {
+        touch
+            .iter()
+            .map(|id| CharacterUndo {
+                token_id: *id,
+                sheet: self.characters.get(id).map(|ch| CharacterSheet {
+                    state: ch.state.clone(),
+                    inbound_applied: ch.inbound_applied,
+                    abilities: ch.abilities.clone(),
+                    harvests: ch.harvests.clone(),
+                    craft_skills: ch.craft_skills.clone(),
+                    inbox: ch.inbox.clone(),
+                    dropped_skills: ch.dropped_skills.clone(),
+                }),
+            })
+            .collect()
+    }
+
+    fn restore_failed_apply(
         &mut self,
-        saved_chars: Vec<(U256, Option<Character>)>,
+        saved_sheets: Vec<CharacterUndo>,
         saved_listings: Option<BTreeMap<U256, Listing>>,
         saved_pvp: Option<(BTreeMap<U256, OpenPvpBounty>, BTreeSet<([u8; 32], u64)>)>,
         saved_seq: u64,
     ) {
-        for (id, prev) in saved_chars {
-            match prev {
-                Some(ch) => {
-                    self.characters.insert(id, ch);
+        for undo in saved_sheets {
+            match undo.sheet {
+                Some(sheet) => {
+                    let ch = self
+                        .characters
+                        .get_mut(&undo.token_id)
+                        .expect("touched character still exists");
+                    ch.state = sheet.state;
+                    ch.inbound_applied = sheet.inbound_applied;
+                    ch.abilities = sheet.abilities;
+                    ch.harvests = sheet.harvests;
+                    ch.craft_skills = sheet.craft_skills;
+                    ch.inbox = sheet.inbox;
+                    ch.dropped_skills = sheet.dropped_skills;
                 }
                 None => {
-                    self.characters.remove(&id);
+                    self.characters.remove(&undo.token_id);
                 }
             }
         }
@@ -1680,18 +1725,31 @@ impl World {
         Ok(())
     }
 
-    fn link_at(&mut self, input: &Input, touch: &BTreeSet<U256>, seq: u64) -> Result<AppliedEvent, EngineError> {
+    /// Checks that do not append. `apply` drops its undo copies only after this returns.
+    fn prepare_link(&self, touch: &BTreeSet<U256>, seq: u64) -> Result<(), EngineError> {
+        if self.next_seq <= seq {
+            seq.checked_add(1).ok_or(EngineError::Overflow)?;
+        }
+        for token in touch {
+            let ch = self.characters.get(token).ok_or(EngineError::NotSpawned)?;
+            if ch.projections.len() != ch.entries.len() {
+                return Err(EngineError::ConflictingLog);
+            }
+        }
+        Ok(())
+    }
+
+    /// Append after [`prepare_link`]. Does not fail: the state root runs with no undo copy live.
+    fn commit_link(&mut self, input: &Input, touch: &BTreeSet<U256>, seq: u64) -> AppliedEvent {
         let bumped = if self.next_seq <= seq {
-            Some(seq.checked_add(1).ok_or(EngineError::Overflow)?)
+            Some(seq.checked_add(1).expect("prepare_link accepted this seq"))
         } else {
             None
         };
         let mut links = Vec::new();
         for token in touch {
-            let ch = self.characters.get_mut(token).ok_or(EngineError::NotSpawned)?;
-            if ch.projections.len() != ch.entries.len() {
-                return Err(EngineError::ConflictingLog);
-            }
+            let ch = self.characters.get_mut(token).expect("prepare_link found the character");
+            debug_assert_eq!(ch.projections.len(), ch.entries.len());
             let index = ch.chain.len();
             let prev_hash = ch.chain.head();
             let hash = entry_hash(&prev_hash, index, input);
@@ -1713,7 +1771,12 @@ impl World {
         if let Some(next) = bumped {
             self.next_seq = next;
         }
-        Ok(AppliedEvent { seq, links })
+        AppliedEvent { seq, links }
+    }
+
+    fn link_at(&mut self, input: &Input, touch: &BTreeSet<U256>, seq: u64) -> Result<AppliedEvent, EngineError> {
+        self.prepare_link(touch, seq)?;
+        Ok(self.commit_link(input, touch, seq))
     }
 
     fn root_at(&self, token_id: &U256, index: u64) -> Result<[u8; 32], EngineError> {
