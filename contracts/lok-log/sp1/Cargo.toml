@@ -2,6 +2,7 @@
 resolver = "2"
 members = ["executor", "program"]
 default-members = ["executor"]
+exclude = ["script"]
 
 # SP1 accelerates keccak inside the zkVM. The patched permutation is selected
 # only for target_os = "zkvm" and target_vendor = "succinct". Host tests keep

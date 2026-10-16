@@ -317,6 +317,7 @@ import { flushGameRoll, loadGameRoll, rollIndex, rollUnit } from "./game-roll";
 import { observeSignedBatch } from "./equivocation-watch";
 import { sealParentRoot, sealTickBatch, sealView, takeSealedSignedBatch } from "./seal-tick-batch";
 import { emptyReplicaHealth, loadTickOrderer, submitOnSimTick } from "./order-submit";
+import { executeOnSimTick, loadSp1Executor } from "./sp1-execute";
 import { snapshotFor as attachLightProof } from "./web-light-snapshot";
 import { installedGameMode, replicaMayTick, type InstalledGameMode } from "./installed-game-mode";
 import { rollPvpAutoAttack } from "./pvp-auto-rolls";
@@ -687,6 +688,11 @@ const SEAL_RULESET_HASH = hexToBytes(LOCAL_RULESET_HASH);
 const SEAL_GNOSIS_UNFETCHED = new Uint8Array(32);
 /** Absent unless `LOK_ORDER_BIN` starts the three-replica Malachite process. */
 const tickOrderer = loadTickOrderer();
+/**
+ * Absent unless `LOK_SP1_BIN` starts the executor. The tick does not wait for it,
+ * and its result does not accept or reject a batch.
+ */
+const tickSp1 = loadSp1Executor();
 /** Pale Hollow Segment A field mobs. */
 let mobs: Mob[] = spawnSegmentAPack();
 let fieldNodes: FieldNode[] = createPaleHollowNodes();
@@ -5593,6 +5599,10 @@ function tickSim() {
     }
     // Score and the payout gate. Provisional batches stay unpaid. This does not wait.
     settleGuildPayouts(Date.now());
+    // SP1 replays this process's engine log. The state hash stays keccak.
+    // A missing executor, or an execution still running, returns immediately.
+    // The result is not compared to wasm replay and cannot reject the batch.
+    executeOnSimTick(tickSp1, () => lok.logDocument());
   }
 }
 
