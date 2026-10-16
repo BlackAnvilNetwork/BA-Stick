@@ -15,7 +15,7 @@ use crate::abi::keccak256;
 use crate::chain::{Chain, CharacterLogDocument, Entry, LoggedEntry, ReplayStop, WorldDocument};
 use crate::character_root::CharacterRootTree;
 use crate::checkpoint::{Checkpoint, Export};
-use crate::engine::{gold_err, parse_label, EngineError};
+use crate::engine::{accept_drop_kill, gold_err, parse_label, EngineError};
 use crate::event::{entry_hash, Input};
 use crate::gold;
 use crate::ids::{genesis_root, world_genesis};
@@ -1191,7 +1191,14 @@ impl World {
             // ItemDrop never credits. seq is not in the entry hash, so a low seq is not a
             // historical allowlist. Mob loot is LootDrop.
             Input::ItemDrop { .. } => return Err(EngineError::ClosedMint),
-            Input::LootDrop { token_id, item_id, amount } => {
+            Input::Kill { token_id, mob_id } => {
+                parse_label(mob_id)?;
+                if !self.characters.contains_key(token_id) {
+                    return Err(EngineError::NotSpawned);
+                }
+                touch.insert(*token_id);
+            }
+            Input::LootDrop { token_id, item_id, amount, .. } => {
                 if *amount == U256::ZERO {
                     return Err(EngineError::ZeroAmount);
                 }
@@ -1564,10 +1571,11 @@ impl World {
                 Ok(())
             }
             Input::ItemDrop { .. } => Err(EngineError::ClosedMint),
-            Input::LootDrop { token_id, item_id, amount } => {
+            Input::Kill { .. } => Ok(()),
+            Input::LootDrop { token_id, item_id, amount, kill_index } => {
                 // Counter only, like Harvest. Does not credit spendable items or KEK.
                 if touch.contains(token_id) {
-                    self.note_drop(*token_id, *item_id, *amount)?;
+                    self.note_drop(*token_id, *item_id, *amount, *kill_index, logged_seq)?;
                 }
                 Ok(())
             }
@@ -1786,13 +1794,22 @@ impl World {
         Ok(())
     }
 
-    fn note_drop(&mut self, token_id: U256, item_id: U256, amount: U256) -> Result<(), EngineError> {
+    fn note_drop(
+        &mut self,
+        token_id: U256,
+        item_id: U256,
+        amount: U256,
+        kill_index: Option<u64>,
+        logged_seq: Option<u64>,
+    ) -> Result<(), EngineError> {
         if item_id == U256::ZERO {
             return Err(EngineError::BadId);
         }
         if amount == U256::ZERO {
             return Err(EngineError::ZeroAmount);
         }
+        let ch = self.characters.get(&token_id).ok_or(EngineError::NotSpawned)?;
+        accept_drop_kill(ch.chain.entries(), token_id, kill_index, logged_seq)?;
         let ch = self.characters.get_mut(&token_id).ok_or(EngineError::NotSpawned)?;
         ch.state.add_count(Key::Drop(item_id), amount).map_err(|_| EngineError::Overflow)?;
         Ok(())

@@ -9,8 +9,9 @@
 //! do not mint items. Bag imports credit items without a chain inbound nonce. Bag exports debit
 //! spendable items back to the bag and are not checkpoint ERC-1155 exports. `ExportItem` is the
 //! chain withdrawal packed into `Checkpoint.exports`. Each character has their own hash chain.
-//! `LootDrop` is the loot counter and never credits items. `ItemDrop` is `ClosedMint` on append
-//! and on replay. A low `seq` does not credit items.
+//! `LootDrop` is the loot counter and never credits items. A new drop names a kill already
+//! on that character's log. A logged drop below the sequence cutoff may omit it.
+//! `ItemDrop` is `ClosedMint` on append and on replay. A low `seq` does not credit items.
 //! An item import carries that character's inbound nonce and is rejected
 //! if the same nonce is applied again. The nonce must be the next one (`inboundCount`).
 
@@ -44,10 +45,11 @@ pub use character_root::{
 pub use checkpoint::{checkpoint_body_hash, eip712_digest, Checkpoint, Export};
 pub use engine::{Engine, EngineError};
 pub use event::{
-    craft_skill_validated_at, craft_validate_min_seq, entry_hash, event_id, set_craft_validate_min_seq,
-    Input, Outcome, HISTORICAL_CRAFT_VALIDATE_MIN_SEQ,
-    HISTORICAL_CRAFT_VALIDATE_MIN_SEQ_FRESH, HISTORICAL_CRAFT_VALIDATE_MIN_SEQ_LEGACY,
-    HISTORICAL_ITEM_DROP_MAX_SEQ,
+    craft_skill_validated_at, craft_validate_min_seq, entry_hash, event_id, kill_justifies,
+    loot_kill_min_seq, loot_kill_required, set_craft_validate_min_seq, set_loot_kill_min_seq, Input,
+    Outcome, HISTORICAL_CRAFT_VALIDATE_MIN_SEQ, HISTORICAL_CRAFT_VALIDATE_MIN_SEQ_FRESH,
+    HISTORICAL_CRAFT_VALIDATE_MIN_SEQ_LEGACY, HISTORICAL_ITEM_DROP_MAX_SEQ, HISTORICAL_LOOT_KILL_MIN_SEQ,
+    HISTORICAL_LOOT_KILL_MIN_SEQ_FRESH, HISTORICAL_LOOT_KILL_MIN_SEQ_LEGACY,
 };
 pub use gold::{
     gold_source_cap, GOLD_DAILY_TOTAL_CAP, GOLD_MAX_DAY, GOLD_SOURCE_CRAFT_REFUND, GOLD_SOURCE_NPC_SELL,

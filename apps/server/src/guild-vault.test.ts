@@ -52,7 +52,7 @@ describe("guild vault fee split", { concurrency: false }, () => {
       assert.equal(sol.includes("goldEarn"), false);
       assert.equal(
         LOCAL_RULESET_WASM_SHA256,
-        "ae2fb7556c254cf9fddfdae0919dd1bdba12dfcd00b15d22c8c4bb43fd76a950",
+        "546808d6d83697e94b9a04da3f4aeba052a9e8e4d659838249bbde9d2b1ca66d",
       );
 
       const shares = ahGuildFeeShares(10_000n);

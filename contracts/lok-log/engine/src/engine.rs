@@ -85,6 +85,8 @@ pub enum EngineError {
     BadBountyAmount,
     /// This tx hash and log index already mirrored a PvP escrow event.
     DuplicatePvpFill,
+    /// A new loot drop did not name a kill already on this character's log.
+    MissingKill,
 }
 
 impl fmt::Display for EngineError {
@@ -133,6 +135,7 @@ impl fmt::Display for EngineError {
             Self::BountyMismatch => write!(f, "pvp bounty does not match"),
             Self::BadBountyAmount => write!(f, "pvp bounty must be 1e18 wei"),
             Self::DuplicatePvpFill => write!(f, "pvp receipt already mirrored"),
+            Self::MissingKill => write!(f, "loot drop does not name a kill on this log"),
         }
     }
 }
@@ -187,8 +190,28 @@ impl EngineError {
             Self::BountyMismatch => 41,
             Self::BadBountyAmount => 42,
             Self::DuplicatePvpFill => 43,
+            Self::MissingKill => 44,
         }
     }
+}
+
+/// A loot drop may omit its kill only below the sequence cutoff.
+/// A present index must already be a kill on this character's log.
+pub(crate) fn accept_drop_kill(
+    entries: &[crate::chain::Entry],
+    token_id: U256,
+    kill_index: Option<u64>,
+    logged: Option<u64>,
+) -> Result<(), EngineError> {
+    if !crate::event::loot_kill_required(logged) && kill_index.is_none() {
+        return Ok(());
+    }
+    let index = kill_index.ok_or(EngineError::MissingKill)?;
+    let entry = entries.get(index as usize).ok_or(EngineError::MissingKill)?;
+    if entry.index != index || !crate::event::kill_justifies(&token_id, &entry.input) {
+        return Err(EngineError::MissingKill);
+    }
+    Ok(())
 }
 
 pub(crate) const LABEL_MAX: usize = 128;
@@ -337,7 +360,14 @@ impl Engine {
             }
             Input::Harvest { token_id, material_id, amount } => self.note_harvest(*token_id, material_id, *amount),
             Input::ItemDrop { .. } => Err(EngineError::ClosedMint),
-            Input::LootDrop { token_id, item_id, amount } => self.note_drop(*token_id, *item_id, *amount),
+            Input::Kill { token_id, mob_id } => {
+                self.involves(token_id)?;
+                parse_label(mob_id)?;
+                Ok(())
+            }
+            Input::LootDrop { token_id, item_id, amount, kill_index } => {
+                self.note_drop(*token_id, *item_id, *amount, *kill_index, logged)
+            }
             Input::CraftSkill { token_id, skill_id, level } => self.note_craft_skill(*token_id, skill_id, *level),
             Input::RespecSkills { token_id, node_ids } => self.respec_skills(*token_id, node_ids),
             Input::GoldEarn { token_id, source, amount, day } => {
@@ -432,7 +462,14 @@ impl Engine {
         Ok(())
     }
 
-    fn note_drop(&mut self, token_id: U256, item_id: U256, amount: U256) -> Result<(), EngineError> {
+    fn note_drop(
+        &mut self,
+        token_id: U256,
+        item_id: U256,
+        amount: U256,
+        kill_index: Option<u64>,
+        logged: Option<u64>,
+    ) -> Result<(), EngineError> {
         self.involves(&token_id)?;
         if item_id == U256::ZERO {
             return Err(EngineError::BadId);
@@ -440,6 +477,7 @@ impl Engine {
         if amount == U256::ZERO {
             return Err(EngineError::ZeroAmount);
         }
+        accept_drop_kill(self.chain.entries(), token_id, kill_index, logged)?;
         self.state
             .add_count(Key::Drop(item_id), amount)
             .map_err(|_| EngineError::Overflow)?;

@@ -16,6 +16,7 @@ export type CoalescedLoot = {
   tokenId: string;
   itemId: string;
   amount: string;
+  killIndex: string;
 };
 
 export type CoalescedGold = {
@@ -72,7 +73,8 @@ function keyOf(row: CoalescedEvent): string | null {
   }
   if (row.op === "lootDrop") {
     if (!/^[1-9][0-9]{0,77}$/.test(row.itemId)) return null;
-    return "loot|" + row.tokenId + "|" + row.itemId;
+    if (!/^\d+$/.test(row.killIndex)) return null;
+    return "loot|" + row.tokenId + "|" + row.itemId + "|" + row.killIndex;
   }
   if (!row.source || !Number.isSafeInteger(row.day) || row.day < 0) return null;
   return "gold|" + row.tokenId + "|" + row.source + "|" + String(row.day);
