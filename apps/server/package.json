@@ -16,6 +16,7 @@
     "@bellgrave/config": "workspace:*",
     "@bellgrave/items": "workspace:*",
     "@bellgrave/protocol": "workspace:*",
+    "@noble/curves": "^2.4.0",
     "viem": "^2.57.2",
     "ws": "^8.18.1"
   },

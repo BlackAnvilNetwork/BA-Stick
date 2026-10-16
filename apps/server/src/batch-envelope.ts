@@ -10,16 +10,31 @@
  * the keccak of `inputsCommitment || epochSeed || rollBytes`, and the
  * replay root equals `nextRoot`.
  *
+ * The leader signature is BLS12-381 in the Gnosis / EIP-2537 validator
+ * convention: a 48-byte G1 public key and a 96-byte G2 signature, checked
+ * with `@noble/curves` long signatures. The signed message is the keccak256
+ * of the domain `bellgrave-batch-v1`, the envelope commitments and roots,
+ * the big-endian epoch and height, then the world id and protocol version.
+ *
  * A leader commitment or Gnosis randomness value that is not 32 bytes throws
- * the length error from `fallbackEpochSeed`. `signature` is optional
- * recorded bytes; this module does not verify it.
+ * the length error from `fallbackEpochSeed`.
  */
 import { timingSafeEqual } from "node:crypto";
+import { bls12_381 } from "@noble/curves/bls12-381.js";
 import { concatBytes, keccak256 } from "viem";
 import { fallbackEpochSeed } from "./fallback-epoch-seed";
 
 /** Keccak digest length used for commitments, roots, and the ruleset hash. */
 export const HASH_BYTES = 32;
+
+/** Compressed BLS12-381 G1 public key. */
+export const LEADER_KEY_BYTES = 48;
+
+/** Compressed BLS12-381 G2 signature. */
+export const LEADER_SIG_BYTES = 96;
+
+const LEADER_DOMAIN = new TextEncoder().encode("bellgrave-batch-v1");
+const bls = bls12_381.longSignatures;
 
 export type BatchReject =
   | "stale_parent"
@@ -31,7 +46,10 @@ export type BatchReject =
   | "wrong_world"
   | "wrong_protocol"
   | "seed_mismatch"
-  | "roll_commitment_mismatch";
+  | "roll_commitment_mismatch"
+  | "bad_leader_key"
+  | "missing_signature"
+  | "bad_signature";
 
 /**
  * One batch a leader can hand to another process.
@@ -58,7 +76,10 @@ export type BatchEnvelope = {
   epochSeed: Uint8Array;
   /** 32-byte keccak of inputsCommitment || epochSeed || rollBytes. */
   rollCommitment: Uint8Array;
-  /** Leader signature bytes, if the producer attached any. Not verified here. */
+  /**
+   * 96-byte BLS12-381 G2 signature over {@link leaderSigningMessage}.
+   * Absent until the producer attaches one.
+   */
   signature?: Uint8Array;
 };
 
@@ -97,10 +118,52 @@ function sameHash(a: Uint8Array, b: Uint8Array): boolean {
   return timingSafeEqual(a, b);
 }
 
+function u64be(value: number): Uint8Array {
+  const out = new Uint8Array(8);
+  new DataView(out.buffer).setBigUint64(0, BigInt(value), false);
+  return out;
+}
+
+/**
+ * Keccak256 of the bytes the epoch leader signs.
+ * Domain, then inputsCommitment, parentRoot, nextRoot, rulesetHash,
+ * epochSeed, rollCommitment, big-endian epoch, big-endian height,
+ * then UTF-8 worldId and protocolVersion.
+ */
+export function leaderSigningMessage(envelope: BatchEnvelope): Uint8Array {
+  return new Uint8Array(
+    keccak256(
+      concatBytes([
+        LEADER_DOMAIN,
+        envelope.inputsCommitment,
+        envelope.parentRoot,
+        envelope.nextRoot,
+        envelope.rulesetHash,
+        envelope.epochSeed,
+        envelope.rollCommitment,
+        u64be(envelope.epoch),
+        u64be(envelope.height),
+        new TextEncoder().encode(envelope.worldId),
+        new TextEncoder().encode(envelope.protocolVersion),
+      ]),
+      "bytes",
+    ),
+  );
+}
+
+function leaderSignatureOk(envelope: BatchEnvelope, leaderPublicKey: Uint8Array): boolean {
+  const message = bls.hash(leaderSigningMessage(envelope));
+  try {
+    return bls.verify(envelope.signature!, message, leaderPublicKey);
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Accept `envelope` only when world, protocol, parent, epoch, height,
- * ruleset, inputs commitment, fallback epoch seed, roll commitment, and
- * replay root all agree.
+ * ruleset, inputs commitment, fallback epoch seed, roll commitment,
+ * replay root, and the epoch leader's BLS signature all agree.
  */
 export function acceptBatch(
   envelope: BatchEnvelope,
@@ -108,7 +171,11 @@ export function acceptBatch(
   expectedRuleset: Uint8Array,
   replayNextRoot: Uint8Array,
   expected: BatchExpect,
+  leaderPublicKey: Uint8Array,
 ): AcceptBatchResult {
+  if (leaderPublicKey.length !== LEADER_KEY_BYTES) {
+    return { ok: false, error: "bad_leader_key" };
+  }
   if (envelope.worldId !== expected.worldId) {
     return { ok: false, error: "wrong_world" };
   }
@@ -140,6 +207,12 @@ export function acceptBatch(
   }
   if (!sameHash(envelope.nextRoot, replayNextRoot)) {
     return { ok: false, error: "root_mismatch" };
+  }
+  if (!envelope.signature || envelope.signature.length !== LEADER_SIG_BYTES) {
+    return { ok: false, error: "missing_signature" };
+  }
+  if (!leaderSignatureOk(envelope, leaderPublicKey)) {
+    return { ok: false, error: "bad_signature" };
   }
   return { ok: true, epoch: envelope.epoch, height: envelope.height };
 }
