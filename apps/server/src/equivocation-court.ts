@@ -3,10 +3,9 @@
  *
  * Two validly signed batches from the same signer for the same epoch and
  * height with different next roots are proof of equivocation. Anyone may
- * submit that pair. The slash is the bond already posted for that signer,
- * written to zero through `notePostedSlashableBond`, so `slashable-bonds.json`
- * records zero for that signer. A signer with no posted bond, or a posted
- * bond of zero, is not slashed, and no amount is invented.
+ * submit that pair. The slash is the whole xDAI bond already posted for that
+ * signer in slashable-bonds.json. No posted bond, or a posted zero, is not
+ * a slash and writes nothing.
  *
  * An admin vote, a multisig approval, or a social vote cannot slash without
  * that pair and cannot refuse a pair that slashes a posted bond. This module
@@ -20,7 +19,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { HASH_BYTES, leaderSignatureValid, type BatchEnvelope } from "./batch-envelope";
 import { removeSlashedVotingReplica } from "./bonded-admission";
-import { notePostedSlashableBond, postedSlashableBond } from "./root-anchor";
+import { slashPostedBond } from "./root-anchor";
 
 /** A vote a caller may attach. The court does not read it. */
 export type CourtBallot = {
@@ -31,10 +30,7 @@ export type CourtBallot = {
 
 export type CourtResult = { slashed: true; amountWei: bigint } | { slashed: false };
 
-/**
- * Amount written to zero for a signer in this process. The slash itself is
- * the posted bond file. A missing bond or a zero bond is never entered.
- */
+/** Amount taken from slashable-bonds.json in this process. The file is the slash. */
 const slashedAmount = new Map<string, bigint>();
 
 export function resetEquivocationCourtForTests(): void {
@@ -86,8 +82,9 @@ function evidenceReproduces(left: BatchEnvelope, right: BatchEnvelope, signer: U
 
 /**
  * Anyone may submit the pair. `ballot` is ignored: a vote cannot slash, and
- * a vote cannot keep a pair that slashes a posted bond from slashing.
- * The slash is that signer's posted bond, written down to zero.
+ * a vote cannot keep a reproducing pair from slashing.
+ * The amount is the bond posted for this signer. Zero writes nothing.
+ * A signer removed from the voting set stays out. The Safe stays admin.
  */
 export function submitEquivocationPair(
   left: BatchEnvelope,
@@ -98,9 +95,8 @@ export function submitEquivocationPair(
   void ballot;
   if (!evidenceReproduces(left, right, signer)) return { slashed: false };
   const id = equivocationSignerId(signer);
-  const amountWei = postedSlashableBond(id);
-  if (amountWei <= 0n) return { slashed: false };
-  notePostedSlashableBond(id, 0n);
+  const amountWei = slashPostedBond(id);
+  if (amountWei === 0n) return { slashed: false };
   removeSlashedVotingReplica(id);
   slashedAmount.set(id, amountWei);
   return { slashed: true, amountWei };
