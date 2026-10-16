@@ -22,7 +22,7 @@ import type { LokResult } from "./lok-world";
 import { pvpBountyAddress, pvpSyntheticReceiptsAllowed } from "./pvp-bounty";
 import { settlementChainId } from "./settlement-chain";
 import { settlementConfirmations } from "./settlement-confirmations";
-import { admitBountyPayout, chainBoundSendGate, releaseEpochXdai } from "./root-anchor";
+import { admitBountyPayout, chainBoundSendGate, pinEpochCharge, releaseEpochXdai } from "./root-anchor";
 import { watcherStartBlock } from "./settlement-rpc";
 import { readWatcherCursor, writeWatcherCursor } from "./watcher-cursor";
 
@@ -233,36 +233,64 @@ async function withOperatorWallet<T>(
   return fn({ wallet, public: publicClient, account, bounty: bounty as Hex });
 }
 
-/** Operator cancel — refunds original payer. */
+/**
+ * Operator cancel — refunds the original payer `PVP_BOUNTY_WEI` (1 xDAI).
+ * The refund is not broadcast unless this epoch admits that xDAI.
+ * Zero posted bonds admit nothing.
+ */
 export async function chainPvpCancel(
   tokenId: string,
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<{ ok: true; receipt: PvpChainReceipt } | { ok: false; error: string }> {
-  const gate = chainBoundSendGate();
-  if (!gate.ok) return gate;
+  const bountyWei = BigInt(PVP_BOUNTY_WEI);
+  const admitted = admitBountyPayout(bountyWei);
+  if (!admitted.ok) return admitted;
+  let holding = true;
+  const release = () => {
+    if (!holding) return;
+    holding = false;
+    releaseEpochXdai(bountyWei, admitted.epoch);
+  };
   try {
     return await withOwnerKeyQueue(async () => {
       return withOperatorWallet(env, async ({ wallet, public: pub, account, bounty }) => {
-        const hash = await wallet.writeContract({
-          address: bounty,
-          abi: PVP_BOUNTY_ABI,
-          functionName: "cancel",
-          args: [BigInt(tokenId)],
-          account,
-          chain: wallet.chain,
-        });
-        const conf = Number(settlementConfirmations(env));
-        const receipt = await pub.waitForTransactionReceipt({
-          hash,
-          confirmations: conf >= 1 ? conf : 1,
-        });
-        if (receipt.status !== "success") return { ok: false, error: "PvpBounty.cancel reverted" };
-        const fields = eventReceipt(receipt, "BountyCancelled");
-        if (!fields) return { ok: false, error: "PvpBounty.cancel missing event" };
-        return { ok: true, receipt: fields };
+        let broadcast = false;
+        try {
+          const hash = await wallet.writeContract({
+            address: bounty,
+            abi: PVP_BOUNTY_ABI,
+            functionName: "cancel",
+            args: [BigInt(tokenId)],
+            account,
+            chain: wallet.chain,
+          });
+          broadcast = true;
+          const conf = Number(settlementConfirmations(env));
+          const receipt = await pub.waitForTransactionReceipt({
+            hash,
+            confirmations: conf >= 1 ? conf : 1,
+          });
+          if (receipt.status !== "success") {
+            release();
+            return { ok: false, error: "PvpBounty.cancel reverted" };
+          }
+          const fields = eventReceipt(receipt, "BountyCancelled");
+          if (!fields) {
+            release();
+            return { ok: false, error: "PvpBounty.cancel missing event" };
+          }
+          const paidAt = await blockPaidAtMs(pub, receipt.blockNumber);
+          if (paidAt != null) pinEpochCharge(bountyWei, admitted.epoch, paidAt, hash);
+          holding = false;
+          return { ok: true, receipt: fields };
+        } catch (err) {
+          if (!broadcast) release();
+          throw err;
+        }
       });
     });
   } catch (err) {
+    release();
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
 }
@@ -293,6 +321,23 @@ export async function readCharacterOwner(
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function blockPaidAtMs(
+  pub: {
+    getBlock: (args: { blockNumber: bigint } | { blockTag: "latest" }) => Promise<{ timestamp: bigint }>;
+  },
+  block: bigint | "latest",
+): Promise<number | undefined> {
+  try {
+    const found =
+      block === "latest"
+        ? await pub.getBlock({ blockTag: "latest" })
+        : await pub.getBlock({ blockNumber: block });
+    return Number(found.timestamp) * 1000;
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -368,8 +413,12 @@ export async function chainPvpClaim(
           }
           await sleep(waitMs);
         }
-        const admitted = admitBountyPayout(bountyWei);
+        const predictAt = await blockPaidAtMs(pub, "latest");
+        const admitted = admitBountyPayout(bountyWei, predictAt);
         if (!admitted.ok) return admitted;
+        let chargedEpoch = admitted.epoch;
+        let landed = false;
+        const release = () => releaseEpochXdai(bountyWei, chargedEpoch);
         try {
           const hash = await wallet.writeContract({
             address: bounty,
@@ -384,14 +433,17 @@ export async function chainPvpClaim(
             confirmations: conf >= 1 ? conf : 1,
           });
           if (receipt.status !== "success") {
-            releaseEpochXdai(bountyWei, admitted.epoch);
+            release();
             return { ok: false, error: "PvpBounty.executeClaim reverted" };
           }
           const fields = eventReceipt(receipt, "BountyClaimed");
           if (!fields) {
-            releaseEpochXdai(bountyWei, admitted.epoch);
+            release();
             return { ok: false, error: "PvpBounty.executeClaim missing BountyClaimed" };
           }
+          const paidAt = await blockPaidAtMs(pub, receipt.blockNumber);
+          if (paidAt != null) chargedEpoch = pinEpochCharge(bountyWei, admitted.epoch, paidAt, hash);
+          landed = true;
           opsAlert({
             level: "alert",
             event: "pvp_bounty_claimed",
@@ -408,7 +460,7 @@ export async function chainPvpClaim(
           });
           return { ok: true, receipt: fields };
         } catch (err) {
-          releaseEpochXdai(bountyWei, admitted.epoch);
+          if (!landed) release();
           throw err;
         }
       });

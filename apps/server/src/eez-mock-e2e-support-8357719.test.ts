@@ -10,7 +10,6 @@ import { after, before, describe, it } from "node:test";
 import { createPublicClient, createWalletClient, http, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { applyAskFilled, scanAskFilled } from "./ah-escrow";
-import { allowEpochSettlementForTests } from "./epoch-cap-fixture";
 import { planEezSyncBuy } from "./eez-sync";
 import {
   AskFilledQuarantine,
@@ -247,7 +246,6 @@ describe("support 8357719: EEZ mock sync buy (throwaway anvil)", { skip: !canRun
     await rpc("anvil_mine", ["0x3"]);
     const quarantine = new AskFilledQuarantine(askFilledQuarantinePath(dir));
     const mirrored = new MirroredFills(askFilledMirroredPath(dir));
-    await allowEpochSettlementForTests(10n ** 24n);
     await scanAskFilled({
       cursor: start,
       escrow: ESCROW,

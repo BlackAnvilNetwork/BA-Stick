@@ -7,7 +7,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import { ASK_FILLED_TOPIC, applyAskFilled, scanAskFilled } from "./ah-escrow";
-import { allowEpochSettlementForTests } from "./epoch-cap-fixture";
 import { AskFilledQuarantine, MirroredFills, askFilledMirroredPath, askFilledQuarantinePath } from "./lok-ask-filled-quarantine";
 import { LokWorld } from "./lok-world";
 
@@ -52,8 +51,7 @@ function world() {
   return { lok, seller: s, buyer: b, list, dir };
 }
 
-async function scan(lok: LokWorld, dir: string, logs: unknown[], head = 0x20) {
-  await allowEpochSettlementForTests(10n ** 24n);
+function scan(lok: LokWorld, dir: string, logs: unknown[], head = 0x20) {
   const quarantine = new AskFilledQuarantine(askFilledQuarantinePath(dir));
   const mirrored = new MirroredFills(askFilledMirroredPath(dir));
   return scanAskFilled({

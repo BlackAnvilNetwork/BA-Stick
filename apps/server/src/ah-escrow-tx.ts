@@ -419,7 +419,7 @@ export async function openAskOnchain(opts: {
 }): Promise<{ ok: true; hash: Hex } | { ok: false; error: string; chainOpen?: boolean }> {
   const gate = chainBoundSendGate();
   if (!gate.ok) return gate;
-  // The ask price moves in buyAsk. That fill is counted in the epoch that settles it.
+  // Opening an ask does not move xDAI. buyAsk admits the price before that transfer.
   return withOwnerKeyQueue<
     { ok: true; hash: Hex } | { ok: false; error: string; chainOpen?: boolean }
   >(async () => {

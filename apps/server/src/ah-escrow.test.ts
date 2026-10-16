@@ -13,7 +13,6 @@ import {
   fillKeyOf,
   scanAskFilled,
 } from "./ah-escrow";
-import { allowEpochSettlementForTests } from "./epoch-cap-fixture";
 import { LokWorld } from "./lok-world";
 
 describe("AhEscrow AskFilled mirror", () => {
@@ -56,8 +55,7 @@ describe("AhEscrow AskFilled mirror", () => {
     assert.equal(decoded!.amount, "3");
   });
 
-  it("applyAskFilled moves inbox items without changing kek", async () => {
-    await allowEpochSettlementForTests(10n ** 24n);
+  it("applyAskFilled moves inbox items without changing kek", () => {
     const dir = mkdtempSync(join(tmpdir(), "lok-ah-escrow-"));
     const lok = LokWorld.open(dir, undefined, {});
     const seller = lok.spawn("seller", "Seller", 1);

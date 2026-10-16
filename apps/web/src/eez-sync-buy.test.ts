@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it, mock } from "node:test";
 import type { Account, WalletClient } from "viem";
-import { buyAsksWithEezSync } from "./eez-sync-buy";
+import { buyAsksWithEezSync, type EscrowFillAdmission } from "./eez-sync-buy";
 import type { WalletSession } from "./wallet";
+
+const admitOpen = async (): Promise<EscrowFillAdmission> => ({ ok: true, epoch: 0 });
 
 function fakeSession(source: WalletSession["source"]): WalletSession {
   const address = "0x1111111111111111111111111111111111111111" as `0x${string}`;
@@ -41,6 +43,7 @@ describe("buyAsksWithEezSync wallet routing", () => {
       eez: eezCfg,
       buyerTokenId: "1",
       fills: [{ listingId: "1", priceWei: "1000000000000000000" }],
+      admitFill: admitOpen,
       getSession: getSession as unknown as typeof import("./wallet").getWalletSession,
       forceWalletFlags: { hasInjected: false, appKitConfigured: true, burnerAllowed: false },
     });

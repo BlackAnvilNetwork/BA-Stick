@@ -32,6 +32,10 @@ export type BuyAskFill = {
   priceWei: string;
 };
 
+export type EscrowFillAdmission =
+  | { ok: true; epoch: number }
+  | { ok: false; error: string };
+
 export type PayWalletFlags = {
   hasInjected: boolean;
   appKitConfigured: boolean;
@@ -42,6 +46,11 @@ export async function buyAsksWithWallet(opts: {
   escrow: AhEscrowClientConfig;
   buyerTokenId: string;
   fills: BuyAskFill[];
+  /**
+   * Reserves the ask price before buyAsk is broadcast.
+   * Production asks the server. Tests pass the epoch cap directly.
+   */
+  admitFill?: (priceWei: string) => Promise<EscrowFillAdmission>;
   /** Test seam */
   getSession?: typeof getWalletSession;
   /** Test seam — override injected/AppKit/burner detection */
@@ -102,6 +111,9 @@ export async function buyAsksWithWallet(opts: {
       return { ok: false, error: "Bad ask price.", hashes };
     }
     if (value <= 0n) return { ok: false, error: "Ask price must be greater than 0.", hashes };
+    const admitted = await admitAskPrice(opts.admitFill, fill.priceWei);
+    if (!admitted.ok) return { ok: false, error: admitted.error, hashes };
+    const serverHold = opts.admitFill == null;
     try {
       const hash = await session.client.writeContract({
         address: opts.escrow.address as `0x${string}`,
@@ -122,6 +134,7 @@ export async function buyAsksWithWallet(opts: {
       });
       const receipt = await publicClient.waitForTransactionReceipt({ hash });
       if (receipt.status === "reverted") {
+        if (serverHold) await releaseServerHold(fill.priceWei, admitted.epoch);
         return {
           ok: false,
           error: hashes.length
@@ -130,8 +143,10 @@ export async function buyAsksWithWallet(opts: {
           hashes,
         };
       }
+      if (serverHold) await pinServerHold(publicClient, receipt.blockNumber, fill.priceWei, admitted.epoch);
       hashes.push(hash);
     } catch (err) {
+      if (serverHold) await releaseServerHold(fill.priceWei, admitted.epoch);
       const msg = err instanceof Error ? err.message : String(err);
       return {
         ok: false,
@@ -143,4 +158,35 @@ export async function buyAsksWithWallet(opts: {
     }
   }
   return { ok: true, hashes };
+}
+
+async function admitAskPrice(
+  admitFill: ((priceWei: string) => Promise<EscrowFillAdmission>) | undefined,
+  priceWei: string,
+): Promise<EscrowFillAdmission> {
+  if (admitFill) return admitFill(priceWei);
+  const { requestEscrowFillAdmission } = await import("./net");
+  return requestEscrowFillAdmission(priceWei);
+}
+
+async function releaseServerHold(priceWei: string, epoch: number): Promise<void> {
+  const { releaseEscrowFillOnServer } = await import("./net");
+  await releaseEscrowFillOnServer(priceWei, epoch);
+}
+
+async function pinServerHold(
+  publicClient: { getBlock: (args: { blockNumber: bigint }) => Promise<{ timestamp: bigint }> },
+  blockNumber: bigint,
+  priceWei: string,
+  epoch: number,
+): Promise<void> {
+  let paidAtMs = Date.now();
+  try {
+    const block = await publicClient.getBlock({ blockNumber });
+    paidAtMs = Number(block.timestamp) * 1000;
+  } catch {
+    paidAtMs = Date.now();
+  }
+  const { pinEscrowFillOnServer } = await import("./net");
+  await pinEscrowFillOnServer(priceWei, epoch, paidAtMs);
 }

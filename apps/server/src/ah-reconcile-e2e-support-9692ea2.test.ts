@@ -11,7 +11,6 @@ import { after, before, describe, it } from "node:test";
 import { createPublicClient, createWalletClient, http, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { applyAskFilled, scanAskFilled } from "./ah-escrow";
-import { allowEpochSettlementForTests } from "./epoch-cap-fixture";
 import { reconcileOpenAsksFromChain } from "./ah-escrow-reconcile";
 import {
   AskFilledQuarantine,
@@ -182,7 +181,6 @@ describe("support 9692ea2: AskFilled while the server was down", { skip: !canRun
     const quarantine = new AskFilledQuarantine(askFilledQuarantinePath(dir));
     const rec = await reconcileOpenAsksFromChain(lok, { env, dataDir: dir, quarantine });
     const mirrored = new MirroredFills(askFilledMirroredPath(dir));
-    await allowEpochSettlementForTests(10n ** 24n);
     await scanAskFilled({
       cursor: startBlock,
       escrow: ESCROW,

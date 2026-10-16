@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it, mock } from "node:test";
 import type { Account, WalletClient } from "viem";
-import { buyAsksWithWallet } from "./ah-buy";
+import { buyAsksWithWallet, type EscrowFillAdmission } from "./ah-buy";
 import type { WalletSession } from "./wallet";
+
+const admitOpen = async (): Promise<EscrowFillAdmission> => ({ ok: true, epoch: 0 });
 
 function fakeSession(source: WalletSession["source"]): WalletSession {
   const address = "0x1111111111111111111111111111111111111111" as `0x${string}`;
@@ -34,6 +36,7 @@ describe("buyAsksWithWallet wallet routing", () => {
       },
       buyerTokenId: "1",
       fills: [{ listingId: "1", priceWei: "1000000000000000000" }],
+      admitFill: admitOpen,
       getSession: getSession as unknown as typeof import("./wallet").getWalletSession,
       forceWalletFlags: { hasInjected: false, appKitConfigured: true, burnerAllowed: false },
     });
@@ -54,6 +57,7 @@ describe("buyAsksWithWallet wallet routing", () => {
       },
       buyerTokenId: "1",
       fills: [{ listingId: "1", priceWei: "1" }],
+      admitFill: admitOpen,
       getSession: async () => fakeSession("burner"),
       forceWalletFlags: { hasInjected: false, appKitConfigured: true, burnerAllowed: false },
     });
@@ -77,6 +81,7 @@ describe("buyAsksWithWallet wallet routing", () => {
       },
       buyerTokenId: "1",
       fills: [{ listingId: "1", priceWei: "1" }],
+      admitFill: admitOpen,
       getSession: getSession as unknown as typeof import("./wallet").getWalletSession,
       forceWalletFlags: { hasInjected: false, appKitConfigured: false, burnerAllowed: false },
     });
@@ -97,6 +102,7 @@ describe("buyAsksWithWallet wallet routing", () => {
       },
       buyerTokenId: "1",
       fills: [{ listingId: "1", priceWei: "1" }],
+      admitFill: admitOpen,
       getSession: async () => {
         throw new Error("Connect an injected wallet or Reown AppKit to pay.");
       },
@@ -105,5 +111,62 @@ describe("buyAsksWithWallet wallet routing", () => {
     assert.equal(res.ok, false);
     assert.match(res.error, /AppKit|wallet/i);
     assert.equal(res.hashes.length, 0);
+  });
+});
+
+describe("buyAsk epoch cap", { concurrency: false }, () => {
+  it("does not broadcast buyAsk when no bond is posted or the epoch would pass 10%", async () => {
+    const {
+      EPOCH_XDAI_CAP_REFUSAL,
+      admitEscrowFill,
+      chainBoundXdaiSend,
+      epochSettledXdai,
+      resetRootAnchorForTests,
+    } = await import("../../server/src/root-anchor.ts");
+    const { allowEpochSettlementForTests } = await import("../../server/src/epoch-cap-fixture.ts");
+    const escrow = {
+      address: "0x2222222222222222222222222222222222222222",
+      chainId: 31337,
+      rpcUrl: "http://127.0.0.1:8545",
+    };
+    let writes = 0;
+    const session = fakeSession("injected");
+    session.client.writeContract = (async () => {
+      writes += 1;
+      throw new Error("should-not-broadcast");
+    }) as typeof session.client.writeContract;
+    const admitFill = (priceWei: string) => Promise.resolve(admitEscrowFill(BigInt(priceWei)));
+    try {
+      await allowEpochSettlementForTests(0n);
+      const zero = await buyAsksWithWallet({
+        escrow,
+        buyerTokenId: "1",
+        fills: [{ listingId: "1", priceWei: "1000000000000000000" }],
+        admitFill,
+        getSession: async () => session,
+        forceWalletFlags: { hasInjected: true, appKitConfigured: false, burnerAllowed: true },
+      });
+      assert.equal(zero.ok, false);
+      if (!zero.ok) assert.equal(zero.error, EPOCH_XDAI_CAP_REFUSAL);
+      assert.equal(writes, 0);
+      assert.equal(epochSettledXdai(), 0n);
+
+      await allowEpochSettlementForTests(100n);
+      assert.equal(chainBoundXdaiSend("withdrawal", 10n).ok, true);
+      const past = await buyAsksWithWallet({
+        escrow,
+        buyerTokenId: "1",
+        fills: [{ listingId: "1", priceWei: "1" }],
+        admitFill,
+        getSession: async () => session,
+        forceWalletFlags: { hasInjected: true, appKitConfigured: false, burnerAllowed: true },
+      });
+      assert.equal(past.ok, false);
+      if (!past.ok) assert.equal(past.error, EPOCH_XDAI_CAP_REFUSAL);
+      assert.equal(writes, 0);
+      assert.equal(epochSettledXdai(), 10n);
+    } finally {
+      resetRootAnchorForTests();
+    }
   });
 });

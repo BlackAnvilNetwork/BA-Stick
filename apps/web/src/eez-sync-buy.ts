@@ -30,6 +30,10 @@ export type EezBuyFill = {
   priceWei: string;
 };
 
+export type EscrowFillAdmission =
+  | { ok: true; epoch: number }
+  | { ok: false; error: string };
+
 export type PayWalletFlags = {
   hasInjected: boolean;
   appKitConfigured: boolean;
@@ -41,6 +45,8 @@ export async function buyAsksWithEezSync(opts: {
   buyerTokenId: string;
   fills: EezBuyFill[];
   homeChainId?: number;
+  /** Reserves the ask price before syncBuy broadcasts. Production asks the server. */
+  admitFill?: (priceWei: string) => Promise<EscrowFillAdmission>;
   getSession?: typeof getWalletSession;
   forceWalletFlags?: PayWalletFlags;
 }): Promise<{ ok: true; hashes: Hex[] } | { ok: false; error: string; hashes: Hex[] }> {
@@ -110,6 +116,11 @@ export async function buyAsksWithEezSync(opts: {
       return { ok: false, error: "Bad ask price.", hashes };
     }
     if (value <= 0n) return { ok: false, error: "Ask price must be greater than 0.", hashes };
+    const serverHold = opts.admitFill == null;
+    const admitted = opts.admitFill
+      ? await opts.admitFill(fill.priceWei)
+      : await import("./net").then((net) => net.requestEscrowFillAdmission(fill.priceWei));
+    if (!admitted.ok) return { ok: false, error: admitted.error, hashes };
     try {
       const hash = await session.client.writeContract({
         address: opts.eez.mockSyncBuy as `0x${string}`,
@@ -122,6 +133,10 @@ export async function buyAsksWithEezSync(opts: {
       });
       const receipt = await publicClient.waitForTransactionReceipt({ hash });
       if (receipt.status === "reverted") {
+        if (serverHold) {
+          const { releaseEscrowFillOnServer } = await import("./net");
+          await releaseEscrowFillOnServer(fill.priceWei, admitted.epoch);
+        }
         return {
           ok: false,
           error: hashes.length
@@ -130,8 +145,23 @@ export async function buyAsksWithEezSync(opts: {
           hashes,
         };
       }
+      if (serverHold) {
+        let paidAtMs = Date.now();
+        try {
+          const block = await publicClient.getBlock({ blockNumber: receipt.blockNumber });
+          paidAtMs = Number(block.timestamp) * 1000;
+        } catch {
+          paidAtMs = Date.now();
+        }
+        const { pinEscrowFillOnServer } = await import("./net");
+        await pinEscrowFillOnServer(fill.priceWei, admitted.epoch, paidAtMs);
+      }
       hashes.push(hash);
     } catch (err) {
+      if (serverHold) {
+        const { releaseEscrowFillOnServer } = await import("./net");
+        await releaseEscrowFillOnServer(fill.priceWei, admitted.epoch);
+      }
       return {
         ok: false,
         error: err instanceof Error ? err.message : String(err),
