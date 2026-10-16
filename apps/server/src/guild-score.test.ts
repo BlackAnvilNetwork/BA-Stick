@@ -8,7 +8,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { AH_FEE_BPS, ahFeeSplit } from "@bellgrave/protocol";
+import { AH_FEE_BPS, ahFeeSplit, ahGuildFeeShares } from "@bellgrave/protocol";
 import { postReplicaBond, registryAdmin, resetBondedAdmissionForTests } from "./bonded-admission";
 import { meleeAtkBonus } from "./gear-combat";
 import {
@@ -326,6 +326,101 @@ test("a later epoch pays when no earlier epoch was noted", async () => {
   }
 });
 
+test("a second Mark signature does not add a second score", () => {
+  const scores = guildScore(
+    [
+      {
+        epoch: 4,
+        certified: true,
+        events: [
+          { characterId: "c1", kind: "combat" },
+          { characterId: "C1", kind: "craft" },
+          { characterId: " c1 ", kind: "gather" },
+          { characterId: "c2", kind: "trade" },
+        ],
+        signers: [MARK, OTHER],
+      },
+    ],
+    4,
+    membership([MARK, OTHER], ["c1", "c2"]),
+  );
+  assert.equal(scores[0]?.eligible, true);
+  assert.equal(scores[0]?.score, 2);
+});
+
+test("a character who joins after the epoch does not score it", async () => {
+  reset();
+  try {
+    creditGuildVault(10_000n);
+    noteGuildBatch({
+      epoch: 0,
+      height: 4,
+      events: [{ characterId: "c1", kind: "craft" }],
+    });
+    postReplicaBond(MARK, "replica", 10n);
+    const opened = openGuild(MARK, MARK);
+    assert.equal(opened.opened, true);
+    joinGuild(opened.guild?.id ?? "", "c1");
+    certifyGuildBatch(4, certificate(MARK));
+    const anchorAt = 1_700_000_000_000;
+    setChallengeClockForTests(() => anchorAt);
+    const posted = await postCertifiedBatch(
+      { height: 4, nextRoot: root(4), certificate: certificate(MARK) },
+      { env: { LOK_CHAIN_ID: "31337" }, poster: async () => true },
+    );
+    assert.equal(posted, true);
+
+    const settled = settleGuildPayouts(anchorAt + CHALLENGE_DELAY_MS);
+    assert.equal(settled.ok, true);
+    assert.deepEqual(settled.paid, []);
+    assert.equal(settled.vaultWei, 50n);
+    assert.equal(guildVaultWei(), 50n);
+  } finally {
+    reset();
+  }
+});
+
+test("a ready epoch stays paid while a later epoch is still waiting", async () => {
+  reset();
+  try {
+    postReplicaBond(MARK, "replica", 10n);
+    const opened = openGuild(MARK, MARK);
+    assert.equal(opened.opened, true);
+    joinGuild(opened.guild?.id ?? "", "c1");
+    creditGuildVault(10_000n);
+    noteGuildBatch({
+      epoch: 0,
+      height: 4,
+      events: [{ characterId: "c1", kind: "craft" }],
+    });
+    certifyGuildBatch(4, certificate(MARK));
+    const anchorAt = 1_700_000_000_000;
+    setChallengeClockForTests(() => anchorAt);
+    const posted = await postCertifiedBatch(
+      { height: 4, nextRoot: root(4), certificate: certificate(MARK) },
+      { env: { LOK_CHAIN_ID: "31337" }, poster: async () => true },
+    );
+    assert.equal(posted, true);
+    noteGuildBatch({
+      epoch: 1,
+      height: 5,
+      events: [{ characterId: "c1", kind: "gather" }],
+    });
+
+    const waiting = settleGuildPayouts(anchorAt + CHALLENGE_DELAY_MS);
+    assert.equal(waiting.ok, false);
+    assert.equal(waiting.error, ANCHOR_WAIT);
+    assert.equal(guildVaultWei(), 0n);
+
+    const again = settleGuildPayouts(anchorAt + CHALLENGE_DELAY_MS);
+    assert.equal(again.ok, false);
+    assert.equal(again.error, ANCHOR_WAIT);
+    assert.equal(guildVaultWei(), 0n);
+  } finally {
+    reset();
+  }
+});
+
 test("the live tick calls the score and the payout gate", async () => {
   reset();
   const calls: string[] = [];
@@ -340,11 +435,19 @@ test("the live tick calls the score and the payout gate", async () => {
     assert.equal(AH_FEE_BPS, 100);
     assert.equal(GUILD_VAULT_BPS, 50);
     assert.deepEqual(guildAuctionSplit(10_000n), { feeWei: 100n, vaultWei: 50n, treasuryWei: 50n });
+    assert.deepEqual(guildAuctionSplit(100n), ahGuildFeeShares(100n));
+    assert.deepEqual(guildAuctionSplit(300n), { feeWei: 3n, vaultWei: 1n, treasuryWei: 2n });
     const sol = readFileSync(
       join(dirname(fileURLToPath(import.meta.url)), "../../../contracts/lok-log/src/AhEscrow.sol"),
       "utf8",
     );
     assert.match(sol, /uint256 public constant FEE_BPS = 100;/);
+    assert.match(sol, /uint256 public constant VAULT_BPS_START = 50;/);
+    assert.match(sol, /uint64 public constant SHARE_DELAY = 1 days;/);
+    assert.equal(sol.includes("claimDelay"), false);
+    const scoreSrc = readFileSync(new URL("./guild-score.ts", import.meta.url), "utf8");
+    assert.match(scoreSrc, /CHALLENGE_DELAY_MS/);
+    assert.equal(scoreSrc.includes("claimDelay()"), false);
     assert.equal(LOCAL_RULESET_WASM_SHA256, "ae2fb7556c254cf9fddfdae0919dd1bdba12dfcd00b15d22c8c4bb43fd76a950");
     assert.deepEqual(registryAdmin(), {
       registryOwner: "gnosis-safe",
