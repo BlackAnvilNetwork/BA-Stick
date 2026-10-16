@@ -21,6 +21,9 @@
  * and Chiado are not called. The bond is the one `notePostedSlashableBond`
  * records. The equivocation court slashes that bond down to zero, and the
  * replica leaves this set.
+ *
+ * Server boot admits through `recordPostedSlashableBonds`, which calls
+ * `postReplicaBond` with the wei that was posted.
  */
 import { notePostedSlashableBond, postedSlashableBond } from "./root-anchor";
 import { PINNED_GNOSIS_LISTING_ADDRESS } from "./production-boot";

@@ -14,8 +14,16 @@ import { privateKeyToAccount } from "viem/accounts";
 import { PVP_BOUNTY_WEI } from "@bellgrave/config";
 import { openAskOnchain } from "./ah-escrow-tx";
 import { chainBuyAsk } from "./escrow-buy";
+import {
+  registryAdmin,
+  resetBondedAdmissionForTests,
+  votingReplica,
+  votingSet,
+  votingSetCommitThreshold,
+} from "./bonded-admission";
 import { allowEpochSettlementForTests } from "./epoch-cap-fixture";
 import { LokWorld } from "./lok-world";
+import { PINNED_GNOSIS_LISTING_ADDRESS } from "./production-boot";
 import { serverMintCharacterFor } from "./lok-vault";
 import { buildOpsStatus } from "./ops-health";
 import { emptyReplicaHealth, observeOrdererLine, submitOnSimTick } from "./order-submit";
@@ -37,6 +45,7 @@ import {
   epochSettledXdai,
   epochXdaiCapWei,
   observeEscrowSettlement,
+  postedSlashableBond,
   postedSlashableBonds,
   restartEpochLedger,
   pinEpochCharge,
@@ -852,7 +861,64 @@ test("boot records LOK_POSTED_SLASHABLE_BONDS and a later unset boot keeps them"
     assert.equal(chainBoundXdaiSend("mint", 1n).ok, false);
     assert.equal(inGameWaitsForAnchor("tick"), false);
     assert.equal(inGameWaitsForAnchor("combat"), false);
+    assert.equal(votingReplica("host-a")?.amountWei, half);
+    assert.equal(votingReplica("host-b")?.amountWei, half);
   } finally {
+    resetBondedAdmissionForTests();
+    resetRootAnchorForTests();
+  }
+});
+
+test("server boot admits LOK_POSTED_SLASHABLE_BONDS into the voting set", () => {
+  resetRootAnchorForTests();
+  resetBondedAdmissionForTests();
+  const dir = mkdtempSync(join(tmpdir(), "lok-boot-voting-"));
+  const calls: string[] = [];
+  const prev = globalThis.fetch;
+  globalThis.fetch = (async (_input: unknown, init?: { body?: unknown }) => {
+    calls.push(typeof init?.body === "string" ? init.body : "");
+    return new Response("refused", { status: 500 });
+  }) as typeof fetch;
+  try {
+    configureEpochLedger(dir);
+    const listing = PINNED_GNOSIS_LISTING_ADDRESS;
+    recordPostedSlashableBonds({
+      LOK_POSTED_SLASHABLE_BONDS:
+        "ghost:0, replica-a:-1, " + listing + ":10, " + listing.slice(2) + ":4",
+    });
+    assert.equal(votingSet().length, 0);
+    assert.equal(postedSlashableBonds(), 0n);
+    assert.equal(postedSlashableBond("ghost"), 0n);
+    assert.equal(postedSlashableBond("replica-a"), 0n);
+    assert.equal(postedSlashableBond(listing), 0n);
+    assert.equal(votingReplica(listing), null);
+    assert.equal(votingSetCommitThreshold(), null);
+
+    const amount = 123456789012345678901234567890n;
+    const posted = ["replica-a:" + amount.toString()];
+    for (let i = 1; i <= 6; i += 1) posted.push("replica-" + i + ":" + String(i));
+    recordPostedSlashableBonds({ LOK_POSTED_SLASHABLE_BONDS: posted.join(",") });
+    assert.equal(votingSet().length, 7);
+    assert.deepEqual(votingReplica("replica-a"), { id: "replica-a", amountWei: amount });
+    assert.equal(postedSlashableBond("replica-a"), amount);
+    assert.equal(postedSlashableBonds(), amount + 21n);
+    assert.equal(votingReplica(listing), null);
+    assert.equal(votingSetCommitThreshold(), 4);
+    assert.deepEqual(registryAdmin(), {
+      registryOwner: "gnosis-safe",
+      slashingAdmin: "gnosis-safe",
+      rulesetProposer: "gnosis-safe",
+    });
+
+    const tick = submitOnSimTick(null, { ok: true, height: 9, nextRoot: root });
+    assert.equal(tick.tickFailed, false);
+    assert.equal(tick.status, "provisional");
+    assert.equal(tick.blob, null);
+    assert.equal(calls.length, 0);
+    assert.equal(inGameWaitsForAnchor("tick"), false);
+  } finally {
+    globalThis.fetch = prev;
+    resetBondedAdmissionForTests();
     resetRootAnchorForTests();
   }
 });
