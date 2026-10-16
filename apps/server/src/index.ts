@@ -303,6 +303,7 @@ import { randomBytes } from "node:crypto";
 import { authAllowlist, authVerifyClient, clientAddress, dropAuthConnection, issueAuthChallenge, resolveAuthOrigin, verifyAuthLogin, isEthAddress } from "./wallet-auth";
 import { defaultLokDir, LokWorld } from "./lok-world";
 import { flushGameRoll, loadGameRoll, rollIndex, rollUnit } from "./game-roll";
+import { rollPvpAutoAttack } from "./pvp-auto-rolls";
 import { cheapestBait, fishGatherRefusal } from "./fishing";
 import { emptyMobEnhances, takeMobHit } from "./mob-enhances";
 import {
@@ -4813,11 +4814,6 @@ function playerSwingPvp(p: Player, foe: Player, now: number) {
   p.anim = "melee";
   p.animUntil = now + Math.max(160, Math.min(delay * 0.9, 520));
 
-  if (now < p.blindUntil && Math.random() < 0.45) {
-    pushLog(p, "You swing wild (Blind)!");
-    return;
-  }
-
   const stance = playerStance(p);
   const stats = playerCombatStats(p);
   const foeStats = playerCombatStats(foe);
@@ -4835,14 +4831,23 @@ function playerSwingPvp(p: Player, foe: Player, now: number) {
   let acc = stats.dex + 40 + tree.acc + (playerEquipmentStats(p).acc ?? 0);
   acc += autoAttackFighterAccBonus(p, now);
   const eva = evasionFromAgi(Math.max(0, foeStats.agi - fighterEvaPenalty(foe, now)));
-  if (Math.random() > hitChance(acc, eva)) {
+  let critChance = physical ? 0.08 : stance === "flux" ? 0.12 : 0.05;
+  critChance += critFromAgi(stats.agi) + fighterCritBonus(p, now) + tree.crit;
+  const rolled = rollPvpAutoAttack({
+    blinded: now < p.blindUntil,
+    hitChance: hitChance(acc, eva),
+    critChance,
+  });
+  if (rolled.outcome === "blind") {
+    pushLog(p, "You swing wild (Blind)!");
+    return;
+  }
+  if (rolled.outcome === "miss") {
     pushLog(p, "You miss.");
     pushLog(foe, `${p.name} misses you.`);
     return;
   }
-  let critChance = physical ? 0.08 : stance === "flux" ? 0.12 : 0.05;
-  critChance += critFromAgi(stats.agi) + fighterCritBonus(p, now) + tree.crit;
-  const crit = Math.random() < critChance;
+  const crit = rolled.crit;
   let dmg = physicalDamage(
     att,
     def,
