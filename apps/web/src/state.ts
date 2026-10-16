@@ -158,7 +158,7 @@ export const useGame = create<GameState>((set, get) => ({
     const verdict = payload ? checkWebLightClient(payload) : null;
     const light = {
       leaderView: "provisional" as const,
-      committed: verdict?.ok ? verdict : get().light.committed,
+      committed: verdict?.ok ? verdict : null,
     };
     set({
       ...(mint !== undefined ? { characterMint: mint ?? null } : {}),

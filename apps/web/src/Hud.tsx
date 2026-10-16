@@ -772,7 +772,7 @@ export function Hud() {
               {" "}
               · provisional
             </span>
-            {storedLight.committed || lightVerdict?.ok ? (
+            {lightVerdict?.ok ? (
               <span className="committed" data-committed-view="committed">
                 {" "}
                 · committed

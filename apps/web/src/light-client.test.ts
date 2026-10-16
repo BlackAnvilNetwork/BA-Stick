@@ -275,6 +275,42 @@ test("the web client keeps a leader snapshot provisional and commits only a pass
   assert.equal(useGame.getState().light.leaderView, "provisional");
   assert.equal(useGame.getState().light.committed?.ok, true);
   assert.equal(useGame.getState().snapshot?.type, "snapshot");
+
+  useGame.getState().setSnapshot({
+    type: "snapshot",
+    tick: 11,
+    you: {},
+    units: [],
+    log: [],
+    party: null,
+    partyInvite: null,
+  } as unknown as SnapshotMessage);
+  assert.equal(useGame.getState().light.leaderView, "provisional");
+  assert.equal(useGame.getState().light.committed, null);
+
+  useGame.getState().setSnapshot({
+    type: "snapshot",
+    tick: 12,
+    you: {},
+    units: [],
+    log: [],
+    party: null,
+    partyInvite: null,
+    lightClient: world,
+  } as unknown as SnapshotMessage);
+  assert.equal(useGame.getState().light.committed?.ok, true);
+  useGame.getState().setSnapshot({
+    type: "snapshot",
+    tick: 13,
+    you: {},
+    units: [],
+    log: [],
+    party: null,
+    partyInvite: null,
+    lightClient: { ...bad, leaf: { ...bad.leaf, value } },
+  } as unknown as SnapshotMessage);
+  assert.equal(useGame.getState().light.leaderView, "provisional");
+  assert.equal(useGame.getState().light.committed, null);
 });
 
 test("an empty character-root tree is 32 zero bytes and an empty state root is keccak of empty bytes", () => {
