@@ -2,10 +2,17 @@
  * Seeded rolls for outcomes that change the log: hit, crit, loot, gold, gather
  * yield, mob abilities, Battle Mage resist, Purse Cut, and shiny promotion.
  *
+ * One 32-byte epoch seed (`startEpochRoll`) starts the cursor for the whole
+ * world. Later `rollUnit` / `rollIndex` calls advance that one cursor. The
+ * same seed does not rewind it. A different seed starts again at the first
+ * draw, so the same seed and the same labels replay. Gnosis is not read; the
+ * seed is an argument. There is no seed per player, character, or tick.
+ *
  * The cursor (`game-roll.json`) is the sequence. The tape (`game-roll.jsonl`)
  * records each roll's tag and raw mix so a later pass can replay the same
- * order. Both flush once per tick, and only when a roll happened. Roam,
- * facing, and gather-node placement stay on Math.random.
+ * order. Rolls flush once per tick, and only when a roll happened. Starting
+ * an epoch writes that seed onto the cursor. Roam, facing, and gather-node
+ * placement stay on Math.random.
  */
 import { randomBytes } from "node:crypto";
 import { closeSync, existsSync, fsyncSync, openSync, readFileSync, writeSync } from "node:fs";
@@ -18,6 +25,7 @@ const UNIT_SCALE = 2 ** 53;
 
 const CURSOR_NAME = "game-roll.json";
 const TAPE_NAME = "game-roll.jsonl";
+const EPOCH_SEED_BYTES = 32;
 
 type TapeRoll = { n: number; tag: string; z: string };
 
@@ -58,6 +66,22 @@ function cursorText(): string {
     state: state.toString(16).padStart(16, "0"),
     count,
   }) + "\n";
+}
+
+function writeCursor(): void {
+  if (!dataDir) return;
+  durableWrite(join(dataDir, CURSOR_NAME), cursorText());
+  flushedCount = count;
+}
+
+/** Hex of a 32-byte epoch seed. The cursor stores this string. */
+function epochSeedHex(value: Uint8Array | null | undefined): string {
+  if (value == null || !(value instanceof Uint8Array)) {
+    throw new Error("epoch seed is missing");
+  }
+  if (value.length < EPOCH_SEED_BYTES) throw new Error("epoch seed is short");
+  if (value.length > EPOCH_SEED_BYTES) throw new Error("epoch seed is long");
+  return Buffer.from(value).toString("hex");
 }
 
 function ensureExitHook(): void {
@@ -119,10 +143,7 @@ export function flushGameRoll(): void {
   if (!dataDir) return;
   if (count === flushedCount && pending.length === 0) return;
   // Cursor first: a crash after this cannot repeat the sequence.
-  if (count !== flushedCount) {
-    durableWrite(join(dataDir, CURSOR_NAME), cursorText());
-    flushedCount = count;
-  }
+  if (count !== flushedCount) writeCursor();
   if (pending.length === 0) return;
   const payload = Buffer.from(pending.map((row) => JSON.stringify(row) + "\n").join(""), "utf8");
   const fd = openSync(join(dataDir, TAPE_NAME), "a");
@@ -138,6 +159,23 @@ export function flushGameRoll(): void {
     closeSync(fd);
   }
   pending = [];
+}
+
+/**
+ * Start the shared roll cursor from one 32-byte world epoch seed.
+ * Later `rollUnit` / `rollIndex` calls advance that cursor. The same seed
+ * does not rewind it. A different seed starts a new cursor at the first draw.
+ * Gnosis is not read. The seed is the argument.
+ */
+export function startEpochRoll(epochSeed: Uint8Array | null | undefined): void {
+  const next = epochSeedHex(epochSeed);
+  if (next === seed) return;
+  flushGameRoll();
+  seed = next;
+  state = seedToState(next);
+  count = 0;
+  pending = [];
+  writeCursor();
 }
 
 /** Drop disk binding and restart the sequence. Unit tests only. */

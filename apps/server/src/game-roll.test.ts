@@ -11,6 +11,7 @@ import {
   rollIndex,
   rollUnit,
   scriptNextRollsForTests,
+  startEpochRoll,
 } from "./game-roll";
 
 function freshDir(): string {
@@ -93,4 +94,90 @@ test("a broken cursor refuses to boot a new seed", () => {
   writeFileSync(join(dir, "game-roll.json"), "{not json");
   assert.throws(() => loadGameRoll(dir), /not valid JSON/);
   resetGameRollForTests();
+});
+
+function filled(byte: number): Uint8Array {
+  return new Uint8Array(32).fill(byte);
+}
+
+const epochA = filled(0x41);
+const epochB = filled(0x42);
+
+test("two labels share one epoch cursor", () => {
+  resetGameRollForTests();
+  startEpochRoll(epochA);
+  const gather = rollUnit("gather.yield");
+  const gold = rollIndex("gold.mob-kill", 21);
+  const hit = rollUnit("combat.player.hit");
+  assert.equal(gameRollCount(), 3);
+  assert.notEqual(gather, hit);
+
+  resetGameRollForTests();
+  startEpochRoll(epochA);
+  const hitFirst = rollUnit("combat.player.hit");
+  assert.equal(gameRollCount(), 1);
+  assert.equal(hitFirst, gather);
+  assert.notEqual(hitFirst, hit);
+  const goldLater = rollIndex("gold.mob-kill", 21);
+  assert.equal(goldLater, gold);
+  assert.equal(gameRollCount(), 2);
+  resetGameRollForTests();
+});
+
+test("the same epoch seed and labels replay the same draws", () => {
+  resetGameRollForTests();
+  startEpochRoll(epochA);
+  const first = [rollUnit("gold.mob-kill"), rollIndex("loot.mat", 7), rollUnit("combat.player.crit")];
+  startEpochRoll(epochB);
+  startEpochRoll(epochA);
+  const replay = [rollUnit("gold.mob-kill"), rollIndex("loot.mat", 7), rollUnit("combat.player.crit")];
+  assert.deepEqual(replay, first);
+  resetGameRollForTests();
+});
+
+test("a second epoch seed changes the next draw", () => {
+  resetGameRollForTests();
+  startEpochRoll(epochA);
+  const drawn = rollUnit("combat.player.double");
+  assert.equal(gameRollCount(), 1);
+  startEpochRoll(epochB);
+  assert.equal(gameRollCount(), 0);
+  assert.notEqual(rollUnit("combat.player.double"), drawn);
+  assert.equal(gameRollCount(), 1);
+  resetGameRollForTests();
+});
+
+test("repeating the current epoch seed does not rewind the cursor", () => {
+  const prev = process.env.LOK_ROLL_SEED;
+  delete process.env.LOK_ROLL_SEED;
+  try {
+    const dir = freshDir();
+    loadGameRoll(dir);
+    startEpochRoll(epochA);
+    const first = rollUnit("loot.mat");
+    assert.equal(gameRollCount(), 1);
+    flushGameRoll();
+    startEpochRoll(new Uint8Array(epochA));
+    assert.equal(gameRollCount(), 1);
+    const second = rollUnit("gold.mob-kill");
+    assert.notEqual(second, first);
+    assert.equal(gameRollCount(), 2);
+    flushGameRoll();
+
+    const saved = JSON.parse(readFileSync(join(dir, "game-roll.json"), "utf8")) as { count: number; seed: string };
+    assert.equal(saved.seed, Buffer.from(epochA).toString("hex"));
+    assert.equal(saved.count, 2);
+
+    loadGameRoll(dir);
+    startEpochRoll(epochA);
+    assert.equal(gameRollCount(), 2);
+    const third = rollUnit("gather.yield");
+    assert.notEqual(third, first);
+    assert.notEqual(third, second);
+    assert.equal(gameRollCount(), 3);
+  } finally {
+    if (prev === undefined) delete process.env.LOK_ROLL_SEED;
+    else process.env.LOK_ROLL_SEED = prev;
+    resetGameRollForTests();
+  }
 });
