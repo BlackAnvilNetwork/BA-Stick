@@ -172,7 +172,7 @@ type EpochLedgerFile = {
   settled: Record<string, string>;
   pins: string[];
   fills: Record<string, number>;
-  charges: { amount: string; epoch: number; fillKey?: string }[];
+  charges: { amount: string; epoch: number; fillKey?: string; landed?: boolean }[];
 };
 
 function ledgerPath(): string | null {
@@ -195,6 +195,7 @@ function persistLedger(): void {
       amount: row.amount.toString(),
       epoch: row.epoch,
       fillKey: row.fillKey,
+      landed: row.landed === true,
     })),
   };
   durableWrite(path, JSON.stringify(body) + "\n");
@@ -237,6 +238,7 @@ function loadLedger(): void {
         amount: BigInt(row.amount),
         epoch: row.epoch,
         fillKey: typeof row.fillKey === "string" ? row.fillKey : undefined,
+        landed: row.landed === true,
       });
     }
   } finally {
@@ -339,6 +341,7 @@ export function observeEscrowSettlement(fillKey: string, priceWei: bigint, atMs?
   const charge = escrowCharges.find((row) => row.amount === priceWei && row.fillKey == null);
   if (charge) {
     charge.fillKey = fillKey;
+    charge.landed = true;
     if (charge.epoch !== epoch) {
       const held = settledByEpoch.get(charge.epoch) ?? 0n;
       if (held >= priceWei) {

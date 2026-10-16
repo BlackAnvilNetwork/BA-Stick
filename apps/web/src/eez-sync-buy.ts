@@ -1,6 +1,7 @@
 /**
  * Local EEZ sync buy via MockEezSyncBuy.syncBuy{value}.
- * Seller payout is already same-transaction inside AhEscrow.buyAsk.
+ * That call pays AhEscrow.buyAskFor. The price is admitted before syncBuy is broadcast.
+ * Seller payout is already same-transaction inside AhEscrow.buyAskFor.
  * Wallet routing matches ah-buy / character-mint (never burner on Gnosis/Chiado).
  */
 import { settlementCurrency } from "@bellgrave/config";
@@ -121,6 +122,7 @@ export async function buyAsksWithEezSync(opts: {
       ? await opts.admitFill(fill.priceWei)
       : await import("./net").then((net) => net.requestEscrowFillAdmission(fill.priceWei));
     if (!admitted.ok) return { ok: false, error: admitted.error, hashes };
+    let sent = false;
     try {
       const hash = await session.client.writeContract({
         address: opts.eez.mockSyncBuy as `0x${string}`,
@@ -131,6 +133,7 @@ export async function buyAsksWithEezSync(opts: {
         account: session.account,
         chain,
       });
+      sent = true;
       const receipt = await publicClient.waitForTransactionReceipt({ hash });
       if (receipt.status === "reverted") {
         if (serverHold) {
@@ -158,7 +161,7 @@ export async function buyAsksWithEezSync(opts: {
       }
       hashes.push(hash);
     } catch (err) {
-      if (serverHold) {
+      if (serverHold && !sent) {
         const { releaseEscrowFillOnServer } = await import("./net");
         await releaseEscrowFillOnServer(fill.priceWei, admitted.epoch);
       }

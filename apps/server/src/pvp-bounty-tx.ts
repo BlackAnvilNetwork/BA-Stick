@@ -246,6 +246,7 @@ export async function chainPvpCancel(
   const admitted = admitBountyPayout(bountyWei);
   if (!admitted.ok) return admitted;
   let holding = true;
+  let broadcast = false;
   const release = () => {
     if (!holding) return;
     holding = false;
@@ -254,7 +255,6 @@ export async function chainPvpCancel(
   try {
     return await withOwnerKeyQueue(async () => {
       return withOperatorWallet(env, async ({ wallet, public: pub, account, bounty }) => {
-        let broadcast = false;
         try {
           const hash = await wallet.writeContract({
             address: bounty,
@@ -290,7 +290,7 @@ export async function chainPvpCancel(
       });
     });
   } catch (err) {
-    release();
+    if (!broadcast) release();
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
 }
@@ -417,7 +417,7 @@ export async function chainPvpClaim(
         const admitted = admitBountyPayout(bountyWei, predictAt);
         if (!admitted.ok) return admitted;
         let chargedEpoch = admitted.epoch;
-        let landed = false;
+        let claimSent = false;
         const release = () => releaseEpochXdai(bountyWei, chargedEpoch);
         try {
           const hash = await wallet.writeContract({
@@ -428,6 +428,7 @@ export async function chainPvpClaim(
             account,
             chain: wallet.chain,
           });
+          claimSent = true;
           const receipt = await pub.waitForTransactionReceipt({
             hash,
             confirmations: conf >= 1 ? conf : 1,
@@ -443,7 +444,6 @@ export async function chainPvpClaim(
           }
           const paidAt = await blockPaidAtMs(pub, receipt.blockNumber);
           if (paidAt != null) chargedEpoch = pinEpochCharge(bountyWei, admitted.epoch, paidAt, hash);
-          landed = true;
           opsAlert({
             level: "alert",
             event: "pvp_bounty_claimed",
@@ -460,7 +460,7 @@ export async function chainPvpClaim(
           });
           return { ok: true, receipt: fields };
         } catch (err) {
-          if (!landed) release();
+          if (!claimSent) release();
           throw err;
         }
       });

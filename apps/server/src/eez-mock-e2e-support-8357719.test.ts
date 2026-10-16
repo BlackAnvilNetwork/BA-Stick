@@ -10,7 +10,9 @@ import { after, before, describe, it } from "node:test";
 import { createPublicClient, createWalletClient, http, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { applyAskFilled, scanAskFilled } from "./ah-escrow";
+import { chainBuyAsk } from "./escrow-buy";
 import { planEezSyncBuy } from "./eez-sync";
+import { allowEpochSettlementForTests } from "./epoch-cap-fixture";
 import {
   AskFilledQuarantine,
   MirroredFills,
@@ -215,21 +217,26 @@ describe("support 8357719: EEZ mock sync buy (throwaway anvil)", { skip: !canRun
         primaryType: "BuyAskFor",
         message: { listingId: id, buyerTokenId: BigInt(b.tokenId), relayer: MOCK, deadline },
       });
-      try {
-        const hash = await bw.writeContract({
-          address: MOCK,
-          abi: MOCK_ABI,
-          functionName: "syncBuy",
-          args: [id, BigInt(b.tokenId), deadline, ownerSignature],
-          value,
-          gas: 400_000n,
-        });
-        const rc = await pub.waitForTransactionReceipt({ hash });
-        status = rc.status;
-        gas = rc.gasUsed * rc.effectiveGasPrice;
-      } catch {
-        /* reverted in estimate/send */
-      }
+      // buyAskFor pays the ask price. Excess is refunded. Admit that price before syncBuy.
+      const price = value >= P ? P : value;
+      const sent = await chainBuyAsk({
+        priceWei: price,
+        broadcast: async () => {
+          const hash = await bw.writeContract({
+            address: MOCK,
+            abi: MOCK_ABI,
+            functionName: "syncBuy",
+            args: [id, BigInt(b.tokenId), deadline, ownerSignature],
+            value,
+            gas: 400_000n,
+          });
+          const rc = await pub.waitForTransactionReceipt({ hash });
+          status = rc.status;
+          gas = rc.gasUsed * rc.effectiveGasPrice;
+          if (rc.status !== "success") throw new Error("sync buy reverted");
+        },
+      });
+      if (!sent.ok && gas === 0n) status = "reverted";
       const after = await bal();
       return {
         status,
@@ -239,6 +246,7 @@ describe("support 8357719: EEZ mock sync buy (throwaway anvil)", { skip: !canRun
         mock: after.mock - before.mock,
       };
     };
+    await allowEpochSettlementForTests(10n ** 24n);
     const exact = await spend(ids[0]!, P);
     const again = await spend(ids[0]!, P);
     const short = await spend(ids[2]!, P - 1n);

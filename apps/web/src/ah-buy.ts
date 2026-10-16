@@ -114,6 +114,7 @@ export async function buyAsksWithWallet(opts: {
     const admitted = await admitAskPrice(opts.admitFill, fill.priceWei);
     if (!admitted.ok) return { ok: false, error: admitted.error, hashes };
     const serverHold = opts.admitFill == null;
+    let sent = false;
     try {
       const hash = await session.client.writeContract({
         address: opts.escrow.address as `0x${string}`,
@@ -132,6 +133,7 @@ export async function buyAsksWithWallet(opts: {
           };
         })(),
       });
+      sent = true;
       const receipt = await publicClient.waitForTransactionReceipt({ hash });
       if (receipt.status === "reverted") {
         if (serverHold) await releaseServerHold(fill.priceWei, admitted.epoch);
@@ -146,7 +148,7 @@ export async function buyAsksWithWallet(opts: {
       if (serverHold) await pinServerHold(publicClient, receipt.blockNumber, fill.priceWei, admitted.epoch);
       hashes.push(hash);
     } catch (err) {
-      if (serverHold) await releaseServerHold(fill.priceWei, admitted.epoch);
+      if (serverHold && !sent) await releaseServerHold(fill.priceWei, admitted.epoch);
       const msg = err instanceof Error ? err.message : String(err);
       return {
         ok: false,
