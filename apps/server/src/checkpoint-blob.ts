@@ -244,18 +244,38 @@ async function postBlobToLocalAnvil(
   const file = join(dir, "checkpoint.bin");
   try {
     writeFileSync(file, bytes);
-    const probed = parseBlobTx(castHex(["mktx", ...castBlobArgs(key, rpc, file), BURN], rpc));
-    if (!probed) return { ok: false };
+    const raw = castHex(["mktx", ...castBlobArgs(key, rpc, file), BURN], rpc);
+    const probed = parseBlobTx(raw);
+    if (!probed) {
+      console.error(
+        "[checkpoint-blob] cast mktx sidecar was not a single blob transaction",
+        raw.slice(0, 18),
+        raw.length,
+      );
+      return { ok: false };
+    }
     const commitment = probed.commitment;
-    if (!bytesEqual(versionedBlobHash(commitment), probed.versionedHash)) return { ok: false };
-    if (!bytesEqual(blobFromCheckpoint(bytes), probed.blob)) return { ok: false };
+    if (!bytesEqual(versionedBlobHash(commitment), probed.versionedHash)) {
+      console.error("[checkpoint-blob] versioned hash does not match the sidecar commitment");
+      return { ok: false };
+    }
+    if (!bytesEqual(blobFromCheckpoint(bytes), probed.blob)) {
+      console.error("[checkpoint-blob] cast blob bytes do not match the checkpoint packing");
+      return { ok: false };
+    }
     const recovered = checkpointBytesFromBlob(probed.blob);
-    if (!recovered || !bytesEqual(recovered, bytes)) return { ok: false };
+    if (!recovered || !bytesEqual(recovered, bytes)) {
+      console.error("[checkpoint-blob] cast blob does not recover the checkpoint bytes");
+      return { ok: false };
+    }
     const already = await readAnchor(pub, address as Hex, checkpointKeccakBytes);
     if (already && bytesEqual(already.commitment, commitment)) {
       return { ok: true, blob: probed.blob, checkpointKeccak: checkpointKeccakBytes };
     }
-    if (already) return { ok: false };
+    if (already) {
+      console.error("[checkpoint-blob] anchor already stores a different commitment");
+      return { ok: false };
+    }
     blobTxAttempts += 1;
     const sent = castSendReceipt(
       [
@@ -269,14 +289,29 @@ async function postBlobToLocalAnvil(
       rpc,
     );
     const receipt = await pub.waitForTransactionReceipt({ hash: sent.hash });
-    if (receipt.status !== "success") return { ok: false };
+    if (receipt.status !== "success") {
+      console.error("[checkpoint-blob] blob transaction reverted");
+      return { ok: false };
+    }
     const tx = await pub.getTransaction({ hash: sent.hash });
-    if (tx.type !== "eip4844") return { ok: false };
+    if (tx.type !== "eip4844") {
+      console.error("[checkpoint-blob] posted transaction was not type eip4844");
+      return { ok: false };
+    }
     const blobHash = tx.blobVersionedHashes?.[0];
-    if (!blobHash || !bytesEqual(toBytes(blobHash), probed.versionedHash)) return { ok: false };
+    if (!blobHash || !bytesEqual(toBytes(blobHash), probed.versionedHash)) {
+      console.error("[checkpoint-blob] posted blob hash does not match the commitment");
+      return { ok: false };
+    }
     const stored = await readAnchor(pub, address as Hex, checkpointKeccakBytes);
-    if (!stored || !bytesEqual(stored.commitment, commitment)) return { ok: false };
-    if (!bytesEqual(stored.checkpointKeccak, checkpointKeccakBytes)) return { ok: false };
+    if (!stored || !bytesEqual(stored.commitment, commitment)) {
+      console.error("[checkpoint-blob] anchor did not store the KZG commitment");
+      return { ok: false };
+    }
+    if (!bytesEqual(stored.checkpointKeccak, checkpointKeccakBytes)) {
+      console.error("[checkpoint-blob] anchor did not store the checkpoint keccak");
+      return { ok: false };
+    }
     return { ok: true, blob: probed.blob, checkpointKeccak: checkpointKeccakBytes };
   } catch (err) {
     console.error("[checkpoint-blob] local blob post failed", err instanceof Error ? err.message : err);
@@ -353,26 +388,38 @@ async function readAnchor(
   }
 }
 
+/**
+ * Read the one blob and its 48-byte KZG commitment out of a type-3 transaction.
+ * Cast 1.5 packs an EIP-4844 sidecar as `[tx, blobs, commitments, proofs]`.
+ * Cast 1.8 packs an EIP-7594 sidecar in the same list with a version byte
+ * before the blobs. Commitments stay 48 bytes; cell proofs are a later list.
+ */
 function parseBlobTx(rawHex: string): BlobSidecar | null {
   const hex = rawHex.trim();
-  if (!hex.startsWith("0x03")) return null;
+  if (!/^0x03[0-9a-fA-F]*$/.test(hex) || hex.length % 2 !== 0) return null;
   const buf = Buffer.from(hex.slice(2), "hex");
   if (buf.length === 0 || buf[0] !== 0x03) return null;
-  const outer = decodeRlp(buf, 1);
-  if (!outer.list || outer.v.length !== 4) return null;
+  let outer: Rlp;
+  try {
+    outer = decodeRlp(buf, 1);
+  } catch {
+    return null;
+  }
+  if (!outer.list || outer.o !== buf.length) return null;
   const body = outer.v[0];
-  const blobs = outer.v[1];
-  const commitments = outer.v[2];
-  if (!body?.list || !blobs?.list || !commitments?.list) return null;
+  if (!body?.list) return null;
+  const blobs = outer.v.find(
+    (item) => item.list && item.v.length === 1 && byteItem(item.v[0])?.length === BLOB_BYTES,
+  );
+  const commitments = outer.v.find(
+    (item) => item.list && item.v.length === 1 && byteItem(item.v[0])?.length === BLOB_COMMITMENT_BYTES,
+  );
   const hashItem = body.v[10];
-  if (!hashItem?.list) return null;
+  if (!blobs?.list || !commitments?.list || !hashItem?.list || hashItem.v.length !== 1) return null;
   const commitment = byteItem(commitments.v[0]);
   const blob = byteItem(blobs.v[0]);
   const versionedHash = byteItem(hashItem.v[0]);
-  if (!commitment || commitment.length !== BLOB_COMMITMENT_BYTES) return null;
-  if (!blob || blob.length !== BLOB_BYTES) return null;
-  if (!versionedHash || versionedHash.length !== 32) return null;
-  if (commitments.v.length !== 1 || blobs.v.length !== 1 || hashItem.v.length !== 1) return null;
+  if (!commitment || !blob || !versionedHash || versionedHash.length !== 32) return null;
   return { commitment, blob, versionedHash };
 }
 
