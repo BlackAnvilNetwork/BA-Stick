@@ -7,7 +7,7 @@ import { test } from "node:test";
 import { ed25519 } from "@noble/curves/ed25519.js";
 import { concatBytes, keccak256 } from "viem";
 import type { LightCertificate, ReplicaPrecommit, Sibling, WebLightPayload } from "./light-client";
-import { createMobileLightClient, mobileEntry } from "./mobile-light-client";
+import { createMobileLightClient, mobileEntry, mobileLimitedValidatorEligible } from "./mobile-light-client";
 
 const replicas = [ed25519.keygen(), ed25519.keygen(), ed25519.keygen()];
 const replicaKeys = replicas.map((key) => new Uint8Array(key.publicKey));
@@ -79,17 +79,37 @@ test("a one-of-three certificate is not stored as the committed view", () => {
   assert.equal(commitOver(world.certificate.root, [0]).signatures.length, 1);
 });
 
-test("the mobile entry is light and does not tick", () => {
+test("the default phone is not a replica and does not tick", () => {
   let ticks = 0;
   const startWorldTick = () => {
     ticks += 1;
   };
   const entry = mobileEntry(startWorldTick);
   const phone = createMobileLightClient(startWorldTick);
+  assert.equal(entry.replica, false);
+  assert.equal(entry.ticksWorld, false);
   assert.deepEqual(entry, { tier: "light", ticksWorld: false, leads: false, replica: false });
   assert.deepEqual(phone.entry, entry);
   assert.equal(ticks, 0);
   phone.accept(passingWorld());
+  assert.equal(ticks, 0);
+});
+
+test("unplugged or metered is not eligible", () => {
+  assert.equal(mobileLimitedValidatorEligible({ pluggedIn: false, unmetered: true }), false);
+  assert.equal(mobileLimitedValidatorEligible({ pluggedIn: true, unmetered: false }), false);
+  assert.equal(mobileLimitedValidatorEligible({ pluggedIn: false, unmetered: false }), false);
+});
+
+test("plugged-in and unmetered is eligible and still does not tick from mobileEntry", () => {
+  let ticks = 0;
+  const startWorldTick = () => {
+    ticks += 1;
+  };
+  const power = { pluggedIn: true, unmetered: true };
+  assert.equal(mobileLimitedValidatorEligible(power), true);
+  const entry = mobileEntry(startWorldTick);
+  assert.deepEqual(entry, { tier: "light", ticksWorld: false, leads: false, replica: false });
   assert.equal(ticks, 0);
 });
 
