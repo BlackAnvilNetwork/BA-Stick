@@ -7,8 +7,9 @@ pragma solidity ^0.8.24;
 ///         must read `hasAnchor` before treating `lastAnchoredHeight` as real:
 ///         height 0 is a valid first batch, and the unset height is also 0.
 ///         A certified checkpoint is a separate record. `postCheckpointBlob`
-///         stores the blob commitment and the keccak of the checkpoint bytes.
-///         The blob bytes are not stored here. `post` does not write that record.
+///         stores the 48-byte KZG commitment from the EIP-4844 blob and the
+///         keccak of the checkpoint bytes. The blob bytes are not stored here.
+///         `post` does not write that record and does not accept a blob.
 ///         This contract does not verify BLS, charge a fee, or enforce a
 ///         challenge delay. It is not a deploy script.
 contract RootAnchor {
@@ -36,6 +37,7 @@ contract RootAnchor {
     error NotAnchored(uint64 height);
     error EmptyCommitment();
     error BadCommitmentLength(uint256 length);
+    error BlobNotPosted();
     error CheckpointBlobMissing(bytes32 checkpointKeccak);
     error CheckpointBlobConflict(bytes32 checkpointKeccak);
 
@@ -70,13 +72,22 @@ contract RootAnchor {
         return row.certificate.length != 0 && row.nextRoot == nextRoot;
     }
 
-    /// @notice Store the blob commitment and the keccak of one certified checkpoint.
-    ///         `commitment` is 48 bytes. The checkpoint bytes are not accepted here.
-    ///         The same pair may be posted again. A different commitment for the same
-    ///         keccak is refused. This does not anchor a 20 Hz batch.
+    /// @notice EIP-4844 versioned hash: `0x01 || sha256(commitment)[1:]`.
+    function versionedBlobHash(bytes calldata commitment) public pure returns (bytes32) {
+        if (commitment.length != 48) revert BadCommitmentLength(commitment.length);
+        bytes32 digest = sha256(commitment);
+        return bytes32((uint256(digest) & ((uint256(1) << 248) - 1)) | (uint256(1) << 248));
+    }
+
+    /// @notice Store the KZG blob commitment and the keccak of one certified checkpoint.
+    ///         `commitment` is the 48-byte commitment of the blob on this transaction.
+    ///         `blobhash(0)` must be its versioned hash. The checkpoint bytes are not
+    ///         accepted here. The same pair may be posted again. A different commitment
+    ///         for the same keccak is refused. This does not anchor a 20 Hz batch.
     function postCheckpointBlob(bytes calldata commitment, bytes32 checkpointKeccak) external {
         if (commitment.length == 0) revert EmptyCommitment();
         if (commitment.length != 48) revert BadCommitmentLength(commitment.length);
+        if (blobhash(0) != versionedBlobHash(commitment)) revert BlobNotPosted();
         CheckpointBlob storage row = _checkpointBlobs[checkpointKeccak];
         if (row.commitment.length != 0) {
             if (keccak256(row.commitment) != keccak256(commitment)) {
