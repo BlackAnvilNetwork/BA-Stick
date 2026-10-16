@@ -1,17 +1,21 @@
 /**
  * Acceptance core for a Black Anvil batch envelope (rollout step 3).
  *
- * A second process calls `acceptBatch` with the parent and ruleset it already
- * holds and the root it produced by replaying `inputs`. The check passes only
- * when the parent matches, the ruleset matches, `inputsCommitment` is the
- * keccak of those input bytes, and the replay root equals `nextRoot`.
+ * A second process calls `acceptBatch` with the parent, ruleset, epoch,
+ * height, world id, and protocol version it already holds, the root it
+ * produced by replaying `inputs`, and the roll bytes for this batch. The
+ * check passes only when those match, `inputsCommitment` is the keccak of
+ * the input bytes, the claimed `epochSeed` is the fallback seed of the
+ * envelope's leader commitment and Gnosis randomness, `rollCommitment` is
+ * the keccak of the roll bytes, and the replay root equals `nextRoot`.
  *
- * Epoch and height are stored on the envelope and echoed on success. Linking
- * them to the previous batch is the caller's job. `signature` is optional
+ * A leader commitment or Gnosis randomness value that is not 32 bytes throws
+ * the length error from `fallbackEpochSeed`. `signature` is optional
  * recorded bytes; this module does not verify it.
  */
 import { timingSafeEqual } from "node:crypto";
 import { keccak256 } from "viem";
+import { fallbackEpochSeed } from "./fallback-epoch-seed";
 
 /** Keccak digest length used for commitments, roots, and the ruleset hash. */
 export const HASH_BYTES = 32;
@@ -20,7 +24,13 @@ export type BatchReject =
   | "stale_parent"
   | "wrong_ruleset"
   | "commitment_mismatch"
-  | "root_mismatch";
+  | "root_mismatch"
+  | "wrong_epoch"
+  | "wrong_height"
+  | "wrong_world"
+  | "wrong_protocol"
+  | "seed_mismatch"
+  | "roll_commitment_mismatch";
 
 /**
  * One batch a leader can hand to another process.
@@ -34,16 +44,37 @@ export type BatchEnvelope = {
   rulesetHash: Uint8Array;
   epoch: number;
   height: number;
+  /** World this batch belongs to. Compared exactly with the caller's id. */
+  worldId: string;
+  /** Protocol this batch was produced under. Compared exactly with the caller's version. */
+  protocolVersion: string;
   inputs: Uint8Array;
+  /** 32-byte leader commitment mixed into the fallback epoch seed. */
+  leaderCommitment: Uint8Array;
+  /** 32-byte Gnosis randomness mixed into the fallback epoch seed. */
+  gnosisRandomness: Uint8Array;
+  /** Claimed epoch seed. Must equal `fallbackEpochSeed(leaderCommitment, gnosisRandomness)`. */
+  epochSeed: Uint8Array;
+  /** 32-byte keccak of the roll bytes the caller passes in. */
+  rollCommitment: Uint8Array;
   /** Leader signature bytes, if the producer attached any. Not verified here. */
   signature?: Uint8Array;
+};
+
+/** Chain position and roll bytes the caller already holds. */
+export type BatchExpect = {
+  epoch: number;
+  height: number;
+  worldId: string;
+  protocolVersion: string;
+  rollBytes: Uint8Array;
 };
 
 export type AcceptBatchResult =
   | { ok: true; epoch: number; height: number }
   | { ok: false; error: BatchReject };
 
-/** Keccak-256 of an opaque input byte string, using the repo's viem keccak. */
+/** Keccak-256 of an opaque byte string, using the repo's viem keccak. */
 export function commitInputs(inputs: Uint8Array): Uint8Array {
   return new Uint8Array(keccak256(inputs, "bytes"));
 }
@@ -54,17 +85,31 @@ function sameHash(a: Uint8Array, b: Uint8Array): boolean {
 }
 
 /**
- * Accept `envelope` only when parent, ruleset, inputs commitment, and replay
- * root all agree. Epoch and height are not checked against a chain.
+ * Accept `envelope` only when world, protocol, parent, epoch, height,
+ * ruleset, inputs commitment, fallback epoch seed, roll commitment, and
+ * replay root all agree.
  */
 export function acceptBatch(
   envelope: BatchEnvelope,
   expectedParent: Uint8Array,
   expectedRuleset: Uint8Array,
   replayNextRoot: Uint8Array,
+  expected: BatchExpect,
 ): AcceptBatchResult {
+  if (envelope.worldId !== expected.worldId) {
+    return { ok: false, error: "wrong_world" };
+  }
+  if (envelope.protocolVersion !== expected.protocolVersion) {
+    return { ok: false, error: "wrong_protocol" };
+  }
   if (!sameHash(envelope.parentRoot, expectedParent)) {
     return { ok: false, error: "stale_parent" };
+  }
+  if (envelope.epoch !== expected.epoch) {
+    return { ok: false, error: "wrong_epoch" };
+  }
+  if (envelope.height !== expected.height) {
+    return { ok: false, error: "wrong_height" };
   }
   if (!sameHash(envelope.rulesetHash, expectedRuleset)) {
     return { ok: false, error: "wrong_ruleset" };
@@ -72,6 +117,13 @@ export function acceptBatch(
   const commitment = commitInputs(envelope.inputs);
   if (!sameHash(envelope.inputsCommitment, commitment)) {
     return { ok: false, error: "commitment_mismatch" };
+  }
+  const seed = fallbackEpochSeed(envelope.leaderCommitment, envelope.gnosisRandomness);
+  if (!sameHash(envelope.epochSeed, seed)) {
+    return { ok: false, error: "seed_mismatch" };
+  }
+  if (!sameHash(envelope.rollCommitment, commitInputs(expected.rollBytes))) {
+    return { ok: false, error: "roll_commitment_mismatch" };
   }
   if (!sameHash(envelope.nextRoot, replayNextRoot)) {
     return { ok: false, error: "root_mismatch" };
