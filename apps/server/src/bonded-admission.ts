@@ -19,7 +19,8 @@
  *
  * Joining does not stop the 20 Hz tick. Nothing is broadcast. Gnosis mainnet
  * and Chiado are not called. The bond is the one `notePostedSlashableBond`
- * records, so the equivocation court slashes the amount the operator posted.
+ * records. The equivocation court slashes that bond down to zero, and the
+ * replica leaves this set.
  */
 import { notePostedSlashableBond, postedSlashableBond } from "./root-anchor";
 import { PINNED_GNOSIS_LISTING_ADDRESS } from "./production-boot";
@@ -97,6 +98,17 @@ export function votingReplica(id: string): VotingReplica | null {
   const amountWei = voting.get(bondId);
   if (amountWei == null) return null;
   return { id: bondId, amountWei };
+}
+
+/**
+ * Drop a replica whose posted bond was slashed. An id that never joined stays
+ * out. This does not post a bond and does not invent an amount.
+ */
+export function removeSlashedVotingReplica(id: string): void {
+  if (typeof id !== "string") return;
+  const bondId = id.trim();
+  if (!bondId) return;
+  voting.delete(bondId);
 }
 
 function isListingKey(id: string): boolean {

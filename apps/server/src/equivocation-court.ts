@@ -3,18 +3,24 @@
  *
  * Two validly signed batches from the same signer for the same epoch and
  * height with different next roots are proof of equivocation. Anyone may
- * submit that pair. The slash is the bond already posted for that signer.
- * When no bond is posted, the recorded slash is zero and the signer is
- * still slashed.
+ * submit that pair. The slash is the bond already posted for that signer,
+ * written to zero through `notePostedSlashableBond`, so `slashable-bonds.json`
+ * records zero for that signer. A signer with no posted bond, or a posted
+ * bond of zero, is not slashed, and no amount is invented.
  *
  * An admin vote, a multisig approval, or a social vote cannot slash without
- * that pair and cannot refuse a pair that reproduces. This module does not
- * broadcast. Gnosis mainnet and Chiado are not called. Submitting a pair
- * does not stop the 20 Hz tick.
+ * that pair and cannot refuse a pair that slashes a posted bond. This module
+ * does not broadcast. Gnosis mainnet and Chiado are not called. Submitting a
+ * pair does not stop the 20 Hz tick.
+ *
+ * A signer who joined the voting set by that bond leaves the set when the
+ * bond is written to zero. The Gnosis Safe stays admin. The threshold stays
+ * a majority.
  */
 import { timingSafeEqual } from "node:crypto";
 import { HASH_BYTES, leaderSignatureValid, type BatchEnvelope } from "./batch-envelope";
-import { postedSlashableBond } from "./root-anchor";
+import { removeSlashedVotingReplica } from "./bonded-admission";
+import { notePostedSlashableBond, postedSlashableBond } from "./root-anchor";
 
 /** A vote a caller may attach. The court does not read it. */
 export type CourtBallot = {
@@ -25,10 +31,14 @@ export type CourtBallot = {
 
 export type CourtResult = { slashed: true; amountWei: bigint } | { slashed: false };
 
-const slashed = new Map<string, bigint>();
+/**
+ * Amount written to zero for a signer in this process. The slash itself is
+ * the posted bond file. A missing bond or a zero bond is never entered.
+ */
+const slashedAmount = new Map<string, bigint>();
 
 export function resetEquivocationCourtForTests(): void {
-  slashed.clear();
+  slashedAmount.clear();
 }
 
 /** Lowercase hex of the signer key. Posted bonds for that signer use this id. */
@@ -36,11 +46,13 @@ export function equivocationSignerId(signer: Uint8Array): string {
   return Buffer.from(signer).toString("hex");
 }
 
-/** Recorded slash for this signer. Absent when the signer has not been slashed. */
+/**
+ * Bond written to zero for this signer. Absent when no posted bond was slashed.
+ */
 export function signerSlash(signer: Uint8Array): CourtResult {
-  const amount = slashed.get(equivocationSignerId(signer));
-  if (amount == null) return { slashed: false };
-  return { slashed: true, amountWei: amount };
+  const amountWei = slashedAmount.get(equivocationSignerId(signer));
+  if (amountWei == null || amountWei <= 0n) return { slashed: false };
+  return { slashed: true, amountWei };
 }
 
 function bytesEqual(left: Uint8Array, right: Uint8Array): boolean {
@@ -74,8 +86,8 @@ function evidenceReproduces(left: BatchEnvelope, right: BatchEnvelope, signer: U
 
 /**
  * Anyone may submit the pair. `ballot` is ignored: a vote cannot slash, and
- * a vote cannot keep a reproducing pair from slashing.
- * The recorded amount is the bond posted for this signer, or zero.
+ * a vote cannot keep a pair that slashes a posted bond from slashing.
+ * The slash is that signer's posted bond, written down to zero.
  */
 export function submitEquivocationPair(
   left: BatchEnvelope,
@@ -86,9 +98,10 @@ export function submitEquivocationPair(
   void ballot;
   if (!evidenceReproduces(left, right, signer)) return { slashed: false };
   const id = equivocationSignerId(signer);
-  const existing = slashed.get(id);
-  if (existing != null) return { slashed: true, amountWei: existing };
   const amountWei = postedSlashableBond(id);
-  slashed.set(id, amountWei);
+  if (amountWei <= 0n) return { slashed: false };
+  notePostedSlashableBond(id, 0n);
+  removeSlashedVotingReplica(id);
+  slashedAmount.set(id, amountWei);
   return { slashed: true, amountWei };
 }
