@@ -161,6 +161,17 @@ function leaderSignatureOk(envelope: BatchEnvelope, leaderPublicKey: Uint8Array)
 }
 
 /**
+ * True when `signer` produced this envelope's BLS signature.
+ * A key that is not 48 bytes, or a signature that is not 96 bytes, is false.
+ * The listing key is an ECDSA account and is not a signer here.
+ */
+export function leaderSignatureValid(envelope: BatchEnvelope, signer: Uint8Array): boolean {
+  if (signer.length !== LEADER_KEY_BYTES) return false;
+  if (!envelope.signature || envelope.signature.length !== LEADER_SIG_BYTES) return false;
+  return leaderSignatureOk(envelope, signer);
+}
+
+/**
  * Accept `envelope` only when world, protocol, parent, epoch, height,
  * ruleset, inputs commitment, fallback epoch seed, roll commitment,
  * replay root, and the epoch leader's BLS signature all agree.
