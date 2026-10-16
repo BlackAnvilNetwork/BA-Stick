@@ -12,28 +12,29 @@
  * is ineligible. That signature is a bit, not a multiplier. A second Mark
  * does not multiply the score. Idle uptime does not pay.
  *
- * The player-facing auction fee stays 1% (`AhEscrow` `FEE_BPS = 100`). Of
- * that fee, 50 bps of the sale is credited to the guild vault and the rest
- * of the same fee to the treasury. This is not a second fee and not a new
- * token.
+ * The player-facing auction fee stays 1% (`AhEscrow` `FEE_BPS = 100`). A fill
+ * credits the same floor split the contract sends: 50 bps of the sale to the
+ * guild vault and 50 bps to the treasury (`ahGuildFeeShares`). That is the
+ * existing fee, not a second fee and not a new token. A share change waits
+ * the one-day ruleset timelock in the contract.
  *
  * A payout runs only after that epoch's certified root is anchored and the
- * one-day challenge delay (`CHALLENGE_DELAY_MS`, 86_400_000 ms) has passed,
- * and only in proportion to that epoch's scores. If every score is 0, the
- * xDAI stays in the vault. Nothing here broadcasts, and the tick does not
- * wait.
+ * one-day challenge delay (`CHALLENGE_DELAY_MS`, 86_400_000 ms) has passed.
+ * That delay is not `PvpBounty` `claimDelay`. Guilds are paid in proportion
+ * to that epoch's scores. If every score is 0, the xDAI stays in the vault.
+ * Nothing here broadcasts, and the tick does not wait.
  */
-import { AH_FEE_BPS, AH_FEE_BPS_DENOM, ahFeeSplit } from "@bellgrave/protocol";
+import { AH_FEE_BPS, AH_TREASURY_FEE_BPS, AH_VAULT_FEE_BPS, ahGuildFeeShares } from "@bellgrave/protocol";
 import { guildMarkIds, guildMembers, guilds } from "./guild-registry";
 import { ANCHOR_WAIT, CHALLENGE_DELAY_MS, CHALLENGE_WAIT, anchoredAtMs } from "./root-anchor";
 
 export { CHALLENGE_DELAY_MS };
 
 /** 50 bps of the sale. Half of the existing 1% auction fee. */
-export const GUILD_VAULT_BPS = 50;
+export const GUILD_VAULT_BPS = AH_VAULT_FEE_BPS;
 
 /** The other 50 bps of the sale. The treasury side of the same 1% fee. */
-export const TREASURY_BPS = 50;
+export const TREASURY_BPS = AH_TREASURY_FEE_BPS;
 
 export type QualifyingKind = "combat" | "gather" | "craft" | "trade";
 
@@ -141,17 +142,15 @@ function qualifyingKind(kind: string): QualifyingKind | null {
 
 /**
  * 50 bps of `priceWei` to the guild vault and 50 bps to the treasury.
- * Both come out of the existing 1% fee. A rounding wei of that fee stays
- * with the treasury. The player-facing fee is unchanged.
+ * Both come out of the existing 1% fee, floored the same way `AhEscrow`
+ * floors them. A rounding wei of that fee stays with the treasury.
+ * The player-facing fee is unchanged.
  */
 export function guildAuctionSplit(priceWei: bigint): { feeWei: bigint; vaultWei: bigint; treasuryWei: bigint } {
-  const { feeWei } = ahFeeSplit(priceWei);
   if (AH_FEE_BPS !== GUILD_VAULT_BPS + TREASURY_BPS) {
     throw new Error("Guild vault and treasury must be the existing 1% fee.");
   }
-  const splitVault = (priceWei * BigInt(GUILD_VAULT_BPS)) / BigInt(AH_FEE_BPS_DENOM);
-  const treasury = feeWei > splitVault ? feeWei - splitVault : 0n;
-  return { feeWei, vaultWei: splitVault, treasuryWei: treasury };
+  return ahGuildFeeShares(priceWei);
 }
 
 /** Credit the guild share of one sale. Does not pay a guild and does not broadcast. */
@@ -238,9 +237,10 @@ function rememberMembership(epoch: number, rows: readonly EpochMembership[]): vo
   }
 }
 
+/** Membership recorded when this epoch's batches were noted. A later join is a later epoch. */
 function membershipRows(epoch: number): EpochMembership[] {
   const slot = membershipByEpoch.get(epoch);
-  if (!slot || slot.size === 0) return liveMembership();
+  if (!slot) return [];
   const rows: EpochMembership[] = [];
   for (const [guildId, row] of slot) {
     rows.push({ guildId, markIds: [...row.markIds], characterIds: [...row.characterIds] });
@@ -385,10 +385,10 @@ export function guildScore(
     for (const batch of certified) {
       for (const event of batch.events) {
         if (!qualifyingKind(event.kind)) continue;
-        const character = event.characterId.trim();
+        const character = event.characterId.trim().toLowerCase();
         if (!character) continue;
         if (!guild.characterIds.some((member) => sameId(member, character))) continue;
-        counted.add(character.toLowerCase());
+        counted.add(character);
       }
     }
     scores.push({ guildId: guild.guildId, score: counted.size, eligible: true });
@@ -434,7 +434,9 @@ export function guildPayout(args: {
 
 /**
  * Score the epochs this process has noted and pay when the gate is open.
- * Synchronous. A refusal leaves the vault where it is.
+ * Synchronous. An epoch that is not ready yet stops the loop. Payouts already
+ * taken for earlier epochs stay paid. A zero score leaves the vault for a
+ * later epoch. A refusal does not pay the epoch that is still waiting.
  */
 export function settleGuildPayouts(nowMs: number): GuildPayoutResult {
   const epochs = new Set<number>();
@@ -452,7 +454,10 @@ export function settleGuildPayouts(nowMs: number): GuildPayoutResult {
       anchoredAtMs: epochAnchoredAt(epoch),
       nowMs,
     });
-    if (!decision.ok) return { ...decision, vaultWei: vault };
+    if (!decision.ok) {
+      vaultWei = vault;
+      return { ...decision, vaultWei: vault };
+    }
     if (decision.paid.length === 0) {
       result = { ...decision, vaultWei: vault };
       continue;
