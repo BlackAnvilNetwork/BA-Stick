@@ -32,6 +32,8 @@ import {
 } from "./batch-envelope";
 import { fallbackEpochSeed } from "./fallback-epoch-seed";
 import { startEpochRoll } from "./game-roll";
+import { judgeTickProof } from "./proof-replay";
+import type { ArrivedSp1Proof } from "./sp1-execute";
 
 const WORLD_ID = "bellgrave";
 const PROTOCOL_VERSION = "1";
@@ -78,6 +80,12 @@ export type SealTickBatchArgs = {
    * Older tests may still pass `provisionalChainLink`.
    */
   chainLink: Uint8Array;
+  /**
+   * SP1 proof already printed by the executor. Absent when none has arrived.
+   * The tick does not wait for this. A disagreement ignores the proof and
+   * this batch is invalid. A missing proof does not reject the batch.
+   */
+  arrivedProof?: ArrivedSp1Proof | null;
 };
 
 /** Chain position this process currently expects. Copies, so a caller cannot mutate it. */
@@ -153,6 +161,8 @@ export function checkSealedTick(
  */
 export function sealTickBatch(args: SealTickBatchArgs): AcceptBatchResult {
   sealedSigned = null;
+  const verdict = judgeTickProof(args.arrivedProof);
+  if (!verdict.ok) return { ok: false, error: verdict.error };
   const inputsCommitment = commitInputs(args.inputs);
   const epochSeed = fallbackEpochSeed(leaderCommitment, args.gnosisRandomness);
   const envelope: BatchEnvelope = {

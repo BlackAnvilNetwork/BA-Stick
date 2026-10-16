@@ -6,8 +6,10 @@
  * (one day). `setVerifyingKey` does not change the key a batch is checked
  * against until that delay has elapsed.
  *
- * A proof under any other key is not a batch of this world. This module does
- * not compare a proof to replay of the pinned wasm.
+ * A proof under any other key is not a batch of this world. When a batch
+ * carries a proof, that proof is checked against replay of the pinned wasm.
+ * A disagreement ignores the proof and the batch is invalid. This module
+ * still decides only whether the verifying key is the active pin.
  */
 import { LOCAL_RULESET_WASM_SHA256, LOCAL_SP1_VERIFYING_KEY, type RulesetRecord } from "./lok-vault";
 
@@ -68,7 +70,9 @@ export function setVerifyingKey(next: string, now: number = nowMs()): void {
 
 /**
  * True when the batch carries no proof, or the proof's verifying key is the
- * active pin. This does not compare the proof to wasm replay.
+ * active pin. This is only the key check. A presented key is allowed to
+ * accept a batch only after the proof result agrees with replay of the
+ * pinned wasm.
  */
 export function proofVerifyingKeyAccepted(
   presented: string | undefined,
