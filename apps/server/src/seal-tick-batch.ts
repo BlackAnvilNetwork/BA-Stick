@@ -9,10 +9,11 @@
  * The epoch seed is one seed for the whole world:
  * `fallbackEpochSeed(leaderCommitment, gnosisRandomness)`. The leader
  * commitment is fixed for the process. The seed is not derived per player,
- * per character, or per tick. Loot and combat rolls stay derivations from
- * that shared seed plus an event id. The chain commits the seed and the batch
- * root. It does not settle a roll per character. This module does not read or
- * write the roll tape.
+ * per character, or per tick. A successful seal starts the shared roll
+ * cursor from that envelope seed. The same seed on a later tick does not
+ * rewind it. Loot and combat rolls stay derivations from that shared seed
+ * plus an event id. The chain commits the seed and the batch root. It does
+ * not settle a roll per character.
  *
  * Gnosis randomness is an argument and is stored on the envelope as given.
  * This pull request does not fetch Gnosis.
@@ -30,6 +31,7 @@ import {
   type BatchEnvelope,
 } from "./batch-envelope";
 import { fallbackEpochSeed } from "./fallback-epoch-seed";
+import { startEpochRoll } from "./game-roll";
 
 const WORLD_ID = "bellgrave";
 const PROTOCOL_VERSION = "1";
@@ -134,6 +136,8 @@ export function checkSealedTick(
 /**
  * Fill epoch, height, world id, and protocol version, sign, and run `acceptBatch`.
  * Height increments only after a successful seal. The next parent is `chainLink`.
+ * A successful seal starts the shared roll cursor from this batch's epoch seed.
+ * The same seed on the next tick does not rewind that cursor.
  */
 export function sealTickBatch(args: SealTickBatchArgs): AcceptBatchResult {
   const inputsCommitment = commitInputs(args.inputs);
@@ -158,6 +162,7 @@ export function sealTickBatch(args: SealTickBatchArgs): AcceptBatchResult {
   if (result.ok) {
     storedParent = new Uint8Array(args.chainLink);
     height += 1;
+    startEpochRoll(epochSeed);
   }
   return result;
 }
