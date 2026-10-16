@@ -416,37 +416,47 @@ function eip7594Sidecar(blob: Uint8Array, commitment: Uint8Array, proof: Uint8Ar
   ]);
 }
 
-function txBody(hash: Uint8Array): Buffer {
-  const fields = Array.from({ length: 10 }, () => Buffer.from([0x00]));
+function txBody(hash: Uint8Array): Uint8Array {
+  const fields: Uint8Array[] = Array.from({ length: 10 }, () => Uint8Array.of(0x00));
   fields.push(rlpList([rlpBytes(hash)]));
-  fields.push(Buffer.from([0x01]), rlpBytes(new Uint8Array(32)), rlpBytes(new Uint8Array(32)));
+  fields.push(Uint8Array.of(0x01), rlpBytes(new Uint8Array(32)), rlpBytes(new Uint8Array(32)));
   return rlpList(fields);
 }
 
-function typedBlob(items: Buffer[]): string {
-  return `0x03${rlpList(items).toString("hex")}`;
+function typedBlob(items: Uint8Array[]): string {
+  return `0x03${Buffer.from(rlpList(items)).toString("hex")}`;
 }
 
-function rlpBytes(data: Uint8Array): Buffer {
-  if (data.length === 1 && data[0] !== undefined && data[0] <= 0x7f) return Buffer.from(data);
-  if (data.length <= 55) return Buffer.concat([Buffer.from([0x80 + data.length]), data]);
+function rlpBytes(data: Uint8Array): Uint8Array {
+  if (data.length === 1 && data[0] !== undefined && data[0] <= 0x7f) return Uint8Array.from(data);
+  if (data.length <= 55) return concatBytes([Uint8Array.of(0x80 + data.length), data]);
   const length = lengthBytes(data.length);
-  return Buffer.concat([Buffer.from([0xb7 + length.length]), length, data]);
+  return concatBytes([Uint8Array.of(0xb7 + length.length), length, data]);
 }
 
-function rlpList(items: Buffer[]): Buffer {
-  const payload = Buffer.concat(items);
-  if (payload.length <= 55) return Buffer.concat([Buffer.from([0xc0 + payload.length]), payload]);
+function rlpList(items: Uint8Array[]): Uint8Array {
+  const payload = concatBytes(items);
+  if (payload.length <= 55) return concatBytes([Uint8Array.of(0xc0 + payload.length), payload]);
   const length = lengthBytes(payload.length);
-  return Buffer.concat([Buffer.from([0xf7 + length.length]), length, payload]);
+  return concatBytes([Uint8Array.of(0xf7 + length.length), length, payload]);
 }
 
-function lengthBytes(size: number): Buffer {
+function concatBytes(parts: Uint8Array[]): Uint8Array {
+  const out = new Uint8Array(parts.reduce((sum, part) => sum + part.length, 0));
+  let offset = 0;
+  for (const part of parts) {
+    out.set(part, offset);
+    offset += part.length;
+  }
+  return out;
+}
+
+function lengthBytes(size: number): Uint8Array {
   const bytes: number[] = [];
   let rest = size;
   while (rest > 0) {
     bytes.unshift(rest % 256);
     rest = Math.floor(rest / 256);
   }
-  return Buffer.from(bytes.length > 0 ? bytes : [0]);
+  return Uint8Array.from(bytes.length > 0 ? bytes : [0]);
 }

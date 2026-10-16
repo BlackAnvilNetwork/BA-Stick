@@ -486,6 +486,7 @@ function versionedHashFromBody(body: Rlp | undefined): Uint8Array | null {
 }
 
 function singletonBytes(outer: Rlp, length: number): Uint8Array | null {
+  if (!outer.list) return null;
   for (const item of outer.v) {
     if (!item.list || item.v.length !== 1) continue;
     const bytes = byteItem(item.v[0]);
