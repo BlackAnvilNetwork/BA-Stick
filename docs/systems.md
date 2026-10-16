@@ -39,6 +39,7 @@ Start at the root [`README.md`](../README.md). This file names what each system 
 - Economy and AH: [`docs/economy-weth-eez.md`](economy-weth-eez.md), [`docs/eez-ah-research.md`](eez-ah-research.md), [`docs/eez-sync-buy.md`](eez-sync-buy.md)
 - Launch: [`docs/gnosis-launch.md`](gnosis-launch.md), [`docs/mainnet-plan.md`](mainnet-plan.md), [`docs/chiado-deploy.md`](chiado-deploy.md)
 - World and items: [`docs/world.md`](world.md), [`docs/pale-hollow-area.md`](pale-hollow-area.md), [`packages/items/README.md`](../packages/items/README.md), [`docs/items-crafting-audit.md`](items-crafting-audit.md)
+- Black Anvil network: [`docs/multi-operator.md`](multi-operator.md)
 - Names: [`docs/black-anvil-rebrand.md`](black-anvil-rebrand.md)
 
 `contracts/README.md` still calls inventory a mock stub. That is not the live model. Use `contracts/lok-log/`.
