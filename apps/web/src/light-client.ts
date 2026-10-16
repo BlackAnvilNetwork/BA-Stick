@@ -1,17 +1,21 @@
 /**
  * Web light client for one character.
  *
- * The order is fixed. First the epoch leader's BLS12-381 certificate must
- * name this batch's next root. Then the character-root proof must recompute
- * to that root. Then one state leaf must recompute to that character root.
- * A failed step is the result. Later steps are not checked.
+ * The order is fixed. First the replica commit certificate must carry enough
+ * valid precommits over the certified root. Then the character-root proof must
+ * recompute to that root. Then one state leaf must recompute to that character
+ * root. A failed step is the result. Later steps are not checked.
  *
- * The certificate is the layout in `apps/server/src/batch-envelope.ts`:
- * a 48-byte G1 public key and a 96-byte G2 signature. The signed message is
- * keccak256 of `bellgrave-batch-v1`, the commitments and roots, big-endian
- * epoch and height, then UTF-8 world id and protocol version. Verification
- * hashes that digest with `bls.hash` before `verify`, the same as
- * `leaderSignatureOk`. This file does not import the server.
+ * A commit certificate is the replica precommit bundle, not the epoch leader's
+ * batch-envelope signature. The leader signs `bellgrave-batch-v1`. Replicas
+ * sign `lok-order-vote-v1` precommits. That leader signature is not read here.
+ *
+ * The signed precommit matches `vote_bytes` in `contracts/lok-order`: the
+ * domain, vote type 2, big-endian height, big-endian round, a value tag, the
+ * 32-byte root, and the 32-byte signer address. The address is the Ed25519
+ * public key. Each replica has voting power one. The threshold is the strict
+ * majority from `majority_threshold`: `1 + floor(n / 2)`. One replica still
+ * needs one signature. Two of three are enough. One of three is not.
  *
  * The character-root leaf matches `character_root.rs`: keccak256 of the
  * 32-byte token id concatenated with the 32-byte character root. Internal
@@ -23,13 +27,13 @@
  * An empty state root is keccak256 of empty bytes. A one-entry map's root
  * is that single leaf.
  */
-import { bls12_381 } from "@noble/curves/bls12-381.js";
+import { ed25519 } from "@noble/curves/ed25519.js";
 import { concatBytes, keccak256 } from "viem";
 
-const LEADER_DOMAIN = new TextEncoder().encode("bellgrave-batch-v1");
-const LEADER_KEY_BYTES = 48;
-const LEADER_SIG_BYTES = 96;
-const bls = bls12_381.longSignatures;
+const VOTE_DOMAIN = new TextEncoder().encode("lok-order-vote-v1");
+const PRECOMMIT = 2;
+const REPLICA_KEY_BYTES = 32;
+const REPLICA_SIG_BYTES = 64;
 
 /** Sibling on the path from a leaf to a root. */
 export type Sibling = {
@@ -38,24 +42,28 @@ export type Sibling = {
   left: boolean;
 };
 
-/** Epoch leader certificate. `nextRoot` is the batch character-root tree. */
-export type LightCertificate = {
-  leaderPublicKey: Uint8Array;
-  /** 96-byte G2 signature. Absent, or any other length, fails the certificate. */
-  signature?: Uint8Array;
-  inputsCommitment: Uint8Array;
-  parentRoot: Uint8Array;
-  nextRoot: Uint8Array;
-  rulesetHash: Uint8Array;
-  epochSeed: Uint8Array;
-  rollCommitment: Uint8Array;
-  epoch: number;
-  height: number;
-  worldId: string;
-  protocolVersion: string;
+/** One replica precommit of the certified root. */
+export type ReplicaPrecommit = {
+  /** 32-byte Ed25519 public key. This is the replica address. */
+  publicKey: Uint8Array;
+  /** 64-byte Ed25519 signature over the precommit of `root`. */
+  signature: Uint8Array;
 };
 
-/** Inclusion of one `(tokenId, characterRoot)` leaf under the certified next root. */
+/**
+ * Replica commit certificate. `root` is the batch character-root tree.
+ * `threshold` must be the strict majority of `replicas`.
+ */
+export type LightCertificate = {
+  replicas: readonly Uint8Array[];
+  threshold: number;
+  height: number;
+  round: number;
+  root: Uint8Array;
+  signatures: readonly ReplicaPrecommit[];
+};
+
+/** Inclusion of one `(tokenId, characterRoot)` leaf under the certified root. */
 export type CharacterRootClaim = {
   tokenId: bigint;
   characterRoot: Uint8Array;
@@ -91,7 +99,16 @@ export type WebLightResult =
   | { ok: false; stage: WebLightStage };
 
 /**
- * Certificate, then the character root named by that certificate, then one leaf.
+ * Strict majority of a replica set, matching `majority_threshold`.
+ * A set of one needs one signature. A set of three needs two.
+ */
+export function commitThreshold(replicaCount: number): number | null {
+  if (!Number.isSafeInteger(replicaCount) || replicaCount < 1) return null;
+  return 1 + Math.floor(replicaCount / 2);
+}
+
+/**
+ * Certificate, then the character root inside that certified root, then one leaf.
  * Character and leaf fields are not read when an earlier stage fails.
  */
 export function checkWebLightClient(payload: WebLightPayload): WebLightResult {
@@ -122,19 +139,77 @@ export function lightClientFromSnapshot(snapshot: object): WebLightPayload | nul
 
 function acceptCertificate(certificate: LightCertificate): Uint8Array | null {
   if (!certificate || typeof certificate !== "object") return null;
-  const signature = certificate.signature;
-  const publicKey = certificate.leaderPublicKey;
-  if (!(signature instanceof Uint8Array) || signature.length !== LEADER_SIG_BYTES) return null;
-  if (!(publicKey instanceof Uint8Array) || publicKey.length !== LEADER_KEY_BYTES) return null;
-  const message = leaderSigningMessage(certificate);
-  if (!message) return null;
-  try {
-    const hashed = bls.hash(message);
-    if (!bls.verify(signature, hashed, publicKey)) return null;
-  } catch {
-    return null;
+  const replicas = uniqueReplicas(certificate.replicas);
+  if (!replicas) return null;
+  const need = commitThreshold(replicas.size);
+  if (need === null || certificate.threshold !== need) return null;
+  if (!Number.isSafeInteger(certificate.height) || certificate.height < 0) return null;
+  if (!Number.isSafeInteger(certificate.round) || certificate.round < 0) return null;
+  const root = hash32(certificate.root);
+  if (!root || !Array.isArray(certificate.signatures)) return null;
+
+  const counted = new Set<string>();
+  for (const entry of certificate.signatures) {
+    if (!entry || typeof entry !== "object") return null;
+    const publicKey = entry.publicKey;
+    const signature = entry.signature;
+    if (!(publicKey instanceof Uint8Array) || publicKey.length !== REPLICA_KEY_BYTES) return null;
+    if (!(signature instanceof Uint8Array) || signature.length !== REPLICA_SIG_BYTES) return null;
+    const id = bytesId(publicKey);
+    if (!replicas.has(id) || counted.has(id)) continue;
+    if (!precommitOk(publicKey, signature, certificate.height, certificate.round, root)) continue;
+    counted.add(id);
   }
-  return copyBytes(certificate.nextRoot);
+  if (counted.size < need) return null;
+  return copyBytes(root);
+}
+
+function uniqueReplicas(replicas: readonly Uint8Array[]): Map<string, Uint8Array> | null {
+  if (!Array.isArray(replicas) || replicas.length === 0) return null;
+  const keys = new Map<string, Uint8Array>();
+  for (const key of replicas) {
+    if (!(key instanceof Uint8Array) || key.length !== REPLICA_KEY_BYTES) return null;
+    const id = bytesId(key);
+    if (keys.has(id)) return null;
+    keys.set(id, key);
+  }
+  return keys;
+}
+
+function precommitOk(
+  publicKey: Uint8Array,
+  signature: Uint8Array,
+  height: number,
+  round: number,
+  root: Uint8Array,
+): boolean {
+  try {
+    return ed25519.verify(signature, precommitMessage(height, round, root, publicKey), publicKey);
+  } catch {
+    return false;
+  }
+}
+
+/** Bytes a replica signs for a precommit of `root`. Same layout as `vote_bytes`. */
+function precommitMessage(
+  height: number,
+  round: number,
+  root: Uint8Array,
+  address: Uint8Array,
+): Uint8Array {
+  const heightBytes = new Uint8Array(8);
+  const roundBytes = new Uint8Array(8);
+  new DataView(heightBytes.buffer).setBigUint64(0, BigInt(height), false);
+  new DataView(roundBytes.buffer).setBigInt64(0, BigInt(round), false);
+  return concatBytes([
+    VOTE_DOMAIN,
+    new Uint8Array([PRECOMMIT]),
+    heightBytes,
+    roundBytes,
+    new Uint8Array([1]),
+    root,
+    address,
+  ]);
 }
 
 function acceptCharacterRoot(nextRoot: Uint8Array, claim: CharacterRootClaim): Uint8Array | null {
@@ -159,55 +234,6 @@ function acceptStateLeaf(characterRoot: Uint8Array, claim: StateLeafClaim): Uint
   const got = fold(leaf, claim.siblings);
   if (!got || !sameBytes(got, characterRoot)) return null;
   return leaf;
-}
-
-/**
- * Keccak256 of the bytes the epoch leader signs.
- * Domain, then inputsCommitment, parentRoot, nextRoot, rulesetHash,
- * epochSeed, rollCommitment, big-endian epoch, big-endian height,
- * then UTF-8 worldId and protocolVersion.
- */
-function leaderSigningMessage(certificate: LightCertificate): Uint8Array | null {
-  const inputsCommitment = hash32(certificate.inputsCommitment);
-  const parentRoot = hash32(certificate.parentRoot);
-  const nextRoot = hash32(certificate.nextRoot);
-  const rulesetHash = hash32(certificate.rulesetHash);
-  const epochSeed = hash32(certificate.epochSeed);
-  const rollCommitment = hash32(certificate.rollCommitment);
-  const epoch = u64be(certificate.epoch);
-  const height = u64be(certificate.height);
-  if (
-    !inputsCommitment ||
-    !parentRoot ||
-    !nextRoot ||
-    !rulesetHash ||
-    !epochSeed ||
-    !rollCommitment ||
-    !epoch ||
-    !height ||
-    typeof certificate.worldId !== "string" ||
-    typeof certificate.protocolVersion !== "string"
-  ) {
-    return null;
-  }
-  return new Uint8Array(
-    keccak256(
-      concatBytes([
-        LEADER_DOMAIN,
-        inputsCommitment,
-        parentRoot,
-        nextRoot,
-        rulesetHash,
-        epochSeed,
-        rollCommitment,
-        epoch,
-        height,
-        new TextEncoder().encode(certificate.worldId),
-        new TextEncoder().encode(certificate.protocolVersion),
-      ]),
-      "bytes",
-    ),
-  );
 }
 
 function fold(start: Uint8Array, siblings: readonly Sibling[]): Uint8Array | null {
@@ -235,13 +261,6 @@ function hash32(bytes: Uint8Array): Uint8Array | null {
   return bytes;
 }
 
-function u64be(value: number): Uint8Array | null {
-  if (!Number.isSafeInteger(value) || value < 0) return null;
-  const out = new Uint8Array(8);
-  new DataView(out.buffer).setBigUint64(0, BigInt(value), false);
-  return out;
-}
-
 function u256(value: bigint): Uint8Array {
   const out = new Uint8Array(32);
   let rest = value;
@@ -263,21 +282,22 @@ function sameBytes(left: Uint8Array, right: Uint8Array): boolean {
   return diff === 0;
 }
 
+function bytesId(bytes: Uint8Array): string {
+  let out = "";
+  for (const byte of bytes) out += byte.toString(16).padStart(2, "0");
+  return out;
+}
+
 function unsignedPayload(): WebLightPayload {
   const missing = new Uint8Array(0);
   return {
     certificate: {
-      leaderPublicKey: missing,
-      inputsCommitment: missing,
-      parentRoot: missing,
-      nextRoot: missing,
-      rulesetHash: missing,
-      epochSeed: missing,
-      rollCommitment: missing,
-      epoch: 0,
+      replicas: [],
+      threshold: 0,
       height: 0,
-      worldId: "",
-      protocolVersion: "",
+      round: 0,
+      root: missing,
+      signatures: [],
     },
     character: { tokenId: 0n, characterRoot: missing, siblings: [] },
     leaf: { tag: 0, keyData: missing, value: missing, siblings: [] },
@@ -288,13 +308,9 @@ function decodeLightClient(wire: unknown): WebLightPayload | null {
   if (!wire || typeof wire !== "object") return null;
   const row = wire as Record<string, unknown>;
   if (isBytePayload(row)) return row as WebLightPayload;
-  const leaderPublicKey = readBytes(row.leaderPublicKey);
-  const inputsCommitment = readBytes(row.inputsCommitment);
-  const parentRoot = readBytes(row.parentRoot);
-  const nextRoot = readBytes(row.nextRoot);
-  const rulesetHash = readBytes(row.rulesetHash);
-  const epochSeed = readBytes(row.epochSeed);
-  const rollCommitment = readBytes(row.rollCommitment);
+  const replicas = readKeyList(row.replicas);
+  const signatures = readPrecommits(row.signatures);
+  const root = readBytes(row.root);
   const characterRoot = readBytes(row.characterRoot);
   const keyData = readBytes(row.keyData);
   const value = readBytes(row.value);
@@ -302,43 +318,30 @@ function decodeLightClient(wire: unknown): WebLightPayload | null {
   const characterSiblings = readSiblings(row.characterSiblings);
   const leafSiblings = readSiblings(row.leafSiblings);
   if (
-    !leaderPublicKey ||
-    !inputsCommitment ||
-    !parentRoot ||
-    !nextRoot ||
-    !rulesetHash ||
-    !epochSeed ||
-    !rollCommitment ||
+    !replicas ||
+    !signatures ||
+    !root ||
     !characterRoot ||
     !keyData ||
     !value ||
     tokenId === null ||
     !characterSiblings ||
     !leafSiblings ||
-    typeof row.epoch !== "number" ||
+    typeof row.threshold !== "number" ||
     typeof row.height !== "number" ||
-    typeof row.worldId !== "string" ||
-    typeof row.protocolVersion !== "string" ||
+    typeof row.round !== "number" ||
     typeof row.tag !== "number"
   ) {
     return null;
   }
-  const signature = row.signature == null ? undefined : (readBytes(row.signature) ?? undefined);
-  if (row.signature != null && !signature) return null;
   return {
     certificate: {
-      leaderPublicKey,
-      signature,
-      inputsCommitment,
-      parentRoot,
-      nextRoot,
-      rulesetHash,
-      epochSeed,
-      rollCommitment,
-      epoch: row.epoch,
+      replicas,
+      threshold: row.threshold,
       height: row.height,
-      worldId: row.worldId,
-      protocolVersion: row.protocolVersion,
+      round: row.round,
+      root,
+      signatures,
     },
     character: { tokenId, characterRoot, siblings: characterSiblings },
     leaf: { tag: row.tag, keyData, value, siblings: leafSiblings },
@@ -348,7 +351,32 @@ function decodeLightClient(wire: unknown): WebLightPayload | null {
 function isBytePayload(row: Record<string, unknown>): boolean {
   const certificate = row.certificate;
   if (!certificate || typeof certificate !== "object") return false;
-  return (certificate as { nextRoot?: unknown }).nextRoot instanceof Uint8Array;
+  return (certificate as { root?: unknown }).root instanceof Uint8Array;
+}
+
+function readKeyList(value: unknown): Uint8Array[] | null {
+  if (!Array.isArray(value)) return null;
+  const keys: Uint8Array[] = [];
+  for (const item of value) {
+    const key = readBytes(item);
+    if (!key) return null;
+    keys.push(key);
+  }
+  return keys;
+}
+
+function readPrecommits(value: unknown): ReplicaPrecommit[] | null {
+  if (!Array.isArray(value)) return null;
+  const signatures: ReplicaPrecommit[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== "object") return null;
+    const row = item as { publicKey?: unknown; signature?: unknown };
+    const publicKey = readBytes(row.publicKey);
+    const signature = readBytes(row.signature);
+    if (!publicKey || !signature) return null;
+    signatures.push({ publicKey, signature });
+  }
+  return signatures;
 }
 
 function readSiblings(value: unknown): Sibling[] | null {
