@@ -314,6 +314,7 @@ import { defaultLokDir, LokWorld } from "./lok-world";
 import { flushGameRoll, loadGameRoll, rollIndex, rollUnit } from "./game-roll";
 import { sealParentRoot, sealTickBatch } from "./seal-tick-batch";
 import { emptyReplicaHealth, loadTickOrderer, submitOnSimTick } from "./order-submit";
+import { snapshotFor as attachLightProof } from "./web-light-snapshot";
 import { installedGameMode, replicaMayTick, type InstalledGameMode } from "./installed-game-mode";
 import { rollPvpAutoAttack } from "./pvp-auto-rolls";
 import { cheapestBait, fishGatherRefusal } from "./fishing";
@@ -3142,6 +3143,12 @@ function snapshotFor(p: Player): SnapshotMessage {
     log: p.lastLog.slice(-12),
     party: buildPartySnapshot(p.wallet, partyLookup),
     partyInvite: buildInviteView(p.wallet, partyNameOf),
+    lightClient: attachLightProof({
+      commitCertificateHex: tickOrderer?.replicaHealth?.().commitCertificate,
+      certifiedRootHex: tickOrderer?.replicaHealth?.().certifiedRoot,
+      tokenId: lok.tokenFor(p.charId),
+      characters: lok.lightCharacters(),
+    }),
   };
 }
 
@@ -6172,6 +6179,9 @@ function onMessage(ws: WebSocket, data: string) {
 
       const characters = accountPreviews(wallet);
       const primary = characters[0];
+      const replicaAllowlist = (tickOrderer?.replicaHealth?.().peers ?? [])
+        .map((peer) => peer.address)
+        .filter((address) => /^[0-9a-fA-F]{64}$/.test(address));
       send(ws, {
         type: "auth/ok",
         wallet,
@@ -6179,6 +6189,7 @@ function onMessage(ws: WebSocket, data: string) {
         characters,
         character: primary,
         characterMint: cachedCharacterMint,
+        ...(replicaAllowlist.length > 0 ? { replicaAllowlist } : {}),
       });
     }).catch((err) => {
       // A throw after the signature check (for example a corrupt save read by

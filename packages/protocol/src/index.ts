@@ -530,9 +530,35 @@ export type LokEventView = {
   text: string;
 };
 
+/** One sibling on a character-root or state-leaf path. `hash` is 32 bytes, hex. */
+export type WebLightSibling = { hash: string; left: boolean };
+
+/**
+ * What a live snapshot carries for one character.
+ * `certificate` is the lok-order commit certificate. Replica public keys are
+ * not in this object.
+ */
+export type WebLightClientMessage = {
+  certificate: string;
+  /** Claimed next root. The certificate's next root must equal this. */
+  claimedRoot: string;
+  tokenId: string;
+  characterRoot: string;
+  characterSiblings: WebLightSibling[];
+  tag: number;
+  keyData: string;
+  value: string;
+  leafSiblings: WebLightSibling[];
+};
+
 export type SnapshotMessage = {
   type: "snapshot";
   tick: number;
+  /**
+   * Commit certificate, character-root inclusion, and one state leaf.
+   * Absent or empty certificate stays provisional.
+   */
+  lightClient?: WebLightClientMessage;
   you: {
     wallet: string;
     /** Active character slot id (multi-char roster). */
@@ -655,6 +681,11 @@ export type ServerMessage =
         devFaucet?: boolean;
         devServerMint?: boolean;
       } | null;
+      /**
+       * Allowlisted replica public keys, hex. Not part of the light-client proof.
+       * The checker uses the keys it already stored from here.
+       */
+      replicaAllowlist?: string[];
     }
   | { type: "log"; message: string }
   | {

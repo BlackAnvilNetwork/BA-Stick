@@ -13,6 +13,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { resolveNetworkName } from "@bellgrave/config";
 import type { LokListingView, LokSnapshot } from "@bellgrave/protocol";
+import { projectLightCharacters, type LightCharacter } from "./character-light-proof";
 import { characterNameKey, normalizeCharacterName } from "./character-name";
 import { acquireDataDirLock } from "./data-dir-lock";
 import { durableWrite } from "./durable-write";
@@ -323,6 +324,8 @@ export class LokWorld {
   private snapshotQueued = false;
   /** Live document for the explorer. Cleared when an event is appended. */
   private cachedDoc: string | null = null;
+  /** Proof rows for the cached document. */
+  private lightRows: { doc: string; rows: LightCharacter[] } | null = null;
   length = 0;
 
   private constructor(dataDir: string, wasmPath: string, env: NodeJS.ProcessEnv) {
@@ -1118,6 +1121,19 @@ export class LokWorld {
     this.exp.lok_document();
     this.cachedDoc = lokOut(this.exp);
     return this.cachedDoc;
+  }
+
+  /**
+   * Characters for the light-client proof. Starting job and gold-day counters
+   * come from the engine document. Balances come from the live state JSON.
+   */
+  lightCharacters(): LightCharacter[] {
+    const doc = this.logDocument();
+    if (this.lightRows?.doc === doc) return this.lightRows.rows;
+    const jobs = new Map(this.bind.chars.map((row) => [row.tokenId, row.job]));
+    const rows = projectLightCharacters(doc, this.state.characters, jobs);
+    this.lightRows = { doc, rows };
+    return rows;
   }
 
   /**
