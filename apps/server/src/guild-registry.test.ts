@@ -24,7 +24,6 @@ import { gameRollCount } from "./game-roll";
 import {
   guildForOperator,
   guildMembers,
-  guildPayout,
   guilds,
   joinGuild,
   openGuild,
@@ -37,7 +36,6 @@ import { submitOnSimTick } from "./order-submit";
 import { PINNED_GNOSIS_LISTING_ADDRESS } from "./production-boot";
 import {
   chainBoundSendGate,
-  chainBoundXdaiSend,
   epochSettledXdai,
   notePostedSlashableBond,
   postedSlashableBond,
@@ -371,24 +369,21 @@ describe("guild registry", { concurrency: false }, () => {
     try {
       await allowEpochSettlementForTests(1000n);
       assert.equal(chainBoundSendGate().ok, true);
+      assert.equal(epochSettledXdai(), 0n);
+      const bonds = postedSlashableBonds();
       assert.deepEqual(postReplicaBond("operator-a", "replica", 100n), { joined: true, amountWei: 100n });
       const opened = openGuild("operator-a", "operator-a");
       assert.equal(opened.opened, true);
       const guildId = opened.guild?.id ?? "";
       assert.deepEqual(joinGuild(guildId, "character-1"), { joined: true, feeWei: 0n });
-      const settled = epochSettledXdai();
-      const bonds = postedSlashableBonds();
-      const paid = guildPayout(guildId, 50n);
-      assert.deepEqual(paid, { paidWei: 0n });
-      assert.equal(epochSettledXdai(), settled);
+      assert.equal(epochSettledXdai(), 0n);
       assert.equal(postedSlashableBonds(), bonds);
       assert.equal(postedSlashableBond("operator-a"), 100n);
       assert.equal(postedSlashableBond("character-1"), 0n);
-      const sent = chainBoundXdaiSend("mint", 1n);
-      assert.equal(sent.ok, true);
-      assert.equal(epochSettledXdai(), settled + 1n);
-      assert.deepEqual(guildPayout(guildId, 50n), { paidWei: 0n });
-      assert.equal(epochSettledXdai(), settled + 1n);
+      const source = readFileSync(new URL("./guild-registry.ts", import.meta.url), "utf8");
+      assert.equal(source.includes("chainBoundXdaiSend"), false);
+      assert.equal(source.includes("function guildPayout"), false);
+      assert.equal(source.includes("function payout"), false);
     } finally {
       reset();
     }

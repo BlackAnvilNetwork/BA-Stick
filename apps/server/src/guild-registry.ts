@@ -165,14 +165,6 @@ export function openGuild(operatorId: string, markId: string, ballot?: GuildBall
 }
 
 /**
- * This slice does not pay a guild. The amount is ignored.
- * No xDAI is sent, and the epoch ledger is not touched.
- */
-export function guildPayout(_guildId: string, _amountWei: bigint): { paidWei: 0n } {
-  return { paidWei: 0n };
-}
-
-/**
  * Join a guild that is already open. There is no fee and no bond.
  * Joining does not check hardware or the replica flag, does not make the
  * character a bonded operator, and does not pay anyone.
