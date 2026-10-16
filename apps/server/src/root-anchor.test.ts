@@ -5,7 +5,7 @@
  * The tick helper still returns without waiting.
  */
 import assert from "node:assert/strict";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test } from "node:test";
@@ -42,6 +42,7 @@ import {
   pinEpochCharge,
   inGameWaitsForAnchor,
   noteCertifiedBatch,
+  notePostedSlashableBond,
   postCertifiedBatch,
   resetRootAnchorForTests,
   setChallengeClockForTests,
@@ -813,6 +814,67 @@ test("bounty cancel and buyAsk do not broadcast outside the epoch cap", async ()
     if (!past.ok) assert.equal(past.error, EPOCH_XDAI_CAP_REFUSAL);
     assert.equal(buyBroadcasts, 1);
     assert.equal(epochSettledXdai(), 10n);
+  } finally {
+    resetRootAnchorForTests();
+  }
+});
+
+test("boot loads posted slashable bonds without the test setter", async () => {
+  resetRootAnchorForTests();
+  const dir = mkdtempSync(join(tmpdir(), "lok-posted-bonds-"));
+  try {
+    let now = 1_700_000_000_000;
+    setChallengeClockForTests(() => now);
+    noteCertifiedBatch(batch);
+    const posted = await postCertifiedBatch(batch, {
+      env: { LOK_CHAIN_ID: "31337" },
+      poster: async () => true,
+    });
+    assert.equal(posted, true);
+    now += CHALLENGE_DELAY_MS;
+    writeFileSync(
+      join(dir, "slashable-bonds.json"),
+      JSON.stringify({ bonds: [{ id: "allowlist-host", amountWei: (10n * ONE_XDAI).toString() }] }) + "\n",
+    );
+    configureEpochLedger(dir);
+    assert.equal(postedSlashableBonds(), 10n * ONE_XDAI);
+    assert.equal(epochXdaiCapWei(), ONE_XDAI);
+    assert.equal(chainBoundXdaiSend("mint", ONE_XDAI).ok, true);
+    const over = chainBoundXdaiSend("mint", 1n);
+    assert.equal(over.ok, false);
+    if (!over.ok) assert.equal(over.error, EPOCH_XDAI_CAP_REFUSAL);
+
+    restartEpochLedger();
+    assert.equal(postedSlashableBonds(), 10n * ONE_XDAI);
+    assert.equal(epochSettledXdai(), ONE_XDAI);
+    assert.equal(chainBoundXdaiSend("mint", 1n).ok, false);
+
+    notePostedSlashableBond("allowlist-host", 20n * ONE_XDAI);
+    now += EPOCH_MS;
+    assert.equal(postedSlashableBonds(), 20n * ONE_XDAI);
+    assert.equal(epochXdaiCapWei(), 2n * ONE_XDAI);
+    assert.equal(chainBoundXdaiSend("bounty", 2n * ONE_XDAI).ok, true);
+    assert.equal(chainBoundXdaiSend("bounty", 1n).ok, false);
+
+    setPostedSlashableBonds(0n);
+    assert.equal(postedSlashableBonds(), 0n);
+    assert.equal(chainBoundXdaiSend("withdrawal", 1n).ok, false);
+
+    const empty = mkdtempSync(join(tmpdir(), "lok-no-bonds-"));
+    resetRootAnchorForTests();
+    setChallengeClockForTests(() => now);
+    noteCertifiedBatch(batch);
+    assert.equal(
+      await postCertifiedBatch(batch, { env: { LOK_CHAIN_ID: "31337" }, poster: async () => true }),
+      true,
+    );
+    now += CHALLENGE_DELAY_MS;
+    configureEpochLedger(empty);
+    assert.equal(postedSlashableBonds(), 0n);
+    const refused = chainBoundXdaiSend("escrow", 1n);
+    assert.equal(refused.ok, false);
+    if (!refused.ok) assert.equal(refused.error, EPOCH_XDAI_CAP_REFUSAL);
+    assert.equal(inGameWaitsForAnchor("tick"), false);
   } finally {
     resetRootAnchorForTests();
   }
