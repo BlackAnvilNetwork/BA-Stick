@@ -33,6 +33,11 @@ impl Gate {
         self.world.len()
     }
 
+    /// Character-root tree of the open world. Empty when no character has spawned.
+    pub fn character_root_tree_root(&self) -> [u8; 32] {
+        self.world.character_root_tree_root()
+    }
+
     pub fn document_json(&self) -> String {
         let characters: Vec<Value> = self.world.to_document().characters.into_iter().map(|character| {
             let entries: Vec<Value> = character.entries.iter().map(entry_json).collect();

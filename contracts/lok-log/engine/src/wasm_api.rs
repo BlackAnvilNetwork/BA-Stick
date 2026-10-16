@@ -91,3 +91,17 @@ pub extern "C" fn lok_document() -> i32 {
     set_out(&doc);
     0
 }
+
+/// 64 lowercase hex characters of the character-root tree, with no `0x` prefix.
+/// An unopened gate writes the empty-tree root (64 zero characters). Returns 0.
+#[no_mangle]
+pub extern "C" fn lok_character_root() -> i32 {
+    let root = unsafe {
+        match GATE.as_ref() {
+            Some(gate) => gate.character_root_tree_root(),
+            None => [0u8; 32],
+        }
+    };
+    set_out(&hex::encode(root));
+    0
+}

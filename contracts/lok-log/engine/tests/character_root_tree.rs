@@ -1,7 +1,7 @@
 //! Sibling proofs over `(tokenId, characterRoot)`.
 
 use lok_engine::{
-    character_root_leaf, keccak256, verify_character_root, CharacterRootTree, U256, World,
+    character_root_leaf, keccak256, verify_character_root, CharacterRootTree, Gate, U256, World,
 };
 
 fn word(byte: u8) -> [u8; 32] {
@@ -96,6 +96,60 @@ fn a_proof_for_the_wrong_token_fails() {
     assert!(verify_character_root(&root, &token(1), &root_a, &proof_a));
     assert!(!verify_character_root(&root, &token(2), &root_b, &proof_a));
     assert!(!verify_character_root(&root, &token(2), &root_a, &proof_a));
+}
+
+#[test]
+fn empty_world_character_root_tree_is_32_zero_bytes() {
+    let world = World::new();
+    assert_eq!(world.character_root_tree_root(), [0u8; 32]);
+    assert_eq!(world.character_root_tree_root(), CharacterRootTree::from_pairs([]).root());
+    assert_ne!(world.character_root_tree_root(), keccak256(&[]));
+    let gate = Gate::open("").unwrap();
+    assert_eq!(gate.character_root_tree_root(), [0u8; 32]);
+}
+
+#[test]
+fn one_spawned_character_tree_root_is_the_state_root_leaf_not_the_log_head() {
+    let mut world = World::new();
+    let id = token(1);
+    world.append_spawn(id, 3).unwrap();
+    let state_root = world.character_state(&id).unwrap().root();
+    let tree = world.character_root_tree_root();
+    assert_eq!(tree, CharacterRootTree::from_pairs([(id, state_root)]).root());
+    assert_ne!(tree, world.character_head(&id).unwrap());
+
+    let mut gate = Gate::open("").unwrap();
+    let spawned = gate.apply_command(r#"{"op":"spawn","tokenId":"1","startingJob":3}"#);
+    assert!(spawned.contains("\"ok\":true"));
+    assert_eq!(gate.character_root_tree_root(), tree);
+}
+
+#[test]
+fn two_characters_insertion_order_does_not_change_the_tree_root() {
+    let mut forward = World::new();
+    forward.append_spawn(token(1), 1).unwrap();
+    forward.append_spawn(token(2), 3).unwrap();
+    let mut reverse = World::new();
+    reverse.append_spawn(token(2), 3).unwrap();
+    reverse.append_spawn(token(1), 1).unwrap();
+    assert_eq!(forward.character_root_tree_root(), reverse.character_root_tree_root());
+    let pairs: Vec<_> = forward.snapshots().into_iter().map(|snap| (snap.token_id, snap.state_root)).collect();
+    assert_eq!(forward.character_root_tree_root(), CharacterRootTree::from_pairs(pairs).root());
+}
+
+#[test]
+fn gold_earn_changes_the_character_state_root_and_the_tree_root() {
+    let mut world = World::new();
+    let id = token(1);
+    world.append_spawn(id, 1).unwrap();
+    let before_state = world.character_state(&id).unwrap().root();
+    let before = world.character_root_tree_root();
+    world.append_gold_earn(id, "quest".into(), U256::from_u64(25), 1).unwrap();
+    let after_state = world.character_state(&id).unwrap().root();
+    assert_ne!(after_state, before_state);
+    let after = world.character_root_tree_root();
+    assert_ne!(after, before);
+    assert_eq!(after, CharacterRootTree::from_pairs([(id, after_state)]).root());
 }
 
 fn concat(left: [u8; 32], right: [u8; 32]) -> [u8; 64] {

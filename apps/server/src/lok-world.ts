@@ -1120,6 +1120,22 @@ export class LokWorld {
     return this.cachedDoc;
   }
 
+  /**
+   * Character-root tree root: each leaf is `(tokenId, character state root)`.
+   * The engine writes 64 lowercase hex characters. Empty world is 32 zero bytes.
+   */
+  characterRootTreeRoot(): Uint8Array {
+    const rc = this.exp.lok_character_root();
+    if (rc !== 0) throw new Error("lok character root failed");
+    const hex = lokOut(this.exp);
+    if (!/^[0-9a-f]{64}$/.test(hex)) {
+      throw new Error("lok character root is not 64 hex characters");
+    }
+    const bytes = new Uint8Array(32);
+    for (let i = 0; i < 32; i++) bytes[i] = Number.parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+    return bytes;
+  }
+
   explore(opts: {
     tokenId: string | null;
     q?: string;

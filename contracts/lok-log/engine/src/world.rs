@@ -13,6 +13,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::abi::keccak256;
 use crate::chain::{Chain, CharacterLogDocument, Entry, LoggedEntry, ReplayStop, WorldDocument};
+use crate::character_root::CharacterRootTree;
 use crate::checkpoint::{Checkpoint, Export};
 use crate::engine::{gold_err, parse_label, EngineError};
 use crate::event::{entry_hash, Input};
@@ -377,6 +378,13 @@ impl World {
                 gold: ch.state.get(&Key::Gold),
             })
             .collect()
+    }
+
+    /// Merkle root of `(token_id, state.root())` for every character.
+    /// This is the character state root, not `character_head`. An empty world is 32 zero bytes.
+    pub fn character_root_tree_root(&self) -> [u8; 32] {
+        let pairs = self.characters.iter().map(|(token_id, ch)| (*token_id, ch.state.root()));
+        CharacterRootTree::from_pairs(pairs).root()
     }
 
     pub fn to_document(&self) -> WorldDocument {

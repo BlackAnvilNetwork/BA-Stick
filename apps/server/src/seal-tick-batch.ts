@@ -62,8 +62,8 @@ export type SealTickBatchArgs = {
   gnosisRandomness: Uint8Array;
   parentRoot: Uint8Array;
   /**
-   * Chain link the caller supplies. This is not the engine world root.
-   * The character-root tree replaces this link when that API exists.
+   * 32-byte batch nextRoot. The live tick passes `World::character_root_tree_root`.
+   * Older tests may still pass `provisionalChainLink`.
    */
   chainLink: Uint8Array;
 };
@@ -96,7 +96,7 @@ export function sealParentRoot(): Uint8Array {
 
 /**
  * keccak256(parentRoot || inputsCommitment).
- * A live tick may pass this as `chainLink`.
+ * Older tests may pass this as `chainLink`. The live tick passes the character-root tree root.
  */
 export function provisionalChainLink(parentRoot: Uint8Array, inputs: Uint8Array): Uint8Array {
   return new Uint8Array(keccak256(concatBytes([parentRoot, commitInputs(inputs)]), "bytes"));

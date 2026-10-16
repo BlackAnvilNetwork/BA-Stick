@@ -8,7 +8,7 @@
 //! zero bytes, not `keccak256("")`.
 //!
 //! `prove` returns `None` when the token is absent. That absence is not a proof.
-//! This root is not the batch `nextRoot` until the sealer commits it.
+//! The live sealer commits this root as the batch `nextRoot`.
 
 use std::collections::BTreeMap;
 
