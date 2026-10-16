@@ -5,7 +5,8 @@
  * clients, phones, and the listing key stay out. The tick does not wait.
  */
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { describe, test } from "node:test";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -36,10 +37,12 @@ import { submitOnSimTick } from "./order-submit";
 import { PINNED_GNOSIS_LISTING_ADDRESS } from "./production-boot";
 import {
   chainBoundSendGate,
+  configureEpochLedger,
   epochSettledXdai,
   notePostedSlashableBond,
   postedSlashableBond,
   postedSlashableBonds,
+  recordPostedSlashableBonds,
   resetRootAnchorForTests,
 } from "./root-anchor";
 
@@ -436,6 +439,89 @@ describe("guild registry", { concurrency: false }, () => {
       if (prevPrivate === undefined) delete process.env.PRIVATE_KEY;
       else process.env.PRIVATE_KEY = prevPrivate;
       reset();
+    }
+  });
+
+  test("server boot registers one guild for an admitted bond and a character joins free", async () => {
+    reset();
+    const dir = mkdtempSync(join(tmpdir(), "lok-guild-boot-"));
+    const calls: string[] = [];
+    const prev = globalThis.fetch;
+    globalThis.fetch = (async (_input: unknown, init?: { body?: unknown }) => {
+      calls.push(typeof init?.body === "string" ? init.body : "");
+      return new Response("refused", { status: 500 });
+    }) as typeof fetch;
+    try {
+      configureEpochLedger(dir);
+      const listing = PINNED_GNOSIS_LISTING_ADDRESS;
+      recordPostedSlashableBonds({
+        LOK_POSTED_SLASHABLE_BONDS: "ghost:0, replica-a:-1, " + listing + ":10",
+      });
+      assert.equal(guilds().length, 0);
+      assert.equal(votingSet().length, 0);
+      assert.equal(postedSlashableBonds(), 0n);
+
+      recordPostedSlashableBonds({
+        LOK_POSTED_SLASHABLE_BONDS: "operator-a:11,operator-a@mark-2:22,operator-b:7",
+      });
+      assert.equal(guilds().length, 2);
+      assert.equal(guildForOperator("operator-a")?.id, "guild:operator-a");
+      assert.equal(guildForOperator("operator-a")?.markId, "operator-a");
+      assert.equal(guildForOperator("operator-a")?.bondWei, 11n);
+      assert.equal(guildForOperator("mark-2"), null);
+      assert.equal(guildForOperator("operator-b")?.id, "guild:operator-b");
+      assert.equal(postedSlashableBond("operator-a"), 11n);
+      assert.equal(postedSlashableBond("mark-2"), 22n);
+      assert.equal(postedSlashableBond("operator-b"), 7n);
+      assert.equal(postedSlashableBonds(), 40n);
+      assert.equal(votingSet().length, 3);
+      assert.equal(votingSetCommitThreshold(), 2);
+      assert.equal(epochSettledXdai(), 0n);
+      assert.equal(AH_FEE_BPS, 100);
+      assert.deepEqual(registryAdmin(), {
+        registryOwner: "gnosis-safe",
+        slashingAdmin: "gnosis-safe",
+        rulesetProposer: "gnosis-safe",
+      });
+
+      recordPostedSlashableBonds({
+        LOK_POSTED_SLASHABLE_BONDS: "operator-a:11,operator-a@mark-2:22,operator-b:7",
+      });
+      assert.equal(guilds().length, 2);
+
+      const joined = joinGuild("guild:operator-a", "character-1");
+      assert.deepEqual(joined, { joined: true, feeWei: 0n });
+      assert.equal(postedSlashableBond("character-1"), 0n);
+      assert.equal(votingReplica("character-1"), null);
+      assert.equal(guildMembers("guild:operator-a").length, 1);
+      assert.equal(guildMembers("guild:operator-a")[0]?.feeWei, 0n);
+
+      const anchor = readFileSync(new URL("./root-anchor.ts", import.meta.url), "utf8");
+      assert.match(anchor, /openGuild\(who\.operatorId, who\.markId\)/);
+      assert.equal(anchor.includes("chainBoundXdaiSend"), true);
+      const register = anchor.slice(
+        anchor.indexOf("export function recordPostedSlashableBonds"),
+        anchor.indexOf("export function setPostedSlashableBonds"),
+      );
+      assert.equal(register.includes("chainBoundXdaiSend"), false);
+      assert.equal(register.includes("fetch("), false);
+
+      const server = readFileSync(new URL("./index.ts", import.meta.url), "utf8");
+      const helper = server.slice(server.indexOf("function joinCharacterGuild"), server.indexOf("function createPlayer"));
+      assert.match(helper, /joinGuild\(guild\.id, characterId\)/);
+      assert.equal(helper.includes("LOK_REPLICA"), false);
+      assert.equal(helper.includes("postedSlashableBond"), false);
+      assert.equal((server.match(/joinCharacterGuild\(p\.charId\)/g) ?? []).length, 2);
+
+      const tick = submitOnSimTick(null, { ok: true, height: 9, nextRoot: root(0x32) });
+      assert.equal(tick.tickFailed, false);
+      assert.equal(tick.status, "provisional");
+      assert.equal(tick.blob, null);
+      assert.equal(calls.length, 0);
+    } finally {
+      globalThis.fetch = prev;
+      reset();
+      rmSync(dir, { recursive: true, force: true });
     }
   });
 });
