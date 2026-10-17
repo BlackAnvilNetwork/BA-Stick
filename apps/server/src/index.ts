@@ -3241,8 +3241,9 @@ function activateCharacter(wallet: string, charId: string, ws: WebSocket): Playe
 }
 
 /**
- * A character joins an open guild for free.
+ * A character asks to join an open guild. The request is free.
  * No bond, no replica flag, and no hardware check. There is no fee.
+ * Membership waits until that guild's bonded operator accepts.
  */
 function joinCharacterGuild(characterId: string): void {
   const guild = guilds()[0];
