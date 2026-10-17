@@ -161,27 +161,27 @@ describe("guild registry", { concurrency: false }, () => {
       assert.equal(guildJoinRequests(guildId).length, 1);
       assert.equal(guildMembers(guildId).length, 0);
 
-      assert.deepEqual(acceptGuildJoin(guildId, "character-1", "character-1"), { accepted: false, feeWei: 0n });
+      assert.deepEqual(await acceptGuildJoin(guildId, "character-1", "character-1"), { accepted: false, feeWei: 0n });
       assert.deepEqual(joinGuild(guildId, "operator-a"), { requested: true, feeWei: 0n });
-      assert.deepEqual(acceptGuildJoin(guildId, "operator-a", "operator-a"), { accepted: false, feeWei: 0n });
+      assert.deepEqual(await acceptGuildJoin(guildId, "operator-a", "operator-a"), { accepted: false, feeWei: 0n });
       assert.equal(guildJoinRequests(guildId).some((row) => row.characterId === "operator-a"), true);
       assert.equal(guildMembers(guildId).length, 0);
-      assert.deepEqual(acceptGuildJoin(guildId, "character-1", "phone"), { accepted: false, feeWei: 0n });
+      assert.deepEqual(await acceptGuildJoin(guildId, "character-1", "phone"), { accepted: false, feeWei: 0n });
       assert.equal(guildMembers(guildId).length, 0);
 
-      assert.deepEqual(acceptGuildJoin(guildId, "character-1", "operator-a"), { accepted: true, feeWei: 0n });
+      assert.deepEqual(await acceptGuildJoin(guildId, "character-1", "operator-a"), { accepted: true, feeWei: 0n });
       assert.equal(guildJoinRequests(guildId).some((row) => row.characterId === "character-1"), false);
       assert.equal(guildMembers(guildId).length, 1);
       assert.equal(guildMembers(guildId)[0]?.feeWei, 0n);
       assert.equal(guildMembers(guildId)[0]?.characterId, "character-1");
-      assert.deepEqual(acceptGuildJoin(guildId, "character-1", "operator-a"), { accepted: false, feeWei: 0n });
+      assert.deepEqual(await acceptGuildJoin(guildId, "character-1", "operator-a"), { accepted: false, feeWei: 0n });
       assert.deepEqual(joinGuild(guildId, "character-1"), { requested: false, feeWei: 0n });
       assert.equal(guildMembers(guildId).length, 1);
 
       const phone = joinGuild(guildId, "phone");
       assert.deepEqual(phone, { requested: true, feeWei: 0n });
       assert.equal(guildMembers(guildId).some((member) => member.characterId === "phone"), false);
-      assert.deepEqual(acceptGuildJoin(guildId, "phone", "operator-a"), { accepted: true, feeWei: 0n });
+      assert.deepEqual(await acceptGuildJoin(guildId, "phone", "operator-a"), { accepted: true, feeWei: 0n });
       assert.equal(postedSlashableBond("phone"), 0n);
       assert.equal(votingReplica("phone"), null);
       assert.equal(guildForOperator("phone"), null);
@@ -195,7 +195,7 @@ describe("guild registry", { concurrency: false }, () => {
     }
   });
 
-  test("a second Mark for the same operator does not open a second guild", () => {
+  test("a second Mark for the same operator does not open a second guild", async () => {
     reset();
     try {
       assert.deepEqual(postReplicaBond("operator-a", "replica", 11n), { joined: true, amountWei: 11n });
@@ -224,9 +224,9 @@ describe("guild registry", { concurrency: false }, () => {
 
       const guildId = first.guild?.id ?? "";
       assert.deepEqual(joinGuild(guildId, "character-1"), { requested: true, feeWei: 0n });
-      assert.deepEqual(acceptGuildJoin(guildId, "character-1", "mark-2"), { accepted: false, feeWei: 0n });
+      assert.deepEqual(await acceptGuildJoin(guildId, "character-1", "mark-2"), { accepted: false, feeWei: 0n });
       assert.equal(guildMembers(guildId).length, 0);
-      assert.deepEqual(acceptGuildJoin(guildId, "character-1", "operator-a"), { accepted: true, feeWei: 0n });
+      assert.deepEqual(await acceptGuildJoin(guildId, "character-1", "operator-a"), { accepted: true, feeWei: 0n });
       assert.equal(guildMembers(guildId).length, 1);
       assert.equal(guildMembers(guildId)[0]?.feeWei, 0n);
     } finally {
@@ -234,7 +234,7 @@ describe("guild registry", { concurrency: false }, () => {
     }
   });
 
-  test("a guild pays nothing", () => {
+  test("a guild pays nothing", async () => {
     reset();
     try {
       const calls: string[] = [];
@@ -252,7 +252,7 @@ describe("guild registry", { concurrency: false }, () => {
         const joined = joinGuild(opened.guild?.id ?? "", "character-1");
         assert.deepEqual(joined, { requested: true, feeWei: 0n });
         assert.equal(guildMembers(opened.guild?.id ?? "").length, 0);
-        assert.deepEqual(acceptGuildJoin(opened.guild?.id ?? "", "character-1", "operator-a"), {
+        assert.deepEqual(await acceptGuildJoin(opened.guild?.id ?? "", "character-1", "operator-a"), {
           accepted: true,
           feeWei: 0n,
         });
@@ -364,12 +364,12 @@ describe("guild registry", { concurrency: false }, () => {
       joinGuild(guildId, PINNED_GNOSIS_LISTING_ADDRESS);
       joinGuild(guildId, "validator-1");
       assert.equal(guildMembers(guildId).length, 0);
-      assert.deepEqual(acceptGuildJoin(guildId, "phone", "operator-a"), { accepted: true, feeWei: 0n });
-      assert.deepEqual(acceptGuildJoin(guildId, PINNED_GNOSIS_LISTING_ADDRESS, "operator-a"), {
+      assert.deepEqual(await acceptGuildJoin(guildId, "phone", "operator-a"), { accepted: true, feeWei: 0n });
+      assert.deepEqual(await acceptGuildJoin(guildId, PINNED_GNOSIS_LISTING_ADDRESS, "operator-a"), {
         accepted: true,
         feeWei: 0n,
       });
-      assert.deepEqual(acceptGuildJoin(guildId, "validator-1", "operator-a"), { accepted: true, feeWei: 0n });
+      assert.deepEqual(await acceptGuildJoin(guildId, "validator-1", "operator-a"), { accepted: true, feeWei: 0n });
       assert.equal(guildMembers(guildId).length, 3);
       assert.equal(votingSet().length, 1);
       assert.equal(votingReplica("phone"), null);
@@ -401,7 +401,7 @@ describe("guild registry", { concurrency: false }, () => {
         const opened = openGuild("operator-a", "operator-a");
         assert.equal(opened.opened, true);
         assert.deepEqual(joinGuild(opened.guild?.id ?? "", "character-1"), { requested: true, feeWei: 0n });
-        assert.deepEqual(acceptGuildJoin(opened.guild?.id ?? "", "character-1", "operator-a"), {
+        assert.deepEqual(await acceptGuildJoin(opened.guild?.id ?? "", "character-1", "operator-a"), {
           accepted: true,
           feeWei: 0n,
         });
@@ -433,7 +433,7 @@ describe("guild registry", { concurrency: false }, () => {
       const guildId = opened.guild?.id ?? "";
       assert.deepEqual(joinGuild(guildId, "character-1"), { requested: true, feeWei: 0n });
       assert.equal(guildMembers(guildId).length, 0);
-      assert.deepEqual(acceptGuildJoin(guildId, "character-1", "operator-a"), { accepted: true, feeWei: 0n });
+      assert.deepEqual(await acceptGuildJoin(guildId, "character-1", "operator-a"), { accepted: true, feeWei: 0n });
       assert.equal(epochSettledXdai(), 0n);
       assert.equal(postedSlashableBonds(), bonds);
       assert.equal(postedSlashableBond("operator-a"), 100n);
@@ -549,11 +549,11 @@ describe("guild registry", { concurrency: false }, () => {
       assert.equal(postedSlashableBond("character-1"), 0n);
       assert.equal(votingReplica("character-1"), null);
       assert.equal(guildMembers("guild:operator-a").length, 0);
-      assert.deepEqual(acceptGuildJoin("guild:operator-a", "character-1", "character-1"), {
+      assert.deepEqual(await acceptGuildJoin("guild:operator-a", "character-1", "character-1"), {
         accepted: false,
         feeWei: 0n,
       });
-      assert.deepEqual(acceptGuildJoin("guild:operator-a", "character-1", "operator-a"), {
+      assert.deepEqual(await acceptGuildJoin("guild:operator-a", "character-1", "operator-a"), {
         accepted: true,
         feeWei: 0n,
       });
