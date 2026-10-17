@@ -134,7 +134,7 @@ describe("mark and guild safes", { concurrency: false }, () => {
       assert.equal(source.includes(SUPPORT_ANVIL_K0), false);
       assert.equal(source.includes(ANVIL_MEMBER_KEY), false);
       const accept = readFileSync(new URL("./guild-registry.ts", import.meta.url), "utf8");
-      const body = accept.slice(accept.indexOf("export function acceptGuildJoin"), accept.indexOf("export function guildMarkSafe"));
+      const body = accept.slice(accept.indexOf("export async function acceptGuildJoin"), accept.indexOf("export function guildMarkSafe"));
       assert.equal(body.includes("fetch("), false);
       assert.equal(body.includes("chainBoundXdaiSend"), false);
     } finally {
@@ -142,7 +142,7 @@ describe("mark and guild safes", { concurrency: false }, () => {
     }
   });
 
-  test("accept predicts a Guild Wallet and refuses the Mark, the listing key, and the session key", () => {
+  test("accept predicts a Guild Wallet and refuses the Mark, the listing key, and the session key", async () => {
     reset();
     try {
       const amount = 1n;
@@ -158,7 +158,7 @@ describe("mark and guild safes", { concurrency: false }, () => {
       const mark = privateKeyToAccount(SUPPORT_ANVIL_K0).address;
 
       assert.equal(joinGuild(guildId, "character-1").requested, true);
-      assert.deepEqual(acceptGuildJoin(guildId, "character-1", "operator-a"), { accepted: true, feeWei: 0n });
+      assert.deepEqual(await acceptGuildJoin(guildId, "character-1", "operator-a"), { accepted: true, feeWei: 0n });
       assert.equal(guildWallet(guildId, "character-1"), null);
       assert.equal(guildMembers(guildId)[0]?.feeWei, 0n);
       assert.equal(postedSlashableBond("operator-a"), amount);
@@ -169,17 +169,17 @@ describe("mark and guild safes", { concurrency: false }, () => {
 
       assert.equal(joinGuild(guildId, "character-2").requested, true);
       assert.deepEqual(
-        acceptGuildJoin(guildId, "character-2", "operator-a", { memberAccount: member, mark, session: SESSION_KEY_ADDRESS }),
+        await acceptGuildJoin(guildId, "character-2", "operator-a", { memberAccount: member, mark, session: SESSION_KEY_ADDRESS }),
         { accepted: true, feeWei: 0n },
       );
       const wallet = guildWallet(guildId, "character-2");
       assert.equal(wallet?.owner, member);
       assert.equal(wallet?.threshold, 1);
-      assert.equal(wallet?.address, null);
+      assert.equal(typeof wallet?.saltNonce, "string");
       assert.notEqual(wallet?.saltNonce, saltNonceForGuildWallet(otherId, "character-2"));
 
       assert.equal(joinGuild(otherId, "character-2").requested, true);
-      assert.deepEqual(acceptGuildJoin(otherId, "character-2", "operator-b", { memberAccount: member }), {
+      assert.deepEqual(await acceptGuildJoin(otherId, "character-2", "operator-b", { memberAccount: member }), {
         accepted: true,
         feeWei: 0n,
       });
@@ -188,11 +188,11 @@ describe("mark and guild safes", { concurrency: false }, () => {
       assert.equal(other?.owner, member);
 
       assert.equal(joinGuild(guildId, mark).requested, true);
-      assert.deepEqual(acceptGuildJoin(guildId, mark, "operator-a", { mark }), { accepted: true, feeWei: 0n });
+      assert.deepEqual(await acceptGuildJoin(guildId, mark, "operator-a", { mark }), { accepted: true, feeWei: 0n });
       assert.equal(guildWallet(guildId, mark), null);
 
       assert.equal(joinGuild(guildId, PINNED_GNOSIS_LISTING_ADDRESS).requested, true);
-      assert.deepEqual(acceptGuildJoin(guildId, PINNED_GNOSIS_LISTING_ADDRESS, "operator-a"), {
+      assert.deepEqual(await acceptGuildJoin(guildId, PINNED_GNOSIS_LISTING_ADDRESS, "operator-a"), {
         accepted: true,
         feeWei: 0n,
       });
@@ -200,13 +200,13 @@ describe("mark and guild safes", { concurrency: false }, () => {
 
       assert.equal(joinGuild(guildId, SESSION_KEY_ADDRESS).requested, true);
       assert.deepEqual(
-        acceptGuildJoin(guildId, SESSION_KEY_ADDRESS, "operator-a", { session: SESSION_KEY_ADDRESS }),
+        await acceptGuildJoin(guildId, SESSION_KEY_ADDRESS, "operator-a", { session: SESSION_KEY_ADDRESS }),
         { accepted: true, feeWei: 0n },
       );
       assert.equal(guildWallet(guildId, SESSION_KEY_ADDRESS), null);
 
       assert.equal(joinGuild(guildId, "0x70997970C51812dc3A010C7d01b50e0d17dc79C8").requested, true);
-      assert.deepEqual(acceptGuildJoin(guildId, "0x70997970C51812dc3A010C7d01b50e0d17dc79C8", "operator-a"), {
+      assert.deepEqual(await acceptGuildJoin(guildId, "0x70997970C51812dc3A010C7d01b50e0d17dc79C8", "operator-a"), {
         accepted: true,
         feeWei: 0n,
       });
@@ -319,14 +319,18 @@ describe("mark and guild safes", { concurrency: false }, () => {
 
         assert.equal(joinGuild(guildId, "character-1").requested, true);
         assert.deepEqual(
-          acceptGuildJoin(guildId, "character-1", "operator-a", {
+          await acceptGuildJoin(guildId, "character-1", "operator-a", {
             memberAccount: member.address,
             mark: operator.address,
             session: SESSION_KEY_ADDRESS,
+            rpc: anvil.rpc,
+            contracts,
           }),
           { accepted: true, feeWei: 0n },
         );
-        assert.equal(guildWallet(guildId, "character-1")?.owner, member.address);
+        const acceptedWallet = guildWallet(guildId, "character-1");
+        assert.equal(acceptedWallet?.owner, member.address);
+        assert.equal(typeof acceptedWallet?.address, "string");
         const predictedWallet = await predictGuildWallet({
           rpc: anvil.rpc,
           guildId,
@@ -335,6 +339,7 @@ describe("mark and guild safes", { concurrency: false }, () => {
         });
         assert.equal(predictedWallet.ok, true);
         if (!predictedWallet.ok) return;
+        assert.equal(predictedWallet.address.toLowerCase(), acceptedWallet?.address?.toLowerCase());
         assert.notEqual(predictedWallet.address.toLowerCase(), predicted.address.toLowerCase());
         const walletGift = await funder.sendTransaction({ to: predictedWallet.address, value: gift });
         await client.waitForTransactionReceipt({ hash: walletGift });

@@ -247,17 +247,17 @@ export function joinGuild(guildId: string, characterId: string): JoinGuildResult
  * not check the member's hardware, and does not pay anyone. Only this step
  * writes `guildMembers`.
  *
- * Accepting predicts the Guild Wallet. The owner is the member's Ethereum
- * account, or the character id when that id is already an address. The Mark,
- * the listing key, and the session key are not owners. This does not deploy
- * the wallet.
+ * Accepting predicts the Guild Wallet when the anvil RPC and Safe contracts
+ * are supplied. The owner is the member's Ethereum account, or the character
+ * id when that id is already an address. The Mark, the listing key, and the
+ * session key are not owners. This does not deploy the wallet.
  */
-export function acceptGuildJoin(
+export async function acceptGuildJoin(
   guildId: string,
   characterId: string,
   operatorId: string,
   wallet?: GuildWalletAccept,
-): AcceptGuildJoinResult {
+): Promise<AcceptGuildJoinResult> {
   const refused: AcceptGuildJoinResult = { accepted: false, feeWei: 0n };
   if (typeof guildId !== "string" || typeof characterId !== "string" || typeof operatorId !== "string") return refused;
   const id = guildId.trim();
@@ -270,6 +270,18 @@ export function acceptGuildJoin(
   if (bondedWei(operator) == null) return refused;
   const open = requests.get(id);
   if (!open?.has(character)) return refused;
+  const noted = await noteAcceptedGuildWallet({
+    guildId: id,
+    characterId: character,
+    operatorId: operator,
+    memberAccount: wallet?.memberAccount,
+    mark: wallet?.mark,
+    listing: wallet?.listing,
+    session: wallet?.session,
+    rpc: wallet?.rpc,
+    contracts: wallet?.contracts,
+  });
+  if (noted === "failed") return refused;
   open.delete(character);
   if (open.size === 0) requests.delete(id);
   let roster = members.get(id);
@@ -278,15 +290,6 @@ export function acceptGuildJoin(
     members.set(id, roster);
   }
   roster.set(character, { characterId: character, feeWei: 0n });
-  noteAcceptedGuildWallet({
-    guildId: id,
-    characterId: character,
-    operatorId: operator,
-    memberAccount: wallet?.memberAccount,
-    mark: wallet?.mark,
-    listing: wallet?.listing,
-    session: wallet?.session,
-  });
   return { accepted: true, feeWei: 0n };
 }
 

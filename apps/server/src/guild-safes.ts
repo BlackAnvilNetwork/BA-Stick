@@ -75,6 +75,10 @@ export type GuildWalletAccept = {
   listing?: string | null;
   /** Session key address. Not an owner of a Guild Wallet. */
   session?: string | null;
+  /** Local anvil RPC. With `contracts`, accept predicts the Safe address before it returns. */
+  rpc?: string;
+  /** Safe singleton and factory on that anvil. */
+  contracts?: LocalSafeContracts;
 };
 
 type MarkRecord = {
@@ -405,10 +409,11 @@ export async function markComesOnline(args: {
 }
 
 /**
- * Record the Guild Wallet when a join is accepted. The address is fixed by
- * the owner and the salt. This does not deploy and does not pay anyone.
+ * Record the Guild Wallet when a join is accepted. When `rpc` and `contracts`
+ * are set, Protocol Kit predicts the address before this returns. This does
+ * not deploy and does not pay anyone.
  */
-export function noteAcceptedGuildWallet(args: {
+export async function noteAcceptedGuildWallet(args: {
   guildId: string;
   characterId: string;
   operatorId: string;
@@ -416,14 +421,16 @@ export function noteAcceptedGuildWallet(args: {
   mark?: string | null;
   listing?: string | null;
   session?: string | null;
-}): void {
-  if (typeof args.guildId !== "string" || typeof args.characterId !== "string") return;
+  rpc?: string;
+  contracts?: LocalSafeContracts;
+}): Promise<"recorded" | "skipped" | "failed"> {
+  if (typeof args.guildId !== "string" || typeof args.characterId !== "string") return "skipped";
   const guildId = args.guildId.trim();
   const characterId = args.characterId.trim();
-  if (!guildId || !characterId) return;
+  if (!guildId || !characterId) return "skipped";
   const owner = guildWalletOwner(characterId, args.memberAccount);
   const saltNonce = saltNonceForGuildWallet(guildId, characterId);
-  if (!owner || !saltNonce) return;
+  if (!owner || !saltNonce) return "skipped";
   const operatorId = typeof args.operatorId === "string" ? args.operatorId.trim() : "";
   if (
     refusedOwner(owner, [
@@ -434,19 +441,38 @@ export function noteAcceptedGuildWallet(args: {
       args.session,
     ])
   ) {
-    return;
+    return "skipped";
   }
   const key = walletKey(guildId, characterId);
-  if (wallets.has(key)) return;
+  const existing = wallets.get(key);
+  if (existing?.address) return "recorded";
+  let address: `0x${string}` | null = existing?.address ?? null;
+  if (args.rpc && args.contracts) {
+    const refused = await assertLocalAnvil(args.rpc);
+    if (refused || !contractsReady(args.contracts)) return "failed";
+    try {
+      address = await predictAddress({
+        rpc: args.rpc.trim(),
+        signer: owner,
+        owner,
+        saltNonce,
+        threshold: GUILD_WALLET_THRESHOLD,
+        contracts: args.contracts,
+      });
+    } catch {
+      return "failed";
+    }
+  }
   wallets.set(key, {
     guildId,
     characterId,
     owner,
     saltNonce,
     threshold: GUILD_WALLET_THRESHOLD,
-    address: null,
-    deployed: false,
+    address,
+    deployed: existing?.deployed ?? false,
   });
+  return "recorded";
 }
 
 /** The Guild Wallet recorded for this character in this guild. One per pair. */
