@@ -3,10 +3,10 @@
  *
  * A guild's score for an epoch is a pure function of the certified journal
  * and that epoch's guild membership. It counts distinct characters in the
- * guild who have at least one certified qualifying event. Qualifying events
+ * guild who have more than one certified qualifying event. Qualifying events
  * are a combat resolution, a gather, a craft, or a trade the journal
- * committed. Each character contributes at most one. Provisional batches
- * do not score.
+ * committed. One event does not count. Each character contributes at most
+ * one. Provisional batches do not score.
  *
  * The Mark must have signed a commit certificate in that epoch or the guild
  * is ineligible. That signature is a bit, not a multiplier. A second Mark
@@ -37,6 +37,9 @@ import { guildWallet } from "./guild-safes";
 import { ANCHOR_WAIT, CHALLENGE_DELAY_MS, CHALLENGE_WAIT, anchoredAtMs } from "./root-anchor";
 
 export { CHALLENGE_DELAY_MS };
+
+/** Certified qualifying events a character needs in one epoch before they count. */
+export const ACTIVE_EVENTS_REQUIRED = 2;
 
 /** 250 bps of the sale. Half of the 5% auction fee. */
 export const GUILD_VAULT_BPS = AH_VAULT_FEE_BPS;
@@ -414,8 +417,9 @@ function epochAnchoredAt(epoch: number): number | null {
 }
 
 /**
- * Score one epoch. Provisional batches are ignored. A character counts once.
- * No Mark signature yields an ineligible guild and a score of 0.
+ * Score one epoch. Provisional batches are ignored. A character counts once,
+ * and only after more than one qualifying event. No Mark signature yields
+ * an ineligible guild and a score of 0.
  */
 export function guildScore(
   journal: readonly JournalBatch[],
@@ -434,17 +438,21 @@ export function guildScore(
       scores.push({ guildId: guild.guildId, score: 0, eligible: false });
       continue;
     }
-    const counted = new Set<string>();
+    const eventsByCharacter = new Map<string, number>();
     for (const batch of certified) {
       for (const event of batch.events) {
         if (!qualifyingKind(event.kind)) continue;
         const character = event.characterId.trim().toLowerCase();
         if (!character) continue;
         if (!guild.characterIds.some((member) => sameId(member, character))) continue;
-        counted.add(character);
+        eventsByCharacter.set(character, (eventsByCharacter.get(character) ?? 0) + 1);
       }
     }
-    scores.push({ guildId: guild.guildId, score: counted.size, eligible: true });
+    let active = 0;
+    for (const count of eventsByCharacter.values()) {
+      if (count >= ACTIVE_EVENTS_REQUIRED) active += 1;
+    }
+    scores.push({ guildId: guild.guildId, score: active, eligible: true });
   }
   return scores;
 }

@@ -196,7 +196,10 @@ describe("guild vault payout", { concurrency: false }, () => {
         noteGuildBatch({
           epoch: 0,
           height: 4,
-          events: [{ characterId: members[0]?.characterId ?? "", kind: "combat" }],
+          events: [
+            { characterId: members[0]?.characterId ?? "", kind: "combat" },
+            { characterId: members[0]?.characterId ?? "", kind: "gather" },
+          ],
         });
         certifyGuildBatch(4, certificate(MARK));
         const anchorAt = 1_700_000_000_000;
