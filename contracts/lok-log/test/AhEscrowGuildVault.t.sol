@@ -234,4 +234,68 @@ contract AhEscrowGuildVaultTest is Test {
         uint256 vaultFloor = (uint256(price) * 250) / 10_000;
         assertEq(vaultWei, vaultFloor > fee ? fee : vaultFloor);
     }
+
+    /// A 10,000 wei sale deposits 250. The Mark receives 125. Four wallets share 125, floored.
+    function test_payout_tenThousandSale_markAndFourWallets() public {
+        _open(LISTING, 10_000);
+        vm.prank(buyer);
+        escrow.buyAsk{value: 10_000}(LISTING, BUYER_TOKEN);
+
+        GuildVault vault = GuildVault(escrow.guildVault());
+        assertEq(address(vault).balance, 250);
+        assertEq(vault.payer(), admin);
+        assertEq(vault.escrow(), address(escrow));
+
+        address mark = makeAddr("markSafe");
+        address[] memory members = new address[](4);
+        members[0] = makeAddr("wallet0");
+        members[1] = makeAddr("wallet1");
+        members[2] = makeAddr("wallet2");
+        members[3] = makeAddr("wallet3");
+        for (uint256 i; i < members.length; ++i) {
+            assertEq(members[i].code.length, 0);
+        }
+
+        address[] memory to = new address[](5);
+        uint256[] memory amounts = new uint256[](5);
+        to[0] = mark;
+        amounts[0] = 125;
+        for (uint256 i; i < members.length; ++i) {
+            to[i + 1] = members[i];
+            amounts[i + 1] = 31;
+        }
+
+        vm.prank(buyer);
+        vm.expectRevert(GuildVault.NotPayer.selector);
+        vault.schedule(to, amounts);
+
+        address[] memory tooMuchTo = new address[](1);
+        uint256[] memory tooMuch = new uint256[](1);
+        tooMuchTo[0] = mark;
+        tooMuch[0] = 251;
+        vm.prank(admin);
+        vm.expectRevert(GuildVault.ExceedsBalance.selector);
+        vault.schedule(tooMuchTo, tooMuch);
+        assertEq(address(vault).balance, 250);
+
+        vm.prank(admin);
+        vault.schedule(to, amounts);
+        vm.prank(admin);
+        vm.expectRevert(GuildVault.AlreadyScheduled.selector);
+        vault.schedule(to, amounts);
+
+        vault.pay();
+        assertEq(mark.balance, 125);
+        uint256 memberPool;
+        for (uint256 i; i < members.length; ++i) {
+            assertEq(members[i].balance, 31);
+            memberPool += members[i].balance;
+        }
+        assertEq(memberPool, 124);
+        assertEq(address(vault).balance, 1);
+        assertEq(vault.scheduledCount(), 0);
+
+        vm.expectRevert(GuildVault.NothingScheduled.selector);
+        vault.pay();
+    }
 }
