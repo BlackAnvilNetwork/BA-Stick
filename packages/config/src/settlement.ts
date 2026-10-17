@@ -1,5 +1,5 @@
 /**
- * Native settlement currency per chain. Mint fee, AH ask prices, and the 1%
+ * Native settlement currency per chain. Mint fee, AH ask prices, and the 5%
  * marketplace fee are always `msg.value` in this native unit (no WETH wrap).
  *
  * - Gnosis mainnet (100) / Chiado (10200): **xDAI** (dollar-ish)

@@ -259,13 +259,13 @@ describe("guild registry", { concurrency: false }, () => {
 
         assert.equal(postedSlashableBond("operator-a"), before);
         assert.equal(postedSlashableBonds(), total);
-        assert.equal(AH_FEE_BPS, 100);
-        assert.deepEqual(ahFeeSplit(10_000n), { feeWei: 100n, sellerNetWei: 9_900n });
+        assert.equal(AH_FEE_BPS, 500);
+        assert.deepEqual(ahFeeSplit(10_000n), { feeWei: 500n, sellerNetWei: 9_500n });
         const sol = readFileSync(
           join(dirname(fileURLToPath(import.meta.url)), "../../../contracts/lok-log/src/AhEscrow.sol"),
           "utf8",
         );
-        assert.match(sol, /uint256 public constant FEE_BPS = 100;/);
+        assert.match(sol, /uint256 public constant FEE_BPS = 500;/);
         assert.equal(
           LOCAL_RULESET_WASM_SHA256,
           "546808d6d83697e94b9a04da3f4aeba052a9e8e4d659838249bbde9d2b1ca66d",
@@ -532,7 +532,7 @@ describe("guild registry", { concurrency: false }, () => {
       assert.equal(votingSet().length, 3);
       assert.equal(votingSetCommitThreshold(), 2);
       assert.equal(epochSettledXdai(), 0n);
-      assert.equal(AH_FEE_BPS, 100);
+      assert.equal(AH_FEE_BPS, 500);
       assert.deepEqual(registryAdmin(), {
         registryOwner: "gnosis-safe",
         slashingAdmin: "gnosis-safe",

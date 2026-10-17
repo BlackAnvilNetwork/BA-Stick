@@ -27,7 +27,7 @@ contract ReenterPayout {
     }
 }
 
-/// Support review of 312fa29 — updated for ownerOf payout + 1% fee.
+/// Support review of 312fa29 — updated for ownerOf payout + 5% fee.
 contract AhEscrowSupportTest is Test {
     AhEscrow escrow;
     MockOwnerNft nft;

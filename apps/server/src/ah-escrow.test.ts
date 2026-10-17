@@ -122,7 +122,7 @@ describe("AhEscrow AskFilled mirror", () => {
         address: "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707",
         rpcUrl: "http://127.0.0.1:8545",
         chainId: 31337,
-        feeBps: 100,
+        feeBps: 500,
         currency: {
           chainId: 31337,
           symbol: "ETH",

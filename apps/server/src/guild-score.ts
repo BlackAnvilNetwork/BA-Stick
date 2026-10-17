@@ -12,9 +12,9 @@
  * is ineligible. That signature is a bit, not a multiplier. A second Mark
  * does not multiply the score. Idle uptime does not pay.
  *
- * The player-facing auction fee stays 1% (`AhEscrow` `FEE_BPS = 100`). A fill
- * credits the same floor split the contract sends: 50 bps of the sale to the
- * guild vault and 50 bps to the treasury (`ahGuildFeeShares`). That is the
+ * The player-facing auction fee is 5% (`AhEscrow` `FEE_BPS = 500`). A fill
+ * credits the same floor split the contract sends: 250 bps of the sale to the
+ * guild vault and 250 bps to the treasury (`ahGuildFeeShares`). That is the
  * existing fee, not a second fee and not a new token. A share change waits
  * the one-day ruleset timelock in the contract.
  *
@@ -30,10 +30,10 @@ import { ANCHOR_WAIT, CHALLENGE_DELAY_MS, CHALLENGE_WAIT, anchoredAtMs } from ".
 
 export { CHALLENGE_DELAY_MS };
 
-/** 50 bps of the sale. Half of the existing 1% auction fee. */
+/** 250 bps of the sale. Half of the 5% auction fee. */
 export const GUILD_VAULT_BPS = AH_VAULT_FEE_BPS;
 
-/** The other 50 bps of the sale. The treasury side of the same 1% fee. */
+/** The other 250 bps of the sale. The treasury side of the same 5% fee. */
 export const TREASURY_BPS = AH_TREASURY_FEE_BPS;
 
 export type QualifyingKind = "combat" | "gather" | "craft" | "trade";
@@ -141,14 +141,14 @@ function qualifyingKind(kind: string): QualifyingKind | null {
 }
 
 /**
- * 50 bps of `priceWei` to the guild vault and 50 bps to the treasury.
- * Both come out of the existing 1% fee, floored the same way `AhEscrow`
+ * 250 bps of `priceWei` to the guild vault and 250 bps to the treasury.
+ * Both come out of the 5% fee, floored the same way `AhEscrow`
  * floors them. A rounding wei of that fee stays with the treasury.
  * The player-facing fee is unchanged.
  */
 export function guildAuctionSplit(priceWei: bigint): { feeWei: bigint; vaultWei: bigint; treasuryWei: bigint } {
   if (AH_FEE_BPS !== GUILD_VAULT_BPS + TREASURY_BPS) {
-    throw new Error("Guild vault and treasury must be the existing 1% fee.");
+    throw new Error("Guild vault and treasury must be the existing 5% fee.");
   }
   return ahGuildFeeShares(priceWei);
 }

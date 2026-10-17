@@ -86,7 +86,7 @@ export function ProvisionerBag({ inventory, logItems, inbox, others }: Props) {
     try {
       const { feeWei, sellerNetWei } = ahFeeSplit(BigInt(minPriceWei));
       return (
-        "1% marketplace fee (" +
+        "5% marketplace fee (" +
         formatEther(feeWei) +
         " " +
         unit +
@@ -172,7 +172,7 @@ export function ProvisionerBag({ inventory, logItems, inbox, others }: Props) {
                     disabled={!cell.logAmount || !priceOk}
                     title={
                       priceOk
-                        ? "List the log stack at this minimum (1% fee on fill)."
+                        ? "List the log stack at this minimum (5% fee on fill)."
                         : "Enter a minimum " + unit + " amount greater than 0."
                     }
                     onClick={() => {
