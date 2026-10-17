@@ -3,10 +3,13 @@
  *
  * A guild's score for an epoch is a pure function of the certified journal
  * and that epoch's guild membership. It counts distinct characters in the
- * guild who have more than one certified qualifying event. Qualifying events
- * are a combat resolution, a gather, a craft, or a trade the journal
- * committed. One event does not count. Each character contributes at most
- * one. Provisional batches do not score.
+ * guild who have qualifying events in 10 different 10-second slices of that
+ * hour. Qualifying events are a combat resolution, a gather, a craft, or a
+ * trade the journal committed. One slice does not count, and actions in the
+ * same 10 seconds are one slice. Each character contributes at most one.
+ * Provisional batches do not score. The vault settles once per hour. The pot
+ * is that hour's auction fees. A quiet hour does not pay, and its fees are
+ * not paid out by a later hour.
  *
  * The Mark must have signed a commit certificate in that epoch or the guild
  * is ineligible. That signature is a bit, not a multiplier. A second Mark
@@ -21,7 +24,7 @@
  * A payout runs only after that epoch's certified root is anchored and the
  * one-day challenge delay (`CHALLENGE_DELAY_MS`, 86_400_000 ms) has passed.
  * That delay is not `PvpBounty` `claimDelay`. Guilds are paid in proportion
- * to that epoch's scores. If every score is 0, the xDAI stays in the vault.
+ * to that hour's scores. If every score is 0, that hour's xDAI stays in the vault.
  *
  * Of a guild's earned wei, the Mark Safe receives `earned / 2`. The remainder
  * is split equally across that epoch's accepted members, at the Guild Wallet
@@ -34,12 +37,21 @@ import { AH_FEE_BPS, AH_TREASURY_FEE_BPS, AH_VAULT_FEE_BPS, ahGuildFeeShares } f
 import { getAddress, isAddress } from "viem";
 import { guildMarkIds, guildMarkSafe, guildMembers, guilds } from "./guild-registry";
 import { guildWallet } from "./guild-safes";
-import { ANCHOR_WAIT, CHALLENGE_DELAY_MS, CHALLENGE_WAIT, anchoredAtMs } from "./root-anchor";
+import { ANCHOR_WAIT, CHALLENGE_DELAY_MS, CHALLENGE_WAIT, EPOCH_MS, anchoredAtMs } from "./root-anchor";
 
-export { CHALLENGE_DELAY_MS };
+export { CHALLENGE_DELAY_MS, EPOCH_MS };
 
-/** Certified qualifying events a character needs in one epoch before they count. */
-export const ACTIVE_EVENTS_REQUIRED = 2;
+/** One guild epoch. The vault settles on this clock, not the 10-second seed epoch. */
+export const GUILD_EPOCH_MS = 60 * 60 * 1000;
+
+/** Distinct 10-second slices a character needs in one guild hour before they count. */
+export const ACTIVE_SLICES_REQUIRED = 10;
+
+/** Guild hour containing `atMs`. Hours since the unix epoch. */
+export function guildHour(atMs: number): number {
+  if (!Number.isFinite(atMs)) return 0;
+  return Math.floor(atMs / GUILD_EPOCH_MS);
+}
 
 /** 250 bps of the sale. Half of the 5% auction fee. */
 export const GUILD_VAULT_BPS = AH_VAULT_FEE_BPS;
@@ -52,6 +64,8 @@ export type QualifyingKind = "combat" | "gather" | "craft" | "trade";
 export type JournalEvent = {
   characterId: string;
   kind: string;
+  /** When the action happened. The 10-second slice is `floor(atMs / EPOCH_MS)`. */
+  atMs?: number;
 };
 
 export type JournalBatch = {
@@ -115,7 +129,7 @@ type PayoutRoute = {
   members: Map<string, `0x${string}`>;
 };
 
-let vaultWei = 0n;
+const vaultByEpoch = new Map<number, bigint>();
 let treasuryWei = 0n;
 const batches: StoredBatch[] = [];
 const heightEpoch = new Map<number, number>();
@@ -127,7 +141,7 @@ const settledEpochs = new Set<number>();
 const payoutRoutes = new Map<string, PayoutRoute>();
 
 export function resetGuildScoreForTests(): void {
-  vaultWei = 0n;
+  vaultByEpoch.clear();
   treasuryWei = 0n;
   batches.length = 0;
   heightEpoch.clear();
@@ -163,7 +177,9 @@ export function setGuildPayoutRouteForTests(
 }
 
 export function guildVaultWei(): bigint {
-  return vaultWei;
+  let total = 0n;
+  for (const wei of vaultByEpoch.values()) total += wei;
+  return total;
 }
 
 export function guildTreasuryWei(): bigint {
@@ -208,10 +224,13 @@ export function guildAuctionSplit(priceWei: bigint): { feeWei: bigint; vaultWei:
   return ahGuildFeeShares(priceWei);
 }
 
-/** Credit the guild share of one sale. Does not pay a guild and does not broadcast. */
-export function creditGuildVault(priceWei: bigint): { vaultWei: bigint; treasuryWei: bigint } {
+/**
+ * Credit the guild share of one sale to that guild hour.
+ * Does not pay a guild and does not broadcast. A later hour does not receive this wei.
+ */
+export function creditGuildVault(priceWei: bigint, epoch = 0): { vaultWei: bigint; treasuryWei: bigint } {
   const split = guildAuctionSplit(priceWei);
-  vaultWei += split.vaultWei;
+  vaultByEpoch.set(epoch, (vaultByEpoch.get(epoch) ?? 0n) + split.vaultWei);
   treasuryWei += split.treasuryWei;
   return split;
 }
@@ -332,7 +351,11 @@ export function noteGuildBatch(args: { epoch: number; height: number; events: re
   rememberMembership(args.epoch, roster);
   if (args.height >= 0) rememberHeight(args.epoch, args.height);
   if (args.events.length === 0) return;
-  const events = args.events.map((event) => ({ characterId: event.characterId, kind: event.kind }));
+  const events = args.events.map((event) => ({
+    characterId: event.characterId,
+    kind: event.kind,
+    ...(typeof event.atMs === "number" && Number.isFinite(event.atMs) ? { atMs: event.atMs } : {}),
+  }));
   const existing = batches.find((batch) => batch.epoch === args.epoch && batch.height === args.height);
   if (existing) {
     if (!existing.certified) {
@@ -399,7 +422,11 @@ function journalFor(epoch: number): JournalBatch[] {
     rows.push({
       epoch: batch.epoch,
       certified: batch.certified,
-      events: batch.events.map((event) => ({ characterId: event.characterId, kind: event.kind })),
+      events: batch.events.map((event) => ({
+        characterId: event.characterId,
+        kind: event.kind,
+        ...(typeof event.atMs === "number" ? { atMs: event.atMs } : {}),
+      })),
       signers: batch.signers.slice(),
     });
   }
@@ -417,9 +444,9 @@ function epochAnchoredAt(epoch: number): number | null {
 }
 
 /**
- * Score one epoch. Provisional batches are ignored. A character counts once,
- * and only after more than one qualifying event. No Mark signature yields
- * an ineligible guild and a score of 0.
+ * Score one guild hour. Provisional batches are ignored. A character counts
+ * once, and only after qualifying actions in 10 different 10-second slices.
+ * No Mark signature yields an ineligible guild and a score of 0.
  */
 export function guildScore(
   journal: readonly JournalBatch[],
@@ -438,19 +465,22 @@ export function guildScore(
       scores.push({ guildId: guild.guildId, score: 0, eligible: false });
       continue;
     }
-    const eventsByCharacter = new Map<string, number>();
+    const slicesByCharacter = new Map<string, Set<number>>();
     for (const batch of certified) {
       for (const event of batch.events) {
         if (!qualifyingKind(event.kind)) continue;
         const character = event.characterId.trim().toLowerCase();
         if (!character) continue;
         if (!guild.characterIds.some((member) => sameId(member, character))) continue;
-        eventsByCharacter.set(character, (eventsByCharacter.get(character) ?? 0) + 1);
+        const slice = typeof event.atMs === "number" && Number.isFinite(event.atMs) ? Math.floor(event.atMs / EPOCH_MS) : 0;
+        const slices = slicesByCharacter.get(character) ?? new Set<number>();
+        slices.add(slice);
+        slicesByCharacter.set(character, slices);
       }
     }
     let active = 0;
-    for (const count of eventsByCharacter.values()) {
-      if (count >= ACTIVE_EVENTS_REQUIRED) active += 1;
+    for (const slices of slicesByCharacter.values()) {
+      if (slices.size >= ACTIVE_SLICES_REQUIRED) active += 1;
     }
     scores.push({ guildId: guild.guildId, score: active, eligible: true });
   }
@@ -550,8 +580,8 @@ function sharesFor(guildId: string, earnedWei: bigint, characterIds: readonly st
 /**
  * Score the epochs this process has noted and pay when the gate is open.
  * Synchronous. An epoch that is not ready yet stops the loop. Payouts already
- * taken for earlier epochs stay paid. A zero score leaves the vault for a
- * later epoch. A refusal does not pay the epoch that is still waiting.
+ * taken for earlier hours stay paid. A zero score leaves that hour's fees
+ * where they are. A refusal does not pay the hour that is still waiting.
  */
 export function settleGuildPayouts(nowMs: number): GuildPayoutResult {
   const epochs = new Set<number>();
@@ -559,24 +589,22 @@ export function settleGuildPayouts(nowMs: number): GuildPayoutResult {
   for (const epoch of certifiedHeight.keys()) epochs.add(epoch);
   for (const batch of batches) epochs.add(batch.epoch);
   const ordered = [...epochs].sort((a, b) => a - b);
-  let vault = vaultWei;
-  let result: GuildPayoutResult = { ok: true, vaultWei: vault, paid: [], shares: [] };
+  let result: GuildPayoutResult = { ok: true, vaultWei: guildVaultWei(), paid: [], shares: [] };
   for (const epoch of ordered) {
     if (settledEpochs.has(epoch)) continue;
     const roster = membershipRows(epoch);
     const scores = guildScore(journalFor(epoch), epoch, roster);
     const decision = guildPayout({
-      vaultWei: vault,
+      vaultWei: vaultByEpoch.get(epoch) ?? 0n,
       scores,
       anchoredAtMs: epochAnchoredAt(epoch),
       nowMs,
     });
     if (!decision.ok) {
-      vaultWei = vault;
-      return { ...decision, vaultWei: vault };
+      return { ...decision, vaultWei: guildVaultWei() };
     }
     if (decision.paid.length === 0) {
-      result = { ...decision, vaultWei: vault };
+      result = { ...decision, vaultWei: guildVaultWei() };
       continue;
     }
     const shares: GuildShare[] = [];
@@ -590,13 +618,14 @@ export function settleGuildPayouts(nowMs: number): GuildPayoutResult {
     const earned = decision.paid.reduce((sum, payment) => sum + payment.wei, 0n);
     const sent = earned - dust;
     if (sent <= 0n) {
-      vaultWei = vault;
-      return { ok: true, vaultWei: vault, paid: decision.paid, shares: [] };
+      result = { ok: true, vaultWei: guildVaultWei(), paid: decision.paid, shares: [] };
+      continue;
     }
     settledEpochs.add(epoch);
-    vault = decision.vaultWei + dust;
-    result = { ok: true, vaultWei: vault, paid: decision.paid, shares };
+    const left = decision.vaultWei + dust;
+    if (left === 0n) vaultByEpoch.delete(epoch);
+    else vaultByEpoch.set(epoch, left);
+    result = { ok: true, vaultWei: guildVaultWei(), paid: decision.paid, shares };
   }
-  vaultWei = vault;
-  return { ...result, vaultWei: vault };
+  return result;
 }

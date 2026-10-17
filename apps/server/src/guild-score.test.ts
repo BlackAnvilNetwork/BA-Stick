@@ -1,8 +1,8 @@
 /**
- * More than one certified qualifying event scores a character once. A single
- * event does not. A provisional batch scores nothing.
- * A guild with no Mark signature is ineligible. Payout waits for the anchored
- * root and the one-day delay. A zero score leaves the vault untouched.
+ * Ten distinct 10-second slices score a character once. One slice does not.
+ * A provisional batch scores nothing. A guild with no Mark signature is
+ * ineligible. Payout waits for the anchored root and the one-day delay.
+ * Each guild hour pays only the auction fees credited to that hour.
  */
 import assert from "node:assert/strict";
 import { getAddress } from "viem";
@@ -14,12 +14,15 @@ import { AH_FEE_BPS, ahFeeSplit, ahGuildFeeShares } from "@bellgrave/protocol";
 import { postReplicaBond, registryAdmin, resetBondedAdmissionForTests } from "./bonded-admission";
 import { meleeAtkBonus } from "./gear-combat";
 import {
-  ACTIVE_EVENTS_REQUIRED,
+  ACTIVE_SLICES_REQUIRED,
   certifyGuildBatch,
   CHALLENGE_DELAY_MS,
   commitCertificateSigners,
   creditGuildVault,
+  EPOCH_MS,
+  GUILD_EPOCH_MS,
   GUILD_VAULT_BPS,
+  guildHour,
   guildAuctionSplit,
   guildPayout,
   guildScore,
@@ -53,6 +56,14 @@ const MARK = "11".repeat(32);
 const OTHER = "22".repeat(32);
 const MARK_SAFE = "0x00000000000000000000000000000000000000a1";
 const MEMBER_SAFE = "0x00000000000000000000000000000000000000b1";
+
+function slices(characterId: string, count = ACTIVE_SLICES_REQUIRED): { characterId: string; kind: string; atMs: number }[] {
+  return Array.from({ length: count }, (_, index) => ({
+    characterId,
+    kind: index % 2 === 0 ? "combat" : "gather",
+    atMs: index * EPOCH_MS,
+  }));
+}
 
 function route(guildId: string, members: readonly { characterId: string; address: string }[] = [{ characterId: "c1", address: MEMBER_SAFE }]): void {
   setGuildPayoutRouteForTests(guildId, { mark: MARK_SAFE, members });
@@ -96,11 +107,22 @@ test("a certified qualifying event scores once", () => {
     ],
     (tokenId) => (tokenId === "7" ? "c1" : "outsider"),
   );
+  let slice = 0;
+  const stamped = events.map((event) => {
+    if (event.characterId !== "c1") return event;
+    const next = { ...event, atMs: slice * EPOCH_MS };
+    slice += 1;
+    return next;
+  });
+  while (slice < ACTIVE_SLICES_REQUIRED) {
+    stamped.push({ characterId: "c1", kind: "craft", atMs: slice * EPOCH_MS });
+    slice += 1;
+  }
   const journal: JournalBatch[] = [
     {
       epoch: 4,
       certified: true,
-      events,
+      events: stamped,
       signers: [MARK, OTHER],
     },
   ];
@@ -109,7 +131,11 @@ test("a certified qualifying event scores once", () => {
   assert.equal(scores[0]?.eligible, true);
   assert.equal(scores[0]?.score, 1);
   assert.equal(scores[0]?.guildId, "guild:operator-a");
-  assert.equal(ACTIVE_EVENTS_REQUIRED, 2);
+  assert.equal(ACTIVE_SLICES_REQUIRED, 10);
+  assert.equal(GUILD_EPOCH_MS, 3_600_000);
+  assert.equal(guildHour(0), 0);
+  assert.equal(guildHour(GUILD_EPOCH_MS - 1), 0);
+  assert.equal(guildHour(GUILD_EPOCH_MS), 1);
 
   const once = guildScore(
     [{ epoch: 4, certified: true, events: [{ characterId: "c1", kind: "combat" }], signers: [MARK] }],
@@ -118,6 +144,19 @@ test("a certified qualifying event scores once", () => {
   );
   assert.equal(once[0]?.eligible, true);
   assert.equal(once[0]?.score, 0);
+
+  const burst = guildScore(
+    [{ epoch: 4, certified: true, events: Array.from({ length: 10 }, () => ({ characterId: "c1", kind: "combat", atMs: 0 })), signers: [MARK] }],
+    4,
+    membership([MARK], ["c1"]),
+  );
+  assert.equal(burst[0]?.score, 0);
+  const nine = guildScore(
+    [{ epoch: 4, certified: true, events: slices("c1", 9), signers: [MARK] }],
+    4,
+    membership([MARK], ["c1"]),
+  );
+  assert.equal(nine[0]?.score, 0);
 });
 
 test("a provisional batch scores nothing", () => {
@@ -159,10 +198,7 @@ test("a provisional batch scores nothing", () => {
       {
         epoch: 4,
         certified: true,
-        events: [
-          { characterId: "c1", kind: "trade" },
-          { characterId: "c1", kind: "craft" },
-        ],
+        events: slices("c1"),
         signers: [MARK],
       },
     ],
@@ -226,10 +262,7 @@ test("a payout is refused before the anchor and the one-day delay", async () => 
     noteGuildBatch({
       epoch: 0,
       height: 4,
-      events: [
-        { characterId: "c1", kind: "combat" },
-        { characterId: "c1", kind: "gather" },
-      ],
+      events: slices("c1"),
     });
     const beforeAnchor = settleGuildPayouts(0);
     assert.equal(beforeAnchor.ok, false);
@@ -354,15 +387,12 @@ test("a later epoch pays when no earlier epoch was noted", async () => {
     assert.deepEqual(joinGuild(opened.guild?.id ?? "", "c1"), { requested: true, feeWei: 0n });
     assert.deepEqual(await acceptGuildJoin(opened.guild?.id ?? "", "c1", MARK), { accepted: true, feeWei: 0n });
     route(opened.guild?.id ?? "");
-    creditGuildVault(10_000n);
+    creditGuildVault(10_000n, 4);
 
     noteGuildBatch({
       epoch: 4,
       height: 9,
-      events: [
-        { characterId: "c1", kind: "craft" },
-        { characterId: "c1", kind: "gather" },
-      ],
+      events: slices("c1"),
     });
     certifyGuildBatch(9, certificate(MARK));
     const anchorAt = 1_700_000_000_000;
@@ -388,13 +418,7 @@ test("a second Mark signature does not add a second score", () => {
       {
         epoch: 4,
         certified: true,
-        events: [
-          { characterId: "c1", kind: "combat" },
-          { characterId: "C1", kind: "craft" },
-          { characterId: " c1 ", kind: "gather" },
-          { characterId: "c2", kind: "trade" },
-          { characterId: "c2", kind: "combat" },
-        ],
+        events: [...slices("c1"), ...slices("c2")],
         signers: [MARK, OTHER],
       },
     ],
@@ -483,13 +507,11 @@ test("an open request adds no score and an accept counts in a later epoch", asyn
     assert.deepEqual(sameEpoch.paid, []);
     assert.equal(guildVaultWei(), 250n);
 
+    creditGuildVault(10_000n, 1);
     noteGuildBatch({
       epoch: 1,
       height: 5,
-      events: [
-        { characterId: "c1", kind: "trade" },
-        { characterId: "c1", kind: "gather" },
-      ],
+      events: slices("c1"),
     });
     certifyGuildBatch(5, certificate(MARK));
     const postedLater = await postCertifiedBatch(
@@ -500,8 +522,8 @@ test("an open request adds no score and an accept counts in a later epoch", asyn
     const paid = settleGuildPayouts(anchorAt + CHALLENGE_DELAY_MS);
     assert.equal(paid.ok, true);
     assert.deepEqual(paid.paid, [{ guildId: "guild:" + MARK, wei: 250n }]);
-    assert.equal(paid.vaultWei, 0n);
-    assert.equal(guildVaultWei(), 0n);
+    assert.equal(paid.vaultWei, 250n);
+    assert.equal(guildVaultWei(), 250n);
     assert.equal(calls.length, 0);
   } finally {
     globalThis.fetch = prev;
@@ -522,10 +544,7 @@ test("a ready epoch stays paid while a later epoch is still waiting", async () =
     noteGuildBatch({
       epoch: 0,
       height: 4,
-      events: [
-        { characterId: "c1", kind: "craft" },
-        { characterId: "c1", kind: "combat" },
-      ],
+      events: slices("c1"),
     });
     certifyGuildBatch(4, certificate(MARK));
     const anchorAt = 1_700_000_000_000;
@@ -600,10 +619,7 @@ test("a 10,000 sale pays the Mark 125 and four wallets 31, and dust stays", asyn
     noteGuildBatch({
       epoch: 0,
       height: 4,
-      events: [
-        ...wallets.map((member) => ({ characterId: member.characterId, kind: "combat" })),
-        { characterId: wallets[0]?.characterId ?? "", kind: "gather" },
-      ],
+      events: slices("c1"),
     });
     certifyGuildBatch(4, certificate(MARK));
     const anchorAt = 1_700_000_000_000;
@@ -700,7 +716,9 @@ test("the live tick calls the score and the payout gate", async () => {
 
     const server = readFileSync(new URL("./index.ts", import.meta.url), "utf8");
     const tick = server.slice(server.indexOf("function tickSim()"), server.indexOf("function tickIndexInputs"));
-    assert.match(tick, /noteGuildBatch\(/);
+    assert.match(tick, /noteGuildActivity\(/);
+    assert.match(server, /epoch: guildHour\(atMs\)/);
+    assert.equal(tick.includes("sealView().epoch"), false);
     assert.match(tick, /settleGuildPayouts\(Date\.now\(\)\)/);
     assert.equal(tick.includes("await settleGuildPayouts"), false);
     assert.equal(tick.includes("payGuildVault"), false);
@@ -711,7 +729,7 @@ test("the live tick calls the score and the payout gate", async () => {
     assert.match(observe, /settleGuildPayouts\(Date\.now\(\)\)/);
 
     const escrow = readFileSync(new URL("./ah-escrow.ts", import.meta.url), "utf8");
-    assert.match(escrow, /creditGuildVault\(price\)/);
+    assert.match(escrow, /creditGuildVault\(price, guildHour\(/);
 
     const started = Date.now();
     const submitted = submitOnSimTick(null, { ok: true, height: 9, nextRoot: root(9) });

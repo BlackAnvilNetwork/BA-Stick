@@ -114,7 +114,7 @@ import {
   startPvpBountyWatcher,
 } from "./pvp-bounty-tx";
 import { guilds, joinGuild } from "./guild-registry";
-import { noteGuildBatch, qualifyingEventsFromJournalCmds, settleGuildPayouts } from "./guild-score";
+import { guildHour, noteGuildBatch, qualifyingEventsFromJournalCmds, settleGuildPayouts } from "./guild-score";
 import {
   admitEscrowFill,
   configureEpochLedger,
@@ -5552,6 +5552,16 @@ function mobSwing(mob: Mob, now: number) {
   }
 }
 
+/** File this tick's qualifying actions in the current guild hour, on the 10-second slice of `Date.now`. */
+function noteGuildActivity(height: number, events: { characterId: string; kind: string }[]): void {
+  const atMs = Date.now();
+  noteGuildBatch({
+    epoch: guildHour(atMs),
+    height,
+    events: events.map((event) => ({ characterId: event.characterId, kind: event.kind, atMs })),
+  });
+}
+
 function tickSim() {
   lok.beginTick();
   try {
@@ -5569,7 +5579,7 @@ function tickSim() {
     if (!flushed.ok) {
       for (const err of flushed.errors) console.error("[lok] tick ledger: " + err);
       if (guildEvents.length > 0) {
-        noteGuildBatch({ epoch: sealView().epoch, height: -1, events: guildEvents });
+        noteGuildActivity(-1, guildEvents);
       }
     } else {
       // endTick and flushGameRoll write their bytes and do not return them.
@@ -5595,10 +5605,10 @@ function tickSim() {
         if (!sealed.ok) {
           console.error("[seal] tick batch rejected: " + sealed.error);
           if (guildEvents.length > 0) {
-            noteGuildBatch({ epoch: sealView().epoch, height: -1, events: guildEvents });
+            noteGuildActivity(-1, guildEvents);
           }
         } else {
-          noteGuildBatch({ epoch: sealed.epoch, height: sealed.height, events: guildEvents });
+          noteGuildActivity(sealed.height, guildEvents);
           if (signedBatch) observeSignedBatch(signedBatch.batch, signedBatch.signer);
           // Do not wait for a round. A missing orderer, or fewer heard peers than
           // the majority, leaves the batch provisional and the tick returns.
@@ -5611,7 +5621,7 @@ function tickSim() {
       } catch (err) {
         console.error("[seal] tick batch failed", err);
         if (guildEvents.length > 0) {
-          noteGuildBatch({ epoch: sealView().epoch, height: -1, events: guildEvents });
+          noteGuildActivity(-1, guildEvents);
         }
       }
     }
