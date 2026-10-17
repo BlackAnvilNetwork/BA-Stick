@@ -4,6 +4,7 @@
  * root and the one-day delay. A zero score leaves the vault untouched.
  */
 import assert from "node:assert/strict";
+import { getAddress } from "viem";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import test from "node:test";
@@ -25,16 +26,22 @@ import {
   noteGuildBatch,
   qualifyingEventsFromJournalCmds,
   resetGuildScoreForTests,
+  setGuildPayoutRouteForTests,
   settleGuildPayouts,
+  splitGuildEarning,
   type JournalBatch,
 } from "./guild-score";
 import { acceptGuildJoin, guildMembers, guilds, joinGuild, openGuild, resetGuildRegistryForTests } from "./guild-registry";
 import { LOCAL_RULESET_WASM_SHA256 } from "./lok-vault";
 import { submitOnSimTick } from "./order-submit";
+import { admitGuildPayout } from "./guild-vault-pay";
+import { allowEpochSettlementForTests } from "./epoch-cap-fixture";
 import {
   ANCHOR_WAIT,
   anchoredAtMs,
   CHALLENGE_WAIT,
+  EPOCH_XDAI_CAP_REFUSAL,
+  epochSettledXdai,
   postCertifiedBatch,
   resetRootAnchorForTests,
   setChallengeClockForTests,
@@ -42,6 +49,12 @@ import {
 
 const MARK = "11".repeat(32);
 const OTHER = "22".repeat(32);
+const MARK_SAFE = "0x00000000000000000000000000000000000000a1";
+const MEMBER_SAFE = "0x00000000000000000000000000000000000000b1";
+
+function route(guildId: string, members: readonly { characterId: string; address: string }[] = [{ characterId: "c1", address: MEMBER_SAFE }]): void {
+  setGuildPayoutRouteForTests(guildId, { mark: MARK_SAFE, members });
+}
 
 function reset(): void {
   resetGuildScoreForTests();
@@ -174,6 +187,7 @@ test("a payout is refused before the anchor and the one-day delay", async () => 
     assert.deepEqual(joinGuild(guildId, "c1"), { requested: true, feeWei: 0n });
     assert.equal(guildMembers(guildId).length, 0);
     assert.deepEqual(await acceptGuildJoin(guildId, "c1", MARK), { accepted: true, feeWei: 0n });
+    route(guildId);
     const split = creditGuildVault(10_000n);
     assert.deepEqual(split, { feeWei: 500n, vaultWei: 250n, treasuryWei: 250n });
     assert.equal(guildVaultWei(), 250n);
@@ -220,6 +234,10 @@ test("a payout is refused before the anchor and the one-day delay", async () => 
     const paid = settleGuildPayouts(anchorAt + CHALLENGE_DELAY_MS);
     assert.equal(paid.ok, true);
     assert.deepEqual(paid.paid, [{ guildId: "guild:" + MARK, wei: 250n }]);
+    assert.deepEqual(paid.shares, [
+      { guildId: "guild:" + MARK, to: getAddress(MARK_SAFE), role: "mark", wei: 125n },
+      { guildId: "guild:" + MARK, to: getAddress(MEMBER_SAFE), role: "member", wei: 125n },
+    ]);
     assert.equal(paid.vaultWei, 0n);
     assert.equal(guildVaultWei(), 0n);
     assert.equal(guildTreasuryWei(), 250n);
@@ -306,6 +324,7 @@ test("a later epoch pays when no earlier epoch was noted", async () => {
     assert.equal(opened.opened, true);
     assert.deepEqual(joinGuild(opened.guild?.id ?? "", "c1"), { requested: true, feeWei: 0n });
     assert.deepEqual(await acceptGuildJoin(opened.guild?.id ?? "", "c1", MARK), { accepted: true, feeWei: 0n });
+    route(opened.guild?.id ?? "");
     creditGuildVault(10_000n);
 
     noteGuildBatch({
@@ -424,6 +443,7 @@ test("an open request adds no score and an accept counts in a later epoch", asyn
     assert.equal(guildVaultWei(), 250n);
 
     assert.deepEqual(await acceptGuildJoin(guildId, "c1", MARK), { accepted: true, feeWei: 0n });
+    route(guildId);
     assert.equal(guildMembers(guildId).length, 1);
     const sameEpoch = settleGuildPayouts(anchorAt + CHALLENGE_DELAY_MS);
     assert.equal(sameEpoch.ok, true);
@@ -461,6 +481,7 @@ test("a ready epoch stays paid while a later epoch is still waiting", async () =
     assert.equal(opened.opened, true);
     assert.deepEqual(joinGuild(opened.guild?.id ?? "", "c1"), { requested: true, feeWei: 0n });
     assert.deepEqual(await acceptGuildJoin(opened.guild?.id ?? "", "c1", MARK), { accepted: true, feeWei: 0n });
+    route(opened.guild?.id ?? "");
     creditGuildVault(10_000n);
     noteGuildBatch({
       epoch: 0,
@@ -490,6 +511,105 @@ test("a ready epoch stays paid while a later epoch is still waiting", async () =
     assert.equal(again.ok, false);
     assert.equal(again.error, ANCHOR_WAIT);
     assert.equal(guildVaultWei(), 0n);
+  } finally {
+    reset();
+  }
+});
+
+test("a 10,000 sale pays the Mark 125 and four wallets 31, and dust stays", async () => {
+  reset();
+  try {
+    const wallets = ["c1", "c2", "c3", "c4"].map((characterId, index) => ({
+      characterId,
+      address: getAddress("0x00000000000000000000000000000000000000b" + String(index + 1)),
+    }));
+    const missing = splitGuildEarning({
+      guildId: "guild:" + MARK,
+      earnedWei: 250n,
+      mark: getAddress(MARK_SAFE),
+      members: [...wallets.slice(0, 3), { characterId: "c4", address: null }],
+    });
+    assert.equal(missing.shares.filter((share) => share.role === "member").length, 3);
+    assert.equal(missing.shares.filter((share) => share.role === "member").every((share) => share.wei === 31n), true);
+    assert.equal(missing.dustWei, 32n);
+
+    const acceptedOnly = splitGuildEarning({
+      guildId: "guild:" + MARK,
+      earnedWei: 250n,
+      mark: getAddress(MARK_SAFE),
+      members: wallets,
+    });
+    assert.equal(acceptedOnly.shares[0]?.role, "mark");
+    assert.equal(acceptedOnly.shares[0]?.wei, 125n);
+    assert.equal(acceptedOnly.dustWei, 1n);
+    assert.equal(
+      acceptedOnly.shares.filter((share) => share.role === "member").reduce((sum, share) => sum + share.wei, 0n),
+      124n,
+    );
+
+    postReplicaBond(MARK, "replica", 10n);
+    const opened = openGuild(MARK, MARK);
+    const guildId = opened.guild?.id ?? "";
+    for (const member of wallets) {
+      assert.equal(joinGuild(guildId, member.characterId).requested, true);
+      assert.deepEqual(await acceptGuildJoin(guildId, member.characterId, MARK), { accepted: true, feeWei: 0n });
+    }
+    assert.equal(joinGuild(guildId, "still-requesting").requested, true);
+    assert.equal(guildMembers(guildId).some((member) => member.characterId === "still-requesting"), false);
+    route(guildId, wallets);
+    creditGuildVault(10_000n);
+    noteGuildBatch({
+      epoch: 0,
+      height: 4,
+      events: wallets.map((member) => ({ characterId: member.characterId, kind: "combat" })),
+    });
+    certifyGuildBatch(4, certificate(MARK));
+    const anchorAt = 1_700_000_000_000;
+    setChallengeClockForTests(() => anchorAt);
+    const posted = await postCertifiedBatch(
+      { height: 4, nextRoot: root(4), certificate: certificate(MARK) },
+      { env: { LOK_CHAIN_ID: "31337" }, poster: async () => true },
+    );
+    assert.equal(posted, true);
+    const paid = settleGuildPayouts(anchorAt + CHALLENGE_DELAY_MS);
+    assert.equal(paid.ok, true);
+    assert.deepEqual(paid.paid, [{ guildId, wei: 250n }]);
+    assert.equal(paid.shares[0]?.wei, 125n);
+    assert.equal(paid.shares.filter((share) => share.role === "member").length, 4);
+    assert.equal(paid.vaultWei, 1n);
+    assert.equal(guildVaultWei(), 1n);
+    assert.equal(paid.shares.some((share) => share.to === getAddress("0x00000000000000000000000000000000000000b5")), false);
+    const again = settleGuildPayouts(anchorAt + CHALLENGE_DELAY_MS);
+    assert.equal(again.vaultWei, 1n);
+    assert.deepEqual(again.shares, []);
+    assert.equal(guildVaultWei(), 1n);
+  } finally {
+    reset();
+  }
+});
+
+test("a guild payout is refused when posted bonds are zero", async () => {
+  reset();
+  try {
+    await allowEpochSettlementForTests(0n);
+    const refused = admitGuildPayout(249n);
+    assert.equal(refused.ok, false);
+    if (!refused.ok) assert.equal(refused.error, EPOCH_XDAI_CAP_REFUSAL);
+    assert.equal(epochSettledXdai(), 0n);
+    await allowEpochSettlementForTests(2_490n);
+    const admitted = admitGuildPayout(249n);
+    assert.equal(admitted.ok, true);
+    assert.equal(epochSettledXdai(), 249n);
+    const over = admitGuildPayout(1n);
+    assert.equal(over.ok, false);
+    if (!over.ok) assert.equal(over.error, EPOCH_XDAI_CAP_REFUSAL);
+    const vault = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), "../../../contracts/lok-log/src/GuildVault.sol"),
+      "utf8",
+    );
+    assert.equal(vault.includes("function withdraw"), false);
+    assert.match(vault, /function pay\(\)/);
+    assert.match(vault, /sum > address\(this\).balance/);
   } finally {
     reset();
   }
@@ -541,6 +661,7 @@ test("the live tick calls the score and the payout gate", async () => {
     assert.match(tick, /noteGuildBatch\(/);
     assert.match(tick, /settleGuildPayouts\(Date\.now\(\)\)/);
     assert.equal(tick.includes("await settleGuildPayouts"), false);
+    assert.equal(tick.includes("payGuildVault"), false);
 
     const order = readFileSync(new URL("./order-submit.ts", import.meta.url), "utf8");
     const observe = order.slice(order.indexOf("export function observeOrdererLine"), order.indexOf("function certifiedBatchFromHealth"));

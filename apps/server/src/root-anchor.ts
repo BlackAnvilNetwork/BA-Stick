@@ -17,7 +17,8 @@
  * Chain-bound xDAI settled in one epoch is at most 10% of the slashable bonds
  * posted then. The epoch is the 10-second seed epoch. Mint fees, AhEscrow
  * buyAsk value, PvpBounty executeClaim payouts, PvpBounty cancel refunds,
- * and withdrawal value share that total. Opening an ask does not settle xDAI.
+ * withdrawal value, and guild-vault payouts share that total. Opening an ask
+ * does not settle xDAI.
  * The buyAsk transfer and the cancel refund are not broadcast until this epoch
  * admits them. In-game gold does not. The denominator is the slashable bonds
  * actually posted, read from `slashable-bonds.json` at boot and before a send.
@@ -55,7 +56,7 @@ export const EPOCH_MS = 10_000;
 export const EPOCH_XDAI_CAP_REFUSAL =
   "Chain-bound xDAI in this epoch is above 10% of the slashable bonds posted.";
 
-export type ChainXdaiKind = "mint" | "escrow" | "bounty" | "withdrawal";
+export type ChainXdaiKind = "mint" | "escrow" | "bounty" | "withdrawal" | "guild";
 
 const EPOCH_LEDGER_NAME = "epoch-xdai.json";
 const POSTED_BONDS_NAME = "slashable-bonds.json";

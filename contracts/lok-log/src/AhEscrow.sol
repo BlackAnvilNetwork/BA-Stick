@@ -75,7 +75,7 @@ contract AhEscrow is Pausable, EIP712 {
     ICharacterOwnerOf public immutable characterNft;
     /// @notice Treasury. Receives `treasuryBps` of the sale. Rotating the address does not change the share.
     address payable public feeRecipient;
-    /// @notice Guild pool. Receives `vaultBps` of the sale and does not pay guilds in this slice.
+    /// @notice Guild pool. Receives `vaultBps` of the sale. Its payer schedules payouts.
     address payable public immutable guildVault;
     /// @notice Live vault share of the sale, in bps. Starts at 250. Changes only via `executeFeeShares`.
     uint256 public vaultBps;
@@ -147,7 +147,7 @@ contract AhEscrow is Pausable, EIP712 {
         if (admin == address(0) || nft_ == address(0) || feeRecipient_ == address(0)) revert BadAddress();
         characterNft = ICharacterOwnerOf(nft_);
         feeRecipient = feeRecipient_;
-        guildVault = payable(address(new GuildVault(address(this))));
+        guildVault = payable(address(new GuildVault(address(this), admin)));
         vaultBps = VAULT_BPS_START;
         treasuryBps = FEE_BPS - VAULT_BPS_START;
         _grant(DEFAULT_ADMIN_ROLE, admin);

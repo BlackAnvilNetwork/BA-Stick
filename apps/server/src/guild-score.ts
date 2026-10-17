@@ -22,10 +22,18 @@
  * one-day challenge delay (`CHALLENGE_DELAY_MS`, 86_400_000 ms) has passed.
  * That delay is not `PvpBounty` `claimDelay`. Guilds are paid in proportion
  * to that epoch's scores. If every score is 0, the xDAI stays in the vault.
+ *
+ * Of a guild's earned wei, the Mark Safe receives `earned / 2`. The remainder
+ * is split equally across that epoch's accepted members, at the Guild Wallet
+ * address predicted when they were accepted. Each share is floored. Leftover
+ * wei stays in the vault. A request that was not accepted is not paid. A
+ * member who has not deployed yet is still paid at the predicted address.
  * Nothing here broadcasts, and the tick does not wait.
  */
 import { AH_FEE_BPS, AH_TREASURY_FEE_BPS, AH_VAULT_FEE_BPS, ahGuildFeeShares } from "@bellgrave/protocol";
-import { guildMarkIds, guildMembers, guilds } from "./guild-registry";
+import { getAddress, isAddress } from "viem";
+import { guildMarkIds, guildMarkSafe, guildMembers, guilds } from "./guild-registry";
+import { guildWallet } from "./guild-safes";
 import { ANCHOR_WAIT, CHALLENGE_DELAY_MS, CHALLENGE_WAIT, anchoredAtMs } from "./root-anchor";
 
 export { CHALLENGE_DELAY_MS };
@@ -71,11 +79,21 @@ export type GuildPayment = {
   wei: bigint;
 };
 
+export type GuildShare = {
+  guildId: string;
+  to: `0x${string}`;
+  role: "mark" | "member";
+  wei: bigint;
+};
+
 export type GuildPayoutResult = {
   ok: boolean;
   error?: string;
   vaultWei: bigint;
+  /** Each scoring guild's earned wei, before the Mark and member split. */
   paid: GuildPayment[];
+  /** Mark Safe and Guild Wallet amounts. Dust is not listed. */
+  shares: GuildShare[];
 };
 
 type StoredBatch = {
@@ -89,6 +107,11 @@ type StoredBatch = {
 
 const MAX_TRACKED_HEIGHTS = 4096;
 
+type PayoutRoute = {
+  mark: `0x${string}` | null;
+  members: Map<string, `0x${string}`>;
+};
+
 let vaultWei = 0n;
 let treasuryWei = 0n;
 const batches: StoredBatch[] = [];
@@ -96,6 +119,9 @@ const heightEpoch = new Map<number, number>();
 const certifiedHeight = new Map<number, number>();
 const epochSigners = new Map<number, Set<string>>();
 const membershipByEpoch = new Map<number, Map<string, { markIds: Set<string>; characterIds: Set<string> }>>();
+const settledEpochs = new Set<number>();
+/** Test stand-in for a predicted Safe. Production boot does not call the setter. */
+const payoutRoutes = new Map<string, PayoutRoute>();
 
 export function resetGuildScoreForTests(): void {
   vaultWei = 0n;
@@ -105,6 +131,32 @@ export function resetGuildScoreForTests(): void {
   certifiedHeight.clear();
   epochSigners.clear();
   membershipByEpoch.clear();
+  settledEpochs.clear();
+  payoutRoutes.clear();
+}
+
+function asAddress(value: string | null | undefined): `0x${string}` | null {
+  if (typeof value !== "string" || !isAddress(value)) return null;
+  return getAddress(value);
+}
+
+/**
+ * Stand in for a predicted Safe when accept did not predict one.
+ * A Mark Safe or Guild Wallet address that already exists is paid instead.
+ */
+export function setGuildPayoutRouteForTests(
+  guildId: string,
+  route: { mark: string | null; members: readonly { characterId: string; address: string }[] },
+): void {
+  if (typeof guildId !== "string" || !guildId.trim()) return;
+  const members = new Map<string, `0x${string}`>();
+  for (const member of route.members) {
+    const id = member.characterId.trim().toLowerCase();
+    const address = asAddress(member.address);
+    if (!id || !address) continue;
+    members.set(id, address);
+  }
+  payoutRoutes.set(guildId.trim(), { mark: asAddress(route.mark), members });
 }
 
 export function guildVaultWei(): bigint {
@@ -410,16 +462,16 @@ export function guildPayout(args: {
 }): GuildPayoutResult {
   const held = args.vaultWei;
   if (held < 0n || args.anchoredAtMs == null || !Number.isFinite(args.anchoredAtMs)) {
-    return { ok: false, error: ANCHOR_WAIT, vaultWei: held, paid: [] };
+    return { ok: false, error: ANCHOR_WAIT, vaultWei: held, paid: [], shares: [] };
   }
   if (!Number.isFinite(args.nowMs) || args.nowMs - args.anchoredAtMs < CHALLENGE_DELAY_MS) {
-    return { ok: false, error: CHALLENGE_WAIT, vaultWei: held, paid: [] };
+    return { ok: false, error: CHALLENGE_WAIT, vaultWei: held, paid: [], shares: [] };
   }
   let total = 0;
   for (const row of args.scores) {
     if (row.score > 0) total += row.score;
   }
-  if (total === 0) return { ok: true, vaultWei: held, paid: [] };
+  if (total === 0) return { ok: true, vaultWei: held, paid: [], shares: [] };
   const totalScore = BigInt(total);
   const paid: GuildPayment[] = [];
   let spent = 0n;
@@ -430,7 +482,61 @@ export function guildPayout(args: {
     paid.push({ guildId: row.guildId, wei });
     spent += wei;
   }
-  return { ok: true, vaultWei: held - spent, paid };
+  return { ok: true, vaultWei: held - spent, paid, shares: [] };
+}
+
+/**
+ * Half of a guild's earning goes to its Mark Safe. The rest is split equally
+ * across the accepted members' predicted Guild Wallet addresses. Floors.
+ * Wei with no address, and the flooring remainder, stay out of `shares`.
+ */
+export function splitGuildEarning(args: {
+  guildId: string;
+  earnedWei: bigint;
+  mark: `0x${string}` | null;
+  members: readonly { characterId: string; address: `0x${string}` | null }[];
+}): { shares: GuildShare[]; dustWei: bigint } {
+  if (args.earnedWei <= 0n) return { shares: [], dustWei: 0n };
+  const shares: GuildShare[] = [];
+  let sent = 0n;
+  const markWei = args.earnedWei / 2n;
+  if (args.mark && markWei > 0n) {
+    shares.push({ guildId: args.guildId, to: args.mark, role: "mark", wei: markWei });
+    sent += markWei;
+  }
+  const count = BigInt(args.members.length);
+  const pool = args.earnedWei - markWei;
+  const each = count > 0n ? pool / count : 0n;
+  if (each > 0n) {
+    for (const member of args.members) {
+      if (!member.address) continue;
+      shares.push({ guildId: args.guildId, to: member.address, role: "member", wei: each });
+      sent += each;
+    }
+  }
+  return { shares, dustWei: args.earnedWei - sent };
+}
+
+function routeAddress(guildId: string, characterId: string | null, mark: boolean): `0x${string}` | null {
+  const predicted = mark ? guildMarkSafe(guildId) : characterId ? (guildWallet(guildId, characterId)?.address ?? null) : null;
+  if (predicted) return predicted;
+  const route = payoutRoutes.get(guildId);
+  if (!route) return null;
+  if (mark) return route.mark;
+  if (!characterId) return null;
+  return route.members.get(characterId.trim().toLowerCase()) ?? null;
+}
+
+function sharesFor(guildId: string, earnedWei: bigint, characterIds: readonly string[]): { shares: GuildShare[]; dustWei: bigint } {
+  return splitGuildEarning({
+    guildId,
+    earnedWei,
+    mark: routeAddress(guildId, null, true),
+    members: characterIds.map((characterId) => ({
+      characterId,
+      address: routeAddress(guildId, characterId, false),
+    })),
+  });
 }
 
 /**
@@ -446,9 +552,11 @@ export function settleGuildPayouts(nowMs: number): GuildPayoutResult {
   for (const batch of batches) epochs.add(batch.epoch);
   const ordered = [...epochs].sort((a, b) => a - b);
   let vault = vaultWei;
-  let result: GuildPayoutResult = { ok: true, vaultWei: vault, paid: [] };
+  let result: GuildPayoutResult = { ok: true, vaultWei: vault, paid: [], shares: [] };
   for (const epoch of ordered) {
-    const scores = guildScore(journalFor(epoch), epoch, membershipRows(epoch));
+    if (settledEpochs.has(epoch)) continue;
+    const roster = membershipRows(epoch);
+    const scores = guildScore(journalFor(epoch), epoch, roster);
     const decision = guildPayout({
       vaultWei: vault,
       scores,
@@ -463,8 +571,23 @@ export function settleGuildPayouts(nowMs: number): GuildPayoutResult {
       result = { ...decision, vaultWei: vault };
       continue;
     }
-    vault = decision.vaultWei;
-    result = decision;
+    const shares: GuildShare[] = [];
+    let dust = 0n;
+    for (const payment of decision.paid) {
+      const row = roster.find((guild) => guild.guildId === payment.guildId);
+      const split = sharesFor(payment.guildId, payment.wei, row?.characterIds ?? []);
+      shares.push(...split.shares);
+      dust += split.dustWei;
+    }
+    const earned = decision.paid.reduce((sum, payment) => sum + payment.wei, 0n);
+    const sent = earned - dust;
+    if (sent <= 0n) {
+      vaultWei = vault;
+      return { ok: true, vaultWei: vault, paid: decision.paid, shares: [] };
+    }
+    settledEpochs.add(epoch);
+    vault = decision.vaultWei + dust;
+    result = { ok: true, vaultWei: vault, paid: decision.paid, shares };
   }
   vaultWei = vault;
   return { ...result, vaultWei: vault };
