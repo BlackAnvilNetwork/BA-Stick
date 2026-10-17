@@ -10,12 +10,22 @@
  * There is no payout. `AhEscrow` `FEE_BPS` stays 100. Nothing here sends
  * xDAI or broadcasts to Gnosis or Chiado.
  *
+ * Accepting a member predicts that member's Guild Wallet. It does not
+ * deploy the wallet. The Mark Safe, once that Mark is online, is the
+ * address the guild and the bond use. The posted bond wei is unchanged.
+ *
  * A Mark grants no damage, loot, or combat advantage. Validators, light
  * clients, phones, and the listing key are not bonded operators. The Gnosis
  * Safe stays admin. The commit threshold is unchanged. Opening and joining
  * do not wait on the 20 Hz tick.
  */
 import { votingReplica } from "./bonded-admission";
+import {
+  markSafeForOperator,
+  noteAcceptedGuildWallet,
+  resetGuildSafesForTests,
+  type GuildWalletAccept,
+} from "./guild-safes";
 import { PINNED_GNOSIS_LISTING_ADDRESS } from "./production-boot";
 import { postedSlashableBond } from "./root-anchor";
 
@@ -84,6 +94,7 @@ export function resetGuildRegistryForTests(): void {
   markOperator.clear();
   members.clear();
   requests.clear();
+  resetGuildSafesForTests();
 }
 
 function notOpened(): OpenGuildResult {
@@ -235,8 +246,18 @@ export function joinGuild(guildId: string, characterId: string): JoinGuildResult
  * operator. The member does not accept themselves. Accepting is free, does
  * not check the member's hardware, and does not pay anyone. Only this step
  * writes `guildMembers`.
+ *
+ * Accepting predicts the Guild Wallet. The owner is the member's Ethereum
+ * account, or the character id when that id is already an address. The Mark,
+ * the listing key, and the session key are not owners. This does not deploy
+ * the wallet.
  */
-export function acceptGuildJoin(guildId: string, characterId: string, operatorId: string): AcceptGuildJoinResult {
+export function acceptGuildJoin(
+  guildId: string,
+  characterId: string,
+  operatorId: string,
+  wallet?: GuildWalletAccept,
+): AcceptGuildJoinResult {
   const refused: AcceptGuildJoinResult = { accepted: false, feeWei: 0n };
   if (typeof guildId !== "string" || typeof characterId !== "string" || typeof operatorId !== "string") return refused;
   const id = guildId.trim();
@@ -257,5 +278,31 @@ export function acceptGuildJoin(guildId: string, characterId: string, operatorId
     members.set(id, roster);
   }
   roster.set(character, { characterId: character, feeWei: 0n });
+  noteAcceptedGuildWallet({
+    guildId: id,
+    characterId: character,
+    operatorId: operator,
+    memberAccount: wallet?.memberAccount,
+    mark: wallet?.mark,
+    listing: wallet?.listing,
+    session: wallet?.session,
+  });
   return { accepted: true, feeWei: 0n };
+}
+
+/** The Mark Safe this guild uses. Null until that Mark is predicted. */
+export function guildMarkSafe(guildId: string): `0x${string}` | null {
+  if (typeof guildId !== "string") return null;
+  const guild = guildsById.get(guildId.trim());
+  if (!guild) return null;
+  return markSafeForOperator(guild.operatorId);
+}
+
+/**
+ * The Mark Safe address the bond uses. The posted wei stays on the operator
+ * id. This does not invent an amount and does not move the bond.
+ */
+export function bondSafeAddress(operatorId: string): `0x${string}` | null {
+  if (typeof operatorId !== "string") return null;
+  return markSafeForOperator(operatorId.trim());
 }
