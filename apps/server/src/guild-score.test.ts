@@ -28,7 +28,7 @@ import {
   settleGuildPayouts,
   type JournalBatch,
 } from "./guild-score";
-import { guilds, joinGuild, openGuild, resetGuildRegistryForTests } from "./guild-registry";
+import { acceptGuildJoin, guildMembers, guilds, joinGuild, openGuild, resetGuildRegistryForTests } from "./guild-registry";
 import { LOCAL_RULESET_WASM_SHA256 } from "./lok-vault";
 import { submitOnSimTick } from "./order-submit";
 import {
@@ -170,7 +170,10 @@ test("a payout is refused before the anchor and the one-day delay", async () => 
     postReplicaBond(MARK, "replica", 10n);
     const opened = openGuild(MARK, MARK);
     assert.equal(opened.opened, true);
-    assert.deepEqual(joinGuild(opened.guild?.id ?? "", "c1"), { joined: true, feeWei: 0n });
+    const guildId = opened.guild?.id ?? "";
+    assert.deepEqual(joinGuild(guildId, "c1"), { requested: true, feeWei: 0n });
+    assert.equal(guildMembers(guildId).length, 0);
+    assert.deepEqual(acceptGuildJoin(guildId, "c1", MARK), { accepted: true, feeWei: 0n });
     const split = creditGuildVault(10_000n);
     assert.deepEqual(split, { feeWei: 500n, vaultWei: 250n, treasuryWei: 250n });
     assert.equal(guildVaultWei(), 250n);
@@ -249,7 +252,8 @@ test("a zero-score epoch leaves the vault untouched", async () => {
     postReplicaBond(MARK, "replica", 10n);
     const opened = openGuild(MARK, MARK);
     assert.equal(opened.opened, true);
-    joinGuild(opened.guild?.id ?? "", "c1");
+    assert.deepEqual(joinGuild(opened.guild?.id ?? "", "c1"), { requested: true, feeWei: 0n });
+    assert.deepEqual(acceptGuildJoin(opened.guild?.id ?? "", "c1", MARK), { accepted: true, feeWei: 0n });
     creditGuildVault(20_000n);
     assert.equal(guildVaultWei(), 500n);
     assert.equal(guildTreasuryWei(), 500n);
@@ -300,7 +304,8 @@ test("a later epoch pays when no earlier epoch was noted", async () => {
     postReplicaBond(MARK, "replica", 10n);
     const opened = openGuild(MARK, MARK);
     assert.equal(opened.opened, true);
-    joinGuild(opened.guild?.id ?? "", "c1");
+    assert.deepEqual(joinGuild(opened.guild?.id ?? "", "c1"), { requested: true, feeWei: 0n });
+    assert.deepEqual(acceptGuildJoin(opened.guild?.id ?? "", "c1", MARK), { accepted: true, feeWei: 0n });
     creditGuildVault(10_000n);
 
     noteGuildBatch({
@@ -360,7 +365,9 @@ test("a character who joins after the epoch does not score it", async () => {
     postReplicaBond(MARK, "replica", 10n);
     const opened = openGuild(MARK, MARK);
     assert.equal(opened.opened, true);
-    joinGuild(opened.guild?.id ?? "", "c1");
+    assert.deepEqual(joinGuild(opened.guild?.id ?? "", "c1"), { requested: true, feeWei: 0n });
+    assert.deepEqual(acceptGuildJoin(opened.guild?.id ?? "", "c1", "c1"), { accepted: false, feeWei: 0n });
+    assert.deepEqual(acceptGuildJoin(opened.guild?.id ?? "", "c1", MARK), { accepted: true, feeWei: 0n });
     certifyGuildBatch(4, certificate(MARK));
     const anchorAt = 1_700_000_000_000;
     setChallengeClockForTests(() => anchorAt);
@@ -380,13 +387,80 @@ test("a character who joins after the epoch does not score it", async () => {
   }
 });
 
+test("an open request adds no score and an accept counts in a later epoch", async () => {
+  reset();
+  const calls: string[] = [];
+  const prev = globalThis.fetch;
+  globalThis.fetch = (async (_input: unknown, init?: { body?: unknown }) => {
+    calls.push(typeof init?.body === "string" ? init.body : "");
+    return new Response("refused", { status: 500 });
+  }) as typeof fetch;
+  try {
+    postReplicaBond(MARK, "replica", 10n);
+    const opened = openGuild(MARK, MARK);
+    assert.equal(opened.opened, true);
+    const guildId = opened.guild?.id ?? "";
+    assert.deepEqual(joinGuild(guildId, "c1"), { requested: true, feeWei: 0n });
+    assert.equal(guildMembers(guildId).length, 0);
+    creditGuildVault(10_000n);
+    assert.equal(guildVaultWei(), 50n);
+
+    noteGuildBatch({
+      epoch: 0,
+      height: 4,
+      events: [{ characterId: "c1", kind: "craft" }],
+    });
+    certifyGuildBatch(4, certificate(MARK));
+    const anchorAt = 1_700_000_000_000;
+    setChallengeClockForTests(() => anchorAt);
+    const posted = await postCertifiedBatch(
+      { height: 4, nextRoot: root(4), certificate: certificate(MARK) },
+      { env: { LOK_CHAIN_ID: "31337" }, poster: async () => true },
+    );
+    assert.equal(posted, true);
+    const open = settleGuildPayouts(anchorAt + CHALLENGE_DELAY_MS);
+    assert.equal(open.ok, true);
+    assert.deepEqual(open.paid, []);
+    assert.equal(guildVaultWei(), 50n);
+
+    assert.deepEqual(acceptGuildJoin(guildId, "c1", MARK), { accepted: true, feeWei: 0n });
+    assert.equal(guildMembers(guildId).length, 1);
+    const sameEpoch = settleGuildPayouts(anchorAt + CHALLENGE_DELAY_MS);
+    assert.equal(sameEpoch.ok, true);
+    assert.deepEqual(sameEpoch.paid, []);
+    assert.equal(guildVaultWei(), 50n);
+
+    noteGuildBatch({
+      epoch: 1,
+      height: 5,
+      events: [{ characterId: "c1", kind: "trade" }],
+    });
+    certifyGuildBatch(5, certificate(MARK));
+    const postedLater = await postCertifiedBatch(
+      { height: 5, nextRoot: root(5), certificate: certificate(MARK) },
+      { env: { LOK_CHAIN_ID: "31337" }, poster: async () => true },
+    );
+    assert.equal(postedLater, true);
+    const paid = settleGuildPayouts(anchorAt + CHALLENGE_DELAY_MS);
+    assert.equal(paid.ok, true);
+    assert.deepEqual(paid.paid, [{ guildId: "guild:" + MARK, wei: 50n }]);
+    assert.equal(paid.vaultWei, 0n);
+    assert.equal(guildVaultWei(), 0n);
+    assert.equal(calls.length, 0);
+  } finally {
+    globalThis.fetch = prev;
+    reset();
+  }
+});
+
 test("a ready epoch stays paid while a later epoch is still waiting", async () => {
   reset();
   try {
     postReplicaBond(MARK, "replica", 10n);
     const opened = openGuild(MARK, MARK);
     assert.equal(opened.opened, true);
-    joinGuild(opened.guild?.id ?? "", "c1");
+    assert.deepEqual(joinGuild(opened.guild?.id ?? "", "c1"), { requested: true, feeWei: 0n });
+    assert.deepEqual(acceptGuildJoin(opened.guild?.id ?? "", "c1", MARK), { accepted: true, feeWei: 0n });
     creditGuildVault(10_000n);
     noteGuildBatch({
       epoch: 0,

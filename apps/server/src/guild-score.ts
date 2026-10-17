@@ -205,6 +205,7 @@ function copyMembership(rows: readonly EpochMembership[]): EpochMembership[] {
   }));
 }
 
+/** Accepted members only. An open join request is not on this roster. */
 function liveMembership(): EpochMembership[] {
   const rows: EpochMembership[] = [];
   for (const guild of guilds()) {
@@ -237,7 +238,7 @@ function rememberMembership(epoch: number, rows: readonly EpochMembership[]): vo
   }
 }
 
-/** Membership recorded when this epoch's batches were noted. A later join is a later epoch. */
+/** Membership recorded when this epoch's batches were noted. A later accept is a later epoch. */
 function membershipRows(epoch: number): EpochMembership[] {
   const slot = membershipByEpoch.get(epoch);
   if (!slot) return [];

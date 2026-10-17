@@ -187,26 +187,68 @@ contract DeployTest is Test {
         s.rejectMocksOnNonAnvil(address(0), address(0));
     }
 
-    function test_validateConfig_requiresDistinctServerKeys_onMainnet() public {
+    function test_validateConfig_launchRolesAreTheAdminSafe_onMainnet() public {
+        vm.setEnv("ALLOW_EOA_ADMIN", "0");
         Deploy s = new Deploy();
-        address admin = makeAddr("admin");
-        address rotator = makeAddr("rotator");
+        DummySafe safe = new DummySafe();
+        address admin = address(safe);
+        address fee = makeAddr("fee");
+        address listing = makeAddr("listing");
         Deploy.Config memory c = Deploy.Config({
             admin: admin,
             emergency: admin,
             guardian: admin,
-            feeRecipient: makeAddr("fee"),
-            rotator: rotator,
-            proposer: makeAddr("proposer"),
-            listing: rotator,
+            feeRecipient: fee,
+            rotator: makeAddr("rotator"),
+            proposer: admin,
+            listing: listing,
             items: address(0),
             kek: address(0),
-            timelock: address(0),
+            timelock: address(new DummySafe()),
             baseURI: "ipfs://x/",
             mintFee: 1 ether
         });
         vm.chainId(100);
-        vm.expectRevert(abi.encodeWithSelector(Deploy.BadConfig.selector, "listing/rotator/proposer must be distinct"));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Deploy.BadConfig.selector, "admin, emergency, guardian, rotator, and proposer must be the admin Safe"
+            )
+        );
+        s.validateConfig(c);
+
+        c.rotator = admin;
+        c.proposer = makeAddr("proposer");
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Deploy.BadConfig.selector, "admin, emergency, guardian, rotator, and proposer must be the admin Safe"
+            )
+        );
+        s.validateConfig(c);
+
+        c.proposer = admin;
+        c.emergency = makeAddr("emergency");
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Deploy.BadConfig.selector, "admin, emergency, guardian, rotator, and proposer must be the admin Safe"
+            )
+        );
+        s.validateConfig(c);
+
+        c.emergency = admin;
+        c.listing = admin;
+        vm.expectRevert(abi.encodeWithSelector(Deploy.BadConfig.selector, "listing must be distinct from admin Safe"));
+        s.validateConfig(c);
+
+        c.listing = fee;
+        vm.expectRevert(abi.encodeWithSelector(Deploy.BadConfig.selector, "listing must be distinct from feeRecipient"));
+        s.validateConfig(c);
+
+        c.listing = listing;
+        s.validateConfig(c);
+
+        // TIMELOCK stays required only on chain 100. Chiado still uses the Admin Safe roles.
+        vm.chainId(10200);
+        c.timelock = address(0);
         s.validateConfig(c);
     }
 
@@ -219,8 +261,8 @@ contract DeployTest is Test {
             emergency: admin,
             guardian: admin,
             feeRecipient: admin,
-            rotator: makeAddr("rotator"),
-            proposer: makeAddr("proposer"),
+            rotator: admin,
+            proposer: admin,
             listing: makeAddr("listing"),
             items: address(0),
             kek: address(0),
@@ -238,13 +280,15 @@ contract DeployTest is Test {
     function test_validateConfig_allowEoaAdmin_whenFlagSet() public {
         Deploy s = new Deploy();
         address admin = makeAddr("eoaTreasury");
+        address rotator = makeAddr("rotator");
+        address proposer = makeAddr("proposer");
         Deploy.Config memory c = Deploy.Config({
             admin: admin,
             emergency: admin,
             guardian: admin,
             feeRecipient: makeAddr("fee"),
-            rotator: makeAddr("rotator"),
-            proposer: makeAddr("proposer"),
+            rotator: admin,
+            proposer: admin,
             listing: makeAddr("listing"),
             items: address(0),
             kek: address(0),
@@ -258,6 +302,8 @@ contract DeployTest is Test {
 
         vm.setEnv("ALLOW_EOA_ADMIN", "1");
         c.feeRecipient = admin;
+        c.rotator = rotator;
+        c.proposer = proposer;
         s.validateConfig(c);
         vm.setEnv("ALLOW_EOA_ADMIN", "0");
     }
@@ -271,8 +317,8 @@ contract DeployTest is Test {
             emergency: eoa,
             guardian: eoa,
             feeRecipient: makeAddr("fee"),
-            rotator: makeAddr("rotator"),
-            proposer: makeAddr("proposer"),
+            rotator: eoa,
+            proposer: eoa,
             listing: makeAddr("listing"),
             items: address(0),
             kek: address(0),
@@ -289,6 +335,8 @@ contract DeployTest is Test {
         c.admin = address(safe);
         c.emergency = address(safe);
         c.guardian = address(safe);
+        c.rotator = address(safe);
+        c.proposer = address(safe);
         c.timelock = address(timelock);
         s.validateConfig(c);
 

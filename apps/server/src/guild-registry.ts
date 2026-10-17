@@ -3,7 +3,9 @@
  *
  * The bond is the one that operator already posted to join the voting set.
  * This module does not invent a bond amount, a minimum, or a fee. Joining
- * is free. A second Mark for the same operator does not open a second guild.
+ * is a free request. That guild's bonded operator accepts before the
+ * character is a member. The member does not accept themselves. A second
+ * Mark for the same operator does not open a second guild.
  *
  * There is no payout. `AhEscrow` `FEE_BPS` stays 500. Nothing here sends
  * xDAI or broadcasts to Gnosis or Chiado.
@@ -30,9 +32,22 @@ export type OpenGuildResult = {
   guild: Guild | null;
 };
 
-export type JoinGuildResult = {
-  joined: boolean;
+export type GuildJoinRequest = {
+  characterId: string;
   /** Joining is free. */
+  feeWei: 0n;
+};
+
+export type JoinGuildResult = {
+  /** True when an open request is recorded. Not membership. */
+  requested: boolean;
+  /** Joining is free. */
+  feeWei: 0n;
+};
+
+export type AcceptGuildJoinResult = {
+  accepted: boolean;
+  /** Accepting is free. */
   feeWei: 0n;
 };
 
@@ -60,12 +75,15 @@ const guildsById = new Map<string, Guild>();
 /** Mark id → the operator whose one guild that Mark belongs to. */
 const markOperator = new Map<string, string>();
 const members = new Map<string, Map<string, GuildMember>>();
+/** Open join requests. Not members, and not on the epoch roster. */
+const requests = new Map<string, Map<string, GuildJoinRequest>>();
 
 export function resetGuildRegistryForTests(): void {
   guildsByOperator.clear();
   guildsById.clear();
   markOperator.clear();
   members.clear();
+  requests.clear();
 }
 
 function notOpened(): OpenGuildResult {
@@ -119,6 +137,16 @@ export function guildMembers(guildId: string): GuildMember[] {
   if (!roster) return [];
   const listed: GuildMember[] = [];
   for (const member of roster.values()) listed.push({ characterId: member.characterId, feeWei: 0n });
+  return listed;
+}
+
+/** Open requests only. Accepted members are not listed here. */
+export function guildJoinRequests(guildId: string): GuildJoinRequest[] {
+  if (typeof guildId !== "string") return [];
+  const open = requests.get(guildId.trim());
+  if (!open) return [];
+  const listed: GuildJoinRequest[] = [];
+  for (const request of open.values()) listed.push({ characterId: request.characterId, feeWei: 0n });
   return listed;
 }
 
@@ -181,20 +209,53 @@ export function openGuild(operatorId: string, markId: string, ballot?: GuildBall
 }
 
 /**
- * Join a guild that is already open. There is no fee and no bond.
- * Joining does not check hardware or the replica flag, does not make the
- * character a bonded operator, and does not pay anyone.
+ * Ask to join a guild that is already open. There is no fee and no bond.
+ * The request does not check hardware or the replica flag, does not make the
+ * character a bonded operator, and does not pay anyone. An open request is
+ * not a member.
  */
 export function joinGuild(guildId: string, characterId: string): JoinGuildResult {
-  if (typeof guildId !== "string" || typeof characterId !== "string") return { joined: false, feeWei: 0n };
+  const refused: JoinGuildResult = { requested: false, feeWei: 0n };
+  if (typeof guildId !== "string" || typeof characterId !== "string") return refused;
   const id = guildId.trim();
   const character = characterId.trim();
-  if (!id || !character || !guildsById.has(id)) return { joined: false, feeWei: 0n };
+  if (!id || !character || !guildsById.has(id)) return refused;
+  if (members.get(id)?.has(character)) return refused;
+  let open = requests.get(id);
+  if (!open) {
+    open = new Map();
+    requests.set(id, open);
+  }
+  open.set(character, { characterId: character, feeWei: 0n });
+  return { requested: true, feeWei: 0n };
+}
+
+/**
+ * Accept an open join request. The actor must be that guild's bonded
+ * operator. The member does not accept themselves. Accepting is free, does
+ * not check the member's hardware, and does not pay anyone. Only this step
+ * writes `guildMembers`.
+ */
+export function acceptGuildJoin(guildId: string, characterId: string, operatorId: string): AcceptGuildJoinResult {
+  const refused: AcceptGuildJoinResult = { accepted: false, feeWei: 0n };
+  if (typeof guildId !== "string" || typeof characterId !== "string" || typeof operatorId !== "string") return refused;
+  const id = guildId.trim();
+  const character = characterId.trim();
+  const operator = operatorId.trim();
+  if (!id || !character || !operator) return refused;
+  const guild = guildsById.get(id);
+  if (!guild || operator !== guild.operatorId) return refused;
+  if (character === operator) return refused;
+  if (bondedWei(operator) == null) return refused;
+  const open = requests.get(id);
+  if (!open?.has(character)) return refused;
+  open.delete(character);
+  if (open.size === 0) requests.delete(id);
   let roster = members.get(id);
   if (!roster) {
     roster = new Map();
     members.set(id, roster);
   }
   roster.set(character, { characterId: character, feeWei: 0n });
-  return { joined: true, feeWei: 0n };
+  return { accepted: true, feeWei: 0n };
 }
