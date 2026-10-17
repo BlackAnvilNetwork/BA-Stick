@@ -1,5 +1,6 @@
 /**
- * A certified qualifying event scores once. A provisional batch scores nothing.
+ * More than one certified qualifying event scores a character once. A single
+ * event does not. A provisional batch scores nothing.
  * A guild with no Mark signature is ineligible. Payout waits for the anchored
  * root and the one-day delay. A zero score leaves the vault untouched.
  */
@@ -13,6 +14,7 @@ import { AH_FEE_BPS, ahFeeSplit, ahGuildFeeShares } from "@bellgrave/protocol";
 import { postReplicaBond, registryAdmin, resetBondedAdmissionForTests } from "./bonded-admission";
 import { meleeAtkBonus } from "./gear-combat";
 import {
+  ACTIVE_EVENTS_REQUIRED,
   certifyGuildBatch,
   CHALLENGE_DELAY_MS,
   commitCertificateSigners,
@@ -107,6 +109,15 @@ test("a certified qualifying event scores once", () => {
   assert.equal(scores[0]?.eligible, true);
   assert.equal(scores[0]?.score, 1);
   assert.equal(scores[0]?.guildId, "guild:operator-a");
+  assert.equal(ACTIVE_EVENTS_REQUIRED, 2);
+
+  const once = guildScore(
+    [{ epoch: 4, certified: true, events: [{ characterId: "c1", kind: "combat" }], signers: [MARK] }],
+    4,
+    membership([MARK], ["c1"]),
+  );
+  assert.equal(once[0]?.eligible, true);
+  assert.equal(once[0]?.score, 0);
 });
 
 test("a provisional batch scores nothing", () => {
@@ -140,7 +151,25 @@ test("a provisional batch scores nothing", () => {
     membership([MARK], ["c1", "c2"]),
   );
   assert.equal(mixed[0]?.eligible, true);
-  assert.equal(mixed[0]?.score, 1);
+  assert.equal(mixed[0]?.score, 0);
+
+  const active = guildScore(
+    [
+      ...journal,
+      {
+        epoch: 4,
+        certified: true,
+        events: [
+          { characterId: "c1", kind: "trade" },
+          { characterId: "c1", kind: "craft" },
+        ],
+        signers: [MARK],
+      },
+    ],
+    4,
+    membership([MARK], ["c1", "c2"]),
+  );
+  assert.equal(active[0]?.score, 1);
 });
 
 test("a missing Mark signature leaves the guild ineligible", () => {
@@ -330,7 +359,10 @@ test("a later epoch pays when no earlier epoch was noted", async () => {
     noteGuildBatch({
       epoch: 4,
       height: 9,
-      events: [{ characterId: "c1", kind: "craft" }],
+      events: [
+        { characterId: "c1", kind: "craft" },
+        { characterId: "c1", kind: "gather" },
+      ],
     });
     certifyGuildBatch(9, certificate(MARK));
     const anchorAt = 1_700_000_000_000;
@@ -361,6 +393,7 @@ test("a second Mark signature does not add a second score", () => {
           { characterId: "C1", kind: "craft" },
           { characterId: " c1 ", kind: "gather" },
           { characterId: "c2", kind: "trade" },
+          { characterId: "c2", kind: "combat" },
         ],
         signers: [MARK, OTHER],
       },
@@ -453,7 +486,10 @@ test("an open request adds no score and an accept counts in a later epoch", asyn
     noteGuildBatch({
       epoch: 1,
       height: 5,
-      events: [{ characterId: "c1", kind: "trade" }],
+      events: [
+        { characterId: "c1", kind: "trade" },
+        { characterId: "c1", kind: "gather" },
+      ],
     });
     certifyGuildBatch(5, certificate(MARK));
     const postedLater = await postCertifiedBatch(
@@ -486,7 +522,10 @@ test("a ready epoch stays paid while a later epoch is still waiting", async () =
     noteGuildBatch({
       epoch: 0,
       height: 4,
-      events: [{ characterId: "c1", kind: "craft" }],
+      events: [
+        { characterId: "c1", kind: "craft" },
+        { characterId: "c1", kind: "combat" },
+      ],
     });
     certifyGuildBatch(4, certificate(MARK));
     const anchorAt = 1_700_000_000_000;
@@ -561,7 +600,10 @@ test("a 10,000 sale pays the Mark 125 and four wallets 31, and dust stays", asyn
     noteGuildBatch({
       epoch: 0,
       height: 4,
-      events: wallets.map((member) => ({ characterId: member.characterId, kind: "combat" })),
+      events: [
+        ...wallets.map((member) => ({ characterId: member.characterId, kind: "combat" })),
+        { characterId: wallets[0]?.characterId ?? "", kind: "gather" },
+      ],
     });
     certifyGuildBatch(4, certificate(MARK));
     const anchorAt = 1_700_000_000_000;
