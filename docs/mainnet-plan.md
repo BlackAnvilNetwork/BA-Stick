@@ -21,7 +21,7 @@ These contracts live on the **settlement chain** (Chiado now / Gnosis 100 later)
 |--------------------|--------------------|
 | `CharacterNFT` | yes |
 | `CharacterFactory` (mint fee) | yes |
-| `AhEscrow` (AH pay / 1% fee) | yes |
+| `AhEscrow` (AH pay / 5% fee) | yes |
 | Item exports (checkpoint → ERC-1155 mint to `ownerOf`) | yes |
 | `CharacterCheckpoint` + `RulesetRegistry` | yes |
 
@@ -33,7 +33,7 @@ Server keys pay **settlement-chain gas in native xDAI** for `openAsk` / `cancelA
 
 ## Currency (locked): native xDAI on Gnosis
 
-**Decision:** use **native xDAI** on Gnosis / Chiado for now. Mint fee, AH ask prices, and the **1% marketplace fee** are all `msg.value` in native settlement currency.
+**Decision:** use **native xDAI** on Gnosis / Chiado for now. Mint fee, AH ask prices, and the **5% marketplace fee** are all `msg.value` in native settlement currency.
 
 | Concern | Choice |
 |---------|--------|
@@ -64,7 +64,7 @@ Example AH list placeholder: **1 xDAI** on Gnosis/Chiado; **0.001 ETH** on anvil
 |---|------|-------------------------------------|
 | 1 | Character creation reads connected address, takes native fee, mints NFT to that address | Fee in **native settlement currency** (xDAI on Gnosis); NFT minted on settlement chain to that address (EEZ sync) |
 | 2 | Listing seller = `ownerOf(character)`; owner change **cancels** open listings | Unchanged (settlement NFT + Transfer watcher) |
-| 3 | Buys paid from buyer’s home; seller paid at **current `ownerOf`** at fill | Pay via EEZ into settlement `buyAsk`; pays `ownerOf` + 1% fee in **native xDAI** |
+| 3 | Buys paid from buyer’s home; seller paid at **current `ownerOf`** at fill | Pay via EEZ into settlement `buyAsk`; pays `ownerOf` + 5% fee in **native xDAI** |
 | 4 | Claims / payouts → `ownerOf` at claim time — never client-supplied | Unchanged |
 | 5 | Login = signed message, **no chain switch**; WC 31337 **dev-only** | Wallet stays on Ethereum (or home); **never required to add Gnosis for login** |
 | 6 | Item exports mint to the **owner** address | On settlement chain via checkpoint |
@@ -77,14 +77,14 @@ Example AH list placeholder: **1 xDAI** on Gnosis/Chiado; **0.001 ETH** on anvil
 |------|--------|--------|
 | **1** Mint → Gnosis / Chiado | **PARTIAL** | Native-value factory ready. Need Chiado deploy + EEZ path so the payer can stay on Ethereum home. |
 | **2** List / owner change | **APP DONE** | `ownerOf` at list; Transfer cancel-only + pending retry. |
-| **3** Buy → settlement | **CONTRACT READY** / path pending | Redeploy-ready `buyAsk` → `ownerOf` + 1% in native value. EEZ sync buy from Ethereum TBD. |
+| **3** Buy → settlement | **CONTRACT READY** / path pending | Redeploy-ready `buyAsk` → `ownerOf` + 5% in native value. EEZ sync buy from Ethereum TBD. |
 | **4** Claims → `ownerOf` | **OK** | Checkpoint + AH fill. |
 | **5** Login / WC | **APP DONE** | Sign-only; settlement chain not required for login. |
 | **6** Export → owner | **OK** | Unchanged. |
 
 ### App / contract work in this branch (not deployed)
 
-- `AhEscrow`: immutable `characterNft`, `feeRecipient`, `FEE_BPS = 100`; `buyAsk` pays `ownerOf` then 1% fee (**native value**).
+- `AhEscrow`: immutable `characterNft`, `feeRecipient`, `FEE_BPS = 500`; `buyAsk` pays `ownerOf` then 5% fee (**native value**). Half of the fee (250 bps) is the guild vault and half is the treasury.
 - Forge tests + UI fee copy; AskFilled `feeWei` decode.
 - Transfer-cancel watcher: pending retries (re-read+merge before write, persist-before-cursor, backoff/cap), confirmations, skip self-transfers, AskCancelled classify, list re-checks `ownerOf` after `openAsk` and queues failed cancels. Max-attempt drops are appended to `nft-transfer-cancel-dropped.json` (ops alert file) plus console ALERT.
 - Per-chain currency labels / defaults (`xDAI` vs `ETH`); WalletConnect optionalChains from `SETTLEMENT_BY_CHAIN`.
@@ -123,7 +123,7 @@ Public EEZ work targets **Gnosis Chiado**, not Ethereum mainnet L1 alone.
 |-------|------|------|
 | Player (home) | Mint fee / AH price via EEZ sync | Home ETH → settles as native on Chiado/Gnosis |
 | Server listing / cancel / checkpoint keys | Settlement gas | **xDAI** on 100 / 10200 |
-| Fee recipient (multisig) | Receives 1% of fills | Native xDAI |
+| Fee recipient (Treasury Safe) | Receives 250 bps of fills. The other 250 bps of the 5% fee is the guild vault | Native xDAI |
 
 Fund operator keys with Chiado xDAI before any smoke test. Do **not** put player ETH onto the game chain.
 
@@ -153,7 +153,7 @@ Order (forge `Deploy` / `DeployChiado`; see `docs/chiado-deploy.md`):
 2. `CharacterCheckpoint` (UUPS)
 3. `CharacterFactory` with `MINT_FEE` (**default 1 ether = 1 xDAI** on Chiado)
 4. `RulesetRegistry` (UUPS)
-5. `AhEscrow(admin, nft, feeRecipient)` — fee to multisig; `FEE_BPS = 100`
+5. `AhEscrow(admin, nft, feeRecipient)` — fee split between the Treasury Safe and the guild vault; `FEE_BPS = 500`
 6. Roles: factory minter on NFT; listing role on escrow; items minter on checkpoint; starting jobs; first ruleset propose
 
 **Post-deploy env (server):** `LOK_CHAIN_ID`, `LOK_CHAIN_RPC`, `LOK_PUBLIC_RPC`, `LOK_AH_ESCROW`, `LOK_CHARACTER_NFT`, `LOK_CHARACTER_FACTORY`, `LOK_LISTING_KEY` (xDAI-funded), WalletConnect **production** project id.
@@ -170,7 +170,7 @@ Order (forge `Deploy` / `DeployChiado`; see `docs/chiado-deploy.md`):
 | 2 | Owner change → cancel-only | **Locked** |
 | 3 | Home = Ethereum mainnet v1 | **Locked** |
 | 4 | Mint UX = player-signed home sync (EEZ) | **Locked** (path TBD) |
-| 5 | AH fee = 1% floor to multisig/admin | **Locked** |
+| 5 | AH fee = 5% (500 bps): 250 bps Treasury Safe, 250 bps guild vault | **Locked** |
 | 6 | Settlement = **Gnosis** (Chiado test) | **Locked** |
 | — | Currency = **native xDAI** on Gnosis | **Locked** |
 | — | Mint fee default **1 xDAI** | **Proposed — confirm** |

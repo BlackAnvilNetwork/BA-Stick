@@ -36,7 +36,7 @@ Every design choice below is held to three liveness requirements and to the cons
 - The listing key stays outside any voting set. Whoever holds it can send `AhEscrow` and `PvpBounty` transactions, and being a replica does not grant it.
 - Chain events (`AskFilled`, PvP bounty logs, NFT transfers) are attestations. A mirror waits for confirmation depth and matching replica reports. Production Gnosis depth starts at 30 blocks (`DEFAULT_GNOSIS_CONFIRMATIONS` in `apps/server/src/settlement-confirmations.ts`). A per-type override may only raise that, never lower it.
 - No shared mutable data directory. `LOK_ALLOW_SHARED_DATA_DIR` is not this mode. Nodes sync by replaying signed batches, or from a checkpoint plus the tail. Published immutable checkpoints and journal segments (section 15) are allowed.
-- No new token and no emissions. The player-facing auction fee stays 1% (`AhEscrow` `FEE_BPS = 100`, native xDAI). A timelocked share of that fee funds guild rewards. Uptime alone does not pay. Validators and light clients are not paid.
+- No new token and no emissions. The player-facing auction fee is 5% (`AhEscrow` `FEE_BPS = 500`, native xDAI). Half of that fee, 250 bps of the sale, funds the guild vault. The other 250 bps goes to the treasury. Uptime alone does not pay. Validators and light clients are not paid.
 
 ### New requirements from the tiered model
 
@@ -264,13 +264,15 @@ Withdrawals, NFT mints, and `AhEscrow` or `PvpBounty` transactions wait for a co
 
 Replica is the protocol role. Mark is the player name for a bonded replica. The binary does not fork.
 
-A player on the installed game may opt in to a Mark. The flag still requires the resource self-check and a reachability check. Bonding that Mark grants the operator the right to register one guild and to lead it. Joining a guild needs no hardware and no bond. A second Mark from the same operator does not open a second guild and does not add a second score. A Mark grants no damage, loot, or other combat advantage.
+A player on the installed game may opt in to a Mark. The flag still requires the resource self-check and a reachability check. Bonding that Mark grants the operator the right to register one guild and to lead it. Joining a guild needs no hardware and no bond. A character requests to join, and the guild's bonded operator accepts. A request is not membership. An accept after a batch was noted counts in a later epoch. A second Mark from the same operator does not open a second guild and does not add a second score. A Mark grants no damage, loot, or other combat advantage.
 
-The player-facing auction fee stays 1% of the sale (`FEE_BPS = 100` in `contracts/lok-log/src/AhEscrow.sol`). `buyAsk` already pays `ownerOf(seller)` the remainder and sends the fee to `feeRecipient` in native xDAI. The guild pool is a split of that fee, not a second fee and not a new token. Starting parameter: 50 bps of the sale to the guild vault, 50 bps to the treasury. Both move only behind the ruleset timelock of at least one day. Until the auction house has volume, the vault is empty.
+The player-facing auction fee is 5% of the sale (`FEE_BPS = 500` in `contracts/lok-log/src/AhEscrow.sol`). `buyAsk` pays `ownerOf(seller)` the remainder and sends the fee to `feeRecipient` in native xDAI. The guild pool is a split of that fee, not a second fee and not a new token. 250 bps of the sale goes to the guild vault and 250 bps to the treasury. A floored leftover wei of the fee stays with the treasury. Both shares move only behind the ruleset timelock of at least one day. Until the auction house has volume, the vault is empty.
 
-Once an epoch is anchored and the challenge delay has passed, the vault pays qualifying guilds in proportion to that epoch's score. If every score is zero, the xDAI stays in the vault for the next epoch.
+Ethereum accounts that hold these funds are Safes from the Safe Protocol Kit. The address is known before the Safe exists. The Admin Safe holds emergency, guardian, rotator, and proposer, and its threshold is at least 2. The Treasury Safe is `feeRecipient`, with its own address and owners. The Listing Safe is threshold 1 and holds the listing role. A Mark Safe is created when the Mark comes online. It holds the bond and the guild's half of a payout. A Guild Wallet is predicted when the guild accepts a member and deployed when that member opens it. The member owns it. One wallet per character per guild. The Mark, the listing key, and the session key are not owners of a Guild Wallet. A threshold of 1 is the same theft risk as one key. Malachite stays an in-memory Ed25519 key. The leader envelope stays an in-memory BLS key.
 
-A guild's score for an epoch is a pure function of the certified journal and that epoch's guild membership, so every replica gets the same number. It is the count of distinct characters in that guild who have at least one certified qualifying event in the epoch. Qualifying events are a combat resolution, a gather, a craft, or a trade that the journal committed. Each character contributes at most one. Provisional batches do not score. The Mark must have signed commit certificates in that epoch or the guild is ineligible. That signature is a bit, not a multiplier. Idle uptime does not pay. Running more Marks does not multiply the score.
+Once an epoch is anchored and the challenge delay has passed, the vault pays qualifying guilds in proportion to that epoch's score. Of each guild's earned wei, the Mark Safe receives half (`earned / 2`). The remainder is split equally across accepted members' Guild Wallets, including a wallet that is predicted and not yet deployed. Each member share is floored. Leftover wei stays in the vault. If every score is zero, the xDAI stays in the vault for the next epoch. A 10,000 xDAI sale pays a 500 fee: the treasury receives 250 and the vault receives 250. A guild that earned all of it puts 125 on its Mark Safe and splits 125 across its accepted members.
+
+A guild's score for an epoch is a pure function of the certified journal and that epoch's accepted members, so every replica gets the same number. It is the count of distinct accepted characters in that guild who have at least one certified qualifying event in the epoch. Qualifying events are a combat resolution, a gather, a craft, or a trade that the journal committed. Each character contributes at most one. Provisional batches do not score. The Mark must have signed commit certificates in that epoch or the guild is ineligible. That signature is a bit, not a multiplier. Idle uptime does not pay. Running more Marks does not multiply the score.
 
 The payout is a chain-bound action. It waits for the anchored root and the same challenge delay as withdrawals, mints, and escrow. That delay starts at one day.
 
@@ -417,8 +419,8 @@ The order puts a correct, fast engine first, then fault tolerance with three hos
 6. Installed game with a bundled node in validator mode, and a web client with light verification. Gate: the per-character proof API and the commitment over character roots are in place.
 7. Mobile light client.
 8. Equivocation court, then open bonded admission. The Gnosis Safe stays admin until a vote of bonded replicas exists. While fewer than four replicas are bonded the commit threshold stays a majority (`1 + floor(n / 2)`). Once four or more are bonded it is more than two thirds of that set (`floor(2n / 3) + 1`). Commit certificates are BLS12-381 from the first replica. Gnosis verifies them with the EIP-2537 precompiles (Pectra, 30 Apr 2025). Player session keys stay ECDSA.
-9. Guild registry. One guild per bonded operator. Joining stays free. No payouts yet.
-10. Guild vault. The 1% auction fee splits 50/50 between the vault and the treasury. Scores are a pure function of certified events. Payouts wait for an anchored root and the challenge delay, which starts at one day.
+9. Guild registry. One guild per bonded operator. Joining stays free. A character requests and the guild accepts before they count as a member. No payouts yet.
+10. Guild vault. The 5% auction fee splits 250 bps to the vault and 250 bps to the treasury. Of a guild's earned vault wei, half goes to its Mark Safe and half is split equally across accepted members' Guild Wallets. Scores are a pure function of certified events. Payouts wait for an anchored root and the challenge delay, which starts at one day.
 11. Per-encounter leases, only if the load test shows the single-leader ceiling is reached. Gate: hand-off specification and two-process harness.
 12. On-chain dispute game, roll proofs, and proof verification, only after replicated certification is live and stable. Zero-knowledge seed proofs are this step, not step 3.
 
@@ -435,7 +437,6 @@ This design does not attempt any of the following:
 - Requiring a bond, registration, or approval to play, validate, or run a light client.
 - Threshold-signing the listing key.
 - Introducing a new token, or paying anyone with emissions.
-- Raising the auction fee above 1% to fund guilds.
 - Granting a Mark extra damage, loot, or any other combat advantage.
 - Requiring a replica, a bond, or a Mark to join a guild.
 - Paying a replica for idle uptime, or paying validators and light clients.
@@ -498,7 +499,7 @@ The network's value is a guarantee players cannot get elsewhere plus a kit other
 - Make the engine a kit: another developer launches a persistent, fault-tolerant world from one binary and a ruleset, and every new world adds replicas, validators, and players. That needs the ruleset as the plug-in boundary and the world id from section 16.
 - Keep chain friction out of onboarding: play instantly, use session keys, and bring in the wallet only when value moves on chain.
 - Open the data: the public journal and the Phase 3 read-side views feed explorers, guild tools, marketplaces, and economy research.
-- Fund guilds, not idle machines: half of the existing 1% auction fee, in xDAI, paid on certified play. A Mark is the right to lead a guild. It is not a stipend for being online.
+- Fund guilds, not idle machines: half of the 5% auction fee, in xDAI, paid on certified play. Half of a guild's earning goes to its members' Guild Wallets. A Mark is the right to lead a guild. It is not a stipend for being online.
 - Give players real power: validators in every installed game, community-run replicas, and a fork path make the world theirs as well as yours.
 - Publish the proof: a public status page with replica count, independent validator count, last anchored height, and time since the last unplanned outage lets anyone check the claims.
 
@@ -517,7 +518,7 @@ The stack already in the repo decides the questions that were blocking the spec.
 7. Slashing before a dispute game. The Gnosis Safe that holds contract admin may remove a replica and slash its bond only when the evidence reproduces: two signatures at the same epoch and height with different roots, or a batch that `lok-replay --expect-root` rejects. After the equivocation court exists, anyone may submit the signature pair. There is no social vote.
 8. Incentives. Guilds are paid from the auction fee, in xDAI, as specified under Marks and guilds. Replicas are not paid for uptime. Validators and light clients are not paid.
 9. Value at risk. Chain-bound xDAI settled in one epoch (escrow, bounty payouts, withdrawals, guild payouts) is at most 10% of the slashable bonds then posted. In-game gold is outside the cap. The percentage moves only behind the timelock. During the allowlist the posted bonds have to cover real auction volume, or the cap stalls chain-bound actions.
-10. Governance at launch. Registry owner, slashing admin, and ruleset proposer are the Gnosis Safe (`ADMIN` in `docs/gnosis-launch.md`). That address is still to be supplied. It is not a server EOA. `FEE_RECIPIENT` stays a distinct treasury. The path off the Safe is a vote of bonded replicas after open admission, not before.
+10. Governance at launch. Registry owner, slashing admin, and ruleset proposer are the Admin Safe (`ADMIN` in `docs/gnosis-launch.md`). Emergency, guardian, and rotator are that same Safe. Its threshold is at least 2. That address is still to be supplied. It is not a server EOA. `FEE_RECIPIENT` is a distinct Treasury Safe. The path off the Safe is a vote of bonded replicas after open admission, not before.
 11. Data availability. A checkpoint is posted as a Gnosis blob. Blobs prune after about 18 days, so they are the publish path, not the archive. Every validator keeps the checkpoint bytes. The anchor stores the blob commitment and the keccak. 20 Hz batches stay off blobs. Celestia, EigenDA, and IPFS are not in the first cut. If every replica and every validator deletes the bytes, the anchor cannot rebuild the world.
 12. Versioning. `worldId` and `protocolVersion` are in the genesis batch and in every envelope. Unknown values are rejected. The state-tree hash is keccak, the same function as `State::root` and the Solidity golden vectors. Commit certificates are BLS12-381. Player session keys stay ECDSA.
 
@@ -553,7 +554,7 @@ Step 12, if it is built, uses one zkVM: SP1, because it executes this Rust crate
 - [ ] Client directory with caching, fallback, and reconnect UX.
 - [ ] Checkpoint format and verification so new nodes start from a recent root rather than genesis.
 - [x] Mobile policy for when the limited validator mode may run (power, network, background limits). Section 9: a phone boots on the light tier and is not a default replica. Limited validator mode is eligible only when the device is plugged in and on an unmetered connection. Eligibility does not start the world tick. Background limits make that mode best-effort, and the OS may stop it. No CPU, RAM, or disk floor. No combat bonus, no second guild, and not the listing key.
-- [ ] Installer and docs: a Mark earns the right to lead one guild. Guild xDAI comes only from the auction-fee split, and only for certified play. Uptime pays nothing. Validators and light clients are not paid.
+- [ ] Installer and docs: a Mark earns the right to lead one guild. Guild xDAI comes only from the auction-fee split, and only for certified play. Accepted members split half of their guild's earning. Uptime pays nothing. Validators and light clients are not paid.
 
 ## 19. Appendix: changes from the earlier design
 
@@ -568,6 +569,6 @@ Seven things change from the Engine, Multi-Operator World, and Verification docu
 | Surfaces: web client, hosted server, PC node | Four tiers (light, validator, replica, leader) across web, installed game, mobile, and hosted server | Mobile and installed games become part of the network |
 | Encounter split as the capacity step after failover | Single-leader parallel groups first; per-encounter leases only if the load test demands | Replication already gives continuity |
 | Roll tape produced by the sim operator | Roll tape derived from a seed a non-leader roller commits and later reveals, keyed by event. Zero-knowledge proofs of that seed wait until rollout step 12 | A leader cannot choose outcomes |
-| No protocol rewards | Guilds are paid a timelocked half of the existing 1% auction fee, in xDAI, on certified play | Funds operators without a new token or a payment for uptime |
+| No protocol rewards | Guilds are paid half of the 5% auction fee, in xDAI, on certified play. Half of each guild's earning is split across accepted members | Funds operators and members without a new token or a payment for uptime |
 
 Carried forward unchanged: engine phases 0–5 and their numbers, the known engine gaps, the single shared map, the 20 Hz per-encounter-group simulation, listing key outside the voting set, no shared mutable disk, replay to an identical root, and the Phase 0 load test as the source of resource profiles.
