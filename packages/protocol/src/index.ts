@@ -416,13 +416,13 @@ export type LokListingView = {
   yours: boolean;
 };
 
-/** Matches AhEscrow.FEE_BPS — 1% of sale price (floor). */
-export const AH_FEE_BPS = 100;
+/** Matches AhEscrow.FEE_BPS — 5% of sale price (floor). */
+export const AH_FEE_BPS = 500;
 export const AH_FEE_BPS_DENOM = 10_000;
 /** Guild-vault share of the sale. Half of `AH_FEE_BPS`. */
-export const AH_VAULT_FEE_BPS = 50;
+export const AH_VAULT_FEE_BPS = 250;
 /** Treasury share of the sale. Half of `AH_FEE_BPS`. A floored leftover wei stays here. */
-export const AH_TREASURY_FEE_BPS = 50;
+export const AH_TREASURY_FEE_BPS = 250;
 
 /** Floor split used by AhEscrow.buyAsk / quoteFee. */
 export function ahFeeSplit(priceWei: bigint): { feeWei: bigint; sellerNetWei: bigint } {
@@ -434,7 +434,7 @@ export function ahFeeSplit(priceWei: bigint): { feeWei: bigint; sellerNetWei: bi
 /**
  * Floor each share the same way `ahFeeSplit` floors (`price * bps / 10000`).
  * A zero fee is a zero vault share and a zero treasury share.
- * When the two floors sum to less than the 1% fee, the leftover wei is part of
+ * When the two floors sum to less than the 5% fee, the leftover wei is part of
  * the treasury share, so the shares sum to the fee. In-game gold is not an input.
  */
 export function ahGuildFeeShares(priceWei: bigint): { feeWei: bigint; vaultWei: bigint; treasuryWei: bigint } {
@@ -463,7 +463,7 @@ export type AhEscrowClientConfig = {
   address: string;
   rpcUrl: string;
   chainId: number;
-  /** Marketplace fee in basis points (default 100 = 1%). */
+  /** Marketplace fee in basis points (default 500 = 5%). */
   feeBps?: number;
   /** Native unit for ask prices / fee display (xDAI on Gnosis, ETH on anvil). */
   currency?: SettlementCurrencyView;

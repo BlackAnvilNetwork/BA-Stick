@@ -86,9 +86,9 @@ contract DeployTest is Test {
         assertTrue(d.factory.hasRole(d.factory.GUARDIAN_ROLE(), admin));
         assertEq(address(d.ahEscrow.characterNft()), address(d.nft));
         assertEq(d.ahEscrow.feeRecipient(), feeRecipient);
-        assertEq(d.ahEscrow.FEE_BPS(), 100);
-        assertEq(d.ahEscrow.vaultBps(), 50);
-        assertEq(d.ahEscrow.treasuryBps(), 50);
+        assertEq(d.ahEscrow.FEE_BPS(), 500);
+        assertEq(d.ahEscrow.vaultBps(), 250);
+        assertEq(d.ahEscrow.treasuryBps(), 250);
         assertEq(d.ahEscrow.SHARE_DELAY(), 1 days);
         assertEq(d.ahEscrow.guildVault().balance, 0);
         assertTrue(d.rulesets.hasRole(d.rulesets.PROPOSER_ROLE(), proposer));

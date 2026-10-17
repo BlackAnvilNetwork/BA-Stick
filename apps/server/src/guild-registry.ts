@@ -5,7 +5,7 @@
  * This module does not invent a bond amount, a minimum, or a fee. Joining
  * is free. A second Mark for the same operator does not open a second guild.
  *
- * There is no payout. `AhEscrow` `FEE_BPS` stays 100. Nothing here sends
+ * There is no payout. `AhEscrow` `FEE_BPS` stays 500. Nothing here sends
  * xDAI or broadcasts to Gnosis or Chiado.
  *
  * A Mark grants no damage, loot, or combat advantage. Validators, light

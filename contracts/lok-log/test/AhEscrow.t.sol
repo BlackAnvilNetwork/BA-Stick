@@ -241,45 +241,45 @@ contract AhEscrowTest is Test {
     }
 
     function test_quoteFee_roundingFloor() public {
-        // fee = price / 100 (floor); sellerNet = price - fee.
+        // fee = price * 500 / 10000 (floor); sellerNet = price - fee.
         (uint256 f1, uint256 n1) = escrow.quoteFee(1);
         assertEq(f1, 0);
         assertEq(n1, 1);
 
-        (uint256 f99, uint256 n99) = escrow.quoteFee(99);
-        assertEq(f99, 0);
-        assertEq(n99, 99);
+        (uint256 f19, uint256 n19) = escrow.quoteFee(19);
+        assertEq(f19, 0);
+        assertEq(n19, 19);
 
-        (uint256 f100, uint256 n100) = escrow.quoteFee(100);
-        assertEq(f100, 1);
-        assertEq(n100, 99);
+        (uint256 f20, uint256 n20) = escrow.quoteFee(20);
+        assertEq(f20, 1);
+        assertEq(n20, 19);
 
-        (uint256 f101, uint256 n101) = escrow.quoteFee(101);
-        assertEq(f101, 1);
-        assertEq(n101, 100);
+        (uint256 f21, uint256 n21) = escrow.quoteFee(21);
+        assertEq(f21, 1);
+        assertEq(n21, 20);
 
-        (uint256 f199, uint256 n199) = escrow.quoteFee(199);
-        assertEq(f199, 1);
-        assertEq(n199, 198);
+        (uint256 f39, uint256 n39) = escrow.quoteFee(39);
+        assertEq(f39, 1);
+        assertEq(n39, 38);
 
-        (uint256 f200, uint256 n200) = escrow.quoteFee(200);
-        assertEq(f200, 2);
-        assertEq(n200, 198);
+        (uint256 f40, uint256 n40) = escrow.quoteFee(40);
+        assertEq(f40, 2);
+        assertEq(n40, 38);
     }
 
     function testFuzz_quoteFee_partitionsPrice(uint256 price) public view {
         price = bound(price, 1, type(uint128).max);
         (uint256 fee, uint256 net) = escrow.quoteFee(price);
         assertEq(fee + net, price);
-        assertEq(fee, (price * 100) / 10_000);
+        assertEq(fee, (price * 500) / 10_000);
     }
 
     function test_buyAsk_rounding_dustPrice() public {
-        _open(LISTING, 99);
+        _open(LISTING, 19);
         vm.deal(buyer, 1 ether);
         vm.prank(buyer);
-        escrow.buyAsk{value: 99}(LISTING, BUYER_TOKEN);
-        assertEq(seller.balance, 99);
+        escrow.buyAsk{value: 19}(LISTING, BUYER_TOKEN);
+        assertEq(seller.balance, 19);
         assertEq(feeTo.balance, 0);
     }
 }
