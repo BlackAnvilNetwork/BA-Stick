@@ -29,6 +29,7 @@ import {
   creditGuildVault,
   noteGuildBatch,
   resetGuildScoreForTests,
+  setGuildPayoutRouteForTests,
   settleGuildPayouts,
 } from "./guild-score";
 import {
@@ -184,6 +185,13 @@ describe("guild vault payout", { concurrency: false }, () => {
         }
         assert.equal(joinGuild(guildId, "still-requesting").requested, true);
 
+        setGuildPayoutRouteForTests(guildId, {
+          mark: "0x00000000000000000000000000000000000000a1",
+          members: members.map((member) => ({
+            characterId: member.characterId,
+            address: "0x00000000000000000000000000000000000000b1",
+          })),
+        });
         creditGuildVault(10_000n);
         noteGuildBatch({
           epoch: 0,

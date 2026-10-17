@@ -141,8 +141,8 @@ function asAddress(value: string | null | undefined): `0x${string}` | null {
 }
 
 /**
- * Point one guild's payout at addresses the test already knows.
- * Production uses the predicted Mark Safe and Guild Wallets instead.
+ * Stand in for a predicted Safe when accept did not predict one.
+ * A Mark Safe or Guild Wallet address that already exists is paid instead.
  */
 export function setGuildPayoutRouteForTests(
   guildId: string,
@@ -518,15 +518,13 @@ export function splitGuildEarning(args: {
 }
 
 function routeAddress(guildId: string, characterId: string | null, mark: boolean): `0x${string}` | null {
+  const predicted = mark ? guildMarkSafe(guildId) : characterId ? (guildWallet(guildId, characterId)?.address ?? null) : null;
+  if (predicted) return predicted;
   const route = payoutRoutes.get(guildId);
-  if (route) {
-    if (mark) return route.mark;
-    if (!characterId) return null;
-    return route.members.get(characterId.trim().toLowerCase()) ?? null;
-  }
-  if (mark) return guildMarkSafe(guildId);
+  if (!route) return null;
+  if (mark) return route.mark;
   if (!characterId) return null;
-  return guildWallet(guildId, characterId)?.address ?? null;
+  return route.members.get(characterId.trim().toLowerCase()) ?? null;
 }
 
 function sharesFor(guildId: string, earnedWei: bigint, characterIds: readonly string[]): { shares: GuildShare[]; dustWei: bigint } {
