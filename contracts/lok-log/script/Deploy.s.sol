@@ -9,16 +9,19 @@ import {CharacterFactory} from "../src/CharacterFactory.sol";
 import {RulesetRegistry} from "../src/RulesetRegistry.sol";
 import {AhEscrow} from "../src/AhEscrow.sol";
 import {PvpBounty} from "../src/PvpBounty.sol";
+
 // KEK custody is retired. Play-path payments use AhEscrow (deployed and granted LISTING_ROLE here).
 // PvP head-bounties use PvpBounty (OPERATOR_ROLE = LISTING key by default).
 
 /// Deploys the log-model character stack behind UUPS proxies, wires roles, then hands admin to the Safe.
 /// The deployer is the temporary admin and renounces at the end (when deployer != admin).
 ///
-/// Role separation (official launch):
-///   ADMIN / EMERGENCY / GUARDIAN → Safe multisig (may be the same Safe)
-///   LISTING / ROTATOR / PROPOSER → distinct server EOAs
-///   FEE_RECIPIENT → distinct treasury (not a server key, not the Safe)
+/// Role separation (official launch, chainid other than 31337):
+///   ADMIN / EMERGENCY / GUARDIAN / ROTATOR / PROPOSER → the same Admin Safe
+///   FEE_RECIPIENT → Treasury Safe, distinct from the Admin Safe
+///   LISTING → its own address, distinct from the Admin Safe and the Treasury Safe
+/// Anvil (31337) may reuse addresses. ALLOW_EOA_ADMIN=1 is the one-off where
+/// feeRecipient may equal the admin EOA; listing, rotator, and proposer stay distinct there.
 ///
 /// Items: pass a real access-controlled ERC-1155, or address(0) to leave imports/exports off.
 /// Never pass MockItems/MockKEK on chainid != 31337 (guarded).
@@ -141,7 +144,10 @@ contract Deploy is Script {
         }
     }
 
-    /// Distinctness rules for official launch. Anvil may reuse addresses for convenience.
+    /// Launch-role checks. Anvil may reuse addresses for convenience.
+    /// On any other chain, ADMIN, EMERGENCY, GUARDIAN, ROTATOR, and PROPOSER are the
+    /// Admin Safe. LISTING stays a separate address. FEE_RECIPIENT is the Treasury
+    /// Safe and must differ from the Admin Safe unless ALLOW_EOA_ADMIN is set.
     function validateConfig(Config memory c) public view {
         bool eoaAdmin = allowEoaAdmin();
         if (c.admin == address(0)) revert BadConfig("admin=0");
@@ -157,25 +163,32 @@ contract Deploy is Script {
 
         if (block.chainid == ANVIL_CHAIN_ID) return;
 
-        // Server keys must be pairwise distinct and not the Safe / fee recipient.
-        if (c.listing == c.rotator || c.listing == c.proposer || c.rotator == c.proposer) {
-            revert BadConfig("listing/rotator/proposer must be distinct");
-        }
-        if (c.listing == c.admin || c.rotator == c.admin || c.proposer == c.admin) {
-            revert BadConfig("server keys must not equal admin Safe");
-        }
-        if (c.listing == c.feeRecipient || c.rotator == c.feeRecipient || c.proposer == c.feeRecipient) {
-            revert BadConfig("server keys must not equal feeRecipient");
-        }
-        if (!eoaAdmin && c.feeRecipient == c.admin) {
-            revert BadConfig("feeRecipient must be distinct from admin Safe");
-        }
-        // emergency/guardian may equal admin (same Safe / EOA). They must not be server keys.
-        if (c.emergency == c.listing || c.emergency == c.rotator || c.emergency == c.proposer) {
-            revert BadConfig("emergency must not be a server key");
-        }
-        if (c.guardian == c.listing || c.guardian == c.rotator || c.guardian == c.proposer) {
-            revert BadConfig("guardian must not be a server key");
+        if (eoaAdmin) {
+            // One-off treasury EOA: server keys stay pairwise distinct and off that EOA.
+            if (c.listing == c.rotator || c.listing == c.proposer || c.rotator == c.proposer) {
+                revert BadConfig("listing/rotator/proposer must be distinct");
+            }
+            if (c.listing == c.admin || c.rotator == c.admin || c.proposer == c.admin) {
+                revert BadConfig("server keys must not equal admin Safe");
+            }
+            if (c.listing == c.feeRecipient || c.rotator == c.feeRecipient || c.proposer == c.feeRecipient) {
+                revert BadConfig("server keys must not equal feeRecipient");
+            }
+            if (c.emergency == c.listing || c.emergency == c.rotator || c.emergency == c.proposer) {
+                revert BadConfig("emergency must not be a server key");
+            }
+            if (c.guardian == c.listing || c.guardian == c.rotator || c.guardian == c.proposer) {
+                revert BadConfig("guardian must not be a server key");
+            }
+        } else {
+            if (c.emergency != c.admin || c.guardian != c.admin || c.rotator != c.admin || c.proposer != c.admin) {
+                revert BadConfig("admin, emergency, guardian, rotator, and proposer must be the admin Safe");
+            }
+            if (c.listing == c.admin) revert BadConfig("listing must be distinct from admin Safe");
+            if (c.listing == c.feeRecipient) revert BadConfig("listing must be distinct from feeRecipient");
+            if (c.feeRecipient == c.admin) {
+                revert BadConfig("feeRecipient must be distinct from admin Safe");
+            }
         }
 
         if (c.timelock != address(0) && c.timelock.code.length == 0) {
@@ -219,8 +232,7 @@ contract Deploy is Script {
 
         d.nft = CharacterNFT(
             _proxy(
-                nftImpl,
-                abi.encodeCall(CharacterNFT.initialize, (deployer, "Black Anvil Character", "BANV", c.baseURI))
+                nftImpl, abi.encodeCall(CharacterNFT.initialize, (deployer, "Black Anvil Character", "BANV", c.baseURI))
             )
         );
         d.checkpoint = CharacterCheckpoint(
@@ -232,7 +244,9 @@ contract Deploy is Script {
         d.factory = CharacterFactory(
             _proxy(
                 factoryImpl,
-                abi.encodeCall(CharacterFactory.initialize, (deployer, address(d.nft), address(d.checkpoint), c.mintFee))
+                abi.encodeCall(
+                    CharacterFactory.initialize, (deployer, address(d.nft), address(d.checkpoint), c.mintFee)
+                )
             )
         );
         d.rulesets = RulesetRegistry(
