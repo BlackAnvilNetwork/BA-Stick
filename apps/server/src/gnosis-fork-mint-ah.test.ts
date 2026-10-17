@@ -221,8 +221,8 @@ describe("gnosis fork: 1 xDAI mint + AH list/buy", {
     assert.equal(askAfter[5], true, "ask used");
 
     const sellerBalAfter = await pub.getBalance({ address: seller.address });
-    // 1% fee → seller receives 0.99 xDAI
-    const expectedNet = priceWei - priceWei / 100n;
+    // 5% fee → seller receives 0.95 xDAI
+    const expectedNet = priceWei - (priceWei * 500n) / 10_000n;
     assert.equal(sellerBalAfter - sellerBalBefore, expectedNet);
 
     assert.match(explorerTxUrl(100, buyHash), /^https:\/\/gnosisscan\.io\/tx\/0x/);

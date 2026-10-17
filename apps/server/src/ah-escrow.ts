@@ -237,7 +237,7 @@ export function ahEscrowClientConfig(env: NodeJS.ProcessEnv = process.env): {
   if (!Number.isSafeInteger(chainId) || chainId <= 0) return null;
   // Matches AhEscrow.FEE_BPS (redeploy package). Override only for tests.
   const feeRaw = env.LOK_AH_FEE_BPS?.trim();
-  const feeBps = feeRaw && /^\d+$/.test(feeRaw) ? Number(feeRaw) : 100;
+  const feeBps = feeRaw && /^\d+$/.test(feeRaw) ? Number(feeRaw) : 500;
   if (!Number.isSafeInteger(feeBps) || feeBps < 0 || feeBps > 10_000) return null;
   return { address, rpcUrl, chainId, feeBps, currency: settlementCurrencyView(chainId) };
 }

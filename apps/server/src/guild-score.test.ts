@@ -175,10 +175,10 @@ test("a payout is refused before the anchor and the one-day delay", async () => 
     assert.equal(guildMembers(guildId).length, 0);
     assert.deepEqual(await acceptGuildJoin(guildId, "c1", MARK), { accepted: true, feeWei: 0n });
     const split = creditGuildVault(10_000n);
-    assert.deepEqual(split, { feeWei: 100n, vaultWei: 50n, treasuryWei: 50n });
-    assert.equal(guildVaultWei(), 50n);
-    assert.equal(AH_FEE_BPS, 100);
-    assert.deepEqual(ahFeeSplit(10_000n), { feeWei: 100n, sellerNetWei: 9_900n });
+    assert.deepEqual(split, { feeWei: 500n, vaultWei: 250n, treasuryWei: 250n });
+    assert.equal(guildVaultWei(), 250n);
+    assert.equal(AH_FEE_BPS, 500);
+    assert.deepEqual(ahFeeSplit(10_000n), { feeWei: 500n, sellerNetWei: 9_500n });
 
     noteGuildBatch({
       epoch: 0,
@@ -191,15 +191,15 @@ test("a payout is refused before the anchor and the one-day delay", async () => 
     const beforeAnchor = settleGuildPayouts(0);
     assert.equal(beforeAnchor.ok, false);
     assert.equal(beforeAnchor.error, ANCHOR_WAIT);
-    assert.equal(beforeAnchor.vaultWei, 50n);
-    assert.equal(guildVaultWei(), 50n);
+    assert.equal(beforeAnchor.vaultWei, 250n);
+    assert.equal(guildVaultWei(), 250n);
     assert.deepEqual(beforeAnchor.paid, []);
 
     certifyGuildBatch(4, certificate(MARK));
     const certifiedUnanchored = settleGuildPayouts(0);
     assert.equal(certifiedUnanchored.ok, false);
     assert.equal(certifiedUnanchored.error, ANCHOR_WAIT);
-    assert.equal(guildVaultWei(), 50n);
+    assert.equal(guildVaultWei(), 250n);
 
     const anchorAt = 1_700_000_000_000;
     setChallengeClockForTests(() => anchorAt);
@@ -213,16 +213,16 @@ test("a payout is refused before the anchor and the one-day delay", async () => 
     const duringDelay = settleGuildPayouts(anchorAt + CHALLENGE_DELAY_MS - 1);
     assert.equal(duringDelay.ok, false);
     assert.equal(duringDelay.error, CHALLENGE_WAIT);
-    assert.equal(duringDelay.vaultWei, 50n);
-    assert.equal(guildVaultWei(), 50n);
-    assert.equal(guildTreasuryWei(), 50n);
+    assert.equal(duringDelay.vaultWei, 250n);
+    assert.equal(guildVaultWei(), 250n);
+    assert.equal(guildTreasuryWei(), 250n);
 
     const paid = settleGuildPayouts(anchorAt + CHALLENGE_DELAY_MS);
     assert.equal(paid.ok, true);
-    assert.deepEqual(paid.paid, [{ guildId: "guild:" + MARK, wei: 50n }]);
+    assert.deepEqual(paid.paid, [{ guildId: "guild:" + MARK, wei: 250n }]);
     assert.equal(paid.vaultWei, 0n);
     assert.equal(guildVaultWei(), 0n);
-    assert.equal(guildTreasuryWei(), 50n);
+    assert.equal(guildTreasuryWei(), 250n);
     assert.equal(calls.length, 0);
 
     const share = guildPayout({
@@ -255,8 +255,8 @@ test("a zero-score epoch leaves the vault untouched", async () => {
     assert.deepEqual(joinGuild(opened.guild?.id ?? "", "c1"), { requested: true, feeWei: 0n });
     assert.deepEqual(await acceptGuildJoin(opened.guild?.id ?? "", "c1", MARK), { accepted: true, feeWei: 0n });
     creditGuildVault(20_000n);
-    assert.equal(guildVaultWei(), 100n);
-    assert.equal(guildTreasuryWei(), 100n);
+    assert.equal(guildVaultWei(), 500n);
+    assert.equal(guildTreasuryWei(), 500n);
 
     noteGuildBatch({
       epoch: 0,
@@ -290,9 +290,9 @@ test("a zero-score epoch leaves the vault untouched", async () => {
     const settled = settleGuildPayouts(anchorAt + CHALLENGE_DELAY_MS);
     assert.equal(settled.ok, true);
     assert.deepEqual(settled.paid, []);
-    assert.equal(settled.vaultWei, 100n);
-    assert.equal(guildVaultWei(), 100n);
-    assert.equal(guildTreasuryWei(), 100n);
+    assert.equal(settled.vaultWei, 500n);
+    assert.equal(guildVaultWei(), 500n);
+    assert.equal(guildTreasuryWei(), 500n);
   } finally {
     reset();
   }
@@ -324,7 +324,7 @@ test("a later epoch pays when no earlier epoch was noted", async () => {
 
     const paid = settleGuildPayouts(anchorAt + CHALLENGE_DELAY_MS);
     assert.equal(paid.ok, true);
-    assert.deepEqual(paid.paid, [{ guildId: "guild:" + MARK, wei: 50n }]);
+    assert.deepEqual(paid.paid, [{ guildId: "guild:" + MARK, wei: 250n }]);
     assert.equal(guildVaultWei(), 0n);
   } finally {
     reset();
@@ -380,8 +380,8 @@ test("a character who joins after the epoch does not score it", async () => {
     const settled = settleGuildPayouts(anchorAt + CHALLENGE_DELAY_MS);
     assert.equal(settled.ok, true);
     assert.deepEqual(settled.paid, []);
-    assert.equal(settled.vaultWei, 50n);
-    assert.equal(guildVaultWei(), 50n);
+    assert.equal(settled.vaultWei, 250n);
+    assert.equal(guildVaultWei(), 250n);
   } finally {
     reset();
   }
@@ -403,7 +403,7 @@ test("an open request adds no score and an accept counts in a later epoch", asyn
     assert.deepEqual(joinGuild(guildId, "c1"), { requested: true, feeWei: 0n });
     assert.equal(guildMembers(guildId).length, 0);
     creditGuildVault(10_000n);
-    assert.equal(guildVaultWei(), 50n);
+    assert.equal(guildVaultWei(), 250n);
 
     noteGuildBatch({
       epoch: 0,
@@ -421,14 +421,14 @@ test("an open request adds no score and an accept counts in a later epoch", asyn
     const open = settleGuildPayouts(anchorAt + CHALLENGE_DELAY_MS);
     assert.equal(open.ok, true);
     assert.deepEqual(open.paid, []);
-    assert.equal(guildVaultWei(), 50n);
+    assert.equal(guildVaultWei(), 250n);
 
     assert.deepEqual(await acceptGuildJoin(guildId, "c1", MARK), { accepted: true, feeWei: 0n });
     assert.equal(guildMembers(guildId).length, 1);
     const sameEpoch = settleGuildPayouts(anchorAt + CHALLENGE_DELAY_MS);
     assert.equal(sameEpoch.ok, true);
     assert.deepEqual(sameEpoch.paid, []);
-    assert.equal(guildVaultWei(), 50n);
+    assert.equal(guildVaultWei(), 250n);
 
     noteGuildBatch({
       epoch: 1,
@@ -443,7 +443,7 @@ test("an open request adds no score and an accept counts in a later epoch", asyn
     assert.equal(postedLater, true);
     const paid = settleGuildPayouts(anchorAt + CHALLENGE_DELAY_MS);
     assert.equal(paid.ok, true);
-    assert.deepEqual(paid.paid, [{ guildId: "guild:" + MARK, wei: 50n }]);
+    assert.deepEqual(paid.paid, [{ guildId: "guild:" + MARK, wei: 250n }]);
     assert.equal(paid.vaultWei, 0n);
     assert.equal(guildVaultWei(), 0n);
     assert.equal(calls.length, 0);
@@ -506,17 +506,17 @@ test("the live tick calls the score and the payout gate", async () => {
   try {
     const sheet = { level: 20 };
     const melee = meleeAtkBonus(sheet);
-    assert.equal(AH_FEE_BPS, 100);
-    assert.equal(GUILD_VAULT_BPS, 50);
-    assert.deepEqual(guildAuctionSplit(10_000n), { feeWei: 100n, vaultWei: 50n, treasuryWei: 50n });
+    assert.equal(AH_FEE_BPS, 500);
+    assert.equal(GUILD_VAULT_BPS, 250);
+    assert.deepEqual(guildAuctionSplit(10_000n), { feeWei: 500n, vaultWei: 250n, treasuryWei: 250n });
     assert.deepEqual(guildAuctionSplit(100n), ahGuildFeeShares(100n));
-    assert.deepEqual(guildAuctionSplit(300n), { feeWei: 3n, vaultWei: 1n, treasuryWei: 2n });
+    assert.deepEqual(guildAuctionSplit(300n), { feeWei: 15n, vaultWei: 7n, treasuryWei: 8n });
     const sol = readFileSync(
       join(dirname(fileURLToPath(import.meta.url)), "../../../contracts/lok-log/src/AhEscrow.sol"),
       "utf8",
     );
-    assert.match(sol, /uint256 public constant FEE_BPS = 100;/);
-    assert.match(sol, /uint256 public constant VAULT_BPS_START = 50;/);
+    assert.match(sol, /uint256 public constant FEE_BPS = 500;/);
+    assert.match(sol, /uint256 public constant VAULT_BPS_START = 250;/);
     assert.match(sol, /uint64 public constant SHARE_DELAY = 1 days;/);
     assert.equal(sol.includes("claimDelay"), false);
     const scoreSrc = readFileSync(new URL("./guild-score.ts", import.meta.url), "utf8");

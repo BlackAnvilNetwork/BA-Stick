@@ -7,6 +7,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, describe, it } from "node:test";
+import { AH_FEE_BPS, AH_TREASURY_FEE_BPS, AH_VAULT_FEE_BPS } from "@bellgrave/protocol";
 import { createPublicClient, createWalletClient, http, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { applyAskFilled, scanAskFilled } from "./ah-escrow";
@@ -192,9 +193,9 @@ describe("support 8357719: EEZ mock sync buy (throwaway anvil)", { skip: !canRun
         args: [BigInt(b.tokenId), buyer.address],
       }),
     });
-    const fee = P / 100n;
-    const vaultShare = (P * 50n) / 10_000n;
-    const treasuryShare = (P * 50n) / 10_000n;
+    const fee = (P * BigInt(AH_FEE_BPS)) / 10_000n;
+    const vaultShare = (P * BigInt(AH_VAULT_FEE_BPS)) / 10_000n;
+    const treasuryShare = (P * BigInt(AH_TREASURY_FEE_BPS)) / 10_000n;
     const sellerNet = P - fee;
     const start = BigInt(String(await rpc("eth_blockNumber", [])));
     for (const id of ids) {

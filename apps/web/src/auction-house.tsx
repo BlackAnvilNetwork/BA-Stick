@@ -467,11 +467,11 @@ export function AuctionBook({ listings, buyer, ahEscrow, eezSyncBuy }: Props) {
                 unit +
                 ". The seller must cancel and relist."
               : eezReady
-                ? "Local EEZ mock: pay from the selected home chain; seller gets 99% (ownerOf at fill), 1% fee to treasury."
+                ? "Local EEZ mock: pay from the selected home chain; seller gets 95% (ownerOf at fill), 5% fee to treasury."
                 : ahEscrow
                   ? "Buys pay " +
                     unit +
-                    " to AhEscrow. Seller receives 99% at ownerOf(character); 1% marketplace fee. Item lands after AskFilled."
+                    " to AhEscrow. Seller receives 95% at ownerOf(character); 5% marketplace fee. Item lands after AskFilled."
                   : "AhEscrow is not configured on this server (set LOK_AH_ESCROW + LOK_CHAIN_RPC). Buys stay disabled."}
           </p>
           {eezReady && homeOptions.length > 0 ? (
