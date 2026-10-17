@@ -403,7 +403,7 @@ test("an open request adds no score and an accept counts in a later epoch", asyn
     assert.deepEqual(joinGuild(guildId, "c1"), { requested: true, feeWei: 0n });
     assert.equal(guildMembers(guildId).length, 0);
     creditGuildVault(10_000n);
-    assert.equal(guildVaultWei(), 50n);
+    assert.equal(guildVaultWei(), 250n);
 
     noteGuildBatch({
       epoch: 0,
@@ -421,14 +421,14 @@ test("an open request adds no score and an accept counts in a later epoch", asyn
     const open = settleGuildPayouts(anchorAt + CHALLENGE_DELAY_MS);
     assert.equal(open.ok, true);
     assert.deepEqual(open.paid, []);
-    assert.equal(guildVaultWei(), 50n);
+    assert.equal(guildVaultWei(), 250n);
 
     assert.deepEqual(acceptGuildJoin(guildId, "c1", MARK), { accepted: true, feeWei: 0n });
     assert.equal(guildMembers(guildId).length, 1);
     const sameEpoch = settleGuildPayouts(anchorAt + CHALLENGE_DELAY_MS);
     assert.equal(sameEpoch.ok, true);
     assert.deepEqual(sameEpoch.paid, []);
-    assert.equal(guildVaultWei(), 50n);
+    assert.equal(guildVaultWei(), 250n);
 
     noteGuildBatch({
       epoch: 1,
@@ -443,7 +443,7 @@ test("an open request adds no score and an accept counts in a later epoch", asyn
     assert.equal(postedLater, true);
     const paid = settleGuildPayouts(anchorAt + CHALLENGE_DELAY_MS);
     assert.equal(paid.ok, true);
-    assert.deepEqual(paid.paid, [{ guildId: "guild:" + MARK, wei: 50n }]);
+    assert.deepEqual(paid.paid, [{ guildId: "guild:" + MARK, wei: 250n }]);
     assert.equal(paid.vaultWei, 0n);
     assert.equal(guildVaultWei(), 0n);
     assert.equal(calls.length, 0);
