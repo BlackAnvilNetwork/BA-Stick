@@ -26,7 +26,7 @@ import {
   type QuarantinedAskFill,
 } from "./lok-ask-filled-quarantine";
 import { opsAlert, watcherLagAlertBlocks } from "./ops-log";
-import { creditGuildVault } from "./guild-score";
+import { creditGuildVault, guildHour } from "./guild-score";
 import { observeEscrowSettlement } from "./root-anchor";
 import { redactRpcUrl } from "./ops-redact";
 import { resolvePublicRpcUrl } from "./public-rpc";
@@ -172,7 +172,7 @@ export function applyAskFilled(
   // Do not wait for a later empty bucket, and do not count the same fill twice.
   if (price > 0n) {
     observeEscrowSettlement(fillKey, price, opts?.log?.settledAtMs);
-    creditGuildVault(price);
+    creditGuildVault(price, guildHour(opts?.log?.settledAtMs ?? Date.now()));
   }
 
   const listing = lok.listingOf(fill.listingId);

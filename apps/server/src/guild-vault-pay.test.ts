@@ -27,6 +27,7 @@ import {
   certifyGuildBatch,
   CHALLENGE_DELAY_MS,
   creditGuildVault,
+  EPOCH_MS,
   noteGuildBatch,
   resetGuildScoreForTests,
   setGuildPayoutRouteForTests,
@@ -196,10 +197,11 @@ describe("guild vault payout", { concurrency: false }, () => {
         noteGuildBatch({
           epoch: 0,
           height: 4,
-          events: [
-            { characterId: members[0]?.characterId ?? "", kind: "combat" },
-            { characterId: members[0]?.characterId ?? "", kind: "gather" },
-          ],
+          events: Array.from({ length: 10 }, (_, index) => ({
+            characterId: members[0]?.characterId ?? "",
+            kind: index % 2 === 0 ? "combat" : "gather",
+            atMs: index * EPOCH_MS,
+          })),
         });
         certifyGuildBatch(4, certificate(MARK));
         const anchorAt = 1_700_000_000_000;
