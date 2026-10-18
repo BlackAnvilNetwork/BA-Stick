@@ -4,13 +4,14 @@
  * broadcast, and no deployer key is written onto a replica.
  */
 import assert from "node:assert/strict";
+import { createServer } from "node:http";
 import { createRequire } from "node:module";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import Safe from "@safe-global/protocol-kit";
-import { createPublicClient, createWalletClient, http, parseEther, type Hex } from "viem";
+import { createPublicClient, createWalletClient, encodeFunctionResult, http, parseEther, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { foundry } from "viem/chains";
 import { postReplicaBond, resetBondedAdmissionForTests, votingReplica } from "./bonded-admission";
@@ -101,15 +102,17 @@ async function deploySafeContracts(rpc: string): Promise<LocalSafeContracts> {
 }
 
 describe("mark and guild safes", { concurrency: false }, () => {
-  test("the salt is the operator id, or the guild id plus the character id", () => {
+  test("the salt is the chain id plus the operator id, or the guild id plus the character id", () => {
     reset();
     try {
       const mark = saltNonceForOperator("operator-a");
-      assert.equal(mark, saltNonceForOperator("operator-a"));
+      assert.equal(mark, saltNonceForOperator("operator-a", 31337));
+      assert.notEqual(mark, saltNonceForOperator("operator-a", 100));
       assert.notEqual(mark, saltNonceForOperator("operator-b"));
       assert.equal(saltNonceForOperator("  operator-a  "), mark);
       assert.equal(saltNonceForOperator(""), null);
       const guild = saltNonceForGuildWallet("guild:operator-a", "character-1");
+      assert.notEqual(guild, saltNonceForGuildWallet("guild:operator-a", "character-1", 100));
       assert.equal(guild, saltNonceForGuildWallet("guild:operator-a", "character-1"));
       assert.notEqual(guild, saltNonceForGuildWallet("guild:operator-b", "character-1"));
       assert.notEqual(guild, saltNonceForGuildWallet("guild:operator-a", "character-2"));
@@ -138,6 +141,88 @@ describe("mark and guild safes", { concurrency: false }, () => {
       assert.equal(body.includes("fetch("), false);
       assert.equal(body.includes("chainBoundXdaiSend"), false);
     } finally {
+      reset();
+    }
+  });
+
+  test("Gnosis chain 100 predicts with its own salt and a second open sends nothing", async () => {
+    reset();
+    const proxyBytecode = artifactBytecode(
+      "@safe-global/safe-smart-account/build/artifacts/contracts/proxies/SafeProxy.sol/SafeProxy.json",
+    );
+    const proxyCreationCodeResult = encodeFunctionResult({
+      abi: [
+        {
+          name: "proxyCreationCode",
+          type: "function",
+          stateMutability: "pure",
+          inputs: [],
+          outputs: [{ type: "bytes" }],
+        },
+      ],
+      functionName: "proxyCreationCode",
+      result: proxyBytecode,
+    });
+    const methods: string[] = [];
+    const server = createServer((req, res) => {
+      const chunks: Buffer[] = [];
+      req.on("data", (chunk) => chunks.push(chunk));
+      req.on("end", () => {
+        const parsed = JSON.parse(Buffer.concat(chunks).toString() || "{}") as { method?: string; id?: number };
+        const method = parsed.method ?? "";
+        methods.push(method);
+        const broadcast = method === "eth_sendTransaction" || method === "eth_sendRawTransaction";
+        let result: string | null = "0x";
+        if (method === "eth_chainId") result = "0x64";
+        else if (method === "eth_getCode") result = "0x" + "ab".repeat(32);
+        else if (method === "eth_call") result = proxyCreationCodeResult;
+        else if (method === "eth_getTransactionCount" || method === "eth_blockNumber") result = "0x1";
+        res.setHeader("content-type", "application/json");
+        res.end(
+          JSON.stringify(
+            broadcast
+              ? { jsonrpc: "2.0", id: parsed.id ?? 1, error: { code: -32000, message: "broadcast" } }
+              : { jsonrpc: "2.0", id: parsed.id ?? 1, result },
+          ),
+        );
+      });
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", () => resolve()));
+    const bound = server.address();
+    if (!bound || typeof bound === "string") throw new Error("stub rpc did not bind");
+    const rpc = "http://127.0.0.1:" + bound.port;
+    const stub = "0x" + "11".repeat(20);
+    const contracts: LocalSafeContracts = {
+      safeSingletonAddress: stub,
+      safeProxyFactoryAddress: stub,
+      fallbackHandlerAddress: stub,
+      multiSendAddress: stub,
+      multiSendCallOnlyAddress: stub,
+    };
+    try {
+      const predicted = await predictMarkSafe({
+        rpc,
+        operatorId: "operator-a",
+        operatorKey: SUPPORT_ANVIL_K0,
+        contracts,
+      });
+      assert.equal(predicted.ok, true, predicted.ok ? "" : predicted.error + " methods=" + methods.join(","));
+      if (!predicted.ok) return;
+      const again = await markComesOnline({
+        rpc,
+        operatorId: "operator-a",
+        operatorKey: SUPPORT_ANVIL_K0,
+        contracts,
+      });
+      assert.equal(again.ok, true, again.ok ? "" : again.error + " methods=" + methods.join(","));
+      if (!again.ok) return;
+      assert.equal(again.deployed, false);
+      assert.equal(again.address.toLowerCase(), predicted.address.toLowerCase());
+      assert.equal(methods.includes("eth_sendTransaction"), false);
+      assert.equal(methods.includes("eth_sendRawTransaction"), false);
+      assert.equal(keptAdminSafeThreshold(1), null);
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
       reset();
     }
   });
@@ -236,13 +321,6 @@ describe("mark and guild safes", { concurrency: false }, () => {
         const guildId = openedGuild.guild?.id ?? "";
         const contracts = await deploySafeContracts(anvil.rpc);
 
-        const gnosis = await predictMarkSafe({
-          rpc: "https://rpc.gnosischain.com",
-          operatorId: "operator-a",
-          operatorKey: SUPPORT_ANVIL_K0,
-          contracts,
-        });
-        assert.equal(gnosis.ok, false);
         const chiado = await predictMarkSafe({
           rpc: "https://rpc.chiadochain.net",
           operatorId: "operator-a",
@@ -250,6 +328,7 @@ describe("mark and guild safes", { concurrency: false }, () => {
           contracts,
         });
         assert.equal(chiado.ok, false);
+        if (!chiado.ok) assert.match(chiado.error, /refuses|chain id was not available/);
 
         const beforePredict = await client.getTransactionCount({ address: operator.address });
         const predicted = await predictMarkSafe({

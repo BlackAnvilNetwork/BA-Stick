@@ -20,16 +20,20 @@
  * 1. That is the same theft risk as one key. The Admin Safe stays at a
  * threshold of at least 2.
  *
- * Joining stays free. This module does not invent a bond amount, does not
- * send a payout, and does not broadcast. Deploys run only on local anvil.
+ * Joining stays free. This module does not invent a bond amount and does not
+ * send a payout. Predict and deploy run on local anvil and on Gnosis chain
+ * 100. The salt includes that chain id, so the same operator does not predict
+ * one address on every chain. Chiado stays refused. The operator key pays
+ * the Mark Safe gas. A second open sends no transaction.
  */
 import Safe, { type ContractNetworksConfig } from "@safe-global/protocol-kit";
-import { createPublicClient, getAddress, http, isAddress, keccak256, toBytes, type Hex } from "viem";
+import { createPublicClient, getAddress, http, isAddress, keccak256, toBytes, type Chain, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { foundry } from "viem/chains";
+import { foundry, gnosis } from "viem/chains";
 import { PINNED_GNOSIS_LISTING_ADDRESS } from "./production-boot";
 
 const ANVIL_CHAIN_ID = 31337n;
+const GNOSIS_CHAIN_ID = 100n;
 const SAFE_VERSION = "1.5.0" as const;
 
 /** A Listing Safe may be threshold 1. That is the same theft risk as one key. */
@@ -116,21 +120,37 @@ export function keptAdminSafeThreshold(threshold: number): number | null {
   return threshold;
 }
 
-/** Salt nonce for a Mark Safe. The salt is the operator id. */
-export function saltNonceForOperator(operatorId: string): string | null {
+/** Salt nonce for a Mark Safe. The salt is the chain id plus the operator id. */
+export function saltNonceForOperator(operatorId: string, chainId: bigint | number = ANVIL_CHAIN_ID): string | null {
   if (typeof operatorId !== "string") return null;
   const id = operatorId.trim();
-  if (!id) return null;
-  return BigInt(keccak256(toBytes(id))).toString(10);
+  const chain = saltChainId(chainId);
+  if (!id || !chain) return null;
+  return BigInt(keccak256(toBytes(chain + "\0" + id))).toString(10);
 }
 
-/** Salt nonce for one Guild Wallet. The salt is the guild id plus the character id. */
-export function saltNonceForGuildWallet(guildId: string, characterId: string): string | null {
+/** Salt nonce for one Guild Wallet. The salt is the chain id, the guild id, and the character id. */
+export function saltNonceForGuildWallet(
+  guildId: string,
+  characterId: string,
+  chainId: bigint | number = ANVIL_CHAIN_ID,
+): string | null {
   if (typeof guildId !== "string" || typeof characterId !== "string") return null;
   const guild = guildId.trim();
   const character = characterId.trim();
-  if (!guild || !character) return null;
-  return BigInt(keccak256(toBytes(guild + "\0" + character))).toString(10);
+  const chain = saltChainId(chainId);
+  if (!guild || !character || !chain) return null;
+  return BigInt(keccak256(toBytes(chain + "\0" + guild + "\0" + character))).toString(10);
+}
+
+function saltChainId(chainId: bigint | number): string | null {
+  try {
+    const id = typeof chainId === "bigint" ? chainId : BigInt(chainId);
+    if (id <= 0n) return null;
+    return id.toString(10);
+  } catch {
+    return null;
+  }
 }
 
 /** An Ethereum account. A character id string is an account only when it already is one. */
@@ -195,9 +215,13 @@ function localAnvilRpc(rpc: string): boolean {
   return /^https?:\/\/(127\.0\.0\.1|localhost):\d+\/?$/i.test(rpc.trim());
 }
 
-async function assertLocalAnvil(rpc: string): Promise<string | null> {
+type SafeNetwork =
+  | { kind: "anvil"; chainId: typeof ANVIL_CHAIN_ID; chain: Chain }
+  | { kind: "gnosis"; chainId: typeof GNOSIS_CHAIN_ID; chain: Chain };
+
+/** Anvil stays on loopback chain 31337. Gnosis is chain 100, local or remote. Every other chain is refused. */
+async function resolveSafeChain(rpc: string): Promise<{ ok: true; network: SafeNetwork } | { ok: false; error: string }> {
   const url = rpc.trim();
-  if (!localAnvilRpc(url)) return "Safe deploy refuses a non-local RPC";
   let chainId: bigint;
   try {
     const res = await fetch(url, {
@@ -206,16 +230,23 @@ async function assertLocalAnvil(rpc: string): Promise<string | null> {
       body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_chainId", params: [] }),
     });
     const body = (await res.json()) as { result?: string };
-    if (!body.result) return "anvil chain id was not available";
+    if (!body.result) return { ok: false, error: "chain id was not available" };
     chainId = BigInt(body.result);
   } catch {
-    return "anvil chain id was not available";
+    return { ok: false, error: "chain id was not available" };
   }
-  if (chainId !== ANVIL_CHAIN_ID) return "Safe deploy refuses chain " + chainId.toString();
-  return null;
+  if (localAnvilRpc(url) && chainId === ANVIL_CHAIN_ID) {
+    return { ok: true, network: { kind: "anvil", chainId: ANVIL_CHAIN_ID, chain: foundry } };
+  }
+  if (chainId === GNOSIS_CHAIN_ID) {
+    return { ok: true, network: { kind: "gnosis", chainId: GNOSIS_CHAIN_ID, chain: gnosis } };
+  }
+  if (!localAnvilRpc(url)) return { ok: false, error: "Safe deploy refuses a non-local RPC" };
+  return { ok: false, error: "Safe deploy refuses chain " + chainId.toString() };
 }
 
-function contractsReady(contracts: LocalSafeContracts): boolean {
+function contractsReady(contracts: LocalSafeContracts | undefined): boolean {
+  if (!contracts) return false;
   return (
     !!ethereumAccount(contracts.safeSingletonAddress) &&
     !!ethereumAccount(contracts.safeProxyFactoryAddress) &&
@@ -239,18 +270,20 @@ async function predictedKit(args: {
   owner: `0x${string}`;
   saltNonce: string;
   threshold: number;
-  contracts: LocalSafeContracts;
+  network: SafeNetwork;
+  contracts?: LocalSafeContracts;
 }): Promise<Safe> {
+  const anvil = args.network.kind === "anvil";
   return Safe.init({
     provider: args.rpc,
     signer: args.signer,
     isL1SafeSingleton: true,
-    contractNetworks: anvilContractNetworks(args.contracts),
+    ...(anvil && args.contracts ? { contractNetworks: anvilContractNetworks(args.contracts) } : {}),
     predictedSafe: {
       safeAccountConfig: {
         owners: [args.owner],
         threshold: args.threshold,
-        fallbackHandler: args.contracts.fallbackHandlerAddress,
+        ...(anvil && args.contracts ? { fallbackHandler: args.contracts.fallbackHandlerAddress } : {}),
       },
       safeDeploymentConfig: {
         saltNonce: args.saltNonce,
@@ -266,7 +299,8 @@ async function predictAddress(args: {
   owner: `0x${string}`;
   saltNonce: string;
   threshold: number;
-  contracts: LocalSafeContracts;
+  network: SafeNetwork;
+  contracts?: LocalSafeContracts;
 }): Promise<`0x${string}`> {
   const kit = await predictedKit(args);
   return getAddress(await kit.getAddress());
@@ -278,11 +312,12 @@ async function deployPredicted(args: {
   owner: `0x${string}`;
   saltNonce: string;
   threshold: number;
-  contracts: LocalSafeContracts;
+  network: SafeNetwork;
+  contracts?: LocalSafeContracts;
 }): Promise<OpenedSafeResult> {
-  const refused = await assertLocalAnvil(args.rpc);
-  if (refused) return { ok: false, error: refused };
-  if (!contractsReady(args.contracts)) return { ok: false, error: "Safe contracts are not on this anvil" };
+  if (args.network.kind === "anvil" && !contractsReady(args.contracts)) {
+    return { ok: false, error: "Safe contracts are not on this anvil" };
+  }
   const kit = await predictedKit(args);
   const predicted = getAddress(await kit.getAddress());
   if (await kit.isSafeDeployed()) {
@@ -294,12 +329,12 @@ async function deployPredicted(args: {
     return { ok: false, error: "Safe deploy needs the paying key" };
   }
   const hash = await signer.sendTransaction({
-    chain: foundry,
+    chain: args.network.chain,
     to: deployment.to as Hex,
     value: BigInt(deployment.value),
     data: deployment.data as Hex,
   });
-  const receipt = await createPublicClient({ chain: foundry, transport: http(args.rpc) }).waitForTransactionReceipt({
+  const receipt = await createPublicClient({ chain: args.network.chain, transport: http(args.rpc) }).waitForTransactionReceipt({
     hash,
   });
   if (receipt.status !== "success") return { ok: false, error: "Safe deploy failed" };
@@ -333,26 +368,29 @@ export async function predictMarkSafe(args: {
   contracts: LocalSafeContracts;
 }): Promise<PredictedSafeResult> {
   try {
-    const refused = await assertLocalAnvil(args.rpc);
-    if (refused) return { ok: false, error: refused };
+    const resolved = await resolveSafeChain(args.rpc);
+    if (!resolved.ok) return resolved;
+    if (resolved.network.kind === "anvil" && !contractsReady(args.contracts)) {
+      return { ok: false, error: "Safe contracts are not on this anvil" };
+    }
     if (typeof args.operatorId !== "string" || !args.operatorId.trim()) {
       return { ok: false, error: "Mark Safe needs an operator id" };
     }
     const operatorId = args.operatorId.trim();
     const owner = keyAddress(args.operatorKey);
-    const saltNonce = saltNonceForOperator(operatorId);
+    const saltNonce = saltNonceForOperator(operatorId, resolved.network.chainId);
     if (!owner || !saltNonce) return { ok: false, error: "Mark Safe owner is the operator key" };
     const existing = marks.get(operatorId);
     if (existing && !sameAddress(existing.owner, owner)) {
       return { ok: false, error: "Mark Safe owner is already the operator key" };
     }
-    if (!contractsReady(args.contracts)) return { ok: false, error: "Safe contracts are not on this anvil" };
     const address = await predictAddress({
       rpc: args.rpc.trim(),
       signer: args.operatorKey as Hex,
       owner,
       saltNonce,
       threshold: MARK_SAFE_THRESHOLD,
+      network: resolved.network,
       contracts: args.contracts,
     });
     marks.set(operatorId, {
@@ -385,12 +423,15 @@ export async function markComesOnline(args: {
     const operatorId = args.operatorId.trim();
     const record = marks.get(operatorId);
     if (!record?.address) return { ok: false, error: "Mark Safe was not predicted" };
+    const resolved = await resolveSafeChain(args.rpc);
+    if (!resolved.ok) return resolved;
     const opened = await deployPredicted({
       rpc: args.rpc.trim(),
       signer: args.operatorKey as Hex,
       owner: record.owner,
       saltNonce: record.saltNonce,
       threshold: MARK_SAFE_THRESHOLD,
+      network: resolved.network,
       contracts: args.contracts,
     });
     if (!opened.ok) return opened;
@@ -429,7 +470,13 @@ export async function noteAcceptedGuildWallet(args: {
   const characterId = args.characterId.trim();
   if (!guildId || !characterId) return "skipped";
   const owner = guildWalletOwner(characterId, args.memberAccount);
-  const saltNonce = saltNonceForGuildWallet(guildId, characterId);
+  let network: SafeNetwork | null = null;
+  if (args.rpc) {
+    const resolved = await resolveSafeChain(args.rpc);
+    if (!resolved.ok) return "failed";
+    network = resolved.network;
+  }
+  const saltNonce = saltNonceForGuildWallet(guildId, characterId, network?.chainId ?? ANVIL_CHAIN_ID);
   if (!owner || !saltNonce) return "skipped";
   const operatorId = typeof args.operatorId === "string" ? args.operatorId.trim() : "";
   if (
@@ -447,16 +494,16 @@ export async function noteAcceptedGuildWallet(args: {
   const existing = wallets.get(key);
   if (existing?.address) return "recorded";
   let address: `0x${string}` | null = existing?.address ?? null;
-  if (args.rpc && args.contracts) {
-    const refused = await assertLocalAnvil(args.rpc);
-    if (refused || !contractsReady(args.contracts)) return "failed";
+  if (network) {
+    if (network.kind === "anvil" && !contractsReady(args.contracts)) return "failed";
     try {
       address = await predictAddress({
-        rpc: args.rpc.trim(),
+        rpc: args.rpc!.trim(),
         signer: owner,
         owner,
         saltNonce,
         threshold: GUILD_WALLET_THRESHOLD,
+        network,
         contracts: args.contracts,
       });
     } catch {
@@ -493,17 +540,20 @@ export async function predictGuildWallet(args: {
   contracts: LocalSafeContracts;
 }): Promise<PredictedSafeResult> {
   try {
-    const refused = await assertLocalAnvil(args.rpc);
-    if (refused) return { ok: false, error: refused };
+    const resolved = await resolveSafeChain(args.rpc);
+    if (!resolved.ok) return resolved;
     const record = wallets.get(walletKey(args.guildId.trim(), args.characterId.trim()));
     if (!record) return { ok: false, error: "Guild Wallet is predicted when the guild accepts the member" };
-    if (!contractsReady(args.contracts)) return { ok: false, error: "Safe contracts are not on this anvil" };
+    if (resolved.network.kind === "anvil" && !contractsReady(args.contracts)) {
+      return { ok: false, error: "Safe contracts are not on this anvil" };
+    }
     const address = await predictAddress({
       rpc: args.rpc.trim(),
       signer: record.owner,
       owner: record.owner,
       saltNonce: record.saltNonce,
       threshold: GUILD_WALLET_THRESHOLD,
+      network: resolved.network,
       contracts: args.contracts,
     });
     record.address = address;
@@ -538,12 +588,15 @@ export async function openGuildWallet(args: {
       contracts: args.contracts,
     });
     if (!predicted.ok) return predicted;
+    const resolved = await resolveSafeChain(args.rpc);
+    if (!resolved.ok) return resolved;
     const opened = await deployPredicted({
       rpc: args.rpc.trim(),
       signer: args.memberKey as Hex,
       owner: record.owner,
       saltNonce: record.saltNonce,
       threshold: GUILD_WALLET_THRESHOLD,
+      network: resolved.network,
       contracts: args.contracts,
     });
     if (!opened.ok) return opened;
