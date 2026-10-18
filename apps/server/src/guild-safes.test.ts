@@ -191,7 +191,7 @@ describe("mark and guild safes", { concurrency: false }, () => {
     const bound = server.address();
     if (!bound || typeof bound === "string") throw new Error("stub rpc did not bind");
     const rpc = "http://127.0.0.1:" + bound.port;
-    const stub = "0x" + "11".repeat(20);
+    const stub = ("0x" + "11".repeat(20)) as Hex;
     const contracts: LocalSafeContracts = {
       safeSingletonAddress: stub,
       safeProxyFactoryAddress: stub,
