@@ -1,10 +1,14 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   pvpBountyAddress,
   pvpBountyClientConfig,
   pvpSyntheticReceiptsAllowed,
 } from "./pvp-bounty";
+import { CHALLENGE_DELAY_MS } from "./root-anchor";
 
 describe("pvp bounty env gate", () => {
   it("allows synthetic on anvil / default chain without deploy", () => {
@@ -46,6 +50,23 @@ describe("pvp bounty env gate", () => {
       }),
       true,
     );
+  });
+
+  it("keeps the anchor day and the bounty claim delay on separate clocks", () => {
+    assert.equal(CHALLENGE_DELAY_MS, 24 * 60 * 60 * 1000);
+    assert.notEqual(CHALLENGE_DELAY_MS, 60 * 1000);
+    const root = dirname(fileURLToPath(import.meta.url));
+    const bounty = readFileSync(join(root, "../../../contracts/lok-log/src/PvpBounty.sol"), "utf8");
+    const tx = readFileSync(join(root, "pvp-bounty-tx.ts"), "utf8");
+    assert.equal(bounty.includes("RootAnchor"), false);
+    assert.equal(bounty.includes("CHALLENGE_DELAY"), false);
+    assert.match(bounty, /uint256 ready = block\.timestamp \+ claimDelay;/);
+    assert.match(bounty, /if \(block\.timestamp < pending\.readyAt\) revert TooEarly\(\);/);
+    const cancelFn = bounty.slice(bounty.indexOf("function cancel"), bounty.indexOf("function proposeClaim"));
+    assert.equal(cancelFn.includes("claimDelay"), false);
+    assert.match(tx, /const gate = chainBoundSendGate\(\);/);
+    assert.match(tx, /functionName: "claimDelay"/);
+    assert.match(tx, /const waitMs = Number\(delay\) \* 1000 \+ 1500;/);
   });
 
   it("parses LOK_PVP_BOUNTY", () => {
