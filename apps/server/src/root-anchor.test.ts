@@ -5,7 +5,7 @@
  * The tick helper still returns without waiting.
  */
 import assert from "node:assert/strict";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test } from "node:test";
@@ -268,6 +268,69 @@ test("owner, private, and listing keys do not post", async () => {
     assert.equal(remote, false);
     assert.equal(anchoredHeight(), null);
     assert.equal(statusHeight(), null);
+  } finally {
+    resetRootAnchorForTests();
+  }
+});
+
+test("the anchor poster may post Gnosis and the day still applies", async () => {
+  resetRootAnchorForTests();
+  try {
+    const poster = "0x" + "22".repeat(32);
+    const gnosisEnv = {
+      LOK_CHAIN_ID: "100",
+      LOK_CHAIN_RPC: "https://gnosis-rpc.publicnode.com",
+      LOK_ROOT_ANCHOR: "0x" + "33".repeat(20),
+      LOK_ANCHOR_POSTER_KEY: poster,
+    };
+    let calls = 0;
+    const refused = await postCertifiedBatch(batch, {
+      env: gnosisEnv,
+      poster: async () => {
+        calls += 1;
+        return false;
+      },
+    });
+    assert.equal(calls, 1);
+    assert.equal(refused, false);
+    assert.equal(anchoredHeight(), null);
+
+    let chiadoCalls = 0;
+    const chiado = await postCertifiedBatch(batch, {
+      env: { ...gnosisEnv, LOK_CHAIN_ID: "10200", LOK_CHAIN_RPC: "https://rpc.chiadochain.net" },
+      poster: async () => {
+        chiadoCalls += 1;
+        return true;
+      },
+    });
+    assert.equal(chiado, false);
+    assert.equal(chiadoCalls, 0);
+
+    const forbidden = await postCertifiedBatch(batch, {
+      env: { ...gnosisEnv, LOK_OWNER_KEY: poster },
+    });
+    assert.equal(forbidden, false);
+    assert.equal(anchoredHeight(), null);
+
+    let now = 1_700_000_000_000;
+    setChallengeClockForTests(() => now);
+    noteCertifiedBatch(batch);
+    const posted = await postCertifiedBatch(batch, {
+      env: gnosisEnv,
+      poster: async () => true,
+    });
+    assert.equal(posted, true);
+    assert.equal(anchoredHeight(), 4);
+    const gate = chainBoundSendGate();
+    assert.equal(gate.ok, false);
+    if (!gate.ok) assert.equal(gate.error, CHALLENGE_WAIT);
+    now += CHALLENGE_DELAY_MS;
+    assert.equal(chainBoundSendGate().ok, true);
+    assert.equal(inGameWaitsForAnchor("play"), false);
+    assert.equal(inGameWaitsForAnchor("combat"), false);
+    assert.equal(inGameWaitsForAnchor("movement"), false);
+    const blob = readFileSync(new URL("./checkpoint-blob.ts", import.meta.url), "utf8");
+    assert.match(blob, /if \(chainRefused\(env\)\) return false;/);
   } finally {
     resetRootAnchorForTests();
   }
