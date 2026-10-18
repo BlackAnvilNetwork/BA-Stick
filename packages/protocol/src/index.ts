@@ -196,6 +196,20 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("pvp/bountyPlace") }),
   /** Cancel / reclaim open PvP bounty without dying. */
   z.object({ type: z.literal("pvp/bountyCancel") }),
+  /** Ask to join an open guild. Free. Not a membership. */
+  z.object({
+    type: z.literal("guild/join"),
+    guildId: z.string().min(1).max(80),
+  }),
+  /**
+   * The bonded operator accepts an open request.
+   * The operator id is the authenticated wallet, not a field on this message.
+   */
+  z.object({
+    type: z.literal("guild/accept"),
+    guildId: z.string().min(1).max(80),
+    characterId: z.string().min(1).max(64),
+  }),
   /**
    * Reserve ask xDAI in the current epoch before the client broadcasts buyAsk.
    * A refusal means the transfer is not sent.

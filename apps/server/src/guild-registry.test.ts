@@ -12,7 +12,7 @@ import { tmpdir } from "node:os";
 import { describe, test } from "node:test";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { AH_FEE_BPS, ahFeeSplit } from "@bellgrave/protocol";
+import { AH_FEE_BPS, ahFeeSplit, parseClientMessage } from "@bellgrave/protocol";
 import {
   postReplicaBond,
   registryAdmin,
@@ -573,7 +573,18 @@ describe("guild registry", { concurrency: false }, () => {
       const server = readFileSync(new URL("./index.ts", import.meta.url), "utf8");
       assert.equal(server.includes("guilds()[0]"), false);
       assert.equal(server.includes("function joinCharacterGuild"), false);
-      assert.equal(server.includes("acceptGuildJoin"), false);
+      assert.match(server, /acceptGuildJoin\(guildId, characterId, p\.wallet\)/);
+      const parsedJoin = parseClientMessage({ type: "guild/join", guildId: "guild:operator-a" });
+      const parsedAccept = parseClientMessage({
+        type: "guild/accept",
+        guildId: "guild:operator-a",
+        characterId: "character-1",
+        operatorId: "not-the-session",
+      });
+      assert.equal(parsedJoin?.type, "guild/join");
+      assert.equal(parsedAccept?.type, "guild/accept");
+      assert.equal(parsedAccept != null && "operatorId" in parsedAccept, false);
+      assert.equal(parseClientMessage({ type: "guild/join" }), null);
 
       const tick = submitOnSimTick(null, { ok: true, height: 9, nextRoot: root(0x32) });
       assert.equal(tick.tickFailed, false);

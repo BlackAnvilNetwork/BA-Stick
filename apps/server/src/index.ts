@@ -113,6 +113,7 @@ import {
   receiptFromPlaceTx,
   startPvpBountyWatcher,
 } from "./pvp-bounty-tx";
+import { acceptGuildJoin, joinGuild } from "./guild-registry";
 import { guildHour, noteGuildBatch, qualifyingEventsFromJournalCmds, settleGuildPayouts } from "./guild-score";
 import {
   admitEscrowFill,
@@ -3237,6 +3238,26 @@ function activateCharacter(wallet: string, charId: string, ws: WebSocket): Playe
   players.set(wallet, p);
   walletToPlayer.set(wallet, wallet);
   return p;
+}
+
+function handleGuildJoin(p: Player, guildId: string): void {
+  const requested = joinGuild(guildId, p.charId);
+  if (!requested.requested) {
+    pushLog(p, "That guild is not open.");
+    return;
+  }
+  pushLog(p, "You asked to join the guild. Membership waits for the operator.");
+}
+
+function handleGuildAccept(p: Player, guildId: string, characterId: string): void {
+  void acceptGuildJoin(guildId, characterId, p.wallet).then((result) => {
+    if (!result.accepted) {
+      pushLog(p, "You cannot accept that request.");
+      return;
+    }
+    pushLog(p, characterId + " joined the guild.");
+    send(p.ws, snapshotFor(p));
+  });
 }
 
 function createPlayer(
@@ -6762,6 +6783,12 @@ function onMessage(ws: WebSocket, data: string) {
       break;
     case "party/disband":
       handlePartyDisband(p);
+      break;
+    case "guild/join":
+      handleGuildJoin(p, msg.guildId);
+      break;
+    case "guild/accept":
+      handleGuildAccept(p, msg.guildId, msg.characterId);
       break;
     case "lok/import":
       handleLokImport(p, msg.tokenId, msg.amount);
