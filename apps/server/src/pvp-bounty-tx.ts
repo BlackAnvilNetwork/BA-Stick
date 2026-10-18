@@ -21,7 +21,7 @@ import { withOwnerKeyQueue } from "./owner-tx-queue";
 import type { LokResult } from "./lok-world";
 import { pvpBountyAddress, pvpSyntheticReceiptsAllowed } from "./pvp-bounty";
 import { settlementChainId } from "./settlement-chain";
-import { settlementConfirmations } from "./settlement-confirmations";
+import { placeReceiptConfirmations, settlementConfirmations } from "./settlement-confirmations";
 import { admitBountyPayout, chainBoundSendGate, pinEpochCharge, releaseEpochXdai } from "./root-anchor";
 import { watcherStartBlock } from "./settlement-rpc";
 import { readWatcherCursor, writeWatcherCursor } from "./watcher-cursor";
@@ -485,10 +485,9 @@ export async function receiptFromPlaceTx(
       chain: anvilChain(settlementChainId(env)),
       transport: http(rpc),
     });
-    const conf = Number(settlementConfirmations(env));
     const receipt = await pub.waitForTransactionReceipt({
       hash: txHash as Hex,
-      confirmations: conf >= 1 ? conf : 1,
+      confirmations: Number(placeReceiptConfirmations()),
     });
     if (receipt.status !== "success") return { ok: false, error: "place tx reverted" };
     for (const log of receipt.logs) {
