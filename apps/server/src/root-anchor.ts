@@ -3,8 +3,9 @@
  *
  * The posted `nextRoot` is the character-root tree the orderer certified.
  * A batch is anchored only after `post` succeeds and `isAnchored` reads back.
- * A status line that claims an anchored height does not count. Gnosis mainnet
- * (100) and Chiado (10200) are refused, and the RPC must be loopback anvil.
+ * A status line that claims an anchored height does not count. Chiado (10200)
+ * is refused. Gnosis chain 100 is posted only by the anchor poster key, and
+ * only after `isAnchored` reads back. Anvil stays on a loopback RPC.
  *
  * The signer is `LOK_ANCHOR_POSTER_KEY`. This module does not sign with
  * `LOK_OWNER_KEY`, `PRIVATE_KEY`, or `LOK_LISTING_KEY`. Combat, movement,
@@ -13,6 +14,9 @@
  * A successful post sets the anchored height immediately. Chain-bound sends
  * still wait one day from that anchor. The day is the ruleset timelock floor
  * (`RulesetRegistry.MIN_DELAY` is 1 day). It is not `PvpBounty.claimDelay`.
+ * The poster key may post that root to Gnosis chain 100. The post counts
+ * only after `isAnchored` reads back. Chiado stays refused. Checkpoint blobs
+ * and the other chain-bound sends do not use this exception.
  *
  * Chain-bound xDAI settled in one epoch is at most 10% of the slashable bonds
  * posted then. The epoch is the 10-second seed epoch. Mint fees, AhEscrow
@@ -39,6 +43,7 @@ import {
   type Hex,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
+import { gnosis } from "viem/chains";
 import { postReplicaBond } from "./bonded-admission";
 import { durableWrite } from "./durable-write";
 import { openGuild } from "./guild-registry";
@@ -685,6 +690,12 @@ function chainRefused(env: NodeJS.ProcessEnv): boolean {
   return /gnosischain|chiado|gnosis\.gateway/i.test(rpc);
 }
 
+/** The root poster may use Gnosis chain 100. Every other refusal stays. */
+function rootPostRefused(env: NodeJS.ProcessEnv): boolean {
+  if (env.LOK_CHAIN_ID?.trim() === "100") return false;
+  return chainRefused(env);
+}
+
 function normKey(value: string | undefined): string | null {
   const trimmed = value?.trim() ?? "";
   if (!trimmed) return null;
@@ -717,7 +728,7 @@ export async function postCertifiedBatch(
 ): Promise<boolean> {
   if (!validBatch(batch)) return false;
   const env = opts?.env ?? process.env;
-  if (chainRefused(env)) return false;
+  if (rootPostRefused(env)) return false;
   const existing = anchored.get(batch.height);
   if (existing && bytesEqual(existing, batch.nextRoot)) return true;
   if (lastPostedHeight != null && batch.height <= lastPostedHeight) return false;
@@ -737,7 +748,7 @@ export async function postCertifiedBatch(
 export function scheduleAnchorPost(batch: CertifiedBatch, env: NodeJS.ProcessEnv = process.env): void {
   noteCertifiedBatch(batch);
   if (!env.LOK_ROOT_ANCHOR?.trim()) return;
-  if (chainRefused(env)) return;
+  if (rootPostRefused(env)) return;
   if (posting.has(batch.height)) return;
   const existing = anchored.get(batch.height);
   if (existing && bytesEqual(existing, batch.nextRoot)) return;
@@ -752,17 +763,23 @@ async function postToLocalAnvil(batch: CertifiedBatch, env: NodeJS.ProcessEnv): 
   const rpc = env.LOK_CHAIN_RPC?.trim() ?? "";
   const key = env.LOK_ANCHOR_POSTER_KEY?.trim() ?? "";
   if (!/^0x[0-9a-fA-F]{40}$/.test(address)) return false;
-  if (!localAnvilRpc(rpc) || posterKeyRefused(env) || !/^0x[0-9a-fA-F]{64}$/.test(key)) return false;
+  if (posterKeyRefused(env) || !/^0x[0-9a-fA-F]{64}$/.test(key)) return false;
+  const gnosisPost = env.LOK_CHAIN_ID?.trim() === "100";
+  if (gnosisPost) {
+    if (/chiado/i.test(rpc)) return false;
+  } else if (!localAnvilRpc(rpc)) return false;
   const transport = http(rpc);
   const pub = createPublicClient({ transport });
   const id = await pub.getChainId();
-  if (id !== ANVIL_CHAIN_ID) return false;
-  const chain = defineChain({
-    id: ANVIL_CHAIN_ID,
-    name: "Anvil",
-    nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
-    rpcUrls: { default: { http: [rpc] } },
-  });
+  if (gnosisPost ? id !== 100 : id !== ANVIL_CHAIN_ID) return false;
+  const chain = gnosisPost
+    ? gnosis
+    : defineChain({
+        id: ANVIL_CHAIN_ID,
+        name: "Anvil",
+        nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+        rpcUrls: { default: { http: [rpc] } },
+      });
   const account = privateKeyToAccount(key as Hex);
   const wallet = createWalletClient({ account, chain, transport });
   const nextRoot = ("0x" + Buffer.from(batch.nextRoot).toString("hex")) as Hex;
