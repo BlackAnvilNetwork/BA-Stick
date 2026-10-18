@@ -667,7 +667,8 @@ test("a guild payout is refused when posted bonds are zero", async () => {
     );
     assert.equal(vault.includes("function withdraw"), false);
     assert.match(vault, /function pay\(\)/);
-    assert.match(vault, /sum > address\(this\).balance/);
+    assert.match(vault, /uint256 freeBalance = address\(this\)\.balance - reserved\(\)/);
+    assert.match(vault, /if \(sum > freeBalance\) revert ExceedsBalance\(\)/);
   } finally {
     reset();
   }
