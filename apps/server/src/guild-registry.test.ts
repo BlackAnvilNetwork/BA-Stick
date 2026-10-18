@@ -571,12 +571,9 @@ describe("guild registry", { concurrency: false }, () => {
       assert.equal(register.includes("fetch("), false);
 
       const server = readFileSync(new URL("./index.ts", import.meta.url), "utf8");
-      const helper = server.slice(server.indexOf("function joinCharacterGuild"), server.indexOf("function createPlayer"));
-      assert.match(helper, /joinGuild\(guild\.id, characterId\)/);
-      assert.equal(helper.includes("acceptGuildJoin"), false);
-      assert.equal(helper.includes("LOK_REPLICA"), false);
-      assert.equal(helper.includes("postedSlashableBond"), false);
-      assert.equal((server.match(/joinCharacterGuild\(p\.charId\)/g) ?? []).length, 2);
+      assert.equal(server.includes("guilds()[0]"), false);
+      assert.equal(server.includes("function joinCharacterGuild"), false);
+      assert.equal(server.includes("acceptGuildJoin"), false);
 
       const tick = submitOnSimTick(null, { ok: true, height: 9, nextRoot: root(0x32) });
       assert.equal(tick.tickFailed, false);

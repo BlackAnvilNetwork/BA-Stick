@@ -113,7 +113,6 @@ import {
   receiptFromPlaceTx,
   startPvpBountyWatcher,
 } from "./pvp-bounty-tx";
-import { guilds, joinGuild } from "./guild-registry";
 import { guildHour, noteGuildBatch, qualifyingEventsFromJournalCmds, settleGuildPayouts } from "./guild-score";
 import {
   admitEscrowFill,
@@ -3240,17 +3239,6 @@ function activateCharacter(wallet: string, charId: string, ws: WebSocket): Playe
   return p;
 }
 
-/**
- * A character asks to join an open guild. The request is free.
- * No bond, no replica flag, and no hardware check. There is no fee.
- * Membership waits until that guild's bonded operator accepts.
- */
-function joinCharacterGuild(characterId: string): void {
-  const guild = guilds()[0];
-  if (!guild) return;
-  joinGuild(guild.id, characterId);
-}
-
 function createPlayer(
   wallet: string,
   name: string,
@@ -3411,7 +3399,6 @@ function createPlayer(
   for (const abilityId of p.skillUnlocked) logLokAbility(p, abilityId);
   syncCraftSkillsToLog(p);
   rememberPlayer(p);
-  joinCharacterGuild(p.charId);
   return p;
 }
 
@@ -6617,7 +6604,6 @@ function onMessage(ws: WebSocket, data: string) {
       send(ws, { type: "error", message: "Create a character first." });
       return;
     }
-    joinCharacterGuild(p.charId);
     // #271: refuse enter when session wallet no longer owns the character NFT.
     const entered = p;
     void requireLiveCharacterOwner(entered).then((ok) => {
