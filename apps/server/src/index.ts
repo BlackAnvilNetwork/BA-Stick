@@ -114,6 +114,7 @@ import {
   startPvpBountyWatcher,
 } from "./pvp-bounty-tx";
 import { acceptGuildJoin, joinGuild } from "./guild-registry";
+import { bringBondedMarkOnline } from "./mark-boot";
 import { guildHour, noteGuildBatch, qualifyingEventsFromJournalCmds, settleGuildPayouts } from "./guild-score";
 import {
   admitEscrowFill,
@@ -782,6 +783,9 @@ const lok: LokWorld = await (async (): Promise<LokWorld> => {
     }
     configureEpochLedger(defaultLokDir());
     recordPostedSlashableBonds(process.env);
+    void bringBondedMarkOnline(process.env).then((result) => {
+      if (!result.ok) console.warn("[bellgrave] mark online refused: " + result.error);
+    });
     const world = LokWorld.open(defaultLokDir());
     loadGameRoll(defaultLokDir());
     configureMintClaimNonceStore(pathJoin(defaultLokDir(), "mint-claim-nonces.json"));
