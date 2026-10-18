@@ -604,6 +604,9 @@ export function settleGuildPayouts(nowMs: number): GuildPayoutResult {
       return { ...decision, vaultWei: guildVaultWei() };
     }
     if (decision.paid.length === 0) {
+      // A certified quiet hour is finished. Its wei stays on this hour and is
+      // not added to a later hour. Leaving it unsettled would retry it forever.
+      if (certifiedHeight.has(epoch)) settledEpochs.add(epoch);
       result = { ...decision, vaultWei: guildVaultWei() };
       continue;
     }
