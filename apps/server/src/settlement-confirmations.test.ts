@@ -3,6 +3,7 @@ import { describe, it, afterEach } from "node:test";
 import {
   DEFAULT_GNOSIS_CONFIRMATIONS,
   DEFAULT_LOCAL_CONFIRMATIONS,
+  placeReceiptConfirmations,
   settlementConfirmations,
 } from "./settlement-confirmations";
 import { setCachedSettlementChainId } from "./settlement-chain";
@@ -21,5 +22,10 @@ describe("settlementConfirmations", () => {
 
   it("honors LOK_CONFIRMATIONS override", () => {
     assert.equal(settlementConfirmations({ LOK_CHAIN_ID: "100", LOK_CONFIRMATIONS: "8" }), 8n);
+  });
+
+  it("a player place receipt does not use the auction depth", () => {
+    assert.equal(placeReceiptConfirmations(), 1n);
+    assert.equal(settlementConfirmations({ LOK_CHAIN_ID: "100" }), DEFAULT_GNOSIS_CONFIRMATIONS);
   });
 });

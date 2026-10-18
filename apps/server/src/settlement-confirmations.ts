@@ -14,6 +14,15 @@ export const DEFAULT_LOCAL_CONFIRMATIONS = 2n;
  */
 export const DEFAULT_GNOSIS_CONFIRMATIONS = 30n;
 
+/**
+ * A player place receipt is already mined. Ash Pit join waits on that receipt,
+ * not on the 30-block auction depth. Cancel, claim, and the auction watcher
+ * stay on `settlementConfirmations`.
+ */
+export function placeReceiptConfirmations(): bigint {
+  return 1n;
+}
+
 export function settlementConfirmations(env: NodeJS.ProcessEnv = process.env): bigint {
   const raw = env.LOK_CONFIRMATIONS?.trim();
   if (raw && /^\d+$/.test(raw)) {
