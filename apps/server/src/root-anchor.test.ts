@@ -158,25 +158,31 @@ test("a successful post sets /status lastAnchoredHeight", async () => {
   }
 });
 
-test("Gnosis and Chiado chain ids do not post", async () => {
+test("Chiado does not post, and Gnosis does not post without the poster key", async () => {
   resetRootAnchorForTests();
   try {
-    for (const chainId of ["100", "10200"]) {
-      let calls = 0;
-      const ok = await postCertifiedBatch(batch, {
-        env: {
-          LOK_CHAIN_ID: chainId,
-          LOK_ROOT_ANCHOR: "0x" + "11".repeat(20),
-          LOK_CHAIN_RPC: "http://127.0.0.1:9",
-        },
-        poster: async () => {
-          calls += 1;
-          return true;
-        },
-      });
-      assert.equal(ok, false);
-      assert.equal(calls, 0);
-    }
+    let chiadoCalls = 0;
+    const chiado = await postCertifiedBatch(batch, {
+      env: {
+        LOK_CHAIN_ID: "10200",
+        LOK_ROOT_ANCHOR: "0x" + "11".repeat(20),
+        LOK_CHAIN_RPC: "http://127.0.0.1:9",
+      },
+      poster: async () => {
+        chiadoCalls += 1;
+        return true;
+      },
+    });
+    assert.equal(chiado, false);
+    assert.equal(chiadoCalls, 0);
+    const gnosis = await postCertifiedBatch(batch, {
+      env: {
+        LOK_CHAIN_ID: "100",
+        LOK_ROOT_ANCHOR: "0x" + "11".repeat(20),
+        LOK_CHAIN_RPC: "https://gnosis-rpc.publicnode.com",
+      },
+    });
+    assert.equal(gnosis, false);
     assert.equal(anchoredHeight(), null);
   } finally {
     resetRootAnchorForTests();
