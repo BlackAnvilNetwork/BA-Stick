@@ -12,8 +12,7 @@ import { tmpdir } from "node:os";
 import { describe, test } from "node:test";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { AH_FEE_BPS, ahFeeSplit } from "@bellgrave/protocol";
-import { parseClientMessage } from "../../../packages/protocol/src/index.ts";
+import { AH_FEE_BPS, ahFeeSplit, parseClientMessage } from "@bellgrave/protocol";
 import {
   postReplicaBond,
   registryAdmin,
