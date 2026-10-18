@@ -298,4 +298,57 @@ contract AhEscrowGuildVaultTest is Test {
         vm.expectRevert(GuildVault.NothingScheduled.selector);
         vault.pay();
     }
+
+    /// One rejecting recipient does not block the others or the next schedule.
+    function test_pay_skipsRevertingRecipient_andScheduleCanContinue() public {
+        _open(LISTING, 10_000);
+        vm.prank(buyer);
+        escrow.buyAsk{value: 10_000}(LISTING, BUYER_TOKEN);
+
+        GuildVault vault = GuildVault(escrow.guildVault());
+        Rejects rejector = new Rejects();
+        address mark = makeAddr("markSafe");
+
+        address[] memory to = new address[](2);
+        uint256[] memory amounts = new uint256[](2);
+        to[0] = mark;
+        amounts[0] = 100;
+        to[1] = address(rejector);
+        amounts[1] = 150;
+
+        vm.prank(admin);
+        vault.schedule(to, amounts);
+        vault.pay();
+
+        assertEq(mark.balance, 100);
+        assertEq(address(rejector).balance, 0);
+        assertEq(vault.scheduledCount(), 0);
+        assertEq(vault.claimCount(), 1);
+        assertEq(vault.reserved(), 150);
+        assertEq(address(vault).balance, 150);
+
+        address[] memory again = new address[](1);
+        uint256[] memory againAmt = new uint256[](1);
+        again[0] = mark;
+        againAmt[0] = 1;
+        vm.prank(admin);
+        vm.expectRevert(GuildVault.ExceedsBalance.selector);
+        vault.schedule(again, againAmt);
+
+        vm.prank(mark);
+        vm.expectRevert(GuildVault.NotPayer.selector);
+        vault.claim(0);
+
+        vm.prank(address(rejector));
+        vm.expectRevert(GuildVault.TransferFailed.selector);
+        vault.claim(0);
+        assertEq(vault.claimCount(), 1);
+        assertEq(vault.reserved(), 150);
+    }
+}
+
+contract Rejects {
+    receive() external payable {
+        revert("no");
+    }
 }
