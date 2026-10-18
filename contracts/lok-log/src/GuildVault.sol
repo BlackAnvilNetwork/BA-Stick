@@ -109,13 +109,14 @@ contract GuildVault {
         if (index >= claims.length) revert NothingScheduled();
         Line memory line = claims[index];
         if (msg.sender != line.to) revert NotPayer();
+        // Block schedule and pay while this value is still in the contract.
+        // A revert restores the claim and clears the flag.
+        paying = true;
         claims[index] = claims[claims.length - 1];
         claims.pop();
         (bool ok,) = line.to.call{value: line.amount}("");
-        if (!ok) {
-            claims.push(line);
-            revert TransferFailed();
-        }
+        if (!ok) revert TransferFailed();
+        paying = false;
         emit Paid(line.to, line.amount);
     }
 }
