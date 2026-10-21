@@ -145,6 +145,8 @@ export {
   paleHollowBridgeDeckY,
   paleHollowComputeBridgeDeckY,
   paleHollowBridgeCurveY,
+  paleHollowBridgeProfile,
+  PH_BRIDGE_RAMP,
   paleHollowBridgeGeom,
   paleHollowTrails,
   PH_TRAIL_WIDTH,
