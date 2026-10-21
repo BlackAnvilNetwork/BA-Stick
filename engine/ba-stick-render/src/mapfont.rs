@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+
 //! Compact variable-width 5-row pixel font for minimap labels (uppercase,
 //! digits, a little punctuation). Glyphs are 1..5 columns wide.
 

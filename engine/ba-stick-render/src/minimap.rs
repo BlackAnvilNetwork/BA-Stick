@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+
 //! Engine-drawn minimap. The static layer (terrain, water, walls, bridges,
 //! props, translucent roads and labels) is baked once per zone into an RGBA
 //! texture in the same iso orientation as the main view; each frame is one
