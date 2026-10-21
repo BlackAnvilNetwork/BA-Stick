@@ -259,6 +259,43 @@ impl Ctx<'_> {
             }
         }
     }
+    /// Continuous strip along local forward: stations (fz, y_lo, y_hi), centred
+    /// at local right offset `rx` with half-width `hw`. Outlined only on its
+    /// silhouette (long edges and end caps), never between stations.
+    #[allow(clippy::too_many_arguments)]
+    fn ribbon(&mut self, rx: f32, hw: f32, st: &[(f32, f32, f32)], top: u8, lit: u8, dark: u8) {
+        if st.len() < 2 {
+            return;
+        }
+        let at = |c: &Self, side: f32, y: f32, fz: f32| c.p(rx + side * hw, y, fz);
+        let ll: Vec<P2> = st.iter().map(|&(fz, lo, _)| at(self, -1.0, lo, fz)).collect();
+        let lh: Vec<P2> = st.iter().map(|&(fz, _, hi)| at(self, -1.0, hi, fz)).collect();
+        let rl: Vec<P2> = st.iter().map(|&(fz, lo, _)| at(self, 1.0, lo, fz)).collect();
+        let rh: Vec<P2> = st.iter().map(|&(fz, _, hi)| at(self, 1.0, hi, fz)).collect();
+        // the side further right on screen catches the light
+        let right_lit = rh[st.len() / 2].x >= lh[st.len() / 2].x;
+        let (lc, rc) = if right_lit { (dark, lit) } else { (lit, dark) };
+        for i in 0..st.len() - 1 {
+            let j = i + 1;
+            self.quad(ll[i], ll[j], lh[j], lh[i], lc);
+            self.quad(rl[i], rl[j], rh[j], rh[i], rc);
+            self.quad(lh[i], rh[i], rh[j], lh[j], top);
+        }
+        let k = st.len() - 1;
+        self.quad(ll[0], rl[0], rh[0], lh[0], dark);
+        self.quad(ll[k], rl[k], rh[k], lh[k], dark);
+        for i in 0..k {
+            for e in [&ll, &lh, &rl, &rh] {
+                self.edge(e[i], e[i + 1]);
+            }
+        }
+        for i in [0, k] {
+            self.edge(lh[i], rh[i]);
+            self.edge(ll[i], lh[i]);
+            self.edge(rl[i], rh[i]);
+            self.edge(ll[i], rl[i]);
+        }
+    }
     fn cap(&mut self, a: P2, b: P2, r: f32, col: u8) {
         self.fb.capsule(a, b, r, col, Some(C_OUTLINE));
     }
@@ -297,22 +334,28 @@ fn draw_one(c: &mut Ctx, p: &Prop, time: f32) {
             c.wall_run(p, p.w + 0.06, p.h, p.d, BANK, BANK_D, BANK_DD);
         }
         kind::BRIDGE => {
-            let n = 12;
+            // One continuous deck ribbon from bank to bank, with a continuous
+            // parapet rail on each side: no per-slab seams or steps, so the
+            // whole span reads as a single walkable surface.
+            let n = 16;
             let curve = |t: f32| {
                 let t = t.clamp(0.0, 1.0);
                 (p.d - p.y) * t + p.h.max(0.0) * 4.0 * t * (1.0 - t)
             };
-            let seg = p.s / n as f32;
-            for i in 0..n {
-                let t = (i as f32 + 0.5) / n as f32;
-                let fz = -p.s * 0.5 + seg * (i as f32 + 0.5);
-                let y = curve(t);
-                // deck slab
-                c.boxy(0.0, y - 0.22, fz, p.w, 0.22, seg + 0.04, BANK_L, BANK, BANK_D);
-                // parapets
-                for side in [-1.0f32, 1.0] {
-                    c.boxy(side * (p.w * 0.5 - 0.12), y, fz, 0.24, 0.42, seg + 0.04, BANK, BANK_D, BANK_DD);
-                }
+            let st = |lo: f32, hi: f32| -> Vec<(f32, f32, f32)> {
+                (0..=n)
+                    .map(|i| {
+                        let t = i as f32 / n as f32;
+                        let y = curve(t);
+                        (-p.s * 0.5 + p.s * t, y + lo, y + hi)
+                    })
+                    .collect()
+            };
+            // deck top in the stone-trail colour: walkable surfaces share the trail palette,
+            // so it reads apart from the (blocked) wall copings and parapets
+            c.ribbon(0.0, p.w * 0.5, &st(-0.22, 0.0), TRAIL_STONE, BANK, BANK_D);
+            for side in [-1.0f32, 1.0] {
+                c.ribbon(side * (p.w * 0.5 - 0.12), 0.12, &st(0.0, 0.42), BANK, BANK_D, BANK_DD);
             }
             // end posts
             for (t, fz) in [(0.0f32, -p.s * 0.5), (1.0, p.s * 0.5)] {

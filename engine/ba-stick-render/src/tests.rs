@@ -439,3 +439,29 @@ fn river_wall_joints_are_mitered_and_flush() {
         assert!((ay - by).abs() < 1e-4, "base heights meet");
     }
 }
+fn bridge_deck_is_one_continuous_ribbon() {
+    use crate::palette::TRAIL_STONE;
+    use crate::props::{draw, kind, Prop};
+    use stick_engine::camera::Camera;
+    use stick_engine::math::v3;
+    use stick_engine::raster::Framebuffer;
+    let cam = Camera::new(640, 360);
+    let mut fb = Framebuffer::new(640, 360);
+    // 10 m span along z, 3.9 m deck, 0.6 m arch, level ends
+    let p = Prop { kind: kind::BRIDGE, var: 0, x: 0.0, z: 0.0, y: 0.0, yaw: 0.0, s: 10.0, w: 3.9, h: 0.6, d: 0.0, j: [0.0; 4] };
+    draw(&mut fb, &cam, &[p], 0.0, 0.0);
+    // Walk the deck centre line: every sample is lit deck, with no slab seam or
+    // step outline crossing the walkway (the old 12-slab bridge had 11).
+    let mut seams = 0;
+    for i in 1..40 {
+        let t = i as f32 / 40.0;
+        let y = 0.6 * 4.0 * t * (1.0 - t);
+        let q = cam.project(v3(0.0, y + 0.01, -5.0 + 10.0 * t));
+        let c = fb.color[q.y as usize * fb.w + q.x as usize];
+        if c != TRAIL_STONE {
+            seams += 1;
+        }
+    }
+    assert_eq!(seams, 0, "deck centre line crosses {seams} non-deck pixels");
+}
+
