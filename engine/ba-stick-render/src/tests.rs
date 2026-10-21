@@ -371,3 +371,18 @@ fn gear_changes_the_figure_and_seeds_are_stable() {
     assert!(armour.contains(&crate::palette::GEAR_LEATHER));
     for fam in 1..=7 { render(Some(garb(fam, 3, fam as u32, 1, 1, 1, 1, 1, 1))); }
 }
+
+#[test]
+fn preview_backdrop_is_transparent_around_the_figure() {
+    let mut s = Scene::new(80, 110);
+    s.backdrop = true;
+    s.upsert_unit("p", unit(0.0, 0.0, "idle", "cleric/female"));
+    s.set_camera(0.0, 0.0);
+    s.tick(0.0);
+    s.draw();
+    let mut out = vec![0u8; 80 * 110 * 4];
+    s.write_rgba(&mut out);
+    assert_eq!(out[3], 0, "corner transparent");
+    let opaque = out.chunks(4).filter(|p| p[3] == 255).count();
+    assert!(opaque > 150, "figure drawn ({opaque} px)");
+}

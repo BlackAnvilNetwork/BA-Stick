@@ -1,3 +1,4 @@
+import { FigurePreview } from "./FigurePreview";
 import {
   JOBS,
   JOB_IDS,
@@ -1479,12 +1480,12 @@ function SelectPanel({
                   useGame.getState().setCharacterPreview(c);
                 }}
               >
-                <img
+                <FigurePreview
+                  job={c.job}
+                  gender={g}
+                  size={72}
                   className="boot-char-portrait"
-                  src={appearancePortrait(g)}
-                  alt=""
-                  width={72}
-                  height={72}
+                  fallback={<img className="boot-char-portrait" src={appearancePortrait(g)} alt="" width={72} height={72} />}
                 />
                 <div className="boot-char-meta">
                   <div className="boot-char-name">{c.name}</div>
@@ -1714,6 +1715,8 @@ function CreatePanel() {
           ))}
         </div>
       </div>
+
+      <FigurePreview job={job} gender={gender} size={160} className="boot-live-figure" />
 
       <label className="boot-label">
         Main job

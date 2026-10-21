@@ -1,3 +1,4 @@
+import { FigurePreview } from "./FigurePreview";
 import {
   JOBS,
   attackFromStats,
@@ -245,6 +246,7 @@ export function EquipPanel({ you, me, onClose }: Props) {
 
           <div className="equip-col">
             <div className="cmd-section-label">Paperdoll</div>
+            <FigurePreview job={you.job} gender={you.gender} equip={you.equip} size={140} className="equip-live-figure" />
             <div className="equip-grid">
               {SLOTS.map((slot) => (
                 <EquipCell key={slot.id} slot={slot} you={you} />
