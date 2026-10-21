@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Black Anvil HTML/React UI layer (boot, HUD, panels, audio) shared by apps/web and apps/stick-web. No three.js.",
+  "description": "Black Anvil HTML/React UI layer (boot, HUD, panels, audio) used by apps/stick-web. No three.js.",
   "exports": {
     "./styles.css": "./src/styles.css",
     "./*": "./src/*.tsx",

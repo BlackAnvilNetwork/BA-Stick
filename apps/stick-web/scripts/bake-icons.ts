@@ -1,6 +1,6 @@
 /**
  * Item icon atlas for in-world sprites (#30): every PNG in
- * apps/web/public/icons/items is chroma-keyed (magenta key, same rule as the
+ * apps/stick-web/public/icons/items is chroma-keyed (magenta key, same rule as the
  * old client's `chroma.ts`), downsized to 16×16 with a hard alpha edge and a
  * dark 1px outline, and packed into public/zones/icons.png + icons.json
  * ({ slug: index }, 32 per row). HTML panels keep the full-size PNGs.
@@ -16,7 +16,7 @@ export const ICON = 16;
 export const COLS = 32;
 
 const here = dirname(fileURLToPath(import.meta.url));
-const SRC = join(here, "../../web/public/icons/items");
+const SRC = join(here, "../public/icons/items");
 const OUT = join(here, "../public/zones");
 
 async function icon(file: string): Promise<Buffer> {

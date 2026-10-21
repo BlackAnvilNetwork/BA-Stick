@@ -11,7 +11,7 @@ Formerly developed as Bellgrave / Legend of KEK. On-chain identifiers, engine op
 
 ## Stack
 
-- `apps/web` — React + Vite + R3F
+- `apps/stick-web` — React + Vite + Stick Engine (wasm) client (the old three.js `apps/web` was retired in #38)
 - `apps/server` — Node WebSocket game loop @ 20 Hz
 - `packages/combat` — job formulas and ability kits
 - `packages/protocol` — Zod client messages
@@ -60,4 +60,4 @@ The bag is a character save. Gold and log item balances live in the Rust engine 
 
 ## UI pack
 
-Black Anvil HUD chrome lives in `apps/web/public/ui/black-anvil/` (source sheet + sliced PNG/WebP). Re-slice with `python3 apps/web/scripts/slice-black-anvil-ui.py`.
+Black Anvil HUD chrome lives in `apps/stick-web/public/ui/black-anvil/` (source sheet + sliced PNG/WebP).

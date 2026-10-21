@@ -4,9 +4,9 @@
   "version": "0.1.0",
   "license": "GPL-3.0-only",
   "scripts": {
-    "dev": "pnpm -r --parallel --filter @bellgrave/server --filter @bellgrave/web run dev",
+    "dev": "pnpm -r --parallel --filter @bellgrave/server --filter @bellgrave/stick-web run dev",
     "dev:server": "pnpm --filter @bellgrave/server dev",
-    "dev:web": "pnpm --filter @bellgrave/web dev",
+    "dev:web": "pnpm --filter @bellgrave/stick-web dev",
     "build": "pnpm -r run build",
     "typecheck": "pnpm -r run typecheck"
   },
