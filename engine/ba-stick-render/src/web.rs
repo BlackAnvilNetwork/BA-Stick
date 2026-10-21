@@ -73,6 +73,12 @@ impl StickRenderer {
         self.scene.set_gear(id, crate::gear::garb(family, wmat, wseed, body, bseed, head, hseed, legs, lseed))
     }
 
+    /// Preview mode (#37): no ground, transparent background.
+    #[wasm_bindgen(js_name = setBackdrop)]
+    pub fn set_backdrop(&mut self, on: bool) {
+        self.scene.backdrop = on;
+    }
+
     /// Toggle lighting / haze / skyline / vignette (#26).
     #[wasm_bindgen(js_name = setAtmosphere)]
     pub fn set_atmosphere(&mut self, on: bool) {

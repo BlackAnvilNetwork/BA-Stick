@@ -63,6 +63,8 @@ pub const FX_PLAYER_CAST: u32 = 32;
 pub const FX_PETRIFIED: u32 = 64;
 /// Gather node already harvested (greyed, no glow).
 pub const FX_DEPLETED: u32 = 128;
+/// Background index in preview mode (keyed to transparent).
+const BACKDROP: u8 = crate::atmosphere::SKY;
 
 struct Unit {
     pos: Vec3,
@@ -100,6 +102,8 @@ pub struct Scene {
     props: Vec<props::Prop>,
     floaters: Vec<floaters::Floater>,
     pub vfx: crate::vfx::Vfx,
+    /// Preview mode (#37): no ground, transparent background.
+    pub backdrop: bool,
     /// Reference height subtracted from everything so the followed unit sits mid-screen.
     pub cam_y: f32,
     /// Pixels the followed unit sits above the camera's default anchor.
@@ -124,6 +128,7 @@ impl Scene {
             props: Vec::new(),
             floaters: Vec::new(),
             vfx: crate::vfx::Vfx::default(),
+            backdrop: false,
             cam_y: 0.0,
             follow_lift_px: 40.0,
             time: 0.0,
@@ -425,6 +430,7 @@ impl Scene {
     /// Draw the ground and all units into the framebuffer.
     pub fn draw(&mut self) {
         match &self.zone {
+            _ if self.backdrop => self.fb.color.fill(BACKDROP),
             Some(z) => ground::draw_zone(&mut self.fb, &self.cam, z, self.cam_y, self.time),
             None => draw_ground(&mut self.fb, &self.cam),
         }
@@ -587,6 +593,13 @@ impl Scene {
             palette::write_rgba(&self.pal, &self.fb.color, out);
         }
         crate::vfx::blend(&self.vfx.sparks, self.fb.w, self.fb.h, out);
+        if self.backdrop {
+            for (i, &c) in self.fb.color.iter().enumerate() {
+                if c == BACKDROP {
+                    out[i * 4 + 3] = 0;
+                }
+            }
+        }
     }
 }
 

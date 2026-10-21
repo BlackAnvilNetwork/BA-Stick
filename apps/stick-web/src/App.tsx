@@ -1,5 +1,7 @@
 import { useEffect } from "react";
 import { ITEM, ZONES } from "@bellgrave/config";
+import { FigurePreviewContext } from "@bellgrave/ui/FigurePreview";
+import { StickPreview } from "./StickPreview";
 import { BootScreens, Hud, castAbility, hotbarAbilityAt, hotbarIndexFromCode } from "@bellgrave/ui/Hud";
 import { connectSocket, send } from "@bellgrave/client-core/net";
 import { useGame } from "@bellgrave/client-core/state";
@@ -62,8 +64,10 @@ export function App() {
     <div style={{ width: "100%", height: "100%", position: "relative" }}>
       {phase === "play" && <StickWorld />}
       <div className="world-html-root" aria-hidden />
-      <BootScreens />
-      <Hud />
+      <FigurePreviewContext.Provider value={StickPreview}>
+        <BootScreens />
+        <Hud />
+      </FigurePreviewContext.Provider>
     </div>
   );
 }

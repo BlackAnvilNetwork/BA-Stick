@@ -45,3 +45,8 @@ export function gearArgs(equip: Partial<Equipment> | undefined, getItem: (id: nu
     legs?.id ?? 0,
   ];
 }
+
+/** Preset key for a preview figure (#37), same as in-world players. */
+export function previewPreset(job: string, gender: string | undefined): string {
+  return `${job}/${gender ?? "male"}`;
+}

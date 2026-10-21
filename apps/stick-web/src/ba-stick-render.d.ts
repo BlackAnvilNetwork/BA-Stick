@@ -10,6 +10,7 @@ declare module "ba-stick-render" {
     addFloater(id: string, kind: number, value: number): void;
     isWading(id: string): boolean;
     setAtmosphere(on: boolean): void;
+    setBackdrop(on: boolean): void;
     spawnVfx(prim: number, from: string, to: string, color: number, count: number, radius: number, flags: number): boolean;
     vfxCount(): number;
     setGear(id: string, family: number, wmat: number, wseed: number, body: number, bseed: number, head: number, hseed: number, legs: number, lseed: number): boolean;
