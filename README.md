@@ -64,7 +64,7 @@ Black Anvil HUD chrome lives in `apps/stick-web/public/ui/black-anvil/` (source 
 
 ## License (AGPL-3.0): what developers and agents must do
 
-**Black Anvil, Copyright (C) 2026 Black Anvil Network.** Licensed under the GNU Affero General Public License, version 3 or (at your option) any later version (`AGPL-3.0-or-later`). See [LICENSE](LICENSE). Exceptions: `engine/stick-engine` is GPL-3.0-or-later (it may be combined with this AGPL work under AGPL §13), and the `contracts/` crates that declare MIT stay MIT.
+**Black Anvil, Copyright (C) 2026 Black Anvil Network.** Licensed under the GNU Affero General Public License, version 3 or (at your option) any later version (`AGPL-3.0-or-later`). See [LICENSE](LICENSE). `engine/stick-engine` (Stick Engine) is also AGPL-3.0-or-later. Exception: the `contracts/` crates that declare MIT stay MIT.
 
 *This is a plain-language summary, not legal advice. The LICENSE text governs.*
 
@@ -81,5 +81,5 @@ Black Anvil HUD chrome lives in `apps/stick-web/public/ui/black-anvil/` (source 
 - [ ] Don't paste code whose license you can't confirm is AGPL-compatible.
 - [ ] Record the source URL, author and license of every third-party asset or snippet you add.
 - [ ] Add a dated "modified" notice when changing files that came from someone else.
-- [ ] Keep `package.json` and `Cargo.toml` license fields consistent with the table above (AGPL root, GPL stick-engine, MIT contracts).
+- [ ] Keep `package.json` and `Cargo.toml` license fields consistent with the table above (AGPL everywhere except the MIT contracts).
 - [ ] When deploying a modified server or publishing a client build, publish or link the matching source.

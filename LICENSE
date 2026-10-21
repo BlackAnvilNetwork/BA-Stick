@@ -13,9 +13,9 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-Parts of this repository carry their own licenses: engine/stick-engine is
-GPL-3.0-or-later (combined here under AGPL-3.0 section 13), and the crates
-under contracts/ that declare MIT are MIT-licensed.
+engine/stick-engine (Stick Engine, Copyright (C) 2026 Black Anvil Network) is
+also AGPL-3.0-or-later. The crates under contracts/ that declare MIT are
+MIT-licensed.
 
 ------------------------------------------------------------------------
 
