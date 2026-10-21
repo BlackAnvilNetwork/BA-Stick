@@ -123,6 +123,8 @@ pub struct Scene {
     pub keylight: bool,
     /// Buff / ailment visuals per unit (#34).
     buffs: BTreeMap<String, crate::buffvfx::BuffFx>,
+    /// Engine-drawn minimap (baked once per zone, blitted each frame).
+    pub minimap: crate::minimap::Minimap,
 }
 
 impl Scene {
@@ -148,6 +150,7 @@ impl Scene {
             atmosphere: true,
             keylight: false,
             buffs: BTreeMap::new(),
+            minimap: crate::minimap::Minimap::new(),
         }
     }
 
@@ -167,17 +170,20 @@ impl Scene {
     /// Load a baked zone (BAZ1). Replaces any previous zone.
     pub fn load_zone(&mut self, bytes: &[u8]) -> Result<(), String> {
         self.zone = Some(Zone::parse(bytes)?);
+        self.minimap.invalidate();
         Ok(())
     }
 
     pub fn clear_zone(&mut self) {
         self.zone = None;
         self.props.clear();
+        self.minimap.clear();
     }
 
     /// Load static props (BAP1). Replaces any previous set.
     pub fn load_props(&mut self, bytes: &[u8]) -> Result<usize, String> {
         self.props = props::parse(bytes)?;
+        self.minimap.invalidate();
         Ok(self.props.len())
     }
 
@@ -469,6 +475,11 @@ impl Scene {
 
     /// Draw the ground and all units into the framebuffer.
     pub fn draw(&mut self) {
+        if let Some(z) = &self.zone {
+            if self.minimap.needs_bake() && !self.backdrop {
+                self.minimap.bake(z, &self.props);
+            }
+        }
         match &self.zone {
             _ if self.backdrop => self.fb.color.fill(BACKDROP),
             Some(z) => ground::draw_zone(&mut self.fb, &self.cam, z, self.cam_y, self.time),
@@ -646,6 +657,45 @@ impl Scene {
         self.floaters = fl;
     }
 
+    /// Minimap data from the host (names from @bellgrave/config). Re-bakes on next draw.
+    pub fn set_map_title(&mut self, t: &str) {
+        self.minimap.title = t.to_owned();
+        self.minimap.invalidate();
+    }
+    pub fn add_map_road(&mut self, name: &str, pts: &[f32]) {
+        let pts = pts.chunks_exact(2).map(|c| (c[0], c[1])).collect();
+        self.minimap.roads.push(crate::minimap::Road { name: name.to_owned(), pts });
+        self.minimap.invalidate();
+    }
+    pub fn add_map_label(&mut self, text: &str, x: f32, z: f32, kind: u8) {
+        self.minimap.labels.push(crate::minimap::Label { text: text.to_owned(), x, z, kind });
+        self.minimap.invalidate();
+    }
+    pub fn clear_map_data(&mut self) {
+        self.minimap.roads.clear();
+        self.minimap.labels.clear();
+        self.minimap.invalidate();
+    }
+
+    /// Minimap centre and heading: the followed unit, else the camera.
+    fn map_view(&self) -> (f32, f32, f32, Vec<crate::minimap::Marker>) {
+        use crate::minimap::Marker;
+        let me = self.follow.as_deref().and_then(|id| self.units.get(id));
+        let (cx, cz, yaw) = me.map_or((self.cam.cx, self.cam.cz, 0.0), |u| (u.pos.x, u.pos.z, u.yaw));
+        let mut marks = Vec::new();
+        for (id, u) in &self.units {
+            if Some(id.as_str()) == self.follow.as_deref() || matches!(u.preset.body, Body::Node { .. }) || u.anim == AnimState::Dead {
+                continue;
+            }
+            if (u.pos.x - cx).abs() > 70.0 || (u.pos.z - cz).abs() > 70.0 {
+                continue;
+            }
+            let kind = if u.fx.flags & FX_HOSTILE != 0 { 1 } else if u.preset.npc_mark.is_some() { 2 } else { 3 };
+            marks.push(Marker { x: u.pos.x, z: u.pos.z, kind });
+        }
+        (cx, cz, yaw, marks)
+    }
+
     /// Framebuffer as RGBA8 (ImageData layout).
     pub fn write_rgba(&self, out: &mut [u8]) {
         if self.atmosphere && self.zone.is_some() {
@@ -655,6 +705,10 @@ impl Scene {
             palette::write_rgba(&self.pal, &self.fb.color, out);
         }
         crate::vfx::blend(&self.vfx.sparks, self.fb.w, self.fb.h, out);
+        if !self.backdrop && self.zone.is_some() && self.minimap.on {
+            let (cx, cz, yaw, marks) = self.map_view();
+            self.minimap.composite(out, self.fb.w, self.fb.h, cx, cz, yaw, &marks);
+        }
         if self.backdrop {
             for (i, &c) in self.fb.color.iter().enumerate() {
                 if c == BACKDROP {

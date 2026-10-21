@@ -1797,3 +1797,44 @@ export const PH_HUB_NPCS = [
   { id: "npc-ph-crafter", name: "Craft Master", x: 3.8, z: -0.2, facing: -Math.PI / 2, role: "crafter" as const },
   { id: "npc-ph-vendor", name: "Provisioner", x: -3.8, z: -0.2, facing: Math.PI / 2, role: "vendor" as const },
 ] as const;
+
+/**
+ * Minimap road names, keyed by `paleHollowTrails()` id (layout data only).
+ * Stone bridge approaches are drawn but not named; they read as part of the bridge.
+ */
+export const PH_ROAD_NAMES: Readonly<Record<string, string>> = {
+  "camp-to-north": "Terrace Way",
+  "camp-to-west-farm": "Clay Bank Path",
+  "west-farm-onward": "Meadow Path",
+  "north-to-ashbeam": "Hollow Steps Road",
+  "ashbeam-to-chalkworks": "Quarry Road",
+  "chalkworks-to-marches": "Seam Road",
+  "marches-to-ash-road": "Ash Road",
+  "camp-to-east-trib": "Tributary Path",
+  "east-trib-to-ashbeam": "East Grove Path",
+  "east-ashbeam-grove": "Grove Spur",
+};
+
+export type PaleHollowMapLabelKind = "area" | "camp" | "landmark" | "water";
+
+/**
+ * Minimap labels: segment names, encampments and landmarks from
+ * docs/pale-hollow-area.md, placed at the geometry they name above.
+ */
+export const PH_MAP_LABELS: readonly { text: string; x: number; z: number; kind: PaleHollowMapLabelKind }[] = [
+  { text: "The Shard Dwellings", x: 0, z: 2, kind: "camp" },
+  // Scavenger camp: between the paired scavenger spawns ph-scav-1 / ph-scav-2.
+  { text: "Scavenger Camp", x: 1, z: 86, kind: "camp" },
+  { text: "Hollow Steps", x: 34, z: 34, kind: "area" },
+  { text: "Ashbeam Reach", x: -38, z: 82, kind: "area" },
+  { text: "Chalkworks", x: -36, z: 136, kind: "area" },
+  { text: "Pale Marches", x: 34, z: 214, kind: "area" },
+  { text: "Clay Bank", x: -20, z: 34, kind: "landmark" },
+  { text: "Timber Bridge", x: (PH_TIMBER_BRIDGE.minX + PH_TIMBER_BRIDGE.maxX) / 2, z: (PH_TIMBER_BRIDGE.minZ + PH_TIMBER_BRIDGE.maxZ) / 2, kind: "landmark" },
+  { text: "Quarry Cut", x: (PH_QUARRY_CUT.minX + PH_QUARRY_CUT.maxX) / 2, z: (PH_QUARRY_CUT.minZ + PH_QUARRY_CUT.maxZ) / 2, kind: "landmark" },
+  { text: "Hollow Quarry", x: 0, z: 145, kind: "landmark" },
+  { text: "Seam Tunnel", x: (PH_SEAM_TUNNEL.minX + PH_SEAM_TUNNEL.maxX) / 2, z: (PH_SEAM_TUNNEL.minZ + PH_SEAM_TUNNEL.maxZ) / 2, kind: "landmark" },
+  { text: "Copper Seams", x: 11, z: 210, kind: "landmark" },
+  { text: "Shard Crypt", x: -18, z: 210, kind: "landmark" },
+  { text: "Chalk Run", x: riverCenterX(118), z: 118, kind: "water" },
+];

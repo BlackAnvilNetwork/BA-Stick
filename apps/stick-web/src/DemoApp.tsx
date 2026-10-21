@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { playSteps, stepsFor } from "./vfx";
 import { createRenderer, fetchProps, fetchZone, fromFramebuffer } from "./renderer";
 import { isCoarsePointer, keylightFor } from "./mobile";
+import { applyMapData } from "./minimap";
 import { crowdUnits, demoUnits, rosterUnits } from "./demo";
 
 /**
@@ -22,6 +23,8 @@ export function DemoApp() {
       if (!alive) return;
       if (bytes) r.loadZone(bytes);
       if (props) r.loadProps(props);
+      if (bytes) applyMapData(r, zone);
+      if (q.has("nomap")) r.setMinimap(false);
       r.setCamera(ox, oz);
       if (q.get("view") === "3d") r.setView3d(true);
       r.setKeylight(keylightFor(isCoarsePointer(), location.search));

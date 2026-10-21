@@ -101,6 +101,32 @@ impl StickRenderer {
         self.scene.atmosphere = on;
     }
 
+    /// Minimap (engine-drawn). Title shown on the panel strip.
+    #[wasm_bindgen(js_name = setMapTitle)]
+    pub fn set_map_title(&mut self, t: &str) { self.scene.set_map_title(t); }
+
+    /// Road polyline as flat [x0, z0, x1, z1, ...] world metres.
+    #[wasm_bindgen(js_name = addMapRoad)]
+    pub fn add_map_road(&mut self, name: &str, pts: &[f32]) { self.scene.add_map_road(name, pts); }
+
+    /// kind: 0 area, 1 camp, 2 landmark, 3 water.
+    #[wasm_bindgen(js_name = addMapLabel)]
+    pub fn add_map_label(&mut self, text: &str, x: f32, z: f32, kind: u8) { self.scene.add_map_label(text, x, z, kind); }
+
+    #[wasm_bindgen(js_name = clearMapData)]
+    pub fn clear_map_data(&mut self) { self.scene.clear_map_data(); }
+
+    #[wasm_bindgen(js_name = setMinimap)]
+    pub fn set_minimap(&mut self, on: bool) { self.scene.minimap.on = on; }
+
+    /// Number of static-layer bakes so far (perf check: one per zone).
+    #[wasm_bindgen(js_name = minimapBakes)]
+    pub fn minimap_bakes(&self) -> u32 { self.scene.minimap.bakes }
+
+    /// Labels placed by the last bake, '|' separated (others were culled as overlaps).
+    #[wasm_bindgen(js_name = minimapLabels)]
+    pub fn minimap_labels(&self) -> String { self.scene.minimap.placed.join("|") }
+
     #[wasm_bindgen(js_name = clearZone)]
     pub fn clear_zone(&mut self) { self.scene.clear_zone(); }
 

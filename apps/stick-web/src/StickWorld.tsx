@@ -22,6 +22,7 @@ import { AnimEdges } from "./sfx";
 import { ZONE_FADE_MS, ZoneTracker } from "./zones";
 import { ResonanceClock, buffVfx, statusIcons } from "./buffs";
 import { STATUS_ICON_FB, StatusColumns } from "./statusColumn";
+import { applyMapData } from "./minimap";
 
 /** Black fade-in after a zone change (#31). */
 function fade(el: HTMLDivElement | null) {
@@ -198,6 +199,7 @@ export function StickWorld() {
                 if (!alive || zoneLoaded !== want) return;
                 r.loadZone(b);
                 if (p) r.loadProps(p);
+                applyMapData(r, want);
               });
           }
         }
