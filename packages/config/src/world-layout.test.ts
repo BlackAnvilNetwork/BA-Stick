@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import { AREAS, CITIES } from "./world";
 import { ZONES } from "./index";
 import { LIGHT_EMIT_LEVELS, WORLD_LAYOUTS, WORLD_ROUTE } from "./world-layout";
-import { PH_ALL_MOBS, PH_ALL_NODES, PH_HUB_NPCS } from "./pale-hollow";
+import { PH_ALL_MOBS, PH_ALL_NODES, PH_HUB, PH_HUB_NPCS, PH_HUB_SPAWN, PH_HUB_TRAINER } from "./pale-hollow";
 
 const inside = (b: { minX: number; maxX: number; minZ: number; maxZ: number }, x: number, z: number) =>
   x >= b.minX && x <= b.maxX && z >= b.minZ && z <= b.maxZ;
@@ -21,7 +21,7 @@ describe("world layouts", () => {
   it("only references ids that already exist", () => {
     const phNodes = new Set(PH_ALL_NODES.map((n) => n.id));
     const phMobs = new Set(PH_ALL_MOBS.map((m) => m.id));
-    const phNpcs = new Set<string>(PH_HUB_NPCS.map((n) => n.id));
+    const phNpcs = new Set<string>([...PH_HUB_NPCS, PH_HUB_TRAINER].map((n) => n.id));
     for (const id of WORLD_ROUTE) {
       const l = WORLD_LAYOUTS[id]!;
       const area = ZONES[id].areaId ? AREAS[ZONES[id].areaId!] : undefined;
@@ -46,6 +46,30 @@ describe("world layouts", () => {
       }
       for (const e of l.exits) assert.ok(WORLD_LAYOUTS[e.to], `${id} exit ${e.to}`);
     }
+  });
+
+  it("Shard Dwellings NPCs use the live npc-ph-* / npc-shard-elder ids (no sd-*)", () => {
+    const live = new Map<string, string>([...PH_HUB_NPCS, PH_HUB_TRAINER].map((n) => [n.id, n.role]));
+    const sd = CITIES.shard_dwellings.npcs;
+    assert.equal(sd.length, live.size);
+    for (const n of sd) {
+      assert.ok(!n.id.startsWith("sd-"), n.id);
+      assert.equal(live.get(n.id), n.role, n.id);
+    }
+  });
+
+  it("the spell trainer stands on the camp pad where every character spawns", () => {
+    const inHub = (x: number, z: number) => x >= PH_HUB.minX && x <= PH_HUB.maxX && z >= PH_HUB.minZ && z <= PH_HUB.maxZ;
+    assert.ok(inHub(PH_HUB_SPAWN.x, PH_HUB_SPAWN.z));
+    assert.ok(inHub(PH_HUB_TRAINER.x, PH_HUB_TRAINER.z));
+    assert.ok(/^npc-ph-/.test(PH_HUB_TRAINER.id));
+    assert.ok(WORLD_LAYOUTS.shard_dwellings!.npcs.some((n) => n.npcId === PH_HUB_TRAINER.id && n.role === "spell_trainer"));
+  });
+
+  it("Limestone Faces yield rock-salt (live nodes and the area def)", () => {
+    const faces = PH_ALL_NODES.filter((n) => n.name === "Limestone Face");
+    assert.ok(faces.length > 0 && faces.every((n) => (n.yields as readonly string[]).includes("rock-salt")));
+    assert.ok(AREAS.pale_hollow.harvestNodes.find((h) => h.id === "ph-quarry")!.yields.includes("rock-salt"));
   });
 
   it("places every city NPC from world.ts in authored cities", () => {

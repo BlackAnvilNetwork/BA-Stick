@@ -122,7 +122,8 @@ export const AREAS: Record<AreaId, AreaDef> = {
         id: "ph-quarry",
         name: "Pale Hollow Quarry",
         method: "mine",
-        yields: ["limestone", "cobble"],
+        // Live Limestone Faces (ph-lime-a/b) also yield rock-salt, used by cooking recipes.
+        yields: ["limestone", "cobble", "rock-salt"],
       },
       {
         id: "ph-riverbank",
@@ -537,19 +538,19 @@ function hubNpcs(cityId: CityId, prefix: string): CityNpcDef[] {
 export const CITIES: Record<CityId, CityDef> = {
   /**
    * Live in-game this is the Pale Hollow camp pad (PH_HUB in pale-hollow.ts), not a
-   * separate zone. The game's NPC ids (`npc-shard-elder`, `npc-ph-*` in PH_HUB_NPCS)
-   * are frozen; the `sd-*` ids below are design aliases:
-   * sd-guide=npc-shard-elder, sd-quest=npc-ph-herald, sd-job-master=npc-ph-job-master,
-   * sd-crafter=npc-ph-crafter, sd-vendor=npc-ph-vendor, sd-trainer=(none live yet).
+   * separate zone, so its NPCs use the live, frozen Pale Hollow ids (ids follow the
+   * zone): PH_HUB_NPCS plus the camp trainer PH_HUB_TRAINER.
    */
   shard_dwellings: {
     id: "shard_dwellings",
     name: "The Shard Dwellings",
     areaId: "pale_hollow",
     npcs: [
-      ...hubNpcs("shard_dwellings", "sd"),
+      ...hubNpcs("shard_dwellings", "npc-ph").map((n) =>
+        n.role === "quest_giver" ? { ...n, id: "npc-ph-herald" } : n.role === "spell_trainer" ? { ...n, id: "npc-ph-chronomancer" } : n,
+      ),
       {
-        id: "sd-guide",
+        id: "npc-shard-elder",
         name: "Shard Elder",
         role: "guide",
         blurb: "Tutorial guide — gathering, combat, and the road to the Ashlands and Obsidia.",

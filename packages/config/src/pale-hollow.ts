@@ -1799,6 +1799,14 @@ export const PH_HUB_NPCS = [
 ] as const;
 
 /**
+ * Camp spell trainer. Served by the server next to PH_HUB_NPCS with this stable,
+ * player-facing id (apps/server `TRAINER`); mirrored here as data so layouts and
+ * world.ts can name it. Every new character, casters included, spawns at
+ * PH_HUB_SPAWN on this camp pad.
+ */
+export const PH_HUB_TRAINER = { id: "npc-ph-chronomancer", name: "Trainer", x: -3.2, z: 4.8, facing: Math.PI, role: "spell_trainer" as const } as const;
+
+/**
  * Minimap road names, keyed by `paleHollowTrails()` id (layout data only).
  * Stone bridge approaches are drawn but not named; they read as part of the bridge.
  */

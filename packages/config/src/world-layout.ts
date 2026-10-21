@@ -20,6 +20,7 @@ import {
   PH_HUB,
   PH_HUB_NPCS,
   PH_HUB_SPAWN,
+  PH_HUB_TRAINER,
   PH_SEGMENT_A,
   PH_SEGMENT_B,
   PH_SEGMENT_C,
@@ -152,13 +153,13 @@ const PH_FIELD: ZoneLayout = {
 };
 const SHARD_DWELLINGS: ZoneLayout = {
   zoneId: "shard_dwellings", kind: "city", status: "live",
-  aliasOf: { zoneId: "pale_hollow", note: "Live alias of the Pale Hollow camp pad (PH_HUB). No code uses the shard_dwellings zone id; NPC ids npc-shard-elder / npc-ph-* are frozen, sd-* in world.ts are aliases." },
+  aliasOf: { zoneId: "pale_hollow", note: "Live alias of the Pale Hollow camp pad (PH_HUB). No code uses the shard_dwellings zone id; NPC ids npc-shard-elder / npc-ph-* are frozen and world.ts CITIES.shard_dwellings uses the same ids." },
   bounds: r(PH_HUB.minX, PH_HUB.maxX, PH_HUB.minZ, PH_HUB.maxZ),
   spawn: { ...PH_HUB_SPAWN },
   loreHook: "The Shard Elder keeps the camp fire lit for scouts coming back from the Hollow; every craft here starts with pale dust carried in from the field.",
   districts: [{ id: "camp", name: "Encampment", rect: r(PH_HUB.minX, PH_HUB.maxX, PH_HUB.minZ, PH_HUB.maxZ), note: "Today this is the PH_HUB pad inside pale_hollow." }],
   nodes: [], mobs: [],
-  npcs: PH_HUB_NPCS.map((n) => ({ npcId: n.id, role: n.role, x: n.x, z: n.z, facing: n.facing })),
+  npcs: [...PH_HUB_NPCS, PH_HUB_TRAINER].map((n) => ({ npcId: n.id, role: n.role, x: n.x, z: n.z, facing: n.facing })),
   props: [], // drawn by bake-props hub()
   exits: [{ to: "pale_hollow", x: 0, z: 14, note: "PH_OUTDOOR_SPAWN — terrace gate." }],
 };
