@@ -19,3 +19,7 @@ html, body, #root { margin: 0; width: 100%; height: 100%; background: #0d0b14; o
 .cmd-panel img, .equip-grid img, .equip-bag-list img, .craft-row img, .skill-icon, .boot-char-portrait, .unit-status-icon img {
   image-rendering: pixelated;
 }
+/* #34 status icon column beside the torso (old UnitStatusIcons) */
+.stick-status-col { position: absolute; left: 0; top: 0; display: flex; flex-direction: column; gap: 1px; pointer-events: none; }
+.stick-status-icon { width: var(--icon); height: var(--icon); image-rendering: pixelated; border-radius: 2px; box-shadow: 0 0 0 1px #0d0b14; background: #0d0b14aa; }
+.stick-status-icon.debuff { box-shadow: 0 0 0 1px #7a2224; }

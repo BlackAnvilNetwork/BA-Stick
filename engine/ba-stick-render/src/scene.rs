@@ -113,6 +113,8 @@ pub struct Scene {
     lights: Vec<crate::atmosphere::Light>,
     /// Lighting, haze, skyline and vignette (#26).
     pub atmosphere: bool,
+    /// Buff / ailment visuals per unit (#34).
+    buffs: BTreeMap<String, crate::buffvfx::BuffFx>,
 }
 
 impl Scene {
@@ -135,6 +137,7 @@ impl Scene {
             pal: palette::palette(),
             lights: Vec::new(),
             atmosphere: true,
+            buffs: BTreeMap::new(),
         }
     }
 
@@ -235,6 +238,7 @@ impl Scene {
         if self.follow.as_deref() == Some(id) {
             self.follow = None;
         }
+        self.buffs.remove(id);
         self.units.remove(id).is_some()
     }
 
@@ -427,6 +431,27 @@ impl Scene {
         (p.x, p.y)
     }
 
+    /// Buff / ailment visual state for a unit (#34); false if unknown.
+    pub fn set_buffs(&mut self, id: &str, fx: crate::buffvfx::BuffFx) -> bool {
+        if !self.units.contains_key(id) {
+            return false;
+        }
+        if fx.mask == 0 {
+            self.buffs.remove(id);
+        } else {
+            self.buffs.insert(id.to_owned(), fx);
+        }
+        true
+    }
+
+    pub fn buffs(&self, id: &str) -> Option<crate::buffvfx::BuffFx> { self.buffs.get(id).copied() }
+
+    fn buff_anchor(&self, id: &str, u: &Unit) -> crate::buffvfx::Anchor {
+        let base = self.rel(u.pos);
+        let seed = id.bytes().fold(2166136261u32, |h, b| (h ^ b as u32).wrapping_mul(16777619));
+        crate::buffvfx::Anchor { base, feet: self.cam.project(base), h: unit_height_px(u), seed }
+    }
+
     /// Draw the ground and all units into the framebuffer.
     pub fn draw(&mut self) {
         match &self.zone {
@@ -450,7 +475,13 @@ impl Scene {
         }
         let cy = self.cam_y;
         let rel = |p: Vec3| v3(p.x, p.y - cy, p.z);
-        // Ground decals: telegraphs, selection / hover rings, shadows.
+        // Ground decals: buff rings (#34), telegraphs, selection / hover rings, shadows.
+        for (id, bfx) in &self.buffs {
+            if let Some(u) = self.units.get(id) {
+                let a = self.buff_anchor(id, u);
+                crate::buffvfx::draw_ground(&mut self.fb, &cam, &a, bfx, t);
+            }
+        }
         for u in self.units.values() {
             let c = rel(u.pos);
             let fx = u.fx;
@@ -551,6 +582,11 @@ impl Scene {
             }
         }
         self.vfx.project(&cam, self.cam_y, &self.fb.depth, self.fb.w, self.fb.h);
+        // Buff / ailment visuals over the bodies (#34).
+        let bl: Vec<_> = self.buffs.iter().filter_map(|(id, b)| self.units.get(id).map(|u| (self.buff_anchor(id, u), *b))).collect();
+        for (a, b) in &bl {
+            crate::buffvfx::draw_body(&mut self.fb, &cam, a, b, t);
+        }
         // Overlays without depth: level-up columns, HP and cast bars.
         for u in self.units.values() {
             let feet = cam.project(rel(u.pos));

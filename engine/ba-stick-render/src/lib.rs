@@ -9,6 +9,7 @@
 
 pub mod atmosphere;
 pub mod vfx;
+pub mod buffvfx;
 pub mod compat;
 pub mod creature;
 pub mod figure;

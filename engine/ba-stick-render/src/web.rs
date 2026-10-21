@@ -113,6 +113,13 @@ impl StickRenderer {
         self.scene.set_fx(id, UnitFx { hp, cast, aoe, flags, fade, level_up })
     }
 
+    /// Buff / ailment visuals (#34): `mask` = `buffvfx` bits, `td` / `burst`
+    /// = Temporal Distortion impact and resonance burst life 0..1 (< 0 none).
+    #[wasm_bindgen(js_name = setBuffs)]
+    pub fn set_buffs(&mut self, id: &str, mask: u32, td: f32, burst: f32) -> bool {
+        self.scene.set_buffs(id, crate::buffvfx::BuffFx { mask, td, burst })
+    }
+
     /// `[x, headY, feetY]` in framebuffer pixels, or empty if unknown.
     pub fn anchor(&self, id: &str) -> Vec<f32> {
         self.scene.anchor(id).map_or(vec![], |(x, a, b)| vec![x, a, b])

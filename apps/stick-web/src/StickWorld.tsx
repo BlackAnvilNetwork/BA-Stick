@@ -19,6 +19,8 @@ import { routeUnitClick } from "./clicks";
 import { Labels, labelFor } from "./labels";
 import { AnimEdges } from "./sfx";
 import { ZONE_FADE_MS, ZoneTracker } from "./zones";
+import { ResonanceClock, buffVfx, statusIcons } from "./buffs";
+import { STATUS_ICON_FB, StatusColumns } from "./statusColumn";
 
 /** Black fade-in after a zone change (#31). */
 function fade(el: HTMLDivElement | null) {
@@ -73,6 +75,8 @@ export function StickWorld() {
       void loadIconAtlas(import.meta.env.BASE_URL).then((a) => (atlas = a));
       const edges = new AnimEdges();
       const labels = new Labels(labelsRef.current!);
+      const resonance = new ResonanceClock();
+      const statusCols = new StatusColumns(labelsRef.current!);
       let wasdAccum = 0;
       let last = performance.now();
 
@@ -155,6 +159,7 @@ export function StickWorld() {
         clearKeyboardMove();
         labels.clear();
         icons.clear();
+        statusCols.clear();
       });
 
       const frame = (now: number) => {
@@ -191,6 +196,7 @@ export function StickWorld() {
           if (me) r.setGear(me.id, ...gearArgs(snap.you.equip, getItem));
           casts.forget(known);
           for (const fx of vfx.scan(snap.units, myUnit()?.id, Date.now())) if (known.has(fx.from)) playSteps(r, fx.steps, fx.from, fx.to);
+          resonance.forget(known);
           for (const ev of floats.scan(snap.units, myUnit(), snap.log ?? [], Date.now())) if (known.has(ev.id)) r.addFloater(ev.id, ev.kind, ev.value);
           const me0 = myUnit();
           for (const ev of edges.scan(snap.units, me0, Date.now())) {
@@ -219,6 +225,8 @@ export function StickWorld() {
           if (!known.has(u.id)) continue;
           const fx = unitFx(u, { ...ctxBase, cast: casts.progress(u, wall) });
           r.setFx(u.id, fx.hp, fx.cast, fx.aoe, fx.flags, fx.fade, fx.levelUp);
+          const bv = buffVfx(u, wall, resonance);
+          r.setBuffs(u.id, bv.mask, bv.td, bv.burst);
           const label = labelFor(u, ctxBase);
           if (label && fx.fade > 0.3) {
             const a = r.anchor(u.id);
@@ -229,6 +237,19 @@ export function StickWorld() {
           }
         }
         labels.update(shown);
+        // Status icon column beside the torso (#34, old UnitStatusIcons)
+        const sc = new Map<string, { icons: ReturnType<typeof statusIcons>; x: number; y: number; scale: number }>();
+        const fbScale = canvas.getBoundingClientRect().width / FB_W;
+        for (const u of snap?.units ?? []) {
+          if (!known.has(u.id)) continue;
+          const ic = statusIcons(u, wall);
+          if (ic.length === 0) continue;
+          const a = r.anchor(u.id);
+          if (a.length !== 3) continue;
+          const [cx, cy] = fromFramebuffer(canvas, a[0] + (u.kind === "mob" ? 12 : 10), a[1] + (a[2] - a[1]) * 0.15);
+          sc.set(u.id, { icons: ic.slice(0, 6), x: cx, y: cy, scale: fbScale });
+        }
+        statusCols.update(sc);
         // Yield icons over gather nodes (#30)
         const gi = new Map<string, { slug?: string; x: number; y: number; scale: number; ready: boolean }>();
         const scale = canvas.getBoundingClientRect().width / FB_W;
