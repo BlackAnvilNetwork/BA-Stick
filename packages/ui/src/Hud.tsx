@@ -22,7 +22,7 @@ import { getItem } from "@bellgrave/items";
 import type { AbilityId, UnitSnapshot } from "@bellgrave/protocol";
 import { useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent } from "react";
 import { AbilityIcon } from "./AbilityIcon";
-import { chromaKeyIconUrl } from "./chroma";
+import { chromaKeyIconUrl } from "./chroma-icons";
 import { CraftingPanel } from "./CraftingPanel";
 import { ExplorerPanel } from "./ExplorerPanel";
 import { LokPanel } from "./LokPanel";

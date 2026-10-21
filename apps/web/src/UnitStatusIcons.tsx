@@ -1,7 +1,7 @@
 import { Html } from "@react-three/drei";
 import type { UnitSnapshot } from "@bellgrave/protocol";
-import { AbilityIcon } from "./AbilityIcon";
-import { worldStatusIcons } from "./statusIcons";
+import { AbilityIcon } from "@bellgrave/ui/AbilityIcon";
+import { worldStatusIcons } from "@bellgrave/ui/statusIcons";
 import { worldHtmlPortalRef } from "./worldHtml";
 
 type Props = {

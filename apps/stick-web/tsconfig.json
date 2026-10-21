@@ -1,14 +1,44 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "module": "ESNext",
     "moduleResolution": "bundler",
     "isolatedModules": true,
     "strict": true,
     "skipLibCheck": true,
     "noEmit": true,
-    "types": ["vite/client"]
+    "types": [
+      "vite/client"
+    ],
+    "jsx": "react-jsx",
+    "allowImportingTsExtensions": true,
+    "paths": {
+      "@bellgrave/combat": [
+        "../../packages/combat/src/index.ts"
+      ],
+      "@bellgrave/config": [
+        "../../packages/config/src/index.ts"
+      ],
+      "@bellgrave/protocol": [
+        "../../packages/protocol/src/index.ts"
+      ],
+      "@bellgrave/items": [
+        "../../packages/items/src/index.ts"
+      ],
+      "@bellgrave/client-core/*": [
+        "../../packages/client-core/src/*"
+      ],
+      "@bellgrave/ui/*": [
+        "../../packages/ui/src/*"
+      ]
+    }
   },
-  "include": ["src"]
+  "include": [
+    "src"
+  ]
 }

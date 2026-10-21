@@ -12,7 +12,7 @@ import {
   type AbilityId,
 } from "@bellgrave/combat";
 import { useEffect, useState, type CSSProperties } from "react";
-import { chromaKeyIconUrl } from "./chroma";
+import { chromaKeyIconUrl } from "./chroma-icons";
 
 type Props = {
   id: AbilityId | "potion";

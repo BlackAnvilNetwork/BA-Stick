@@ -1,13 +1,13 @@
 import { Canvas } from "@react-three/fiber";
 import { useEffect } from "react";
 import { ITEM, ZONES } from "@bellgrave/config";
-import { BootScreens, Hud, castAbility, hotbarAbilityAt, hotbarIndexFromCode } from "./Hud";
+import { BootScreens, Hud, castAbility, hotbarAbilityAt, hotbarIndexFromCode } from "@bellgrave/ui/Hud";
 import { connectSocket, send } from "@bellgrave/client-core/net";
 import { useGame } from "@bellgrave/client-core/state";
-import { applyUiSettings, loadUiSettings } from "./uiSettings";
+import { applyUiSettings, loadUiSettings } from "@bellgrave/ui/uiSettings";
 import { WorldScene } from "./WorldScene";
-import { enterZoneMusic, unlockZoneMusic } from "./zoneMusic";
-import { unlockCombatSfx } from "./combatSfx";
+import { enterZoneMusic, unlockZoneMusic } from "@bellgrave/ui/zoneMusic";
+import { unlockCombatSfx } from "@bellgrave/ui/combatSfx";
 import { worldHtmlRootRef } from "./worldHtml";
 
 export function App() {

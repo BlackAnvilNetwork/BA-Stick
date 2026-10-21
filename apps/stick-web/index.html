@@ -2,18 +2,11 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Black Anvil — Stick</title>
-    <style>
-      html, body { margin: 0; height: 100%; background: #0d0b14; overflow: hidden; }
-      #screen { width: 100vw; height: 100vh; object-fit: contain; image-rendering: pixelated; display: block; }
-      #overlay { position: fixed; inset: 0; pointer-events: none; font: 12px monospace; color: #e8e2d0; }
-      #overlay .tag { position: absolute; left: 12px; top: 10px; opacity: .8; }
-    </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Black Anvil</title>
   </head>
   <body>
-    <canvas id="screen"></canvas>
-    <div id="overlay"><div class="tag">BA-Stick M0 — renderer demo (no server)</div></div>
-    <script type="module" src="/src/main.ts"></script>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
