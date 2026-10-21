@@ -4,8 +4,8 @@ Start at the root [`README.md`](../README.md). This file names what each system 
 
 | System | Open first | Owns |
 | --- | --- | --- |
-| Client | `apps/web/src/main.tsx` | React + Vite app. `apps/web/src/App.tsx` connects the socket and mounts the R3F scene in `apps/web/src/WorldScene.tsx`. |
-| Client ↔ server | `apps/web/src/net.ts` | WebSocket JSON to `ws://<page-host>:8787` (override `VITE_WS_URL`). Messages are `@bellgrave/protocol` types from `packages/protocol/src/index.ts`. |
+| Client | `apps/stick-web/src/main.tsx` | React + Vite app. `apps/stick-web/src/App.tsx` mounts the `@bellgrave/ui` shell and the Stick Engine (wasm) canvas in `apps/stick-web/src/StickWorld.tsx`. |
+| Client ↔ server | `packages/client-core/src/net.ts` | WebSocket JSON to `ws://<page-host>:8787` (override `VITE_WS_URL`). Messages are `@bellgrave/protocol` types from `packages/protocol/src/index.ts`. |
 | Server loop | `apps/server/src/index.ts` | WebSocket server on port 8787 (`PORT`). `setInterval(tickSim, TICK_MS)` at 20 Hz (`TICK_HZ` in `packages/config/src/index.ts`). |
 | Protocol | `packages/protocol/src/index.ts` | Zod `ClientMessageSchema` for client messages. `ServerMessage` is a TypeScript union in the same file. |
 | Combat math | `packages/combat/src/index.ts` | Shared formulas and job kits. Kits live in `packages/combat/src/*-kit.ts`. Job list: `packages/combat/src/jobs.ts`. |

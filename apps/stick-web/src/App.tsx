@@ -9,7 +9,7 @@ import { enterZoneMusic, unlockZoneMusic } from "@bellgrave/ui/zoneMusic";
 import { unlockCombatSfx } from "@bellgrave/ui/combatSfx";
 import { StickWorld } from "./StickWorld";
 
-/** Same shell as apps/web App.tsx with the R3F Canvas replaced by the Stick Engine canvas. */
+/** The @bellgrave/ui shell around the Stick Engine canvas. */
 export function App() {
   const phase = useGame((s) => s.phase);
 

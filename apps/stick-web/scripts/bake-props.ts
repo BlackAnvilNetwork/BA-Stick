@@ -1,6 +1,6 @@
 /**
  * Pale Hollow static props for ba-stick-render, placed exactly like the old
- * client (apps/web/src/PaleHollowMap.tsx): hub encampment coordinates, the
+ * client (the retired apps/web/src/PaleHollowMap.tsx): hub encampment coordinates, the
  * deterministic `WorldTrees` and `placeClutterInChunk` scatter (same hash2,
  * same grids, same biome rules), rock wall blocks and mountain peaks.
  *

@@ -103,7 +103,7 @@ Automated test (local anvil fork only; never broadcasts to public RPCs):
 pnpm --filter @bellgrave/server exec tsx --test src/gnosis-fork-mint-ah.test.ts
 ```
 
-Deploys `GnosisForkMintAhFixture` onto the fork, mints two characters at **1 xDAI**, `openAsk` + `buyAsk`, and asserts gnosisscan URL shaping. Web unit coverage: `pnpm --filter @bellgrave/web test` (AppKit/xDAI labels + explorer links).
+Deploys `GnosisForkMintAhFixture` onto the fork, mints two characters at **1 xDAI**, `openAsk` + `buyAsk`, and asserts gnosisscan URL shaping. Client unit coverage: `pnpm --filter @bellgrave/stick-web --filter @bellgrave/client-core test` (AppKit/xDAI labels + explorer links).
 
 ### Simulation against your filled `.env.gnosis` (still no broadcast)
 

@@ -1,6 +1,6 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-// Side-effect: createAppKit at module scope (same as apps/web).
+// Side-effect: createAppKit at module scope.
 import "@bellgrave/client-core/appkit-config";
 import { UI_SETTINGS_KEY, applyUiSettings, loadUiSettings, saveUiSettings } from "@bellgrave/ui/uiSettings";
 import { initialUiSettings, isCoarsePointer } from "./mobile";

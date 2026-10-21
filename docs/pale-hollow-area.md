@@ -5,7 +5,7 @@
 
 **Playable bounds:** roughly ±88 east–west, −24…268 south–north. Mountain peaks ring the fringe; meadows/grass fill the flanks; chalk run + east tributary use a soft-edged flow ribbon (`PaleHollowRivers`, Water2-style dual normals) over wet riverbed terrain.
 
-**Sources:** item manifest, Kek Items Onchain plan, `packages/config/src/pale-hollow.ts`, ambientCG CC0 albedos under `apps/web/public/textures/pale-hollow/`.
+**Sources:** item manifest, Kek Items Onchain plan, `packages/config/src/pale-hollow.ts`, ambientCG CC0 albedos formerly under `apps/web/public/textures/pale-hollow/` (removed with the three.js client in #38; Stick Engine uses palette-shaded tiles instead).
 
 **Related OSS (design / water):** LDtk + Tiled (level layout), Godot / Bevy (full engines — reference, not this stack), three.js `Water`/`Water2` + Valve flow-map paper, `@react-three/drei` (`useDepthBuffer`, `MeshReflectorMaterial`). Runtime stack stays R3F + Three.
 
