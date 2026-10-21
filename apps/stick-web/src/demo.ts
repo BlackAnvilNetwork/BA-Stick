@@ -19,3 +19,20 @@ export function demoUnits(t: number): DemoUnit[] {
     { id: "mob:guard", x: 3.6, z: 2.4, facing: 3.6, anim: "idle", preset: "mob:petrified_guard" },
   ];
 }
+
+const ROSTER = [
+  "mob:dust_hare", "mob:pale_slime", "mob:cliff_adder", "mob:ashbeam_boar", "mob:hollow_scavenger",
+  "mob:ruin_dweller", "mob:seam_golem", "mob:shard_wight", "mob:guard",
+  "npc:job_master", "npc:spell_trainer", "npc:guide", "npc:quest_giver", "npc:crafter", "npc:vendor",
+];
+
+/** `?demo&roster`: every mob archetype and NPC role, walking in place along +x. */
+export function rosterUnits(t: number): DemoUnit[] {
+  return ROSTER.map((preset, i) => {
+    const col = i % 5;
+    const row = Math.floor(i / 5);
+    const walk = Math.floor(t / 2.5) % 2 === 0;
+    const dx = walk ? ((t * 1.2) % 1.2) - 0.6 : 0;
+    return { id: preset, x: (col - 2) * 2.4 + row * 1.2 + dx, z: (row - 1) * 2.4 - (col - 2) * 1.2, facing: Math.PI / 2 + (row % 2 ? 0.6 : -0.3), anim: walk ? "walk" : "idle", preset };
+  });
+}

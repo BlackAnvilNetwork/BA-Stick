@@ -49,6 +49,8 @@ fn camera_follow_and_pick() {
     s.upsert_unit("me", unit(10.0, -4.0, "idle", "time_mage"));
     s.follow(Some("me"));
     s.tick(0.016);
+    s.follow_lift_px = 0.0;
+    s.tick(0.016);
     assert_eq!((s.cam.cx, s.cam.cz), (10.0, -4.0));
     let p = s.cam.project(stick_engine::math::v3(12.0, 0.0, 3.0));
     let (x, z) = s.pick_world(p.x, p.y);
@@ -130,4 +132,105 @@ fn zone_draws_biome_colours_and_units_stand_on_it() {
     let feet = s.cam.project(stick_engine::math::v3(5.0, 0.0, 5.0));
     let (x, z) = s.pick_world(feet.x, feet.y);
     assert!((x - 5.0).abs() < 0.05 && (z - 5.0).abs() < 0.05, "{x},{z}");
+}
+
+#[test]
+fn every_archetype_and_role_draws() {
+    use crate::preset::{MOB_ARCHETYPES, NPC_ROLES};
+    let keys: Vec<String> = MOB_ARCHETYPES.iter().map(|a| format!("mob:{a}"))
+        .chain(NPC_ROLES.iter().map(|r| format!("npc:{r}")))
+        .chain(["knight", "fighter", "rogue", "cleric", "sorcerer", "time_mage", "battle_mage"].iter().map(|j| j.to_string()))
+        .collect();
+    for key in &keys {
+        for anim in ["idle", "walk", "melee", "cast", "dead"] {
+            let mut s = Scene::new(160, 160);
+            s.upsert_unit("u", unit(0.0, 0.0, anim, key));
+            s.tick(0.1);
+            s.draw();
+            let lit = s.fb.color.iter().filter(|&&c| c != 0 && c != 2 && c != 3 && c != 15 && c != C_SHADOW_IDX).count();
+            assert!(lit > 30, "{key} {anim}: only {lit} px");
+        }
+    }
+}
+const C_SHADOW_IDX: u8 = stick_engine::raster::C_SHADOW;
+
+#[test]
+fn npc_roles_are_distinguishable() {
+    use crate::preset::NPC_ROLES;
+    let mut seen = std::collections::HashSet::new();
+    for r in NPC_ROLES {
+        let p = RigPreset::resolve(&format!("npc:{r}"));
+        seen.insert((p.look.accent, p.npc_mark, p.weapon as u8));
+    }
+    assert_eq!(seen.len(), NPC_ROLES.len());
+}
+
+#[test]
+fn fx_bars_rings_fade_and_anchor() {
+    use crate::palette::*;
+    let mut s = Scene::new(200, 200);
+    s.upsert_unit("m", unit(0.0, 0.0, "cast", "mob:ruin_dweller"));
+    s.tick(0.0);
+    assert!(!s.set_fx("nope", UnitFx::default()));
+    assert!(s.set_fx("m", UnitFx { hp: 0.5, cast: 0.5, aoe: 2.0, flags: crate::scene::FX_SELECTED | crate::scene::FX_HOSTILE, fade: 1.0, level_up: 0.3 }));
+    s.draw();
+    let has = |c: u8| s.fb.color.iter().any(|&x| x == c);
+    for c in [FX_HP, FX_CAST, FX_TELL, FX_RING_HOSTILE, FX_LEVEL] {
+        assert!(has(c), "missing colour {c}");
+    }
+    assert!(s.fb.color.iter().any(|&c| (TINT_CAST..TINT_CAST + 36).contains(&c)), "cast tint");
+    let (x, head, feet) = s.anchor("m").unwrap();
+    assert!(head < feet && (x - 100.0).abs() < 1.0);
+    // Fully faded unit leaves no body pixels.
+    let mut s2 = Scene::new(200, 200);
+    s2.upsert_unit("d", unit(0.0, 0.0, "idle", "knight"));
+    s2.tick(0.0);
+    s2.set_fx("d", UnitFx { fade: 0.0, ..UnitFx::default() });
+    s2.draw();
+    assert!(!s2.fb.color.iter().any(|&c| c == stick_engine::raster::C_BODY));
+}
+
+#[test]
+fn creatures_animate_with_movement() {
+    let mut s = Scene::new(160, 160);
+    s.upsert_unit("h", unit(0.0, 0.0, "walk", "mob:dust_hare"));
+    s.tick(0.0);
+    s.draw();
+    let a = s.fb.color.clone();
+    s.upsert_unit("h", unit(0.4, 0.0, "walk", "mob:dust_hare"));
+    for _ in 0..5 { s.tick(1.0 / 30.0); }
+    s.set_camera(0.4, 0.0);
+    s.draw();
+    assert_ne!(a, s.fb.color);
+}
+
+#[test]
+fn telegraph_radius_matches_cast_aoe() {
+    use crate::palette::FX_TELL;
+    let mut s = Scene::new(400, 300);
+    s.upsert_unit("m", unit(0.0, 0.0, "cast", "mob:pale_slime"));
+    s.tick(0.0);
+    let aoe = 3.0;
+    s.set_fx("m", UnitFx { cast: 0.5, aoe, flags: crate::scene::FX_HOSTILE, ..UnitFx::default() });
+    s.draw();
+    let near = |x: f32, z: f32| {
+        let p = s.cam.project(stick_engine::math::v3(x, 0.0, z));
+        let mut hit = false;
+        for dy in -1..=1 {
+            for dx in -1..=1 {
+                let (px, py) = (p.x as i32 + dx, p.y as i32 + dy);
+                if px >= 0 && py >= 0 && (px as usize) < s.fb.w && (py as usize) < s.fb.h {
+                    hit |= s.fb.color[py as usize * s.fb.w + px as usize] == FX_TELL;
+                }
+            }
+        }
+        hit
+    };
+    // Outer ring passes through every point at distance `aoe` (sample the
+    // near-camera half, the far half can sit behind the body).
+    for k in 0..8 {
+        let a = std::f32::consts::FRAC_PI_4 * k as f32 * 0.5;
+        assert!(near(a.cos() * aoe, a.sin() * aoe), "ring missing at angle {a}");
+    }
+    assert!(!near(aoe + 0.6, 0.0));
 }

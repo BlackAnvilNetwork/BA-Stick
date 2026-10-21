@@ -41,19 +41,58 @@ impl AnimState {
     }
 }
 
+/// Body plan. Bipeds use the Stick Engine rig; the rest are drawn by
+/// `creature.rs` from the same unit position/yaw/gait phase.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Body {
+    Biped,
+    /// Four legs; `hop` = arc-hop gait (Dust Hare), else trot. `size` scales.
+    Quadruped { size: f32, hop: bool, tusks: bool, body: u8, far: u8 },
+    /// Ground snake (Cliff Adder).
+    Serpent { size: f32, body: u8 },
+    /// Bouncing blob (Pale Slime).
+    Blob { size: f32, body: u8, far: u8 },
+}
+
+/// What a biped holds (`JOB_WEAPON` in packages/combat).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Weapon {
+    Sword,
+    Staff,
+    None,
+}
+
 /// Visual preset for a unit: proportions plus palette indices.
 #[derive(Clone, Copy, Debug)]
 pub struct RigPreset {
     pub props: Proportions,
     pub look: Look,
+    pub body: Body,
+    pub weapon: Weapon,
+    /// Extra marker drawn above NPC heads (role glyph colour), if any.
+    pub npc_mark: Option<u8>,
 }
 
 fn with(f: impl FnOnce(&mut Proportions, &mut Look)) -> RigPreset {
     let mut props = Proportions::default();
     let mut look = Look::default();
     f(&mut props, &mut look);
-    RigPreset { props, look }
+    RigPreset { props, look, body: Body::Biped, weapon: Weapon::Sword, npc_mark: None }
 }
+
+fn staff(mut p: RigPreset) -> RigPreset {
+    p.weapon = Weapon::Staff;
+    p
+}
+
+/// Every mob archetype in packages/config (`PaleHollowArchetype`) plus the
+/// legacy hall guard. Exposed for tests.
+pub const MOB_ARCHETYPES: [&str; 9] = [
+    "dust_hare", "pale_slime", "hollow_scavenger", "ashbeam_boar", "ruin_dweller",
+    "cliff_adder", "seam_golem", "shard_wight", "guard",
+];
+/// Every `npcRole` in packages/protocol.
+pub const NPC_ROLES: [&str; 6] = ["job_master", "spell_trainer", "guide", "quest_giver", "crafter", "vendor"];
 
 impl RigPreset {
     /// Resolve a preset key: a Black Anvil job id (`knight`, `time_mage`...),
@@ -65,13 +104,13 @@ impl RigPreset {
             "knight" => with(|p, l| { p.limb_px = 2.8; p.shoulder_w = 0.22; l.accent = C_STEEL; }),
             "fighter" => with(|p, l| { p.limb_px = 2.6; l.accent = C_ACCENT; }),
             "rogue" => with(|p, l| { p.limb_px = 1.9; p.sword = 0.55; l.accent = C_SHADOW; }),
-            "cleric" => with(|p, l| { p.sword = 0.6; l.accent = C_GOLD; }),
-            "sorcerer" => with(|p, l| { p.limb_px = 1.9; p.sword = 1.1; l.accent = C_DASH; }),
-            "time_mage" => with(|p, l| { p.limb_px = 2.0; p.sword = 1.0; l.accent = C_GOLD; l.body = C_TRAIL; }),
             "battle_mage" => with(|p, l| { p.limb_px = 2.4; l.accent = C_DASH; l.far = C_STEEL; }),
-            b if b.starts_with("npc:") => with(|p, l| { p.sword = 0.0; l.accent = C_GOLD; l.body = C_DUST; l.far = C_STONE_FAR; }),
-            b if b.starts_with("mob:") => with(|p, l| { p.limb_px = 2.6; p.head_r = 0.17; l.accent = C_ACCENT; l.body = C_STONE; l.far = C_STONE_FAR; }),
-            _ => RigPreset { props: Proportions::default(), look: Look::default() },
+            "cleric" => staff(with(|p, l| { p.sword = 0.0; l.accent = C_GOLD; })),
+            "sorcerer" => staff(with(|p, l| { p.limb_px = 1.9; p.sword = 0.0; l.accent = C_DASH; })),
+            "time_mage" => staff(with(|p, l| { p.limb_px = 2.0; p.sword = 0.0; l.accent = C_GOLD; l.body = C_TRAIL; })),
+            b if b.starts_with("npc:") => npc(&b[4..]),
+            b if b.starts_with("mob:") => mob(&b[4..]),
+            _ => with(|_, _| {}),
         };
         match variant {
             "female" => { p.props.shoulder_w *= 0.88; p.props.limb_px *= 0.9; }
@@ -82,6 +121,55 @@ impl RigPreset {
             _ => {}
         }
         p
+    }
+}
+
+fn npc(role: &str) -> RigPreset {
+    // Robed, unarmed townsfolk; the role reads from accent + head marker.
+    let (accent, mark, wpn) = match role {
+        "job_master" => (C_STEEL, C_STEEL, Weapon::Sword),
+        "spell_trainer" => (C_DASH, C_DASH, Weapon::Staff),
+        "guide" => (C_GOLD, C_GOLD, Weapon::Staff),
+        "quest_giver" => (C_ACCENT, C_GOLD, Weapon::None),
+        "crafter" => (C_HILT, C_HILT, Weapon::None),
+        "vendor" => (crate::palette::FX_HP, crate::palette::FX_HP, Weapon::None),
+        _ => (C_GOLD, C_GOLD, Weapon::None),
+    };
+    let mut p = with(|p, l| { p.sword = 0.0; p.limb_px = 2.4; l.accent = accent; l.body = C_DUST; l.far = C_STONE_FAR; });
+    p.weapon = wpn;
+    p.npc_mark = Some(mark);
+    p
+}
+
+fn mob(arch: &str) -> RigPreset {
+    use crate::palette::*;
+    let biped = |f: &dyn Fn(&mut Proportions, &mut Look)| with(|p, l| f(p, l));
+    match arch {
+        "dust_hare" => RigPreset { body: Body::Quadruped { size: 0.85, hop: true, tusks: false, body: CR_HARE, far: CR_HARE_FAR }, weapon: Weapon::None, ..with(|_, _| {}) },
+        "ashbeam_boar" => RigPreset { body: Body::Quadruped { size: 1.35, hop: false, tusks: true, body: CR_BOAR, far: CR_BOAR_FAR }, weapon: Weapon::None, ..with(|_, _| {}) },
+        "pale_slime" => RigPreset { body: Body::Blob { size: 1.3, body: CR_SLIME, far: CR_SLIME_FAR }, weapon: Weapon::None, ..with(|_, _| {}) },
+        "cliff_adder" => RigPreset { body: Body::Serpent { size: 1.5, body: CR_ADDER }, weapon: Weapon::None, ..with(|_, _| {}) },
+        "hollow_scavenger" => {
+            let mut p = biped(&|p, l| { p.limb_px = 2.0; p.sword = 0.5; p.spine *= 0.9; l.body = C_DUST; l.far = C_STONE_FAR; l.accent = C_HILT; });
+            p.weapon = Weapon::Sword;
+            p
+        }
+        "ruin_dweller" => biped(&|p, l| { p.limb_px = 2.4; p.sword = 0.7; l.body = C_STONE; l.far = C_STONE_FAR; l.accent = C_ACCENT; }),
+        "seam_golem" => {
+            let mut p = biped(&|p, l| {
+                p.limb_px = 4.2; p.shoulder_w = 0.3; p.thigh *= 1.15; p.shin *= 1.15; p.spine *= 1.2; p.head_r = 0.12; p.sword = 0.0;
+                l.body = C_STONE; l.far = C_STONE_FAR; l.accent = C_DASH;
+            });
+            p.weapon = Weapon::None;
+            p
+        }
+        "shard_wight" => {
+            let mut p = biped(&|p, l| { p.limb_px = 1.6; p.spine *= 1.1; p.sword = 0.0; l.body = CR_WIGHT; l.far = C_STONE_FAR; l.accent = C_DASH; });
+            p.weapon = Weapon::Staff;
+            p
+        }
+        "guard" => biped(&|p, l| { p.limb_px = 2.8; p.shoulder_w = 0.22; l.body = C_STONE; l.far = C_STONE_FAR; l.accent = C_STEEL; }),
+        _ => biped(&|p, l| { p.limb_px = 2.6; p.head_r = 0.17; l.accent = C_ACCENT; l.body = C_STONE; l.far = C_STONE_FAR; }),
     }
 }
 
