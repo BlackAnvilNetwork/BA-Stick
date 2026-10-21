@@ -9,6 +9,7 @@ declare module "ba-stick-render" {
     loadProps(bytes: Uint8Array): number;
     addFloater(id: string, kind: number, value: number): void;
     isWading(id: string): boolean;
+    setAtmosphere(on: boolean): void;
     zoneHeight(x: number, z: number): number;
     setCamera(x: number, z: number): void;
     follow(id?: string): void;

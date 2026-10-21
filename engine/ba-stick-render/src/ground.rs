@@ -60,7 +60,7 @@ fn cell_color(z: &Zone, i: i32, j: i32, time: f32) -> u8 {
 /// Draw the zone. `cam_y` is subtracted from all heights so the camera's
 /// reference height sits at the screen centre line.
 pub fn draw_zone(fb: &mut Framebuffer, cam: &Camera, zone: &Zone, cam_y: f32, time: f32) {
-    fb.color.fill(0);
+    fb.color.fill(crate::atmosphere::SKY);
     // Visible world rectangle at reference height, plus a margin for relief.
     let margin_m = 4.0 + 12.0 * HEIGHT_PX / ISO_Y / 2.0;
     let corners = [(0.0, 0.0), (fb.w as f32, 0.0), (0.0, fb.h as f32), (fb.w as f32, fb.h as f32)];

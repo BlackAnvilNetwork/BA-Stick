@@ -50,6 +50,12 @@ impl StickRenderer {
         self.scene.is_wading(id)
     }
 
+    /// Toggle lighting / haze / skyline / vignette (#26).
+    #[wasm_bindgen(js_name = setAtmosphere)]
+    pub fn set_atmosphere(&mut self, on: bool) {
+        self.scene.atmosphere = on;
+    }
+
     #[wasm_bindgen(js_name = clearZone)]
     pub fn clear_zone(&mut self) { self.scene.clear_zone(); }
 

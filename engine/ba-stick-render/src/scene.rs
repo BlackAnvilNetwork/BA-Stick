@@ -101,6 +101,9 @@ pub struct Scene {
     pub follow_lift_px: f32,
     time: f32,
     pal: [u32; 256],
+    lights: Vec<crate::atmosphere::Light>,
+    /// Lighting, haze, skyline and vignette (#26).
+    pub atmosphere: bool,
 }
 
 impl Scene {
@@ -119,6 +122,8 @@ impl Scene {
             follow_lift_px: 40.0,
             time: 0.0,
             pal: palette::palette(),
+            lights: Vec::new(),
+            atmosphere: true,
         }
     }
 
@@ -382,6 +387,16 @@ impl Scene {
         let cam = self.cam;
         let t = self.time;
         props::draw(&mut self.fb, &cam, &self.props, self.cam_y, t);
+        self.lights.clear();
+        if self.zone.is_some() {
+            for p in self.props.iter().filter(|p| p.kind == props::kind::FIRE_PIT) {
+                let q = cam.project(v3(p.x, p.y - self.cam_y, p.z));
+                let flick = 1.0 + 0.07 * (t * 13.0).sin() + 0.05 * (t * 7.3 + 1.0).sin();
+                if q.x > -200.0 && q.x < self.fb.w as f32 + 200.0 && q.y > -200.0 && q.y < self.fb.h as f32 + 200.0 {
+                    self.lights.push(crate::atmosphere::Light { x: q.x, y: q.y - 4.0, r: 150.0 * flick, k: 0.9 * flick });
+                }
+            }
+        }
         let cy = self.cam_y;
         let rel = |p: Vec3| v3(p.x, p.y - cy, p.z);
         // Ground decals: telegraphs, selection / hover rings, shadows.
@@ -514,7 +529,12 @@ impl Scene {
 
     /// Framebuffer as RGBA8 (ImageData layout).
     pub fn write_rgba(&self, out: &mut [u8]) {
-        palette::write_rgba(&self.pal, &self.fb.color, out);
+        if self.atmosphere && self.zone.is_some() {
+            let scroll = (self.cam.cx - self.cam.cz) * stick_engine::camera::ISO_X;
+            crate::atmosphere::write_rgba(&self.pal, &self.fb.color, self.fb.w, self.fb.h, &self.lights, &crate::atmosphere::PALE_HOLLOW, scroll, out);
+        } else {
+            palette::write_rgba(&self.pal, &self.fb.color, out);
+        }
     }
 }
 

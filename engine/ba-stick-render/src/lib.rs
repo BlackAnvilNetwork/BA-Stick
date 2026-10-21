@@ -7,6 +7,7 @@
 //! world position (x, y, z), a facing, a server `anim` state and a rig preset
 //! (job / mob archetype / NPC role).
 
+pub mod atmosphere;
 pub mod compat;
 pub mod creature;
 pub mod figure;
