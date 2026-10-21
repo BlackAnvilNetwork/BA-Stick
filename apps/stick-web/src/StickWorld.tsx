@@ -8,12 +8,13 @@ import { clampPaleHollow } from "@bellgrave/config";
 import type { UnitSnapshot } from "@bellgrave/protocol";
 import { NpcInteractMenu } from "@bellgrave/ui/NpcInteractMenu";
 import { clearKeyboardMove, setKeyboardMoveKey, type MoveKeys } from "@bellgrave/ui/moveInput";
-import { FB_H, FB_W, bakedZoneFor, createRenderer, fetchProps, fetchZone, fromFramebuffer, toFramebuffer } from "./renderer";
+import { FB_H, FB_W, bakedZoneFor, createRenderer, fetchProps, fetchZone, fbScale, fromFramebuffer, toFramebuffer } from "./renderer";
 import { staticAt } from "./statics";
 import { CombatFloaters } from "./floaters";
 import { GatherIcons, loadIconAtlas, type IconAtlas } from "./gather";
 import { syncUnits } from "./units";
 import { getMoveKeys, wasdTarget } from "./input";
+import { atmosphereFor, isCoarsePointer } from "./mobile";
 import { CastClock, sameId, unitFx } from "./fx";
 import { routeUnitClick } from "./clicks";
 import { Labels, labelFor } from "./labels";
@@ -53,6 +54,8 @@ export function StickWorld() {
       if (!alive) return;
       // Dev/test hook for headless checks (fb→client mapping lives in renderer.ts).
       if (import.meta.env.DEV) Object.assign(window, { __stick: { r, canvas, fromFramebuffer, send } });
+      // Phones: atmosphere pass costs ~1/3 of the frame; drop it to hold 30+ fps (#18).
+      if (!atmosphereFor(isCoarsePointer(), location.search)) r.setAtmosphere(false);
       let zoneLoaded: string | null = null;
       const zones = new ZoneTracker();
       let lastSnap: unknown = null;
@@ -239,7 +242,7 @@ export function StickWorld() {
         labels.update(shown);
         // Status icon column beside the torso (#34, old UnitStatusIcons)
         const sc = new Map<string, { icons: ReturnType<typeof statusIcons>; x: number; y: number; scale: number }>();
-        const fbScale = canvas.getBoundingClientRect().width / FB_W;
+        const pxScale = fbScale(canvas);
         for (const u of snap?.units ?? []) {
           if (!known.has(u.id)) continue;
           const ic = statusIcons(u, wall);
@@ -247,12 +250,12 @@ export function StickWorld() {
           const a = r.anchor(u.id);
           if (a.length !== 3) continue;
           const [cx, cy] = fromFramebuffer(canvas, a[0] + (u.kind === "mob" ? 12 : 10), a[1] + (a[2] - a[1]) * 0.15);
-          sc.set(u.id, { icons: ic.slice(0, 6), x: cx, y: cy, scale: fbScale });
+          sc.set(u.id, { icons: ic.slice(0, 6), x: cx, y: cy, scale: pxScale });
         }
         statusCols.update(sc);
         // Yield icons over gather nodes (#30)
         const gi = new Map<string, { slug?: string; x: number; y: number; scale: number; ready: boolean }>();
-        const scale = canvas.getBoundingClientRect().width / FB_W;
+        const scale = pxScale;
         for (const u of snap?.units ?? []) {
           if (!u.gatherNode || !known.has(u.id)) continue;
           const a = r.anchor(u.id);
