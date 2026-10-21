@@ -145,3 +145,14 @@ test("ZoneTracker: first zone, unchanged, then a real change", () => {
   assert.deepEqual(t.update("pale_hollow"), { changed: false, first: false });
   assert.deepEqual(t.update("palace_hall"), { changed: true, first: false });
 });
+
+import { staticAt } from "./statics";
+
+test("staticAt hits the storage chest only in its zone and footprint", () => {
+  const toScreen = (x: number, _y: number, z: number): [number, number] => [100 + x * 10, 100 + z * 10];
+  const h = () => 0;
+  const hit = staticAt("pale_hollow", 132, 75, toScreen, h); // chest at (3.2,-1.5) → (132, 85)
+  assert.equal(hit?.send.type, "npc/interact");
+  assert.equal(staticAt("palace_hall", 132, 75, toScreen, h), undefined);
+  assert.equal(staticAt("pale_hollow", 300, 75, toScreen, h), undefined);
+});

@@ -39,6 +39,17 @@ export function fetchZone(id: string): Promise<Uint8Array> {
   return p;
 }
 
+const propCache = new Map<string, Promise<Uint8Array | null>>();
+/** Fetch baked static props (public/zones/<id>.bap); null when the zone has none. */
+export function fetchProps(id: string): Promise<Uint8Array | null> {
+  let p = propCache.get(id);
+  if (!p) {
+    p = fetch(`${import.meta.env.BASE_URL}zones/${id}.bap`).then(async (res) => (res.ok ? new Uint8Array(await res.arrayBuffer()) : null));
+    propCache.set(id, p);
+  }
+  return p;
+}
+
 /** Server zone id → baked zone (see zones.ts). */
 export function bakedZoneFor(zoneId: string | undefined): string | null {
   return zoneRender(zoneId).baked;

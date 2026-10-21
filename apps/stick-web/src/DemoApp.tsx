@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { createRenderer, fetchZone } from "./renderer";
+import { createRenderer, fetchProps, fetchZone } from "./renderer";
 import { demoUnits, rosterUnits } from "./demo";
 
 /**
@@ -15,9 +15,10 @@ export function DemoApp() {
     const zone = q.get("zone");
     const ox = Number(q.get("x") ?? "0") || 0;
     const oz = Number(q.get("z") ?? "0") || 0;
-    void Promise.all([createRenderer(ref.current!), zone ? fetchZone(zone) : null]).then(([r, bytes]) => {
+    void Promise.all([createRenderer(ref.current!), zone ? fetchZone(zone) : null, zone ? fetchProps(zone) : null]).then(([r, bytes, props]) => {
       if (!alive) return;
       if (bytes) r.loadZone(bytes);
+      if (props) r.loadProps(props);
       r.setCamera(ox, oz);
       const t0 = Number(q.get("t") ?? "0") || 0;
       let t = 0;

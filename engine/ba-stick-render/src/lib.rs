@@ -12,6 +12,7 @@ pub mod figure;
 pub mod ground;
 pub mod palette;
 pub mod preset;
+pub mod props;
 pub mod scene;
 pub mod zone;
 #[cfg(target_arch = "wasm32")]
