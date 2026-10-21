@@ -523,7 +523,7 @@ impl Scene {
             }
             let p = cam.project(c);
             if fx.fade > 0.35 && !self.wading(u) && !matches!(u.preset.body, Body::Node { .. }) {
-                shadow(&mut self.fb, p.x, p.y, 13.0 * size / 0.5, 6.0 * size / 0.5);
+                crate::dither::soft_shadow_on(&mut self.fb, p.x, p.y, 13.0 * size / 0.5, 6.0 * size / 0.5, 1.0, Some(p.d));
             }
         }
         // Units back to front (depth buffer also resolves overlaps).
@@ -881,11 +881,6 @@ fn bar(fb: &mut Framebuffer, cx: f32, y: f32, w: i32, frac: f32, col: u8) {
             put(fb, x0 + dx, y0 + dy, if dx < fill { col } else { FX_BAR_BG });
         }
     }
-}
-
-/// Unit shadow on the ground only (skips pixels already covered by props).
-fn shadow(fb: &mut Framebuffer, cx: f32, cy: f32, rx: f32, ry: f32) {
-    crate::dither::soft_shadow(fb, cx, cy, rx, ry, 1.0);
 }
 
 /// How deep units sink when wading (world units; ≈ shin height).
