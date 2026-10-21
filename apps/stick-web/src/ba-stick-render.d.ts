@@ -6,6 +6,7 @@ declare module "ba-stick-render" {
     constructor(canvas: HTMLCanvasElement, width: number, height: number);
     loadZone(bytes: Uint8Array): void;
     clearZone(): void;
+    loadProps(bytes: Uint8Array): number;
     zoneHeight(x: number, z: number): number;
     setCamera(x: number, z: number): void;
     follow(id?: string): void;

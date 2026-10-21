@@ -5,7 +5,8 @@ import { clampPaleHollow } from "@bellgrave/config";
 import type { UnitSnapshot } from "@bellgrave/protocol";
 import { NpcInteractMenu } from "@bellgrave/ui/NpcInteractMenu";
 import { clearKeyboardMove, setKeyboardMoveKey, type MoveKeys } from "@bellgrave/ui/moveInput";
-import { FB_H, FB_W, bakedZoneFor, createRenderer, fetchZone, fromFramebuffer, toFramebuffer } from "./renderer";
+import { FB_H, FB_W, bakedZoneFor, createRenderer, fetchProps, fetchZone, fromFramebuffer, toFramebuffer } from "./renderer";
+import { staticAt } from "./statics";
 import { syncUnits } from "./units";
 import { getMoveKeys, wasdTarget } from "./input";
 import { CastClock, sameId, unitFx } from "./fx";
@@ -84,6 +85,16 @@ export function StickWorld() {
           if (res.send) send(res.send);
           return;
         }
+        if (e.button === 0) {
+          const hitStatic = staticAt(zones.current, sx, sy, (x, y, z) => {
+            const p = r.worldToScreen(x, y, z);
+            return [p[0], p[1]];
+          }, (x, z) => r.zoneHeight(x, z));
+          if (hitStatic) {
+            send(hitStatic.send);
+            return;
+          }
+        }
         const [x, z] = pick(sx, sy);
         const c = clampPaleHollow(x, z);
         send({ type: "move", x: c.x, z: c.z });
@@ -145,7 +156,12 @@ export function StickWorld() {
           if (want !== zoneLoaded) {
             zoneLoaded = want;
             if (!want) r.clearZone();
-            else void fetchZone(want).then((b) => { if (alive && zoneLoaded === want) r.loadZone(b); });
+            else
+              void Promise.all([fetchZone(want), fetchProps(want)]).then(([b, p]) => {
+                if (!alive || zoneLoaded !== want) return;
+                r.loadZone(b);
+                if (p) r.loadProps(p);
+              });
           }
         }
         if (snap && snap !== lastSnap) {

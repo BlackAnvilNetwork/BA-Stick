@@ -31,6 +31,12 @@ impl StickRenderer {
         self.scene.load_zone(bytes).map_err(|e| JsValue::from_str(&e))
     }
 
+    /// Load static props (`BAP1` bytes); returns the prop count.
+    #[wasm_bindgen(js_name = loadProps)]
+    pub fn load_props(&mut self, bytes: &[u8]) -> Result<usize, JsValue> {
+        self.scene.load_props(bytes).map_err(|e| JsValue::from_str(&e))
+    }
+
     #[wasm_bindgen(js_name = clearZone)]
     pub fn clear_zone(&mut self) { self.scene.clear_zone(); }
 

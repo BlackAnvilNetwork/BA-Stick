@@ -11,7 +11,7 @@ use stick_engine::rig;
 use crate::preset::{AnimState, Body, RigPreset};
 use crate::palette::*;
 use crate::zone::Zone;
-use crate::{creature, figure, ground, palette};
+use crate::{creature, figure, ground, palette, props};
 
 /// One unit update from the host (mirrors the fields of `UnitSnapshot` that
 /// affect rendering).
@@ -85,6 +85,7 @@ pub struct Scene {
     /// ~15 hides the step without visible lag.
     pub smoothing: f32,
     zone: Option<Zone>,
+    props: Vec<props::Prop>,
     /// Reference height subtracted from everything so the followed unit sits mid-screen.
     pub cam_y: f32,
     /// Pixels the followed unit sits above the camera's default anchor.
@@ -103,6 +104,7 @@ impl Scene {
             follow: None,
             smoothing: 15.0,
             zone: None,
+            props: Vec::new(),
             cam_y: 0.0,
             follow_lift_px: 40.0,
             time: 0.0,
@@ -129,7 +131,18 @@ impl Scene {
         Ok(())
     }
 
-    pub fn clear_zone(&mut self) { self.zone = None; }
+    pub fn clear_zone(&mut self) {
+        self.zone = None;
+        self.props.clear();
+    }
+
+    /// Load static props (BAP1). Replaces any previous set.
+    pub fn load_props(&mut self, bytes: &[u8]) -> Result<usize, String> {
+        self.props = props::parse(bytes)?;
+        Ok(self.props.len())
+    }
+
+    pub fn prop_count(&self) -> usize { self.props.len() }
     pub fn has_zone(&self) -> bool { self.zone.is_some() }
 
     /// Stand height from the zone (0 without a zone).
@@ -305,6 +318,7 @@ impl Scene {
         self.fb.clear_depth();
         let cam = self.cam;
         let t = self.time;
+        props::draw(&mut self.fb, &cam, &self.props, self.cam_y, t);
         let cy = self.cam_y;
         let rel = |p: Vec3| v3(p.x, p.y - cy, p.z);
         // Ground decals: telegraphs, selection / hover rings, shadows.
@@ -334,7 +348,7 @@ impl Scene {
             }
             let p = cam.project(c);
             if fx.fade > 0.35 {
-                self.fb.shadow_ellipse(p.x, p.y, 13.0 * size / 0.5, 6.0 * size / 0.5, C_SHADOW);
+                shadow(&mut self.fb, p.x, p.y, 13.0 * size / 0.5, 6.0 * size / 0.5);
             }
         }
         // Units back to front (depth buffer also resolves overlaps).
@@ -612,6 +626,22 @@ fn bar(fb: &mut Framebuffer, cx: f32, y: f32, w: i32, frac: f32, col: u8) {
     for dy in 0..2 {
         for dx in 0..w {
             put(fb, x0 + dx, y0 + dy, if dx < fill { col } else { FX_BAR_BG });
+        }
+    }
+}
+
+/// Unit shadow on the ground only (skips pixels already covered by props).
+fn shadow(fb: &mut Framebuffer, cx: f32, cy: f32, rx: f32, ry: f32) {
+    for y in (cy - ry) as i32..=(cy + ry) as i32 {
+        for x in (cx - rx) as i32..=(cx + rx) as i32 {
+            if x < 0 || y < 0 || x >= fb.w as i32 || y >= fb.h as i32 {
+                continue;
+            }
+            let (nx, ny) = ((x as f32 + 0.5 - cx) / rx, (y as f32 + 0.5 - cy) / ry);
+            let i = y as usize * fb.w + x as usize;
+            if nx * nx + ny * ny <= 1.0 && fb.depth[i] == f32::INFINITY {
+                fb.color[i] = C_SHADOW;
+            }
         }
     }
 }

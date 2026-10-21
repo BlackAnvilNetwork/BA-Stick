@@ -73,6 +73,30 @@ pub const CR_SLIME_FAR: u8 = 96;
 pub const CR_ADDER: u8 = 97;
 pub const CR_WIGHT: u8 = 98;
 pub const CR_TUSK: u8 = 99;
+/// Prop colours (100..148): foliage, ground cover, stone, wood, cloth, fire.
+pub const PROP: [(u8, u32); 32] = [
+    (PINE_D, 0x1f3a2c), (PINE, 0x2e5238), (PINE_L, 0x46704a),
+    (ASH_D, 0x4a5a32), (ASH, 0x6b7c45), (ASH_L, 0x8fa060),
+    (CYP_D, 0x24382a), (CYP, 0x34503a),
+    (GRASS_D, 0x5a6a34), (GRASS, 0x7d8c46), (GRASS_L, 0xa3ad62),
+    (SCRUB_C, 0x8a7a4a), (REED_C, 0x8e9a58), (STALK_C, 0xc9a85a), (BLOOM_C, 0xe8e0f0),
+    (ROCK_D, 0x6e675e), (ROCK, 0x9a9283), (ROCK_L, 0xc2baa8),
+    (WALL_D, 0x8f8268), (WALL, 0xb8a888), (WALL_L, 0xd2c4a2), (MOSS_C, 0x5f7040),
+    (WOOD_D, 0x4a3a2a), (WOOD, 0x7a6850), (WOOD_L, 0x9c8a6a),
+    (OLIVE_D, 0x4a5238), (OLIVE, 0x7a8458), (BEIGE_D, 0x7a6c54), (BEIGE, 0xb5a484),
+    (IRON_C, 0x5a5f66), (COAL, 0xd07030), (EMBER, 0xffc060),
+];
+pub const PINE_D: u8 = 100; pub const PINE: u8 = 101; pub const PINE_L: u8 = 102;
+pub const ASH_D: u8 = 103; pub const ASH: u8 = 104; pub const ASH_L: u8 = 105;
+pub const CYP_D: u8 = 106; pub const CYP: u8 = 107;
+pub const GRASS_D: u8 = 108; pub const GRASS: u8 = 109; pub const GRASS_L: u8 = 110;
+pub const SCRUB_C: u8 = 111; pub const REED_C: u8 = 112; pub const STALK_C: u8 = 113; pub const BLOOM_C: u8 = 114;
+pub const ROCK_D: u8 = 115; pub const ROCK: u8 = 116; pub const ROCK_L: u8 = 117;
+pub const WALL_D: u8 = 118; pub const WALL: u8 = 119; pub const WALL_L: u8 = 120; pub const MOSS_C: u8 = 121;
+pub const WOOD_D: u8 = 122; pub const WOOD: u8 = 123; pub const WOOD_L: u8 = 124;
+pub const OLIVE_D: u8 = 125; pub const OLIVE: u8 = 126; pub const BEIGE_D: u8 = 127; pub const BEIGE: u8 = 128;
+pub const IRON_C: u8 = 129; pub const COAL: u8 = 130; pub const EMBER: u8 = 131;
+
 /// Tinted copies of the tintable colours (engine 0..16 and FX/creature 80..100):
 /// cast glow, stone (petrify / dead) and shiny gold, 36 entries each.
 pub const TINT_CAST: u8 = 148;
@@ -123,7 +147,7 @@ pub fn palette() -> [u32; 256] {
     for (k, c) in [0x2c5d78u32, 0x336a86, 0x3b7792, 0x336a86].iter().enumerate() {
         p[WATER as usize + k] = *c;
     }
-    for &(i, c) in FX.iter() {
+    for &(i, c) in FX.iter().chain(PROP.iter()) {
         p[i as usize] = c;
     }
     for c in (0u8..16).chain(80..100) {

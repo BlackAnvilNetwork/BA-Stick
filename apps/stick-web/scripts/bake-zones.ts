@@ -8,6 +8,7 @@
  * flags: 1 water, 2 trail, 4 bridge, 8 blocked, 16 stone trail
  */
 import { mkdirSync, writeFileSync } from "node:fs";
+import { encodeProps, paleHollowProps } from "./bake-props";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -94,4 +95,8 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1
   const buf = bakePaleHollow();
   writeFileSync(out, buf);
   console.log(`baked ${out} (${(buf.length / 1024).toFixed(0)} KiB) in ${Date.now() - t0} ms`);
+  const props = paleHollowProps();
+  const pbuf = encodeProps(props);
+  writeFileSync(out.replace(/\.baz$/, ".bap"), pbuf);
+  console.log(`baked ${props.length} props (${(pbuf.length / 1024).toFixed(0)} KiB)`);
 }
