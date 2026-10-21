@@ -319,6 +319,10 @@ export const ZONES: Record<ZoneId, ZoneDef> = {
 export {
   WORLD_LAYOUTS,
   WORLD_ROUTE,
+  LIGHT_EMIT_LEVELS,
+  type LightEmit,
+  type LandmarkKind,
+  type LayoutLandmark,
   type ZoneLayout,
   type LayoutDistrict,
   type LayoutNodeSpot,

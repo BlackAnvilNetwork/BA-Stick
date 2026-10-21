@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { AREAS, CITIES } from "./world";
 import { ZONES } from "./index";
-import { WORLD_LAYOUTS, WORLD_ROUTE } from "./world-layout";
+import { LIGHT_EMIT_LEVELS, WORLD_LAYOUTS, WORLD_ROUTE } from "./world-layout";
 import { PH_ALL_MOBS, PH_ALL_NODES, PH_HUB_NPCS } from "./pale-hollow";
 
 const inside = (b: { minX: number; maxX: number; minZ: number; maxZ: number }, x: number, z: number) =>
@@ -64,6 +64,50 @@ describe("world layouts", () => {
       const area = AREAS[ZONES[id].areaId!];
       assert.deepEqual(new Set(l.nodes.map((n) => n.nodeId)), new Set(area.harvestNodes.map((h) => h.id)));
       assert.deepEqual(new Set(l.mobs.map((m) => m.mobId)), new Set(area.mobs.map((m) => m.id)));
+    }
+  });
+
+  it("emitter values are valid L1–L4 tiers", () => {
+    for (const id of WORLD_ROUTE) {
+      const l = WORLD_LAYOUTS[id]!;
+      for (const e of [...l.props, ...(l.landmarks ?? [])]) {
+        if (e.emits !== undefined) assert.ok(LIGHT_EMIT_LEVELS.includes(e.emits), `${id} emits ${e.emits}`);
+      }
+    }
+  });
+
+  it("landmarks sit inside their zone (and district) with unique ids", () => {
+    const ids = new Set<string>();
+    for (const id of WORLD_ROUTE) {
+      const l = WORLD_LAYOUTS[id]!;
+      for (const m of l.landmarks ?? []) {
+        assert.ok(!ids.has(m.id), `dup ${m.id}`);
+        ids.add(m.id);
+        assert.ok(inside(l.bounds, m.x, m.z), `${id} ${m.id}`);
+        assert.ok(m.clearR > 0, `${id} ${m.id} clearR`);
+        if (m.district) {
+          const d = l.districts.find((d) => d.id === m.district);
+          assert.ok(d && inside(d.rect, m.x, m.z), `${id} ${m.id} district ${m.district}`);
+        }
+      }
+    }
+    assert.ok((WORLD_LAYOUTS.pale_hollow!.landmarks ?? []).length >= 4);
+  });
+
+  it("world.ts Pale Hollow mob drops cover every live PH spawn drop", () => {
+    const world = new Set(AREAS.pale_hollow.mobs.flatMap((m) => m.drops));
+    for (const m of PH_ALL_MOBS) {
+      for (const d of [...m.drops, ...(m.rareDrops ?? []).map((r) => r.slug)]) assert.ok(world.has(d), `${m.id} ${d}`);
+    }
+  });
+
+  it("flags aliases and placeholders", () => {
+    assert.equal(WORLD_LAYOUTS.shard_dwellings!.aliasOf?.zoneId, "pale_hollow");
+    for (const id of WORLD_ROUTE) {
+      const l = WORLD_LAYOUTS[id]!;
+      if (l.status !== "needs-server") continue;
+      assert.ok(l.placeholder?.districts && l.placeholder?.props, id);
+      assert.ok(l.districts.every((d) => d.placeholder) && l.props.every((p) => p.placeholder), id);
     }
   });
 });

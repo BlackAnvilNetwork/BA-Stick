@@ -36,17 +36,30 @@ export type LayoutPropKind =
   | "wallBlock" | "moss" | "firePit" | "tent" | "bedroll" | "crate" | "chest" | "leanTo"
   | "trainer" | "stall" | "weaponRack" | "firewood" | "barrel" | "banner" | "stone" | "peak";
 
-export type LayoutDistrict = { id: string; name: string; rect: XZRect; levelBand?: [number, number]; note: string };
+export type LayoutDistrict = { id: string; name: string; rect: XZRect; levelBand?: [number, number]; note: string; placeholder?: boolean };
 export type LayoutNodeSpot = { id: string; nodeId: string; x: number; z: number };
 export type LayoutMobSpawn = { id: string; mobId: string; x: number; z: number; level: number; count: number };
 export type LayoutNpcSpot = { npcId: string; role: NpcRole; x: number; z: number; facing: number };
-export type LayoutProp = { kind: LayoutPropKind; x: number; z: number; yaw?: number; s?: number };
+/**
+ * Optional light-emitter tier (L1 dim … L4 brightest, e.g. braziers / lanterns).
+ * Data only — the renderer may add flagged props/landmarks to its light list later.
+ */
+export type LightEmit = 1 | 2 | 3 | 4;
+export const LIGHT_EMIT_LEVELS: readonly LightEmit[] = [1, 2, 3, 4];
+export type LayoutProp = { kind: LayoutPropKind; x: number; z: number; yaw?: number; s?: number; emits?: LightEmit; placeholder?: boolean };
+/** Segment landmark set pieces (docs/pale-hollow-area.md "Structures"). `clearR` = no-tree radius. */
+export type LandmarkKind = "silo" | "shrineStump" | "cryptArch" | "cairn";
+export type LayoutLandmark = { id: string; kind: LandmarkKind; x: number; z: number; yaw?: number; clearR: number; district?: string; emits?: LightEmit };
 export type LayoutExit = { to: ZoneId; x: number; z: number; note: string };
 
 export type ZoneLayout = {
   zoneId: ZoneId;
   kind: "field" | "city";
   status: "live" | "needs-server";
+  /** Live zone that is really another zone's area (shard_dwellings = Pale Hollow camp pad). */
+  aliasOf?: { zoneId: ZoneId; note: string };
+  /** Districts / props are generic placeholders pending real art direction. */
+  placeholder?: { districts?: boolean; props?: boolean };
   bounds: XZRect;
   spawn: { x: number; z: number; facing: number };
   loreHook: string;
@@ -56,6 +69,8 @@ export type ZoneLayout = {
   npcs: LayoutNpcSpot[];
   props: LayoutProp[];
   exits: LayoutExit[];
+  /** Optional segment landmarks (silos, shrine stump, crypt arch, cairn). */
+  landmarks?: LayoutLandmark[];
 };
 
 const FIELD_BOUNDS: XZRect = { minX: -80, maxX: 80, minZ: -20, maxZ: 240 };
@@ -72,6 +87,7 @@ function districts(area: AreaId, names: [string, string, string][]): LayoutDistr
     rect: r(-70 - i * 3, 70 + i * 3, FIELD_ROWS[i]![0], FIELD_ROWS[i]![1]),
     levelBand: [Math.round(lo + i * step), Math.round(lo + (i + 1) * step - 1)],
     note,
+    placeholder: true,
   }));
 }
 function nodes(spots: [string, number, number][]): LayoutNodeSpot[] {
@@ -96,7 +112,7 @@ function cityNpcs(city: CityId): LayoutNpcSpot[] {
 }
 /** Shared camp kit — same props the Pale Hollow hub already draws. */
 const HUB_KIT: LayoutProp[] = [
-  { kind: "firePit", x: 0, z: 0.4 }, { kind: "trainer", x: -4.35, z: 3.55, yaw: 0.4 },
+  { kind: "firePit", x: 0, z: 0.4, emits: 4 }, { kind: "trainer", x: -4.35, z: 3.55, yaw: 0.4 },
   { kind: "stall", x: -3.5, z: -1.35, yaw: 0.15 }, { kind: "leanTo", x: 4.6, z: -0.9, yaw: -0.35 },
   { kind: "weaponRack", x: 4.6, z: 2.85, yaw: -0.55 }, { kind: "chest", x: 3.2, z: -1.5, yaw: -0.35 },
   { kind: "banner", x: 1.05, z: 5.45 },
@@ -118,6 +134,17 @@ const PH_FIELD: ZoneLayout = {
   mobs: PH_ALL_MOBS.map((m) => ({ id: m.id, mobId: m.id, x: m.x, z: m.z, level: m.level, count: 1 })),
   npcs: [],
   props: [],
+  // Positions/radii match PH_BUILDING_CLEARINGS (pale-hollow.ts) so trees already avoid them.
+  landmarks: [
+    { id: "ph-silo-1", kind: "silo", x: -16, z: 20, clearR: 4, district: "a" },
+    { id: "ph-silo-2", kind: "silo", x: -26, z: -6, clearR: 4 },
+    { id: "ph-silo-3", kind: "silo", x: -13, z: 38, clearR: 4, district: "a" },
+    { id: "ph-silo-4", kind: "silo", x: 36, z: 40, clearR: 4, district: "a" },
+    { id: "ph-silo-5", kind: "silo", x: -44, z: 36, clearR: 4, district: "a" },
+    { id: "ph-shrine-stump", kind: "shrineStump", x: 0, z: 92, clearR: 5, district: "b", emits: 2 },
+    { id: "ph-crypt-arch", kind: "cryptArch", x: -12, z: 210, yaw: Math.PI, clearR: 7, district: "d", emits: 1 },
+    { id: "ph-ash-road-cairn", kind: "cairn", x: 0, z: 244, clearR: 7, district: "d", emits: 4 },
+  ],
   exits: [
     { to: "shard_dwellings", x: PH_HUB_SPAWN.x, z: PH_HUB_SPAWN.z, note: "The encampment pad is the Dwellings hub (PH_HUB)." },
     { to: "ashlands", x: (PH_ASH_ROAD.minX + PH_ASH_ROAD.maxX) / 2, z: PH_ASH_ROAD.maxZ, note: "Ash Road — blocked gate (PH_ASH_ROAD.blocked)." },
@@ -125,6 +152,7 @@ const PH_FIELD: ZoneLayout = {
 };
 const SHARD_DWELLINGS: ZoneLayout = {
   zoneId: "shard_dwellings", kind: "city", status: "live",
+  aliasOf: { zoneId: "pale_hollow", note: "Live alias of the Pale Hollow camp pad (PH_HUB). No code uses the shard_dwellings zone id; NPC ids npc-shard-elder / npc-ph-* are frozen, sd-* in world.ts are aliases." },
   bounds: r(PH_HUB.minX, PH_HUB.maxX, PH_HUB.minZ, PH_HUB.maxZ),
   spawn: { ...PH_HUB_SPAWN },
   loreHook: "The Shard Elder keeps the camp fire lit for scouts coming back from the Hollow; every craft here starts with pale dust carried in from the field.",
@@ -137,22 +165,24 @@ const SHARD_DWELLINGS: ZoneLayout = {
 
 // ---------------------------------------------------------------- authored zones (needs-server)
 /** Route: previous city -> field <-> own city (docs/world.md chapter pairs). */
-function field(zoneId: AreaId & ZoneId, prev: ZoneId, own: CityId & ZoneId, o: Pick<ZoneLayout, "loreHook" | "districts" | "nodes" | "mobs" | "props">): ZoneLayout {
+function field(zoneId: AreaId & ZoneId, prev: ZoneId, own: CityId & ZoneId, o: Pick<ZoneLayout, "loreHook" | "districts" | "nodes" | "mobs" | "props" | "landmarks">): ZoneLayout {
   const exits: LayoutExit[] = [
     { to: prev, x: 0, z: -14, note: "South road back to the previous chapter's city." },
     { to: own, x: 0, z: 236, note: "North gate to this chapter's city." },
   ];
-  return { zoneId, kind: "field", status: "needs-server", bounds: FIELD_BOUNDS, spawn: { x: 0, z: 4, facing: 0 }, npcs: [], exits, ...o };
+  return { zoneId, kind: "field", status: "needs-server", placeholder: { districts: true, props: true }, bounds: FIELD_BOUNDS, spawn: { x: 0, z: 4, facing: 0 }, npcs: [], exits, ...o, props: o.props.map((p) => ({ ...p, placeholder: true })) };
 }
-function city(zoneId: CityId & ZoneId, area: AreaId & ZoneId, next: ZoneId | null, o: Pick<ZoneLayout, "loreHook" | "districts" | "props">): ZoneLayout {
+function city(zoneId: CityId & ZoneId, area: AreaId & ZoneId, next: ZoneId | null, o: Pick<ZoneLayout, "loreHook" | "districts" | "props" | "landmarks">): ZoneLayout {
   return {
-    zoneId, kind: "city", status: "needs-server", bounds: CITY_BOUNDS, spawn: { x: 0, z: 2, facing: 0 },
+    zoneId, kind: "city", status: "needs-server", placeholder: { districts: true, props: true }, bounds: CITY_BOUNDS, spawn: { x: 0, z: 2, facing: 0 },
     nodes: [], mobs: [], npcs: cityNpcs(zoneId),
     exits: [
       { to: area, x: 0, z: -14, note: "South gate back into this chapter's field." },
       ...(next ? [{ to: next, x: 0, z: 22, note: "North road to the next chapter's field." }] : []),
     ],
-    ...o, props: [...HUB_KIT, ...o.props],
+    ...o,
+    districts: o.districts.map((d) => ({ ...d, placeholder: true })),
+    props: [...HUB_KIT, ...o.props].map((p) => ({ ...p, placeholder: true })),
   };
 }
 
@@ -177,6 +207,8 @@ const ASHLANDS = field("ashlands", "shard_dwellings", "obsidia", {
     ["as-golem", 10, 200, 36, 2], ["as-large-undead", -16, 216, 38, 1], ["as-large-undead", 22, 228, 40, 1],
   ]),
   props: [{ kind: "peak", x: -60, z: 200, s: 1.2 }, { kind: "ashTall", x: -28, z: 140 }, { kind: "rock", x: 0, z: 110 }, { kind: "wallBlock", x: 0, z: 232 }],
+  // Far end of the Ash Road: twin of Pale Hollow's cairn at the Ashlands south gate.
+  landmarks: [{ id: "as-ash-road-cairn", kind: "cairn", x: 0, z: -8, clearR: 5, emits: 4 }],
 });
 const OBSIDIA = city("obsidia", "ashlands", "slagpits", {
   loreHook: "Obsidia is built from the same black glass its constructs are cut from; the Ash Provost pays for every cultist page brought back from the flats.",
