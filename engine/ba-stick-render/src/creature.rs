@@ -1,12 +1,12 @@
 //! Non-biped mobs: quadrupeds (hare hop / boar trot), serpent, blob.
 //! Driven by the unit's ground position, yaw, a gait phase that advances
 //! with distance travelled, and a death collapse factor.
-use stick_engine::camera::{Camera, HEIGHT_PX};
+use stick_engine::camera::{Camera, P2, HEIGHT_PX};
 use stick_engine::math::{v3, Vec3};
 use stick_engine::raster::Framebuffer;
 use crate::compat::*;
 
-use crate::palette::CR_TUSK;
+use crate::palette::{BLOOM_C, CR_TUSK, GRASS, GRASS_D, GRASS_L, ROCK, ROCK_D, ROCK_L, WATER};
 use crate::preset::Body;
 
 pub struct Pose {
@@ -19,6 +19,8 @@ pub struct Pose {
     /// 0..1 death collapse.
     pub dead: f32,
     pub time: f32,
+    /// Gather nodes: harvestable now (glow + sparkles).
+    pub ready: bool,
 }
 
 /// Approximate on-screen height in px (for picking and bar placement).
@@ -29,6 +31,7 @@ pub fn height_px(body: &Body) -> f32 {
         Body::Quadruped { size, .. } => (0.75 * size) * HEIGHT_PX + 8.0,
         Body::Serpent { size, .. } => 0.35 * size * HEIGHT_PX + 6.0,
         Body::Blob { size, .. } => 0.7 * size * HEIGHT_PX + 4.0,
+        Body::Node { .. } => 16.0,
     }
 }
 
@@ -116,6 +119,7 @@ pub fn draw(fb: &mut Framebuffer, cam: &Camera, body: &Body, ps: &Pose) {
                 fb.line(p(head), p(tongue), C_ACCENT);
             }
         }
+        Body::Node { method } => node(fb, cam, method, ps),
         Body::Blob { size: s, body: c, far } => {
             let squash = 1.0 + (ps.phase * 2.0).sin() * 0.18 * ps.moving.max(0.35) - ps.dead * 0.6;
             let hgt = 0.55 * s * squash.max(0.25);
@@ -230,4 +234,83 @@ fn hare(fb: &mut Framebuffer, cam: &Camera, s: f32, c: u8, far: u8, ps: &Pose) {
     }
     let eye = p(bp(0.25, 0.29, 0.06));
     fb.plot(eye.x as i32, eye.y as i32, eye.d - 0.5, C_OUTLINE);
+}
+
+/// Gather node marker: ground glow + a small prop per method + twinkles.
+fn node(fb: &mut Framebuffer, cam: &Camera, method: u8, ps: &Pose) {
+    let c = cam.project(ps.pos);
+    let ph = ps.time * 1.6 + ps.pos.x * 0.27 + ps.pos.z * 0.19;
+    if ps.ready {
+        // soft pulsing glow ellipse (dithered so terrain shows through)
+        let s = 0.95 + 0.08 * (0.5 + 0.5 * ph.sin());
+        let (rx, ry) = (13.0 * s, 5.5 * s);
+        for y in (c.y - ry) as i32..=(c.y + ry) as i32 {
+            for x in (c.x - rx) as i32..=(c.x + rx) as i32 {
+                let (nx, ny) = ((x as f32 - c.x) / rx, (y as f32 - c.y) / ry);
+                let r2 = nx * nx + ny * ny;
+                if r2 <= 1.0 && (x + y) % 2 == 0 && x >= 0 && y >= 0 && (x as usize) < fb.w && (y as usize) < fb.h {
+                    let i = y as usize * fb.w + x as usize;
+                    if fb.depth[i] == f32::INFINITY {
+                        fb.color[i] = if r2 < 0.35 { C_GOLD } else { C_DUST };
+                    }
+                }
+            }
+        }
+    }
+    let o = Some(C_OUTLINE);
+    let at = |dx: f32, dy: f32| P2 { x: c.x + dx, y: c.y + dy, d: c.d - 0.05 };
+    match method {
+        1 => {
+            // herb tuft: a few leaves and a bloom
+            for (k, (dx, h)) in [(-4.0f32, 7.0f32), (-1.0, 10.0), (2.0, 8.0), (4.5, 6.0)].iter().enumerate() {
+                let sway = (ps.time * 2.0 + k as f32).sin() * 1.0;
+                let col = [GRASS_D, GRASS, GRASS_L, GRASS][k];
+                fb.capsule(at(*dx, 0.0), at(dx + sway, -h), 1.2, col, o);
+            }
+            fb.disc(at(-0.5, -10.5), 1.8, BLOOM_C, o);
+        }
+        2 => {
+            // fishing spot: concentric ripples
+            for k in 0..3 {
+                let t = ((ps.time * 0.6 + k as f32 / 3.0) % 1.0) as f32;
+                let (rx, ry) = (3.0 + t * 10.0, 1.4 + t * 4.2);
+                if t > 0.85 {
+                    continue;
+                }
+                for i in 0..36 {
+                    let a = i as f32 / 36.0 * std::f32::consts::TAU;
+                    let (x, y) = ((c.x + a.cos() * rx) as i32, (c.y + a.sin() * ry) as i32);
+                    if x >= 0 && y >= 0 && (x as usize) < fb.w && (y as usize) < fb.h && i % 4 != 0 {
+                        let ix = y as usize * fb.w + x as usize;
+                        if fb.depth[ix] == f32::INFINITY {
+                            fb.color[ix] = WATER + 3;
+                        }
+                    }
+                }
+            }
+        }
+        _ => {
+            // ore rock with glints
+            fb.disc(at(-3.0, -3.0), 4.5, ROCK_D, o);
+            fb.disc(at(2.0, -4.0), 5.5, ROCK, o);
+            fb.disc(at(0.5, -6.5), 3.0, ROCK_L, None);
+            for (k, (dx, dy)) in [(-3.0f32, -4.0f32), (2.5, -6.0), (4.0, -3.0)].iter().enumerate() {
+                if (ps.time * 3.0 + k as f32 * 2.1).sin() > 0.2 {
+                    fb.plot((c.x + dx) as i32, (c.y + dy) as i32, c.d - 0.1, C_GOLD);
+                }
+            }
+        }
+    }
+    if ps.ready {
+        // two twinkling sparks above the node
+        for (k, (ox, oy, sp)) in [(-5.0f32, -14.0f32, 2.6f32), (6.0, -19.0, 3.2)].iter().enumerate() {
+            let tw = 0.5 + 0.5 * (ps.time * sp + k as f32 * 1.7 + ps.pos.x).sin();
+            if tw.powi(3) > 0.45 {
+                let (x, y) = ((c.x + ox) as i32, (c.y + oy) as i32);
+                for (dx, dy) in [(0, 0), (1, 0), (-1, 0), (0, 1), (0, -1)] {
+                    fb.plot(x + dx, y + dy, 0.0, if dx == 0 && dy == 0 { C_TRAIL } else { C_GOLD });
+                }
+            }
+        }
+    }
 }

@@ -58,6 +58,8 @@ pub enum Body {
     Serpent { size: f32, body: u8 },
     /// Bouncing blob (Pale Slime).
     Blob { size: f32, body: u8, far: u8 },
+    /// Gather node marker (#30): 0 mine (ore rock), 1 harvest (herb), 2 fish (ripples).
+    Node { method: u8 },
 }
 
 /// What a biped holds (`JOB_WEAPON` in packages/combat).
@@ -116,6 +118,10 @@ impl RigPreset {
             "time_mage" => staff(with(|p, l| { p.limb_px = 2.0; p.sword = 0.0; l.accent = C_GOLD; l.body = C_TRAIL; })),
             b if b.starts_with("npc:") => npc(&b[4..]),
             b if b.starts_with("mob:") => mob(&b[4..]),
+            b if b.starts_with("gather:") => {
+                let method = match &b[7..] { "harvest" => 1, "fish" => 2, _ => 0 };
+                RigPreset { body: Body::Node { method }, weapon: Weapon::None, ..with(|_, _| {}) }
+            }
             _ => with(|_, _| {}),
         };
         match variant {

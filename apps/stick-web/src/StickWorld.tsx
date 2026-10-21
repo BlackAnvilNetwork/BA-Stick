@@ -8,6 +8,7 @@ import { clearKeyboardMove, setKeyboardMoveKey, type MoveKeys } from "@bellgrave
 import { FB_H, FB_W, bakedZoneFor, createRenderer, fetchProps, fetchZone, fromFramebuffer, toFramebuffer } from "./renderer";
 import { staticAt } from "./statics";
 import { CombatFloaters } from "./floaters";
+import { GatherIcons, loadIconAtlas, type IconAtlas } from "./gather";
 import { syncUnits } from "./units";
 import { getMoveKeys, wasdTarget } from "./input";
 import { CastClock, sameId, unitFx } from "./fx";
@@ -55,6 +56,9 @@ export function StickWorld() {
       const known = new Set<string>();
       const casts = new CastClock();
       const floats = new CombatFloaters();
+      const icons = new GatherIcons(labelsRef.current!, `${import.meta.env.BASE_URL}zones/icons.png`);
+      let atlas: IconAtlas | null = null;
+      void loadIconAtlas(import.meta.env.BASE_URL).then((a) => (atlas = a));
       const edges = new AnimEdges();
       const labels = new Labels(labelsRef.current!);
       let wasdAccum = 0;
@@ -138,6 +142,7 @@ export function StickWorld() {
         window.removeEventListener("blur", clearKeyboardMove);
         clearKeyboardMove();
         labels.clear();
+        icons.clear();
       });
 
       const frame = (now: number) => {
@@ -209,6 +214,17 @@ export function StickWorld() {
           }
         }
         labels.update(shown);
+        // Yield icons over gather nodes (#30)
+        const gi = new Map<string, { slug?: string; x: number; y: number; scale: number; ready: boolean }>();
+        const scale = canvas.getBoundingClientRect().width / FB_W;
+        for (const u of snap?.units ?? []) {
+          if (!u.gatherNode || !known.has(u.id)) continue;
+          const a = r.anchor(u.id);
+          if (a.length !== 3) continue;
+          const [cx, cy] = fromFramebuffer(canvas, a[0], a[1]);
+          gi.set(u.id, { slug: u.gatherYield, x: cx, y: cy, scale, ready: u.hp > 0 });
+        }
+        icons.update(atlas, gi, wall / 1000);
         // NPC menu anchored under the NPC's feet (#27)
         const npcId = g.npcDialog?.npcId;
         const menu = menuRef.current;

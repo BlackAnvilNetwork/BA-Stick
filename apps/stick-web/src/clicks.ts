@@ -10,6 +10,8 @@ export type ClickResult = { select?: string | null; send?: ClientMessage };
  */
 export function routeUnitClick(u: UnitSnapshot, wallet: string | null): ClickResult {
   if (sameId(u.id, wallet)) return {};
+  // Gather node billboard onClick → gather (#30); fishing uses the same message.
+  if (u.gatherNode) return u.hp > 0 ? { send: { type: "gather", nodeId: u.id } } : {};
   switch (u.kind) {
     case "npc":
       return { send: { type: "npc/interact", npcId: u.id } };

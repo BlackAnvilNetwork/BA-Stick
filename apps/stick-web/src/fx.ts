@@ -10,6 +10,7 @@ export const FX = {
   SELF: 16,
   PLAYER_CAST: 32,
   PETRIFIED: 64,
+  DEPLETED: 128,
 } as const;
 
 /** Server level-up window (apps/server: `levelUpUntil = now + 2400`). */
@@ -66,6 +67,7 @@ export function unitFx(
   if (hostile) flags |= FX.HOSTILE;
   if (isSelf) flags |= FX.SELF;
   if (u.kind !== "mob") flags |= FX.PLAYER_CAST;
+  if (u.gatherNode && u.hp <= 0) flags |= FX.DEPLETED;
   if (u.buffs?.petrifyUntil > ctx.now) flags |= FX.PETRIFIED;
 
   let fade = 1;
