@@ -201,7 +201,9 @@ function peaks(out: Prop[]): void {
   }
 }
 
-/** Bank retaining walls + bowl ends + stone bridges (old PaleHollowRiverBanks). */
+/** Bank retaining walls + bowl ends + stone bridges (old PaleHollowRiverBanks).
+ * Segments run point to point with no overlap pad: the renderer miters shared
+ * endpoints (props.rs `link_walls`) so joints and corners meet cleanly. */
 function riverBanks(out: Prop[]): void {
   const wall = (a: { x: number; z: number }, b: { x: number; z: number }, pad: number) => {
     const x = (a.x + b.x) * 0.5, z = (a.z + b.z) * 0.5;
@@ -222,7 +224,7 @@ function riverBanks(out: Prop[]): void {
       for (let i = 0; i < pts.length - 1; i++) {
         const a = pts[i]!, b = pts[i + 1]!;
         if (paleHollowInBridgeWallVisualGap((a.x + b.x) / 2, (a.z + b.z) / 2, river)) continue;
-        wall(a, b, 0.12);
+        wall(a, b, 0);
       }
     }
     // semicircular bowls closing each channel end
@@ -235,7 +237,7 @@ function riverBanks(out: Prop[]): void {
         const th = Math.PI * (1 - i / n), c = Math.cos(th), s = Math.sin(th);
         return { x: cx + r.bankDist * (c * rx + s * ox), z: zEnd + r.bankDist * (c * rz + s * oz) };
       });
-      for (let i = 0; i < n; i++) wall(pts[i]!, pts[i + 1]!, 0.16);
+      for (let i = 0; i < n; i++) wall(pts[i]!, pts[i + 1]!, 0);
     }
   }
   for (const site of PH_BRIDGE_SITES) {
