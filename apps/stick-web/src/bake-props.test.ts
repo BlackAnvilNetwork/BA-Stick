@@ -51,3 +51,27 @@ test("bridges are trapezoids: straight ramps up, a flat deck, ramps down", async
     assert.ok(Math.abs(paleHollowBridgeProfile(r / 2, r) - 0.5) < 1e-12);
   }
 });
+
+test("no bank wall stands under any bridge deck", async () => {
+  const { paleHollowProps, wallHitsBridge } = await import("../scripts/bake-props");
+  const walls = paleHollowProps().filter((p) => p.kind === 47);
+  for (const w of walls) {
+    const hx = Math.sin(w.yaw) * w.s * 0.5, hz = Math.cos(w.yaw) * w.s * 0.5;
+    assert.equal(wallHitsBridge({ x: w.x - hx, z: w.z - hz }, { x: w.x + hx, z: w.z + hz }), false, `wall at ${w.x},${w.z}`);
+  }
+});
+
+test("walk height has no step getting on or off any bridge", async () => {
+  const { PH_BRIDGE_SITES, paleHollowBridgeGeom, paleHollowStandHeight } = await import("@bellgrave/config");
+  for (const site of PH_BRIDGE_SITES) {
+    const g = paleHollowBridgeGeom(site);
+    const half = g.span / 2 + 1.5, N = 600;
+    let prev = NaN;
+    for (let i = 0; i <= N; i++) {
+      const a = -half + (2 * half * i) / N;
+      const h = paleHollowStandHeight(g.x + g.spanDir.x * a, g.zWorld + g.spanDir.z * a);
+      if (i) assert.ok(Math.abs(h - prev) < 0.06, `${site.id} step ${(h - prev).toFixed(3)} at ${a.toFixed(2)}`);
+      prev = h;
+    }
+  }
+});
