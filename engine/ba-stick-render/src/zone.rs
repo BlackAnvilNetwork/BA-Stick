@@ -65,8 +65,54 @@ impl Zone {
         top * (1.0 - fv) + bot * fv
     }
 
+    /// True when a unit at (x, z) is really in open water: its cell and the
+    /// four neighbouring cells are all water and none is a bridge. The bake
+    /// samples each 0.5 m cell at its corner, so the outermost water cell can
+    /// reach onto the bank or river-wall top; requiring water all round keeps
+    /// those edges dry (F18, #39). Matches the old client, which waded only
+    /// where `paleHollowWaterSurfaceY` was defined at the exact point.
+    pub fn deep_water_at(&self, x: f32, z: f32) -> bool {
+        let (i, j) = self.cell_of(x, z);
+        [(0, 0), (1, 0), (-1, 0), (0, 1), (0, -1)].iter().all(|&(di, dj)| {
+            let f = self.flags[self.idx(i + di, j + dj)];
+            f & F_WATER != 0 && f & F_BRIDGE == 0
+        })
+    }
+
     pub fn flags_at(&self, x: f32, z: f32) -> u8 {
         let (i, j) = self.cell_of(x, z);
         self.flags[self.idx(i, j)]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 8x8 grid of 0.5 m cells: columns 0..3 dry bank, 3..8 water, with a bridge at row 6.
+    fn river() -> Zone {
+        let (w, h) = (8, 8);
+        let mut flags = vec![0u8; w * h];
+        for j in 0..h {
+            for i in 3..w {
+                flags[j * w + i] = F_WATER | F_BLOCKED;
+            }
+        }
+        for i in 0..w {
+            flags[6 * w + i] = F_BRIDGE;
+        }
+        Zone { min_x: 0.0, min_z: 0.0, cell: 0.5, w, h, biome: vec![0; w * h], flags, height: vec![0.0; w * h] }
+    }
+
+    #[test]
+    fn bank_edge_and_bridges_are_dry_but_open_water_is_deep() {
+        let z = river();
+        // First water cell touches the bank: counts as dry for wading.
+        assert!(z.flags_at(1.6, 1.0) & F_WATER != 0);
+        assert!(!z.deep_water_at(1.6, 1.0));
+        assert!(!z.deep_water_at(0.5, 1.0), "bank");
+        assert!(z.deep_water_at(2.6, 1.0), "mid-river");
+        assert!(!z.deep_water_at(2.6, 3.1), "on the bridge");
+        assert!(!z.deep_water_at(2.6, 2.6), "next to the bridge");
     }
 }
