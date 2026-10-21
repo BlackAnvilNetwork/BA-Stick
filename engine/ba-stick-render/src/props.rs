@@ -237,6 +237,8 @@ struct Ctx<'a> {
     polish: bool,
     /// P2 chalk strata on side faces (cliff / wall blocks only).
     strata: bool,
+    /// Stone/rock crack seed (0..1): one dithered crack on the first lit face.
+    crack: Option<f32>,
 }
 
 /// Lit-edge highlight for a top colour (P1): chalk/stone gets a pale bone
@@ -321,6 +323,30 @@ impl Ctx<'_> {
             }
         }
         self.quad(hi[0], hi[1], hi[2], hi[3], top);
+        if let Some(seed) = self.crack {
+            // Round 3: a single dithered crack from the top edge ~60% down, on
+            // one camera-side (shade) face, so it shows from the iso view.
+            // Face and position vary per prop by seed.
+            // Camera-facing faces have their base edge lowest on screen; take
+            // the widest of those.
+            let my = lo.iter().map(|q| q.y).sum::<f32>() * 0.25;
+            let score = |i: usize| {
+                let j = (i + 1) % 4;
+                if (lo[i].y + lo[j].y) * 0.5 <= my { -1.0 } else { (hi[j].x - hi[i].x).abs() }
+            };
+            if let Some(i) = (0..4).max_by(|&a, &b| score(a).total_cmp(&score(b))) {
+                let j = (i + 1) % 4;
+                let at = |t: f32, y: f32| {
+                    let (a, b) = (corners[i], corners[j]);
+                    self.p(a.0 + (b.0 - a.0) * t, y0 + y, a.2 + (b.2 - a.2) * t)
+                };
+                let t0 = 0.35 + 0.3 * seed;
+                let (a, m, b) = (at(t0, h), at(t0 + 0.1, h * 0.6), at(t0 - 0.02, h * 0.25));
+                let cc = face_dark(dark);
+                self.dither_line(a, m, cc, 1.0);
+                self.dither_line(m, b, cc, 0.6);
+            }
+        }
         // Screen-silhouette verticals stay black; interior verticals soften to the
         // face's dark step (P6); top edges over sun-facing faces get the pale
         // highlight (P1), the rest stay black.
@@ -462,7 +488,8 @@ pub fn draw(fb: &mut Framebuffer, cam: &Camera, props: &[Prop], cam_y: f32, time
         }
         let f = v3(p.yaw.sin(), 0.0, p.yaw.cos());
         let r = v3(p.yaw.cos(), 0.0, -p.yaw.sin());
-        let mut c = Ctx { fb, cam, base, f, r, polish: p.kind != kind::BRIDGE, strata: p.kind == kind::WALL_BLOCK };
+        let mut c = Ctx { fb, cam, base, f, r, polish: p.kind != kind::BRIDGE, strata: p.kind == kind::WALL_BLOCK,
+            crack: matches!(p.kind, kind::STONE | kind::ROCK).then(|| (p.x * 7.31 + p.z * 3.17).sin().abs()) };
         draw_one(&mut c, p, time);
     }
 }
