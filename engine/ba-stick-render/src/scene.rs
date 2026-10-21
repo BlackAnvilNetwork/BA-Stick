@@ -2,10 +2,13 @@
 //! framebuffer.
 use std::collections::BTreeMap;
 
-use stick_engine::anim::{AnimLibrary, Animator};
+use stick_engine::anim::{AnimLibrary, Animator, Pose};
+use stick_engine::body::{Personality, Sex};
+use stick_engine::gait::Gait;
 use stick_engine::camera::{Camera, P2};
 use stick_engine::math::{angle_diff, v3, Vec3};
-use stick_engine::raster::*;
+use stick_engine::raster::Framebuffer;
+use crate::compat::*;
 use stick_engine::rig;
 
 use crate::preset::{AnimState, Body, RigPreset};
@@ -72,6 +75,9 @@ struct Unit {
     preset_key: String,
     preset: RigPreset,
     animator: Animator,
+    /// Procedural walk/run base layer (engine gait).
+    walk: Gait,
+    idle_t: f32,
     snap: bool,
 }
 
@@ -173,14 +179,16 @@ impl Scene {
                     e.preset = RigPreset::resolve(&u.preset);
                     e.preset_key = u.preset;
                 }
-                if e.anim != u.anim || u.anim.restarts() && e.animator.finished(&self.lib) {
-                    e.animator.play(u.anim.clip(), 0.12, u.anim.restarts());
+                if e.anim != u.anim || u.anim.restarts() && e.animator.action_finished(&self.lib) {
+                    e.animator.play(u.anim.action_clip(), 0.12, 1.0, u.anim.restarts());
                     e.anim = u.anim;
                 }
             }
             None => {
-                let mut animator = Animator::new(u.anim.clip());
-                animator.update(&self.lib, 0.0, 1.0);
+                let mut animator = Animator::new();
+                animator.play(u.anim.action_clip(), 0.0, 1.0, true);
+                let idle = self.lib.get("idle").map(|c| c.sample(0.0)).unwrap_or_default();
+                animator.update(&self.lib, 0.0, &idle);
                 self.units.insert(id.to_owned(), Unit {
                     pos: target,
                     target,
@@ -190,6 +198,8 @@ impl Scene {
                     preset: RigPreset::resolve(&u.preset),
                     preset_key: u.preset,
                     animator,
+                    walk: Gait::default(),
+                    idle_t: 0.0,
                     snap: true,
                     fx: UnitFx::default(),
                     gait: 0.0,
@@ -213,7 +223,10 @@ impl Scene {
     }
 
     pub fn unit_clip(&self, id: &str) -> Option<&str> {
-        self.units.get(id).map(|u| u.animator.clip.as_str())
+        self.units.get(id).map(|u| match &u.animator.action {
+            Some(a) => a.clip.as_str(),
+            None => u.anim.clip(),
+        })
     }
 
     /// Advance interpolation and animation by `dt` seconds.
@@ -251,7 +264,22 @@ impl Scene {
             u.moving += (want - u.moving) * (1.0 - (-10.0 * dt).exp());
             u.gait += moved * 6.0 + dt * 1.5 * u.moving;
             if u.anim == AnimState::Dead { u.dead_t += dt / 0.45 } else { u.dead_t = 0.0 }
-            u.animator.update(&self.lib, dt, 1.0);
+            // Base layer: idle clip blended into the engine's procedural gait.
+            // Server walk/run states keep the legs moving even when the
+            // interpolated speed is tiny (e.g. pushing against a wall).
+            let gait_speed = match u.anim {
+                AnimState::Walk => speed.max(1.6),
+                AnimState::Run => speed.max(4.5),
+                _ => speed,
+            };
+            let body = u.preset.props.body();
+            let sx = Sex::Male.gait();
+            let gait_pose = u.walk.update(dt, gait_speed, &body, &Personality::default(), &sx);
+            u.idle_t += dt;
+            let idle_pose = self.lib.get("idle").map(|c| c.sample(u.idle_t)).unwrap_or_default();
+            let m = (gait_speed / 0.8).clamp(0.0, 1.0);
+            let base: Pose = idle_pose.blend(&gait_pose, m * m * (3.0 - 2.0 * m));
+            u.animator.update(&self.lib, dt, &base);
         }
         if let Some(f) = self.follow.as_ref().and_then(|id| self.units.get(id)) {
             // Lift the followed unit above the engine's 55% line so the HUD
@@ -392,7 +420,8 @@ impl Scene {
             match u.preset.body {
                 Body::Biped => {
                     let mut look = u.preset.look;
-                    let mut j = rig::solve(&u.animator.pose, &u.preset.props, base, u.yaw);
+                    let fk = rig::solve(&u.animator.pose, &u.preset.props.body(), base, u.yaw, u.walk.sway);
+                    let mut j = crate::compat::Fig::from_joints(&fk, u.preset.props.sword);
                     if u.anim == AnimState::Dead {
                         figure::collapse(&mut j, base, u.yaw, u.dead_t);
                         look.accent = C_SHADOW;

@@ -37,7 +37,7 @@ export function DemoApp() {
           // Floating numbers (#45): damage, crit, heal, miss, damage to self.
           const ft = Math.floor(t / 0.6), pt = Math.floor((t - dt) / 0.6);
           if (ft !== pt) {
-            const k = ft % 5;
+            const k = ((ft % 5) + 5) % 5;
             const who = ["mob:dust_hare", "mob:ashbeam_boar", "npc:guide", "mob:pale_slime", "mob:seam_golem"][k]!;
             r.addFloater(who, [0, 3, 2, 4, 1][k]!, [7, 42, 15, 0, 12][k]!);
           }
@@ -48,7 +48,7 @@ export function DemoApp() {
       for (let s = 0; s < t0 * 60; s++) step(1 / 60);
       let last = performance.now();
       const frame = (now: number) => {
-        step(Math.min(0.1, (now - last) / 1000));
+        step(Math.max(0, Math.min(0.1, (now - last) / 1000)));
         last = now;
         r.draw();
         raf = requestAnimationFrame(frame);

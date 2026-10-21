@@ -1,6 +1,7 @@
 //! Floating combat numbers (#45): pixel-font text that rises above a unit
 //! and dithers out. Drawn as an overlay (no depth test).
-use stick_engine::raster::{Framebuffer, C_OUTLINE};
+use stick_engine::raster::Framebuffer;
+use crate::compat::C_OUTLINE;
 
 use crate::palette::{FN_CRIT, FN_DMG, FN_HEAL, FN_MISS, FN_SELF};
 

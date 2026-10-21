@@ -1,5 +1,5 @@
 use crate::*;
-use stick_engine::raster::PALETTE;
+use crate::compat::PALETTE;
 
 fn unit(x: f32, z: f32, anim: &str, preset: &str) -> UnitInput {
     UnitInput { x, y: 0.0, z, facing: 0.0, anim: AnimState::parse(anim), preset: preset.into() }
@@ -72,7 +72,7 @@ fn draws_stick_figure_pixels() {
     assert!(changed > 200, "only {changed} pixels changed");
     let mut rgba = vec![0u8; 320 * 180 * 4];
     s.write_rgba(&mut rgba);
-    let body = PALETTE[stick_engine::raster::C_BODY as usize];
+    let body = PALETTE[crate::compat::C_BODY as usize];
     assert!(rgba.chunks(4).any(|p| p[0] == (body >> 16) as u8 && p[1] == (body >> 8) as u8));
 }
 
@@ -152,7 +152,7 @@ fn every_archetype_and_role_draws() {
         }
     }
 }
-const C_SHADOW_IDX: u8 = stick_engine::raster::C_SHADOW;
+const C_SHADOW_IDX: u8 = crate::compat::C_SHADOW;
 
 #[test]
 fn npc_roles_are_distinguishable() {
@@ -187,7 +187,7 @@ fn fx_bars_rings_fade_and_anchor() {
     s2.tick(0.0);
     s2.set_fx("d", UnitFx { fade: 0.0, ..UnitFx::default() });
     s2.draw();
-    assert!(!s2.fb.color.iter().any(|&c| c == stick_engine::raster::C_BODY));
+    assert!(!s2.fb.color.iter().any(|&c| c == crate::compat::C_BODY));
 }
 
 #[test]

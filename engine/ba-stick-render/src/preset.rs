@@ -1,6 +1,5 @@
 //! Rig presets and server-anim → clip mapping.
-use stick_engine::raster::*;
-use stick_engine::rig::{Look, Proportions};
+use crate::compat::*;
 
 /// Server `UnitSnapshot.anim` plus `run` (derived from speed by the host).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -34,6 +33,13 @@ impl AnimState {
             AnimState::Run => "run",
             AnimState::Melee | AnimState::Cast => "swing",
             AnimState::Idle | AnimState::Rest | AnimState::Dead => "idle",
+        }
+    }
+    /// Action-layer clip (None = base idle/gait layer only).
+    pub fn action_clip(self) -> Option<&'static str> {
+        match self {
+            AnimState::Melee | AnimState::Cast => Some("swing"),
+            _ => None,
         }
     }
     pub fn restarts(self) -> bool {
