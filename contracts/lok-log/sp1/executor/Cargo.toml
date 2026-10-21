@@ -1,0 +1,13 @@
+[package]
+name = "lok-sp1-executor"
+version = "0.1.0"
+edition = "2021"
+description = "Run the lok engine and return its keccak state hash for the SP1 guest"
+license = "MIT"
+publish = false
+
+[dependencies]
+lok-engine = { path = "../../engine" }
+
+[dev-dependencies]
+hex = "0.4"

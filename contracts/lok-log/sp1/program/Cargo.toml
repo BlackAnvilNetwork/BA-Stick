@@ -1,0 +1,10 @@
+[package]
+name = "lok-sp1-program"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "SP1 guest: replay the lok engine and commit its keccak state hash"
+
+[dependencies]
+lok-sp1-executor = { path = "../executor" }
+sp1-zkvm = "=6.9.0"

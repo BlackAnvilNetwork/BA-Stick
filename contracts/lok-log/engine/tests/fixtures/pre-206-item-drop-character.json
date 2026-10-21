@@ -1,0 +1,92 @@
+{
+ "tokenId": "1",
+ "startingJob": 0,
+ "entries": [
+  {
+   "seq": 0,
+   "hash": "0x9e80908e4b2ff15094d9adb3b713279dab7e11f4cd89cad801e66956b4ab019b",
+   "input": {
+    "startingJob": 0,
+    "tokenId": "1",
+    "type": "spawn"
+   }
+  },
+  {
+   "seq": 55,
+   "hash": "0x5bf1d478f94112f6edc31934ff07cecb4b2d2f8846dd5fceccee0c8fffbae5a9",
+   "input": {
+    "abilityId": "time_mage_0",
+    "tokenId": "1",
+    "type": "learnAbility"
+   }
+  },
+  {
+   "seq": 71,
+   "hash": "0xde3c6917dac57d8781328160f24352e988531b315ff8725af631a1e266961451",
+   "input": {
+    "level": 2,
+    "tokenId": "1",
+    "type": "levelUp"
+   }
+  },
+  {
+   "seq": 72,
+   "hash": "0x407b5b2c7b26e13bd6156ff58649ba33119f27b85f86e7902677f62b4725fa54",
+   "input": {
+    "amount": "1",
+    "itemId": "1057",
+    "tokenId": "1",
+    "type": "itemDrop"
+   }
+  },
+  {
+   "seq": 73,
+   "hash": "0xe0a033c7074c7009f2eab6ca47b12dbd6e7f8e75c4bb47652fd25b4e0c6fd3f5",
+   "input": {
+    "amount": "1",
+    "itemId": "1057",
+    "tokenId": "1",
+    "type": "exportItem"
+   }
+  },
+  {
+   "seq": 79,
+   "hash": "0x4dceb1af5d6312d2c832f2a1ee90322f36a0b7fd8295ea7d6272bd7618deabfd",
+   "input": {
+    "level": 3,
+    "tokenId": "1",
+    "type": "levelUp"
+   }
+  },
+  {
+   "seq": 80,
+   "hash": "0xb9beed85277479a7521ebe01d55db689d83ca8991753b0db56d14cbfff3f2caf",
+   "input": {
+    "amount": "1",
+    "materialId": "dustgrain",
+    "tokenId": "1",
+    "type": "harvest"
+   }
+  },
+  {
+   "seq": 81,
+   "hash": "0xc88adc5a6ced59ae5af865c056aa49ad614af2be2f8fb1f55861c53c2baef4e2",
+   "input": {
+    "amount": "1",
+    "materialId": "copper-ore",
+    "tokenId": "1",
+    "type": "harvest"
+   }
+  },
+  {
+   "seq": 82,
+   "hash": "0xa81f87f56f8be1da55985cfdd583a7922d9f20ca96a7ee63b310af826fe7554a",
+   "input": {
+    "amount": "1",
+    "materialId": "dustgrain",
+    "tokenId": "1",
+    "type": "harvest"
+   }
+  }
+ ]
+}

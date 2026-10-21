@@ -1,0 +1,5 @@
+# Pin for reproducible lok_engine.wasm (check-wasm-pin.mjs / CI).
+# Host paths still affect panic locations; Linux runners with this channel match pkg/.
+[toolchain]
+channel = "1.83.0"
+targets = ["wasm32-unknown-unknown"]

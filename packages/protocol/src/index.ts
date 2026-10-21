@@ -1,0 +1,882 @@
+import { z } from "zod";
+import { EQUIP_SLOTS, type Equipment } from "@bellgrave/items";
+import {
+  ALL_ABILITY_IDS,
+  JOB_IDS,
+  type AbilityId as CombatAbilityId,
+  type JobId as CombatJobId,
+} from "@bellgrave/combat";
+
+export type AbilityId = CombatAbilityId;
+export type JobId = CombatJobId;
+
+export const AbilityId = z.enum(ALL_ABILITY_IDS as unknown as [CombatAbilityId, ...CombatAbilityId[]]);
+export const JobId = z.enum(JOB_IDS as unknown as [CombatJobId, ...CombatJobId[]]);
+
+export const EquipSlot = z.enum(EQUIP_SLOTS);
+export type EquipSlot = z.infer<typeof EquipSlot>;
+export type { Equipment };
+
+export const Vec2Schema = z.object({ x: z.number(), z: z.number() });
+export type Vec2 = z.infer<typeof Vec2Schema>;
+
+export const Gender = z.enum(["male", "female", "pepeka"]);
+export type Gender = z.infer<typeof Gender>;
+
+export const ClientMessageSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("auth/hello"), wallet: z.string().regex(/^0x[0-9a-fA-F]{40}$/) }),
+  z.object({
+    type: z.literal("auth"),
+    wallet: z.string().regex(/^0x[0-9a-fA-F]{40}$/),
+    signature: z.string().min(8).max(200),
+    nonce: z.string().min(8).max(128),
+    message: z.string().min(16).max(2000),
+  }),
+  z.object({
+    type: z.literal("char/create"),
+    name: z.string().min(2).max(16),
+    job: JobId,
+    gender: Gender.default("male"),
+    /** On-chain NFT id when mint-first (player already paid createCharacter). */
+    tokenId: z.string().regex(/^[1-9][0-9]{0,77}$/).optional(),
+    /** Wallet that paid the mint fee (may differ from burner auth). */
+    mintWallet: z.string().regex(/^0x[0-9a-fA-F]{40}$/).optional(),
+    /** EIP-191 mint claim when mintWallet !== auth wallet (H1 / L3). */
+    mintNonce: z.string().min(8).max(128).optional(),
+    mintExpiry: z.number().int().positive().optional(),
+    mintSignature: z.string().min(130).max(200).optional(),
+    mintChainId: z.number().int().positive().optional(),
+    mintCharId: z.string().min(1).max(64).optional(),
+  }),
+  z.object({
+    type: z.literal("char/enter"),
+    /** Which roster slot to play; omit to enter the last-active character. */
+    characterId: z.string().min(1).max(64).optional(),
+  }),
+  /** Pre-pay check: is this character name free on the global log? */
+  z.object({
+    type: z.literal("char/nameCheck"),
+    name: z.string().min(2).max(16),
+  }),
+  z.object({ type: z.literal("move"), x: z.number(), z: z.number() }),
+  z.object({ type: z.literal("engage"), targetId: z.string().min(1).max(64) }),
+  z.object({ type: z.literal("disengage") }),
+  z.object({ type: z.literal("ability"), id: AbilityId, targetId: z.string().min(1).max(64).optional() }),
+  z.object({
+    type: z.literal("equip"),
+    slot: EquipSlot,
+    tokenId: z.number().int().nonnegative().nullable(),
+    hq: z.boolean().optional(),
+  }),
+  z.object({ type: z.literal("item/use"), tokenId: z.number().int().nonnegative(), hq: z.boolean().optional() }),
+  /** Throw away one bag stack. Starter stacks are allowed. This is not a sale and is not written to the log. */
+  z.object({
+    type: z.literal("item/discard"),
+    tokenId: z.number().int().positive(),
+    starter: z.boolean().optional(),
+    hq: z.boolean().optional(),
+  }),
+  z.object({ type: z.literal("claim/starter") }),
+  /** Change main job (Job Master). Sprite follows main. */
+  z.object({ type: z.literal("job/change"), job: JobId }),
+  /** Set support job at L10+ (Job Master). Level = floor(main/2). */
+  z.object({ type: z.literal("job/subjob"), job: JobId.nullable() }),
+  z.object({ type: z.literal("npc/interact"), npcId: z.string().min(1).max(64) }),
+  z.object({ type: z.literal("gather"), nodeId: z.string().min(1).max(64) }),
+  /** Synth an item by catalog id (requires mats + craft skill level). */
+  z.object({ type: z.literal("craft"), itemId: z.number().int().positive() }),
+  z.object({ type: z.literal("spell/buy"), id: AbilityId }),
+  /** Dev/test: jump to max job level + learn all TIM spells. */
+  z.object({ type: z.literal("debug/maxlevel") }),
+  /** Unlock a skill-tree node (must be adjacent; costs 1 point). */
+  z.object({ type: z.literal("skill/unlock"), nodeId: z.string().min(1).max(64) }),
+  z.object({ type: z.literal("skill/respec") }),
+  /** Spend or refund one free attribute point (delta +1 / −1). */
+  z.object({
+    type: z.literal("skill/freestat"),
+    attr: z.enum(["str", "dex", "vit", "agi", "int", "mnd"]),
+    delta: z.union([z.literal(1), z.literal(-1)]).optional(),
+  }),
+  /** Keepalive — client ↔ server heartbeat so AFK tabs stay connected. */
+  z.object({ type: z.literal("ping"), t: z.number().optional() }),
+  /** Dev-only anvil ETH faucet (31337). Ignored when faucet is disabled. */
+  z.object({
+    type: z.literal("dev/faucet"),
+    to: z.string().regex(/^0x[0-9a-fA-F]{40}$/).optional(),
+  }),
+  /** Invite a player to your party (by wallet / unit id, or exact character name). */
+  z.object({ type: z.literal("party/invite"), targetId: z.string().min(1).max(64) }),
+  z.object({ type: z.literal("party/accept") }),
+  z.object({ type: z.literal("party/decline") }),
+  z.object({ type: z.literal("party/leave") }),
+  z.object({ type: z.literal("party/kick"), targetId: z.string().min(1).max(64) }),
+  z.object({ type: z.literal("party/disband") }),
+  /** Moves a stack from the character bag into its log (ImportItem with no inbound nonce, #206). Not a KEK mint. */
+  z.object({
+    type: z.literal("lok/import"),
+    tokenId: z.number().int().positive(),
+    amount: z.number().int().positive().max(1_000_000),
+  }),
+  /** Spend spendable log items back into the bag. Not a chain withdrawal. */
+  z.object({
+    type: z.literal("lok/export"),
+    tokenId: z.number().int().positive(),
+    amount: z.number().int().positive().max(1_000_000),
+  }),
+  /** `to` is a character id or log token. A typed display name is not a target. */
+  z.object({
+    type: z.literal("lok/sendItem"),
+    to: z.string().min(1).max(64),
+    tokenId: z.number().int().positive(),
+    amount: z.number().int().positive().max(1_000_000),
+  }),
+  z.object({
+    type: z.literal("lok/list"),
+    tokenId: z.number().int().positive(),
+    amount: z.number().int().positive().max(1_000_000),
+    minPrice: z.string().regex(/^[1-9][0-9]{0,18}$/),
+    /**
+     * Ignored by the server. Proceeds always go to ownerOf(character) at list
+     * time (mainnet rule 2/4). Kept optional for older clients.
+     */
+    sellerPayout: z.string().regex(/^0x[0-9a-fA-F]{40}$/).optional(),
+  }),
+  z.object({
+    type: z.literal("lok/bid"),
+    itemId: z.number().int().positive(),
+    amount: z.string().regex(/^[1-9][0-9]{0,18}$/),
+  }),
+  /** Buy the cheapest open ask and pay that ask. qty keeps buying whole asks until that many items are taken. Not a bid. */
+  z.object({
+    type: z.literal("lok/buy"),
+    itemId: z.number().int().positive(),
+    qty: z.number().int().positive().max(1_000_000).optional(),
+  }),
+  z.object({
+    type: z.literal("lok/reclaim"),
+    listingId: z.string().regex(/^[1-9][0-9]{0,18}$/),
+  }),
+  z.object({
+    type: z.literal("lok/takeInbox"),
+    tokenId: z.number().int().positive(),
+    amount: z.number().int().positive().max(1_000_000),
+  }),
+  /** Sell a log stack to the Provisioner NPC for gold (server-priced). */
+  z.object({
+    type: z.literal("lok/npcSell"),
+    tokenId: z.number().int().positive(),
+    amount: z.number().int().positive().max(1_000_000),
+  }),
+  z.object({
+    type: z.literal("lok/cancel"),
+    listingId: z.string().regex(/^[1-9][0-9]{0,18}$/),
+  }),
+  z.object({
+    type: z.literal("lok/settle"),
+    listingId: z.string().regex(/^[1-9][0-9]{0,18}$/),
+  }),
+  /** Read-only page of lok events. Does not append. */
+  z.object({
+    type: z.literal("lok/explore"),
+    scope: z.enum(["yours", "everyone"]),
+    q: z.string().max(80).optional(),
+    beforeSeq: z.number().int().nonnegative().optional(),
+    req: z.number().int().nonnegative().optional(),
+  }),
+  /** Teleport into Ash Pit after on-chain place (or anvil synthetic). */
+  z.object({
+    type: z.literal("pvp/join"),
+    areaId: z.string().min(1).max(64).optional(),
+    /** Tx hash of PvpBounty.place — required when live escrow is configured. */
+    placeTxHash: z.string().regex(/^0x[0-9a-fA-F]{64}$/).optional(),
+  }),
+  /** Cancel bounty and return to the hub. */
+  z.object({ type: z.literal("pvp/leave") }),
+  /** Place 1 xDAI head-bounty while standing in a PvP arena (Ash Pit). */
+  z.object({ type: z.literal("pvp/bountyPlace") }),
+  /** Cancel / reclaim open PvP bounty without dying. */
+  z.object({ type: z.literal("pvp/bountyCancel") }),
+  /** Ask to join an open guild. Free. Not a membership. */
+  z.object({
+    type: z.literal("guild/join"),
+    guildId: z.string().min(1).max(80),
+  }),
+  /**
+   * The bonded operator accepts an open request.
+   * The operator id is the authenticated wallet, not a field on this message.
+   */
+  z.object({
+    type: z.literal("guild/accept"),
+    guildId: z.string().min(1).max(80),
+    characterId: z.string().min(1).max(64),
+  }),
+  /**
+   * Reserve ask xDAI in the current epoch before the client broadcasts buyAsk.
+   * A refusal means the transfer is not sent.
+   */
+  z.object({
+    type: z.literal("ah/admitFill"),
+    priceWei: z.string().regex(/^[1-9][0-9]{0,77}$/),
+    req: z.number().int().nonnegative(),
+  }),
+  /** Move a buyAsk reservation into the receipt's epoch after it lands. */
+  z.object({
+    type: z.literal("ah/pinFill"),
+    priceWei: z.string().regex(/^[1-9][0-9]{0,77}$/),
+    epoch: z.number().int().nonnegative(),
+    paidAtMs: z.number().int().nonnegative(),
+    req: z.number().int().nonnegative(),
+  }),
+  /** The buyAsk transaction was not sent, or it reverted. */
+  z.object({
+    type: z.literal("ah/releaseFill"),
+    priceWei: z.string().regex(/^[1-9][0-9]{0,77}$/),
+    epoch: z.number().int().nonnegative(),
+    req: z.number().int().nonnegative(),
+  }),
+]);
+export type ClientMessage = z.infer<typeof ClientMessageSchema>;
+
+export type BuffState = {
+  quickenUntil: number;
+  slowUntil: number;
+  flux: boolean;
+  aether: boolean;
+  levelUpUntil: number;
+  /** Magical haste family (quicken/tempo/allegro/haste/overclock) — highest wins via server. */
+  hasteUntil: number;
+  hastePct: number;
+  moveUntil: number;
+  movePct: number;
+  bindUntil: number;
+  gravityUntil: number;
+  gravityPct: number;
+  petrifyUntil: number;
+  stunUntil: number;
+  timeSealUntil: number;
+  overclockUntil: number;
+  perpetualUntil: number;
+  /** Temporal Distortion impact flash (earth + chrona) — short window. */
+  tdImpactUntil: number;
+  /** Enemy enfeebles (synced for world status icons). */
+  distractUntil: number;
+  frazzleUntil: number;
+  addleUntil: number;
+  silenceUntil: number;
+  paraUntil: number;
+  /** Knight tank buffs / wards */
+  bulwarkUntil: number;
+  sentinelUntil: number;
+  rampartUntil: number;
+  coverUntil: number;
+  fealtyUntil: number;
+  guardianUntil: number;
+  protectUntil: number;
+  /** Physical damage taken multiplier from Protect line (1 = none). */
+  protectPhysMul: number;
+  shellUntil: number;
+  shellMagMul: number;
+  /** Flash blind on mobs */
+  blindUntil: number;
+  /** Bulwark / Sentinel impact flash on player */
+  bulwarkFlashUntil: number;
+  /** Rogue evasion / crit buffs */
+  ghostStepUntil: number;
+  backbladeUntil: number;
+  killEdgeUntil: number;
+  shadowPassUntil: number;
+  /** False Guard — mob guard feinted (lowers evasion vs player swings) */
+  falseGuardUntil: number;
+  /** Fighter melee buffs */
+  killingStormUntil: number;
+  berserkUntil: number;
+  defenderUntil: number;
+  aggressorUntil: number;
+  restraintUntil: number;
+  brazenRushUntil: number;
+  warcryUntil: number;
+  bloodRageUntil: number;
+  fighterRageFlashUntil: number;
+  /** Sorcerer self buffs */
+  arcaneFloodUntil: number;
+  elementalSealUntil: number;
+  manaWallUntil: number;
+  manawellReady: boolean;
+  cascadeUntil: number;
+  focalNeveUntil: number;
+  scCastFlashUntil: number;
+  /** Sorcerer nuke impact on mobs */
+  scImpactUntil: number;
+  /** sleep family */
+  sleepUntil: number;
+  /** Battle Mage Dia / Bio on foes */
+  diaUntil: number;
+  bioUntil: number;
+  /** Weapon skill Attack Down on foes */
+  atkDownUntil: number;
+  atkDownMul: number;
+  /** Battle Mage hybrid buffs */
+  spellbladeUntil: number;
+  spellbladeFlashUntil: number;
+  focusWeave: boolean;
+  enSpellUntil: number;
+  phalanxUntil: number;
+  stoneskinUntil: number;
+  refreshUntil: number;
+  /** Cleric — white/sky-blue light column VFX */
+  sacredLightUntil: number;
+  solaceRite: boolean;
+  miseryRite: boolean;
+  divineSealReady: boolean;
+  asylumUntil: number;
+  /** Solace Rite cure shield */
+  healAbsorbUntil: number;
+  healAbsorbHp: number;
+  /** Cleric regen */
+  regenUntil: number;
+};
+
+export type UnitSnapshot = {
+  id: string;
+  kind: "player" | "mob" | "npc";
+  /** Stable character id for players. Sends use this, not the display name. */
+  characterId?: string;
+  name: string;
+  x: number;
+  /** Terrain height — outdoor undulates; indoor hubs stay flat. */
+  y: number;
+  z: number;
+  facing: number;
+  hp: number;
+  maxHp: number;
+  mp: number;
+  maxMp: number;
+  tp: number;
+  anim: "idle" | "walk" | "melee" | "cast" | "rest" | "dead";
+  /** Unix ms when current anim ends — bumps each swing so clients can replay melee/cast. */
+  animUntil: number;
+  /** Enemy spell splash radius. Present only while an AoE cast is winding up. */
+  castAoe?: number;
+  targetId: string | null;
+  buffs: BuffState;
+  /** Present on players and field mobs — drives swing SFX / job AI / visuals. */
+  job?: JobId;
+  /** Present on players — sprite set (male default). */
+  gender?: Gender;
+  /** Present on NPCs */
+  npcRole?: "job_master" | "spell_trainer" | "guide" | "quest_giver" | "crafter" | "vendor";
+  /** Field gather marker */
+  gatherNode?: boolean;
+  /** Primary mat slug for gather billboard icon */
+  gatherYield?: string;
+  /** Mob sprite set */
+  archetype?: string;
+  /** Field mob level (nameplates / shiny HQ). */
+  level?: number;
+  /** Shiny HQ - client sparkle/tint; same sprite as archetype. */
+  shiny?: boolean;
+  /** Unix ms when this mob died — client fades corpse until MOB_DEATH_FADE_MS. */
+  deathAt?: number;
+  /** Player has an open PvP head-bounty (Ash Pit) — clickable for engage. */
+  pvpBounty?: boolean;
+};
+
+export type InventorySlot = { tokenId: number; amount: number; starter?: boolean; hq?: boolean };
+
+
+export type PartyMemberSnapshot = {
+  id: string;
+  name: string;
+  level: number;
+  job: JobId;
+  hp: number;
+  maxHp: number;
+  mp: number;
+  maxMp: number;
+  online: boolean;
+};
+
+export type PartySnapshot = {
+  id: string;
+  leaderId: string;
+  members: PartyMemberSnapshot[];
+};
+
+export type PartyInviteSnapshot = {
+  fromId: string;
+  fromName: string;
+  partyId: string;
+  expiresAt: number;
+};
+
+
+export type LokItemBalance = { tokenId: number; amount: string };
+
+export type LokListingView = {
+  id: string;
+  seller: string;
+  sellerName: string;
+  itemId: number;
+  amount: string;
+  highBidder: string | null;
+  highBidderName: string | null;
+  highBid: string;
+  /** Order-book minimum. "0" on a legacy bid/settle listing. */
+  minPrice: string;
+  /** Unix seconds stored on the ask. 0 when the log row has no clock. */
+  listedAt: number;
+  /** True for an order-book ask. Legacy listings stay on bid and settle. */
+  book: boolean;
+  yours: boolean;
+};
+
+/** Matches AhEscrow.FEE_BPS — 5% of sale price (floor). */
+export const AH_FEE_BPS = 500;
+export const AH_FEE_BPS_DENOM = 10_000;
+/** Guild-vault share of the sale. Half of `AH_FEE_BPS`. */
+export const AH_VAULT_FEE_BPS = 250;
+/** Treasury share of the sale. Half of `AH_FEE_BPS`. A floored leftover wei stays here. */
+export const AH_TREASURY_FEE_BPS = 250;
+
+/** Floor split used by AhEscrow.buyAsk / quoteFee. */
+export function ahFeeSplit(priceWei: bigint): { feeWei: bigint; sellerNetWei: bigint } {
+  if (priceWei < 0n) throw new Error("priceWei must be non-negative");
+  const feeWei = (priceWei * BigInt(AH_FEE_BPS)) / BigInt(AH_FEE_BPS_DENOM);
+  return { feeWei, sellerNetWei: priceWei - feeWei };
+}
+
+/**
+ * Floor each share the same way `ahFeeSplit` floors (`price * bps / 10000`).
+ * A zero fee is a zero vault share and a zero treasury share.
+ * When the two floors sum to less than the 5% fee, the leftover wei is part of
+ * the treasury share, so the shares sum to the fee. In-game gold is not an input.
+ */
+export function ahGuildFeeShares(priceWei: bigint): { feeWei: bigint; vaultWei: bigint; treasuryWei: bigint } {
+  const { feeWei } = ahFeeSplit(priceWei);
+  let vaultWei = (priceWei * BigInt(AH_VAULT_FEE_BPS)) / BigInt(AH_FEE_BPS_DENOM);
+  if (vaultWei > feeWei) vaultWei = feeWei;
+  let treasuryWei = (priceWei * BigInt(AH_TREASURY_FEE_BPS)) / BigInt(AH_FEE_BPS_DENOM);
+  const routed = vaultWei + treasuryWei;
+  if (routed < feeWei) treasuryWei += feeWei - routed;
+  else if (routed > feeWei) treasuryWei = feeWei - vaultWei;
+  return { feeWei, vaultWei, treasuryWei };
+}
+
+/** Native settlement currency exposed to the client (label + defaults). */
+export type SettlementCurrencyView = {
+  chainId: number;
+  symbol: string;
+  name: string;
+  decimals: number;
+  defaultMintFeeWei: string;
+  exampleAskHuman: string;
+};
+
+/** Browser-reachable AhEscrow config so the client can sign buyAsk. Null when unset. */
+export type AhEscrowClientConfig = {
+  address: string;
+  rpcUrl: string;
+  chainId: number;
+  /** Marketplace fee in basis points (default 500 = 5%). */
+  feeBps?: number;
+  /** Native unit for ask prices / fee display (xDAI on Gnosis, ETH on anvil). */
+  currency?: SettlementCurrencyView;
+};
+
+/** Client config for PvpBounty.place (fixed 1 xDAI = 1e18 wei). */
+export type PvpBountyClientConfig = {
+  address: string;
+  bountyWei: string;
+  /** Product unit label — always xDAI for the head-bounty. */
+  currency: "xDAI";
+  /** When true, server accepts synthetic receipts — no wallet place needed. */
+  synthetic: boolean;
+  rpcUrl: string;
+  chainId: number;
+};
+
+/** Local / EEZ sync-buy client config (pay from home chain). */
+export type EezSyncBuyClientConfig = {
+  syncBuyEnabled: boolean;
+  zoneId: string | null;
+  homeChainId: number | null;
+  homeRpcUrl: string | null;
+  homeLabel: string | null;
+  /** Local MockEezSyncBuy address when testing without a live EEZ zone. */
+  mockSyncBuy: string | null;
+  gameEscrow: string | null;
+  gameChainId: number | null;
+};
+
+export type LokSnapshot = {
+  tokenId: string;
+  /**
+   * Legacy settlement display. Always "0". KEK custody is retired.
+   * Auction payment is on-chain ETH via AhEscrow. In-game sinks use `gold`.
+   */
+  kek: string;
+  /** Same as `kek`. Always "0". */
+  eth?: string;
+  /** In-game gold (log-only). Trainer / craft / respec spend this, not ETH. */
+  gold?: string;
+  items: LokItemBalance[];
+  /** Provisioner inbox. Sends, sales, cancels, and reclaims land here, not in the bag. */
+  inbox: LokItemBalance[];
+  listings: LokListingView[];
+  /** engine-only: no endpoint. rpc-unwatched: endpoint set, vault not followed. watching: AhEscrow and/or checkpoint are followed. */
+  chain: "engine-only" | "rpc-unwatched" | "watching";
+  /** Present when the server exposes a public RPC + AhEscrow address for wallet buys. */
+  ahEscrow?: AhEscrowClientConfig | null;
+  /** Present when PvpBounty escrow (or anvil synthetic) is available. */
+  pvpBounty?: PvpBountyClientConfig | null;
+  /** Present when EEZ / local mock sync buy is configured. */
+  eezSyncBuy?: EezSyncBuyClientConfig | null;
+  /** Present when the player should pay createCharacter{value} for the NFT. */
+  characterMint?: {
+    factory: string;
+    nft: string;
+    mintFee: string;
+    chainId: number;
+    rpcUrl: string;
+    /** False on factories deployed before createCharacterFor. */
+    supportsCreateFor?: boolean;
+    /** On-chain next NFT id (`nextTokenId + 1`) for createCharacterFor. */
+    suggestedTokenId?: string;
+    /** Job indexes enabled via factory.isStartingJob. */
+    startingJobs?: number[];
+    /** Dev faucet / server-mint hints for local 31337. */
+    devFaucet?: boolean;
+    devServerMint?: boolean;
+    /** Native mint-fee unit label (xDAI / ETH). */
+    currency?: SettlementCurrencyView;
+  } | null;
+  withdrawDelaySec: number | null;
+  queues: { id: string; amount: string; availableAt: number }[];
+};
+
+export type LokExploreScope = "yours" | "everyone";
+
+/** One row in the Explorer. Read from the existing character logs. */
+export type LokEventView = {
+  seq: number;
+  hash: string;
+  kind: string;
+  character: string;
+  text: string;
+};
+
+/** One sibling on a character-root or state-leaf path. `hash` is 32 bytes, hex. */
+export type WebLightSibling = { hash: string; left: boolean };
+
+/**
+ * What a live snapshot carries for one character.
+ * `certificate` is the lok-order commit certificate. Replica public keys are
+ * not in this object.
+ */
+export type WebLightClientMessage = {
+  certificate: string;
+  /** Claimed next root. The certificate's next root must equal this. */
+  claimedRoot: string;
+  tokenId: string;
+  characterRoot: string;
+  characterSiblings: WebLightSibling[];
+  tag: number;
+  keyData: string;
+  value: string;
+  leafSiblings: WebLightSibling[];
+};
+
+export type SnapshotMessage = {
+  type: "snapshot";
+  tick: number;
+  /**
+   * Commit certificate, character-root inclusion, and one state leaf.
+   * Absent or empty certificate stays provisional.
+   */
+  lightClient?: WebLightClientMessage;
+  you: {
+    wallet: string;
+    /** Active character slot id (multi-char roster). */
+    characterId: string;
+    name: string;
+    job: JobId;
+    gender: Gender;
+    /** Support job (L10+). Sprite stays main. null = none. */
+    subjob: JobId | null;
+    /** Effective support level = floor(main/2). 0 if no subjob. */
+    subLevel: number;
+    level: number;
+    /** Effective combat level under area caps (e.g. Ash Pit min(level, 30)). */
+    combatLevel?: number;
+    /** Black Anvil PvP arena + bounty status for this character. */
+    pvp?: {
+      areaId: string | null;
+      areaName: string | null;
+      levelCap: number | null;
+      bountyOpen: boolean;
+      bountyAreaId: string | null;
+      bountyWei: string | null;
+      ashPit: {
+        id: string;
+        name: string;
+        bounds: { minX: number; maxX: number; minZ: number; maxZ: number };
+        spawn: { x: number; z: number; facing?: number };
+        levelCap: number;
+        blurb: string;
+      };
+      escrow?: PvpBountyClientConfig | null;
+    };
+    xp: number;
+    dust: number;
+    claimedStarter: boolean;
+    inventory: InventorySlot[];
+    equip: Equipment;
+    /** Slots whose equipped piece is high quality. Absent or empty means normal quality. */
+    equipHq?: Partial<Record<EquipSlot, true>>;
+    /** Base precursor mats (Pale Hollow gather/drops) — NFT-bound later. */
+    baseMats: Record<string, number>;
+    /** Craft skill ranks (smithing, cooking, …). */
+    craftSkills: Record<string, { level: number; xp: number }>;
+    /** Active field zone id. */
+    zoneId: string;
+    /** AbilityId → ready-at unix ms (Date.now()). Absent / past = ready. */
+    recasts: Partial<Record<AbilityId, number>>;
+    /** Unlocked ability ids for current job/level (hotbar + spellbook). */
+    unlocked: AbilityId[];
+    /** Abilities purchased from the Trainer (persists on character). */
+    learned: AbilityId[];
+    /** Master skill tree — unlocked node ids (includes free main hub). */
+    skillUnlocked: string[];
+    /** Unspent skill-tree points (banked across levels). */
+    skillPoints: number;
+    /** Prestige skill points earned after max level (0–100). */
+    skillPrestige: number;
+    /** Free attribute points remaining (start at 5). */
+    freeStatPoints: number;
+    /** Allocated free attribute points. */
+    freeStats: { str: number; dex: number; vit: number; agi: number; int: number; mnd: number };
+    /** Hash-chained lok balances. Settlement Key::Kek is historical; new AH pays on-chain. */
+    lok?: LokSnapshot;
+  };
+  units: UnitSnapshot[];
+  log: string[];
+  /** Active party — null when solo. */
+  party: PartySnapshot | null;
+  /** Pending invite for this client (accept/decline). */
+  partyInvite: PartyInviteSnapshot | null;
+};
+
+export type CharacterPreview = {
+  id: string;
+  name: string;
+  job: JobId;
+  level: number;
+  gender: Gender;
+  /** Log / NFT token id when bound (used to clear pending paid mints). */
+  tokenId?: string;
+};
+
+export type SpellOffer = {
+  id: AbilityId;
+  label: string;
+  cost: number;
+  unlockLevel: number;
+  /** Main job (full level) or support job (half level) offer track. */
+  track?: "main" | "support";
+};
+
+export type ServerMessage =
+  | SnapshotMessage
+  | { type: "error"; message: string }
+  | {
+      type: "auth/challenge";
+      wallet: string;
+      nonce: string;
+      issuedAt: string;
+      message: string;
+    }
+  | {
+      type: "auth/ok";
+      wallet: string;
+      hasCharacter: boolean;
+      /** All characters on this account (multi-slot). */
+      characters: CharacterPreview[];
+      /** Last-active / primary character — convenience for older clients. */
+      character?: CharacterPreview;
+      /** Present when the player should pay createCharacter{value} before char/create. */
+      characterMint?: {
+        factory: string;
+        nft: string;
+        mintFee: string;
+        chainId: number;
+        rpcUrl: string;
+        supportsCreateFor?: boolean;
+        suggestedTokenId?: string;
+        startingJobs?: number[];
+        devFaucet?: boolean;
+        devServerMint?: boolean;
+      } | null;
+      /**
+       * Allowlisted replica public keys, hex. Not part of the light-client proof.
+       * The checker uses the keys it already stored from here.
+       */
+      replicaAllowlist?: string[];
+    }
+  | { type: "log"; message: string }
+  | {
+      type: "pvp/joined";
+      areaId: string;
+      areaName: string;
+      bountyWei: string;
+      levelCap: number;
+    }
+  | {
+      type: "pvp/placeNeeded";
+      areaId: string;
+      tokenId: string;
+      bountyWei: string;
+      address: string;
+      rpcUrl: string;
+      chainId: number;
+    }
+  | { type: "pvp/left"; areaId: string }
+  | {
+      type: "pvp/slain";
+      slayerName: string;
+      slayerWallet: string;
+      areaId: string;
+      bountyWei: string;
+      canRejoin: boolean;
+    }
+  | {
+      type: "char/nameCheck";
+      available: boolean;
+      name?: string;
+      error?: string;
+    }
+  | {
+      type: "ah/admitFill";
+      req: number;
+      ok: boolean;
+      epoch?: number;
+      error?: string;
+    }
+  | { type: "ah/pinFill"; req: number; ok: boolean; epoch?: number; error?: string }
+  | { type: "ah/releaseFill"; req: number; ok: boolean }
+  | { type: "pong"; t?: number }
+  | { type: "party/invite"; fromId: string; fromName: string; partyId: string; expiresAt: number }
+  | {
+      type: "lok/events";
+      scope: LokExploreScope;
+      q: string;
+      beforeSeq?: number;
+      req?: number;
+      events: LokEventView[];
+      total: number;
+      hasMore: boolean;
+    }
+  | {
+      type: "npc/dialog";
+      npcId: string;
+      title: string;
+      body: string;
+      jobs?: JobId[];
+      /** When true, dialog is picking a support job (not main). */
+      subjobMode?: boolean;
+      subLevel?: number;
+      spells?: SpellOffer[];
+      /** Craft Master — client may open the Crafting panel. */
+      craftOpen?: boolean;
+      /** Provisioner — client may open the lok exchange. */
+      lokOpen?: boolean;
+    };
+
+export function parseClientMessage(raw: unknown): ClientMessage | null {
+  const result = ClientMessageSchema.safeParse(raw);
+  return result.success ? result.data : null;
+}
+
+export function emptyBuffs(): BuffState {
+  return {
+    quickenUntil: 0,
+    slowUntil: 0,
+    flux: false,
+    aether: false,
+    levelUpUntil: 0,
+    hasteUntil: 0,
+    hastePct: 0,
+    moveUntil: 0,
+    movePct: 0,
+    bindUntil: 0,
+    gravityUntil: 0,
+    gravityPct: 0,
+    petrifyUntil: 0,
+    stunUntil: 0,
+    timeSealUntil: 0,
+    overclockUntil: 0,
+    perpetualUntil: 0,
+    tdImpactUntil: 0,
+    distractUntil: 0,
+    frazzleUntil: 0,
+    addleUntil: 0,
+    silenceUntil: 0,
+    paraUntil: 0,
+    bulwarkUntil: 0,
+    sentinelUntil: 0,
+    rampartUntil: 0,
+    coverUntil: 0,
+    fealtyUntil: 0,
+    guardianUntil: 0,
+    protectUntil: 0,
+    protectPhysMul: 1,
+    shellUntil: 0,
+    shellMagMul: 1,
+    blindUntil: 0,
+    bulwarkFlashUntil: 0,
+    ghostStepUntil: 0,
+    backbladeUntil: 0,
+    killEdgeUntil: 0,
+    shadowPassUntil: 0,
+    falseGuardUntil: 0,
+    killingStormUntil: 0,
+    berserkUntil: 0,
+    defenderUntil: 0,
+    aggressorUntil: 0,
+    restraintUntil: 0,
+    brazenRushUntil: 0,
+    warcryUntil: 0,
+    bloodRageUntil: 0,
+    fighterRageFlashUntil: 0,
+    arcaneFloodUntil: 0,
+    elementalSealUntil: 0,
+    manaWallUntil: 0,
+    manawellReady: false,
+    cascadeUntil: 0,
+    focalNeveUntil: 0,
+    scCastFlashUntil: 0,
+    scImpactUntil: 0,
+    sleepUntil: 0,
+    diaUntil: 0,
+    bioUntil: 0,
+    atkDownUntil: 0,
+    atkDownMul: 1,
+    spellbladeUntil: 0,
+    spellbladeFlashUntil: 0,
+    focusWeave: false,
+    enSpellUntil: 0,
+    phalanxUntil: 0,
+    stoneskinUntil: 0,
+    refreshUntil: 0,
+    sacredLightUntil: 0,
+    solaceRite: false,
+    miseryRite: false,
+    divineSealReady: false,
+    asylumUntil: 0,
+    healAbsorbUntil: 0,
+    healAbsorbHp: 0,
+    regenUntil: 0,
+  };
+}
+
+export { compareAsks, MAX_QUANTITY_FILLS, planQuantityFills } from "./auction-book";
+export type { AskQuote, PlannedFill, QuantityPlan } from "./auction-book";

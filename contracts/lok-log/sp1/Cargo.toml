@@ -1,0 +1,11 @@
+[workspace]
+resolver = "2"
+members = ["executor", "program"]
+default-members = ["executor"]
+exclude = ["script"]
+
+# SP1 accelerates keccak inside the zkVM. The patched permutation is selected
+# only for target_os = "zkvm" and target_vendor = "succinct". Host tests keep
+# software keccak256, so the state hash does not change.
+[patch.crates-io]
+tiny-keccak = { git = "https://github.com/sp1-patches/tiny-keccak", tag = "patch-2.0.2-sp1-6.0.0" }
