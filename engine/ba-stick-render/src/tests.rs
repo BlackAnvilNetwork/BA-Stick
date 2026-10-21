@@ -416,14 +416,14 @@ fn river_wall_joints_are_mitered_and_flush() {
     // Two 2 m segments meeting at (0, 0) with a 30-degree turn, plus a loose one.
     let seg = |x0: f32, z0: f32, yaw: f32, y: f32| {
         let (fx, fz) = (yaw.sin(), yaw.cos());
-        Prop { kind: kind::RIVER_WALL, var: 0, x: x0 + fx, z: z0 + fz, y, yaw, s: 2.0, w: 0.5, h: 1.0, d: 0.1, j: [0.0; 4] }
+        Prop { kind: kind::RIVER_WALL, var: 0, x: x0 + fx, z: z0 + fz, y, yaw, s: 2.0, w: 0.5, h: 1.0, d: 0.1, j: [0.0; 6] }
     };
     let a = seg(0.0, -2.0, 0.0, 1.0);
     let b = seg(0.0, 0.0, 0.5236, 1.2);
     let loose = seg(10.0, 10.0, 0.0, 0.0);
     let mut v = [a, b, loose];
     link_walls(&mut v);
-    assert_eq!(v[2].j, [0.0; 4], "an unjoined segment keeps square ends");
+    assert_eq!(v[2].j, [0.0; 6], "an unjoined segment keeps square ends");
     assert!(v[0].j[0] == 0.0 && v[1].j[1] == 0.0, "free ends stay square");
     assert!(v[0].j[1] != 0.0 && v[1].j[0] != 0.0, "the shared joint is mitered");
     // Corners on each side of the joint coincide, and the bases meet at one height.
@@ -439,6 +439,7 @@ fn river_wall_joints_are_mitered_and_flush() {
         assert!((ay - by).abs() < 1e-4, "base heights meet");
     }
 }
+#[test]
 fn bridge_deck_is_one_continuous_ribbon() {
     use crate::palette::TRAIL_STONE;
     use crate::props::{draw, kind, Prop};
@@ -448,7 +449,7 @@ fn bridge_deck_is_one_continuous_ribbon() {
     let cam = Camera::new(640, 360);
     let mut fb = Framebuffer::new(640, 360);
     // 10 m span along z, 3.9 m deck, 0.6 m arch, level ends
-    let p = Prop { kind: kind::BRIDGE, var: 0, x: 0.0, z: 0.0, y: 0.0, yaw: 0.0, s: 10.0, w: 3.9, h: 0.6, d: 0.0, j: [0.0; 4] };
+    let p = Prop { kind: kind::BRIDGE, var: 0, x: 0.0, z: 0.0, y: 0.0, yaw: 0.0, s: 10.0, w: 3.9, h: 0.6, d: 0.0, j: [0.0; 6] };
     draw(&mut fb, &cam, &[p], 0.0, 0.0);
     // Walk the deck centre line: every sample is lit deck, with no slab seam or
     // step outline crossing the walkway (the old 12-slab bridge had 11).

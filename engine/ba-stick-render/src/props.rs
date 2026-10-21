@@ -21,9 +21,10 @@ pub struct Prop {
     pub h: f32,
     pub d: f32,
     /// Runtime-only joint data for river-wall runs (see [`link_walls`]):
-    /// [miter at start, miter at end, base dy at start, base dy at end].
+    /// [miter at start, miter at end, base dy at start, base dy at end,
+    /// top dy at start, top dy at end].
     /// A miter `k` moves the end corner at lateral offset `rx` to `fz ± s/2 + rx*k`.
-    pub j: [f32; 4],
+    pub j: [f32; 6],
 }
 
 pub mod kind {
@@ -84,7 +85,7 @@ pub fn parse(bytes: &[u8]) -> Result<Vec<Prop>, String> {
                 var: bytes[o + 1],
                 x: f(o + 2), z: f(o + 6), y: f(o + 10), yaw: f(o + 14),
                 s: f(o + 18), w: f(o + 22), h: f(o + 26), d: f(o + 30),
-                j: [0.0; 4],
+                j: [0.0; 6],
             }
         })
         .collect::<Vec<_>>())
@@ -138,6 +139,8 @@ pub fn link_walls(props: &mut [Prop]) {
         let dy = (props[j].y - p.y) * 0.5;
         props[i].j[ei] = k;
         props[i].j[2 + ei] = dy;
+        // tops meet too (walls are raised locally to clear the water line)
+        props[i].j[4 + ei] = (props[j].y + props[j].h - p.y - p.h) * 0.5;
     }
 }
 
@@ -225,15 +228,19 @@ impl Ctx<'_> {
     /// A river-wall segment as a prism mitered at its joints (`Prop::j`).
     /// Joined end faces and their outlines are skipped, so a run has no seams.
     #[allow(clippy::too_many_arguments)]
-    fn wall_run(&mut self, p: &Prop, w: f32, y0: f32, h: f32, top: u8, lit: u8, dark: u8) {
+    /// `coping` rides on the (joined) wall top at both ends; the body runs from
+    /// the joined base to the joined top.
+    #[allow(clippy::too_many_arguments)]
+    fn wall_run(&mut self, p: &Prop, w: f32, y0: f32, h: f32, top: u8, lit: u8, dark: u8, coping: bool) {
         let hw = w * 0.5;
         let hs = p.s * 0.5;
-        let [k0, k1, dy0, dy1] = p.j;
-        let joined = [k0 != 0.0 || dy0 != 0.0, k1 != 0.0 || dy1 != 0.0];
+        let [k0, k1, b0, b1, t0, t1] = p.j;
+        let joined = [k0 != 0.0 || b0 != 0.0 || t0 != 0.0, k1 != 0.0 || b1 != 0.0 || t1 != 0.0];
+        let (lo0, lo1) = if coping { (t0, t1) } else { (b0, b1) };
         // corners in boxy order: (-r,start) (+r,start) (+r,end) (-r,end)
-        let cs = [(-hw, -hs - hw * k0, dy0), (hw, -hs + hw * k0, dy0), (hw, hs + hw * k1, dy1), (-hw, hs - hw * k1, dy1)];
-        let lo: Vec<P2> = cs.iter().map(|&(rx, fz, dy)| self.p(rx, y0 + dy, fz)).collect();
-        let hi: Vec<P2> = cs.iter().map(|&(rx, fz, dy)| self.p(rx, y0 + dy + h, fz)).collect();
+        let cs = [(-hw, -hs - hw * k0, lo0, t0), (hw, -hs + hw * k0, lo0, t0), (hw, hs + hw * k1, lo1, t1), (-hw, hs - hw * k1, lo1, t1)];
+        let lo: Vec<P2> = cs.iter().map(|&(rx, fz, dl, _)| self.p(rx, y0 + dl, fz)).collect();
+        let hi: Vec<P2> = cs.iter().map(|&(rx, fz, _, dt)| self.p(rx, y0 + h + dt, fz)).collect();
         let mid = (hi[0].x + hi[2].x) * 0.5;
         for i in 0..4 {
             let j = (i + 1) % 4;
@@ -330,8 +337,8 @@ fn draw_one(c: &mut Ctx, p: &Prop, time: f32) {
         kind::RIVER_WALL => {
             // body sunk a little into the bank, darker coping course on top;
             // mitered into its neighbours so joints and corners meet cleanly
-            c.wall_run(p, p.w, -0.2, p.h + 0.2, BANK_L, BANK, BANK_D);
-            c.wall_run(p, p.w + 0.06, p.h, p.d, BANK, BANK_D, BANK_DD);
+            c.wall_run(p, p.w, -0.2, p.h + 0.2, BANK_L, BANK, BANK_D, false);
+            c.wall_run(p, p.w + 0.06, p.h, p.d, BANK, BANK_D, BANK_DD, true);
         }
         kind::BRIDGE => {
             // One continuous deck ribbon from bank to bank, with a continuous
