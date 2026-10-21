@@ -10,7 +10,8 @@
     "build:full": "pnpm wasm && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "zones": "tsx scripts/bake-zones.ts"
+    "zones": "tsx scripts/bake-zones.ts",
+    "test": "tsx --test src/units.test.ts"
   },
   "dependencies": {
     "@bellgrave/client-core": "workspace:*",
