@@ -8,12 +8,13 @@ import { clampPaleHollow } from "@bellgrave/config";
 import type { UnitSnapshot } from "@bellgrave/protocol";
 import { NpcInteractMenu } from "@bellgrave/ui/NpcInteractMenu";
 import { clearKeyboardMove, setKeyboardMoveKey, type MoveKeys } from "@bellgrave/ui/moveInput";
-import { FB_H, FB_W, bakedZoneFor, createRenderer, fetchProps, fetchZone, fromFramebuffer, toFramebuffer } from "./renderer";
+import { FB_H, FB_W, bakedZoneFor, createRenderer, fetchProps, fetchZone, fbScale, fromFramebuffer, toFramebuffer } from "./renderer";
 import { staticAt } from "./statics";
 import { CombatFloaters } from "./floaters";
 import { GatherIcons, loadIconAtlas, type IconAtlas } from "./gather";
 import { syncUnits } from "./units";
 import { getMoveKeys, wasdTarget } from "./input";
+import { atmosphereFor, isCoarsePointer } from "./mobile";
 import { CastClock, sameId, unitFx } from "./fx";
 import { routeUnitClick } from "./clicks";
 import { Labels, labelFor } from "./labels";
@@ -51,6 +52,8 @@ export function StickWorld() {
       if (!alive) return;
       // Dev/test hook for headless checks (fb→client mapping lives in renderer.ts).
       if (import.meta.env.DEV) Object.assign(window, { __stick: { r, canvas, fromFramebuffer, send } });
+      // Phones: atmosphere pass costs ~1/3 of the frame; drop it to hold 30+ fps (#18).
+      if (!atmosphereFor(isCoarsePointer(), location.search)) r.setAtmosphere(false);
       let zoneLoaded: string | null = null;
       const zones = new ZoneTracker();
       let lastSnap: unknown = null;
@@ -231,7 +234,7 @@ export function StickWorld() {
         labels.update(shown);
         // Yield icons over gather nodes (#30)
         const gi = new Map<string, { slug?: string; x: number; y: number; scale: number; ready: boolean }>();
-        const scale = canvas.getBoundingClientRect().width / FB_W;
+        const scale = fbScale(canvas);
         for (const u of snap?.units ?? []) {
           if (!u.gatherNode || !known.has(u.id)) continue;
           const a = r.anchor(u.id);

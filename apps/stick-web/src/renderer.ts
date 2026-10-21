@@ -1,8 +1,8 @@
 import { zoneRender } from "./zones";
+import { FB_H, FB_W, fbFromClient, fbToClient, fitScale } from "./fit";
 import init, { StickRenderer } from "ba-stick-render";
 
-export const FB_W = 640;
-export const FB_H = 360;
+export { FB_H, FB_W } from "./fit";
 
 let ready: Promise<unknown> | null = null;
 /** Load the wasm module once. */
@@ -16,13 +16,18 @@ export async function createRenderer(canvas: HTMLCanvasElement): Promise<StickRe
   return new StickRenderer(canvas, FB_W, FB_H);
 }
 
-/** Client pixel → framebuffer pixel for a `object-fit: contain` canvas. */
+/** Client pixel → framebuffer pixel for an `object-fit: contain` or `cover` canvas. */
 export function toFramebuffer(canvas: HTMLCanvasElement, clientX: number, clientY: number): [number, number] {
   const r = canvas.getBoundingClientRect();
-  const scale = Math.min(r.width / FB_W, r.height / FB_H);
-  const sx = (clientX - r.left - (r.width - FB_W * scale) / 2) / scale;
-  const sy = (clientY - r.top - (r.height - FB_H * scale) / 2) / scale;
-  return [sx, sy];
+  return fbFromClient(r, clientX, clientY, isCover(canvas));
+}
+
+function isCover(canvas: HTMLCanvasElement): boolean {
+  return getComputedStyle(canvas).objectFit === "cover";
+}
+
+export function fbScale(canvas: HTMLCanvasElement): number {
+  return fitScale(canvas.clientWidth, canvas.clientHeight, isCover(canvas));
 }
 
 const zoneCache = new Map<string, Promise<Uint8Array>>();
@@ -57,8 +62,5 @@ export function bakedZoneFor(zoneId: string | undefined): string | null {
 
 /** Framebuffer pixel → CSS px relative to the canvas box (inverse of toFramebuffer). */
 export function fromFramebuffer(canvas: HTMLCanvasElement, fx: number, fy: number): [number, number] {
-  const w = canvas.clientWidth;
-  const h = canvas.clientHeight;
-  const scale = Math.min(w / FB_W, h / FB_H);
-  return [(w - FB_W * scale) / 2 + fx * scale, (h - FB_H * scale) / 2 + fy * scale];
+  return fbToClient(canvas.clientWidth, canvas.clientHeight, fx, fy, isCover(canvas));
 }
