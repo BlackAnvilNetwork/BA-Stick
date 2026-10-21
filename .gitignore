@@ -19,3 +19,4 @@ __pycache__/
 apps/server/data/
 apps/*/tsconfig.tsbuildinfo
 engine/target/
+engine/ba-stick-render/pkg/

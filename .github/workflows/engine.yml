@@ -22,3 +22,10 @@ jobs:
         run: cargo test --manifest-path engine/stick-engine/Cargo.toml -p stick_engine
       - name: stick-engine wasm build
         run: cargo build --manifest-path engine/stick-engine/Cargo.toml -p stick_web --target wasm32-unknown-unknown --release
+      - name: ba-stick-render tests
+        run: cargo test --manifest-path engine/Cargo.toml
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-bindgen-cli@0.2.129
+      - name: ba-stick-render wasm + bindings
+        run: ./engine/build-wasm.sh
