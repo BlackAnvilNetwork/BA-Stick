@@ -409,3 +409,33 @@ fn camera_3d_roundtrip_and_blend() {
     for _ in 0..60 { s.tick(1.0 / 60.0); }
     assert_eq!(s.cam.persp, 1.0);
 }
+
+#[test]
+fn river_wall_joints_are_mitered_and_flush() {
+    use crate::props::{kind, link_walls, Prop};
+    // Two 2 m segments meeting at (0, 0) with a 30-degree turn, plus a loose one.
+    let seg = |x0: f32, z0: f32, yaw: f32, y: f32| {
+        let (fx, fz) = (yaw.sin(), yaw.cos());
+        Prop { kind: kind::RIVER_WALL, var: 0, x: x0 + fx, z: z0 + fz, y, yaw, s: 2.0, w: 0.5, h: 1.0, d: 0.1, j: [0.0; 4] }
+    };
+    let a = seg(0.0, -2.0, 0.0, 1.0);
+    let b = seg(0.0, 0.0, 0.5236, 1.2);
+    let loose = seg(10.0, 10.0, 0.0, 0.0);
+    let mut v = [a, b, loose];
+    link_walls(&mut v);
+    assert_eq!(v[2].j, [0.0; 4], "an unjoined segment keeps square ends");
+    assert!(v[0].j[0] == 0.0 && v[1].j[1] == 0.0, "free ends stay square");
+    assert!(v[0].j[1] != 0.0 && v[1].j[0] != 0.0, "the shared joint is mitered");
+    // Corners on each side of the joint coincide, and the bases meet at one height.
+    let corner = |p: &Prop, end: usize, rx: f32| {
+        let (fx, fz, rxv, rzv) = (p.yaw.sin(), p.yaw.cos(), p.yaw.cos(), -p.yaw.sin());
+        let along = if end == 0 { -p.s * 0.5 } else { p.s * 0.5 } + rx * p.j[end];
+        (p.x + fx * along + rxv * rx, p.z + fz * along + rzv * rx, p.y + p.j[2 + end])
+    };
+    for rx in [-0.25f32, 0.25] {
+        let (ax, az, ay) = corner(&v[0], 1, rx);
+        let (bx, bz, by) = corner(&v[1], 0, rx);
+        assert!((ax - bx).abs() < 1e-3 && (az - bz).abs() < 1e-3, "corner {rx}: ({ax},{az}) vs ({bx},{bz})");
+        assert!((ay - by).abs() < 1e-4, "base heights meet");
+    }
+}
