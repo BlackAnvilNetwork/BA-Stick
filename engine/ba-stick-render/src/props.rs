@@ -55,6 +55,10 @@ pub mod kind {
     pub const STONE: u8 = 44;
     pub const PEBBLE: u8 = 45;
     pub const PEAK: u8 = 46;
+    /// Bank retaining wall run: s = length, w = thickness, h = height, d = coping.
+    pub const RIVER_WALL: u8 = 47;
+    /// Stone bridge: s = span, w = deck width, h = arch, y = left end, d = right end height.
+    pub const BRIDGE: u8 = 48;
 }
 
 pub fn parse(bytes: &[u8]) -> Result<Vec<Prop>, String> {
@@ -86,6 +90,8 @@ fn reach(p: &Prop) -> f32 {
         kind::PEAK => 6.0 * p.s,
         0..=4 => p.s * 0.5,
         kind::WALL_BLOCK => p.w.max(p.d),
+        kind::RIVER_WALL => p.s,
+        kind::BRIDGE => p.s * 0.5 + 1.0,
         _ => 2.0,
     }
 }
@@ -175,7 +181,7 @@ pub fn draw(fb: &mut Framebuffer, cam: &Camera, props: &[Prop], cam_y: f32, time
         let base = v3(p.x, p.y - cam_y, p.z);
         let sp = cam.project(base);
         let pad = reach(p) * 40.0 + 40.0;
-        let tall = match p.kind { kind::PEAK => p.h * HEIGHT_PX + 40.0, 0..=4 => p.s * HEIGHT_PX + 20.0, _ => 120.0 };
+        let tall = match p.kind { kind::BRIDGE => 120.0 + p.s * 16.0, kind::PEAK => p.h * HEIGHT_PX + 40.0, 0..=4 => p.s * HEIGHT_PX + 20.0, _ => 120.0 };
         if sp.x < -pad || sp.x > w + pad || sp.y < -pad || sp.y - tall > h + pad {
             continue;
         }
@@ -190,6 +196,39 @@ fn draw_one(c: &mut Ctx, p: &Prop, time: f32) {
     let s = p.s;
     let up = |c: &Ctx, y: f32| c.p(0.0, y, 0.0);
     match p.kind {
+        kind::RIVER_WALL => {
+            // body sunk a little into the bank, darker coping course on top
+            c.boxy(0.0, -0.2, 0.0, p.w, p.h + 0.2, p.s, BANK_L, BANK, BANK_D);
+            c.boxy(0.0, p.h, 0.0, p.w + 0.06, p.d, p.s + 0.02, BANK, BANK_D, BANK_DD);
+        }
+        kind::BRIDGE => {
+            let n = 12;
+            let curve = |t: f32| {
+                let t = t.clamp(0.0, 1.0);
+                (p.d - p.y) * t + p.h.max(0.0) * 4.0 * t * (1.0 - t)
+            };
+            let seg = p.s / n as f32;
+            for i in 0..n {
+                let t = (i as f32 + 0.5) / n as f32;
+                let fz = -p.s * 0.5 + seg * (i as f32 + 0.5);
+                let y = curve(t);
+                // deck slab
+                c.boxy(0.0, y - 0.22, fz, p.w, 0.22, seg + 0.04, BANK_L, BANK, BANK_D);
+                // parapets
+                for side in [-1.0f32, 1.0] {
+                    c.boxy(side * (p.w * 0.5 - 0.12), y, fz, 0.24, 0.42, seg + 0.04, BANK, BANK_D, BANK_DD);
+                }
+            }
+            // end posts
+            for (t, fz) in [(0.0f32, -p.s * 0.5), (1.0, p.s * 0.5)] {
+                for side in [-1.0f32, 1.0] {
+                    c.boxy(side * (p.w * 0.5 - 0.12), curve(t), fz, 0.38, 0.62, 0.38, BANK_L, BANK, BANK_D);
+                }
+            }
+            // pier under mid-span down to the river bed
+            let mid = curve(0.5);
+            c.boxy(0.0, -1.2, 0.0, p.w * 0.8, mid + 1.0, 0.7, BANK, BANK_D, BANK_DD);
+        }
         kind::PINE | kind::SPRUCE | kind::CYPRESS => {
             let (d, m, l) = match p.kind {
                 kind::CYPRESS => (CYP_D, CYP, PINE),

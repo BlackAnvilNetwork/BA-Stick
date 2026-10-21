@@ -15,6 +15,18 @@ import {
   paleHollowInBuildingClearing,
   paleHollowInOpenWater,
   paleHollowStandHeight,
+  PH_BRIDGE_DECK_W,
+  PH_BRIDGE_SITES,
+  PH_RIVER_MAIN,
+  PH_RIVER_TRIB,
+  PH_RIVER_WALL,
+  paleHollowBankPoint,
+  paleHollowBridgeGeom,
+  paleHollowInBridgeWallVisualGap,
+  paleHollowRiverCenterX,
+  paleHollowTributaryCenterX,
+  paleHollowTerrainMeshY,
+  type PaleHollowRiverKind,
 } from "@bellgrave/config";
 
 /** Must match `PropKind` in engine/ba-stick-render/src/props.rs. */
@@ -22,7 +34,7 @@ export const K = {
   pine: 0, spruce: 1, cypress: 2, ashMed: 3, ashTall: 4,
   longGrass: 10, tallPatch: 11, fern: 12, tuft: 13, bush: 14, rock: 15, stalk: 16, reed: 17, scrub: 18, bloom: 19, sapling: 20,
   wallBlock: 30, moss: 31, firePit: 32, tent: 33, bedroll: 34, crate: 35, chest: 36, leanTo: 37, trainer: 38, stall: 39,
-  weaponRack: 40, firewood: 41, barrel: 42, banner: 43, stone: 44, pebble: 45, peak: 46,
+  weaponRack: 40, firewood: 41, barrel: 42, banner: 43, stone: 44, pebble: 45, peak: 46, riverWall: 47, bridge: 48,
 } as const;
 
 export type Prop = { kind: number; v: number; x: number; z: number; y: number; yaw: number; s: number; w: number; h: number; d: number };
@@ -189,8 +201,52 @@ function peaks(out: Prop[]): void {
   }
 }
 
+/** Bank retaining walls + bowl ends + stone bridges (old PaleHollowRiverBanks). */
+function riverBanks(out: Prop[]): void {
+  const wall = (a: { x: number; z: number }, b: { x: number; z: number }, pad: number) => {
+    const x = (a.x + b.x) * 0.5, z = (a.z + b.z) * 0.5;
+    const len = Math.hypot(b.x - a.x, b.z - a.z);
+    if (len < 0.15 || !Number.isFinite(x) || !Number.isFinite(z)) return;
+    out.push({ kind: K.riverWall, v: 0, x, z, y: paleHollowTerrainMeshY(x, z) + 0.04, yaw: Math.atan2(b.x - a.x, b.z - a.z), s: len + pad, w: PH_RIVER_WALL.thick, h: PH_RIVER_WALL.h, d: PH_RIVER_WALL.copeH });
+  };
+  const runs: [PaleHollowRiverKind, (z: number) => number, { z0: number; z1: number; bankDist: number }, number][] = [
+    ["main", paleHollowRiverCenterX, PH_RIVER_MAIN, 1.15],
+    ["tributary", paleHollowTributaryCenterX, PH_RIVER_TRIB, 1.25],
+  ];
+  for (const [river, centerX, r, step] of runs) {
+    const zs: number[] = [];
+    for (let z = r.z0; z <= r.z1; z += step) zs.push(z);
+    if (zs[zs.length - 1]! < r.z1 - 0.01) zs.push(r.z1);
+    for (const side of [-1, 1] as const) {
+      const pts = zs.map((z) => paleHollowBankPoint(river, z, side));
+      for (let i = 0; i < pts.length - 1; i++) {
+        const a = pts[i]!, b = pts[i + 1]!;
+        if (paleHollowInBridgeWallVisualGap((a.x + b.x) / 2, (a.z + b.z) / 2, river)) continue;
+        wall(a, b, 0.12);
+      }
+    }
+    // semicircular bowls closing each channel end
+    for (const [zEnd, outward] of [[r.z0, -1], [r.z1, 1]] as const) {
+      const eps = 0.85;
+      const tx = centerX(zEnd + eps) - centerX(zEnd - eps), tz = eps * 2, tl = Math.hypot(tx, tz) || 1;
+      const fx = tx / tl, fz = tz / tl, rx = -fz, rz = fx, ox = fx * outward, oz = fz * outward, cx = centerX(zEnd);
+      const n = Math.max(12, Math.round((Math.PI * r.bankDist) / 0.8));
+      const pts = Array.from({ length: n + 1 }, (_, i) => {
+        const th = Math.PI * (1 - i / n), c = Math.cos(th), s = Math.sin(th);
+        return { x: cx + r.bankDist * (c * rx + s * ox), z: zEnd + r.bankDist * (c * rz + s * oz) };
+      });
+      for (let i = 0; i < n; i++) wall(pts[i]!, pts[i + 1]!, 0.16);
+    }
+  }
+  for (const site of PH_BRIDGE_SITES) {
+    const g = paleHollowBridgeGeom(site);
+    out.push({ kind: K.bridge, v: 0, x: g.x, z: g.zWorld, y: g.leftY, yaw: Math.atan2(g.spanDir.x, g.spanDir.z), s: g.span, w: PH_BRIDGE_DECK_W, h: g.arch, d: g.rightY });
+  }
+}
+
 export function paleHollowProps(): Prop[] {
   const out: Prop[] = [];
+  riverBanks(out);
   hub(out);
   peaks(out);
   trees(out);

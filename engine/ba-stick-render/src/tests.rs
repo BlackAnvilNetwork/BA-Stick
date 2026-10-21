@@ -234,3 +234,39 @@ fn telegraph_radius_matches_cast_aoe() {
     }
     assert!(!near(aoe + 0.6, 0.0));
 }
+
+#[test]
+fn wading_hides_legs_in_water_but_not_on_bridges() {
+    // left half water, a bridge strip at i == 5
+    let bytes = tiny_zone(40, 40, |i, _| (13, if i == 5 { zone::F_WATER | zone::F_BRIDGE } else if i < 10 { zone::F_WATER } else { 0 }, 0));
+    let mut s = Scene::new(320, 180);
+    s.load_zone(&bytes).unwrap();
+    // zone x = -2 + i*0.5 → i 0..9 water, i 5 bridge (x 0.5..1.0)
+    s.upsert_unit("w", unit(0.0, 5.0, "idle", "knight"));
+    s.upsert_unit("b", unit(0.75, 8.0, "idle", "knight"));
+    s.upsert_unit("d", unit(10.0, 5.0, "idle", "knight"));
+    s.tick(0.0);
+    assert!(s.is_wading("w"));
+    assert!(!s.is_wading("b"));
+    assert!(!s.is_wading("d"));
+    // the wading unit draws fewer body pixels than the same unit on dry land
+    let count = |s: &Scene, id: &str| {
+        let (x, top, feet) = s.anchor(id).unwrap();
+        let mut n = 0;
+        for y in top.max(0.0) as usize..(feet as usize + 2).min(s.fb.h) {
+            for xx in (x - 10.0).max(0.0) as usize..(x + 10.0) as usize {
+                if s.fb.depth[y * s.fb.w + xx] < f32::INFINITY { n += 1; }
+            }
+        }
+        n
+    };
+    s.follow(Some("w"));
+    for _ in 0..30 { s.tick(1.0 / 60.0); }
+    s.draw();
+    let wet = count(&s, "w");
+    s.follow(Some("d"));
+    for _ in 0..30 { s.tick(1.0 / 60.0); }
+    s.draw();
+    let dry = count(&s, "d");
+    assert!(wet < dry, "wet={wet} dry={dry}");
+}
