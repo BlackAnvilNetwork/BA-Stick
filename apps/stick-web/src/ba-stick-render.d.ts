@@ -7,6 +7,7 @@ declare module "ba-stick-render" {
     loadZone(bytes: Uint8Array): void;
     clearZone(): void;
     loadProps(bytes: Uint8Array): number;
+    addFloater(id: string, kind: number, value: number): void;
     zoneHeight(x: number, z: number): number;
     setCamera(x: number, z: number): void;
     follow(id?: string): void;

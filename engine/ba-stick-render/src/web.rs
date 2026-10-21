@@ -37,6 +37,13 @@ impl StickRenderer {
         self.scene.load_props(bytes).map_err(|e| JsValue::from_str(&e))
     }
 
+    /// Floating combat number over a unit. kind: 0 damage, 1 damage to self,
+    /// 2 heal, 3 crit, 4 miss.
+    #[wasm_bindgen(js_name = addFloater)]
+    pub fn add_floater(&mut self, id: &str, kind: u8, value: u32) {
+        self.scene.add_floater(id, kind, value);
+    }
+
     #[wasm_bindgen(js_name = clearZone)]
     pub fn clear_zone(&mut self) { self.scene.clear_zone(); }
 

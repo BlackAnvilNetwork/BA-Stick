@@ -145,7 +145,7 @@ fn mob(arch: &str) -> RigPreset {
     use crate::palette::*;
     let biped = |f: &dyn Fn(&mut Proportions, &mut Look)| with(|p, l| f(p, l));
     match arch {
-        "dust_hare" => RigPreset { body: Body::Quadruped { size: 0.85, hop: true, tusks: false, body: CR_HARE, far: CR_HARE_FAR }, weapon: Weapon::None, ..with(|_, _| {}) },
+        "dust_hare" => RigPreset { body: Body::Quadruped { size: 0.95, hop: true, tusks: false, body: CR_HARE, far: CR_HARE_FAR }, weapon: Weapon::None, ..with(|_, _| {}) },
         "ashbeam_boar" => RigPreset { body: Body::Quadruped { size: 1.35, hop: false, tusks: true, body: CR_BOAR, far: CR_BOAR_FAR }, weapon: Weapon::None, ..with(|_, _| {}) },
         "pale_slime" => RigPreset { body: Body::Blob { size: 1.3, body: CR_SLIME, far: CR_SLIME_FAR }, weapon: Weapon::None, ..with(|_, _| {}) },
         "cliff_adder" => RigPreset { body: Body::Serpent { size: 1.5, body: CR_ADDER }, weapon: Weapon::None, ..with(|_, _| {}) },

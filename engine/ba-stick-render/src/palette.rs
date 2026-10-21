@@ -73,6 +73,14 @@ pub const CR_SLIME_FAR: u8 = 96;
 pub const CR_ADDER: u8 = 97;
 pub const CR_WIGHT: u8 = 98;
 pub const CR_TUSK: u8 = 99;
+/// Floating combat numbers (#45).
+pub const FN_DMG: u8 = 132;
+pub const FN_SELF: u8 = 133;
+pub const FN_HEAL: u8 = 134;
+pub const FN_CRIT: u8 = 135;
+pub const FN_MISS: u8 = 136;
+pub const FLOAT: [(u8, u32); 5] = [(FN_DMG, 0xf6eedc), (FN_SELF, 0xe8503c), (FN_HEAL, 0x72e07c), (FN_CRIT, 0xffa832), (FN_MISS, 0xa6a2b4)];
+
 /// Prop colours (100..148): foliage, ground cover, stone, wood, cloth, fire.
 pub const PROP: [(u8, u32); 32] = [
     (PINE_D, 0x1f3a2c), (PINE, 0x2e5238), (PINE_L, 0x46704a),
@@ -147,7 +155,7 @@ pub fn palette() -> [u32; 256] {
     for (k, c) in [0x2c5d78u32, 0x336a86, 0x3b7792, 0x336a86].iter().enumerate() {
         p[WATER as usize + k] = *c;
     }
-    for &(i, c) in FX.iter().chain(PROP.iter()) {
+    for &(i, c) in FX.iter().chain(PROP.iter()).chain(FLOAT.iter()) {
         p[i as usize] = c;
     }
     for c in (0u8..16).chain(80..100) {

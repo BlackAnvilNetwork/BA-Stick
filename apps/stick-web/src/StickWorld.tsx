@@ -7,6 +7,7 @@ import { NpcInteractMenu } from "@bellgrave/ui/NpcInteractMenu";
 import { clearKeyboardMove, setKeyboardMoveKey, type MoveKeys } from "@bellgrave/ui/moveInput";
 import { FB_H, FB_W, bakedZoneFor, createRenderer, fetchProps, fetchZone, fromFramebuffer, toFramebuffer } from "./renderer";
 import { staticAt } from "./statics";
+import { CombatFloaters } from "./floaters";
 import { syncUnits } from "./units";
 import { getMoveKeys, wasdTarget } from "./input";
 import { CastClock, sameId, unitFx } from "./fx";
@@ -53,6 +54,7 @@ export function StickWorld() {
       let hovered: string | null = null;
       const known = new Set<string>();
       const casts = new CastClock();
+      const floats = new CombatFloaters();
       const edges = new AnimEdges();
       const labels = new Labels(labelsRef.current!);
       let wasdAccum = 0;
@@ -151,6 +153,7 @@ export function StickWorld() {
           for (const id of known) r.removeUnit(id);
           known.clear();
           lastSnap = null;
+          floats.reset();
           if (!first) fade(fadeRef.current);
           const want = bakedZoneFor(zid);
           if (want !== zoneLoaded) {
@@ -168,6 +171,7 @@ export function StickWorld() {
           lastSnap = snap;
           syncUnits(r, snap.units, known, Date.now());
           casts.forget(known);
+          for (const ev of floats.scan(snap.units, myUnit(), snap.log ?? [], Date.now())) if (known.has(ev.id)) r.addFloater(ev.id, ev.kind, ev.value);
           const me0 = myUnit();
           for (const ev of edges.scan(snap.units, me0, Date.now())) {
             if (ev.kind === "enemySwing") playEnemySwing(ev.volume);
