@@ -63,6 +63,9 @@ const JOB_SPELL: Record<string, string> = {
 /** Instant categories play on send; spells wait for the cast window. */
 const SPELL_PREFIX = /^(sc_|cl_|kn_|bm_|cure|haste|slow|gravity|bind|dispel|distract|frazzle|addle|paralyga|silencega|quicken|tempo|allegro)/;
 
+/** Rising burst at the caster when a cast window opens (old client `castBurst`). */
+export const CAST_BURST: VfxStep = { prim: "burst", at: "self", color: "physical", count: 16, radius: 0.45, rise: true };
+
 type Pending = { id: string; target?: string | null; at: number; started: boolean };
 
 export class VfxDirector {
@@ -102,6 +105,11 @@ export class VfxDirector {
           const color = u.kind === "mob" ? "enfeeble" : JOB_SPELL[u.job ?? ""] ?? "physical";
           out.push({ steps: [{ prim: "projectile", at: "target", color, count: 18 }], from: u.id, to: prev.target });
         }
+      }
+      // Cast burst on the caster at each cast start, players and enemies (old castBurst, F36).
+      if (u.anim === "cast" && (!prev || prev.anim !== "cast" || u.animUntil > prev.until + 1)) {
+        const color = u.kind === "mob" ? "enfeeble" : JOB_SPELL[u.job ?? ""] ?? "physical";
+        out.push({ steps: [{ ...CAST_BURST, color }], from: u.id, to: null });
       }
       if (u.anim === "melee" && (!prev || prev.anim !== "melee" || u.animUntil > prev.until) && u.targetId) {
         out.push({ steps: VFX.melee, from: u.id, to: u.targetId });
