@@ -22,6 +22,7 @@ import {
   PH_RIVER_WALL,
   paleHollowBankPoint,
   paleHollowBridgeGeom,
+  paleHollowBridgeDeckY,
   paleHollowInBridgeWallVisualGap,
   paleHollowRiverCenterX,
   paleHollowTributaryCenterX,
@@ -258,7 +259,7 @@ function riverBanks(out: Prop[]): void {
   }
   for (const site of PH_BRIDGE_SITES) {
     const g = paleHollowBridgeGeom(site);
-    out.push({ kind: K.bridge, v: 0, x: g.x, z: g.zWorld, y: g.leftY, yaw: Math.atan2(g.spanDir.x, g.spanDir.z), s: g.span, w: PH_BRIDGE_DECK_W, h: g.arch, d: g.rightY });
+    out.push({ kind: K.bridge, v: Math.round(g.ramp * 200), x: g.x, z: g.zWorld, y: g.leftY, yaw: Math.atan2(g.spanDir.x, g.spanDir.z), s: g.span, w: PH_BRIDGE_DECK_W, h: g.arch, d: g.rightY });
   }
 }
 
@@ -287,4 +288,25 @@ export function encodeProps(props: Prop[]): Buffer {
     }
   });
   return buf;
+}
+
+/**
+ * Bridge walk heights sampled from the shared config (the server's stand
+ * height) next to each bridge prop as baked for the client. Checked in at
+ * `src/content/bridge-profile.json`; `src/bake-props.test.ts` keeps it in sync
+ * with config and the renderer's Rust test checks its mesh against it.
+ */
+export function bridgeProfileSamples() {
+  return PH_BRIDGE_SITES.map((site) => {
+    const g = paleHollowBridgeGeom(site);
+    const prop = paleHollowProps().find((p) => p.kind === K.bridge && Math.abs(p.x - g.x) < 1e-6 && Math.abs(p.z - g.zWorld) < 1e-6)!;
+    const samples = Array.from({ length: 21 }, (_, i) => {
+      const t = i / 20;
+      // stay a hair inside the footprint at the ends
+      const a = (Math.min(0.999, Math.max(0.001, t)) - 0.5) * g.span;
+      const x = g.x + g.spanDir.x * a, z = g.zWorld + g.spanDir.z * a;
+      return { t: Math.min(0.999, Math.max(0.001, t)), y: paleHollowBridgeDeckY(x, z)!, stand: paleHollowStandHeight(x, z) };
+    });
+    return { id: site.id, prop: { v: prop.v, y: prop.y, s: prop.s, w: prop.w, h: prop.h, d: prop.d }, samples };
+  });
 }

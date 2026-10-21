@@ -448,7 +448,7 @@ fn bridge_deck_is_one_continuous_ribbon() {
     use stick_engine::raster::Framebuffer;
     let cam = Camera::new(640, 360);
     let mut fb = Framebuffer::new(640, 360);
-    // 10 m span along z, 3.9 m deck, 0.6 m arch, level ends
+    // 10 m span along z, 3.9 m deck, 0.6 m flat-deck lift, level ends, 0.3 ramps
     let p = Prop { kind: kind::BRIDGE, var: 0, x: 0.0, z: 0.0, y: 0.0, yaw: 0.0, s: 10.0, w: 3.9, h: 0.6, d: 0.0, j: [0.0; 6] };
     draw(&mut fb, &cam, &[p], 0.0, 0.0);
     // Walk the deck centre line: every sample is lit deck, with no slab seam or
@@ -456,7 +456,7 @@ fn bridge_deck_is_one_continuous_ribbon() {
     let mut seams = 0;
     for i in 1..40 {
         let t = i as f32 / 40.0;
-        let y = 0.6 * 4.0 * t * (1.0 - t);
+        let y = crate::props::bridge_curve(&p, t);
         let q = cam.project(v3(0.0, y + 0.01, -5.0 + 10.0 * t));
         let c = fb.color[q.y as usize * fb.w + q.x as usize];
         if c != TRAIL_STONE {
@@ -466,3 +466,41 @@ fn bridge_deck_is_one_continuous_ribbon() {
     assert_eq!(seams, 0, "deck centre line crosses {seams} non-deck pixels");
 }
 
+
+#[test]
+fn bridge_mesh_matches_server_walk_height() {
+    // apps/stick-web/src/content/bridge-profile.json holds, per Pale Hollow bridge,
+    // the baked prop and the server's stand height (@bellgrave/config) along the span.
+    use crate::props::{bridge_curve, kind, Prop};
+    let raw = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../apps/stick-web/src/content/bridge-profile.json")).unwrap();
+    // The fixture is pretty-printed one key per line; read `"key": number` pairs in order.
+    let kv = raw.lines().filter_map(|l| {
+        let (k, v) = l.trim().trim_end_matches(',').split_once(": ")?;
+        Some((k.trim_matches('"').to_string(), v.parse::<f64>().ok()?))
+    });
+    let mut p = Prop { kind: kind::BRIDGE, var: 0, x: 0.0, z: 0.0, y: 0.0, yaw: 0.0, s: 0.0, w: 0.0, h: 0.0, d: 0.0, j: [0.0; 6] };
+    let (mut n, mut t) = (0, 0.0f32);
+    for (k, v) in kv {
+        let v32 = v as f32;
+        match k.as_str() {
+            "v" => p.var = v as u8,
+            "s" => p.s = v32,
+            "w" => p.w = v32,
+            "h" => p.h = v32,
+            "d" => p.d = v32,
+            "t" => t = v32,
+            "stand" => {
+                let mesh = p.y + bridge_curve(&p, t);
+                assert!((mesh - v32).abs() < 1e-3, "bridge #{} t={t}: mesh {mesh} vs server {v32}", n / 21);
+                n += 1;
+            }
+            // `y` is the prop's left-end height before the samples, a deck sample after `t`
+            "y" if t == 0.0 => p.y = v32,
+            _ => {}
+        }
+        if k == "stand" && n % 21 == 0 {
+            t = 0.0;
+        }
+    }
+    assert!(n >= 7 * 21);
+}
