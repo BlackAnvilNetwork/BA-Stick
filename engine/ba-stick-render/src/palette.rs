@@ -84,6 +84,14 @@ pub const BANK_DD: u8 = 137;
 pub const BANK_D: u8 = 138;
 pub const BANK: u8 = 139;
 pub const BANK_L: u8 = 140;
+/// Canine (scavenger dog): orange-brown strokes, golden-tan fill, dark spot.
+pub const CR_DOG: u8 = 142;
+pub const CR_DOG_FAR: u8 = 143;
+pub const CR_DOG_FILL: u8 = 144;
+pub const CR_DOG_SPOT: u8 = 145;
+pub const CR_TEETH: u8 = 146;
+pub const CR_NOSE: u8 = 147;
+pub const CANINE: [(u8, u32); 6] = [(CR_DOG, 0xc4561c), (CR_DOG_FAR, 0x8e3c14), (CR_DOG_FILL, 0xb8860e), (CR_DOG_SPOT, 0x9a3a12), (CR_TEETH, 0xf4f1e6), (CR_NOSE, 0x141014)];
 pub const MASONRY: [(u8, u32); 4] = [(BANK_DD, 0x4e575c), (BANK_D, 0x6f7a80), (BANK, 0x8e9a9e), (BANK_L, 0xa8b2b6)];
 pub const FLOAT: [(u8, u32); 5] = [(FN_DMG, 0xf6eedc), (FN_SELF, 0xe8503c), (FN_HEAL, 0x72e07c), (FN_CRIT, 0xffa832), (FN_MISS, 0xa6a2b4)];
 
@@ -161,7 +169,7 @@ pub fn palette() -> [u32; 256] {
     for (k, c) in [0x2c5d78u32, 0x336a86, 0x3b7792, 0x336a86].iter().enumerate() {
         p[WATER as usize + k] = *c;
     }
-    for &(i, c) in FX.iter().chain(PROP.iter()).chain(FLOAT.iter()).chain(MASONRY.iter()) {
+    for &(i, c) in FX.iter().chain(PROP.iter()).chain(FLOAT.iter()).chain(MASONRY.iter()).chain(CANINE.iter()) {
         p[i as usize] = c;
     }
     for c in (0u8..16).chain(80..100) {

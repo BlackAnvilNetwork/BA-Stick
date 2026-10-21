@@ -58,6 +58,8 @@ pub enum Body {
     Serpent { size: f32, body: u8 },
     /// Bouncing blob (Pale Slime).
     Blob { size: f32, body: u8, far: u8 },
+    /// Stick dog: angular torso, long snout, thin bent legs; trot + lunge.
+    Canine { size: f32 },
     /// Gather node marker (#30): 0 mine (ore rock), 1 harvest (herb), 2 fish (ripples).
     Node { method: u8 },
 }
@@ -161,11 +163,8 @@ fn mob(arch: &str) -> RigPreset {
         "ashbeam_boar" => RigPreset { body: Body::Quadruped { size: 1.35, hop: false, tusks: true, body: CR_BOAR, far: CR_BOAR_FAR }, weapon: Weapon::None, ..with(|_, _| {}) },
         "pale_slime" => RigPreset { body: Body::Blob { size: 1.3, body: CR_SLIME, far: CR_SLIME_FAR }, weapon: Weapon::None, ..with(|_, _| {}) },
         "cliff_adder" => RigPreset { body: Body::Serpent { size: 1.5, body: CR_ADDER }, weapon: Weapon::None, ..with(|_, _| {}) },
-        "hollow_scavenger" => {
-            let mut p = biped(&|p, l| { p.limb_px = 2.0; p.sword = 0.5; p.spine *= 0.9; l.body = C_DUST; l.far = C_STONE_FAR; l.accent = C_HILT; });
-            p.weapon = Weapon::Sword;
-            p
-        }
+        // No canine archetype exists server-side; the scavenger is drawn as one.
+        "hollow_scavenger" => RigPreset { body: Body::Canine { size: 1.0 }, weapon: Weapon::None, ..with(|_, _| {}) },
         "ruin_dweller" => biped(&|p, l| { p.limb_px = 2.4; p.sword = 0.7; l.body = C_STONE; l.far = C_STONE_FAR; l.accent = C_ACCENT; }),
         "seam_golem" => {
             let mut p = biped(&|p, l| {
