@@ -47,6 +47,20 @@ pub const WATER_BODY: u8 = WATER + 1;
 pub const WATER_FOAM: u8 = WATER + 2;
 /// W2/W3 shoreline band (fraction of a cell) and coverage at the bank.
 pub const SHORE_BAND: (f32, f32) = (0.3, 0.7);
+/// SE-bank foam reaches half a cell so it still reads at 3× upscale.
+pub const FOAM_BAND: f32 = 0.5;
+
+/// Low-frequency swell phase: a hash per 4×4-cell block, bilinearly blended
+/// so neighbouring blocks don't seam. Phase only: a per-block speed would make
+/// the field drift apart over time.
+pub fn swell_phase(i: i32, j: i32) -> f32 {
+    let (bi, bj) = (i.div_euclid(4), j.div_euclid(4));
+    let (fi, fj) = (i.rem_euclid(4) as f32 / 4.0, j.rem_euclid(4) as f32 / 4.0);
+    let r = |a: i32, b: i32| (cell_hash(a, b) & 0xffff) as f32 / 65535.0;
+    let lerp = |a: f32, b: f32, t: f32| a + (b - a) * t;
+    let v = lerp(lerp(r(bi, bj), r(bi + 1, bj), fi), lerp(r(bi, bj + 1), r(bi + 1, bj + 1), fi), fj);
+    v * std::f32::consts::TAU * 0.6
+}
 
 /// Land (not water, not bridge) at (i, j). Out of bounds counts as water.
 #[inline]
@@ -105,7 +119,8 @@ fn fill_tri_edge(fb: &mut Framebuffer, a: P2, b: P2, c: P2, ua: (f32, f32), ub: 
             let (mut best, mut col) = (0.0f32, own);
             for (n, d) in nb.iter().zip([u, 1.0 - u, v, 1.0 - v]) {
                 if let Some(nc) = n {
-                    let cov = (edge_band - d) * k;
+                    let eb = if *nc == WATER_FOAM { FOAM_BAND } else { edge_band };
+                    let cov = (eb - d) * k;
                     if cov > best {
                         best = cov;
                         col = *nc;
@@ -156,7 +171,8 @@ fn cell_color(z: &Zone, i: i32, j: i32, time: f32, shade: u8) -> u8 {
     if f & F_WATER != 0 {
         // W1: calm body in two tones; a slow diagonal swell (~6 cells) instead
         // of a per-cell checker.
-        let swell = ((i + j) as f32 * (std::f32::consts::TAU / 6.0) - time * 1.1).sin();
+        let ph = swell_phase(i, j);
+        let swell = ((i + j) as f32 * (std::f32::consts::TAU / 6.0) + ph - time * 1.1).sin();
         return if swell > 0.55 { WATER_DEEP } else { WATER_BODY };
     }
     if f & F_BRIDGE != 0 {
