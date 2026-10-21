@@ -7,6 +7,7 @@ import { connectSocket, send } from "@bellgrave/client-core/net";
 import { useGame } from "@bellgrave/client-core/state";
 import { enterZoneMusic, unlockZoneMusic } from "@bellgrave/ui/zoneMusic";
 import { unlockCombatSfx } from "@bellgrave/ui/combatSfx";
+import { toggleMinimap } from "@bellgrave/ui/uiSettings";
 import { StickWorld } from "./StickWorld";
 
 /** The @bellgrave/ui shell around the Stick Engine canvas. */
@@ -51,6 +52,7 @@ export function App() {
       if (e.key === "b" || e.key === "B") window.dispatchEvent(new CustomEvent("bellgrave:toggle-bag"));
       if (e.key === "k" || e.key === "K") window.dispatchEvent(new CustomEvent("bellgrave:toggle-spellbook"));
       if (e.key === "c" || e.key === "C") window.dispatchEvent(new CustomEvent("bellgrave:toggle-craft"));
+      if (e.code === "KeyM" && !e.ctrlKey && !e.metaKey && !e.altKey) toggleMinimap();
       if (e.key === "Escape") {
         if (useGame.getState().npcDialog) useGame.getState().setNpcDialog(null);
         else send({ type: "disengage" });

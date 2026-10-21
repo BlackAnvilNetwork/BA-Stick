@@ -84,3 +84,13 @@ test("view and pixel default and persist", () => {
   assert.equal(document.documentElement.dataset.uiView, "3d");
   assert.equal(document.documentElement.dataset.uiPixel, "smooth");
 });
+
+test("minimap defaults on, toggles, and persists", async () => {
+  const { toggleMinimap } = await import("./uiSettings");
+  assert.equal(loadUiSettings().minimap, true);
+  assert.equal(toggleMinimap().minimap, false);
+  assert.equal(loadUiSettings().minimap, false);
+  assert.equal((document.documentElement.dataset as Record<string, string>).uiMinimap, "off");
+  assert.equal(toggleMinimap().minimap, true);
+  assert.equal(JSON.parse(store.get(UI_SETTINGS_KEY)!).minimap, true);
+});

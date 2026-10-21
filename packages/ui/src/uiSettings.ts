@@ -20,6 +20,8 @@ export type UiSettings = {
   layout: UiLayoutId;
   view: UiViewId;
   pixel: UiPixelId;
+  /** Minimap overlay on/off (M key or Settings). */
+  minimap: boolean;
 };
 
 export const UI_VIEW_OPTIONS: { id: UiViewId; label: string }[] = [
@@ -62,7 +64,7 @@ export const UI_FONT_OPTIONS: { id: UiFontId; label: string; sample: string }[] 
   { id: "georgia", label: "Georgia", sample: "Aa Bb 123" },
 ];
 
-const DEFAULTS: UiSettings = { color: "gold", font: "cinzel", layout: "regular", view: "iso", pixel: "crisp" };
+const DEFAULTS: UiSettings = { color: "gold", font: "cinzel", layout: "regular", view: "iso", pixel: "crisp", minimap: true };
 
 function isColor(v: unknown): v is UiColorId {
   return typeof v === "string" && UI_COLOR_OPTIONS.some((o) => o.id === v);
@@ -87,6 +89,7 @@ export function loadUiSettings(): UiSettings {
       layout: isLayout(parsed.layout) ? parsed.layout : DEFAULTS.layout,
       view: parsed.view === "3d" || parsed.view === "iso" ? parsed.view : DEFAULTS.view,
       pixel: parsed.pixel === "smooth" || parsed.pixel === "crisp" ? parsed.pixel : DEFAULTS.pixel,
+      minimap: typeof parsed.minimap === "boolean" ? parsed.minimap : DEFAULTS.minimap,
     };
   } catch {
     return { ...DEFAULTS };
@@ -105,12 +108,26 @@ export function applyUiSettings(settings: UiSettings): void {
   root.dataset.uiLayout = settings.layout;
   root.dataset.uiView = settings.view;
   root.dataset.uiPixel = settings.pixel;
+  root.dataset.uiMinimap = settings.minimap ? "on" : "off";
   root.style.setProperty("--ui-font", UI_FONT_STACKS[settings.font]);
 }
 
 export function persistAndApplyUiSettings(settings: UiSettings): void {
   saveUiSettings(settings);
   applyUiSettings(settings);
+}
+
+/** Fired on window after a setting changes outside the Settings panel (e.g. a hotkey). */
+export const UI_SETTINGS_EVENT = "bellgrave:ui-settings";
+
+/** Toggle the minimap (M key): persist, apply, and notify open panels. */
+export function toggleMinimap(): UiSettings {
+  const next = { ...loadUiSettings(), minimap: !loadUiSettings().minimap };
+  persistAndApplyUiSettings(next);
+  if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
+    window.dispatchEvent(new CustomEvent(UI_SETTINGS_EVENT));
+  }
+  return next;
 }
 
 /** True when Settings → Layout is Mobile (arcade sticks + clustered hotkeys). */
