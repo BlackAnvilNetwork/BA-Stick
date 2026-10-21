@@ -28,3 +28,5 @@ html, body, #root { margin: 0; width: 100%; height: 100%; background: #0d0b14; o
 @media (orientation: portrait) and (pointer: coarse) {
   .stick-canvas { object-fit: cover; }
 }
+
+html[data-ui-pixel="smooth"] .stick-canvas { image-rendering: auto; }

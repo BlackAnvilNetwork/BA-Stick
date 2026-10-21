@@ -36,3 +36,15 @@ export function rosterUnits(t: number): DemoUnit[] {
     return { id: preset, x: (col - 2) * 2.4 + row * 1.2 + dx, z: (row - 1) * 2.4 - (col - 2) * 1.2, facing: Math.PI / 2 + (row % 2 ? 0.6 : -0.3), anim: walk ? "walk" : "idle", preset };
   });
 }
+
+const CROWD_PRESETS = ["knight", "rogue", "time_mage/female", "mob:petrified_guard"];
+
+/** `n` units on a ring of lanes walking in circles, for the 200-unit perf target. */
+export function crowdUnits(n: number) {
+  const seeds = Array.from({ length: n }, (_, i) => ({ r: 3 + (i % 10) * 1.3, a0: (i * 2.399) % (Math.PI * 2), w: 0.25 + (i % 7) * 0.05 }));
+  return (t: number) =>
+    seeds.map((s, i) => {
+      const a = s.a0 + t * s.w;
+      return { id: `crowd:${i}`, x: Math.cos(a) * s.r, z: Math.sin(a) * s.r, facing: a + Math.PI / 2, anim: "walk", preset: CROWD_PRESETS[i % CROWD_PRESETS.length]! };
+    });
+}

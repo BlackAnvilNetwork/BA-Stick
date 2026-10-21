@@ -9,11 +9,27 @@ export type UiFontId = "source" | "cinzel" | "trebuchet" | "verdana" | "georgia"
 /** Regular = desktop HUD; Mobile = arcade sticks + hotkeys clustered for touch. */
 export type UiLayoutId = "regular" | "mobile";
 
+/** World camera (stick client): fixed iso or 3D perspective blend. */
+export type UiViewId = "iso" | "3d";
+/** Canvas upscaling: crisp pixels or smoothed. */
+export type UiPixelId = "crisp" | "smooth";
+
 export type UiSettings = {
   color: UiColorId;
   font: UiFontId;
   layout: UiLayoutId;
+  view: UiViewId;
+  pixel: UiPixelId;
 };
+
+export const UI_VIEW_OPTIONS: { id: UiViewId; label: string }[] = [
+  { id: "iso", label: "Isometric" },
+  { id: "3d", label: "3D" },
+];
+export const UI_PIXEL_OPTIONS: { id: UiPixelId; label: string }[] = [
+  { id: "crisp", label: "Crisp pixels" },
+  { id: "smooth", label: "Smooth" },
+];
 
 export const UI_LAYOUT_OPTIONS: { id: UiLayoutId; label: string; hint: string }[] = [
   { id: "regular", label: "Regular", hint: "Current desktop HUD & hotbar" },
@@ -46,7 +62,7 @@ export const UI_FONT_OPTIONS: { id: UiFontId; label: string; sample: string }[] 
   { id: "georgia", label: "Georgia", sample: "Aa Bb 123" },
 ];
 
-const DEFAULTS: UiSettings = { color: "gold", font: "cinzel", layout: "regular" };
+const DEFAULTS: UiSettings = { color: "gold", font: "cinzel", layout: "regular", view: "iso", pixel: "crisp" };
 
 function isColor(v: unknown): v is UiColorId {
   return typeof v === "string" && UI_COLOR_OPTIONS.some((o) => o.id === v);
@@ -69,6 +85,8 @@ export function loadUiSettings(): UiSettings {
       color: isColor(parsed.color) ? parsed.color : DEFAULTS.color,
       font: isFont(parsed.font) ? parsed.font : DEFAULTS.font,
       layout: isLayout(parsed.layout) ? parsed.layout : DEFAULTS.layout,
+      view: parsed.view === "3d" || parsed.view === "iso" ? parsed.view : DEFAULTS.view,
+      pixel: parsed.pixel === "smooth" || parsed.pixel === "crisp" ? parsed.pixel : DEFAULTS.pixel,
     };
   } catch {
     return { ...DEFAULTS };
@@ -85,6 +103,8 @@ export function applyUiSettings(settings: UiSettings): void {
   root.dataset.uiColor = settings.color;
   root.dataset.uiFont = settings.font;
   root.dataset.uiLayout = settings.layout;
+  root.dataset.uiView = settings.view;
+  root.dataset.uiPixel = settings.pixel;
   root.style.setProperty("--ui-font", UI_FONT_STACKS[settings.font]);
 }
 

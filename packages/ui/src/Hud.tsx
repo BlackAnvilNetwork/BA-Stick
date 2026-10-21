@@ -36,6 +36,8 @@ import {
   UI_FONT_STACKS,
   UI_LAYOUT_OPTIONS,
   UI_SETTINGS_KEY,
+  UI_PIXEL_OPTIONS,
+  UI_VIEW_OPTIONS,
   layoutUsesArcadeControls,
   loadUiSettings,
   persistAndApplyUiSettings,
@@ -1018,6 +1020,45 @@ export function Hud() {
               })}
             </div>
           </div>
+          {document.documentElement.dataset.renderer === "stick" && (
+            <div className="settings-section settings-card">
+              <div className="settings-section-label">View</div>
+              <div className="settings-option-grid" role="listbox" aria-label="Camera view">
+                {UI_VIEW_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    role="option"
+                    aria-selected={uiSettings.view === opt.id}
+                    className={`settings-option${uiSettings.view === opt.id ? " active" : ""}`}
+                    onClick={() => {
+                      const next = { ...uiSettings, view: opt.id };
+                      setUiSettings(next);
+                      persistAndApplyUiSettings(next);
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+                {UI_PIXEL_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    role="option"
+                    aria-selected={uiSettings.pixel === opt.id}
+                    className={`settings-option${uiSettings.pixel === opt.id ? " active" : ""}`}
+                    onClick={() => {
+                      const next = { ...uiSettings, pixel: opt.id };
+                      setUiSettings(next);
+                      persistAndApplyUiSettings(next);
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="settings-section settings-card">
             <div className="settings-section-label">Color</div>
             <div className="settings-option-grid" role="listbox" aria-label="UI color">
