@@ -26,6 +26,7 @@ import {
   paleHollowRiverCenterX,
   paleHollowTributaryCenterX,
   paleHollowTerrainMeshY,
+  paleHollowWaterSurfaceY,
   type PaleHollowRiverKind,
 } from "@bellgrave/config";
 
@@ -201,6 +202,9 @@ function peaks(out: Prop[]): void {
   }
 }
 
+/** Minimum height of a bank wall's coping above the water just inside it. */
+export const RIVER_WALL_FREEBOARD = 0.25;
+
 /** Bank retaining walls + bowl ends + stone bridges (old PaleHollowRiverBanks).
  * Segments run point to point with no overlap pad: the renderer miters shared
  * endpoints (props.rs `link_walls`) so joints and corners meet cleanly. */
@@ -209,7 +213,19 @@ function riverBanks(out: Prop[]): void {
     const x = (a.x + b.x) * 0.5, z = (a.z + b.z) * 0.5;
     const len = Math.hypot(b.x - a.x, b.z - a.z);
     if (len < 0.15 || !Number.isFinite(x) || !Number.isFinite(z)) return;
-    out.push({ kind: K.riverWall, v: 0, x, z, y: paleHollowTerrainMeshY(x, z) + 0.04, yaw: Math.atan2(b.x - a.x, b.z - a.z), s: len + pad, w: PH_RIVER_WALL.thick, h: PH_RIVER_WALL.h, d: PH_RIVER_WALL.copeH });
+    const y = paleHollowTerrainMeshY(x, z) + 0.04;
+    // Where the bank sits low, the river surface can stand above a standard
+    // wall's coping, so open water showed over the far wall as blue teeth.
+    // Raise the wall there so its coping keeps a freeboard above the water
+    // just inside it (visual only; collision is unchanged).
+    const nx = -(b.z - a.z) / len, nz = (b.x - a.x) / len;
+    let water = -Infinity;
+    for (const k of [-1, 1]) for (const d of [0.4, 0.8]) {
+      const wy = paleHollowWaterSurfaceY(x + nx * d * k, z + nz * d * k);
+      if (wy != null) water = Math.max(water, wy);
+    }
+    const h = Math.max(PH_RIVER_WALL.h, water + RIVER_WALL_FREEBOARD - PH_RIVER_WALL.copeH - y);
+    out.push({ kind: K.riverWall, v: 0, x, z, y, yaw: Math.atan2(b.x - a.x, b.z - a.z), s: len + pad, w: PH_RIVER_WALL.thick, h, d: PH_RIVER_WALL.copeH });
   };
   const runs: [PaleHollowRiverKind, (z: number) => number, { z0: number; z1: number; bankDist: number }, number][] = [
     ["main", paleHollowRiverCenterX, PH_RIVER_MAIN, 1.15],
