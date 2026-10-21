@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+
 //! Biped drawing: Stick Engine's rig layout with BA weapon variants and a
 //! death collapse. Mirrors `stick_engine::rig::draw` (same limb order and
 //! outline) so player figures look identical to the engine's.

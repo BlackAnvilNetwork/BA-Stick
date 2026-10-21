@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+
 //! BA-Stick renderer: a host-agnostic scene of server-driven units drawn as
 //! procedural stick figures with Stick Engine. The game loop, input and
 //! networking live in the TS shell (`apps/stick-web`); this crate only takes
