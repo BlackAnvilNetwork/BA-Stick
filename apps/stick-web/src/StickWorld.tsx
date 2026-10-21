@@ -12,6 +12,13 @@ import { CastClock, sameId, unitFx } from "./fx";
 import { routeUnitClick } from "./clicks";
 import { Labels, labelFor } from "./labels";
 import { AnimEdges } from "./sfx";
+import { ZONE_FADE_MS, ZoneTracker } from "./zones";
+
+/** Black fade-in after a zone change (#31). */
+function fade(el: HTMLDivElement | null) {
+  if (!el) return;
+  el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: ZONE_FADE_MS, easing: "ease-out" });
+}
 import { playEnemySwing, playJobSwing, playTemporalDistortion } from "@bellgrave/ui/combatSfx";
 
 /** Seconds between WASD move sends (legacy client: 0.05). */
@@ -26,6 +33,7 @@ export function StickWorld() {
   const ref = useRef<HTMLCanvasElement>(null);
   const labelsRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const fadeRef = useRef<HTMLDivElement>(null);
   const npcOpen = useGame((s) => s.npcDialog?.npcId ?? null);
 
   useEffect(() => {
@@ -38,6 +46,7 @@ export function StickWorld() {
       // Dev/test hook for headless checks (fb→client mapping lives in renderer.ts).
       if (import.meta.env.DEV) Object.assign(window, { __stick: { r, canvas, fromFramebuffer, send } });
       let zoneLoaded: string | null = null;
+      const zones = new ZoneTracker();
       let lastSnap: unknown = null;
       let followed: string | undefined;
       let hovered: string | null = null;
@@ -123,11 +132,21 @@ export function StickWorld() {
         last = now;
         const g = useGame.getState();
         const snap = g.snapshot;
-        const want = bakedZoneFor(snap?.you.zoneId);
-        if (want !== zoneLoaded) {
-          zoneLoaded = want;
-          if (!want) r.clearZone();
-          else void fetchZone(want).then((b) => { if (alive && zoneLoaded === want) r.loadZone(b); });
+        const zid = snap?.you.zoneId ?? null;
+        const zc = zones.update(zid);
+        if (zc.changed && zid) {
+          const first = zc.first;
+          // Zone change: drop every unit from the old zone, fade, load terrain.
+          for (const id of known) r.removeUnit(id);
+          known.clear();
+          lastSnap = null;
+          if (!first) fade(fadeRef.current);
+          const want = bakedZoneFor(zid);
+          if (want !== zoneLoaded) {
+            zoneLoaded = want;
+            if (!want) r.clearZone();
+            else void fetchZone(want).then((b) => { if (alive && zoneLoaded === want) r.loadZone(b); });
+          }
         }
         if (snap && snap !== lastSnap) {
           lastSnap = snap;
@@ -197,6 +216,7 @@ export function StickWorld() {
     <>
       <canvas ref={ref} className="stick-canvas" />
       <div ref={labelsRef} className="stick-labels" aria-hidden />
+      <div ref={fadeRef} className="stick-fade" aria-hidden />
       {npcOpen && (
         <div ref={menuRef} className="stick-npc-menu" style={{ visibility: "hidden" }}>
           <NpcInteractMenu />
