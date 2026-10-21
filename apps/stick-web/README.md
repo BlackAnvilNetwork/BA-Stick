@@ -14,3 +14,11 @@ M0 shows an offline demo scene (no server): a knight walking a circle, a mage, a
 rogue swinging, a pepeka vendor NPC and a mob.
 
 ![M0](../../docs/screens/m0.png)
+
+## Local end-to-end (unmodified server, local anvil only)
+
+```bash
+./scripts/dev-local-anvil.sh                 # anvil 31337 + MintFixture + server on :8787
+./engine/build-wasm.sh && pnpm --filter @bellgrave/stick-web dev   # http://localhost:5174
+```
+The boot, HUD and panels come from `@bellgrave/ui` (shared with apps/web). `?demo` shows the offline renderer demo.

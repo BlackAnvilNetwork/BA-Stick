@@ -19,7 +19,8 @@
       "@bellgrave/combat": ["../../packages/combat/src/index.ts"],
       "@bellgrave/config": ["../../packages/config/src/index.ts"],
       "@bellgrave/protocol": ["../../packages/protocol/src/index.ts"],
-      "@bellgrave/client-core/*": ["../../packages/client-core/src/*"]
+      "@bellgrave/client-core/*": ["../../packages/client-core/src/*"],
+      "@bellgrave/ui/*": ["../../packages/ui/src/*"]
     }
   },
   "include": ["src"],

@@ -37,14 +37,14 @@ import {
   getMoveKeys,
   setKeyboardMoveKey,
   type MoveKeys,
-} from "./moveInput";
+} from "@bellgrave/ui/moveInput";
 import { useGame } from "@bellgrave/client-core/state";
-import { playEnemySwing, playJobSwing, playTemporalDistortion } from "./combatSfx";
+import { playEnemySwing, playJobSwing, playTemporalDistortion } from "@bellgrave/ui/combatSfx";
 import { UnitStatusIcons } from "./UnitStatusIcons";
 import { QuarksVfxLayer, spawnVfx } from "./vfx";
 import { WorldPostFx } from "./worldPostFx";
 import { worldHtmlPortalRef } from "./worldHtml";
-import { NpcInteractMenu } from "./NpcInteractMenu";
+import { NpcInteractMenu } from "@bellgrave/ui/NpcInteractMenu";
 
 const QUICKEN_ORBS_PER_BELT = 3;
 const QUICKEN_BELT_COUNT = 2;

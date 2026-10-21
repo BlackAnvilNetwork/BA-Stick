@@ -13,9 +13,18 @@
   },
   "dependencies": {
     "@bellgrave/client-core": "workspace:*",
-    "@bellgrave/protocol": "workspace:*"
+    "@bellgrave/combat": "workspace:*",
+    "@bellgrave/config": "workspace:*",
+    "@bellgrave/protocol": "workspace:*",
+    "@bellgrave/ui": "workspace:*",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "zustand": "^5.0.3"
   },
   "devDependencies": {
+    "@types/react": "^19.0.12",
+    "@types/react-dom": "^19.0.4",
+    "@vitejs/plugin-react": "^4.3.4",
     "typescript": "^5.8.2",
     "vite": "^6.2.2"
   }

@@ -1,0 +1,15 @@
+import { StrictMode } from "react";
+import { createRoot } from "react-dom/client";
+// Side-effect: createAppKit at module scope (same as apps/web).
+import "@bellgrave/client-core/appkit-config";
+import { applyUiSettings, loadUiSettings } from "@bellgrave/ui/uiSettings";
+import "@bellgrave/ui/styles.css";
+import "./stick.css";
+import { App } from "./App";
+import { DemoApp } from "./DemoApp";
+
+applyUiSettings(loadUiSettings());
+
+// `?demo` keeps the offline renderer demo (no server) used for M0 screenshots.
+const demo = new URLSearchParams(location.search).has("demo");
+createRoot(document.getElementById("root")!).render(<StrictMode>{demo ? <DemoApp /> : <App />}</StrictMode>);
