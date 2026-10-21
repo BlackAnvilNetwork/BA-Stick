@@ -102,6 +102,7 @@ export async function startStack({ log = () => {} } = {}) {
     LOK_DATA_DIR: dataDir,
     LOK_CHAIN_ID: "31337",
     LOK_CHAIN_RPC: rpcUrl,
+    LOK_PUBLIC_RPC: rpcUrl,
     LOK_NFT: NFT,
     LOK_FACTORY: FACTORY,
     LOK_CHECKPOINT: CHECKPOINT,
@@ -128,7 +129,7 @@ export async function startStack({ log = () => {} } = {}) {
   let server = startServer();
   const waitListening = async () => {
     for (let i = 0; i < 600; i++) {
-      if (readFileSync(serverLog, "utf8").includes("listening") || (await portOpen(port))) return;
+      try { const r = await fetch(`http://127.0.0.1:${port}/ready`); if (r.ok) return; } catch {}
       await sleep(200);
     }
     throw new Error("server did not start; see " + serverLog);

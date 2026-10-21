@@ -101,6 +101,11 @@ export class GameClient {
     return ok;
   }
   async mintAndCreate(name, job = "fighter", jobIndex = 0) {
+    // The server loads the mint config from chain shortly after boot; re-auth until it is there.
+    for (let i = 0; i < 40 && !this.authOk.characterMint; i++) {
+      await sleep(500);
+      await this.login();
+    }
     const mint = this.authOk.characterMint;
     if (!mint) throw new Error("server sent no characterMint config");
     const next = await this.pub.readContract({ address: mint.nft, abi: NFT_ABI, functionName: "nextTokenId" });
