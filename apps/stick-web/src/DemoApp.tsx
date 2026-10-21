@@ -23,6 +23,7 @@ export function DemoApp() {
       if (props) r.loadProps(props);
       r.setCamera(ox, oz);
       if (q.get("view") === "3d") r.setView3d(true);
+      if (q.has("keylight")) r.setKeylight(true);
       const crowd = crowdUnits(Math.max(0, Math.min(1000, Number(q.get("crowd") ?? "0") || 0)));
       const t0 = Number(q.get("t") ?? "0") || 0;
       let t = 0;

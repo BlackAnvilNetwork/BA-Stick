@@ -115,6 +115,8 @@ pub struct Scene {
     lights: Vec<crate::atmosphere::Light>,
     /// Lighting, haze, skyline and vignette (#26).
     pub atmosphere: bool,
+    /// L2 directional key light (round 1 polish). Off by default; `?keylight`.
+    pub keylight: bool,
     /// Buff / ailment visuals per unit (#34).
     buffs: BTreeMap<String, crate::buffvfx::BuffFx>,
 }
@@ -140,6 +142,7 @@ impl Scene {
             pal: palette::palette(),
             lights: Vec::new(),
             atmosphere: true,
+            keylight: false,
             buffs: BTreeMap::new(),
         }
     }
@@ -643,7 +646,7 @@ impl Scene {
     pub fn write_rgba(&self, out: &mut [u8]) {
         if self.atmosphere && self.zone.is_some() {
             let scroll = (self.cam.cx - self.cam.cz) * stick_engine::camera::ISO_X;
-            crate::atmosphere::write_rgba(&self.pal, &self.fb.color, self.fb.w, self.fb.h, &self.lights, &crate::atmosphere::PALE_HOLLOW, scroll, out);
+            crate::atmosphere::write_rgba_key(&self.pal, &self.fb.color, self.fb.w, self.fb.h, &self.lights, &crate::atmosphere::PALE_HOLLOW, scroll, self.keylight, out);
         } else {
             palette::write_rgba(&self.pal, &self.fb.color, out);
         }
