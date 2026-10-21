@@ -350,7 +350,9 @@ fn draw_one(c: &mut Ctx, p: &Prop, time: f32) {
                     })
                     .collect()
             };
-            c.ribbon(0.0, p.w * 0.5, &st(-0.22, 0.0), BANK_L, BANK, BANK_D);
+            // deck top in the stone-trail colour: walkable surfaces share the trail palette,
+            // so it reads apart from the (blocked) wall copings and parapets
+            c.ribbon(0.0, p.w * 0.5, &st(-0.22, 0.0), TRAIL_STONE, BANK, BANK_D);
             for side in [-1.0f32, 1.0] {
                 c.ribbon(side * (p.w * 0.5 - 0.12), 0.12, &st(0.0, 0.42), BANK, BANK_D, BANK_DD);
             }

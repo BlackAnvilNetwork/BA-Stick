@@ -440,7 +440,7 @@ fn river_wall_joints_are_mitered_and_flush() {
     }
 }
 fn bridge_deck_is_one_continuous_ribbon() {
-    use crate::palette::BANK_L;
+    use crate::palette::TRAIL_STONE;
     use crate::props::{draw, kind, Prop};
     use stick_engine::camera::Camera;
     use stick_engine::math::v3;
@@ -458,7 +458,7 @@ fn bridge_deck_is_one_continuous_ribbon() {
         let y = 0.6 * 4.0 * t * (1.0 - t);
         let q = cam.project(v3(0.0, y + 0.01, -5.0 + 10.0 * t));
         let c = fb.color[q.y as usize * fb.w + q.x as usize];
-        if c != BANK_L {
+        if c != TRAIL_STONE {
             seams += 1;
         }
     }
