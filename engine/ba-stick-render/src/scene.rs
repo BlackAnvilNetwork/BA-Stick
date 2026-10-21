@@ -80,6 +80,8 @@ struct Unit {
     /// Procedural walk/run base layer (engine gait).
     walk: Gait,
     idle_t: f32,
+    /// Seconds since the current anim state started (creature lunges).
+    act_t: f32,
     snap: bool,
 }
 
@@ -189,6 +191,7 @@ impl Scene {
                 if e.anim != u.anim || u.anim.restarts() && e.animator.action_finished(&self.lib) {
                     e.animator.play(u.anim.action_clip(), 0.12, 1.0, u.anim.restarts());
                     e.anim = u.anim;
+                    e.act_t = 0.0;
                 }
             }
             None => {
@@ -207,6 +210,7 @@ impl Scene {
                     animator,
                     walk: Gait::default(),
                     idle_t: 0.0,
+                    act_t: 0.0,
                     snap: true,
                     fx: UnitFx::default(),
                     gait: 0.0,
@@ -283,6 +287,7 @@ impl Scene {
             let sx = Sex::Male.gait();
             let gait_pose = u.walk.update(dt, gait_speed, &body, &Personality::default(), &sx);
             u.idle_t += dt;
+            u.act_t += dt;
             let idle_pose = self.lib.get("idle").map(|c| c.sample(u.idle_t)).unwrap_or_default();
             let m = (gait_speed / 0.8).clamp(0.0, 1.0);
             let base: Pose = idle_pose.blend(&gait_pose, m * m * (3.0 - 2.0 * m));
@@ -457,6 +462,7 @@ impl Scene {
                         dead: if u.anim == AnimState::Dead { u.dead_t.min(1.0) } else { 0.0 },
                         time: t + u.gait * 0.01,
                         ready: u.fx.flags & FX_DEPLETED == 0,
+                        attack: if u.anim == AnimState::Melee { (u.act_t / creature::LUNGE_S).min(1.0) } else { 1.0 },
                     };
                     creature::draw(&mut self.fb, &cam, body, &pose);
                 }
@@ -574,6 +580,7 @@ fn body_radius(b: &Body) -> f32 {
         Body::Quadruped { size, .. } => 0.35 + 0.35 * size,
         Body::Serpent { size, .. } => 0.55 * size,
         Body::Blob { size, .. } => 0.35 + 0.25 * size,
+        Body::Canine { size } => 0.4 + 0.3 * size,
         Body::Node { .. } => 0.45,
     }
 }

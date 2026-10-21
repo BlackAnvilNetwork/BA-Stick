@@ -285,3 +285,26 @@ fn gather_nodes_draw_per_method_and_dim_when_depleted() {
         assert!(!s.fb.color.iter().any(|&c| c == crate::compat::C_GOLD), "{m}: depleted has no glow");
     }
 }
+
+#[test]
+fn scavenger_is_a_dog_that_trots_and_lunges() {
+    use crate::palette::{CR_DOG, CR_DOG_FILL, CR_NOSE, CR_TEETH};
+    assert!(matches!(RigPreset::resolve("mob:hollow_scavenger").body, crate::preset::Body::Canine { .. }));
+    // lunge: winds back, then snaps forward with the jaw open, then settles
+    let (back, _, _) = creature::lunge(0.15);
+    let (fwd, _, jaw) = creature::lunge(0.65);
+    assert!(back < 0.0 && fwd > 0.2 && jaw > 0.8);
+    assert_eq!(creature::lunge(1.0), (0.0, 0.0, 0.0));
+    let mut s = Scene::new(200, 200);
+    s.upsert_unit("d", unit(0.0, 0.0, "idle", "mob:hollow_scavenger"));
+    s.tick(0.0);
+    s.draw();
+    let idle = s.fb.color.clone();
+    for c in [CR_DOG, CR_DOG_FILL, CR_NOSE, CR_TEETH] {
+        assert!(idle.contains(&c), "colour {c} missing");
+    }
+    s.upsert_unit("d", unit(0.0, 0.0, "melee", "mob:hollow_scavenger"));
+    s.tick(0.2);
+    s.draw();
+    assert_ne!(idle, s.fb.color);
+}

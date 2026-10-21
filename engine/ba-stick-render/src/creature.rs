@@ -6,7 +6,7 @@ use stick_engine::math::{v3, Vec3};
 use stick_engine::raster::Framebuffer;
 use crate::compat::*;
 
-use crate::palette::{BLOOM_C, CR_TUSK, GRASS, GRASS_D, GRASS_L, ROCK, ROCK_D, ROCK_L, WATER};
+use crate::palette::{CR_DOG, CR_DOG_FAR, CR_DOG_FILL, CR_DOG_SPOT, CR_NOSE, CR_TEETH, BLOOM_C, CR_TUSK, GRASS, GRASS_D, GRASS_L, ROCK, ROCK_D, ROCK_L, WATER};
 use crate::preset::Body;
 
 pub struct Pose {
@@ -21,7 +21,12 @@ pub struct Pose {
     pub time: f32,
     /// Gather nodes: harvestable now (glow + sparkles).
     pub ready: bool,
+    /// Melee progress 0..1 (1 = done / not attacking).
+    pub attack: f32,
 }
+
+/// Duration of a creature melee lunge.
+pub const LUNGE_S: f32 = 0.55;
 
 /// Approximate on-screen height in px (for picking and bar placement).
 pub fn height_px(body: &Body) -> f32 {
@@ -31,6 +36,7 @@ pub fn height_px(body: &Body) -> f32 {
         Body::Quadruped { size, .. } => (0.75 * size) * HEIGHT_PX + 8.0,
         Body::Serpent { size, .. } => 0.35 * size * HEIGHT_PX + 6.0,
         Body::Blob { size, .. } => 0.7 * size * HEIGHT_PX + 4.0,
+        Body::Canine { size } => 1.08 * size * HEIGHT_PX + 4.0,
         Body::Node { .. } => 16.0,
     }
 }
@@ -120,6 +126,7 @@ pub fn draw(fb: &mut Framebuffer, cam: &Camera, body: &Body, ps: &Pose) {
             }
         }
         Body::Node { method } => node(fb, cam, method, ps),
+        Body::Canine { size: s } => canine(fb, cam, s, ps),
         Body::Blob { size: s, body: c, far } => {
             let squash = 1.0 + (ps.phase * 2.0).sin() * 0.18 * ps.moving.max(0.35) - ps.dead * 0.6;
             let hgt = 0.55 * s * squash.max(0.25);
@@ -234,6 +241,152 @@ fn hare(fb: &mut Framebuffer, cam: &Camera, s: f32, c: u8, far: u8, ps: &Pose) {
     }
     let eye = p(bp(0.25, 0.29, 0.06));
     fb.plot(eye.x as i32, eye.y as i32, eye.d - 0.5, C_OUTLINE);
+}
+
+/// Lunge curve for a melee progress `a` (0..1): (forward offset, crouch, jaw open).
+/// Short wind-back crouch, then a snapping lunge forward and recovery.
+pub fn lunge(a: f32) -> (f32, f32, f32) {
+    use std::f32::consts::PI;
+    if a >= 1.0 {
+        return (0.0, 0.0, 0.0);
+    }
+    if a < 0.3 {
+        let k = (a / 0.3 * PI * 0.5).sin();
+        (-0.07 * k, k, 0.2 * k)
+    } else {
+        let k = ((a - 0.3) / 0.7 * PI).sin();
+        (0.26 * k, (1.0 - (a - 0.3) / 0.2).max(0.0), k)
+    }
+}
+
+/// Stick dog after the reference sketch: thick orange-brown strokes, boxy
+/// torso with a golden fill and dark spot, tall pointed ear, long snout with
+/// black nose and bared teeth, upturned tufted tail, long thin bent legs.
+/// Trots on diagonal leg pairs; melee is a crouch-and-lunge with a snap.
+fn canine(fb: &mut Framebuffer, cam: &Camera, s: f32, ps: &Pose) {
+    use std::f32::consts::PI;
+    let f = v3(ps.yaw.sin(), 0.0, ps.yaw.cos());
+    let r = v3(ps.yaw.cos(), 0.0, -ps.yaw.sin());
+    let up = v3(0.0, 1.0, 0.0);
+    let o = Some(C_OUTLINE);
+    let p = |v: Vec3| cam.project(v);
+    let (lf, crouch, jaw) = lunge(ps.attack);
+    let flat = 1.0 - ps.dead * 0.7;
+    let trot = ps.moving;
+    let bob = (ps.phase * 2.0).sin().abs() * 0.025 * trot;
+    let base = ps.pos + f * (lf * s) + up * (bob * s);
+    // body-space point: forward a, up b, side; crouch lowers the front, lunge lifts the head
+    let bp = |a: f32, b: f32, side: f32| {
+        let drop = crouch * 0.06 * (a + 0.4).max(0.0);
+        base + f * (a * s) + up * ((b - drop) * s * flat) + r * (side * s)
+    };
+    let gp = |a: f32, b: f32, side: f32| ps.pos + f * ((a + lf * 0.35) * s) + up * (b * s) + r * (side * s);
+    let stroke = (2.0 * s).max(1.6);
+    let leg_w = (1.4 * s).max(1.2);
+
+    // legs: (hip/shoulder a, b, side, phase offset, front?)
+    let leg = |fb: &mut Framebuffer, a: f32, side: f32, off: f32, front: bool, col: u8| {
+        let ph = ps.phase + off;
+        let sw = ph.sin() * 0.14 * trot + if ps.attack < 1.0 && front { lf * 0.6 } else { 0.0 };
+        let lift = ph.cos().max(0.0) * 0.07 * trot;
+        let top = if front { bp(a, 0.36, side) } else { bp(a, 0.42, side) };
+        let paw = gp(a + sw, lift, side);
+        // knee: front legs bend backward a little, hind legs forward-then-hock
+        let (knee, hock) = if front {
+            (gp(a + sw * 0.5 + 0.04, 0.2 + lift * 0.6, side), None)
+        } else {
+            (gp(a + sw * 0.4 + 0.07, 0.26 + lift * 0.5, side), Some(gp(a + sw * 0.8 - 0.06, 0.11 + lift, side)))
+        };
+        let fold = |v: Vec3| v + (top - v) * (ps.dead * 0.55);
+        let (knee, paw) = (fold(knee), fold(paw));
+        fb.capsule(p(top), p(knee), leg_w, col, o);
+        match hock {
+            Some(h) => {
+                let h = fold(h);
+                fb.capsule(p(knee), p(h), leg_w, col, o);
+                fb.capsule(p(h), p(paw), leg_w * 0.9, col, o);
+            }
+            None => fb.capsule(p(knee), p(paw), leg_w, col, o),
+        }
+    };
+    let w = 0.07;
+    // far side first (diagonal pairs: near-front with far-hind)
+    leg(fb, -0.34, -w, 0.0, false, CR_DOG_FAR);
+    leg(fb, 0.18, -w, PI, true, CR_DOG_FAR);
+
+    // tail: upturned, wagging, small tuft
+    let wag = (ps.time * 6.0).sin() * 0.05 + (ps.phase).sin() * 0.03 * trot;
+    let t0 = bp(-0.42, 0.5, 0.0);
+    let t1 = bp(-0.52, 0.58, wag * 0.5);
+    let t2 = bp(-0.6, 0.66, wag);
+    fb.capsule(p(t0), p(t1), stroke * 0.8, CR_DOG, o);
+    fb.capsule(p(t1), p(t2), stroke * 0.7, CR_DOG, o);
+    fb.disc(p(t2 + up * (0.03 * s) - f * (0.02 * s)), stroke * 0.8, CR_DOG, o);
+
+    // boxy torso: filled polygon outlined with thick strokes
+    let breathe = (ps.time * 2.4).sin() * 0.006;
+    let poly = [
+        bp(-0.44, 0.52, 0.0),          // rump top
+        bp(0.16, 0.57 + breathe, 0.0), // withers
+        bp(0.30, 0.46, 0.0),           // chest front
+        bp(0.14, 0.30 - breathe, 0.0), // brisket
+        bp(-0.12, 0.38, 0.0),          // belly tuck
+        bp(-0.42, 0.40, 0.0),          // haunch
+    ];
+    let pp: Vec<_> = poly.iter().map(|&v| p(v)).collect();
+    for i in 1..pp.len() - 1 {
+        crate::props::tri(fb, pp[0], pp[i], pp[i + 1], CR_DOG_FILL);
+    }
+    fb.disc(p(bp(0.06, 0.44, 0.0)), (0.05 * s * HEIGHT_PX).max(1.5), CR_DOG_SPOT, None);
+    fb.disc(p(bp(0.12, 0.40, 0.0)), (0.03 * s * HEIGHT_PX).max(1.0), CR_DOG_SPOT, None);
+    for i in 0..poly.len() {
+        fb.capsule(pp[i], pp[(i + 1) % pp.len()], stroke * 0.75, CR_DOG, o);
+    }
+    // near legs over the torso
+    leg(fb, -0.34, w, PI, false, CR_DOG);
+    leg(fb, 0.18, w, 0.0, true, CR_DOG);
+
+    // neck + head (head pushes forward and opens the jaw on the lunge)
+    let hx = 0.03 * jaw;
+    let n0 = bp(0.2, 0.52, 0.0);
+    let n1 = bp(0.32 + hx, 0.80 - 0.04 * jaw, 0.0);
+    fb.capsule(p(n0), p(n1), stroke, CR_DOG, o);
+    let hb = |a: f32, b: f32| bp(a + hx, b - 0.04 * jaw, 0.0);
+    let skull = [hb(0.27, 0.86), hb(0.38, 0.93), hb(0.64, 0.82), hb(0.40, 0.76), hb(0.30, 0.75)];
+    let sp: Vec<_> = skull.iter().map(|&v| p(v)).collect();
+    for i in 1..sp.len() - 1 {
+        crate::props::tri(fb, sp[0], sp[i], sp[i + 1], CR_DOG_FILL);
+    }
+    for i in 0..sp.len() {
+        if i == 3 {
+            continue; // open mouth edge drawn below
+        }
+        fb.capsule(sp[i], sp[(i + 1) % sp.len()], stroke * 0.7, CR_DOG, o);
+    }
+    // lower jaw + bared teeth
+    let jaw_tip = hb(0.60, 0.76 - 0.06 * jaw);
+    fb.capsule(p(hb(0.40, 0.76)), p(jaw_tip), stroke * 0.7, CR_DOG, o);
+    let teeth_a = p(hb(0.46, 0.79));
+    let teeth_b = p(hb(0.60, 0.80));
+    fb.line(teeth_a, teeth_b, CR_TEETH);
+    for k in 0..4 {
+        let t = k as f32 / 3.0;
+        let q = p(hb(0.47 + 0.12 * t, 0.785));
+        fb.plot(q.x as i32, q.y as i32 + 1, q.d - 1.0, CR_TEETH);
+    }
+    // black nose
+    let mut nose = p(hb(0.65, 0.825));
+    nose.d -= 0.05;
+    fb.disc(nose, (0.035 * s * HEIGHT_PX).max(1.8), CR_NOSE, None);
+    // tall pointed ear (filled triangle with stroke)
+    let e0 = hb(0.28, 0.87);
+    let e1 = hb(0.36, 0.92);
+    let et = hb(0.31, 1.08) - f * (0.04 * jaw * s);
+    crate::props::tri(fb, p(e0), p(e1), p(et), CR_DOG_FILL);
+    fb.capsule(p(e0), p(et), stroke * 0.6, CR_DOG, o);
+    fb.capsule(p(e1), p(et), stroke * 0.6, CR_DOG, o);
+    let eye = p(hb(0.42, 0.86) + r * (0.02 * s));
+    fb.plot(eye.x as i32, eye.y as i32, eye.d - 1.0, C_OUTLINE);
 }
 
 /// Gather node marker: ground glow + a small prop per method + twinkles.
