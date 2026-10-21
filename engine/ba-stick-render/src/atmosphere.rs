@@ -5,6 +5,20 @@
 //! read as "glow" without a bloom pass.
 use crate::palette::*;
 
+/// Shared sun direction (round 1 polish): unit vector pointing *toward* the
+/// sun, from the screen's upper-left (NW) and above. Light falls on NW faces;
+/// shadows fall SE (screen lower-right). Read by contact shadows (S2) and
+/// terrain/prop shading.
+pub const SUN_DIR: [f32; 3] = [-0.6835, 0.7071, -0.1810];
+
+/// Ground-plane offset (x, z) for a contact shadow of footprint radius `r`:
+/// a fraction of `r` along -SUN_DIR projected onto the ground.
+pub fn shadow_offset(r: f32) -> (f32, f32) {
+    let (x, z) = (-SUN_DIR[0], -SUN_DIR[2]);
+    let l = (x * x + z * z).sqrt();
+    (x / l * r * 0.25, z / l * r * 0.25)
+}
+
 /// Framebuffer index left where no terrain was drawn (sky / beyond bounds).
 pub const SKY: u8 = 141;
 
