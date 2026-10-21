@@ -122,12 +122,15 @@ fn fill_tri_edge(fb: &mut Framebuffer, a: P2, b: P2, c: P2, ua: (f32, f32), ub: 
 pub const SHADE_LIT: f32 = 0.78;
 pub const SHADE_DARK: f32 = 0.62;
 
-/// Terrain shade step from the cell normal (all four corners) against
-/// `SUN_DIR`: 0 lit, 1 mid, 2 shadow. Reuses the existing 3-step ramps.
+/// Terrain shade step against `SUN_DIR`: 0 lit, 1 mid, 2 shadow. Quantised to
+/// one normal per 2×2-cell block (1 m at 0.5 m cells) so bands follow the
+/// terrain instead of reading as per-cell blotches (round 2 ART).
 pub fn slope_shade(z: &Zone, i: i32, j: i32) -> u8 {
+    let bi = (i & !1).min(z.w as i32 - 3).max(0);
+    let bj = (j & !1).min(z.h as i32 - 3).max(0);
     let h = |a: i32, b: i32| z.height[z.idx(a, b)];
-    let (h00, h10, h01, h11) = (h(i, j), h(i + 1, j), h(i, j + 1), h(i + 1, j + 1));
-    let c = z.cell;
+    let (h00, h10, h01, h11) = (h(bi, bj), h(bi + 2, bj), h(bi, bj + 2), h(bi + 2, bj + 2));
+    let c = z.cell * 2.0;
     let gx = ((h10 - h00) + (h11 - h01)) * 0.5 / c;
     let gz = ((h01 - h00) + (h11 - h10)) * 0.5 / c;
     let inv = 1.0 / (gx * gx + 1.0 + gz * gz).sqrt();
@@ -136,10 +139,20 @@ pub fn slope_shade(z: &Zone, i: i32, j: i32) -> u8 {
     if d > SHADE_LIT { 0 } else if d < SHADE_DARK { 2 } else { 1 }
 }
 
-fn cell_color(z: &Zone, i: i32, j: i32, time: f32) -> u8 {
+/// B4: roughly 1 in 12 plain cells gets a 2-px darker fleck (fixed hash).
+pub const FLECK_EVERY: u32 = 12;
+
+#[inline]
+fn cell_hash(i: i32, j: i32) -> u32 {
+    let mut h = (i as u32).wrapping_mul(0x9E37_79B1) ^ (j as u32).wrapping_mul(0x85EB_CA77);
+    h ^= h >> 15;
+    h = h.wrapping_mul(0x2C1B_3C6D);
+    h ^ (h >> 12)
+}
+
+fn cell_color(z: &Zone, i: i32, j: i32, time: f32, shade: u8) -> u8 {
     let k = z.idx(i, j);
     let f = z.flags[k];
-    let shade = slope_shade(z, i, j);
     if f & F_WATER != 0 {
         // W1: calm body in two tones; a slow diagonal swell (~6 cells) instead
         // of a per-cell checker.
@@ -187,6 +200,18 @@ pub fn draw_zone(fb: &mut Framebuffer, cam: &Camera, zone: &Zone, cam_y: f32, ti
         let h = zone.height[zone.idx(i, j)] - cam_y;
         cam.project(v3(zone.min_x + i as f32 * c, h, zone.min_z + j as f32 * c))
     };
+    // One slope_shade per visible block, cached for this frame (cells plus a
+    // one-cell rim for neighbour lookups).
+    let (ci0, cj0) = ((i0 - 1).max(0), (j0 - 1).max(0));
+    let (ci1, cj1) = ((i1 + 1).min(zone.w as i32 - 2), (j1 + 1).min(zone.h as i32 - 2));
+    let cw = (ci1 - ci0 + 1) as usize;
+    let mut shades = vec![0u8; cw * (cj1 - cj0 + 1) as usize];
+    for j in cj0..=cj1 {
+        for i in ci0..=ci1 {
+            shades[(j - cj0) as usize * cw + (i - ci0) as usize] = slope_shade(zone, i, j);
+        }
+    }
+    let sh = |i: i32, j: i32| shades[(j - cj0) as usize * cw + (i - ci0) as usize];
     // Back to front: increasing i + j.
     for s in (i0 + j0)..=(i1 + j1) {
         let ilo = i0.max(s - j1);
@@ -197,7 +222,7 @@ pub fn draw_zone(fb: &mut Framebuffer, cam: &Camera, zone: &Zone, cam_y: f32, ti
             if p11.y < -2.0 || p00.y > fb.h as f32 + 2.0 + 300.0 {
                 continue;
             }
-            let col = cell_color(zone, i, j, time);
+            let col = cell_color(zone, i, j, time, sh(i, j));
             // W2/W3: water next to land. Banks on the SE (downstream of the NW
             // sun) get a dithered foam line; banks on the NW side shade the water.
             if zone.flags[zone.idx(i, j)] & (F_WATER | F_BRIDGE) == F_WATER {
@@ -222,7 +247,7 @@ pub fn draw_zone(fb: &mut Framebuffer, cam: &Camera, zone: &Zone, cam_y: f32, ti
                         return None;
                     }
                     let nb = plain_biome(zone, ni, nj)?;
-                    let nc = BIOME0 + nb * 3 + slope_shade(zone, ni, nj);
+                    let nc = BIOME0 + nb * 3 + sh(ni, nj);
                     (nc != col).then_some(if nb != b { BIOME0 + nb * 3 + shade } else { nc })
                 };
                 let nb = [n(-1, 0), n(1, 0), n(0, -1), n(0, 1)];
@@ -234,6 +259,18 @@ pub fn draw_zone(fb: &mut Framebuffer, cam: &Camera, zone: &Zone, cam_y: f32, ti
             }
             fill_tri(fb, p00, p10, p11, col);
             fill_tri(fb, p00, p11, p01, col);
+            // B4: sparse ground grain on plain biome cells (not water or trails).
+            if plain_biome(zone, i, j).is_some() && cell_hash(i, j) % FLECK_EVERY == 0 {
+                if let Some(d) = crate::dither::darker(col) {
+                    let (cx, cy) = (((p00.x + p11.x) * 0.5) as i32, ((p00.y + p11.y) * 0.5) as i32);
+                    for dx in 0..2 {
+                        let x = cx + dx;
+                        if x >= 0 && cy >= 0 && x < fb.w as i32 && cy < fb.h as i32 {
+                            fb.color[cy as usize * fb.w + x as usize] = d;
+                        }
+                    }
+                }
+            }
         }
     }
 }
