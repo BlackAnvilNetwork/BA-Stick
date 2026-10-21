@@ -14,7 +14,7 @@ import { CombatFloaters } from "./floaters";
 import { GatherIcons, loadIconAtlas, type IconAtlas } from "./gather";
 import { syncUnits } from "./units";
 import { getMoveKeys, wasdTarget } from "./input";
-import { atmosphereFor, isCoarsePointer } from "./mobile";
+import { atmosphereFor, isCoarsePointer, keylightFor } from "./mobile";
 import { CastClock, sameId, unitFx } from "./fx";
 import { routeUnitClick } from "./clicks";
 import { Labels, labelFor } from "./labels";
@@ -56,8 +56,8 @@ export function StickWorld() {
       if (import.meta.env.DEV) Object.assign(window, { __stick: { r, canvas, fromFramebuffer, send } });
       // Phones: atmosphere pass costs ~1/3 of the frame; drop it to hold 30+ fps (#18).
       if (!atmosphereFor(isCoarsePointer(), location.search)) r.setAtmosphere(false);
-      // L2 key light (round 1 polish) is opt-in while it is measured: `?keylight`.
-      if (new URLSearchParams(location.search).has("keylight")) r.setKeylight(true);
+      // L2 key light: on by default on desktop, off on touch; `?keylight=0` kills it.
+      r.setKeylight(keylightFor(isCoarsePointer(), location.search));
       // Iso / 3D camera follows the View setting (#19); the engine eases the blend.
       const root = document.documentElement;
       const syncView = () => r.setView3d(root.dataset.uiView === "3d");

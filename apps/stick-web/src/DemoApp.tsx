@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { playSteps, stepsFor } from "./vfx";
 import { createRenderer, fetchProps, fetchZone, fromFramebuffer } from "./renderer";
+import { isCoarsePointer, keylightFor } from "./mobile";
 import { crowdUnits, demoUnits, rosterUnits } from "./demo";
 
 /**
@@ -23,7 +24,7 @@ export function DemoApp() {
       if (props) r.loadProps(props);
       r.setCamera(ox, oz);
       if (q.get("view") === "3d") r.setView3d(true);
-      if (q.has("keylight")) r.setKeylight(true);
+      r.setKeylight(keylightFor(isCoarsePointer(), location.search));
       const crowd = crowdUnits(Math.max(0, Math.min(1000, Number(q.get("crowd") ?? "0") || 0)));
       const t0 = Number(q.get("t") ?? "0") || 0;
       let t = 0;
