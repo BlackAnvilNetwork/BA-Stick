@@ -23,3 +23,23 @@ export function toFramebuffer(canvas: HTMLCanvasElement, clientX: number, client
   const sy = (clientY - r.top - (r.height - FB_H * scale) / 2) / scale;
   return [sx, sy];
 }
+
+const zoneCache = new Map<string, Promise<Uint8Array>>();
+/** Fetch a baked zone grid (public/zones/<id>.baz, made by scripts/bake-zones.ts). */
+export function fetchZone(id: string): Promise<Uint8Array> {
+  let p = zoneCache.get(id);
+  if (!p) {
+    p = fetch(`${import.meta.env.BASE_URL}zones/${id}.baz`).then(async (res) => {
+      if (!res.ok) throw new Error(`zone ${id}: HTTP ${res.status}`);
+      return new Uint8Array(await res.arrayBuffer());
+    });
+    zoneCache.set(id, p);
+  }
+  return p;
+}
+
+/** Server zone id → baked zone. Only Pale Hollow is baked so far (other zones: #31). */
+export function bakedZoneFor(zoneId: string | undefined): string | null {
+  if (!zoneId || zoneId === "pale_hollow") return "pale_hollow";
+  return null;
+}

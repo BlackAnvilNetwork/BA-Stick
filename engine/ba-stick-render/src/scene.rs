@@ -9,6 +9,8 @@ use stick_engine::raster::*;
 use stick_engine::rig;
 
 use crate::preset::{AnimState, RigPreset};
+use crate::zone::Zone;
+use crate::{ground, palette};
 
 /// One unit update from the host (mirrors the fields of `UnitSnapshot` that
 /// affect rendering).
@@ -44,6 +46,11 @@ pub struct Scene {
     /// Exponential smoothing rate for positions (1/s). 20 Hz snapshots →
     /// ~15 hides the step without visible lag.
     pub smoothing: f32,
+    zone: Option<Zone>,
+    /// Reference height subtracted from everything so the followed unit sits mid-screen.
+    pub cam_y: f32,
+    time: f32,
+    pal: [u32; 256],
 }
 
 impl Scene {
@@ -55,6 +62,10 @@ impl Scene {
             units: BTreeMap::new(),
             follow: None,
             smoothing: 15.0,
+            zone: None,
+            cam_y: 0.0,
+            time: 0.0,
+            pal: palette::palette(),
         }
     }
 
@@ -68,6 +79,25 @@ impl Scene {
         self.follow = None;
         self.cam.cx = x;
         self.cam.cz = z;
+        self.cam_y = self.zone_height(x, z);
+    }
+
+    /// Load a baked zone (BAZ1). Replaces any previous zone.
+    pub fn load_zone(&mut self, bytes: &[u8]) -> Result<(), String> {
+        self.zone = Some(Zone::parse(bytes)?);
+        Ok(())
+    }
+
+    pub fn clear_zone(&mut self) { self.zone = None; }
+    pub fn has_zone(&self) -> bool { self.zone.is_some() }
+
+    /// Stand height from the zone (0 without a zone).
+    pub fn zone_height(&self, x: f32, z: f32) -> f32 {
+        self.zone.as_ref().map_or(0.0, |zn| zn.height_at(x, z))
+    }
+
+    pub fn zone_flags(&self, x: f32, z: f32) -> u8 {
+        self.zone.as_ref().map_or(0, |zn| zn.flags_at(x, z))
     }
 
     /// Keep the camera on a unit (typically the local player).
@@ -128,6 +158,7 @@ impl Scene {
 
     /// Advance interpolation and animation by `dt` seconds.
     pub fn tick(&mut self, dt: f32) {
+        self.time += dt;
         let k = 1.0 - (-self.smoothing * dt).exp();
         for u in self.units.values_mut() {
             if u.snap {
@@ -141,19 +172,33 @@ impl Scene {
         if let Some(f) = self.follow.as_ref().and_then(|id| self.units.get(id)) {
             self.cam.cx = f.pos.x;
             self.cam.cz = f.pos.z;
+            let ty = f.pos.y;
+            self.cam_y += (ty - self.cam_y) * (1.0 - (-6.0 * dt).exp());
         }
     }
 
     /// Screen pixel (framebuffer space) → ground point (x, z).
     pub fn pick_world(&self, sx: f32, sy: f32) -> (f32, f32) {
-        self.cam.unproject_ground(sx, sy)
+        // Iterate: unproject at the reference plane, then correct by local relief.
+        let (mut x, mut z) = self.cam.unproject_ground(sx, sy);
+        for _ in 0..3 {
+            let dy = self.zone_height(x, z) - self.cam_y;
+            let (nx, nz) = self.cam.unproject_ground(sx, sy + dy * stick_engine::camera::HEIGHT_PX);
+            x = nx;
+            z = nz;
+        }
+        (x, z)
+    }
+
+    fn rel(&self, p: Vec3) -> Vec3 {
+        v3(p.x, p.y - self.cam_y, p.z)
     }
 
     /// Topmost unit whose body box contains the screen pixel.
     pub fn pick_unit(&self, sx: f32, sy: f32) -> Option<&str> {
         let mut best: Option<(&str, f32)> = None;
         for (id, u) in &self.units {
-            let feet = self.cam.project(u.pos);
+            let feet = self.cam.project(self.rel(u.pos));
             let half_w = 14.0;
             let height = (u.preset.props.thigh + u.preset.props.shin + u.preset.props.spine) * stick_engine::camera::HEIGHT_PX + 16.0;
             if (sx - feet.x).abs() <= half_w && sy <= feet.y + 4.0 && sy >= feet.y - height {
@@ -167,11 +212,14 @@ impl Scene {
 
     /// Draw the ground and all units into the framebuffer.
     pub fn draw(&mut self) {
-        draw_ground(&mut self.fb, &self.cam);
+        match &self.zone {
+            Some(z) => ground::draw_zone(&mut self.fb, &self.cam, z, self.cam_y, self.time),
+            None => draw_ground(&mut self.fb, &self.cam),
+        }
         self.fb.clear_depth();
         let cam = self.cam;
         for u in self.units.values() {
-            let p = cam.project(u.pos);
+            let p = cam.project(self.rel(u.pos));
             self.fb.shadow_ellipse(p.x, p.y, 13.0, 6.0, C_SHADOW);
         }
         for u in self.units.values() {
@@ -179,14 +227,14 @@ impl Scene {
             if u.anim == AnimState::Dead {
                 look = rig::Look { body: C_DUST, far: C_DUST, accent: C_SHADOW };
             }
-            let j = rig::solve(&u.animator.pose, &u.preset.props, u.pos, u.yaw);
+            let j = rig::solve(&u.animator.pose, &u.preset.props, self.rel(u.pos), u.yaw);
             rig::draw(&mut self.fb, &cam, &j, &u.preset.props, &look);
         }
     }
 
     /// Framebuffer as RGBA8 (ImageData layout).
     pub fn write_rgba(&self, out: &mut [u8]) {
-        self.fb.write_rgba(out);
+        palette::write_rgba(&self.pal, &self.fb.color, out);
     }
 }
 

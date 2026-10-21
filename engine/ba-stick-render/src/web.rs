@@ -25,6 +25,18 @@ impl StickRenderer {
         Ok(StickRenderer { scene: Scene::new(w, h), ctx, rgba: vec![0; w * h * 4] })
     }
 
+    /// Load a baked zone (`BAZ1` bytes from apps/stick-web/public/zones).
+    #[wasm_bindgen(js_name = loadZone)]
+    pub fn load_zone(&mut self, bytes: &[u8]) -> Result<(), JsValue> {
+        self.scene.load_zone(bytes).map_err(|e| JsValue::from_str(&e))
+    }
+
+    #[wasm_bindgen(js_name = clearZone)]
+    pub fn clear_zone(&mut self) { self.scene.clear_zone(); }
+
+    #[wasm_bindgen(js_name = zoneHeight)]
+    pub fn zone_height(&self, x: f32, z: f32) -> f32 { self.scene.zone_height(x, z) }
+
     #[wasm_bindgen(js_name = setCamera)]
     pub fn set_camera(&mut self, x: f32, z: f32) { self.scene.set_camera(x, z); }
 
