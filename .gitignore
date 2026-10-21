@@ -17,3 +17,5 @@ tmp/
 *.LOCK.bak.png
 __pycache__/
 apps/server/data/
+apps/*/tsconfig.tsbuildinfo
+engine/target/
