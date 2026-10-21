@@ -29,3 +29,7 @@ Anvil/Hardhat default test keys used in tests.
 export CARGO_TARGET_DIR=$PWD/engine/target   # keep build output in one ignored dir
 cargo test --manifest-path engine/stick-engine/Cargo.toml -p stick_engine
 ```
+
+## License headers
+
+Source files under `engine/` start with the Black Anvil Network AGPL-3.0-or-later header (copyright line + SPDX identifier). AGPL-3.0 §5 requires keeping these notices: don't remove or alter them, keep any third-party notices, and run `node scripts/add-license-headers.mjs` to add the header to new files. CI runs it with `--check`.

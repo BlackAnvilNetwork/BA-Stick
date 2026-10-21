@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+
 //! Shared ordered dither (round 1 polish). Screen- or world-anchored 4×4 Bayer
 //! thresholds plus the palette "one shade step darker" lookup used by contact
 //! shadows. No new palette entries: darkening reuses each ground ramp's own

@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+
 //! 256-entry palette: indices 0..16 are Stick Engine's palette (used by the rig),
 //! 16.. are zone colours (biome × shade, trails, water, bridge).
 use crate::compat::PALETTE as ENGINE;

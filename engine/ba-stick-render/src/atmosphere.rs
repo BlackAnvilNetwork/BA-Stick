@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+
 //! Atmosphere (#26): per-pixel light at RGB conversion time. Cool ambient,
 //! warm radial campfire pools with flicker, distance haze toward the
 //! horizon colour, a pixel skyline behind the zone edge, and a vignette.

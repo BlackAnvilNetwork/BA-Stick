@@ -95,4 +95,4 @@ index.html, Trunk.toml        web shell
 
 ## License
 
-GPL-3.0-or-later. See [LICENSE](LICENSE).
+AGPL-3.0-or-later. See [LICENSE](LICENSE).

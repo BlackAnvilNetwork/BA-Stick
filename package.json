@@ -2,7 +2,7 @@
   "name": "bellgrave",
   "private": true,
   "version": "0.1.0",
-  "license": "GPL-3.0-only",
+  "license": "AGPL-3.0-or-later",
   "scripts": {
     "dev": "pnpm -r --parallel --filter @bellgrave/server --filter @bellgrave/stick-web run dev",
     "dev:server": "pnpm --filter @bellgrave/server dev",
