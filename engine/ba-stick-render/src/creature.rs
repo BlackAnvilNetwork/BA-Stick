@@ -415,7 +415,7 @@ fn node(fb: &mut Framebuffer, cam: &Camera, method: u8, ps: &Pose) {
         }
     }
     let o = Some(C_OUTLINE);
-    let at = |dx: f32, dy: f32| P2 { x: c.x + dx, y: c.y + dy, d: c.d - 0.05 };
+    let at = |dx: f32, dy: f32| P2 { s: 1.0, x: c.x + dx, y: c.y + dy, d: c.d - 0.05 };
     match method {
         1 => {
             // herb tuft: a few leaves and a bloom

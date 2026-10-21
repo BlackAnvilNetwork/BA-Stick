@@ -555,7 +555,7 @@ fn draw_one(c: &mut Ctx, p: &Prop, time: f32) {
                 let rgt = c.p(rad, y0, 0.0);
                 let fr = c.p(0.0, y0 - rad * 0.12, rad * 0.4);
                 // camera-facing silhouette with a lit right half
-                let mid = P2 { x: apex.x, y: (lft.y + rgt.y) * 0.5 + 2.0, d: fr.d };
+                let mid = P2 { s: 1.0, x: apex.x, y: (lft.y + rgt.y) * 0.5 + 2.0, d: fr.d };
                 // P5: sun from the NW, so the screen-left half is lit, with a
                 // light rim on the left edge of each tier.
                 tri(c.fb, apex, lft, mid, if t == tiers - 1 { l } else { m });

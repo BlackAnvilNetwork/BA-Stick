@@ -140,14 +140,14 @@ fn head_gear(fb: &mut Framebuffer, cam: &Camera, j: &Joints, r: f32, style: Head
             // dome over the top half + visor slit + crest
             let top = p(j.head + up * (r * 0.35));
             fb.disc(front(top), rp * 0.95, c, Some(C_OUTLINE));
-            fb.line(front(stick_engine::camera::P2 { x: h.x - rp * 0.7, y: h.y, d: h.d }), front(stick_engine::camera::P2 { x: h.x + rp * 0.7, y: h.y, d: h.d }), C_OUTLINE);
+            fb.line(front(stick_engine::camera::P2 { s: 1.0, x: h.x - rp * 0.7, y: h.y, d: h.d }), front(stick_engine::camera::P2 { s: 1.0, x: h.x + rp * 0.7, y: h.y, d: h.d }), C_OUTLINE);
             let tip = p(j.head + up * (r * 1.6));
             fb.capsule(front(top), front(tip), 0.9, crest, None);
         }
         HeadStyle::Hood => {
             let tip = p(j.head + up * (r * 1.9));
-            let l = stick_engine::camera::P2 { x: h.x - rp * 1.05, y: h.y + rp * 0.4, d: h.d - 0.4 };
-            let rr = stick_engine::camera::P2 { x: h.x + rp * 1.05, y: h.y + rp * 0.4, d: h.d - 0.4 };
+            let l = stick_engine::camera::P2 { s: 1.0, x: h.x - rp * 1.05, y: h.y + rp * 0.4, d: h.d - 0.4 };
+            let rr = stick_engine::camera::P2 { s: 1.0, x: h.x + rp * 1.05, y: h.y + rp * 0.4, d: h.d - 0.4 };
             crate::props::tri(fb, front(tip), l, rr, c);
             fb.line(front(tip), l, C_OUTLINE);
             fb.line(front(tip), rr, C_OUTLINE);
@@ -155,7 +155,7 @@ fn head_gear(fb: &mut Framebuffer, cam: &Camera, j: &Joints, r: f32, style: Head
         }
         HeadStyle::Circlet => {
             let y = h.y - rp * 0.35;
-            fb.line(front(stick_engine::camera::P2 { x: h.x - rp, y, d: h.d }), front(stick_engine::camera::P2 { x: h.x + rp, y, d: h.d }), c);
+            fb.line(front(stick_engine::camera::P2 { s: 1.0, x: h.x - rp, y, d: h.d }), front(stick_engine::camera::P2 { s: 1.0, x: h.x + rp, y, d: h.d }), c);
             fb.plot(h.x as i32, y as i32 - 1, h.d - 1.0, crest);
         }
         HeadStyle::Cap => {
