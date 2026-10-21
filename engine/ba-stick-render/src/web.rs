@@ -44,6 +44,12 @@ impl StickRenderer {
         self.scene.add_floater(id, kind, value);
     }
 
+    /// True when the unit is standing in open water (legs hidden to the shin).
+    #[wasm_bindgen(js_name = isWading)]
+    pub fn is_wading(&self, id: &str) -> bool {
+        self.scene.is_wading(id)
+    }
+
     #[wasm_bindgen(js_name = clearZone)]
     pub fn clear_zone(&mut self) { self.scene.clear_zone(); }
 

@@ -86,7 +86,7 @@ pub fn draw(fb: &mut Framebuffer, f: &Floater, ax: f32, ay: f32) {
     // ordered-dither fade over the last 40%
     let fade = ((t - 0.6) / 0.4).clamp(0.0, 1.0);
     let col = colour(f.kind);
-    let mut px = |fb: &mut Framebuffer, x: i32, y: i32, c: u8| {
+    let px = |fb: &mut Framebuffer, x: i32, y: i32, c: u8| {
         if x < 0 || y < 0 || x >= fb.w as i32 || y >= fb.h as i32 {
             return;
         }

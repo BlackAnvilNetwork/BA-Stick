@@ -79,6 +79,12 @@ pub const FN_SELF: u8 = 133;
 pub const FN_HEAL: u8 = 134;
 pub const FN_CRIT: u8 = 135;
 pub const FN_MISS: u8 = 136;
+/// Cool-grey river masonry (bank walls, bridges).
+pub const BANK_DD: u8 = 137;
+pub const BANK_D: u8 = 138;
+pub const BANK: u8 = 139;
+pub const BANK_L: u8 = 140;
+pub const MASONRY: [(u8, u32); 4] = [(BANK_DD, 0x4e575c), (BANK_D, 0x6f7a80), (BANK, 0x8e9a9e), (BANK_L, 0xa8b2b6)];
 pub const FLOAT: [(u8, u32); 5] = [(FN_DMG, 0xf6eedc), (FN_SELF, 0xe8503c), (FN_HEAL, 0x72e07c), (FN_CRIT, 0xffa832), (FN_MISS, 0xa6a2b4)];
 
 /// Prop colours (100..148): foliage, ground cover, stone, wood, cloth, fire.
@@ -155,7 +161,7 @@ pub fn palette() -> [u32; 256] {
     for (k, c) in [0x2c5d78u32, 0x336a86, 0x3b7792, 0x336a86].iter().enumerate() {
         p[WATER as usize + k] = *c;
     }
-    for &(i, c) in FX.iter().chain(PROP.iter()).chain(FLOAT.iter()) {
+    for &(i, c) in FX.iter().chain(PROP.iter()).chain(FLOAT.iter()).chain(MASONRY.iter()) {
         p[i as usize] = c;
     }
     for c in (0u8..16).chain(80..100) {

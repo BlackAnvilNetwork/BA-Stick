@@ -10,7 +10,7 @@ use stick_engine::rig;
 
 use crate::preset::{AnimState, Body, RigPreset};
 use crate::palette::*;
-use crate::zone::Zone;
+use crate::zone::{Zone, F_BRIDGE, F_WATER};
 use crate::{creature, figure, floaters, ground, palette, props};
 
 /// One unit update from the host (mirrors the fields of `UnitSnapshot` that
@@ -314,6 +314,17 @@ impl Scene {
         }
     }
 
+    /// True when a unit stands in open water (not on a bridge deck).
+    fn wading(&self, u: &Unit) -> bool {
+        let Some(z) = &self.zone else { return false };
+        let f = z.flags_at(u.pos.x, u.pos.z);
+        f & F_WATER != 0 && f & F_BRIDGE == 0 && u.pos.y < z.height_at(u.pos.x, u.pos.z) + 0.4
+    }
+
+    pub fn is_wading(&self, id: &str) -> bool {
+        self.units.get(id).is_some_and(|u| self.wading(u))
+    }
+
     /// Framebuffer anchors for a unit: (x, head top y, feet y), so the host
     /// can place HTML (names, NPC menus) over it.
     pub fn anchor(&self, id: &str) -> Option<(f32, f32, f32)> {
@@ -366,7 +377,7 @@ impl Scene {
                 ring(&mut self.fb, &cam, c, size, FX_HOVER, Some(t * 1.5));
             }
             let p = cam.project(c);
-            if fx.fade > 0.35 {
+            if fx.fade > 0.35 && !self.wading(u) {
                 shadow(&mut self.fb, p.x, p.y, 13.0 * size / 0.5, 6.0 * size / 0.5);
             }
         }
@@ -399,6 +410,13 @@ impl Scene {
                     };
                     creature::draw(&mut self.fb, &cam, body, &pose);
                 }
+            }
+            if self.wading(u) {
+                // Hide everything the unit drew below shin height, then ripple.
+                let depth = if matches!(u.preset.body, Body::Biped) { WADE_DEPTH } else { 0.1 };
+                let wl = cam.project(base + v3(0.0, depth, 0.0)).y.round() as usize;
+                bb.restore_below(&mut self.fb, &saved, wl);
+                ripple(&mut self.fb, feet.x, wl as f32, body_radius(&u.preset.body), t);
             }
             let tint = if u.fx.flags & FX_PETRIFIED != 0 || u.anim == AnimState::Dead {
                 Some(TINT_STONE)
@@ -533,6 +551,20 @@ impl BBox {
         }
         v
     }
+    /// Undo the unit's pixels at or below framebuffer row `wl` (wading).
+    fn restore_below(&self, fb: &mut Framebuffer, saved: &[(u8, f32)], wl: usize) {
+        let mut k = 0;
+        for y in self.y0..self.y1 {
+            for x in self.x0..self.x1 {
+                if y >= wl {
+                    let i = y * fb.w + x;
+                    (fb.color[i], fb.depth[i]) = saved[k];
+                }
+                k += 1;
+            }
+        }
+    }
+
     fn post(&self, fb: &mut Framebuffer, saved: &[(u8, f32)], tint: Option<u8>, fade: f32) {
         if tint.is_none() && fade >= 1.0 {
             return;
@@ -671,6 +703,31 @@ fn shadow(fb: &mut Framebuffer, cx: f32, cy: f32, rx: f32, ry: f32) {
             let i = y as usize * fb.w + x as usize;
             if nx * nx + ny * ny <= 1.0 && fb.depth[i] == f32::INFINITY {
                 fb.color[i] = C_SHADOW;
+            }
+        }
+    }
+}
+
+/// How deep units sink when wading (world units; ≈ shin height).
+pub const WADE_DEPTH: f32 = 0.3;
+
+/// Animated ripple ellipse at the water line around a wading unit.
+fn ripple(fb: &mut Framebuffer, cx: f32, cy: f32, size: f32, t: f32) {
+    for k in 0..2 {
+        let ph = ((t * 0.9 + k as f32 * 0.5) % 1.0) as f32;
+        let (rx, ry) = ((9.0 + ph * 8.0) * size / 0.5, (3.5 + ph * 3.0) * size / 0.5);
+        if ph > 0.75 && k == 1 {
+            continue;
+        }
+        let n = 40;
+        for i in 0..n {
+            let a = i as f32 / n as f32 * std::f32::consts::TAU;
+            let (x, y) = ((cx + a.cos() * rx) as i32, (cy + a.sin() * ry) as i32);
+            if x >= 0 && y >= 0 && (x as usize) < fb.w && (y as usize) < fb.h && (i + k) % 3 != 0 {
+                let i2 = y as usize * fb.w + x as usize;
+                if fb.depth[i2] == f32::INFINITY {
+                    fb.color[i2] = WATER + 3;
+                }
             }
         }
     }
