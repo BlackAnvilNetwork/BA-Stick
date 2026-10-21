@@ -347,3 +347,27 @@ fn vfx_500_particles_stay_capped_and_cheap() {
     for _ in 0..100 { s.spawn_vfx(Prim::Burst, "a", None, 0x5fe0f0, 400, 1.0, 0); }
     assert!(s.vfx_count() <= crate::vfx::MAX_PARTICLES);
 }
+
+#[test]
+fn gear_changes_the_figure_and_seeds_are_stable() {
+    use crate::gear::{garb, WeaponLook, Mat};
+    use crate::preset::Weapon;
+    assert_eq!(WeaponLook::new(Weapon::Sword, Mat::Metal, 42), WeaponLook::new(Weapon::Sword, Mat::Metal, 42));
+    let looks: std::collections::HashSet<String> = (1..40).map(|s| format!("{:?}", WeaponLook::new(Weapon::Sword, Mat::Metal, s))).collect();
+    assert!(looks.len() > 10, "seeds should vary looks");
+    let render = |g: Option<crate::gear::Garb>| {
+        let mut s = Scene::new(160, 160);
+        s.upsert_unit("p", unit(0.0, 0.0, "idle", "knight"));
+        if let Some(g) = g { assert!(s.set_gear("p", g)); }
+        s.tick(0.0);
+        s.draw();
+        s.fb.color.clone()
+    };
+    let plain = render(None);
+    let axe = render(Some(garb(4, 3, 7, 0, 0, 0, 0, 0, 0)));
+    let armour = render(Some(garb(0, 0, 0, 2, 5, 3, 9, 2, 5)));
+    assert_ne!(plain, axe);
+    assert_ne!(plain, armour);
+    assert!(armour.contains(&crate::palette::GEAR_LEATHER));
+    for fam in 1..=7 { render(Some(garb(fam, 3, fam as u32, 1, 1, 1, 1, 1, 1))); }
+}

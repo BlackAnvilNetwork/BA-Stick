@@ -64,6 +64,15 @@ impl StickRenderer {
         self.scene.vfx_count()
     }
 
+    /// Equipment look (#14). family: 0 keep, 1 sword, 2 greatsword, 3 dagger,
+    /// 4 axe, 5 staff, 6 club, 7 knuckles. Materials: 0 none, 1 cloth,
+    /// 2 leather, 3 metal, 4 wood, 5 bone, 6 gold. Seeds = catalog item ids.
+    #[wasm_bindgen(js_name = setGear)]
+    #[allow(clippy::too_many_arguments)]
+    pub fn set_gear(&mut self, id: &str, family: u8, wmat: u8, wseed: u32, body: u8, bseed: u32, head: u8, hseed: u32, legs: u8, lseed: u32) -> bool {
+        self.scene.set_gear(id, crate::gear::garb(family, wmat, wseed, body, bseed, head, hseed, legs, lseed))
+    }
+
     /// Toggle lighting / haze / skyline / vignette (#26).
     #[wasm_bindgen(js_name = setAtmosphere)]
     pub fn set_atmosphere(&mut self, on: bool) {
