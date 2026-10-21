@@ -242,7 +242,8 @@ fn wading_hides_legs_in_water_but_not_on_bridges() {
     let mut s = Scene::new(320, 180);
     s.load_zone(&bytes).unwrap();
     // zone x = -2 + i*0.5 → i 0..9 water, i 5 bridge (x 0.5..1.0)
-    s.upsert_unit("w", unit(0.0, 5.0, "idle", "knight"));
+    // (a full cell away from the bridge and the shore: water on every side, F18)
+    s.upsert_unit("w", unit(-1.0, 5.0, "idle", "knight"));
     s.upsert_unit("b", unit(0.75, 8.0, "idle", "knight"));
     s.upsert_unit("d", unit(10.0, 5.0, "idle", "knight"));
     s.tick(0.0);

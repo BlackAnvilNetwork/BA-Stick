@@ -13,7 +13,7 @@ use stick_engine::rig;
 
 use crate::preset::{AnimState, Body, RigPreset};
 use crate::palette::*;
-use crate::zone::{Zone, F_BRIDGE, F_WATER};
+use crate::zone::Zone;
 use crate::{creature, figure, floaters, ground, palette, props};
 
 /// One unit update from the host (mirrors the fields of `UnitSnapshot` that
@@ -409,8 +409,7 @@ impl Scene {
             return false;
         }
         let Some(z) = &self.zone else { return false };
-        let f = z.flags_at(u.pos.x, u.pos.z);
-        f & F_WATER != 0 && f & F_BRIDGE == 0 && u.pos.y < z.height_at(u.pos.x, u.pos.z) + 0.4
+        z.deep_water_at(u.pos.x, u.pos.z) && u.pos.y < z.height_at(u.pos.x, u.pos.z) + 0.4
     }
 
     pub fn is_wading(&self, id: &str) -> bool {
