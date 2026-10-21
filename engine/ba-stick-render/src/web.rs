@@ -80,6 +80,12 @@ impl StickRenderer {
     }
 
     /// Toggle lighting / haze / skyline / vignette (#26).
+    /// Blend the camera to 3D perspective (true) or back to iso (false).
+    #[wasm_bindgen(js_name = setView3d)]
+    pub fn set_view3d(&mut self, on: bool) {
+        self.scene.view3d = on;
+    }
+
     #[wasm_bindgen(js_name = setAtmosphere)]
     pub fn set_atmosphere(&mut self, on: bool) {
         self.scene.atmosphere = on;

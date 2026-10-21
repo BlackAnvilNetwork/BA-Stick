@@ -9,6 +9,7 @@ import "./stick.css";
 import { App } from "./App";
 import { DemoApp } from "./DemoApp";
 
+document.documentElement.dataset.renderer = "stick";
 {
   const saved = localStorage.getItem(UI_SETTINGS_KEY);
   const initial = initialUiSettings(saved, loadUiSettings(), isCoarsePointer());

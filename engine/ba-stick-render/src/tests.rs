@@ -386,3 +386,25 @@ fn preview_backdrop_is_transparent_around_the_figure() {
     let opaque = out.chunks(4).filter(|p| p[3] == 255).count();
     assert!(opaque > 150, "figure drawn ({opaque} px)");
 }
+
+#[test]
+fn camera_3d_roundtrip_and_blend() {
+    use stick_engine::camera::Camera;
+    use stick_engine::math::v3;
+    let mut cam = Camera::new(640, 360);
+    for persp in [0.0, 0.5, 1.0] {
+        cam.persp = persp;
+        for (x, z) in [(0.0, 0.0), (3.0, -2.0), (-8.0, -9.0), (4.0, 5.0)] {
+            let p = cam.project(v3(x, 0.0, z));
+            let (ux, uz) = cam.unproject_ground(p.x, p.y);
+            assert!((ux - x).abs() < 1e-3 && (uz - z).abs() < 1e-3, "{persp} {x} {z} -> {ux} {uz}");
+        }
+    }
+    // Far things shrink, near things grow in 3D.
+    assert!(cam.scale_at(v3(-8.0, 0.0, -8.0)) < 1.0);
+    assert!(cam.scale_at(v3(3.0, 0.0, 3.0)) > 1.0);
+    let mut s = crate::scene::Scene::new(640, 360);
+    s.view3d = true;
+    for _ in 0..60 { s.tick(1.0 / 60.0); }
+    assert_eq!(s.cam.persp, 1.0);
+}

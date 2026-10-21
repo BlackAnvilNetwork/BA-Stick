@@ -92,6 +92,8 @@ struct Unit {
 pub struct Scene {
     pub fb: Framebuffer,
     pub cam: Camera,
+    /// Requested view: false = iso, true = 3D perspective.
+    pub view3d: bool,
     lib: AnimLibrary,
     units: BTreeMap<String, Unit>,
     follow: Option<String>,
@@ -122,6 +124,7 @@ impl Scene {
         Scene {
             fb: Framebuffer::new(w, h),
             cam: Camera::new(w, h),
+            view3d: false,
             lib: AnimLibrary::builtin(),
             units: BTreeMap::new(),
             follow: None,
@@ -296,6 +299,12 @@ impl Scene {
 
     pub fn tick(&mut self, dt: f32) {
         self.time += dt;
+        // Iso ↔ 3D camera blend (#19), ~0.4 s ease.
+        let target = if self.view3d { 1.0 } else { 0.0 };
+        self.cam.persp += (target - self.cam.persp) * (1.0 - (-8.0 * dt).exp());
+        if (target - self.cam.persp).abs() < 1e-3 {
+            self.cam.persp = target;
+        }
         self.vfx.tick(dt);
         for f in &mut self.floaters {
             f.age += dt;

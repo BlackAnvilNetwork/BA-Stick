@@ -58,7 +58,7 @@ pub fn draw_garbed(fb: &mut Framebuffer, cam: &Camera, j: &Joints, pr: &Proporti
     fb.capsule(p(j.shoulder[0]), p(j.shoulder[1]), t + garb.bulk * 0.5, torso, o);
     fb.capsule(p(j.chest), p(j.neck), t * 0.8, torso, o);
     fb.disc(p(j.neck), t + 0.4, look.accent, None);
-    let head_px = pr.head_r * HEIGHT_PX;
+    let head_px = pr.head_r * HEIGHT_PX * cam.scale_at(j.head);
     fb.disc(p(j.head), head_px, look.body, o);
     if let Some((style, c, crest)) = garb.head {
         head_gear(fb, cam, j, pr.head_r, style, c, crest);
@@ -129,7 +129,7 @@ fn head_gear(fb: &mut Framebuffer, cam: &Camera, j: &Joints, r: f32, style: Head
     let p = |v: Vec3| cam.project(v);
     let up = (j.head - j.neck) * (1.0 / (j.head - j.neck).len().max(1e-3));
     let h = p(j.head);
-    let rp = r * HEIGHT_PX;
+    let rp = r * HEIGHT_PX * cam.scale_at(j.head);
     let front = |q: stick_engine::camera::P2| stick_engine::camera::P2 { d: q.d - 0.4, ..q };
     match style {
         HeadStyle::Helm => {

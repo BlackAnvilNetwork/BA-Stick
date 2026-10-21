@@ -56,6 +56,13 @@ export function StickWorld() {
       if (import.meta.env.DEV) Object.assign(window, { __stick: { r, canvas, fromFramebuffer, send } });
       // Phones: atmosphere pass costs ~1/3 of the frame; drop it to hold 30+ fps (#18).
       if (!atmosphereFor(isCoarsePointer(), location.search)) r.setAtmosphere(false);
+      // Iso / 3D camera follows the View setting (#19); the engine eases the blend.
+      const root = document.documentElement;
+      const syncView = () => r.setView3d(root.dataset.uiView === "3d");
+      syncView();
+      const viewObs = new MutationObserver(syncView);
+      viewObs.observe(root, { attributes: true, attributeFilter: ["data-ui-view"] });
+      cleanups.push(() => viewObs.disconnect());
       let zoneLoaded: string | null = null;
       const zones = new ZoneTracker();
       let lastSnap: unknown = null;

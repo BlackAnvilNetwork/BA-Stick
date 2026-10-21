@@ -1,0 +1,61 @@
+name: pages (gated)
+
+# GATED: public GitHub Pages deploy is NOT approved yet.
+# - Manual trigger only (no push/PR triggers).
+# - Both jobs are skipped unless the repo variable ENABLE_PAGES_DEPLOY == 'true'.
+# - Pages itself must also be enabled in repo settings by a maintainer.
+# The client connects to the server named by the repo variable VITE_WS_URL (wss://...).
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: ${{ vars.ENABLE_PAGES_DEPLOY == 'true' }}
+    runs-on: ubuntu-latest
+    env:
+      CARGO_TARGET_DIR: ${{ github.workspace }}/engine/target
+      VITE_WS_URL: ${{ vars.VITE_WS_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require a server URL
+        run: test -n "$VITE_WS_URL" || { echo "Set repo variable VITE_WS_URL"; exit 1; }
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-bindgen-cli@0.2.129
+      - run: ./engine/build-wasm.sh
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.12.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @bellgrave/stick-web build
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: apps/stick-web/dist
+
+  deploy:
+    if: ${{ vars.ENABLE_PAGES_DEPLOY == 'true' }}
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
