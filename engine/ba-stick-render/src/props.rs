@@ -63,7 +63,8 @@ pub mod kind {
     pub const PEAK: u8 = 46;
     /// Bank retaining wall run: s = length, w = thickness, h = height, d = coping.
     pub const RIVER_WALL: u8 = 47;
-    /// Stone bridge: s = span, w = deck width, h = arch, y = left end, d = right end height.
+    /// Stone bridge: s = span, w = deck width, h = flat-deck lift over the end-to-end lerp,
+    /// y = left end, d = right end height, var = ramp fraction x 200 (trapezoid profile).
     pub const BRIDGE: u8 = 48;
 }
 
@@ -354,6 +355,21 @@ fn hash(a: f32, b: f32) -> f32 {
     s - s.floor()
 }
 
+/// Ramp fraction of a bridge prop: `var` carries it in 1/200 steps (the bake
+/// quantises `paleHollowBridgeGeom().ramp` the same way); 0 = default 0.3.
+pub fn bridge_ramp(p: &Prop) -> f32 {
+    if p.var == 0 { 0.3 } else { p.var as f32 / 200.0 }
+}
+
+/// Deck height of a bridge prop at span parameter `t`, relative to its left end
+/// (`p.y`): the straight lerp to the right end (`p.d`) plus `p.h` times the
+/// trapezoid profile. Mirrors `paleHollowBridgeCurveY` in @bellgrave/config.
+pub fn bridge_curve(p: &Prop, t: f32) -> f32 {
+    let t = t.clamp(0.0, 1.0);
+    let r = bridge_ramp(p);
+    (p.d - p.y) * t + p.h.max(0.0) * (t / r).min((1.0 - t) / r).min(1.0)
+}
+
 pub fn draw(fb: &mut Framebuffer, cam: &Camera, props: &[Prop], cam_y: f32, time: f32) {
     let (w, h) = (fb.w as f32, fb.h as f32);
     for p in props {
@@ -382,22 +398,14 @@ fn draw_one(c: &mut Ctx, p: &Prop, time: f32) {
             c.wall_run(p, p.w + 0.06, p.h, p.d, BANK, BANK_D, BANK_DD, true);
         }
         kind::BRIDGE => {
-            // One continuous deck ribbon from bank to bank, with a continuous
-            // parapet rail on each side: no per-slab seams or steps, so the
-            // whole span reads as a single walkable surface.
-            let n = 16;
-            let curve = |t: f32| {
-                let t = t.clamp(0.0, 1.0);
-                (p.d - p.y) * t + p.h.max(0.0) * 4.0 * t * (1.0 - t)
-            };
+            // Ramp up from the bank, flat deck over the river, ramp down: the same
+            // trapezoid as @bellgrave/config `paleHollowBridgeCurveY` (the server's
+            // walk height). The ramps sit on solid abutments that meet each bank.
+            let r = bridge_ramp(p);
+            let curve = |t: f32| bridge_curve(p, t);
+            let ts = [0.0, r, 1.0 - r, 1.0];
             let st = |lo: f32, hi: f32| -> Vec<(f32, f32, f32)> {
-                (0..=n)
-                    .map(|i| {
-                        let t = i as f32 / n as f32;
-                        let y = curve(t);
-                        (-p.s * 0.5 + p.s * t, y + lo, y + hi)
-                    })
-                    .collect()
+                ts.iter().map(|&t| (-p.s * 0.5 + p.s * t, curve(t) + lo, curve(t) + hi)).collect()
             };
             // deck top in the stone-trail colour: walkable surfaces share the trail palette,
             // so it reads apart from the (blocked) wall copings and parapets
@@ -405,11 +413,11 @@ fn draw_one(c: &mut Ctx, p: &Prop, time: f32) {
             for side in [-1.0f32, 1.0] {
                 c.ribbon(side * (p.w * 0.5 - 0.12), 0.12, &st(0.0, 0.42), BANK, BANK_D, BANK_DD);
             }
-            // end posts
-            for (t, fz) in [(0.0f32, -p.s * 0.5), (1.0, p.s * 0.5)] {
-                for side in [-1.0f32, 1.0] {
-                    c.boxy(side * (p.w * 0.5 - 0.12), curve(t), fz, 0.38, 0.62, 0.38, BANK_L, BANK, BANK_D);
-                }
+            // abutments: a solid wedge under each ramp, from the bank grass up to the deck
+            for (t0, t1, foot) in [(0.0f32, r, curve(0.0)), (1.0 - r, 1.0, curve(1.0))] {
+                let ab: Vec<(f32, f32, f32)> =
+                    [t0, t1].iter().map(|&t| (-p.s * 0.5 + p.s * t, foot - 0.3, curve(t) - 0.22)).collect();
+                c.ribbon(0.0, p.w * 0.5 - 0.02, &ab, BANK, BANK_D, BANK_DD);
             }
             // pier under mid-span down to the river bed
             let mid = curve(0.5);
