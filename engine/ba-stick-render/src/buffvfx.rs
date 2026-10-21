@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+
 //! Buff / ailment visuals (#34). The host maps `units[].buffs` (see
 //! `apps/stick-web/src/content/buff-vfx.json`) to a bit mask of visual kinds
 //! each frame; this module only draws them. Five bespoke effects mirror the

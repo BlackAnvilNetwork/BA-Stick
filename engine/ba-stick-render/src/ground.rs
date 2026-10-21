@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+
 //! Height-aware iso ground: painter's-order quads over the baked zone grid.
 use stick_engine::camera::{Camera, P2, HEIGHT_PX, ISO_Y};
 use stick_engine::math::v3;

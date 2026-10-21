@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+
 //! Static zone props (BAP1 from apps/stick-web/scripts/bake-props.ts): trees,
 //! ground cover, the hub encampment, rock wall and mountain peaks, drawn
 //! procedurally into the depth buffer so units sort in front of / behind them.

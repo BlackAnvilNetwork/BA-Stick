@@ -1,3 +1,7 @@
+# Copyright (c) 2026 Black Anvil Network
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+
 # BA-Stick Rust workspace. `stick-engine/` is a git subtree with its own
 # workspace; it is excluded here and consumed as a path dependency.
 [workspace]

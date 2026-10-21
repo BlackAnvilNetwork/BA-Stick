@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+
 //! Gear visuals (#14): equipped items change the stick figure. Purely
 //! cosmetic. Each item's look is derived from its family/material and a
 //! per-item seed (the catalog id), so the same item always looks the same

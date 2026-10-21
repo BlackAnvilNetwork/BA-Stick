@@ -71,6 +71,7 @@ Black Anvil HUD chrome lives in `apps/stick-web/public/ui/black-anvil/` (source 
 - **Network use counts.** If you run a modified version of the server (or any part of it) for users over a network, you must offer those users the complete corresponding source of your version, for example with a "Source" link (AGPL §13).
 - **Distributing the client counts.** Shipping the web client, its JS/wasm bundles or any binary means offering the complete corresponding source, including Rust/TS sources, build scripts and lockfiles (AGPL §6).
 - **Keep the notices.** Don't remove copyright lines, license notices or warranty disclaimers.
+- **Preserve notices (AGPL §5).** Every source file under `engine/` carries a `Copyright (c) 2026 Black Anvil Network` / `SPDX-License-Identifier: AGPL-3.0-or-later` header. Keep it (and any third-party notice) when editing or copying files, and add it to new files with `node scripts/add-license-headers.mjs`; CI fails if one is missing (`--check`).
 - **Derivatives stay AGPL.** Modified versions and works based on this code must be licensed under AGPL-3.0-or-later.
 - **Mark modified files** with a prominent notice saying what you changed and when (AGPL §5a).
 - **No extra restrictions** beyond the license, and contributors grant the patent license in AGPL §11.
