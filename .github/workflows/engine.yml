@@ -1,0 +1,24 @@
+name: engine
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    env:
+      CARGO_TARGET_DIR: ${{ github.workspace }}/engine/target
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - name: stick-engine (subtree) tests
+        run: cargo test --manifest-path engine/stick-engine/Cargo.toml -p stick_engine
+      - name: stick-engine wasm build
+        run: cargo build --manifest-path engine/stick-engine/Cargo.toml -p stick_web --target wasm32-unknown-unknown --release
