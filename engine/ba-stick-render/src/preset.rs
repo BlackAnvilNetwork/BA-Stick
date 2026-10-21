@@ -70,6 +70,11 @@ pub enum Weapon {
     Sword,
     Staff,
     None,
+    Greatsword,
+    Dagger,
+    Axe,
+    Club,
+    Knuckles,
 }
 
 /// Visual preset for a unit: proportions plus palette indices.

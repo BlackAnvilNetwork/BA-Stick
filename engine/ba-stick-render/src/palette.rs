@@ -84,6 +84,11 @@ pub const BANK_DD: u8 = 137;
 pub const BANK_D: u8 = 138;
 pub const BANK: u8 = 139;
 pub const BANK_L: u8 = 140;
+/// Gear materials (#14).
+pub const GEAR_LEATHER: u8 = 77;
+pub const GEAR_LEATHER_FAR: u8 = 78;
+pub const GEAR_BONE: u8 = 79;
+pub const GEAR: [(u8, u32); 3] = [(GEAR_LEATHER, 0x7a5233), (GEAR_LEATHER_FAR, 0x553823), (GEAR_BONE, 0xd8cfb4)];
 /// Canine (scavenger dog): orange-brown strokes, golden-tan fill, dark spot.
 pub const CR_DOG: u8 = 142;
 pub const CR_DOG_FAR: u8 = 143;
@@ -169,7 +174,7 @@ pub fn palette() -> [u32; 256] {
     for (k, c) in [0x2c5d78u32, 0x336a86, 0x3b7792, 0x336a86].iter().enumerate() {
         p[WATER as usize + k] = *c;
     }
-    for &(i, c) in FX.iter().chain(PROP.iter()).chain(FLOAT.iter()).chain(MASONRY.iter()).chain(CANINE.iter()) {
+    for &(i, c) in FX.iter().chain(PROP.iter()).chain(FLOAT.iter()).chain(MASONRY.iter()).chain(CANINE.iter()).chain(GEAR.iter()) {
         p[i as usize] = c;
     }
     for c in (0u8..16).chain(80..100) {

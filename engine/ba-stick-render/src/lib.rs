@@ -12,6 +12,7 @@ pub mod vfx;
 pub mod compat;
 pub mod creature;
 pub mod figure;
+pub mod gear;
 pub mod floaters;
 pub mod ground;
 pub mod palette;

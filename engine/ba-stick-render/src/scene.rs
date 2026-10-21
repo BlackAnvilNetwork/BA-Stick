@@ -76,6 +76,8 @@ struct Unit {
     anim: AnimState,
     preset_key: String,
     preset: RigPreset,
+    /// Equipment look (#14).
+    garb: crate::gear::Garb,
     animator: Animator,
     /// Procedural walk/run base layer (engine gait).
     walk: Gait,
@@ -208,6 +210,7 @@ impl Scene {
                     target_yaw: u.facing,
                     anim: u.anim,
                     preset: RigPreset::resolve(&u.preset),
+                    garb: crate::gear::Garb::default(),
                     preset_key: u.preset,
                     animator,
                     walk: Gait::default(),
@@ -376,6 +379,14 @@ impl Scene {
     }
 
     /// Set per-unit effect state (bars, rings, telegraphs, fade, tint).
+    /// Equipment look for a unit (#14). Cosmetic only.
+    pub fn set_gear(&mut self, id: &str, garb: crate::gear::Garb) -> bool {
+        match self.units.get_mut(id) {
+            Some(u) => { u.garb = garb; true }
+            None => false,
+        }
+    }
+
     pub fn set_fx(&mut self, id: &str, fx: UnitFx) -> bool {
         match self.units.get_mut(id) {
             Some(u) => { u.fx = fx; true }
@@ -480,7 +491,11 @@ impl Scene {
                         figure::collapse(&mut j, base, u.yaw, u.dead_t);
                         look.accent = C_SHADOW;
                     }
-                    figure::draw(&mut self.fb, &cam, &j, &u.preset.props, &look, u.preset.weapon);
+                    let mut garb = u.garb;
+                    if garb.weapon.is_none() {
+                        garb.weapon = Some(crate::gear::WeaponLook::plain(u.preset.weapon));
+                    }
+                    figure::draw_garbed(&mut self.fb, &cam, &j, &u.preset.props, &look, &garb);
                 }
                 ref body => {
                     let pose = creature::Pose {

@@ -1,6 +1,8 @@
 import { useEffect, useRef } from "react";
 import { onSend, send } from "@bellgrave/client-core/net";
 import { VfxDirector, playSteps } from "./vfx";
+import { gearArgs } from "./gear";
+import { getItem } from "@bellgrave/items";
 import { useGame } from "@bellgrave/client-core/state";
 import { clampPaleHollow } from "@bellgrave/config";
 import type { UnitSnapshot } from "@bellgrave/protocol";
@@ -185,6 +187,8 @@ export function StickWorld() {
         if (snap && snap !== lastSnap) {
           lastSnap = snap;
           syncUnits(r, snap.units, known, Date.now());
+          const me = myUnit();
+          if (me) r.setGear(me.id, ...gearArgs(snap.you.equip, getItem));
           casts.forget(known);
           for (const fx of vfx.scan(snap.units, myUnit()?.id, Date.now())) if (known.has(fx.from)) playSteps(r, fx.steps, fx.from, fx.to);
           for (const ev of floats.scan(snap.units, myUnit(), snap.log ?? [], Date.now())) if (known.has(ev.id)) r.addFloater(ev.id, ev.kind, ev.value);
