@@ -1,7 +1,7 @@
 import type { LokEventView, LokExploreScope } from "@bellgrave/protocol";
 import { useEffect, useRef, useState } from "react";
-import { send } from "./net";
-import { useGame } from "./state";
+import { send } from "@bellgrave/client-core/net";
+import { useGame } from "@bellgrave/client-core/state";
 
 type Props = { onClose: () => void };
 

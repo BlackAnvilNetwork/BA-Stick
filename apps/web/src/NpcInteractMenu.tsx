@@ -10,8 +10,8 @@ import {
   type JobId,
 } from "@bellgrave/combat";
 import { AbilityIcon } from "./AbilityIcon";
-import { send } from "./net";
-import { useGame } from "./state";
+import { send } from "@bellgrave/client-core/net";
+import { useGame } from "@bellgrave/client-core/state";
 
 function hudAbilityTip(id: CombatAbilityId): { title: string; body: string; meta: string } {
   const raw = abilityTooltip(id);

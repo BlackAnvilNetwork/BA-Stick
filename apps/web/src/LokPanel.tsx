@@ -1,7 +1,7 @@
 import type { SnapshotMessage } from "@bellgrave/protocol";
 import { AuctionBook } from "./auction-house";
 import { ProvisionerBag } from "./provisioner-bag";
-import { useGame } from "./state";
+import { useGame } from "@bellgrave/client-core/state";
 
 type Props = {
   you: SnapshotMessage["you"];

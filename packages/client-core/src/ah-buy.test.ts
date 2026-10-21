@@ -122,8 +122,8 @@ describe("buyAsk epoch cap", { concurrency: false }, () => {
       chainBoundXdaiSend,
       epochSettledXdai,
       resetRootAnchorForTests,
-    } = await import("../../server/src/root-anchor.ts");
-    const { allowEpochSettlementForTests } = await import("../../server/src/epoch-cap-fixture.ts");
+    } = await import("../../../apps/server/src/root-anchor.ts");
+    const { allowEpochSettlementForTests } = await import("../../../apps/server/src/epoch-cap-fixture.ts");
     const escrow = {
       address: "0x2222222222222222222222222222222222222222",
       chainId: 31337,

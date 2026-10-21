@@ -24,7 +24,7 @@ import {
 import { formatJobs, formatPrimaryEffects, formatScaledStats } from "./itemTip";
 import type { SnapshotMessage, UnitSnapshot } from "@bellgrave/protocol";
 import { useMemo } from "react";
-import { send } from "./net";
+import { send } from "@bellgrave/client-core/net";
 import { statTooltip } from "./statTooltips";
 
 function formatSigned(v: number): string {

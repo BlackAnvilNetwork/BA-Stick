@@ -53,6 +53,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@bellgrave/client-core':
+        specifier: workspace:*
+        version: link:../../packages/client-core
       '@bellgrave/combat':
         specifier: workspace:*
         version: link:../../packages/combat
@@ -132,6 +135,55 @@ importers:
       sharp:
         specifier: ^0.35.4
         version: 0.35.4(@types/node@22.20.4)
+      tsx:
+        specifier: ^4.19.3
+        version: 4.23.15
+      typescript:
+        specifier: ^5.8.2
+        version: 5.9.3
+      vite:
+        specifier: ^6.2.2
+        version: 6.4.3(@types/node@22.20.4)(tsx@4.23.15)
+
+  packages/client-core:
+    dependencies:
+      '@bellgrave/config':
+        specifier: workspace:*
+        version: link:../config
+      '@bellgrave/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+      '@noble/curves':
+        specifier: ^2.4.0
+        version: 2.4.0
+      '@reown/appkit':
+        specifier: ^1.8.24
+        version: 1.8.24(@types/react@19.3.0)(react@19.3.0)(typescript@5.9.3)(use-sync-external-store@1.7.0(react@19.3.0))(zod@3.25.76)
+      '@reown/appkit-adapter-ethers':
+        specifier: ^1.8.24
+        version: 1.8.24(@ethersproject/sha2@5.8.0)(@types/react@19.3.0)(ethers@6.17.0)(react@19.3.0)(typescript@5.9.3)(use-sync-external-store@1.7.0(react@19.3.0))(zod@3.25.76)
+      '@walletconnect/ethereum-provider':
+        specifier: ^2.26.0
+        version: 2.26.0(@types/react@19.3.0)(react@19.3.0)(typescript@5.9.3)(use-sync-external-store@1.7.0(react@19.3.0))(zod@3.25.76)
+      ethers:
+        specifier: ^6.17.0
+        version: 6.17.0
+      viem:
+        specifier: ^2.57.2
+        version: 2.57.2(typescript@5.9.3)(zod@3.25.76)
+      zustand:
+        specifier: ^5.0.3
+        version: 5.0.15(@types/react@19.3.0)(react@19.3.0)(use-sync-external-store@1.7.0(react@19.3.0))
+    devDependencies:
+      '@types/node':
+        specifier: ^22.13.10
+        version: 22.20.4
+      '@types/react':
+        specifier: ^19.0.12
+        version: 19.3.0
+      react:
+        specifier: ^19.0.0
+        version: 19.3.0
       tsx:
         specifier: ^4.19.3
         version: 4.23.15

@@ -13,7 +13,7 @@ import {
   encodeCommitCertificate,
   snapshotLightClient,
   type SnapshotLightProof,
-} from "../../server/src/web-light-snapshot.ts";
+} from "../../../apps/server/src/web-light-snapshot.ts";
 import { useGame } from "./state";
 import {
   checkWebLightClient,

@@ -23,7 +23,7 @@ import {
 } from "@bellgrave/config";
 import { useMemo } from "react";
 import * as THREE from "three";
-import { send } from "./net";
+import { send } from "@bellgrave/client-core/net";
 
 /** ~2.5–3 ft body — raised so tops read from the iso camera. */
 const WALL_H = PH_RIVER_WALL.h;

@@ -31,14 +31,14 @@ import { PaleHollowRivers } from "./PaleHollowRivers";
 import { PaleHollowRiverBanks } from "./PaleHollowRiverBanks";
 import { PaleHollowPaths } from "./PaleHollowPaths";
 import { peekSpriteTexture, putSpriteTexture, requestSpriteTexture, subscribeSpriteLoads } from "./spriteCache";
-import { send } from "./net";
+import { send } from "@bellgrave/client-core/net";
 import {
   clearKeyboardMove,
   getMoveKeys,
   setKeyboardMoveKey,
   type MoveKeys,
 } from "./moveInput";
-import { useGame } from "./state";
+import { useGame } from "@bellgrave/client-core/state";
 import { playEnemySwing, playJobSwing, playTemporalDistortion } from "./combatSfx";
 import { UnitStatusIcons } from "./UnitStatusIcons";
 import { QuarksVfxLayer, spawnVfx } from "./vfx";
