@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { playSteps, stepsFor } from "./vfx";
 import { createRenderer, fetchProps, fetchZone, fromFramebuffer } from "./renderer";
 import { demoUnits, rosterUnits } from "./demo";
 
@@ -55,7 +56,7 @@ export function DemoApp() {
       };
       r.draw();
       (window as unknown as { __stickReady: boolean }).__stickReady = true;
-      (window as unknown as { __stick: unknown }).__stick = { r, canvas: ref.current, fromFramebuffer };
+      (window as unknown as { __stick: unknown }).__stick = { r, canvas: ref.current, fromFramebuffer, playAbility: (id: string, from: string, to?: string) => playSteps(r, stepsFor(id), from, to) };
       raf = requestAnimationFrame(frame);
     });
     return () => {

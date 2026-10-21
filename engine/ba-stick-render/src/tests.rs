@@ -308,3 +308,42 @@ fn scavenger_is_a_dog_that_trots_and_lunges() {
     s.draw();
     assert_ne!(idle, s.fb.color);
 }
+
+
+#[test]
+fn vfx_primitives_spawn_glow_and_expire() {
+    use crate::vfx::Prim;
+    let mut s = Scene::new(240, 200);
+    s.upsert_unit("a", unit(0.0, 0.0, "cast", "job:sorcerer"));
+    s.upsert_unit("b", unit(3.0, 0.0, "idle", "mob:dust_hare"));
+    s.tick(0.0);
+    for (i, prim) in [Prim::Projectile, Prim::Line, Prim::Burst, Prim::Ring].into_iter().enumerate() {
+        assert!(s.spawn_vfx(prim, "a", Some("b"), 0xff8a2a, 60, 1.5, (i as u32) & 1));
+    }
+    assert!(!s.spawn_vfx(Prim::Burst, "nobody", None, 0xffffff, 10, 1.0, 0));
+    for _ in 0..3 { s.tick(1.0 / 30.0); }
+    s.draw();
+    assert!(s.vfx.sparks.len() > 50, "sparks {}", s.vfx.sparks.len());
+    let mut plain = vec![0u8; 240 * 200 * 4];
+    let saved = std::mem::take(&mut s.vfx.sparks);
+    s.write_rgba(&mut plain);
+    s.vfx.sparks = saved;
+    let mut lit = vec![0u8; 240 * 200 * 4];
+    s.write_rgba(&mut lit);
+    let brighter = plain.iter().zip(&lit).filter(|(a, b)| b > a).count();
+    assert!(brighter > 50);
+    for _ in 0..60 { s.tick(1.0 / 30.0); }
+    assert_eq!(s.vfx_count(), 0);
+}
+
+#[test]
+fn vfx_500_particles_stay_capped_and_cheap() {
+    use crate::vfx::Prim;
+    let mut s = Scene::new(640, 360);
+    s.upsert_unit("a", unit(0.0, 0.0, "idle", "job:knight"));
+    s.tick(0.0);
+    for _ in 0..10 { s.spawn_vfx(Prim::Ring, "a", None, 0x5fe0f0, 50, 3.0, 1); }
+    assert!(s.vfx_count() >= 500);
+    for _ in 0..100 { s.spawn_vfx(Prim::Burst, "a", None, 0x5fe0f0, 400, 1.0, 0); }
+    assert!(s.vfx_count() <= crate::vfx::MAX_PARTICLES);
+}
