@@ -61,3 +61,25 @@ The bag is a character save. Gold and log item balances live in the Rust engine 
 ## UI pack
 
 Black Anvil HUD chrome lives in `apps/stick-web/public/ui/black-anvil/` (source sheet + sliced PNG/WebP).
+
+## License (AGPL-3.0): what developers and agents must do
+
+**Black Anvil, Copyright (C) 2026 Black Anvil Network.** Licensed under the GNU Affero General Public License, version 3 or (at your option) any later version (`AGPL-3.0-or-later`). See [LICENSE](LICENSE). Exceptions: `engine/stick-engine` is GPL-3.0-or-later (it may be combined with this AGPL work under AGPL §13), and the `contracts/` crates that declare MIT stay MIT.
+
+*This is a plain-language summary, not legal advice. The LICENSE text governs.*
+
+- **Network use counts.** If you run a modified version of the server (or any part of it) for users over a network, you must offer those users the complete corresponding source of your version, for example with a "Source" link (AGPL §13).
+- **Distributing the client counts.** Shipping the web client, its JS/wasm bundles or any binary means offering the complete corresponding source, including Rust/TS sources, build scripts and lockfiles (AGPL §6).
+- **Keep the notices.** Don't remove copyright lines, license notices or warranty disclaimers.
+- **Derivatives stay AGPL.** Modified versions and works based on this code must be licensed under AGPL-3.0-or-later.
+- **Mark modified files** with a prominent notice saying what you changed and when (AGPL §5a).
+- **No extra restrictions** beyond the license, and contributors grant the patent license in AGPL §11.
+- **Third-party assets and code** (art, fonts, audio, snippets) need licenses that are compatible with AGPL-3.0 and allow commercial use (e.g. CC0, CC-BY 4.0, MIT, BSD, Apache-2.0). No NC, ND or unknown-license material.
+
+### Checklist for AI agents (and humans)
+- [ ] Keep every existing copyright and license header.
+- [ ] Don't paste code whose license you can't confirm is AGPL-compatible.
+- [ ] Record the source URL, author and license of every third-party asset or snippet you add.
+- [ ] Add a dated "modified" notice when changing files that came from someone else.
+- [ ] Keep `package.json` and `Cargo.toml` license fields consistent with the table above (AGPL root, GPL stick-engine, MIT contracts).
+- [ ] When deploying a modified server or publishing a client build, publish or link the matching source.
