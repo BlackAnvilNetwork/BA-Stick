@@ -97,6 +97,7 @@ pub struct Scene {
     zone: Option<Zone>,
     props: Vec<props::Prop>,
     floaters: Vec<floaters::Floater>,
+    pub vfx: crate::vfx::Vfx,
     /// Reference height subtracted from everything so the followed unit sits mid-screen.
     pub cam_y: f32,
     /// Pixels the followed unit sits above the camera's default anchor.
@@ -120,6 +121,7 @@ impl Scene {
             zone: None,
             props: Vec::new(),
             floaters: Vec::new(),
+            vfx: crate::vfx::Vfx::default(),
             cam_y: 0.0,
             follow_lift_px: 40.0,
             time: 0.0,
@@ -254,8 +256,35 @@ impl Scene {
 
     pub fn floater_count(&self) -> usize { self.floaters.len() }
 
+    /// Spawn an ability VFX step between two units (#13). `to` = None → on
+    /// the caster. Flags: 1 = rising particles, 2 = strike from the sky.
+    /// Returns false if the caster is unknown.
+    #[allow(clippy::too_many_arguments)]
+    pub fn spawn_vfx(&mut self, prim: crate::vfx::Prim, from: &str, to: Option<&str>, color: u32, count: u32, radius: f32, flags: u32) -> bool {
+        let Some(a) = self.units.get(from).map(|u| u.pos) else { return false };
+        let b = to.and_then(|t| self.units.get(t)).map(|u| u.pos).unwrap_or(a);
+        self.spawn_vfx_at(prim, a, b, color, count, radius, flags);
+        true
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn spawn_vfx_at(&mut self, prim: crate::vfx::Prim, a: Vec3, b: Vec3, color: u32, count: u32, radius: f32, flags: u32) {
+        use crate::vfx::Prim;
+        let chest = v3(0.0, 0.9, 0.0);
+        let src = if flags & 2 != 0 { b + v3(0.0, 5.0, 0.0) } else { a + chest };
+        let dst = match prim {
+            Prim::Ring => b,
+            Prim::Burst => b + v3(0.0, 0.4, 0.0),
+            _ => b + chest,
+        };
+        self.vfx.spawn(prim, src, dst, color, count, radius, flags & 1 != 0);
+    }
+
+    pub fn vfx_count(&self) -> usize { self.vfx.count() }
+
     pub fn tick(&mut self, dt: f32) {
         self.time += dt;
+        self.vfx.tick(dt);
         for f in &mut self.floaters {
             f.age += dt;
         }
@@ -500,6 +529,7 @@ impl Scene {
                 }
             }
         }
+        self.vfx.project(&cam, self.cam_y, &self.fb.depth, self.fb.w, self.fb.h);
         // Overlays without depth: level-up columns, HP and cast bars.
         for u in self.units.values() {
             let feet = cam.project(rel(u.pos));
@@ -541,6 +571,7 @@ impl Scene {
         } else {
             palette::write_rgba(&self.pal, &self.fb.color, out);
         }
+        crate::vfx::blend(&self.vfx.sparks, self.fb.w, self.fb.h, out);
     }
 }
 

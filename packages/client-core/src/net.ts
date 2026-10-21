@@ -647,6 +647,16 @@ export function logoutToMenu() {
   connectSocket();
 }
 
+const sendListeners = new Set<(msg: ClientMessage) => void>();
+
+/** Observe outgoing messages (stick-web plays own-ability VFX from these). */
+export function onSend(fn: (msg: ClientMessage) => void): () => void {
+  sendListeners.add(fn);
+  return () => {
+    sendListeners.delete(fn);
+  };
+}
+
 export function send(msg: ClientMessage) {
   if (!socket || socket.readyState !== WebSocket.OPEN) {
     useGame.getState().pushLog("Not connected.");
@@ -656,4 +666,5 @@ export function send(msg: ClientMessage) {
     return;
   }
   socket.send(JSON.stringify(msg));
+  for (const fn of sendListeners) fn(msg);
 }

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
-import { send } from "@bellgrave/client-core/net";
+import { onSend, send } from "@bellgrave/client-core/net";
+import { VfxDirector, playSteps } from "./vfx";
 import { useGame } from "@bellgrave/client-core/state";
 import { clampPaleHollow } from "@bellgrave/config";
 import type { UnitSnapshot } from "@bellgrave/protocol";
@@ -56,6 +57,15 @@ export function StickWorld() {
       const known = new Set<string>();
       const casts = new CastClock();
       const floats = new CombatFloaters();
+      const vfx = new VfxDirector();
+      cleanups.push(
+        onSend((m) => {
+          if (m.type !== "ability") return;
+          const me = myUnit();
+          const steps = me && vfx.request(m.id, m.targetId ?? me.targetId, Date.now());
+          if (me && steps) playSteps(r, steps, me.id, m.targetId ?? me.targetId);
+        }),
+      );
       const icons = new GatherIcons(labelsRef.current!, `${import.meta.env.BASE_URL}zones/icons.png`);
       let atlas: IconAtlas | null = null;
       void loadIconAtlas(import.meta.env.BASE_URL).then((a) => (atlas = a));
@@ -176,6 +186,7 @@ export function StickWorld() {
           lastSnap = snap;
           syncUnits(r, snap.units, known, Date.now());
           casts.forget(known);
+          for (const fx of vfx.scan(snap.units, myUnit()?.id, Date.now())) if (known.has(fx.from)) playSteps(r, fx.steps, fx.from, fx.to);
           for (const ev of floats.scan(snap.units, myUnit(), snap.log ?? [], Date.now())) if (known.has(ev.id)) r.addFloater(ev.id, ev.kind, ev.value);
           const me0 = myUnit();
           for (const ev of edges.scan(snap.units, me0, Date.now())) {

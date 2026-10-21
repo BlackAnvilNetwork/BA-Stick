@@ -50,6 +50,20 @@ impl StickRenderer {
         self.scene.is_wading(id)
     }
 
+    /// Ability VFX step (#13): prim 0 projectile, 1 line, 2 burst, 3 ring.
+    /// `to` empty = on the caster. flags: 1 rise, 2 from sky.
+    #[wasm_bindgen(js_name = spawnVfx)]
+    #[allow(clippy::too_many_arguments)]
+    pub fn spawn_vfx(&mut self, prim: u8, from: &str, to: &str, color: u32, count: u32, radius: f32, flags: u32) -> bool {
+        let to = if to.is_empty() { None } else { Some(to) };
+        self.scene.spawn_vfx(crate::vfx::Prim::from_u8(prim), from, to, color, count, radius, flags)
+    }
+
+    #[wasm_bindgen(js_name = vfxCount)]
+    pub fn vfx_count(&self) -> usize {
+        self.scene.vfx_count()
+    }
+
     /// Toggle lighting / haze / skyline / vignette (#26).
     #[wasm_bindgen(js_name = setAtmosphere)]
     pub fn set_atmosphere(&mut self, on: bool) {

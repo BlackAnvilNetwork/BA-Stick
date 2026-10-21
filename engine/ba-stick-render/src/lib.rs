@@ -8,6 +8,7 @@
 //! (job / mob archetype / NPC role).
 
 pub mod atmosphere;
+pub mod vfx;
 pub mod compat;
 pub mod creature;
 pub mod figure;
