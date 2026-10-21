@@ -44,4 +44,4 @@ Start at the root [`README.md`](../README.md). This file names what each system 
 
 `contracts/README.md` still calls inventory a mock stub. That is not the live model. Use `contracts/lok-log/`.
 
-`docs/pale-hollow-area.md` still says crafting burns KEK. Live sinks spend gold (`contracts/lok-log/engine/src/gold.rs`, `LokWorld.goldSpend`).
+Crafting and other live sinks spend gold (`contracts/lok-log/engine/src/gold.rs`, `LokWorld.goldSpend`).
