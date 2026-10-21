@@ -11,7 +11,7 @@ use stick_engine::rig;
 use crate::preset::{AnimState, Body, RigPreset};
 use crate::palette::*;
 use crate::zone::Zone;
-use crate::{creature, figure, ground, palette, props};
+use crate::{creature, figure, floaters, ground, palette, props};
 
 /// One unit update from the host (mirrors the fields of `UnitSnapshot` that
 /// affect rendering).
@@ -86,6 +86,7 @@ pub struct Scene {
     pub smoothing: f32,
     zone: Option<Zone>,
     props: Vec<props::Prop>,
+    floaters: Vec<floaters::Floater>,
     /// Reference height subtracted from everything so the followed unit sits mid-screen.
     pub cam_y: f32,
     /// Pixels the followed unit sits above the camera's default anchor.
@@ -105,6 +106,7 @@ impl Scene {
             smoothing: 15.0,
             zone: None,
             props: Vec::new(),
+            floaters: Vec::new(),
             cam_y: 0.0,
             follow_lift_px: 40.0,
             time: 0.0,
@@ -215,8 +217,25 @@ impl Scene {
     }
 
     /// Advance interpolation and animation by `dt` seconds.
+    /// Spawn a floating combat number over unit `id` (see `floaters::kind`).
+    pub fn add_floater(&mut self, id: &str, kind: u8, value: u32) {
+        let n = self.floaters.iter().filter(|f| f.unit == id && f.age < 0.25).count();
+        let dx = [0.0, 7.0, -7.0, 12.0, -12.0][n % 5];
+        let at = self.anchor(id).map(|(x, y, _)| (x, y));
+        self.floaters.push(floaters::Floater { unit: id.to_string(), at, text: floaters::text_for(kind, value), kind, age: 0.0, dx });
+        if self.floaters.len() > 48 {
+            self.floaters.remove(0);
+        }
+    }
+
+    pub fn floater_count(&self) -> usize { self.floaters.len() }
+
     pub fn tick(&mut self, dt: f32) {
         self.time += dt;
+        for f in &mut self.floaters {
+            f.age += dt;
+        }
+        self.floaters.retain(|f| f.age < floaters::LIFE);
         let k = 1.0 - (-self.smoothing * dt).exp();
         for u in self.units.values_mut() {
             let before = u.pos;
@@ -427,6 +446,17 @@ impl Scene {
                 bar(&mut self.fb, feet.x, y, 20, u.fx.cast, FX_CAST);
             }
         }
+        // Floating combat numbers follow their unit (or stay where it vanished).
+        let mut fl = std::mem::take(&mut self.floaters);
+        for f in &mut fl {
+            if let Some((x, y, _)) = self.anchor(&f.unit) {
+                f.at = Some((x, y));
+            }
+            if let Some((x, y)) = f.at {
+                floaters::draw(&mut self.fb, f, x, y);
+            }
+        }
+        self.floaters = fl;
     }
 
     /// Framebuffer as RGBA8 (ImageData layout).

@@ -11,7 +11,7 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "zones": "tsx scripts/bake-zones.ts",
-    "test": "tsx --test src/units.test.ts"
+    "test": "tsx --test src/*.test.ts"
   },
   "dependencies": {
     "@bellgrave/client-core": "workspace:*",

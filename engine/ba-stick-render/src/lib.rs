@@ -9,6 +9,7 @@
 
 pub mod creature;
 pub mod figure;
+pub mod floaters;
 pub mod ground;
 pub mod palette;
 pub mod preset;
