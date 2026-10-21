@@ -633,8 +633,9 @@ export function paleHollowBridgeGeom(site: PaleHollowBridgeSite): PaleHollowBrid
 
   const waterY =
     paleHollowWaterSurfaceY(cx, cz) ?? paleHollowHeightField(cx, cz) + PALE_HOLLOW_WATER_CLEARANCE;
-  const standL = landL.y;
-  const standR = landR.y;
+  // Deck ends meet the walkable ground mesh exactly, so stepping on or off never snaps.
+  const standL = paleHollowTerrainMeshY(landL.x, landL.z);
+  const standR = paleHollowTerrainMeshY(landR.x, landR.z);
   const tOf = (x: number, z: number) => {
     const along = (x - cx) * lsx + (z - cz) * lsz;
     return span > 1e-4 ? along / span + 0.5 : 0.5;
