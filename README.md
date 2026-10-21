@@ -1,4 +1,9 @@
-# Black Anvil
+# BA-Stick — Black Anvil on Stick Engine
+
+Black Anvil with a new pixel/stick-figure frontend (`apps/stick-web` + `engine/`). Server, contracts and game data track [bichael](https://github.com/BlackAnvilNetwork/bichael) as the `upstream` remote; see [CONTRIBUTING.md](CONTRIBUTING.md).
+
+---
+
 
 Browser game: wallet connect, a campaign world, and job combat. The Citadel hall fight (Time Mage vs Petrified Guard, keys **1–4** on the hotbar) still runs.
 
