@@ -29,3 +29,15 @@ jobs:
           tool: wasm-bindgen-cli@0.2.129
       - name: ba-stick-render wasm + bindings
         run: ./engine/build-wasm.sh
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.12.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: stick-web typecheck + build
+        run: |
+          pnpm --filter @bellgrave/stick-web typecheck
+          pnpm --filter @bellgrave/stick-web build

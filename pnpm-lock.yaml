@@ -51,6 +51,22 @@ importers:
         specifier: ^5.8.2
         version: 5.9.3
 
+  apps/stick-web:
+    dependencies:
+      '@bellgrave/client-core':
+        specifier: workspace:*
+        version: link:../../packages/client-core
+      '@bellgrave/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
+    devDependencies:
+      typescript:
+        specifier: ^5.8.2
+        version: 5.9.3
+      vite:
+        specifier: ^6.2.2
+        version: 6.4.3(@types/node@22.20.4)(tsx@4.23.15)
+
   apps/web:
     dependencies:
       '@bellgrave/client-core':
