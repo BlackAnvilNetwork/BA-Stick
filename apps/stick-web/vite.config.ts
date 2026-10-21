@@ -15,7 +15,7 @@ function assertWalletConnectProjectIdForPublicNetwork(env: Record<string, string
   throw new Error("VITE_WALLETCONNECT_PROJECT_ID is required when VITE_NETWORK is gnosis/chiado (or chain 100/10200).");
 }
 
-// public/ holds symlinks to apps/web/public/{ui,icons,audio} (HUD chrome, icons, sfx). No sprites/textures.
+// public/ holds ui, icons, audio (HUD chrome, icons, sfx; moved from the retired apps/web) and baked zones.
 export default defineConfig(({ mode, command }) => {
   const env = loadEnv(mode, __dirname, "");
   if (command === "build") assertWalletConnectProjectIdForPublicNetwork(env);

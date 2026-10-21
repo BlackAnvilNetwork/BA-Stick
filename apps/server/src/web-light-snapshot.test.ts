@@ -14,7 +14,7 @@ import {
   checkWebLightClient,
   lightClientFromSnapshot,
   setReplicaAllowlist,
-} from "../../web/src/light-client";
+} from "../../../packages/client-core/src/light-client";
 import { LokWorld } from "./lok-world";
 import { encodeCommitCertificate, snapshotFor } from "./web-light-snapshot";
 

@@ -1380,7 +1380,7 @@ function FallbackConnectButton() {
         className="boot-primary"
         disabled
         style={{ marginTop: "0.75rem", width: "100%", opacity: 0.75 }}
-        title="Set VITE_WALLETCONNECT_PROJECT_ID (Reown) in apps/web/.env.local, or install a browser wallet"
+        title="Set VITE_WALLETCONNECT_PROJECT_ID (Reown) in apps/stick-web/.env.local, or install a browser wallet"
       >
         Connect Wallet (set Reown project ID or install MetaMask)
       </button>
