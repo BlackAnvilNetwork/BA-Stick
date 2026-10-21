@@ -1,0 +1,120 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { xpToNextLevel } from "@bellgrave/combat";
+import { getItem } from "@bellgrave/items";
+import {
+  STARTER_POTION_AMOUNT,
+  STARTER_POTION_ID,
+  STARTER_WEAPON,
+  addStack,
+  discardStack,
+  signatureWeaponEquipped,
+  takeStack,
+} from "./starter-kit";
+
+const BANDS: { from: number; to: number; low: number; high: number; total: number }[] = [
+  { from: 1, to: 10, low: 500, high: 2400, total: 13350 },
+  { from: 11, to: 20, low: 2600, high: 4400, total: 48350 },
+  { from: 21, to: 30, low: 4600, high: 5700, total: 100550 },
+  { from: 31, to: 40, low: 5800, high: 6700, total: 163050 },
+  { from: 41, to: 50, low: 6800, high: 7700, total: 235550 },
+  { from: 51, to: 60, low: 7800, high: 17600, total: 358550 },
+  { from: 61, to: 70, low: 18800, high: 32000, total: 611350 },
+  { from: 71, to: 75, low: 34000, high: 44000, total: 845350 },
+];
+
+test("xp curve hits band endpoints and cumulative totals", () => {
+  let sum = 0;
+  for (const band of BANDS) {
+    assert.equal(xpToNextLevel(band.from), band.low);
+    assert.equal(xpToNextLevel(band.to), band.high);
+    for (let level = band.from; level <= band.to; level++) sum += xpToNextLevel(level);
+    assert.equal(sum, band.total);
+  }
+  assert.equal(xpToNextLevel(75), 44000);
+  assert.equal(xpToNextLevel(76), 44000);
+});
+
+test("starter weapons are the lowest catalog piece of each family", () => {
+  const expect = {
+    time_mage: { id: 1, family: "staff" },
+    sorcerer: { id: 1, family: "staff" },
+    fighter: { id: 8, family: "greatsword" },
+    rogue: { id: 317, family: "dagger" },
+    cleric: { id: 183, family: "club" },
+    battle_mage: { id: 102, family: "sword" },
+    knight: { id: 102, family: "sword" },
+  };
+  for (const [job, row] of Object.entries(expect)) {
+    const grant = STARTER_WEAPON[job as keyof typeof STARTER_WEAPON];
+    const def = getItem(grant.tokenId);
+    assert.equal(grant.tokenId, row.id);
+    assert.equal(def?.weaponFamily, row.family);
+    assert.equal(def?.slot, "main");
+  }
+  assert.equal(STARTER_POTION_ID, 3);
+  assert.equal(STARTER_POTION_AMOUNT, 3);
+  assert.equal(getItem(3)?.kind, "consumable");
+});
+
+test("starter stacks stay distinct from a later drop and cannot be laundered", () => {
+  const inv: { tokenId: number; amount: number; starter?: boolean }[] = [];
+  addStack(inv, 102, 1, true);
+  addStack(inv, 102, 1, false);
+  assert.equal(inv.length, 2);
+  assert.equal(takeStack(inv, 102, 1), true);
+  assert.deepEqual(inv, [{ tokenId: 102, amount: 1, starter: true }]);
+  assert.equal(discardStack(inv, 102, false), 0);
+  assert.equal(discardStack(inv, 102, true), 1);
+  assert.equal(inv.length, 0);
+});
+
+test("HQ stacks stay separate and are not spent by a normal take", () => {
+  const inv: { tokenId: number; amount: number; starter?: boolean; hq?: boolean }[] = [];
+  addStack(inv, 102, 1, false, false);
+  addStack(inv, 102, 1, false, true);
+  assert.equal(inv.length, 2);
+  assert.equal(takeStack(inv, 102, 1), true);
+  assert.deepEqual(inv, [{ tokenId: 102, amount: 1, hq: true }]);
+  assert.equal(takeStack(inv, 102, 1), false);
+  assert.equal(inv.length, 1);
+});
+
+test("signature weapons gate on weapon family (crafted upgrades keep the kit)", () => {
+  const bronze = {
+    equip: { main: 102 },
+    inventory: [{ tokenId: 102, amount: 1, starter: true }],
+  };
+  assert.equal(signatureWeaponEquipped(bronze, "knight"), true);
+  assert.equal(signatureWeaponEquipped(bronze, "battle_mage"), true);
+  const iron = {
+    equip: { main: 4 },
+    inventory: [{ tokenId: 4, amount: 1 }],
+  };
+  assert.equal(signatureWeaponEquipped(iron, "knight"), true);
+  // Mythril Sword (id 126) is still a sword — kit stays online
+  const mythril = {
+    equip: { main: 126 },
+    inventory: [{ tokenId: 126, amount: 1 }],
+  };
+  assert.equal(signatureWeaponEquipped(mythril, "knight"), true);
+  assert.equal(signatureWeaponEquipped(bronze, "sorcerer"), false);
+  // Fishing rod is no longer a staff family
+  const rod = {
+    equip: { main: 39 },
+    inventory: [{ tokenId: 39, amount: 1 }],
+  };
+  assert.equal(signatureWeaponEquipped(rod, "sorcerer"), false);
+  // Fighter axes count; Ashbeam Rod (staff) keeps Battlemage kit
+  const axe = {
+    equip: { main: 103 },
+    inventory: [{ tokenId: 103, amount: 1 }],
+  };
+  assert.equal(signatureWeaponEquipped(axe, "fighter"), true);
+  const ashRod = {
+    equip: { main: 172 },
+    inventory: [{ tokenId: 172, amount: 1 }],
+  };
+  assert.equal(signatureWeaponEquipped(ashRod, "battle_mage"), true);
+  assert.equal(signatureWeaponEquipped(ashRod, "cleric"), true);
+});

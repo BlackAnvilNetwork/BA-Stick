@@ -1,0 +1,25 @@
+{
+  "name": "@bellgrave/items",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "gen": "python ../../scripts/build-item-catalog.py",
+    "test": "tsx --test src/chain-ids.test.ts src/exportable-slugs.test.ts src/items-audit.test.ts src/scale-gear-stat.test.ts src/hq-craft.test.ts src/used-in-recipes.test.ts",
+    "print-seed": "tsx -e \"import { itemsSeedSlugsCsv } from './src/exportable-slugs.ts'; console.log(itemsSeedSlugsCsv())\""
+  },
+  "dependencies": {
+    "viem": "^2.57.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2"
+  }
+}

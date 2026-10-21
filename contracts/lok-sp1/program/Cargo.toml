@@ -1,0 +1,14 @@
+[package]
+name = "lok-sp1-program"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "SP1 guest that runs the lok engine and commits its keccak state root"
+
+[[bin]]
+name = "lok_sp1_program"
+path = "src/main.rs"
+
+[dependencies]
+lok-engine = { path = "../../lok-log/engine" }
+sp1-zkvm = "6.9.0"

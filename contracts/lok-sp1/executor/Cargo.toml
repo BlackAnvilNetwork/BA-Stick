@@ -1,0 +1,17 @@
+[package]
+name = "lok-sp1-executor"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.88"
+publish = false
+description = "SP1 executor for the lok engine. RISC Zero is rejected on this genesis."
+
+[dependencies]
+lok-engine = { path = "../../lok-log/engine" }
+sp1-sdk = "6.9.0"
+
+[build-dependencies]
+sp1-build = "6.9.0"
+
+[dev-dependencies]
+tokio = { version = "1.42", features = ["macros", "rt-multi-thread"] }

@@ -1,0 +1,189 @@
+import type {
+  AbilityId,
+  WeaponTpAbilityId,
+  WeaponTpDef,
+  WeaponType,
+} from "@bellgrave/combat";
+import {
+  WEAPON_TP_ABILITIES,
+  WEAPON_TP_COST,
+  attackFromStats,
+  defenseFromVit,
+  fStr,
+  jobStatsAtLevel,
+  physicalDamage,
+  weaponTpBonusMul,
+  weaponTypeFromTokenId,
+  type JobId,
+} from "@bellgrave/combat";
+import { takeMobHit, type MobEnhanceHost } from "./mob-enhances";
+
+export type WeaponTpPlayer = {
+  wallet: string;
+  x: number;
+  z: number;
+  facing: number;
+  tp: number;
+  level: number;
+  job: string;
+  equip: import("@bellgrave/items").Equipment;
+  anim: string;
+  animUntil: number;
+  recasts: Partial<Record<AbilityId, number>>;
+  targetId: string | null;
+};
+
+export type WeaponTpMob = {
+  id: string;
+  name: string;
+  x: number;
+  z: number;
+  alive: boolean;
+  hp: number;
+  maxHp: number;
+  job: JobId;
+  level: number;
+  stunUntil: number;
+  paraUntil: number;
+  slowUntil: number;
+  swingPenalty: number;
+  atkDownUntil: number;
+  atkDownMul: number;
+  diaUntil: number;
+} & MobEnhanceHost;
+
+export type WeaponTpCtx = {
+  pushLog: (p: WeaponTpPlayer, msg: string) => void;
+  stopRest: (p: WeaponTpPlayer, reason?: string) => void;
+  facingTo: (ax: number, az: number, bx: number, bz: number) => number;
+  findMob: (id: string | null | undefined) => WeaponTpMob | null;
+  onMobKill: (p: WeaponTpPlayer, m: WeaponTpMob) => void;
+  dist: (ax: number, az: number, bx: number, bz: number) => number;
+  meleeRange: number;
+  playerWeaponBonus: (p: WeaponTpPlayer) => number;
+  playerCombatStats: (p: WeaponTpPlayer) => {
+    str: number;
+    dex: number;
+    vit: number;
+    agi: number;
+    int: number;
+    mnd: number;
+  };
+  /** Skill-tree atk bonus (same as autos). Per-weapon combat skills deferred (#106). */
+  playerTreeAtk: (p: WeaponTpPlayer) => number;
+};
+
+function applyEffects(mob: WeaponTpMob, def: WeaponTpDef, now: number) {
+  for (const fx of def.effects ?? []) {
+    if (fx.kind === "stun") mob.stunUntil = Math.max(mob.stunUntil, now + fx.durationMs);
+    else if (fx.kind === "para") mob.paraUntil = Math.max(mob.paraUntil, now + fx.durationMs);
+    else if (fx.kind === "slow") {
+      mob.slowUntil = Math.max(mob.slowUntil, now + fx.durationMs);
+      mob.swingPenalty = Math.max(mob.swingPenalty, fx.penalty);
+    } else if (fx.kind === "atk_down") {
+      mob.atkDownUntil = Math.max(mob.atkDownUntil, now + fx.durationMs);
+      mob.atkDownMul = Math.min(mob.atkDownMul || 1, fx.mul);
+    }
+  }
+}
+
+export function resolveWeaponTpAbility(
+  p: WeaponTpPlayer,
+  id: WeaponTpAbilityId,
+  targetId: string | undefined,
+  now: number,
+  ctx: WeaponTpCtx,
+): void {
+  const def = WEAPON_TP_ABILITIES[id];
+  if (!def) {
+    ctx.pushLog(p, "Unknown weapon skill.");
+    return;
+  }
+
+  const wtype: WeaponType | null = weaponTypeFromTokenId(p.equip.main);
+  if (!wtype || wtype !== def.weapon) {
+    ctx.pushLog(p, `${def.label} requires a ${def.weapon} equipped.`);
+    return;
+  }
+  if (p.level < def.unlockLevel) {
+    ctx.pushLog(p, `${def.label} unlocks at level ${def.unlockLevel}.`);
+    return;
+  }
+  if (p.tp < WEAPON_TP_COST) {
+    ctx.pushLog(p, `Need ${WEAPON_TP_COST} TP for ${def.label} (you have ${p.tp}).`);
+    return;
+  }
+  const readyAt = p.recasts[id as AbilityId] ?? 0;
+  if (now < readyAt) {
+    ctx.pushLog(p, `${def.label} is not ready.`);
+    return;
+  }
+
+  const tid = targetId ?? p.targetId;
+  const mob = ctx.findMob(tid);
+  if (!mob || !mob.alive) {
+    ctx.pushLog(p, "No target for weapon skill.");
+    return;
+  }
+  if (ctx.dist(p.x, p.z, mob.x, mob.z) > ctx.meleeRange + 0.35) {
+    ctx.pushLog(p, "Too far for a weapon skill.");
+    return;
+  }
+
+  ctx.stopRest(p, "weapon skill");
+  p.facing = ctx.facingTo(p.x, p.z, mob.x, mob.z);
+  p.anim = "melee";
+  p.animUntil = now + 520;
+
+  // Scale TP bonus from TP *before* spend; cost still WEAPON_TP_COST.
+  const tpBefore = p.tp;
+  const tpMul = weaponTpBonusMul(tpBefore);
+  p.tp -= WEAPON_TP_COST;
+  p.recasts[id as AbilityId] = now + def.recastMs;
+
+  const stats = ctx.playerCombatStats(p);
+  let att = attackFromStats(stats, "none", ctx.playerWeaponBonus(p), { physical: true });
+  // Skill-tree atk (mirrors autos). Dedicated per-weapon combat skill levels: deferred (#106).
+  att += ctx.playerTreeAtk(p);
+  const mobStats = jobStatsAtLevel(mob.job, mob.level);
+  let defStat = defenseFromVit(mobStats.vit);
+  if (now < mob.diaUntil) defStat = Math.max(1, Math.floor(defStat * 0.7));
+
+  const hits = Math.max(1, def.hits);
+  let total = 0;
+  let totalBonus = 0;
+  const parts: number[] = [];
+
+  for (let i = 0; i < hits; i++) {
+    const base = physicalDamage(
+      att,
+      defStat,
+      fStr(stats.str, mobStats.vit),
+      false,
+    );
+    const core = Math.max(1, Math.floor(base * def.ftp));
+    const bonus = Math.max(0, Math.floor(core * tpMul));
+    const hit = takeMobHit(mob, core + bonus, "physical", now);
+    totalBonus += bonus;
+    parts.push(hit);
+    total += hit;
+    mob.hp = Math.max(0, mob.hp - hit);
+    if (mob.hp <= 0) break;
+  }
+
+  applyEffects(mob, def, now);
+
+  const fxNote =
+    def.effects && def.effects.length
+      ? ` · ${def.effects.map((e) => e.kind.replace("_", " ")).join(", ")}`
+      : "";
+  ctx.pushLog(
+    p,
+    `${def.label}! ${parts.join("+")}=${total} (${hits} hit${hits > 1 ? "s" : ""}, TP x${tpMul.toFixed(2)} +${totalBonus})${fxNote}`,
+  );
+
+  if (mob.hp <= 0) {
+    // Let rewardMobKill own alive=false / respawn (setting alive early skipped XP/loot).
+    ctx.onMobKill(p, mob);
+  }
+}
