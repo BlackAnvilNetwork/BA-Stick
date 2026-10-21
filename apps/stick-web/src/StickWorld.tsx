@@ -56,6 +56,8 @@ export function StickWorld() {
       if (import.meta.env.DEV) Object.assign(window, { __stick: { r, canvas, fromFramebuffer, send } });
       // Phones: atmosphere pass costs ~1/3 of the frame; drop it to hold 30+ fps (#18).
       if (!atmosphereFor(isCoarsePointer(), location.search)) r.setAtmosphere(false);
+      // L2 key light (round 1 polish) is opt-in while it is measured: `?keylight`.
+      if (new URLSearchParams(location.search).has("keylight")) r.setKeylight(true);
       // Iso / 3D camera follows the View setting (#19); the engine eases the blend.
       const root = document.documentElement;
       const syncView = () => r.setView3d(root.dataset.uiView === "3d");

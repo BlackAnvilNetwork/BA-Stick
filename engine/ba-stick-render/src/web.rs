@@ -86,6 +86,12 @@ impl StickRenderer {
         self.scene.view3d = on;
     }
 
+    /// L2 directional key light (off by default).
+    #[wasm_bindgen(js_name = setKeylight)]
+    pub fn set_keylight(&mut self, on: bool) {
+        self.scene.keylight = on;
+    }
+
     #[wasm_bindgen(js_name = setAtmosphere)]
     pub fn set_atmosphere(&mut self, on: bool) {
         self.scene.atmosphere = on;

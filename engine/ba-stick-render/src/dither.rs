@@ -29,6 +29,12 @@ fn ramp3(c: u8) -> Option<(u8, u8)> {
     }
 }
 
+/// Ramp step (0 lit, 1 mid, 2 shadow) of a ground-ramp index.
+#[inline]
+pub fn shade_step(c: u8) -> Option<u8> {
+    ramp3(c).map(|(_, s)| s)
+}
+
 /// One step darker on the same ramp; the darkest step falls to `C_SHADOW`.
 /// Colours outside the ground ramps are returned unchanged (`None`).
 #[inline]

@@ -468,6 +468,30 @@ fn bridge_deck_is_one_continuous_ribbon() {
 
 
 #[test]
+fn l1_slope_shade_follows_sun() {
+    use crate::zone::Zone;
+    let (w, h) = (8usize, 8usize);
+    let mut z = Zone { min_x: 0.0, min_z: 0.0, cell: 0.5, w, h, biome: vec![0; w * h], flags: vec![0; w * h], height: vec![0.0; w * h] };
+    assert_eq!(crate::ground::slope_shade(&z, 1, 1), 1, "flat = mid");
+    // Rise toward +x: face tilts toward -x (NW sun) => lit.
+    for j in 0..z.h { for i in 0..z.w { let k = z.idx(i as i32, j as i32); z.height[k] = i as f32 * 0.4; } }
+    assert_eq!(crate::ground::slope_shade(&z, 1, 1), 0);
+    for j in 0..z.h { for i in 0..z.w { let k = z.idx(i as i32, j as i32); z.height[k] = -(i as f32) * 0.4; } }
+    assert_eq!(crate::ground::slope_shade(&z, 1, 1), 2);
+}
+
+#[test]
+fn l2_keylight_warms_lit_cools_shadow() {
+    use crate::atmosphere::*;
+    let pal = crate::palette::palette();
+    let run = |c: u8, key: bool| { let mut o = [0u8; 4]; write_rgba_key(&pal, &[c], 1, 1, &[], &PALE_HOLLOW, 0.0, key, &mut o); o };
+    let lit = crate::palette::BIOME0;
+    let dark = crate::palette::BIOME0 + 2;
+    assert!(run(lit, true)[0] >= run(lit, false)[0]);
+    assert!(run(dark, true)[0] <= run(dark, false)[0]);
+}
+
+#[test]
 fn bridge_mesh_matches_server_walk_height() {
     // apps/stick-web/src/content/bridge-profile.json holds, per Pale Hollow bridge,
     // the baked prop and the server's stand height (@bellgrave/config) along the span.

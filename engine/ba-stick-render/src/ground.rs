@@ -102,14 +102,28 @@ fn fill_tri_edge(fb: &mut Framebuffer, a: P2, b: P2, c: P2, ua: (f32, f32), ub: 
     }
 }
 
+/// L1 thresholds on n·SUN_DIR (flat ground = SUN_DIR.y ≈ 0.707 → mid).
+pub const SHADE_LIT: f32 = 0.78;
+pub const SHADE_DARK: f32 = 0.62;
+
+/// Terrain shade step from the cell normal (all four corners) against
+/// `SUN_DIR`: 0 lit, 1 mid, 2 shadow. Reuses the existing 3-step ramps.
+pub fn slope_shade(z: &Zone, i: i32, j: i32) -> u8 {
+    let h = |a: i32, b: i32| z.height[z.idx(a, b)];
+    let (h00, h10, h01, h11) = (h(i, j), h(i + 1, j), h(i, j + 1), h(i + 1, j + 1));
+    let c = z.cell;
+    let gx = ((h10 - h00) + (h11 - h01)) * 0.5 / c;
+    let gz = ((h01 - h00) + (h11 - h10)) * 0.5 / c;
+    let inv = 1.0 / (gx * gx + 1.0 + gz * gz).sqrt();
+    let s = crate::atmosphere::SUN_DIR;
+    let d = (-gx * s[0] + s[1] - gz * s[2]) * inv;
+    if d > SHADE_LIT { 0 } else if d < SHADE_DARK { 2 } else { 1 }
+}
+
 fn cell_color(z: &Zone, i: i32, j: i32, time: f32) -> u8 {
     let k = z.idx(i, j);
     let f = z.flags[k];
-    let h00 = z.height[k];
-    let h11 = z.height[z.idx(i + 1, j + 1)];
-    // Slopes facing the viewer (+x+z) read lit; away read shadow.
-    let d = h00 - h11;
-    let shade = if d > 0.18 { 0 } else if d < -0.18 { 2 } else { 1 };
+    let shade = slope_shade(z, i, j);
     if f & F_WATER != 0 {
         let wave = ((i as f32 * 0.7 + j as f32 * 0.4 + time * 2.2).sin() * 1.6 + 1.6) as u8;
         return WATER + wave.min(3);
@@ -169,7 +183,17 @@ pub fn draw_zone(fb: &mut Framebuffer, cam: &Camera, zone: &Zone, cam_y: f32, ti
             // B1: dither toward differing neighbour biomes (same shade step).
             if let Some(b) = plain_biome(zone, i, j) {
                 let shade = col - (BIOME0 + b * 3);
-                let n = |di: i32, dj: i32| plain_biome(zone, i + di, j + dj).filter(|&nb| nb != b).map(|nb| BIOME0 + nb * 3 + shade);
+                // Neighbour colour if it differs in biome or (after L1) in shade step,
+                // so slope-shading steps dither too instead of forming cell blocks.
+                let n = |di: i32, dj: i32| {
+                    let (ni, nj) = (i + di, j + dj);
+                    if ni > zone.w as i32 - 2 || nj > zone.h as i32 - 2 {
+                        return None;
+                    }
+                    let nb = plain_biome(zone, ni, nj)?;
+                    let nc = BIOME0 + nb * 3 + slope_shade(zone, ni, nj);
+                    (nc != col).then_some(if nb != b { BIOME0 + nb * 3 + shade } else { nc })
+                };
                 let nb = [n(-1, 0), n(1, 0), n(0, -1), n(0, 1)];
                 if nb.iter().any(|x| x.is_some()) {
                     fill_tri_edge(fb, p00, p10, p11, (0.0, 0.0), (1.0, 0.0), (1.0, 1.0), col, nb, org);
