@@ -343,6 +343,26 @@ fn draw_one(c: &mut Ctx, p: &Prop, time: f32) {
                 let q = c.p(a.cos() * 0.25, 0.18, a.sin() * 0.25);
                 c.fb.plot(q.x as i32, q.y as i32, q.d - 1.0, EMBER);
             }
+            // flame tongues (old CampfireVolumetricFlame) + rising embers
+            for i in 0..5 {
+                let ph = time * 9.0 + i as f32 * 2.1;
+                let (ox, oz) = ((i as f32 * 1.7).cos() * 0.22, (i as f32 * 1.7).sin() * 0.22);
+                let hgt = 0.55 + 0.25 * (ph.sin() * 0.5 + 0.5) - (i % 2) as f32 * 0.15;
+                let a = c.p(ox, 0.15, oz);
+                let b = c.p(ox * 0.4 + (ph * 0.7).sin() * 0.06, 0.15 + hgt, oz * 0.4);
+                let r = 2.6 - (i % 3) as f32 * 0.5;
+                c.fb.capsule(P2 { d: a.d - 0.6, ..a }, P2 { d: b.d - 0.6, ..b }, r, COAL, None);
+                let m = c.p(ox * 0.7, 0.15 + hgt * 0.45, oz * 0.7);
+                c.fb.capsule(P2 { d: a.d - 0.7, ..a }, P2 { d: m.d - 0.7, ..m }, r * 0.6, EMBER, None);
+            }
+            for i in 0..8 {
+                let life = ((time * 0.6 + hash(i as f32, 3.0)) % 1.0 + 1.0) % 1.0;
+                let sx = (hash(i as f32, 7.0) - 0.5) * 0.6 + (time * 2.0 + i as f32).sin() * 0.08 * life;
+                let q = c.p(sx, 0.4 + life * 2.2, (hash(i as f32, 9.0) - 0.5) * 0.6);
+                if life < 0.85 {
+                    c.fb.plot(q.x as i32, q.y as i32, q.d - 1.0, if life < 0.4 { EMBER } else { COAL });
+                }
+            }
         }
         kind::TENT => {
             let (cl, cd) = if p.var == 1 { (BEIGE, BEIGE_D) } else { (OLIVE, OLIVE_D) };
