@@ -5,7 +5,7 @@ import path from "node:path";
 
 dns.setDefaultResultOrder("ipv4first");
 
-/** Same L-8 guard as apps/web: public networks need a WalletConnect project id. */
+/** L-8 guard: public networks need a WalletConnect project id. */
 function assertWalletConnectProjectIdForPublicNetwork(env: Record<string, string | undefined>): void {
   const named = (env.VITE_NETWORK ?? "").trim().toLowerCase();
   const chain = (env.VITE_CHAIN_ID ?? "").trim();

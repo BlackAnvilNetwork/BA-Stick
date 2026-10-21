@@ -21,7 +21,7 @@ Keep as reference only (not stretched behind grids): `e3-action-bar`, `a2-title-
 ## Re-slice
 
 ```bash
-python3 apps/web/scripts/slice-black-anvil-ui.py
+python3 apps/stick-web/scripts/slice-black-anvil-ui.py
 ```
 
 Source is currently **3072×1296** (3× upscale). Navy/black grid background is punched out in the slicer. Crops are defined in 1024×434 base space and auto-scaled.

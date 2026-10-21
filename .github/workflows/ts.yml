@@ -21,7 +21,7 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Typecheck (stick-web, client-core, ui, web)
+      - name: Typecheck (stick-web, client-core, ui)
         run: pnpm --filter @bellgrave/stick-web --filter @bellgrave/client-core --filter @bellgrave/ui run typecheck
-      - name: Tests (stick-web, client-core, ui, web)
+      - name: Tests (stick-web, client-core, ui)
         run: pnpm --filter @bellgrave/stick-web --filter @bellgrave/client-core --filter @bellgrave/ui run test

@@ -25,7 +25,7 @@ py -3 scripts/bake-item-icons.py
 ```
 
 
-Icons are **painted PNGs** (96×96, magenta-keyed) under `apps/web/public/icons/items/{slug}.png`.
+Icons are **painted PNGs** (96×96, magenta-keyed) under `apps/stick-web/public/icons/items/{slug}.png`.
 
 ## Stats
 
