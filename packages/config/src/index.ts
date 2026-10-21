@@ -315,3 +315,17 @@ export const ZONES: Record<ZoneId, ZoneDef> = {
     music: "/audio/royal-march.mp3",
   },
 };
+
+export {
+  WORLD_LAYOUTS,
+  WORLD_ROUTE,
+  type ZoneLayout,
+  type LayoutDistrict,
+  type LayoutNodeSpot,
+  type LayoutMobSpawn,
+  type LayoutNpcSpot,
+  type LayoutProp,
+  type LayoutPropKind,
+  type LayoutExit,
+  type XZRect,
+} from "./world-layout";
