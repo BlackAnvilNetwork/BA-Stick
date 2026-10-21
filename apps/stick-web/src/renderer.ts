@@ -43,3 +43,11 @@ export function bakedZoneFor(zoneId: string | undefined): string | null {
   if (!zoneId || zoneId === "pale_hollow") return "pale_hollow";
   return null;
 }
+
+/** Framebuffer pixel → CSS px relative to the canvas box (inverse of toFramebuffer). */
+export function fromFramebuffer(canvas: HTMLCanvasElement, fx: number, fy: number): [number, number] {
+  const w = canvas.clientWidth;
+  const h = canvas.clientHeight;
+  const scale = Math.min(w / FB_W, h / FB_H);
+  return [(w - FB_W * scale) / 2 + fx * scale, (h - FB_H * scale) / 2 + fy * scale];
+}

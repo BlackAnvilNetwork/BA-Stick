@@ -7,6 +7,8 @@
 //! world position (x, y, z), a facing, a server `anim` state and a rig preset
 //! (job / mob archetype / NPC role).
 
+pub mod creature;
+pub mod figure;
 pub mod ground;
 pub mod palette;
 pub mod preset;
@@ -16,7 +18,7 @@ pub mod zone;
 mod web;
 
 pub use preset::{AnimState, RigPreset};
-pub use scene::{Scene, UnitInput};
+pub use scene::{Scene, UnitFx, UnitInput};
 
 #[cfg(test)]
 mod tests;

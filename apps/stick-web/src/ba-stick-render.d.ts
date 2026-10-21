@@ -11,9 +11,12 @@ declare module "ba-stick-render" {
     follow(id?: string): void;
     upsertUnit(id: string, x: number, y: number, z: number, facing: number, anim: string, preset: string): void;
     removeUnit(id: string): boolean;
+    setFx(id: string, hp: number, cast: number, aoe: number, flags: number, fade: number, levelUp: number): boolean;
+    anchor(id: string): Float32Array;
+    worldToScreen(x: number, y: number, z: number): Float32Array;
     unitCount(): number;
     pickWorld(sx: number, sy: number): Float32Array;
-    pickUnit(sx: number, sy: number): string | undefined;
+    pickUnit(sx: number, sy: number, skip?: string): string | undefined;
     tick(dt: number): void;
     draw(): void;
     free(): void;

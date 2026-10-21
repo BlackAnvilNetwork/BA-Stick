@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { createRenderer, fetchZone } from "./renderer";
-import { demoUnits } from "./demo";
+import { demoUnits, rosterUnits } from "./demo";
 
 /**
  * Offline renderer demo (no server). `?demo&t=1.2` fast-forwards.
@@ -23,7 +23,18 @@ export function DemoApp() {
       let t = 0;
       const step = (dt: number) => {
         t += dt;
-        for (const u of demoUnits(t)) r.upsertUnit(u.id, u.x + ox, r.zoneHeight(u.x + ox, u.z + oz), u.z + oz, u.facing, u.anim, u.preset);
+        for (const u of (q.has("roster") ? rosterUnits : demoUnits)(t)) r.upsertUnit(u.id, u.x + ox, r.zoneHeight(u.x + ox, u.z + oz), u.z + oz, u.facing, u.anim, u.preset);
+        if (q.has("roster")) {
+          // Effect showcase: Cinder Burst telegraph (server MOB_CINDER_RADIUS = 5.2),
+          // a selected hostile, HP bars, a level-up column and a shiny.
+          const cyc = (t % 2.4) / 2.4;
+          r.setFx("mob:shard_wight", 0.7, cyc, 5.2, 8, 1, -1);
+          r.setFx("mob:seam_golem", 0.35, -1, 0, 1 | 8, 1, -1);
+          r.setFx("mob:ashbeam_boar", 1, -1, 0, 4 | 8, 1, -1);
+          r.setFx("mob:dust_hare", 0.9, -1, 0, 2 | 8, 1, -1);
+          r.setFx("npc:guide", -1, -1, 0, 0, 1, (t % 2.4) / 2.4);
+          r.setFx("mob:pale_slime", -1, -1, 0, 8, Math.max(0, 1 - (t % 3) / 2.5), -1);
+        }
         r.tick(dt);
       };
       for (let s = 0; s < t0 * 60; s++) step(1 / 60);

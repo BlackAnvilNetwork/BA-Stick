@@ -2,25 +2,32 @@ import { useEffect, useRef } from "react";
 import { send } from "@bellgrave/client-core/net";
 import { useGame } from "@bellgrave/client-core/state";
 import { clampPaleHollow } from "@bellgrave/config";
-import {
-  clearKeyboardMove,
-  setKeyboardMoveKey,
-  type MoveKeys,
-} from "@bellgrave/ui/moveInput";
-import { FB_H, FB_W, bakedZoneFor, createRenderer, fetchZone, toFramebuffer } from "./renderer";
+import type { UnitSnapshot } from "@bellgrave/protocol";
+import { NpcInteractMenu } from "@bellgrave/ui/NpcInteractMenu";
+import { clearKeyboardMove, setKeyboardMoveKey, type MoveKeys } from "@bellgrave/ui/moveInput";
+import { FB_H, FB_W, bakedZoneFor, createRenderer, fetchZone, fromFramebuffer, toFramebuffer } from "./renderer";
 import { syncUnits } from "./units";
 import { getMoveKeys, wasdTarget } from "./input";
+import { CastClock, sameId, unitFx } from "./fx";
+import { routeUnitClick } from "./clicks";
+import { Labels, labelFor } from "./labels";
+import { AnimEdges } from "./sfx";
+import { playEnemySwing, playJobSwing, playTemporalDistortion } from "@bellgrave/ui/combatSfx";
 
 /** Seconds between WASD move sends (legacy client: 0.05). */
 const WASD_INTERVAL = 0.05;
 
 /**
- * The world canvas: baked zone (#7), every snapshot unit as a stick figure
- * with interpolation and a camera on the local player (#8), click/WASD
- * movement through the server (#9).
+ * The world canvas: baked zone (#7), snapshot units as stick figures (#8, #10),
+ * click/WASD movement (#9), targeting + click routing (#35), effects (#12 bars,
+ * #32 death/cast/level-up, #33 telegraphs) and world-anchored HTML (#27).
  */
 export function StickWorld() {
   const ref = useRef<HTMLCanvasElement>(null);
+  const labelsRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const npcOpen = useGame((s) => s.npcDialog?.npcId ?? null);
+
   useEffect(() => {
     const canvas = ref.current!;
     let raf = 0;
@@ -28,30 +35,54 @@ export function StickWorld() {
     const cleanups: Array<() => void> = [];
     void createRenderer(canvas).then((r) => {
       if (!alive) return;
+      // Dev/test hook for headless checks (fb→client mapping lives in renderer.ts).
+      if (import.meta.env.DEV) Object.assign(window, { __stick: { r, canvas, fromFramebuffer, send } });
       let zoneLoaded: string | null = null;
       let lastSnap: unknown = null;
       let followed: string | undefined;
+      let hovered: string | null = null;
       const known = new Set<string>();
+      const casts = new CastClock();
+      const edges = new AnimEdges();
+      const labels = new Labels(labelsRef.current!);
       let wasdAccum = 0;
       let last = performance.now();
 
       const myUnit = () => {
         const g = useGame.getState();
-        return g.wallet ? g.snapshot?.units.find((u) => u.id === g.wallet) : undefined;
+        return g.wallet ? g.snapshot?.units.find((u) => sameId(u.id, g.wallet) && u.kind === "player") : undefined;
       };
       const pick = (sx: number, sy: number): [number, number] => {
         const p = r.pickWorld(sx, sy);
         return [p[0], p[1]];
       };
+      const unitAt = (e: { clientX: number; clientY: number }): UnitSnapshot | undefined => {
+        const [sx, sy] = toFramebuffer(canvas, e.clientX, e.clientY);
+        const id = r.pickUnit(sx, sy, myUnit()?.id);
+        return id ? useGame.getState().snapshot?.units.find((u) => u.id === id) : undefined;
+      };
 
       const onPointer = (e: PointerEvent) => {
         if (e.button !== 0 && e.button !== 2) return;
-        if (useGame.getState().phase !== "play" || !myUnit()) return;
+        const g = useGame.getState();
+        if (g.phase !== "play" || !myUnit()) return;
         const [sx, sy] = toFramebuffer(canvas, e.clientX, e.clientY);
         if (sx < 0 || sy < 0 || sx > FB_W || sy > FB_H) return;
+        const hit = e.button === 0 ? unitAt(e) : undefined;
+        if (hit && !sameId(hit.id, g.wallet)) {
+          const res = routeUnitClick(hit, g.wallet);
+          if (res.select !== undefined) g.setSelectedTarget(res.select);
+          if (res.send) send(res.send);
+          return;
+        }
         const [x, z] = pick(sx, sy);
         const c = clampPaleHollow(x, z);
         send({ type: "move", x: c.x, z: c.z });
+      };
+      const onMove = (e: PointerEvent) => {
+        const u = unitAt(e);
+        hovered = u && !sameId(u.id, useGame.getState().wallet) ? u.id : null;
+        canvas.style.cursor = hovered ? "pointer" : "";
       };
       const onContext = (e: MouseEvent) => e.preventDefault();
       const isMoveKey = (k: string): k is keyof MoveKeys => k === "w" || k === "a" || k === "s" || k === "d";
@@ -71,17 +102,20 @@ export function StickWorld() {
         if (isMoveKey(k)) setKeyboardMoveKey(k, false);
       };
       canvas.addEventListener("pointerdown", onPointer);
+      canvas.addEventListener("pointermove", onMove);
       canvas.addEventListener("contextmenu", onContext);
       window.addEventListener("keydown", down);
       window.addEventListener("keyup", up);
       window.addEventListener("blur", clearKeyboardMove);
       cleanups.push(() => {
         canvas.removeEventListener("pointerdown", onPointer);
+        canvas.removeEventListener("pointermove", onMove);
         canvas.removeEventListener("contextmenu", onContext);
         window.removeEventListener("keydown", down);
         window.removeEventListener("keyup", up);
         window.removeEventListener("blur", clearKeyboardMove);
         clearKeyboardMove();
+        labels.clear();
       });
 
       const frame = (now: number) => {
@@ -98,6 +132,13 @@ export function StickWorld() {
         if (snap && snap !== lastSnap) {
           lastSnap = snap;
           syncUnits(r, snap.units, known, Date.now());
+          casts.forget(known);
+          const me0 = myUnit();
+          for (const ev of edges.scan(snap.units, me0, Date.now())) {
+            if (ev.kind === "enemySwing") playEnemySwing(ev.volume);
+            else if (ev.kind === "jobSwing") playJobSwing(ev.job, ev.volume);
+            else playTemporalDistortion(ev.until);
+          }
         }
         const me = myUnit();
         if (me?.id !== followed) {
@@ -111,6 +152,35 @@ export function StickWorld() {
           if (t) send({ type: "move", x: t.x, z: t.z });
         }
         r.tick(dt);
+        // Effects + labels
+        const wall = Date.now();
+        const ctxBase = { now: wall, wallet: g.wallet ?? null, selected: g.selectedTarget, hovered };
+        const shown = new Map<string, { text: string; cls: string; x: number; y: number }>();
+        for (const u of snap?.units ?? []) {
+          if (!known.has(u.id)) continue;
+          const fx = unitFx(u, { ...ctxBase, cast: casts.progress(u, wall) });
+          r.setFx(u.id, fx.hp, fx.cast, fx.aoe, fx.flags, fx.fade, fx.levelUp);
+          const label = labelFor(u, ctxBase);
+          if (label && fx.fade > 0.3) {
+            const a = r.anchor(u.id);
+            if (a.length === 3) {
+              const [cx, cy] = fromFramebuffer(canvas, a[0], a[1]);
+              shown.set(u.id, { ...label, x: cx, y: cy });
+            }
+          }
+        }
+        labels.update(shown);
+        // NPC menu anchored under the NPC's feet (#27)
+        const npcId = g.npcDialog?.npcId;
+        const menu = menuRef.current;
+        if (menu && npcId) {
+          const a = r.anchor(npcId);
+          if (a.length === 3) {
+            const [cx, cy] = fromFramebuffer(canvas, a[0], a[2]);
+            menu.style.transform = `translate(${Math.round(cx)}px, ${Math.round(cy) + 6}px) translate(-50%, 0)`;
+            menu.style.visibility = "visible";
+          } else menu.style.visibility = "hidden";
+        }
         r.draw();
         raf = requestAnimationFrame(frame);
       };
@@ -122,5 +192,16 @@ export function StickWorld() {
       for (const c of cleanups) c();
     };
   }, []);
-  return <canvas ref={ref} className="stick-canvas" />;
+
+  return (
+    <>
+      <canvas ref={ref} className="stick-canvas" />
+      <div ref={labelsRef} className="stick-labels" aria-hidden />
+      {npcOpen && (
+        <div ref={menuRef} className="stick-npc-menu" style={{ visibility: "hidden" }}>
+          <NpcInteractMenu />
+        </div>
+      )}
+    </>
+  );
 }

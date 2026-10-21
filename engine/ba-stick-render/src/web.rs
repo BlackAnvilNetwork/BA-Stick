@@ -3,7 +3,7 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen::{Clamped, JsCast};
 use web_sys::{CanvasRenderingContext2d, HtmlCanvasElement, ImageData};
 
-use crate::{AnimState, Scene, UnitInput};
+use crate::{AnimState, Scene, UnitFx, UnitInput};
 
 #[wasm_bindgen]
 pub struct StickRenderer {
@@ -50,6 +50,27 @@ impl StickRenderer {
         self.scene.upsert_unit(id, UnitInput { x, y, z, facing, anim: AnimState::parse(anim), preset: preset.to_owned() });
     }
 
+    /// Per-frame effect state. `hp`/`cast`/`levelUp` < 0 hide; `flags` are
+    /// FX bits (1 selected, 2 hovered, 4 shiny, 8 hostile, 16 self,
+    /// 32 player cast, 64 petrified); `fade` 0..1 opacity.
+    #[wasm_bindgen(js_name = setFx)]
+    #[allow(clippy::too_many_arguments)]
+    pub fn set_fx(&mut self, id: &str, hp: f32, cast: f32, aoe: f32, flags: u32, fade: f32, level_up: f32) -> bool {
+        self.scene.set_fx(id, UnitFx { hp, cast, aoe, flags, fade, level_up })
+    }
+
+    /// `[x, headY, feetY]` in framebuffer pixels, or empty if unknown.
+    pub fn anchor(&self, id: &str) -> Vec<f32> {
+        self.scene.anchor(id).map_or(vec![], |(x, a, b)| vec![x, a, b])
+    }
+
+    /// `[x, y]` framebuffer pixel of a world point.
+    #[wasm_bindgen(js_name = worldToScreen)]
+    pub fn world_to_screen(&self, x: f32, y: f32, z: f32) -> Vec<f32> {
+        let (sx, sy) = self.scene.world_to_screen(x, y, z);
+        vec![sx, sy]
+    }
+
     #[wasm_bindgen(js_name = removeUnit)]
     pub fn remove_unit(&mut self, id: &str) -> bool { self.scene.remove_unit(id) }
 
@@ -64,7 +85,9 @@ impl StickRenderer {
     }
 
     #[wasm_bindgen(js_name = pickUnit)]
-    pub fn pick_unit(&self, sx: f32, sy: f32) -> Option<String> { self.scene.pick_unit(sx, sy).map(str::to_owned) }
+    pub fn pick_unit(&self, sx: f32, sy: f32, skip: Option<String>) -> Option<String> {
+        self.scene.pick_unit_except(sx, sy, skip.as_deref()).map(str::to_owned)
+    }
 
     pub fn tick(&mut self, dt: f32) { self.scene.tick(dt); }
 
