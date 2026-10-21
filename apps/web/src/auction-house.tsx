@@ -13,13 +13,13 @@ import {
 } from "@bellgrave/protocol";
 import { useState } from "react";
 import { formatEther } from "viem";
-import { buyAsksWithWallet } from "./ah-buy";
-import { eezSyncBuyAvailable, listHomeChainOptions } from "./eez-home-chain";
-import { buyAsksWithEezSync } from "./eez-sync-buy";
+import { buyAsksWithWallet } from "@bellgrave/client-core/ah-buy";
+import { eezSyncBuyAvailable, listHomeChainOptions } from "@bellgrave/client-core/eez-home-chain";
+import { buyAsksWithEezSync } from "@bellgrave/client-core/eez-sync-buy";
 import { ItemCatalogDetails, ItemTipHost, UsedInRecipes } from "./itemTip";
-import { send } from "./net";
-import { settlementSymbol } from "./settlement-label";
-import { useGame } from "./state";
+import { send } from "@bellgrave/client-core/net";
+import { settlementSymbol } from "@bellgrave/client-core/settlement-label";
+import { useGame } from "@bellgrave/client-core/state";
 
 const WEEK_SEC = 7 * 24 * 60 * 60;
 

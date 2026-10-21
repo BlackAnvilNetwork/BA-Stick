@@ -15,9 +15,9 @@ import {
   type SkillNode,
 } from "@bellgrave/combat";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent, type WheelEvent } from "react";
-import { send } from "./net";
+import { send } from "@bellgrave/client-core/net";
 import { skillTreeRenderSet, type SkillTreeFocus } from "./skillTreeRender";
-import { useGame } from "./state";
+import { useGame } from "@bellgrave/client-core/state";
 
 const JOB_COLOR: Record<JobId, string> = {
   time_mage: "#2f8f84",

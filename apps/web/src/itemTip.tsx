@@ -10,7 +10,7 @@ import {
 } from "@bellgrave/items";
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { useGame } from "./state";
+import { useGame } from "@bellgrave/client-core/state";
 
 const JOB_ABBR: Record<string, string> = {
   knight: "KNT",

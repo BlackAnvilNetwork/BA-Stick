@@ -6,7 +6,7 @@ import {
   networkProfile,
   settlementCurrency,
 } from "@bellgrave/config";
-import { settlementExampleAsk, settlementSymbol } from "./settlement-label";
+import { settlementExampleAsk, settlementSymbol } from "@bellgrave/client-core/settlement-label";
 
 describe("Gnosis web settlement + explorer", () => {
   it("VITE_NETWORK=gnosis profile is chain 100 with xDAI and gnosisscan", () => {

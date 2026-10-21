@@ -1,8 +1,8 @@
 import { useState } from "react";
 import type { PvpBountyClientConfig } from "@bellgrave/protocol";
-import { useGame } from "./state";
-import { send } from "./net";
-import { placePvpBountyWithWallet } from "./pvp-place";
+import { useGame } from "@bellgrave/client-core/state";
+import { send } from "@bellgrave/client-core/net";
+import { placePvpBountyWithWallet } from "@bellgrave/client-core/pvp-place";
 
 function pvpEscrow(): PvpBountyClientConfig | null {
   const snap = useGame.getState().snapshot;

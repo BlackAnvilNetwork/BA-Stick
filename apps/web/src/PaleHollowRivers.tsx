@@ -21,7 +21,7 @@ import { useTexture } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import { useMemo } from "react";
 import * as THREE from "three";
-import { send } from "./net";
+import { send } from "@bellgrave/client-core/net";
 
 const N0 = "/textures/pale-hollow/water-normal-0.jpg";
 const N1 = "/textures/pale-hollow/water-normal-1.jpg";

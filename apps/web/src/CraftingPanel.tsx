@@ -11,7 +11,7 @@
 } from "@bellgrave/items";
 import type { SnapshotMessage } from "@bellgrave/protocol";
 import { useMemo, useState } from "react";
-import { send } from "./net";
+import { send } from "@bellgrave/client-core/net";
 
 type Props = {
   you: SnapshotMessage["you"];

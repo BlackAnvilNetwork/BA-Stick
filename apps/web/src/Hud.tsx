@@ -16,7 +16,7 @@ import {
   type AbilityId as CombatAbilityId,
   type JobId,
 } from "@bellgrave/combat";
-import { clearPendingMint, mintCharacterWithWallet } from "./character-mint";
+import { clearPendingMint, mintCharacterWithWallet } from "@bellgrave/client-core/character-mint";
 import { ITEM, normalizeCharacterName, characterNameKey, explorerTxUrl } from "@bellgrave/config";
 import { getItem } from "@bellgrave/items";
 import type { AbilityId, UnitSnapshot } from "@bellgrave/protocol";
@@ -59,7 +59,7 @@ import {
   type HotbarSlots,
 } from "./hotbar";
 import { useAppKit, useAppKitAccount, useAppKitState } from "@reown/appkit/react";
-import { appKitConfigured } from "./appkit-config";
+import { appKitConfigured } from "@bellgrave/client-core/appkit-config";
 import {
   checkCharacterNameAvailable,
   isServerAuthed,
@@ -67,10 +67,10 @@ import {
   logoutToMenu,
   send,
   walletConnectLoginAvailable,
-} from "./net";
+} from "@bellgrave/client-core/net";
 import { stopZoneMusic } from "./zoneMusic";
-import { checkWebLightClient, lightClientFromSnapshot } from "./light-client";
-import { useGame } from "./state";
+import { checkWebLightClient, lightClientFromSnapshot } from "@bellgrave/client-core/light-client";
+import { useGame } from "@bellgrave/client-core/state";
 // NpcInteractMenu mounts world-anchored under the NPC in WorldScene.
 
 const HOTBAR_KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"] as const;

@@ -1,0 +1,36 @@
+{
+  "name": "@bellgrave/client-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Renderer-agnostic Black Anvil client core: WebSocket net + store, wallet/auth, mint, AH pay, light client.",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test src/pay-wallet.test.ts src/ah-buy.test.ts src/eez-sync-buy.test.ts src/pvp-place.test.ts src/burner-identity.test.ts src/light-client.test.ts src/mobile-light-client.test.ts"
+  },
+  "dependencies": {
+    "@bellgrave/config": "workspace:*",
+    "@bellgrave/protocol": "workspace:*",
+    "@noble/curves": "^2.4.0",
+    "@reown/appkit": "^1.8.24",
+    "@reown/appkit-adapter-ethers": "^1.8.24",
+    "@walletconnect/ethereum-provider": "^2.26.0",
+    "ethers": "^6.17.0",
+    "viem": "^2.57.2",
+    "zustand": "^5.0.3"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "@types/react": "^19.0.12",
+    "react": "^19.0.0",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2",
+    "vite": "^6.2.2"
+  }
+}

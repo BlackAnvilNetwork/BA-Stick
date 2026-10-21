@@ -3,9 +3,9 @@ import { ahFeeSplit, type InventorySlot, type LokItemBalance } from "@bellgrave/
 import { useState } from "react";
 import { formatEther, parseEther } from "viem";
 import { ItemCatalogDetails, ItemTipHost, UsedInRecipes } from "./itemTip";
-import { send } from "./net";
-import { settlementExampleAsk, settlementSymbol } from "./settlement-label";
-import { useGame } from "./state";
+import { send } from "@bellgrave/client-core/net";
+import { settlementExampleAsk, settlementSymbol } from "@bellgrave/client-core/settlement-label";
+import { useGame } from "@bellgrave/client-core/state";
 
 type Near = { id: string; name: string };
 
