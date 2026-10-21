@@ -232,6 +232,34 @@ struct Ctx<'a> {
     base: Vec3,
     f: Vec3,
     r: Vec3,
+    /// Round 1 prop readability (L3/P1/P6): sun-facing shading, lit top-edge
+    /// highlight, soft interior outlines. Off for kind::BRIDGE (rebuilt separately).
+    polish: bool,
+    /// P2 chalk strata on side faces (cliff / wall blocks only).
+    strata: bool,
+}
+
+/// Lit-edge highlight for a top colour (P1): chalk/stone gets a pale bone
+/// edge, other ramps keep their own top colour (drops the black line there).
+fn top_highlight(top: u8) -> u8 {
+    match top {
+        WALL | WALL_L | ROCK_L | BANK_L => GEAR_BONE,
+        t => t,
+    }
+}
+
+/// Darker step for a face colour (P6 interior outlines, P2 strata).
+fn face_dark(c: u8) -> u8 {
+    match c {
+        WALL_L => WALL,
+        WALL => WALL_D,
+        ROCK_L => ROCK,
+        ROCK => ROCK_D,
+        WOOD_L => WOOD,
+        WOOD => WOOD_D,
+        WALL_D | ROCK_D => C_OUTLINE,
+        _ => WOOD_D,
+    }
 }
 
 impl Ctx<'_> {
@@ -254,17 +282,69 @@ impl Ctx<'_> {
         let corners = [c(-1.0, 0.0, -1.0), c(1.0, 0.0, -1.0), c(1.0, 0.0, 1.0), c(-1.0, 0.0, 1.0)];
         let lo: Vec<P2> = corners.iter().map(|&(x, y, z)| self.p(x, y0 + y, z)).collect();
         let hi: Vec<P2> = corners.iter().map(|&(x, _, z)| self.p(x, y0 + h, z)).collect();
-        // Side faces: draw all four; depth keeps the visible ones. Shade by facing.
+        if !self.polish {
+            // Side faces: draw all four; depth keeps the visible ones. Shade by facing.
+            for i in 0..4 {
+                let j = (i + 1) % 4;
+                let col = if (hi[i].x + hi[j].x) * 0.5 > (hi[0].x + hi[2].x) * 0.5 { lit } else { dark };
+                self.quad(lo[i], lo[j], hi[j], hi[i], col);
+            }
+            self.quad(hi[0], hi[1], hi[2], hi[3], top);
+            for i in 0..4 {
+                let j = (i + 1) % 4;
+                self.edge(hi[i], hi[j]);
+                self.edge(lo[i], hi[i]);
+            }
+            return;
+        }
+        // L3: lit/dark by the face's outward normal against SUN_DIR (NW).
+        let sun = crate::atmosphere::SUN_DIR;
+        let sunlit = |i: usize, j: usize| {
+            let (a, b) = (corners[i], corners[j]);
+            let (nx, nz) = ((a.0 + b.0) * 0.5 - cx, (a.2 + b.2) * 0.5 - cz);
+            let wn = self.r * nx + self.f * nz;
+            wn.x * sun[0] + wn.z * sun[2] > 0.0
+        };
+        let lit_face = [sunlit(0, 1), sunlit(1, 2), sunlit(2, 3), sunlit(3, 0)];
         for i in 0..4 {
             let j = (i + 1) % 4;
-            let col = if (hi[i].x + hi[j].x) * 0.5 > (hi[0].x + hi[2].x) * 0.5 { lit } else { dark };
+            let col = if lit_face[i] { lit } else { dark };
             self.quad(lo[i], lo[j], hi[j], hi[i], col);
+            if self.strata && h > 0.9 {
+                // P2: dithered strata row every ~0.6 m, one step darker.
+                let mut y = 0.6;
+                while y < h - 0.2 {
+                    let (a, b) = (self.p(corners[i].0, y0 + y, corners[i].2), self.p(corners[j].0, y0 + y, corners[j].2));
+                    self.dither_line(a, b, face_dark(col), 0.5);
+                    y += 0.6;
+                }
+            }
         }
         self.quad(hi[0], hi[1], hi[2], hi[3], top);
+        // Screen-silhouette verticals stay black; interior verticals soften to the
+        // face's dark step (P6); top edges over sun-facing faces get the pale
+        // highlight (P1), the rest stay black.
+        let (minx, maxx) = hi.iter().fold((f32::MAX, f32::MIN), |(a, b), q| (a.min(q.x), b.max(q.x)));
         for i in 0..4 {
             let j = (i + 1) % 4;
-            self.edge(hi[i], hi[j]);
-            self.edge(lo[i], hi[i]);
+            let top_col = if lit_face[i] { top_highlight(top) } else { C_OUTLINE };
+            self.edge_col(hi[i], hi[j], top_col);
+            let sil = hi[i].x <= minx + 0.5 || hi[i].x >= maxx - 0.5;
+            self.edge_col(lo[i], hi[i], if sil { C_OUTLINE } else { face_dark(dark) });
+        }
+    }
+    fn edge_col(&mut self, a: P2, b: P2, col: u8) {
+        self.fb.line(P2 { d: a.d - 0.02, ..a }, P2 { d: b.d - 0.02, ..b }, col);
+    }
+    /// Depth-tested line that only writes pixels passing a 2D ordered dither.
+    fn dither_line(&mut self, a: P2, b: P2, col: u8, level: f32) {
+        let n = (b.x - a.x).abs().max((b.y - a.y).abs()).ceil().max(1.0) as i32;
+        for k in 0..=n {
+            let t = k as f32 / n as f32;
+            let (x, y) = ((a.x + (b.x - a.x) * t) as i32, (a.y + (b.y - a.y) * t) as i32);
+            if crate::dither::on(x, y, level) {
+                self.fb.plot(x, y, a.d + (b.d - a.d) * t - 0.01, col);
+            }
         }
     }
     /// A river-wall segment as a prism mitered at its joints (`Prop::j`).
@@ -382,7 +462,7 @@ pub fn draw(fb: &mut Framebuffer, cam: &Camera, props: &[Prop], cam_y: f32, time
         }
         let f = v3(p.yaw.sin(), 0.0, p.yaw.cos());
         let r = v3(p.yaw.cos(), 0.0, -p.yaw.sin());
-        let mut c = Ctx { fb, cam, base, f, r };
+        let mut c = Ctx { fb, cam, base, f, r, polish: p.kind != kind::BRIDGE, strata: p.kind == kind::WALL_BLOCK };
         draw_one(&mut c, p, time);
     }
 }
@@ -445,8 +525,11 @@ fn draw_one(c: &mut Ctx, p: &Prop, time: f32) {
                 let fr = c.p(0.0, y0 - rad * 0.12, rad * 0.4);
                 // camera-facing silhouette with a lit right half
                 let mid = P2 { x: apex.x, y: (lft.y + rgt.y) * 0.5 + 2.0, d: fr.d };
-                tri(c.fb, apex, lft, mid, d);
-                tri(c.fb, apex, mid, rgt, if t == tiers - 1 { l } else { m });
+                // P5: sun from the NW, so the screen-left half is lit, with a
+                // light rim on the left edge of each tier.
+                tri(c.fb, apex, lft, mid, if t == tiers - 1 { l } else { m });
+                tri(c.fb, apex, mid, rgt, d);
+                c.fb.line(P2 { d: apex.d - 0.02, ..apex }, P2 { d: lft.d - 0.02, ..lft }, l);
                 c.edge(apex, lft);
                 c.edge(apex, rgt);
                 c.edge(lft, mid);
