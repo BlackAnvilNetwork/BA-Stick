@@ -121,3 +121,27 @@ test("AnimEdges: one swing per animUntil bump, by kind, with legacy falloff", ()
   assert.deepEqual(e.scan([td], me, 100), [{ kind: "temporalDistortion", until: 500 }]);
   assert.equal(swingVolume(100), 0.15);
 });
+
+import { zoneRender } from "./zones";
+import { ZONE_IDS } from "@bellgrave/config";
+
+test("zoneRender resolves every ZoneId; only served zones are baked", () => {
+  for (const z of ZONE_IDS) {
+    const r = zoneRender(z);
+    assert.equal(r.id, z);
+    assert.ok(r.name.length > 0);
+  }
+  assert.equal(zoneRender("pale_hollow").baked, "pale_hollow");
+  assert.equal(zoneRender("palace_hall").baked, null);
+  assert.equal(zoneRender(undefined).id, "pale_hollow");
+});
+
+import { ZoneTracker } from "./zones";
+
+test("ZoneTracker: first zone, unchanged, then a real change", () => {
+  const t = new ZoneTracker();
+  assert.deepEqual(t.update(undefined), { changed: false, first: false });
+  assert.deepEqual(t.update("pale_hollow"), { changed: true, first: true });
+  assert.deepEqual(t.update("pale_hollow"), { changed: false, first: false });
+  assert.deepEqual(t.update("palace_hall"), { changed: true, first: false });
+});

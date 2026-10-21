@@ -1,3 +1,4 @@
+import { zoneRender } from "./zones";
 import init, { StickRenderer } from "ba-stick-render";
 
 export const FB_W = 640;
@@ -38,10 +39,9 @@ export function fetchZone(id: string): Promise<Uint8Array> {
   return p;
 }
 
-/** Server zone id → baked zone. Only Pale Hollow is baked so far (other zones: #31). */
+/** Server zone id → baked zone (see zones.ts). */
 export function bakedZoneFor(zoneId: string | undefined): string | null {
-  if (!zoneId || zoneId === "pale_hollow") return "pale_hollow";
-  return null;
+  return zoneRender(zoneId).baked;
 }
 
 /** Framebuffer pixel → CSS px relative to the canvas box (inverse of toFramebuffer). */
