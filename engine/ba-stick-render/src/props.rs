@@ -145,6 +145,47 @@ pub fn link_walls(props: &mut [Prop]) {
 }
 
 /// Rough world-space reach (for culling).
+/// Ground footprint radius (m) for contact shadows, or `None` for kinds that
+/// cast none (ground cover, walls, bridges, peaks, water edges).
+pub fn footprint(p: &Prop) -> Option<f32> {
+    Some(match p.kind {
+        kind::PINE | kind::SPRUCE => p.s * 0.4,
+        kind::CYPRESS => p.s * 0.22,
+        kind::ASH_MED | kind::ASH_TALL => p.s * 0.35,
+        kind::BUSH => p.s * 0.55,
+        kind::ROCK | kind::STONE => p.s * 0.55,
+        kind::TENT => 1.6,
+        kind::CRATE => p.w.max(p.d) * 0.75,
+        kind::CHEST => 0.6,
+        kind::LEAN_TO => 1.4,
+        kind::TRAINER => 0.7,
+        kind::STALL => 1.15,
+        kind::WEAPON_RACK => 0.6,
+        kind::FIREWOOD => 0.5,
+        kind::BARREL => 0.45,
+        kind::BEDROLL => 0.5,
+        kind::WALL_BLOCK => p.w.max(p.d) * 0.6,
+        _ => return None,
+    })
+}
+
+/// Dithered contact shadows for every visible prop with a footprint.
+pub fn draw_shadows(fb: &mut Framebuffer, cam: &Camera, props: &[Prop], cam_y: f32) {
+    let (w, h) = (fb.w as f32, fb.h as f32);
+    for p in props {
+        let Some(r) = footprint(p) else { continue };
+        let (ox, oz) = crate::atmosphere::shadow_offset(r);
+        let c = v3(p.x + ox, p.y - cam_y, p.z + oz);
+        let q = cam.project(c);
+        let k = cam.scale_at(c) * std::f32::consts::SQRT_2;
+        let (rx, ry) = (r * stick_engine::camera::ISO_X * k, r * stick_engine::camera::ISO_Y * k);
+        if q.x + rx < 0.0 || q.x - rx > w || q.y + ry < 0.0 || q.y - ry > h {
+            continue;
+        }
+        crate::dither::soft_shadow(fb, q.x, q.y, rx, ry, 0.85);
+    }
+}
+
 fn reach(p: &Prop) -> f32 {
     match p.kind {
         kind::PEAK => 6.0 * p.s,

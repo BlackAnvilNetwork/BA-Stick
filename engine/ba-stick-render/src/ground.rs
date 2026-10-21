@@ -35,6 +35,73 @@ pub fn fill_tri(fb: &mut Framebuffer, a: P2, b: P2, c: P2, col: u8) {
     }
 }
 
+/// Biome-edge band (B1): fraction of the cell, from each edge, that dithers
+/// toward a differing neighbour biome. 0.5 = half-cell.
+pub const EDGE_BAND: f32 = 0.5;
+/// Neighbour coverage at the shared edge (fades to 0 across the band).
+pub const EDGE_MAX: f32 = 0.5;
+
+/// Plain biome (no water / trail / bridge flag) at (i, j), or None.
+#[inline]
+fn plain_biome(z: &Zone, i: i32, j: i32) -> Option<u8> {
+    if i < 0 || j < 0 || i >= z.w as i32 || j >= z.h as i32 {
+        return None;
+    }
+    let k = z.idx(i, j);
+    if z.flags[k] & (F_WATER | F_TRAIL | F_BRIDGE) != 0 {
+        return None;
+    }
+    Some(z.biome[k].min(15))
+}
+
+/// Triangle fill with a per-pixel biome-edge dither. `uv*` are cell-local
+/// (0..1) coords of each vertex; `nb` holds the neighbour colour across the
+/// -i, +i, -j, +j edges (None = same biome or not plain ground). `org` anchors
+/// the dither pattern to the world so it does not swim when the camera pans.
+#[allow(clippy::too_many_arguments)]
+fn fill_tri_edge(fb: &mut Framebuffer, a: P2, b: P2, c: P2, ua: (f32, f32), ub: (f32, f32), uc: (f32, f32), own: u8, nb: [Option<u8>; 4], org: (i32, i32)) {
+    let min_x = a.x.min(b.x).min(c.x).floor().max(0.0) as i32;
+    let max_x = a.x.max(b.x).max(c.x).ceil().min(fb.w as f32 - 1.0) as i32;
+    let min_y = a.y.min(b.y).min(c.y).floor().max(0.0) as i32;
+    let max_y = a.y.max(b.y).max(c.y).ceil().min(fb.h as f32 - 1.0) as i32;
+    if min_x > max_x || min_y > max_y {
+        return;
+    }
+    let area = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+    if area.abs() < 1e-6 {
+        return;
+    }
+    let inv = 1.0 / area;
+    let w = fb.w;
+    let k = EDGE_MAX / EDGE_BAND;
+    for y in min_y..=max_y {
+        let py = y as f32 + 0.5;
+        for x in min_x..=max_x {
+            let px = x as f32 + 0.5;
+            let w0 = ((b.x - px) * (c.y - py) - (b.y - py) * (c.x - px)) * inv;
+            let w1 = ((c.x - px) * (a.y - py) - (c.y - py) * (a.x - px)) * inv;
+            let w2 = 1.0 - w0 - w1;
+            if w0 < 0.0 || w1 < 0.0 || w2 < 0.0 {
+                continue;
+            }
+            let u = w0 * ua.0 + w1 * ub.0 + w2 * uc.0;
+            let v = w0 * ua.1 + w1 * ub.1 + w2 * uc.1;
+            let (mut best, mut col) = (0.0f32, own);
+            for (n, d) in nb.iter().zip([u, 1.0 - u, v, 1.0 - v]) {
+                if let Some(nc) = n {
+                    let cov = (EDGE_BAND - d) * k;
+                    if cov > best {
+                        best = cov;
+                        col = *nc;
+                    }
+                }
+            }
+            fb.color[y as usize * w + x as usize] =
+                if best > 0.0 && crate::dither::on(x - org.0, y - org.1, best) { col } else { own };
+        }
+    }
+}
+
 fn cell_color(z: &Zone, i: i32, j: i32, time: f32) -> u8 {
     let k = z.idx(i, j);
     let f = z.flags[k];
@@ -82,6 +149,8 @@ pub fn draw_zone(fb: &mut Framebuffer, cam: &Camera, zone: &Zone, cam_y: f32, ti
         return;
     }
     let c = zone.cell;
+    let o = cam.project(v3(zone.min_x, -cam_y, zone.min_z));
+    let org = (o.x.round() as i32, o.y.round() as i32);
     let pt = |i: i32, j: i32| {
         let h = zone.height[zone.idx(i, j)] - cam_y;
         cam.project(v3(zone.min_x + i as f32 * c, h, zone.min_z + j as f32 * c))
@@ -97,6 +166,17 @@ pub fn draw_zone(fb: &mut Framebuffer, cam: &Camera, zone: &Zone, cam_y: f32, ti
                 continue;
             }
             let col = cell_color(zone, i, j, time);
+            // B1: dither toward differing neighbour biomes (same shade step).
+            if let Some(b) = plain_biome(zone, i, j) {
+                let shade = col - (BIOME0 + b * 3);
+                let n = |di: i32, dj: i32| plain_biome(zone, i + di, j + dj).filter(|&nb| nb != b).map(|nb| BIOME0 + nb * 3 + shade);
+                let nb = [n(-1, 0), n(1, 0), n(0, -1), n(0, 1)];
+                if nb.iter().any(|x| x.is_some()) {
+                    fill_tri_edge(fb, p00, p10, p11, (0.0, 0.0), (1.0, 0.0), (1.0, 1.0), col, nb, org);
+                    fill_tri_edge(fb, p00, p11, p01, (0.0, 0.0), (1.0, 1.0), (0.0, 1.0), col, nb, org);
+                    continue;
+                }
+            }
             fill_tri(fb, p00, p10, p11, col);
             fill_tri(fb, p00, p11, p01, col);
         }

@@ -471,6 +471,10 @@ impl Scene {
         let cam = self.cam;
         let t = self.time;
         props::draw(&mut self.fb, &cam, &self.props, self.cam_y, t);
+        // Contact shadows under props (S2/S3): ground-only, so after props is fine.
+        if self.zone.is_some() {
+            props::draw_shadows(&mut self.fb, &cam, &self.props, self.cam_y);
+        }
         self.lights.clear();
         if self.zone.is_some() {
             for p in self.props.iter().filter(|p| p.kind == props::kind::FIRE_PIT) {
@@ -878,18 +882,7 @@ fn bar(fb: &mut Framebuffer, cx: f32, y: f32, w: i32, frac: f32, col: u8) {
 
 /// Unit shadow on the ground only (skips pixels already covered by props).
 fn shadow(fb: &mut Framebuffer, cx: f32, cy: f32, rx: f32, ry: f32) {
-    for y in (cy - ry) as i32..=(cy + ry) as i32 {
-        for x in (cx - rx) as i32..=(cx + rx) as i32 {
-            if x < 0 || y < 0 || x >= fb.w as i32 || y >= fb.h as i32 {
-                continue;
-            }
-            let (nx, ny) = ((x as f32 + 0.5 - cx) / rx, (y as f32 + 0.5 - cy) / ry);
-            let i = y as usize * fb.w + x as usize;
-            if nx * nx + ny * ny <= 1.0 && fb.depth[i] == f32::INFINITY {
-                fb.color[i] = C_SHADOW;
-            }
-        }
-    }
+    crate::dither::soft_shadow(fb, cx, cy, rx, ry, 1.0);
 }
 
 /// How deep units sink when wading (world units; ≈ shin height).

@@ -12,6 +12,7 @@ pub mod vfx;
 pub mod buffvfx;
 pub mod compat;
 pub mod creature;
+pub mod dither;
 pub mod figure;
 pub mod gear;
 pub mod floaters;
