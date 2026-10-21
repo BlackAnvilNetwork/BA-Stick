@@ -7,8 +7,11 @@
 //! world position (x, y, z), a facing, a server `anim` state and a rig preset
 //! (job / mob archetype / NPC role).
 
+pub mod ground;
+pub mod palette;
 pub mod preset;
 pub mod scene;
+pub mod zone;
 #[cfg(target_arch = "wasm32")]
 mod web;
 
