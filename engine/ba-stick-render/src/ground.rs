@@ -71,6 +71,26 @@ fn land(z: &Zone, i: i32, j: i32) -> bool {
     z.flags[z.idx(i, j)] & (F_WATER | F_BRIDGE) == 0
 }
 
+/// B3: trail↔ground edges dither over a narrower band on each side.
+pub const TRAIL_BAND: (f32, f32) = (0.25, 0.5);
+
+#[inline]
+fn is_trail(c: u8) -> bool {
+    (TRAIL_DIRT..TRAIL_DIRT + 3).contains(&c) || (TRAIL_STONE..TRAIL_STONE + 3).contains(&c)
+}
+
+/// Trail kind of a cell: Some(ramp base) for a plain trail cell.
+fn trail_base(z: &Zone, i: i32, j: i32) -> Option<u8> {
+    if i < 0 || j < 0 || i >= z.w as i32 || j >= z.h as i32 {
+        return None;
+    }
+    let f = z.flags[z.idx(i, j)];
+    if f & (F_WATER | F_BRIDGE) != 0 || f & F_TRAIL == 0 {
+        return None;
+    }
+    Some(if f & F_STONE != 0 { TRAIL_STONE } else { TRAIL_DIRT })
+}
+
 /// Plain biome (no water / trail / bridge flag) at (i, j), or None.
 #[inline]
 fn plain_biome(z: &Zone, i: i32, j: i32) -> Option<u8> {
@@ -119,7 +139,13 @@ fn fill_tri_edge(fb: &mut Framebuffer, a: P2, b: P2, c: P2, ua: (f32, f32), ub: 
             let (mut best, mut col) = (0.0f32, own);
             for (n, d) in nb.iter().zip([u, 1.0 - u, v, 1.0 - v]) {
                 if let Some(nc) = n {
-                    let eb = if *nc == WATER_FOAM { FOAM_BAND } else { edge_band };
+                    let eb = if *nc == WATER_FOAM {
+                        FOAM_BAND
+                    } else if is_trail(*nc) {
+                        TRAIL_BAND.0.min(edge_band)
+                    } else {
+                        edge_band
+                    };
                     let cov = (eb - d) * k;
                     if cov > best {
                         best = cov;
@@ -262,6 +288,9 @@ pub fn draw_zone(fb: &mut Framebuffer, cam: &Camera, zone: &Zone, cam_y: f32, ti
                     if ni > zone.w as i32 - 2 || nj > zone.h as i32 - 2 {
                         return None;
                     }
+                    if let Some(t) = trail_base(zone, ni, nj) {
+                        return Some(t + shade);
+                    }
                     let nb = plain_biome(zone, ni, nj)?;
                     let nc = BIOME0 + nb * 3 + sh(ni, nj);
                     (nc != col).then_some(if nb != b { BIOME0 + nb * 3 + shade } else { nc })
@@ -270,6 +299,26 @@ pub fn draw_zone(fb: &mut Framebuffer, cam: &Camera, zone: &Zone, cam_y: f32, ti
                 if nb.iter().any(|x| x.is_some()) {
                     fill_tri_edge(fb, p00, p10, p11, (0.0, 0.0), (1.0, 0.0), (1.0, 1.0), col, nb, org, (EDGE_BAND, EDGE_MAX));
                     fill_tri_edge(fb, p00, p11, p01, (0.0, 0.0), (1.0, 1.0), (0.0, 1.0), col, nb, org, (EDGE_BAND, EDGE_MAX));
+                    continue;
+                }
+            }
+            // B3: trail cells dither toward differing ground/trail neighbours.
+            if let Some(tb) = trail_base(zone, i, j) {
+                let shade = col - tb;
+                let n = |di: i32, dj: i32| {
+                    let (ni, nj) = (i + di, j + dj);
+                    if ni > zone.w as i32 - 2 || nj > zone.h as i32 - 2 {
+                        return None;
+                    }
+                    if let Some(t) = trail_base(zone, ni, nj) {
+                        return (t != tb).then_some(t + shade);
+                    }
+                    plain_biome(zone, ni, nj).map(|b| BIOME0 + b * 3 + shade)
+                };
+                let nb = [n(-1, 0), n(1, 0), n(0, -1), n(0, 1)];
+                if nb.iter().any(|x| x.is_some()) {
+                    fill_tri_edge(fb, p00, p10, p11, (0.0, 0.0), (1.0, 0.0), (1.0, 1.0), col, nb, org, TRAIL_BAND);
+                    fill_tri_edge(fb, p00, p11, p01, (0.0, 0.0), (1.0, 1.0), (0.0, 1.0), col, nb, org, TRAIL_BAND);
                     continue;
                 }
             }
