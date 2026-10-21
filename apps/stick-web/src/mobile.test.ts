@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { atmosphereFor, initialUiSettings } from "./mobile.ts";
+import { atmosphereFor, initialUiSettings, keylightFor } from "./mobile.ts";
 
 const base = { color: "gold", font: "cinzel", layout: "regular", view: "iso", pixel: "crisp" } as const;
 
@@ -31,4 +31,12 @@ test("atmosphere off on touch, overridable", () => {
   assert.equal(atmosphereFor(true, ""), false);
   assert.equal(atmosphereFor(false, ""), true);
   assert.equal(atmosphereFor(true, "?atmo=1"), true);
+});
+
+test("keylight: on for desktop, off for touch, ?keylight=0 kills it", () => {
+  assert.equal(keylightFor(false, ""), true);
+  assert.equal(keylightFor(true, ""), false);
+  assert.equal(keylightFor(false, "?keylight=0"), false);
+  assert.equal(keylightFor(true, "?keylight"), true);
+  assert.equal(keylightFor(false, "?atmo=0"), false);
 });

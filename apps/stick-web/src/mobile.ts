@@ -20,3 +20,14 @@ export function atmosphereFor(coarsePointer: boolean, search: string): boolean {
   if (q === "0") return false;
   return !coarsePointer;
 }
+
+/**
+ * L2 key light default (round 3 polish): on wherever atmosphere is on
+ * (desktop), off on touch. `?keylight` / `?keylight=1` forces it on,
+ * `?keylight=0` is the kill switch.
+ */
+export function keylightFor(coarsePointer: boolean, search: string): boolean {
+  const q = new URLSearchParams(search);
+  if (q.has("keylight")) return q.get("keylight") !== "0";
+  return atmosphereFor(coarsePointer, search);
+}
