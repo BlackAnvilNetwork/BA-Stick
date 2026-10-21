@@ -1,0 +1,37 @@
+import puppeteer from "puppeteer-core";
+import create from "./create.mjs";
+const b = await puppeteer.launch({ executablePath: "/usr/bin/google-chrome", headless: "new", args: ["--no-sandbox"] });
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+async function player() {
+  const ctx = await b.createBrowserContext();
+  const p = await ctx.newPage(); await p.setViewport({ width: 1280, height: 800 });
+  p.on("pageerror", e => console.log("pageerror", e.message));
+  await p.goto("http://localhost:5174/", { waitUntil: "load" });
+  await p.waitForSelector("form.boot-panel", { timeout: 60000 });
+  await create(p);
+  const sent = [];
+  p.sent = sent;
+  await p.exposeFunction("__rec", (m) => sent.push(m));
+  await p.evaluate(() => { const ws = WebSocket.prototype.send; WebSocket.prototype.send = function (d) { try { const m = JSON.parse(d); if (!["move", "ping"].includes(m.type)) window.__rec(d.slice(0, 160)); } catch {} return ws.call(this, d); }; });
+  return p;
+}
+const sleep2 = sleep;
+const dump = (p) => p.evaluate(() => [...document.querySelectorAll("button")].map(b => b.textContent?.trim()).filter(Boolean).filter(t => !/^(\d|S\d|R|Q)/.test(t)).slice(0, 60).join(" | "));
+const clickText = (p, re) => p.evaluate((src) => { const r = new RegExp(src); const el = [...document.querySelectorAll("button")].find(b => r.test(b.textContent?.trim() ?? "") && !b.disabled); el?.click(); return el?.textContent?.trim() ?? null; }, re);
+const A = await player();
+const B = await player();
+await sleep(1500);
+await clickText(A, "^Party$"); await sleep(1000);
+console.log("A party", await dump(A));
+console.log("invite", await clickText(A, "Invite")); await sleep(1500);
+console.log("B btns", await dump(B));
+console.log("accept", await clickText(B, "^Accept|Join")); await sleep(1500);
+await A.screenshot({ path: "/workspace/ba-research/screens/m4-party.png" });
+console.log("A logs", await A.evaluate(() => window.__useGame.getState().logs.slice(-3)));
+console.log("B logs", await B.evaluate(() => window.__useGame.getState().logs.slice(-3)));
+await clickText(A, "^Close$"); await clickText(A, "^Ash Pit$"); await sleep(900);
+console.log("pvp", await clickText(A, "^Join Ash Pit$")); await sleep(6000); console.log("status", await A.evaluate(() => document.querySelector(".ash-pit-status")?.textContent), await A.evaluate(() => JSON.stringify(window.__useGame.getState().logs.slice(-2))));
+await A.screenshot({ path: "/workspace/ba-research/screens/m4-pvp.png" });
+console.log("A logs", await A.evaluate(() => window.__useGame.getState().logs.slice(-3)), await A.evaluate(() => window.__useGame.getState().snapshot.you.zoneId));
+console.log("A sent", A.sent, "B sent", B.sent);
+await b.close();
