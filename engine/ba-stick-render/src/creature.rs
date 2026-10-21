@@ -3,7 +3,8 @@
 //! with distance travelled, and a death collapse factor.
 use stick_engine::camera::{Camera, HEIGHT_PX};
 use stick_engine::math::{v3, Vec3};
-use stick_engine::raster::*;
+use stick_engine::raster::Framebuffer;
+use crate::compat::*;
 
 use crate::palette::CR_TUSK;
 use crate::preset::Body;

@@ -1,6 +1,6 @@
 //! 256-entry palette: indices 0..16 are Stick Engine's palette (used by the rig),
 //! 16.. are zone colours (biome × shade, trails, water, bridge).
-use stick_engine::raster::PALETTE as ENGINE;
+use crate::compat::PALETTE as ENGINE;
 
 /// Biome order must match `BIOMES` in apps/stick-web/scripts/bake-zones.ts.
 const BIOME_BASE: [u32; 16] = [

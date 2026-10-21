@@ -3,8 +3,9 @@
 //! outline) so player figures look identical to the engine's.
 use stick_engine::camera::{Camera, HEIGHT_PX};
 use stick_engine::math::{v3, Vec3};
-use stick_engine::raster::*;
-use stick_engine::rig::{Joints, Look, Proportions};
+use stick_engine::raster::Framebuffer;
+use crate::compat::*;
+use crate::compat::Fig as Joints;
 
 use crate::preset::Weapon;
 

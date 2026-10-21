@@ -3,7 +3,8 @@
 //! procedurally into the depth buffer so units sort in front of / behind them.
 use stick_engine::camera::{Camera, P2, HEIGHT_PX};
 use stick_engine::math::{v3, Vec3};
-use stick_engine::raster::*;
+use stick_engine::raster::Framebuffer;
+use crate::compat::*;
 
 use crate::palette::*;
 
