@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+
 use std::ops::{Add, Mul, Sub};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -37,6 +41,11 @@ impl Mul<f32> for Vec3 {
     fn mul(self, s: f32) -> Vec3 {
         v3(self.x * s, self.y * s, self.z * s)
     }
+}
+
+/// Wrap an angle to (-PI, PI].
+pub fn wrap_angle(a: f32) -> f32 {
+    angle_diff(0.0, a)
 }
 
 /// Shortest signed angle difference a->b in radians.

@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+
 //! Buff / ailment visuals (#34). The host maps `units[].buffs` (see
 //! `apps/stick-web/src/content/buff-vfx.json`) to a bit mask of visual kinds
 //! each frame; this module only draws them. Five bespoke effects mirror the
@@ -256,7 +260,7 @@ pub fn draw_body(fb: &mut Framebuffer, cam: &Camera, a: &Anchor, fx: &BuffFx, t:
                 for s in 0..5u32 {
                     let nx = x + (h01(k * 17 + s) - 0.5) * 6.0;
                     let ny = y + 3.0;
-                    fb.line(P2 { x, y, d: f32::MAX }, P2 { x: nx, y: ny, d: f32::MAX }, FX_CAST);
+                    fb.line(P2 { x, y, d: f32::MAX, s: 1.0 }, P2 { s: 1.0, x: nx, y: ny, d: f32::MAX }, FX_CAST);
                     x = nx;
                     y = ny;
                 }
@@ -351,7 +355,7 @@ pub fn draw_body(fb: &mut Framebuffer, cam: &Camera, a: &Anchor, fx: &BuffFx, t:
             for s in 0..4u32 {
                 let nx = x + if s & 1 == 0 { 3.0 } else { -3.0 };
                 let ny = y + 2.5;
-                fb.line(P2 { x, y, d: f32::MAX }, P2 { x: nx, y: ny, d: f32::MAX }, FN_CRIT);
+                fb.line(P2 { x, y, d: f32::MAX, s: 1.0 }, P2 { s: 1.0, x: nx, y: ny, d: f32::MAX }, FN_CRIT);
                 x = nx;
                 y = ny;
             }

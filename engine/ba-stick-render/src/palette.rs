@@ -1,9 +1,13 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+
 //! 256-entry palette: indices 0..16 are Stick Engine's palette (used by the rig),
 //! 16.. are zone colours (biome × shade, trails, water, bridge).
 use crate::compat::PALETTE as ENGINE;
 
 /// Biome order must match `BIOMES` in apps/stick-web/scripts/bake-zones.ts.
-const BIOME_BASE: [u32; 16] = [
+pub const BIOME_BASE: [u32; 16] = [
     0x6b5a45, // hub_indoor packed dirt
     0xb3ab92, // terrace chalk
     0x8a7a3c, // farm

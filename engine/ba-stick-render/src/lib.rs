@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+
 //! BA-Stick renderer: a host-agnostic scene of server-driven units drawn as
 //! procedural stick figures with Stick Engine. The game loop, input and
 //! networking live in the TS shell (`apps/stick-web`); this crate only takes
@@ -12,8 +16,11 @@ pub mod vfx;
 pub mod buffvfx;
 pub mod compat;
 pub mod creature;
+pub mod dither;
 pub mod figure;
 pub mod gear;
+pub mod mapfont;
+pub mod minimap;
 pub mod floaters;
 pub mod ground;
 pub mod palette;
