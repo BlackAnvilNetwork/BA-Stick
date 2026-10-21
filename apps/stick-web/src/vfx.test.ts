@@ -46,7 +46,10 @@ test("own spells fire when the cast ends; instants fire at once", () => {
   const d = new VfxDirector();
   assert.ok(d.request("provoke", "foe", 0)?.length);
   assert.equal(d.request("sc_ember_lance", "foe", 0), null);
-  assert.equal(d.scan([u("me", "cast", 900)], "me", 100).length, 0);
+  // cast start: only the caster burst (F36); the spell itself waits for the cast end
+  const start = d.scan([u("me", "cast", 900)], "me", 100);
+  assert.equal(start.length, 1);
+  assert.equal(start[0].steps[0].prim, "burst");
   const fx = d.scan([u("me", "idle", 900)], "me", 1000);
   assert.equal(fx.length, 1);
   assert.equal(fx[0].steps[0].color, "fire");
@@ -64,4 +67,18 @@ test("others: generic bolt on cast end, spark on each swing", () => {
   assert.equal(b[0].steps, VFX.melee);
   assert.equal(d.scan([u("mob", "melee", 800, { kind: "mob" })], "me", 750).length, 0);
   assert.equal(d.scan([u("mob", "melee", 1600, { kind: "mob" })], "me", 900).length, 1);
+});
+
+test("cast burst on the caster at every cast start (F36)", () => {
+  const d = new VfxDirector();
+  const a = d.scan([u("sc", "cast", 900, { job: "sorcerer" })], "me", 0);
+  assert.equal(a.length, 1);
+  assert.equal(a[0].from, "sc");
+  assert.equal(a[0].to, null);
+  assert.equal(a[0].steps[0].prim, "burst");
+  assert.equal(a[0].steps[0].color, "fire");
+  assert.equal(d.scan([u("sc", "cast", 900, { job: "sorcerer" })], "me", 100).length, 0, "same window: no repeat");
+  const m = d.scan([u("boss", "cast", 700, { kind: "mob" })], "me", 200);
+  assert.equal(m[0].steps[0].color, "enfeeble");
+  assert.equal(d.scan([u("sc", "cast", 2500, { job: "sorcerer" })], "me", 1200).length, 1, "next cast bursts again");
 });
