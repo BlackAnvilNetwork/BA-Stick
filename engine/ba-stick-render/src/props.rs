@@ -258,6 +258,7 @@ impl Ctx<'_> {
                 self.edge(lo[i], hi[i]);
             }
         }
+    }
     /// Continuous strip along local forward: stations (fz, y_lo, y_hi), centred
     /// at local right offset `rx` with half-width `hw`. Outlined only on its
     /// silhouette (long edges and end caps), never between stations.
