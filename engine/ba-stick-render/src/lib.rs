@@ -15,6 +15,8 @@ pub mod creature;
 pub mod dither;
 pub mod figure;
 pub mod gear;
+pub mod mapfont;
+pub mod minimap;
 pub mod floaters;
 pub mod ground;
 pub mod palette;
