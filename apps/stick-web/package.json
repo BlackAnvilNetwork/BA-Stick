@@ -10,7 +10,7 @@
     "build:full": "pnpm wasm && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "zones": "tsx scripts/bake-zones.ts",
+    "zones": "tsx scripts/bake-zones.ts && tsx scripts/bake-icons.ts",
     "test": "tsx --test src/*.test.ts"
   },
   "dependencies": {
@@ -30,6 +30,8 @@
     "typescript": "^5.8.2",
     "vite": "^6.2.2",
     "tsx": "^4.19.3",
-    "@types/node": "^22.13.10"
+    "@types/node": "^22.13.10",
+    "sharp": "^0.35.4",
+    "@bellgrave/items": "workspace:*"
   }
 }

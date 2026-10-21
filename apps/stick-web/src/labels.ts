@@ -10,6 +10,7 @@ export type LabelCtx = { wallet: string | null; selected: string | null; hovered
  */
 export function labelFor(u: UnitSnapshot, c: LabelCtx): { text: string; cls: string } | null {
   if (sameId(u.id, c.wallet)) return null;
+  if (u.gatherNode) return c.hovered === u.id ? { text: u.name, cls: "npc" } : null;
   if (u.kind === "mob" && (u.anim === "dead" || u.hp <= 0)) return null;
   if (u.kind === "npc") return { text: u.name, cls: "npc" };
   const focus = c.selected === u.id || c.hovered === u.id;

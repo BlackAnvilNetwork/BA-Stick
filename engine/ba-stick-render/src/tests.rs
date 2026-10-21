@@ -270,3 +270,18 @@ fn wading_hides_legs_in_water_but_not_on_bridges() {
     let dry = count(&s, "d");
     assert!(wet < dry, "wet={wet} dry={dry}");
 }
+
+#[test]
+fn gather_nodes_draw_per_method_and_dim_when_depleted() {
+    for m in ["mine", "harvest", "fish"] {
+        let mut s = Scene::new(320, 180);
+        s.upsert_unit("n", unit(0.0, 0.0, "idle", &format!("gather:{m}")));
+        s.tick(0.1);
+        s.draw();
+        let ready: Vec<u8> = s.fb.color.clone();
+        assert!(ready.iter().any(|&c| c == crate::compat::C_GOLD), "{m}: glow");
+        s.set_fx("n", UnitFx { flags: crate::scene::FX_DEPLETED, ..UnitFx::default() });
+        s.draw();
+        assert!(!s.fb.color.iter().any(|&c| c == crate::compat::C_GOLD), "{m}: depleted has no glow");
+    }
+}

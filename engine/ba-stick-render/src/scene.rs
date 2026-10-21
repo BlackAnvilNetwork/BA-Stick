@@ -61,6 +61,8 @@ pub const FX_SELF: u32 = 16;
 /// Player-style cast (forward circle) rather than an enemy telegraph.
 pub const FX_PLAYER_CAST: u32 = 32;
 pub const FX_PETRIFIED: u32 = 64;
+/// Gather node already harvested (greyed, no glow).
+pub const FX_DEPLETED: u32 = 128;
 
 struct Unit {
     pos: Vec3,
@@ -344,6 +346,9 @@ impl Scene {
 
     /// True when a unit stands in open water (not on a bridge deck).
     fn wading(&self, u: &Unit) -> bool {
+        if matches!(u.preset.body, Body::Node { .. }) {
+            return false;
+        }
         let Some(z) = &self.zone else { return false };
         let f = z.flags_at(u.pos.x, u.pos.z);
         f & F_WATER != 0 && f & F_BRIDGE == 0 && u.pos.y < z.height_at(u.pos.x, u.pos.z) + 0.4
@@ -405,7 +410,7 @@ impl Scene {
                 ring(&mut self.fb, &cam, c, size, FX_HOVER, Some(t * 1.5));
             }
             let p = cam.project(c);
-            if fx.fade > 0.35 && !self.wading(u) {
+            if fx.fade > 0.35 && !self.wading(u) && !matches!(u.preset.body, Body::Node { .. }) {
                 shadow(&mut self.fb, p.x, p.y, 13.0 * size / 0.5, 6.0 * size / 0.5);
             }
         }
@@ -436,6 +441,7 @@ impl Scene {
                         moving: u.moving,
                         dead: if u.anim == AnimState::Dead { u.dead_t.min(1.0) } else { 0.0 },
                         time: t + u.gait * 0.01,
+                        ready: u.fx.flags & FX_DEPLETED == 0,
                     };
                     creature::draw(&mut self.fb, &cam, body, &pose);
                 }
@@ -447,7 +453,7 @@ impl Scene {
                 bb.restore_below(&mut self.fb, &saved, wl);
                 ripple(&mut self.fb, feet.x, wl as f32, body_radius(&u.preset.body), t);
             }
-            let tint = if u.fx.flags & FX_PETRIFIED != 0 || u.anim == AnimState::Dead {
+            let tint = if u.fx.flags & (FX_PETRIFIED | FX_DEPLETED) != 0 || u.anim == AnimState::Dead {
                 Some(TINT_STONE)
             } else if u.anim == AnimState::Cast {
                 Some(TINT_CAST)
@@ -548,6 +554,7 @@ fn body_radius(b: &Body) -> f32 {
         Body::Quadruped { size, .. } => 0.35 + 0.35 * size,
         Body::Serpent { size, .. } => 0.55 * size,
         Body::Blob { size, .. } => 0.35 + 0.25 * size,
+        Body::Node { .. } => 0.45,
     }
 }
 

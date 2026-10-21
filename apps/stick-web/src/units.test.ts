@@ -31,7 +31,7 @@ test("syncUnits upserts present units and removes departed ones", () => {
   const known = new Set<string>();
   syncUnits(sink, [unit({ id: "a" }), unit({ id: "b" }), unit({ id: "g", gatherNode: true })], known, 0);
   syncUnits(sink, [unit({ id: "b" })], known, 0);
-  assert.deepEqual(calls, ["+a", "+b", "+b", "-a"]);
+  assert.deepEqual(calls, ["+a", "+b", "+g", "+b", "-a", "-g"]);
   assert.deepEqual([...known], ["b"]);
 });
 
@@ -155,4 +155,19 @@ test("staticAt hits the storage chest only in its zone and footprint", () => {
   assert.equal(hit?.send.type, "npc/interact");
   assert.equal(staticAt("palace_hall", 132, 75, toScreen, h), undefined);
   assert.equal(staticAt("pale_hollow", 300, 75, toScreen, h), undefined);
+});
+
+import { gatherMethod, iconCell } from "./gather";
+
+test("gather nodes: method from authored defs, click sends gather, depleted is inert", () => {
+  const defs = [{ name: "Ore Seam", kind: "mine", yields: ["copper-ore"] }, { name: "Pool", kind: "fish", yields: ["ash-bait"] }];
+  assert.equal(gatherMethod({ name: "Ore Seam", gatherYield: "x" }, defs), "mine");
+  assert.equal(gatherMethod({ name: "?", gatherYield: "ash-bait" }, defs), "fish");
+  assert.equal(gatherMethod({ name: "?", gatherYield: "?" }, defs), "harvest");
+  const n = unit({ id: "ph-live-0", kind: "npc", gatherNode: true, hp: 1 });
+  assert.deepEqual(routeUnitClick(n, null), { send: { type: "gather", nodeId: "ph-live-0" } });
+  assert.deepEqual(routeUnitClick({ ...n, hp: 0 }, null), {});
+  const atlas = { size: 16, cols: 32, index: { dustgrain: 3, "copper-ore": 40 } };
+  assert.deepEqual(iconCell(atlas, "copper-ore"), { x: 128, y: 16 });
+  assert.deepEqual(iconCell(atlas, "nope"), { x: 48, y: 0 });
 });

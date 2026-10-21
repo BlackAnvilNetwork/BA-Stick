@@ -12,3 +12,4 @@ html, body, #root { margin: 0; width: 100%; height: 100%; background: #0d0b14; o
 .stick-label.bounty { color: #f0b429; }
 .stick-npc-menu { position: absolute; left: 0; top: 0; z-index: 120; pointer-events: auto; }
 .stick-fade { position: absolute; inset: 0; background: #0d0b14; opacity: 0; pointer-events: none; z-index: 4; }
+.stick-gather-icon { position: absolute; left: 0; top: 0; image-rendering: pixelated; background-repeat: no-repeat; pointer-events: none; }

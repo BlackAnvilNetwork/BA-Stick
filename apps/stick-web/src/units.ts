@@ -1,3 +1,4 @@
+import { gatherMethod } from "./gather";
 import type { UnitSnapshot } from "@bellgrave/protocol";
 
 /** Minimal renderer surface the unit bridge needs (lets tests use a fake). */
@@ -8,6 +9,7 @@ export interface UnitSink {
 
 /** Rig preset key: "<job|npc:role|mob:archetype>/<gender>". */
 export function presetFor(u: UnitSnapshot): string {
+  if (u.gatherNode) return `gather:${gatherMethod(u)}`;
   if (u.kind === "npc") return `npc:${u.npcRole ?? "guide"}`;
   if (u.kind === "mob") return `mob:${u.archetype ?? "mob"}`;
   return `${u.job ?? "fighter"}/${u.gender ?? "male"}`;
@@ -30,7 +32,6 @@ export function animFor(u: UnitSnapshot, now: number): string {
 export function syncUnits(sink: UnitSink, units: readonly UnitSnapshot[], known: Set<string>, now: number): void {
   const seen = new Set<string>();
   for (const u of units) {
-    if (u.gatherNode) continue; // gather nodes are props (#30)
     seen.add(u.id);
     sink.upsertUnit(u.id, u.x, u.y, u.z, u.facing, animFor(u, now), presetFor(u));
   }
