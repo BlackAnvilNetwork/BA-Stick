@@ -535,8 +535,15 @@ impl Scene {
                     figure::draw_garbed(&mut self.fb, &cam, &j, &u.preset.props, &look, &garb);
                 }
                 ref body => {
+                    // Old-client melee punch (F27): non-canine mobs lunge toward their facing,
+                    // snapping forward then settling, repeating while the server holds "melee".
+                    let lunge = if u.anim == AnimState::Melee && !matches!(body, Body::Canine { .. } | Body::Node { .. }) {
+                        melee_lunge(u.act_t)
+                    } else {
+                        0.0
+                    };
                     let pose = creature::Pose {
-                        pos: base,
+                        pos: base + v3(u.yaw.sin() * lunge, 0.0, u.yaw.cos() * lunge),
                         yaw: u.yaw,
                         phase: u.gait,
                         moving: u.moving,
@@ -656,6 +663,17 @@ fn draw_ground(fb: &mut Framebuffer, cam: &Camera) {
             gz += dzx;
         }
     }
+}
+
+/// Swing period for the creature punch (old client clamps 160..420 ms).
+pub const MELEE_SWING_S: f32 = 0.42;
+
+/// Forward offset (world units) of a creature melee punch `t` seconds into the
+/// melee state: 0.06 rest + 0.22 punch, fast out (35%) and eased back.
+pub fn melee_lunge(t: f32) -> f32 {
+    let k = (t.max(0.0) % MELEE_SWING_S) / MELEE_SWING_S;
+    let punch = if k < 0.35 { k / 0.35 } else { (1.0 - (k - 0.35) / 0.65).max(0.0) };
+    0.06 + punch * 0.22
 }
 
 fn unit_height_px(u: &Unit) -> f32 {
@@ -888,5 +906,35 @@ fn ripple(fb: &mut Framebuffer, cx: f32, cy: f32, size: f32, t: f32) {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod lunge_tests {
+    use super::*;
+
+    #[test]
+    fn creature_melee_punch_snaps_forward_and_repeats() {
+        assert!((melee_lunge(0.0) - 0.06).abs() < 1e-5);
+        let peak = melee_lunge(MELEE_SWING_S * 0.35);
+        assert!((peak - 0.28).abs() < 1e-4);
+        assert!(melee_lunge(MELEE_SWING_S * 0.9) < peak);
+        assert!((melee_lunge(MELEE_SWING_S + 0.01) - melee_lunge(0.01)).abs() < 1e-4);
+    }
+
+    #[test]
+    fn hare_moves_forward_while_meleeing() {
+        let draw = |anim: AnimState, t: f32| {
+            let mut s = Scene::new(200, 160);
+            s.atmosphere = false;
+            s.upsert_unit("h", UnitInput { x: 0.0, y: 0.0, z: 0.0, facing: 0.0, anim, preset: "mob:dust_hare".into() });
+            s.set_camera(0.0, 0.0);
+            s.tick(t);
+            s.draw();
+            s.fb.color.clone()
+        };
+        let idle = draw(AnimState::Idle, MELEE_SWING_S * 0.35);
+        let hit = draw(AnimState::Melee, MELEE_SWING_S * 0.35);
+        assert_ne!(idle, hit);
     }
 }
