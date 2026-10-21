@@ -22,3 +22,10 @@ Rules:
 
 History note: the bichael history was imported intact. The only hex keys in it are the public
 Anvil/Hardhat default test keys used in tests.
+
+## Building the engine
+
+```bash
+export CARGO_TARGET_DIR=$PWD/engine/target   # keep build output in one ignored dir
+cargo test --manifest-path engine/stick-engine/Cargo.toml -p stick_engine
+```

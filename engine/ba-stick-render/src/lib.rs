@@ -1,0 +1,19 @@
+//! BA-Stick renderer: a host-agnostic scene of server-driven units drawn as
+//! procedural stick figures with Stick Engine. The game loop, input and
+//! networking live in the TS shell (`apps/stick-web`); this crate only takes
+//! unit state in and produces pixels.
+//!
+//! Units mirror `UnitSnapshot` from `packages/protocol`: an id, a kind, a
+//! world position (x, y, z), a facing, a server `anim` state and a rig preset
+//! (job / mob archetype / NPC role).
+
+pub mod preset;
+pub mod scene;
+#[cfg(target_arch = "wasm32")]
+mod web;
+
+pub use preset::{AnimState, RigPreset};
+pub use scene::{Scene, UnitInput};
+
+#[cfg(test)]
+mod tests;

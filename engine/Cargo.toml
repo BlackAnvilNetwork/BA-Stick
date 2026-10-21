@@ -1,0 +1,16 @@
+# BA-Stick Rust workspace. `stick-engine/` is a git subtree with its own
+# workspace; it is excluded here and consumed as a path dependency.
+[workspace]
+resolver = "2"
+members = ["ba-stick-render"]
+exclude = ["stick-engine"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "GPL-3.0-or-later"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
