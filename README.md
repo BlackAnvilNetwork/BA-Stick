@@ -83,3 +83,7 @@ Black Anvil HUD chrome lives in `apps/stick-web/public/ui/black-anvil/` (source 
 - [ ] Add a dated "modified" notice when changing files that came from someone else.
 - [ ] Keep `package.json` and `Cargo.toml` license fields consistent with the table above (AGPL everywhere except the MIT contracts).
 - [ ] When deploying a modified server or publishing a client build, publish or link the matching source.
+
+## Trademarks
+
+Black Anvil™ and its logo are trademarks of Black Anvil Network. The code license does not grant rights to use them. Forks and modified versions must use their own name and logo. See [TRADEMARK.md](TRADEMARK.md).
