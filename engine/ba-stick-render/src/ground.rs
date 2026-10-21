@@ -41,6 +41,22 @@ pub const EDGE_BAND: f32 = 0.5;
 /// Neighbour coverage at the shared edge (fades to 0 across the band).
 pub const EDGE_MAX: f32 = 0.5;
 
+/// W1 water tones (existing WATER ramp: 70 dark, 71 mid, 72 light).
+pub const WATER_DEEP: u8 = WATER;
+pub const WATER_BODY: u8 = WATER + 1;
+pub const WATER_FOAM: u8 = WATER + 2;
+/// W2/W3 shoreline band (fraction of a cell) and coverage at the bank.
+pub const SHORE_BAND: (f32, f32) = (0.3, 0.7);
+
+/// Land (not water, not bridge) at (i, j). Out of bounds counts as water.
+#[inline]
+fn land(z: &Zone, i: i32, j: i32) -> bool {
+    if i < 0 || j < 0 || i >= z.w as i32 || j >= z.h as i32 {
+        return false;
+    }
+    z.flags[z.idx(i, j)] & (F_WATER | F_BRIDGE) == 0
+}
+
 /// Plain biome (no water / trail / bridge flag) at (i, j), or None.
 #[inline]
 fn plain_biome(z: &Zone, i: i32, j: i32) -> Option<u8> {
@@ -59,7 +75,7 @@ fn plain_biome(z: &Zone, i: i32, j: i32) -> Option<u8> {
 /// -i, +i, -j, +j edges (None = same biome or not plain ground). `org` anchors
 /// the dither pattern to the world so it does not swim when the camera pans.
 #[allow(clippy::too_many_arguments)]
-fn fill_tri_edge(fb: &mut Framebuffer, a: P2, b: P2, c: P2, ua: (f32, f32), ub: (f32, f32), uc: (f32, f32), own: u8, nb: [Option<u8>; 4], org: (i32, i32)) {
+fn fill_tri_edge(fb: &mut Framebuffer, a: P2, b: P2, c: P2, ua: (f32, f32), ub: (f32, f32), uc: (f32, f32), own: u8, nb: [Option<u8>; 4], org: (i32, i32), band: (f32, f32)) {
     let min_x = a.x.min(b.x).min(c.x).floor().max(0.0) as i32;
     let max_x = a.x.max(b.x).max(c.x).ceil().min(fb.w as f32 - 1.0) as i32;
     let min_y = a.y.min(b.y).min(c.y).floor().max(0.0) as i32;
@@ -73,7 +89,7 @@ fn fill_tri_edge(fb: &mut Framebuffer, a: P2, b: P2, c: P2, ua: (f32, f32), ub: 
     }
     let inv = 1.0 / area;
     let w = fb.w;
-    let k = EDGE_MAX / EDGE_BAND;
+    let (edge_band, k) = (band.0, band.1 / band.0);
     for y in min_y..=max_y {
         let py = y as f32 + 0.5;
         for x in min_x..=max_x {
@@ -89,7 +105,7 @@ fn fill_tri_edge(fb: &mut Framebuffer, a: P2, b: P2, c: P2, ua: (f32, f32), ub: 
             let (mut best, mut col) = (0.0f32, own);
             for (n, d) in nb.iter().zip([u, 1.0 - u, v, 1.0 - v]) {
                 if let Some(nc) = n {
-                    let cov = (EDGE_BAND - d) * k;
+                    let cov = (edge_band - d) * k;
                     if cov > best {
                         best = cov;
                         col = *nc;
@@ -125,8 +141,10 @@ fn cell_color(z: &Zone, i: i32, j: i32, time: f32) -> u8 {
     let f = z.flags[k];
     let shade = slope_shade(z, i, j);
     if f & F_WATER != 0 {
-        let wave = ((i as f32 * 0.7 + j as f32 * 0.4 + time * 2.2).sin() * 1.6 + 1.6) as u8;
-        return WATER + wave.min(3);
+        // W1: calm body in two tones; a slow diagonal swell (~6 cells) instead
+        // of a per-cell checker.
+        let swell = ((i + j) as f32 * (std::f32::consts::TAU / 6.0) - time * 1.1).sin();
+        return if swell > 0.55 { WATER_DEEP } else { WATER_BODY };
     }
     if f & F_BRIDGE != 0 {
         return BRIDGE + shade;
@@ -180,6 +198,19 @@ pub fn draw_zone(fb: &mut Framebuffer, cam: &Camera, zone: &Zone, cam_y: f32, ti
                 continue;
             }
             let col = cell_color(zone, i, j, time);
+            // W2/W3: water next to land. Banks on the SE (downstream of the NW
+            // sun) get a dithered foam line; banks on the NW side shade the water.
+            if zone.flags[zone.idx(i, j)] & (F_WATER | F_BRIDGE) == F_WATER {
+                let side = |di: i32, dj: i32, c: u8| land(zone, i + di, j + dj).then_some(c);
+                let nb = [side(-1, 0, WATER_DEEP), side(1, 0, WATER_FOAM), side(0, -1, WATER_DEEP), side(0, 1, WATER_FOAM)];
+                if nb.iter().any(|x| x.is_some()) {
+                    // Foam flickers by shifting the dither origin twice a second.
+                    let o2 = (org.0 + ((time * 2.0) as i32 & 1) * 2, org.1);
+                    fill_tri_edge(fb, p00, p10, p11, (0.0, 0.0), (1.0, 0.0), (1.0, 1.0), col, nb, o2, SHORE_BAND);
+                    fill_tri_edge(fb, p00, p11, p01, (0.0, 0.0), (1.0, 1.0), (0.0, 1.0), col, nb, o2, SHORE_BAND);
+                    continue;
+                }
+            }
             // B1: dither toward differing neighbour biomes (same shade step).
             if let Some(b) = plain_biome(zone, i, j) {
                 let shade = col - (BIOME0 + b * 3);
@@ -196,8 +227,8 @@ pub fn draw_zone(fb: &mut Framebuffer, cam: &Camera, zone: &Zone, cam_y: f32, ti
                 };
                 let nb = [n(-1, 0), n(1, 0), n(0, -1), n(0, 1)];
                 if nb.iter().any(|x| x.is_some()) {
-                    fill_tri_edge(fb, p00, p10, p11, (0.0, 0.0), (1.0, 0.0), (1.0, 1.0), col, nb, org);
-                    fill_tri_edge(fb, p00, p11, p01, (0.0, 0.0), (1.0, 1.0), (0.0, 1.0), col, nb, org);
+                    fill_tri_edge(fb, p00, p10, p11, (0.0, 0.0), (1.0, 0.0), (1.0, 1.0), col, nb, org, (EDGE_BAND, EDGE_MAX));
+                    fill_tri_edge(fb, p00, p11, p01, (0.0, 0.0), (1.0, 1.0), (0.0, 1.0), col, nb, org, (EDGE_BAND, EDGE_MAX));
                     continue;
                 }
             }
