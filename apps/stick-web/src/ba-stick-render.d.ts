@@ -20,6 +20,7 @@ declare module "ba-stick-render" {
     upsertUnit(id: string, x: number, y: number, z: number, facing: number, anim: string, preset: string): void;
     removeUnit(id: string): boolean;
     setFx(id: string, hp: number, cast: number, aoe: number, flags: number, fade: number, levelUp: number): boolean;
+    setBuffs(id: string, mask: number, td: number, burst: number): boolean;
     anchor(id: string): Float32Array;
     worldToScreen(x: number, y: number, z: number): Float32Array;
     unitCount(): number;

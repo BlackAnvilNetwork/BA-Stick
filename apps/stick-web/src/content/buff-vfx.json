@@ -1,0 +1,246 @@
+{
+ "$comment": "#34: every BuffState key (packages/protocol emptyBuffs) -> visual kind in engine/ba-stick-render/src/buffvfx.rs. 'none' = not a visible status.",
+ "buffs": {
+  "quickenUntil": {
+   "vfx": "quicken"
+  },
+  "slowUntil": {
+   "vfx": "slow"
+  },
+  "flux": {
+   "vfx": "flux"
+  },
+  "aether": {
+   "vfx": "ward"
+  },
+  "levelUpUntil": {
+   "vfx": "none",
+   "why": "level-up column (fx.ts)"
+  },
+  "hasteUntil": {
+   "vfx": "haste"
+  },
+  "hastePct": {
+   "vfx": "none",
+   "why": "modifier"
+  },
+  "moveUntil": {
+   "vfx": "haste"
+  },
+  "movePct": {
+   "vfx": "none",
+   "why": "modifier"
+  },
+  "bindUntil": {
+   "vfx": "bind"
+  },
+  "gravityUntil": {
+   "vfx": "slow"
+  },
+  "gravityPct": {
+   "vfx": "none",
+   "why": "modifier"
+  },
+  "petrifyUntil": {
+   "vfx": "petrify"
+  },
+  "stunUntil": {
+   "vfx": "stun"
+  },
+  "timeSealUntil": {
+   "vfx": "ward"
+  },
+  "overclockUntil": {
+   "vfx": "haste"
+  },
+  "perpetualUntil": {
+   "vfx": "haste"
+  },
+  "tdImpactUntil": {
+   "vfx": "td"
+  },
+  "distractUntil": {
+   "vfx": "enfeeble"
+  },
+  "frazzleUntil": {
+   "vfx": "enfeeble"
+  },
+  "addleUntil": {
+   "vfx": "enfeeble"
+  },
+  "silenceUntil": {
+   "vfx": "silence"
+  },
+  "paraUntil": {
+   "vfx": "para"
+  },
+  "bulwarkUntil": {
+   "vfx": "protect"
+  },
+  "sentinelUntil": {
+   "vfx": "protect"
+  },
+  "rampartUntil": {
+   "vfx": "protect"
+  },
+  "coverUntil": {
+   "vfx": "protect"
+  },
+  "fealtyUntil": {
+   "vfx": "ward"
+  },
+  "guardianUntil": {
+   "vfx": "protect"
+  },
+  "protectUntil": {
+   "vfx": "protect"
+  },
+  "protectPhysMul": {
+   "vfx": "none",
+   "why": "modifier"
+  },
+  "shellUntil": {
+   "vfx": "shell"
+  },
+  "shellMagMul": {
+   "vfx": "none",
+   "why": "modifier"
+  },
+  "blindUntil": {
+   "vfx": "blind"
+  },
+  "bulwarkFlashUntil": {
+   "vfx": "flash"
+  },
+  "ghostStepUntil": {
+   "vfx": "haste"
+  },
+  "backbladeUntil": {
+   "vfx": "berserk"
+  },
+  "killEdgeUntil": {
+   "vfx": "berserk"
+  },
+  "shadowPassUntil": {
+   "vfx": "ward"
+  },
+  "falseGuardUntil": {
+   "vfx": "enfeeble"
+  },
+  "killingStormUntil": {
+   "vfx": "berserk"
+  },
+  "berserkUntil": {
+   "vfx": "berserk"
+  },
+  "defenderUntil": {
+   "vfx": "protect"
+  },
+  "aggressorUntil": {
+   "vfx": "berserk"
+  },
+  "restraintUntil": {
+   "vfx": "ward"
+  },
+  "brazenRushUntil": {
+   "vfx": "haste"
+  },
+  "warcryUntil": {
+   "vfx": "berserk"
+  },
+  "bloodRageUntil": {
+   "vfx": "berserk"
+  },
+  "fighterRageFlashUntil": {
+   "vfx": "flash"
+  },
+  "arcaneFloodUntil": {
+   "vfx": "resonance"
+  },
+  "elementalSealUntil": {
+   "vfx": "ward"
+  },
+  "manaWallUntil": {
+   "vfx": "shell"
+  },
+  "manawellReady": {
+   "vfx": "none",
+   "why": "ready flag (hotbar)"
+  },
+  "cascadeUntil": {
+   "vfx": "resonance"
+  },
+  "focalNeveUntil": {
+   "vfx": "ward"
+  },
+  "scCastFlashUntil": {
+   "vfx": "flash"
+  },
+  "scImpactUntil": {
+   "vfx": "flash"
+  },
+  "sleepUntil": {
+   "vfx": "sleep"
+  },
+  "diaUntil": {
+   "vfx": "dot"
+  },
+  "bioUntil": {
+   "vfx": "dot"
+  },
+  "atkDownUntil": {
+   "vfx": "enfeeble"
+  },
+  "atkDownMul": {
+   "vfx": "none",
+   "why": "modifier"
+  },
+  "spellbladeUntil": {
+   "vfx": "berserk"
+  },
+  "spellbladeFlashUntil": {
+   "vfx": "flash"
+  },
+  "focusWeave": {
+   "vfx": "ward"
+  },
+  "enSpellUntil": {
+   "vfx": "ward"
+  },
+  "phalanxUntil": {
+   "vfx": "protect"
+  },
+  "stoneskinUntil": {
+   "vfx": "protect"
+  },
+  "refreshUntil": {
+   "vfx": "regen"
+  },
+  "sacredLightUntil": {
+   "vfx": "flash"
+  },
+  "solaceRite": {
+   "vfx": "regen"
+  },
+  "miseryRite": {
+   "vfx": "enfeeble"
+  },
+  "divineSealReady": {
+   "vfx": "none",
+   "why": "ready flag (hotbar)"
+  },
+  "asylumUntil": {
+   "vfx": "shell"
+  },
+  "healAbsorbUntil": {
+   "vfx": "shell"
+  },
+  "healAbsorbHp": {
+   "vfx": "none",
+   "why": "modifier"
+  },
+  "regenUntil": {
+   "vfx": "regen"
+  }
+ }
+}
