@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { atmosphereFor, initialUiSettings, keylightFor } from "./mobile.ts";
 
-const base = { color: "gold", font: "cinzel", layout: "regular", view: "iso", pixel: "crisp" } as const;
+const base = { color: "gold", font: "cinzel", layout: "regular", view: "iso", pixel: "crisp", minimap: true } as const;
 
 test("touch devices default to the arcade layout", () => {
   assert.equal(initialUiSettings(null, base, true).layout, "mobile");

@@ -61,10 +61,13 @@ export function StickWorld() {
       r.setKeylight(keylightFor(isCoarsePointer(), location.search));
       // Iso / 3D camera follows the View setting (#19); the engine eases the blend.
       const root = document.documentElement;
-      const syncView = () => r.setView3d(root.dataset.uiView === "3d");
+      const syncView = () => {
+        r.setView3d(root.dataset.uiView === "3d");
+        r.setMinimap(root.dataset.uiMinimap !== "off"); // M key / Settings (persisted)
+      };
       syncView();
       const viewObs = new MutationObserver(syncView);
-      viewObs.observe(root, { attributes: true, attributeFilter: ["data-ui-view"] });
+      viewObs.observe(root, { attributes: true, attributeFilter: ["data-ui-view", "data-ui-minimap"] });
       cleanups.push(() => viewObs.disconnect());
       let zoneLoaded: string | null = null;
       const zones = new ZoneTracker();

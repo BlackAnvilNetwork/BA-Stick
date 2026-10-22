@@ -38,6 +38,7 @@ import {
   UI_SETTINGS_KEY,
   UI_PIXEL_OPTIONS,
   UI_VIEW_OPTIONS,
+  UI_SETTINGS_EVENT,
   layoutUsesArcadeControls,
   loadUiSettings,
   persistAndApplyUiSettings,
@@ -590,6 +591,11 @@ export function Hud() {
   const [explorerOpen, setExplorerOpen] = useState(false);
   const [ashPitOpen, setAshPitOpen] = useState(false);
   const [uiSettings, setUiSettings] = useState<UiSettings>(() => loadUiSettings());
+  useEffect(() => {
+    const sync = () => setUiSettings(loadUiSettings());
+    window.addEventListener(UI_SETTINGS_EVENT, sync);
+    return () => window.removeEventListener(UI_SETTINGS_EVENT, sync);
+  }, []);
   const [menuFocus, setMenuFocus] = useState<string>("character");
   const [bookTab, setBookTab] = useState<string>("time");
   const [now, setNow] = useState(() => Date.now());
@@ -1040,6 +1046,20 @@ export function Hud() {
                     {opt.label}
                   </button>
                 ))}
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={uiSettings.minimap}
+                  className={`settings-option${uiSettings.minimap ? " active" : ""}`}
+                  title="Toggle with M"
+                  onClick={() => {
+                    const next = { ...uiSettings, minimap: !uiSettings.minimap };
+                    setUiSettings(next);
+                    persistAndApplyUiSettings(next);
+                  }}
+                >
+                  Minimap (M)
+                </button>
                 {UI_PIXEL_OPTIONS.map((opt) => (
                   <button
                     key={opt.id}

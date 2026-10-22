@@ -48,7 +48,7 @@ test("loadUiSettings defaults layout to regular", () => {
 });
 
 test("loadUiSettings accepts mobile layout and rejects junk", () => {
-  saveUiSettings({ color: "gold", font: "cinzel", layout: "mobile", view: "iso", pixel: "crisp" });
+  saveUiSettings({ color: "gold", font: "cinzel", layout: "mobile", view: "iso", pixel: "crisp", minimap: true });
   assert.equal(loadUiSettings().layout, "mobile");
   localStorage.setItem(UI_SETTINGS_KEY, JSON.stringify({ layout: "tablet", color: "gold" }));
   const s = loadUiSettings();
@@ -57,20 +57,20 @@ test("loadUiSettings accepts mobile layout and rejects junk", () => {
 });
 
 test("applyUiSettings sets data-ui-layout", () => {
-  const next: UiSettings = { color: "ember", font: "verdana", layout: "mobile", view: "iso", pixel: "crisp" };
+  const next: UiSettings = { color: "ember", font: "verdana", layout: "mobile", view: "iso", pixel: "crisp", minimap: true };
   applyUiSettings(next);
   assert.equal(document.documentElement.dataset.uiLayout, "mobile");
   assert.equal(document.documentElement.dataset.uiColor, "ember");
 });
 
 test("persistAndApply keeps Mobile layout for non-touch / remount", () => {
-  persistAndApplyUiSettings({ color: "cyan", font: "source", layout: "mobile", view: "iso", pixel: "crisp" });
+  persistAndApplyUiSettings({ color: "cyan", font: "source", layout: "mobile", view: "iso", pixel: "crisp", minimap: true });
   assert.equal(layoutUsesArcadeControls(loadUiSettings().layout), true);
   assert.equal(readAppliedUiLayout(), "mobile");
   // Switching away then back must not drop persistence.
-  persistAndApplyUiSettings({ color: "cyan", font: "source", layout: "regular", view: "iso", pixel: "crisp" });
+  persistAndApplyUiSettings({ color: "cyan", font: "source", layout: "regular", view: "iso", pixel: "crisp", minimap: true });
   assert.equal(readAppliedUiLayout(), "regular");
-  persistAndApplyUiSettings({ color: "cyan", font: "source", layout: "mobile", view: "iso", pixel: "crisp" });
+  persistAndApplyUiSettings({ color: "cyan", font: "source", layout: "mobile", view: "iso", pixel: "crisp", minimap: true });
   assert.equal(loadUiSettings().layout, "mobile");
   assert.equal(readAppliedUiLayout(), "mobile");
 });
@@ -83,4 +83,14 @@ test("view and pixel default and persist", () => {
   assert.equal(loadUiSettings().view, "3d");
   assert.equal(document.documentElement.dataset.uiView, "3d");
   assert.equal(document.documentElement.dataset.uiPixel, "smooth");
+});
+
+test("minimap defaults on, toggles, and persists", async () => {
+  const { toggleMinimap } = await import("./uiSettings");
+  assert.equal(loadUiSettings().minimap, true);
+  assert.equal(toggleMinimap().minimap, false);
+  assert.equal(loadUiSettings().minimap, false);
+  assert.equal((document.documentElement.dataset as Record<string, string>).uiMinimap, "off");
+  assert.equal(toggleMinimap().minimap, true);
+  assert.equal(JSON.parse(store.get(UI_SETTINGS_KEY)!).minimap, true);
 });
