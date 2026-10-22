@@ -41,7 +41,12 @@ impl Mat {
         match self {
             Mat::None => (C_BODY, C_BODY_FAR),
             // dyed cloth: seed picks the dye
-            Mat::Cloth => [(C_BODY, C_BODY_FAR), (C_ACCENT, 13), (C_DASH, 13), (C_DUST, 13)][(seed % 4) as usize],
+            Mat::Cloth => [
+                (C_BODY, C_BODY_FAR),
+                (C_ACCENT, 13),
+                (C_DASH, 13),
+                (C_DUST, 13),
+            ][(seed % 4) as usize],
             Mat::Leather => (GEAR_LEATHER, GEAR_LEATHER_FAR),
             Mat::Metal => (C_STEEL, 13),
             Mat::Wood => (C_HILT, GEAR_LEATHER_FAR),
@@ -82,11 +87,29 @@ impl WeaponLook {
             Mat::Wood => C_HILT,
             _ => C_STEEL,
         };
-        let grip = if mat == Mat::Leather { GEAR_LEATHER } else { C_HILT };
-        WeaponLook { kind, len, guard, grip, blade, gem }
+        let grip = if mat == Mat::Leather {
+            GEAR_LEATHER
+        } else {
+            C_HILT
+        };
+        WeaponLook {
+            kind,
+            len,
+            guard,
+            grip,
+            blade,
+            gem,
+        }
     }
     pub fn plain(kind: Weapon) -> WeaponLook {
-        WeaponLook { kind, len: 1.0, guard: C_GOLD, grip: C_HILT, blade: C_STEEL, gem: C_ACCENT }
+        WeaponLook {
+            kind,
+            len: 1.0,
+            guard: C_GOLD,
+            grip: C_HILT,
+            blade: C_STEEL,
+            gem: C_ACCENT,
+        }
     }
 }
 
@@ -108,12 +131,32 @@ pub struct Garb {
     pub bulk: f32,
     pub legs: Option<(u8, u8)>,
     pub head: Option<(HeadStyle, u8, u8)>,
+    /// Steel breastplate (`ba_iron_cuirass`) on metal chest pieces.
+    pub plate: bool,
+    /// Long cloth robe (`ba_wizard_robe`) on cloth chest pieces.
+    pub robe: bool,
+    /// Leather vest (`ba_leather_vest`) on leather chest pieces.
+    pub vest: bool,
+    /// Bone harness (`ba_bone_harness`) on bone chest pieces.
+    pub harness: bool,
+    /// Steel helm (`ba_iron_helm`) on metal head pieces. Discs on the head; the face stays clear.
+    pub helm: bool,
 }
 
 /// Build a garb from wasm args. `family` 0 = keep preset weapon,
 /// 1 sword, 2 greatsword, 3 dagger, 4 axe, 5 staff, 6 club, 7 knuckles.
 #[allow(clippy::too_many_arguments)]
-pub fn garb(family: u8, wmat: u8, wseed: u32, body: u8, bseed: u32, head: u8, hseed: u32, legs: u8, lseed: u32) -> Garb {
+pub fn garb(
+    family: u8,
+    wmat: u8,
+    wseed: u32,
+    body: u8,
+    bseed: u32,
+    head: u8,
+    hseed: u32,
+    legs: u8,
+    lseed: u32,
+) -> Garb {
     let kind = match family {
         1 => Some(Weapon::Sword),
         2 => Some(Weapon::Greatsword),
@@ -147,5 +190,10 @@ pub fn garb(family: u8, wmat: u8, wseed: u32, body: u8, bseed: u32, head: u8, hs
             let crest = [C_ACCENT, C_GOLD, C_DASH, C_STEEL][(hash(hseed) % 4) as usize];
             (style, c, crest)
         }),
+        plate: bm == Mat::Metal,
+        robe: bm == Mat::Cloth,
+        vest: bm == Mat::Leather,
+        harness: bm == Mat::Bone,
+        helm: hm == Mat::Metal,
     }
 }

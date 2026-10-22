@@ -1,0 +1,67 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Bone harness: ivory ribs and shoulder straps fixed to the chest bone.
+// The hide is the pixel mesh in ba_bone_harness.plate.ron.
+// `thick` is a radius in pixels.
+(
+    id: "ba_bone_harness",
+    slot: Chest,
+    attach: Some("chest"),
+    material: Some("bone"),
+    thickness_mul: {
+        "spine": 1.1,
+        "shoulders": 1.05,
+    },
+    shapes: [
+        Capsule(
+            from: (-0.05, -0.02, 0.055),
+            to: (-0.16, 0.01, 0.02),
+            ramp: Material,
+            thick: 1.4,
+        ),
+        Capsule(
+            from: (0.05, -0.02, 0.055),
+            to: (0.16, 0.01, 0.02),
+            ramp: Material,
+            thick: 1.4,
+        ),
+        Capsule(
+            from: (-0.12, -0.08, 0.09),
+            to: (0.12, -0.08, 0.09),
+            ramp: Material,
+            thick: 1.35,
+        ),
+        Capsule(
+            from: (-0.11, -0.16, 0.085),
+            to: (0.11, -0.16, 0.085),
+            ramp: Material,
+            thick: 1.35,
+        ),
+        Capsule(
+            from: (-0.10, -0.24, 0.075),
+            to: (0.10, -0.24, 0.075),
+            ramp: Material,
+            thick: 1.25,
+        ),
+        Capsule(
+            from: (0.0, -0.05, 0.095),
+            to: (0.0, -0.26, 0.075),
+            ramp: Material,
+            thick: 1.15,
+        ),
+        Capsule(
+            from: (-0.11, -0.10, -0.07),
+            to: (0.11, -0.10, -0.07),
+            ramp: Material,
+            thick: 1.2,
+        ),
+        Capsule(
+            from: (-0.10, -0.20, -0.065),
+            to: (0.10, -0.20, -0.065),
+            ramp: Material,
+            thick: 1.2,
+        ),
+    ],
+)

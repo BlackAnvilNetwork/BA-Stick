@@ -1,0 +1,14 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Iron helm. The shell is pixel strips on invisible disks: a stack from the
+// crown down to the face, then vertical disks stepping back to the occiput.
+// The disks are not drawn. The face stays open.
+(
+    id: "ba_iron_helm",
+    slot: Head,
+    attach: Some("head"),
+    material: Some("steel"),
+    shapes: [],
+)

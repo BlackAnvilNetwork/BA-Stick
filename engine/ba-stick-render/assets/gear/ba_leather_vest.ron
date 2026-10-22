@@ -1,0 +1,31 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Leather vest hardware: shoulder straps fixed to the chest bone.
+// The leather body is the pixel mesh in ba_leather_vest.plate.ron.
+// `thick` is a radius in pixels.
+(
+    id: "ba_leather_vest",
+    slot: Chest,
+    attach: Some("chest"),
+    material: Some("leather"),
+    thickness_mul: {
+        "spine": 1.12,
+        "shoulders": 1.05,
+    },
+    shapes: [
+        Capsule(
+            from: (-0.05, -0.02, 0.055),
+            to: (-0.16, 0.01, 0.02),
+            ramp: Material,
+            thick: 1.5,
+        ),
+        Capsule(
+            from: (0.05, -0.02, 0.055),
+            to: (0.16, 0.01, 0.02),
+            ramp: Material,
+            thick: 1.5,
+        ),
+    ],
+)
