@@ -3,13 +3,13 @@
 **Region level band:** 1–20 (catalyst: Pale Dust) · **Hub:** The Shard Dwellings  
 **Structure:** Soft-gated **northbound segments** inside a **wide open basin** (Reisenjima-style room to roam east/west). Soft level advice + bridges remain; hard canyon walls do not.
 
-**Playable bounds:** roughly ±88 east–west, −24…268 south–north. Mountain peaks ring the fringe; meadows/grass fill the flanks; chalk run + east tributary use a soft-edged flow ribbon (`PaleHollowRivers`, Water2-style dual normals) over wet riverbed terrain.
+**Playable bounds:** roughly ±88 east–west, −24…268 south–north. Mountain peaks ring the fringe; meadows/grass fill the flanks; chalk run + east tributary use a soft-edged flow ribbon (`PH_RIVER_MAIN` / `PH_RIVER_TRIB` in `pale-hollow.ts`) over wet riverbed terrain, baked into the zone grid and drawn by the Stick Engine.
 
-**Sources:** item manifest, Kek Items Onchain plan, `packages/config/src/pale-hollow.ts`, ambientCG CC0 albedos formerly under `apps/web/public/textures/pale-hollow/` (removed with the three.js client in #38; Stick Engine uses palette-shaded tiles instead).
+**Sources:** item manifest, `packages/config/src/pale-hollow.ts`. The client is the Stick Engine (`apps/stick-web` + `engine/`), which draws palette-shaded tiles and props from the baked zone (`pnpm zones`).
 
-**Related OSS (design / water):** LDtk + Tiled (level layout), Godot / Bevy (full engines — reference, not this stack), three.js `Water`/`Water2` + Valve flow-map paper, `@react-three/drei` (`useDepthBuffer`, `MeshReflectorMaterial`). Runtime stack stays R3F + Three.
+**Related OSS (design reference):** LDtk + Tiled (level layout), Godot / Bevy (full engines — reference, not this stack). Runtime stack is React + Vite driving the Rust/wasm Stick Engine.
 
-Onchain: field gather/drop = **base mats → Character NFT**. Craft in the Dwellings burns **1000 KEK** + mats.
+Onchain: field gather/drop = **base mats → Character NFT**. Crafting in the Dwellings spends **gold** + mats (see `docs/systems.md`).
 
 ---
 
@@ -57,7 +57,7 @@ S  THE SHARD DWELLINGS (safe hub — always)
 N  Ashlands / Obsidia (Lv21+)
 ```
 
-**Return path:** soft bridges stay crossable so players can retreat to the Dwellings to craft (KEK burn).
+**Return path:** soft bridges stay crossable so players can retreat to the Dwellings to craft (gold + mats).
 
 ---
 
@@ -73,7 +73,7 @@ N  Ashlands / Obsidia (Lv21+)
 | **Structures** | Dustgrain silos, clay bank, fishing pools |
 | **Aggro feel** | Almost peaceful. Hares don’t fight first. Slimes only if you wade in. |
 
-**Bridge out — Timber Bridge:** Herald quest “Cross the ashbeam span” after gather tutorial + first Bronze Ingot craft (1000 KEK). Soft check Lv5; underleveled can still cross with warning.
+**Bridge out — Timber Bridge:** Herald quest “Cross the ashbeam span” after gather tutorial + first Bronze Ingot craft (gold + mats). Soft check Lv5; underleveled can still cross with warning.
 
 ---
 
@@ -166,7 +166,7 @@ Hub suppresses combat AI sound.
 
 ## Quest spine (bridges are story beats)
 
-1. **A:** Gather + first craft (Bronze Ingot, 1000 KEK) → open Timber Bridge.  
+1. **A:** Gather + first craft (Bronze Ingot, gold + mats) → open Timber Bridge.  
 2. **B:** Linen Scrap / scavenger clear → open Quarry Cut.  
 3. **C:** Limestone for terrace → open Seam Tunnel.  
 4. **D:** Bone Chip from crypt → open Ash Road.

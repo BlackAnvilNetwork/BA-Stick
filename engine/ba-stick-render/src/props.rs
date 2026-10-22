@@ -1,7 +1,3 @@
-// Copyright (c) 2026 Black Anvil Network
-// SPDX-License-Identifier: AGPL-3.0-or-later
-// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
-
 //! Static zone props (BAP1 from apps/stick-web/scripts/bake-props.ts): trees,
 //! ground cover, the hub encampment, rock wall and mountain peaks, drawn
 //! procedurally into the depth buffer so units sort in front of / behind them.
@@ -67,8 +63,7 @@ pub mod kind {
     pub const PEAK: u8 = 46;
     /// Bank retaining wall run: s = length, w = thickness, h = height, d = coping.
     pub const RIVER_WALL: u8 = 47;
-    /// Stone bridge: s = span, w = deck width, h = flat-deck lift over the end-to-end lerp,
-    /// y = left end, d = right end height, var = ramp fraction x 200 (trapezoid profile).
+    /// Stone bridge: s = span, w = deck width, h = arch, y = left end, d = right end height.
     pub const BRIDGE: u8 = 48;
 }
 
@@ -150,47 +145,6 @@ pub fn link_walls(props: &mut [Prop]) {
 }
 
 /// Rough world-space reach (for culling).
-/// Ground footprint radius (m) for contact shadows, or `None` for kinds that
-/// cast none (ground cover, walls, bridges, peaks, water edges).
-pub fn footprint(p: &Prop) -> Option<f32> {
-    Some(match p.kind {
-        kind::PINE | kind::SPRUCE => p.s * 0.4,
-        kind::CYPRESS => p.s * 0.22,
-        kind::ASH_MED | kind::ASH_TALL => p.s * 0.35,
-        kind::BUSH => p.s * 0.55,
-        kind::ROCK | kind::STONE => p.s * 0.55,
-        kind::TENT => 1.6,
-        kind::CRATE => p.w.max(p.d) * 0.75,
-        kind::CHEST => 0.6,
-        kind::LEAN_TO => 1.4,
-        kind::TRAINER => 0.7,
-        kind::STALL => 1.15,
-        kind::WEAPON_RACK => 0.6,
-        kind::FIREWOOD => 0.5,
-        kind::BARREL => 0.45,
-        kind::BEDROLL => 0.5,
-        kind::WALL_BLOCK => p.w.max(p.d) * 0.6,
-        _ => return None,
-    })
-}
-
-/// Dithered contact shadows for every visible prop with a footprint.
-pub fn draw_shadows(fb: &mut Framebuffer, cam: &Camera, props: &[Prop], cam_y: f32) {
-    let (w, h) = (fb.w as f32, fb.h as f32);
-    for p in props {
-        let Some(r) = footprint(p) else { continue };
-        let (ox, oz) = crate::atmosphere::shadow_offset(r);
-        let c = v3(p.x + ox, p.y - cam_y, p.z + oz);
-        let q = cam.project(c);
-        let k = cam.scale_at(c) * std::f32::consts::SQRT_2;
-        let (rx, ry) = (r * stick_engine::camera::ISO_X * k, r * stick_engine::camera::ISO_Y * k);
-        if q.x + rx < 0.0 || q.x - rx > w || q.y + ry < 0.0 || q.y - ry > h {
-            continue;
-        }
-        crate::dither::soft_shadow(fb, q.x, q.y, rx, ry, 0.85);
-    }
-}
-
 fn reach(p: &Prop) -> f32 {
     match p.kind {
         kind::PEAK => 6.0 * p.s,
@@ -236,36 +190,6 @@ struct Ctx<'a> {
     base: Vec3,
     f: Vec3,
     r: Vec3,
-    /// Round 1 prop readability (L3/P1/P6): sun-facing shading, lit top-edge
-    /// highlight, soft interior outlines. Off for kind::BRIDGE (rebuilt separately).
-    polish: bool,
-    /// P2 chalk strata on side faces (cliff / wall blocks only).
-    strata: bool,
-    /// Stone/rock crack seed (0..1): one dithered crack on the first lit face.
-    crack: Option<f32>,
-}
-
-/// Lit-edge highlight for a top colour (P1): chalk/stone gets a pale bone
-/// edge, other ramps keep their own top colour (drops the black line there).
-fn top_highlight(top: u8) -> u8 {
-    match top {
-        WALL | WALL_L | ROCK_L | BANK_L => GEAR_BONE,
-        t => t,
-    }
-}
-
-/// Darker step for a face colour (P6 interior outlines, P2 strata).
-fn face_dark(c: u8) -> u8 {
-    match c {
-        WALL_L => WALL,
-        WALL => WALL_D,
-        ROCK_L => ROCK,
-        ROCK => ROCK_D,
-        WOOD_L => WOOD,
-        WOOD => WOOD_D,
-        WALL_D | ROCK_D => C_OUTLINE,
-        _ => WOOD_D,
-    }
 }
 
 impl Ctx<'_> {
@@ -288,93 +212,17 @@ impl Ctx<'_> {
         let corners = [c(-1.0, 0.0, -1.0), c(1.0, 0.0, -1.0), c(1.0, 0.0, 1.0), c(-1.0, 0.0, 1.0)];
         let lo: Vec<P2> = corners.iter().map(|&(x, y, z)| self.p(x, y0 + y, z)).collect();
         let hi: Vec<P2> = corners.iter().map(|&(x, _, z)| self.p(x, y0 + h, z)).collect();
-        if !self.polish {
-            // Side faces: draw all four; depth keeps the visible ones. Shade by facing.
-            for i in 0..4 {
-                let j = (i + 1) % 4;
-                let col = if (hi[i].x + hi[j].x) * 0.5 > (hi[0].x + hi[2].x) * 0.5 { lit } else { dark };
-                self.quad(lo[i], lo[j], hi[j], hi[i], col);
-            }
-            self.quad(hi[0], hi[1], hi[2], hi[3], top);
-            for i in 0..4 {
-                let j = (i + 1) % 4;
-                self.edge(hi[i], hi[j]);
-                self.edge(lo[i], hi[i]);
-            }
-            return;
-        }
-        // L3: lit/dark by the face's outward normal against SUN_DIR (NW).
-        let sun = crate::atmosphere::SUN_DIR;
-        let sunlit = |i: usize, j: usize| {
-            let (a, b) = (corners[i], corners[j]);
-            let (nx, nz) = ((a.0 + b.0) * 0.5 - cx, (a.2 + b.2) * 0.5 - cz);
-            let wn = self.r * nx + self.f * nz;
-            wn.x * sun[0] + wn.z * sun[2] > 0.0
-        };
-        let lit_face = [sunlit(0, 1), sunlit(1, 2), sunlit(2, 3), sunlit(3, 0)];
+        // Side faces: draw all four; depth keeps the visible ones. Shade by facing.
         for i in 0..4 {
             let j = (i + 1) % 4;
-            let col = if lit_face[i] { lit } else { dark };
+            let col = if (hi[i].x + hi[j].x) * 0.5 > (hi[0].x + hi[2].x) * 0.5 { lit } else { dark };
             self.quad(lo[i], lo[j], hi[j], hi[i], col);
-            if self.strata && h > 0.9 {
-                // P2: dithered strata row every ~0.6 m, one step darker.
-                let mut y = 0.6;
-                while y < h - 0.2 {
-                    let (a, b) = (self.p(corners[i].0, y0 + y, corners[i].2), self.p(corners[j].0, y0 + y, corners[j].2));
-                    self.dither_line(a, b, face_dark(col), 0.5);
-                    y += 0.6;
-                }
-            }
         }
         self.quad(hi[0], hi[1], hi[2], hi[3], top);
-        if let Some(seed) = self.crack {
-            // Round 3: a single dithered crack from the top edge ~60% down, on
-            // one camera-side (shade) face, so it shows from the iso view.
-            // Face and position vary per prop by seed.
-            // Camera-facing faces have their base edge lowest on screen; take
-            // the widest of those.
-            let my = lo.iter().map(|q| q.y).sum::<f32>() * 0.25;
-            let score = |i: usize| {
-                let j = (i + 1) % 4;
-                if (lo[i].y + lo[j].y) * 0.5 <= my { -1.0 } else { (hi[j].x - hi[i].x).abs() }
-            };
-            if let Some(i) = (0..4).max_by(|&a, &b| score(a).total_cmp(&score(b))) {
-                let j = (i + 1) % 4;
-                let at = |t: f32, y: f32| {
-                    let (a, b) = (corners[i], corners[j]);
-                    self.p(a.0 + (b.0 - a.0) * t, y0 + y, a.2 + (b.2 - a.2) * t)
-                };
-                let t0 = 0.35 + 0.3 * seed;
-                let (a, m, b) = (at(t0, h), at(t0 + 0.1, h * 0.6), at(t0 - 0.02, h * 0.25));
-                let cc = face_dark(dark);
-                self.dither_line(a, m, cc, 1.0);
-                self.dither_line(m, b, cc, 0.6);
-            }
-        }
-        // Screen-silhouette verticals stay black; interior verticals soften to the
-        // face's dark step (P6); top edges over sun-facing faces get the pale
-        // highlight (P1), the rest stay black.
-        let (minx, maxx) = hi.iter().fold((f32::MAX, f32::MIN), |(a, b), q| (a.min(q.x), b.max(q.x)));
         for i in 0..4 {
             let j = (i + 1) % 4;
-            let top_col = if lit_face[i] { top_highlight(top) } else { C_OUTLINE };
-            self.edge_col(hi[i], hi[j], top_col);
-            let sil = hi[i].x <= minx + 0.5 || hi[i].x >= maxx - 0.5;
-            self.edge_col(lo[i], hi[i], if sil { C_OUTLINE } else { face_dark(dark) });
-        }
-    }
-    fn edge_col(&mut self, a: P2, b: P2, col: u8) {
-        self.fb.line(P2 { d: a.d - 0.02, ..a }, P2 { d: b.d - 0.02, ..b }, col);
-    }
-    /// Depth-tested line that only writes pixels passing a 2D ordered dither.
-    fn dither_line(&mut self, a: P2, b: P2, col: u8, level: f32) {
-        let n = (b.x - a.x).abs().max((b.y - a.y).abs()).ceil().max(1.0) as i32;
-        for k in 0..=n {
-            let t = k as f32 / n as f32;
-            let (x, y) = ((a.x + (b.x - a.x) * t) as i32, (a.y + (b.y - a.y) * t) as i32);
-            if crate::dither::on(x, y, level) {
-                self.fb.plot(x, y, a.d + (b.d - a.d) * t - 0.01, col);
-            }
+            self.edge(hi[i], hi[j]);
+            self.edge(lo[i], hi[i]);
         }
     }
     /// A river-wall segment as a prism mitered at its joints (`Prop::j`).
@@ -465,21 +313,6 @@ fn hash(a: f32, b: f32) -> f32 {
     s - s.floor()
 }
 
-/// Ramp fraction of a bridge prop: `var` carries it in 1/200 steps (the bake
-/// quantises `paleHollowBridgeGeom().ramp` the same way); 0 = default 0.3.
-pub fn bridge_ramp(p: &Prop) -> f32 {
-    if p.var == 0 { 0.3 } else { p.var as f32 / 200.0 }
-}
-
-/// Deck height of a bridge prop at span parameter `t`, relative to its left end
-/// (`p.y`): the straight lerp to the right end (`p.d`) plus `p.h` times the
-/// trapezoid profile. Mirrors `paleHollowBridgeCurveY` in @bellgrave/config.
-pub fn bridge_curve(p: &Prop, t: f32) -> f32 {
-    let t = t.clamp(0.0, 1.0);
-    let r = bridge_ramp(p);
-    (p.d - p.y) * t + p.h.max(0.0) * (t / r).min((1.0 - t) / r).min(1.0)
-}
-
 pub fn draw(fb: &mut Framebuffer, cam: &Camera, props: &[Prop], cam_y: f32, time: f32) {
     let (w, h) = (fb.w as f32, fb.h as f32);
     for p in props {
@@ -492,8 +325,7 @@ pub fn draw(fb: &mut Framebuffer, cam: &Camera, props: &[Prop], cam_y: f32, time
         }
         let f = v3(p.yaw.sin(), 0.0, p.yaw.cos());
         let r = v3(p.yaw.cos(), 0.0, -p.yaw.sin());
-        let mut c = Ctx { fb, cam, base, f, r, polish: p.kind != kind::BRIDGE, strata: p.kind == kind::WALL_BLOCK,
-            crack: matches!(p.kind, kind::STONE | kind::ROCK).then(|| (p.x * 7.31 + p.z * 3.17).sin().abs()) };
+        let mut c = Ctx { fb, cam, base, f, r };
         draw_one(&mut c, p, time);
     }
 }
@@ -509,14 +341,22 @@ fn draw_one(c: &mut Ctx, p: &Prop, time: f32) {
             c.wall_run(p, p.w + 0.06, p.h, p.d, BANK, BANK_D, BANK_DD, true);
         }
         kind::BRIDGE => {
-            // Ramp up from the bank, flat deck over the river, ramp down: the same
-            // trapezoid as @bellgrave/config `paleHollowBridgeCurveY` (the server's
-            // walk height). The ramps sit on solid abutments that meet each bank.
-            let r = bridge_ramp(p);
-            let curve = |t: f32| bridge_curve(p, t);
-            let ts = [0.0, r, 1.0 - r, 1.0];
+            // One continuous deck ribbon from bank to bank, with a continuous
+            // parapet rail on each side: no per-slab seams or steps, so the
+            // whole span reads as a single walkable surface.
+            let n = 16;
+            let curve = |t: f32| {
+                let t = t.clamp(0.0, 1.0);
+                (p.d - p.y) * t + p.h.max(0.0) * 4.0 * t * (1.0 - t)
+            };
             let st = |lo: f32, hi: f32| -> Vec<(f32, f32, f32)> {
-                ts.iter().map(|&t| (-p.s * 0.5 + p.s * t, curve(t) + lo, curve(t) + hi)).collect()
+                (0..=n)
+                    .map(|i| {
+                        let t = i as f32 / n as f32;
+                        let y = curve(t);
+                        (-p.s * 0.5 + p.s * t, y + lo, y + hi)
+                    })
+                    .collect()
             };
             // deck top in the stone-trail colour: walkable surfaces share the trail palette,
             // so it reads apart from the (blocked) wall copings and parapets
@@ -524,11 +364,11 @@ fn draw_one(c: &mut Ctx, p: &Prop, time: f32) {
             for side in [-1.0f32, 1.0] {
                 c.ribbon(side * (p.w * 0.5 - 0.12), 0.12, &st(0.0, 0.42), BANK, BANK_D, BANK_DD);
             }
-            // abutments: a solid wedge under each ramp, from the bank grass up to the deck
-            for (t0, t1, foot) in [(0.0f32, r, curve(0.0)), (1.0 - r, 1.0, curve(1.0))] {
-                let ab: Vec<(f32, f32, f32)> =
-                    [t0, t1].iter().map(|&t| (-p.s * 0.5 + p.s * t, foot - 0.3, curve(t) - 0.22)).collect();
-                c.ribbon(0.0, p.w * 0.5 - 0.02, &ab, BANK, BANK_D, BANK_DD);
+            // end posts
+            for (t, fz) in [(0.0f32, -p.s * 0.5), (1.0, p.s * 0.5)] {
+                for side in [-1.0f32, 1.0] {
+                    c.boxy(side * (p.w * 0.5 - 0.12), curve(t), fz, 0.38, 0.62, 0.38, BANK_L, BANK, BANK_D);
+                }
             }
             // pier under mid-span down to the river bed
             let mid = curve(0.5);
@@ -555,12 +395,9 @@ fn draw_one(c: &mut Ctx, p: &Prop, time: f32) {
                 let rgt = c.p(rad, y0, 0.0);
                 let fr = c.p(0.0, y0 - rad * 0.12, rad * 0.4);
                 // camera-facing silhouette with a lit right half
-                let mid = P2 { s: 1.0, x: apex.x, y: (lft.y + rgt.y) * 0.5 + 2.0, d: fr.d };
-                // P5: sun from the NW, so the screen-left half is lit, with a
-                // light rim on the left edge of each tier.
-                tri(c.fb, apex, lft, mid, if t == tiers - 1 { l } else { m });
-                tri(c.fb, apex, mid, rgt, d);
-                c.fb.line(P2 { d: apex.d - 0.02, ..apex }, P2 { d: lft.d - 0.02, ..lft }, l);
+                let mid = P2 { x: apex.x, y: (lft.y + rgt.y) * 0.5 + 2.0, d: fr.d };
+                tri(c.fb, apex, lft, mid, d);
+                tri(c.fb, apex, mid, rgt, if t == tiers - 1 { l } else { m });
                 c.edge(apex, lft);
                 c.edge(apex, rgt);
                 c.edge(lft, mid);

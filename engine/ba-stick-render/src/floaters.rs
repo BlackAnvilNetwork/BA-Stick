@@ -1,7 +1,3 @@
-// Copyright (c) 2026 Black Anvil Network
-// SPDX-License-Identifier: AGPL-3.0-or-later
-// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
-
 //! Floating combat numbers (#45): pixel-font text that rises above a unit
 //! and dithers out. Drawn as an overlay (no depth test).
 use stick_engine::raster::Framebuffer;

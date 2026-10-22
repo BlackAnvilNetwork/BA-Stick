@@ -15,8 +15,6 @@ jobs:
       CARGO_TARGET_DIR: ${{ github.workspace }}/engine/target
     steps:
       - uses: actions/checkout@v4
-      - name: license headers (engine/)
-        run: node scripts/add-license-headers.mjs --check
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown

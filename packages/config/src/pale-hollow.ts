@@ -195,36 +195,18 @@ export function paleHollowComputeBridgeDeckY(bankStandAvg: number, waterY: numbe
 }
 
 /**
- * Default fraction of the span taken by each bridge ramp. A bridge rises in a
- * straight ramp from each bank landing, runs flat across the river, and ramps
- * down to the other bank (a trapezoid profile). Each site's ramp ends where its
- * span crosses the bank wall (see `paleHollowBridgeGeom`), in 1/200 steps so
- * the client mesh can carry it exactly.
- */
-export const PH_BRIDGE_RAMP = 0.3;
-
-/** Lift fraction 0..1 of the trapezoid bridge profile at span parameter `t`. */
-export function paleHollowBridgeProfile(t: number, ramp = PH_BRIDGE_RAMP): number {
-  const u = Math.max(0, Math.min(1, t));
-  return Math.min(1, u / ramp, (1 - u) / ramp);
-}
-
-/**
- * Bridge walk/deck height from left grass (t=0) to right grass (t=1): the
- * straight bank-to-bank lerp plus `arch` times the trapezoid profile, so `arch`
- * is the flat deck's height above that lerp (0 at both ends). This is the one
- * source for the server's stand height and the client's bridge mesh.
+ * Smooth arch from left grass (t=0) to right grass (t=1).
+ * `arch` is the extra height at mid-span above the straight lerp (0 at both ends).
  */
 export function paleHollowBridgeCurveY(
   leftY: number,
   rightY: number,
   arch: number,
   t: number,
-  ramp = PH_BRIDGE_RAMP,
 ): number {
   const u = Math.max(0, Math.min(1, t));
   const base = leftY * (1 - u) + rightY * u;
-  return base + Math.max(0, arch) * paleHollowBridgeProfile(u, ramp);
+  return base + Math.max(0, arch) * 4 * u * (1 - u);
 }
 
 export type PaleHollowRiverKind = "main" | "tributary";
@@ -423,8 +405,6 @@ type BridgeFrame = {
   waterY: number;
   /** Extra mid-span height above the left→right lerp. */
   arch: number;
-  /** Ramp fraction of the span at each end (trapezoid profile). */
-  ramp: number;
   /** Mid curve sample — not the stand height along the span. */
   deckY: number;
 };
@@ -475,10 +455,8 @@ export type PaleHollowBridgeGeom = {
   leftY: number;
   /** Right grass stand height (t=1). */
   rightY: number;
-  /** Flat-deck height above the straight bank-to-bank lerp. */
+  /** Extra height at mid-span above the straight lerp. */
   arch: number;
-  /** Ramp fraction of the span at each end (trapezoid profile). */
-  ramp: number;
   waterY: number;
   spanDir: { x: number; z: number };
   flowDir: { x: number; z: number };
@@ -534,18 +512,17 @@ function riverWallTopY(x: number, z: number): number {
 
 /**
  * Arch lift so the deck center clears water at mid-span and coping at each wall crossing.
- * Shape is `lerp + arch * profile(t)` (trapezoid, 0 at the grass ends).
+ * Shape is `lerp + arch * 4 t (1-t)` (0 at the grass ends).
  */
 function bridgeArchLift(
   leftY: number,
   rightY: number,
   checks: { t: number; minY: number }[],
-  ramp: number,
 ): number {
   let arch = 1.05;
   for (const c of checks) {
     const u = Math.max(0.06, Math.min(0.94, c.t));
-    const bump = paleHollowBridgeProfile(u, ramp);
+    const bump = 4 * u * (1 - u);
     const base = leftY * (1 - u) + rightY * u;
     const need = (c.minY - base) / bump;
     if (need > arch) arch = need;
@@ -633,9 +610,8 @@ export function paleHollowBridgeGeom(site: PaleHollowBridgeSite): PaleHollowBrid
 
   const waterY =
     paleHollowWaterSurfaceY(cx, cz) ?? paleHollowHeightField(cx, cz) + PALE_HOLLOW_WATER_CLEARANCE;
-  // Deck ends meet the walkable ground mesh exactly, so stepping on or off never snaps.
-  const standL = paleHollowTerrainMeshY(landL.x, landL.z);
-  const standR = paleHollowTerrainMeshY(landR.x, landR.z);
+  const standL = landL.y;
+  const standR = landR.y;
   const tOf = (x: number, z: number) => {
     const along = (x - cx) * lsx + (z - cz) * lsz;
     return span > 1e-4 ? along / span + 0.5 : 0.5;
@@ -652,12 +628,8 @@ export function paleHollowBridgeGeom(site: PaleHollowBridgeSite): PaleHollowBrid
   if (tR > 0.04 && tR < 0.96) {
     checks.push({ t: tR, minY: riverWallTopY(right.x, right.z) + undersidePad });
   }
-  // Ramps end where the span crosses each bank wall, so the flat deck carries
-  // the walk over the coping and the river (1/200 steps: exact on the client).
-  const wallT = Math.min(tL > 0.04 && tL < 0.96 ? tL : 0.5, tR > 0.04 && tR < 0.96 ? 1 - tR : 0.5);
-  const ramp = Math.round(Math.max(0.12, Math.min(0.45, wallT)) * 200) / 200;
-  const arch = bridgeArchLift(standL, standR, checks, ramp);
-  const deckY = paleHollowBridgeCurveY(standL, standR, arch, 0.5, ramp);
+  const arch = bridgeArchLift(standL, standR, checks);
+  const deckY = paleHollowBridgeCurveY(standL, standR, arch, 0.5);
 
   return {
     id: site.id,
@@ -672,7 +644,6 @@ export function paleHollowBridgeGeom(site: PaleHollowBridgeSite): PaleHollowBrid
     leftY: standL,
     rightY: standR,
     arch,
-    ramp,
     waterY,
     spanDir: { x: lsx, z: lsz },
     flowDir: { x: nfx, z: nfz },
@@ -964,7 +935,6 @@ function buildBridgeFrame(site: PaleHollowBridgeSite): BridgeFrame {
     rightY: g.rightY,
     waterY: g.waterY,
     arch: g.arch,
-    ramp: g.ramp,
     deckY: g.deckY,
   };
 }
@@ -1039,7 +1009,7 @@ export function paleHollowInBridgeWallVisualGap(
     if (Math.abs(across) > halfAcross || Math.abs(along) > f.spanHalf) continue;
     const t = f.spanHalf > 1e-4 ? (along / f.spanHalf + 1) * 0.5 : 0.5;
     const underside =
-      paleHollowBridgeCurveY(f.leftY, f.rightY, f.arch, t, f.ramp) - PH_BRIDGE_DECK_HALF_T;
+      paleHollowBridgeCurveY(f.leftY, f.rightY, f.arch, t) - PH_BRIDGE_DECK_HALF_T;
     const coping =
       paleHollowHeightField(x, z) + PH_RIVER_WALL.lift + PH_RIVER_WALL.h + PH_RIVER_WALL.copeH;
     if (underside < coping + 0.08) return true;
@@ -1053,7 +1023,7 @@ export function paleHollowBridgeDeckY(x: number, z: number): number | null {
     const { along, across } = bridgeLocal(f, x, z);
     if (Math.abs(along) <= f.spanHalf && Math.abs(across) <= f.deckHalfW) {
       const t = f.spanHalf > 1e-4 ? (along / f.spanHalf + 1) * 0.5 : 0.5;
-      return paleHollowBridgeCurveY(f.leftY, f.rightY, f.arch, t, f.ramp);
+      return paleHollowBridgeCurveY(f.leftY, f.rightY, f.arch, t);
     }
   }
   return null;
@@ -1797,44 +1767,3 @@ export const PH_HUB_NPCS = [
   { id: "npc-ph-crafter", name: "Craft Master", x: 3.8, z: -0.2, facing: -Math.PI / 2, role: "crafter" as const },
   { id: "npc-ph-vendor", name: "Provisioner", x: -3.8, z: -0.2, facing: Math.PI / 2, role: "vendor" as const },
 ] as const;
-
-/**
- * Minimap road names, keyed by `paleHollowTrails()` id (layout data only).
- * Stone bridge approaches are drawn but not named; they read as part of the bridge.
- */
-export const PH_ROAD_NAMES: Readonly<Record<string, string>> = {
-  "camp-to-north": "Terrace Way",
-  "camp-to-west-farm": "Clay Bank Path",
-  "west-farm-onward": "Meadow Path",
-  "north-to-ashbeam": "Hollow Steps Road",
-  "ashbeam-to-chalkworks": "Quarry Road",
-  "chalkworks-to-marches": "Seam Road",
-  "marches-to-ash-road": "Ash Road",
-  "camp-to-east-trib": "Tributary Path",
-  "east-trib-to-ashbeam": "East Grove Path",
-  "east-ashbeam-grove": "Grove Spur",
-};
-
-export type PaleHollowMapLabelKind = "area" | "camp" | "landmark" | "water";
-
-/**
- * Minimap labels: segment names, encampments and landmarks from
- * docs/pale-hollow-area.md, placed at the geometry they name above.
- */
-export const PH_MAP_LABELS: readonly { text: string; x: number; z: number; kind: PaleHollowMapLabelKind }[] = [
-  { text: "The Shard Dwellings", x: 0, z: 2, kind: "camp" },
-  // Scavenger camp: between the paired scavenger spawns ph-scav-1 / ph-scav-2.
-  { text: "Scavenger Camp", x: 1, z: 86, kind: "camp" },
-  { text: "Hollow Steps", x: 34, z: 34, kind: "area" },
-  { text: "Ashbeam Reach", x: -38, z: 82, kind: "area" },
-  { text: "Chalkworks", x: -36, z: 136, kind: "area" },
-  { text: "Pale Marches", x: 34, z: 214, kind: "area" },
-  { text: "Clay Bank", x: -20, z: 34, kind: "landmark" },
-  { text: "Timber Bridge", x: (PH_TIMBER_BRIDGE.minX + PH_TIMBER_BRIDGE.maxX) / 2, z: (PH_TIMBER_BRIDGE.minZ + PH_TIMBER_BRIDGE.maxZ) / 2, kind: "landmark" },
-  { text: "Quarry Cut", x: (PH_QUARRY_CUT.minX + PH_QUARRY_CUT.maxX) / 2, z: (PH_QUARRY_CUT.minZ + PH_QUARRY_CUT.maxZ) / 2, kind: "landmark" },
-  { text: "Hollow Quarry", x: 0, z: 145, kind: "landmark" },
-  { text: "Seam Tunnel", x: (PH_SEAM_TUNNEL.minX + PH_SEAM_TUNNEL.maxX) / 2, z: (PH_SEAM_TUNNEL.minZ + PH_SEAM_TUNNEL.maxZ) / 2, kind: "landmark" },
-  { text: "Copper Seams", x: 11, z: 210, kind: "landmark" },
-  { text: "Shard Crypt", x: -18, z: 210, kind: "landmark" },
-  { text: "Chalk Run", x: riverCenterX(118), z: 118, kind: "water" },
-];

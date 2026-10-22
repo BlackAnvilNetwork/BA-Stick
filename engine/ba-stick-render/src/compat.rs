@@ -1,7 +1,3 @@
-// Copyright (c) 2026 Black Anvil Network
-// SPDX-License-Identifier: AGPL-3.0-or-later
-// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
-
 //! Black Anvil's look layer on top of Stick Engine's character-anim rig.
 //!
 //! The engine moved to ramp palettes, `BodyParams` and an indexed `Joints`

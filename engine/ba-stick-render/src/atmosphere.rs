@@ -1,27 +1,9 @@
-// Copyright (c) 2026 Black Anvil Network
-// SPDX-License-Identifier: AGPL-3.0-or-later
-// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
-
 //! Atmosphere (#26): per-pixel light at RGB conversion time. Cool ambient,
 //! warm radial campfire pools with flicker, distance haze toward the
 //! horizon colour, a pixel skyline behind the zone edge, and a vignette.
 //! Emissive palette entries (fire, FX, floaters) skip the ambient/haze so they
 //! read as "glow" without a bloom pass.
 use crate::palette::*;
-
-/// Shared sun direction (round 1 polish): unit vector pointing *toward* the
-/// sun, from the screen's upper-left (NW) and above. Light falls on NW faces;
-/// shadows fall SE (screen lower-right). Read by contact shadows (S2) and
-/// terrain/prop shading.
-pub const SUN_DIR: [f32; 3] = [-0.6835, 0.7071, -0.1810];
-
-/// Ground-plane offset (x, z) for a contact shadow of footprint radius `r`:
-/// a fraction of `r` along -SUN_DIR projected onto the ground.
-pub fn shadow_offset(r: f32) -> (f32, f32) {
-    let (x, z) = (-SUN_DIR[0], -SUN_DIR[2]);
-    let l = (x * x + z * z).sqrt();
-    (x / l * r * 0.25, z / l * r * 0.25)
-}
 
 /// Framebuffer index left where no terrain was drawn (sky / beyond bounds).
 pub const SKY: u8 = 141;
@@ -82,30 +64,6 @@ fn ridge(x: f32, scroll: f32, scale: f32, amp: f32, seed: f32) -> f32 {
 /// offset in px (for skyline parallax).
 #[allow(clippy::too_many_arguments)]
 pub fn write_rgba(pal: &[u32; 256], color: &[u8], w: usize, h: usize, lights: &[Light], p: &Params, scroll: f32, out: &mut [u8]) {
-    write_rgba_key(pal, color, w, h, lights, p, scroll, false, out);
-}
-
-/// Key-light strength (L2): lit ramp steps warm up, shadow steps cool down.
-pub const KEY_LIT: [f32; 3] = [1.07, 1.06, 1.03];
-pub const KEY_SHADE: [f32; 3] = [0.93, 0.94, 0.98];
-
-/// Ramp step of a palette index for the key light: Some(0) lit, Some(2)
-/// shadow, Some(1) mid, None = not on a known ramp (unchanged).
-pub fn key_step(c: u8) -> Option<u8> {
-    if let Some(s) = crate::dither::shade_step(c) {
-        return Some(s);
-    }
-    match c {
-        PINE_L | ASH_L | GRASS_L | ROCK_L | WALL_L | WOOD_L | BANK_L => Some(0),
-        PINE_D | ASH_D | CYP_D | GRASS_D | ROCK_D | WALL_D | WOOD_D | BANK_D | BANK_DD | OLIVE_D | BEIGE_D => Some(2),
-        _ => None,
-    }
-}
-
-/// `write_rgba` with an optional directional key light (L2). The key light is
-/// folded into the per-index colour table, so it costs no per-pixel work.
-#[allow(clippy::too_many_arguments)]
-pub fn write_rgba_key(pal: &[u32; 256], color: &[u8], w: usize, h: usize, lights: &[Light], p: &Params, scroll: f32, key: bool, out: &mut [u8]) {
     let haze = rgb(p.haze);
     let top = rgb(p.sky_top);
     let (cx, cy) = (w as f32 * 0.5, h as f32 * 0.5);
@@ -115,12 +73,6 @@ pub fn write_rgba_key(pal: &[u32; 256], color: &[u8], w: usize, h: usize, lights
     for c in 0..256 {
         lut[c] = rgb(pal[c]);
         emis[c] = emissive(c as u8);
-        if key && !emis[c] {
-            let m = match key_step(c as u8) { Some(0) => KEY_LIT, Some(2) => KEY_SHADE, _ => [1.0; 3] };
-            for k in 0..3 {
-                lut[c][k] *= m[k];
-            }
-        }
     }
     // separable vignette
     let vx: Vec<f32> = (0..w).map(|x| ((x as f32 - cx) / cx).powi(2)).collect();

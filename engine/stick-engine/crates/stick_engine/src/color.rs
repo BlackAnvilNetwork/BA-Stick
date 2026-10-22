@@ -1,21 +1,15 @@
-// Copyright (c) 2026 Black Anvil Network
-// SPDX-License-Identifier: AGPL-3.0-or-later
-// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
-
 //! Colour slots. Bodies and gear never store palette indices: they name a
 //! [`ColorSlot`], and a per-draw [`RampMap`] resolves slot -> ramp. Team
 //! colours, elemental tints and hit flashes are just different maps.
 use crate::raster::{shade, R_ARCANE, R_BLOOD, R_BONE, R_GOLD, R_STEEL, R_VOID, R_WHITE};
-use crate::raster::R_HAIR_BROWN;
 use serde::Deserialize;
 
 #[derive(Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
 pub enum ColorSlot {
     Body, BodyFar, Outline, Accent, Material, Trim, Glow,
-    Hair,
 }
-pub const N_SLOTS: usize = 8;
+pub const N_SLOTS: usize = 7;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct RampMap {
@@ -26,7 +20,7 @@ pub struct RampMap {
 
 impl Default for RampMap {
     fn default() -> Self {
-        RampMap { ramps: [R_BONE, R_BONE, R_VOID, R_BLOOD, R_STEEL, R_GOLD, R_ARCANE, R_HAIR_BROWN], flash: false }
+        RampMap { ramps: [R_BONE, R_BONE, R_VOID, R_BLOOD, R_STEEL, R_GOLD, R_ARCANE], flash: false }
     }
 }
 
@@ -50,7 +44,7 @@ impl RampMap {
     }
     /// Elemental tint = body override.
     pub fn tint(self, ramp: u8) -> Self {
-        self.with(ColorSlot::Body, ramp).with(ColorSlot::BodyFar, ramp).with(ColorSlot::Hair, ramp)
+        self.with(ColorSlot::Body, ramp).with(ColorSlot::BodyFar, ramp)
     }
     pub fn flashed(mut self) -> Self {
         self.flash = true;

@@ -1,7 +1,3 @@
-// Copyright (c) 2026 Black Anvil Network
-// SPDX-License-Identifier: AGPL-3.0-or-later
-// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
-
 //! The renderable scene: units keyed by server id, a following camera, and a
 //! framebuffer.
 use std::collections::BTreeMap;
@@ -119,12 +115,8 @@ pub struct Scene {
     lights: Vec<crate::atmosphere::Light>,
     /// Lighting, haze, skyline and vignette (#26).
     pub atmosphere: bool,
-    /// L2 directional key light (round 1 polish). Off by default; `?keylight`.
-    pub keylight: bool,
     /// Buff / ailment visuals per unit (#34).
     buffs: BTreeMap<String, crate::buffvfx::BuffFx>,
-    /// Engine-drawn minimap (baked once per zone, blitted each frame).
-    pub minimap: crate::minimap::Minimap,
 }
 
 impl Scene {
@@ -148,9 +140,7 @@ impl Scene {
             pal: palette::palette(),
             lights: Vec::new(),
             atmosphere: true,
-            keylight: false,
             buffs: BTreeMap::new(),
-            minimap: crate::minimap::Minimap::new(),
         }
     }
 
@@ -170,20 +160,17 @@ impl Scene {
     /// Load a baked zone (BAZ1). Replaces any previous zone.
     pub fn load_zone(&mut self, bytes: &[u8]) -> Result<(), String> {
         self.zone = Some(Zone::parse(bytes)?);
-        self.minimap.invalidate();
         Ok(())
     }
 
     pub fn clear_zone(&mut self) {
         self.zone = None;
         self.props.clear();
-        self.minimap.clear();
     }
 
     /// Load static props (BAP1). Replaces any previous set.
     pub fn load_props(&mut self, bytes: &[u8]) -> Result<usize, String> {
         self.props = props::parse(bytes)?;
-        self.minimap.invalidate();
         Ok(self.props.len())
     }
 
@@ -475,11 +462,6 @@ impl Scene {
 
     /// Draw the ground and all units into the framebuffer.
     pub fn draw(&mut self) {
-        if let Some(z) = &self.zone {
-            if self.minimap.needs_bake() && !self.backdrop {
-                self.minimap.bake(z, &self.props);
-            }
-        }
         match &self.zone {
             _ if self.backdrop => self.fb.color.fill(BACKDROP),
             Some(z) => ground::draw_zone(&mut self.fb, &self.cam, z, self.cam_y, self.time),
@@ -489,10 +471,6 @@ impl Scene {
         let cam = self.cam;
         let t = self.time;
         props::draw(&mut self.fb, &cam, &self.props, self.cam_y, t);
-        // Contact shadows under props (S2/S3): ground-only, so after props is fine.
-        if self.zone.is_some() {
-            props::draw_shadows(&mut self.fb, &cam, &self.props, self.cam_y);
-        }
         self.lights.clear();
         if self.zone.is_some() {
             for p in self.props.iter().filter(|p| p.kind == props::kind::FIRE_PIT) {
@@ -538,7 +516,7 @@ impl Scene {
             }
             let p = cam.project(c);
             if fx.fade > 0.35 && !self.wading(u) && !matches!(u.preset.body, Body::Node { .. }) {
-                crate::dither::soft_shadow_on(&mut self.fb, p.x, p.y, 13.0 * size / 0.5, 6.0 * size / 0.5, 1.0, crate::dither::UNIT_CORE, Some(p.d));
+                shadow(&mut self.fb, p.x, p.y, 13.0 * size / 0.5, 6.0 * size / 0.5);
             }
         }
         // Units back to front (depth buffer also resolves overlaps).
@@ -657,58 +635,15 @@ impl Scene {
         self.floaters = fl;
     }
 
-    /// Minimap data from the host (names from @bellgrave/config). Re-bakes on next draw.
-    pub fn set_map_title(&mut self, t: &str) {
-        self.minimap.title = t.to_owned();
-        self.minimap.invalidate();
-    }
-    pub fn add_map_road(&mut self, name: &str, pts: &[f32]) {
-        let pts = pts.chunks_exact(2).map(|c| (c[0], c[1])).collect();
-        self.minimap.roads.push(crate::minimap::Road { name: name.to_owned(), pts });
-        self.minimap.invalidate();
-    }
-    pub fn add_map_label(&mut self, text: &str, x: f32, z: f32, kind: u8) {
-        self.minimap.labels.push(crate::minimap::Label { text: text.to_owned(), x, z, kind });
-        self.minimap.invalidate();
-    }
-    pub fn clear_map_data(&mut self) {
-        self.minimap.roads.clear();
-        self.minimap.labels.clear();
-        self.minimap.invalidate();
-    }
-
-    /// Minimap centre and heading: the followed unit, else the camera.
-    fn map_view(&self) -> (f32, f32, f32, Vec<crate::minimap::Marker>) {
-        use crate::minimap::Marker;
-        let me = self.follow.as_deref().and_then(|id| self.units.get(id));
-        let (cx, cz, yaw) = me.map_or((self.cam.cx, self.cam.cz, 0.0), |u| (u.pos.x, u.pos.z, u.yaw));
-        let mut marks = Vec::new();
-        for (id, u) in &self.units {
-            if Some(id.as_str()) == self.follow.as_deref() || matches!(u.preset.body, Body::Node { .. }) || u.anim == AnimState::Dead {
-                continue;
-            }
-            if (u.pos.x - cx).abs() > 70.0 || (u.pos.z - cz).abs() > 70.0 {
-                continue;
-            }
-            let kind = if u.fx.flags & FX_HOSTILE != 0 { 1 } else if u.preset.npc_mark.is_some() { 2 } else { 3 };
-            marks.push(Marker { x: u.pos.x, z: u.pos.z, kind });
-        }
-        (cx, cz, yaw, marks)
-    }
-
     /// Framebuffer as RGBA8 (ImageData layout).
     pub fn write_rgba(&self, out: &mut [u8]) {
         if self.atmosphere && self.zone.is_some() {
             let scroll = (self.cam.cx - self.cam.cz) * stick_engine::camera::ISO_X;
-            crate::atmosphere::write_rgba_key(&self.pal, &self.fb.color, self.fb.w, self.fb.h, &self.lights, &crate::atmosphere::PALE_HOLLOW, scroll, self.keylight, out);
+            crate::atmosphere::write_rgba(&self.pal, &self.fb.color, self.fb.w, self.fb.h, &self.lights, &crate::atmosphere::PALE_HOLLOW, scroll, out);
         } else {
             palette::write_rgba(&self.pal, &self.fb.color, out);
         }
         crate::vfx::blend(&self.vfx.sparks, self.fb.w, self.fb.h, out);
-        if !self.backdrop && self.zone.is_some() && self.minimap.on {
-            let (cx, cz, yaw, marks) = self.map_view();
-            self.minimap.composite(out, self.fb.w, self.fb.h, cx, cz, yaw, &marks);
-        }
         if self.backdrop {
             for (i, &c) in self.fb.color.iter().enumerate() {
                 if c == BACKDROP {
@@ -937,6 +872,22 @@ fn bar(fb: &mut Framebuffer, cx: f32, y: f32, w: i32, frac: f32, col: u8) {
     for dy in 0..2 {
         for dx in 0..w {
             put(fb, x0 + dx, y0 + dy, if dx < fill { col } else { FX_BAR_BG });
+        }
+    }
+}
+
+/// Unit shadow on the ground only (skips pixels already covered by props).
+fn shadow(fb: &mut Framebuffer, cx: f32, cy: f32, rx: f32, ry: f32) {
+    for y in (cy - ry) as i32..=(cy + ry) as i32 {
+        for x in (cx - rx) as i32..=(cx + rx) as i32 {
+            if x < 0 || y < 0 || x >= fb.w as i32 || y >= fb.h as i32 {
+                continue;
+            }
+            let (nx, ny) = ((x as f32 + 0.5 - cx) / rx, (y as f32 + 0.5 - cy) / ry);
+            let i = y as usize * fb.w + x as usize;
+            if nx * nx + ny * ny <= 1.0 && fb.depth[i] == f32::INFINITY {
+                fb.color[i] = C_SHADOW;
+            }
         }
     }
 }

@@ -172,18 +172,20 @@ export const AREAS: Record<AreaId, AreaDef> = {
         id: "ph-ruin-dweller",
         name: "Ruin Dweller",
         tags: ["construct", "ruin"],
-        drops: ["cracked-brick", "metal-scrap", "pale-dust", "chainmail"],
+        // Live PH_ALL_MOBS: cracked-brick / bone-chip / linen-scrap / pale-dust; chainmail is a 1% rare.
+        drops: ["cracked-brick", "bone-chip", "linen-scrap", "pale-dust", "chainmail"],
       },
       {
         id: "ph-bandit",
         name: "Hollow Scavenger",
         tags: ["humanoid", "bandit"],
-        drops: ["linen-scrap", "dried-ration-scrap", "pale-dust"],
+        drops: ["linen-scrap", "bone-chip", "pale-dust"],
       },
       {
         id: "ph-beast",
         name: "Hollow Beast",
-        tags: ["beast"],
+        /** Live spawns: Dust Hare + Ashbeam Boar (PH_ALL_MOBS). */
+        tags: ["beast", "dust_hare", "ashbeam_boar"],
         drops: ["desiccated-hide", "soft-pelt", "horn", "pale-dust"],
       },
       {
@@ -202,7 +204,13 @@ export const AREAS: Record<AreaId, AreaDef> = {
         id: "ph-venom",
         name: "Cliff Adder",
         tags: ["beast", "venom"],
-        drops: ["poison-sac", "pale-dust"],
+        drops: ["soft-pelt", "desiccated-hide", "bone-chip", "pale-dust"],
+      },
+      {
+        id: "ph-golem",
+        name: "Seam Golem",
+        tags: ["construct", "golem"],
+        drops: ["copper-ore", "tin-ore", "cracked-brick"],
       },
     ],
   },
@@ -527,6 +535,13 @@ function hubNpcs(cityId: CityId, prefix: string): CityNpcDef[] {
 }
 
 export const CITIES: Record<CityId, CityDef> = {
+  /**
+   * Live in-game this is the Pale Hollow camp pad (PH_HUB in pale-hollow.ts), not a
+   * separate zone. The game's NPC ids (`npc-shard-elder`, `npc-ph-*` in PH_HUB_NPCS)
+   * are frozen; the `sd-*` ids below are design aliases:
+   * sd-guide=npc-shard-elder, sd-quest=npc-ph-herald, sd-job-master=npc-ph-job-master,
+   * sd-crafter=npc-ph-crafter, sd-vendor=npc-ph-vendor, sd-trainer=(none live yet).
+   */
   shard_dwellings: {
     id: "shard_dwellings",
     name: "The Shard Dwellings",
@@ -537,7 +552,7 @@ export const CITIES: Record<CityId, CityDef> = {
         id: "sd-guide",
         name: "Shard Elder",
         role: "guide",
-        blurb: "Tutorial guide — gathering, combat, and the road to Obsidia.",
+        blurb: "Tutorial guide — gathering, combat, and the road to the Ashlands and Obsidia.",
       },
     ],
   },

@@ -1,7 +1,3 @@
-// Copyright (c) 2026 Black Anvil Network
-// SPDX-License-Identifier: AGPL-3.0-or-later
-// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
-
 //! Pixel particle VFX (#13): projectile / line / burst / ring primitives.
 //! Particles are true-colour and blended additively over the palette image
 //! after lighting, so they glow and don't consume palette slots.
