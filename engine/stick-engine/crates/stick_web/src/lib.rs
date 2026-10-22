@@ -1,7 +1,3 @@
-// Copyright (c) 2026 Black Anvil Network
-// SPDX-License-Identifier: AGPL-3.0-or-later
-// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
-
 //! Browser host: canvas 2D + putImageData, keyboard/mouse input, rAF loop.
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -27,13 +23,6 @@ fn set_key(i: &mut Input, code: &str, down: bool) -> bool {
         "ShiftLeft" | "ShiftRight" => i.run = down,
         "Space" => i.dash = down,
         "KeyJ" => i.attack = down,
-        "KeyH" => i.hair_style = down,
-        "KeyK" => i.hair_color = down,
-        "KeyV" => i.cam_cycle = down,
-        "KeyQ" => i.look_left = down,
-        "KeyE" => i.look_right = down,
-        "KeyR" => i.look_up = down,
-        "KeyF" => i.look_down = down,
         _ => return false,
     }
     true
@@ -51,10 +40,6 @@ pub fn start() -> Result<(), JsValue> {
     let mut game = Game::new(WIDTH, HEIGHT);
     let hash = win.location().hash().unwrap_or_default();
     game.demo = hash.contains("demo");
-    // `#cam=tp` / `#cam=fp` / `#cam=iso` sets the starting camera mode.
-    if let Some(m) = hash.split("cam=").nth(1).and_then(|v| stick_engine::camrig::CamMode::parse(v.split('&').next()?)) {
-        game.set_cam_config(stick_engine::camrig::CamConfig { mode: m, ..game.rig.cfg });
-    }
     // `#demo&t=3.5` fast-forwards the scripted demo (used for screenshots).
     if let Some(t) = hash.split("t=").nth(1).and_then(|v| v.split('&').next()?.parse::<f32>().ok()) {
         let mut i = Input::default();

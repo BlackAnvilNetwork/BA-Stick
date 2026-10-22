@@ -22,7 +22,7 @@ import {
   PH_RIVER_WALL,
   paleHollowBankPoint,
   paleHollowBridgeGeom,
-  paleHollowBridgeDeckY,
+  paleHollowInBridgeWallVisualGap,
   paleHollowRiverCenterX,
   paleHollowTributaryCenterX,
   paleHollowTerrainMeshY,
@@ -208,30 +208,8 @@ export const RIVER_WALL_FREEBOARD = 0.25;
 /** Bank retaining walls + bowl ends + stone bridges (old PaleHollowRiverBanks).
  * Segments run point to point with no overlap pad: the renderer miters shared
  * endpoints (props.rs `link_walls`) so joints and corners meet cleanly. */
-/** Bridge footprints (deck plus a small margin) in which no bank wall may stand. */
-export function bridgeWallKeepouts() {
-  return PH_BRIDGE_SITES.map((site) => {
-    const g = paleHollowBridgeGeom(site);
-    return { x: g.x, z: g.zWorld, sx: g.spanDir.x, sz: g.spanDir.z, halfAlong: g.span * 0.5 + 0.1, halfAcross: PH_BRIDGE_DECK_W * 0.5 + 0.15 };
-  });
-}
-
-/** True when any part of segment a→b lies under a bridge deck. Walls stop at
- * the abutments; the abutment wedges close the bank under each ramp. */
-export function wallHitsBridge(a: { x: number; z: number }, b: { x: number; z: number }): boolean {
-  for (const k of bridgeWallKeepouts()) {
-    for (let i = 0; i <= 8; i++) {
-      const x = a.x + ((b.x - a.x) * i) / 8 - k.x, z = a.z + ((b.z - a.z) * i) / 8 - k.z;
-      const along = x * k.sx + z * k.sz, across = -x * k.sz + z * k.sx;
-      if (Math.abs(along) <= k.halfAlong && Math.abs(across) <= k.halfAcross) return true;
-    }
-  }
-  return false;
-}
-
 function riverBanks(out: Prop[]): void {
   const wall = (a: { x: number; z: number }, b: { x: number; z: number }, pad: number) => {
-    if (wallHitsBridge(a, b)) return;
     const x = (a.x + b.x) * 0.5, z = (a.z + b.z) * 0.5;
     const len = Math.hypot(b.x - a.x, b.z - a.z);
     if (len < 0.15 || !Number.isFinite(x) || !Number.isFinite(z)) return;
@@ -261,6 +239,7 @@ function riverBanks(out: Prop[]): void {
       const pts = zs.map((z) => paleHollowBankPoint(river, z, side));
       for (let i = 0; i < pts.length - 1; i++) {
         const a = pts[i]!, b = pts[i + 1]!;
+        if (paleHollowInBridgeWallVisualGap((a.x + b.x) / 2, (a.z + b.z) / 2, river)) continue;
         wall(a, b, 0);
       }
     }
@@ -279,7 +258,7 @@ function riverBanks(out: Prop[]): void {
   }
   for (const site of PH_BRIDGE_SITES) {
     const g = paleHollowBridgeGeom(site);
-    out.push({ kind: K.bridge, v: Math.round(g.ramp * 200), x: g.x, z: g.zWorld, y: g.leftY, yaw: Math.atan2(g.spanDir.x, g.spanDir.z), s: g.span, w: PH_BRIDGE_DECK_W, h: g.arch, d: g.rightY });
+    out.push({ kind: K.bridge, v: 0, x: g.x, z: g.zWorld, y: g.leftY, yaw: Math.atan2(g.spanDir.x, g.spanDir.z), s: g.span, w: PH_BRIDGE_DECK_W, h: g.arch, d: g.rightY });
   }
 }
 
@@ -308,25 +287,4 @@ export function encodeProps(props: Prop[]): Buffer {
     }
   });
   return buf;
-}
-
-/**
- * Bridge walk heights sampled from the shared config (the server's stand
- * height) next to each bridge prop as baked for the client. Checked in at
- * `src/content/bridge-profile.json`; `src/bake-props.test.ts` keeps it in sync
- * with config and the renderer's Rust test checks its mesh against it.
- */
-export function bridgeProfileSamples() {
-  return PH_BRIDGE_SITES.map((site) => {
-    const g = paleHollowBridgeGeom(site);
-    const prop = paleHollowProps().find((p) => p.kind === K.bridge && Math.abs(p.x - g.x) < 1e-6 && Math.abs(p.z - g.zWorld) < 1e-6)!;
-    const samples = Array.from({ length: 21 }, (_, i) => {
-      const t = i / 20;
-      // stay a hair inside the footprint at the ends
-      const a = (Math.min(0.999, Math.max(0.001, t)) - 0.5) * g.span;
-      const x = g.x + g.spanDir.x * a, z = g.zWorld + g.spanDir.z * a;
-      return { t: Math.min(0.999, Math.max(0.001, t)), y: paleHollowBridgeDeckY(x, z)!, stand: paleHollowStandHeight(x, z) };
-    });
-    return { id: site.id, prop: { v: prop.v, y: prop.y, s: prop.s, w: prop.w, h: prop.h, d: prop.d }, samples };
-  });
 }

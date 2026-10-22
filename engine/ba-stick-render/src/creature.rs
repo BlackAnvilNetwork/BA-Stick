@@ -1,7 +1,3 @@
-// Copyright (c) 2026 Black Anvil Network
-// SPDX-License-Identifier: AGPL-3.0-or-later
-// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
-
 //! Non-biped mobs: quadrupeds (hare hop / boar trot), serpent, blob.
 //! Driven by the unit's ground position, yaw, a gait phase that advances
 //! with distance travelled, and a death collapse factor.
@@ -415,7 +411,7 @@ fn node(fb: &mut Framebuffer, cam: &Camera, method: u8, ps: &Pose) {
         }
     }
     let o = Some(C_OUTLINE);
-    let at = |dx: f32, dy: f32| P2 { s: 1.0, x: c.x + dx, y: c.y + dy, d: c.d - 0.05 };
+    let at = |dx: f32, dy: f32| P2 { x: c.x + dx, y: c.y + dy, d: c.d - 0.05 };
     match method {
         1 => {
             // herb tuft: a few leaves and a bloom
