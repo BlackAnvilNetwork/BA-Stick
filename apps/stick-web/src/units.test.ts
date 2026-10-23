@@ -147,13 +147,16 @@ test("ZoneTracker: first zone, unchanged, then a real change", () => {
 });
 
 import { staticAt } from "./statics";
+import { PH_STORAGE_CHEST } from "@bellgrave/config";
 
 test("staticAt hits the storage chest only in its zone and footprint", () => {
   const toScreen = (x: number, _y: number, z: number): [number, number] => [100 + x * 10, 100 + z * 10];
   const h = () => 0;
-  const hit = staticAt("pale_hollow", 132, 75, toScreen, h); // chest at (3.2,-1.5) → (132, 85)
+  // chest feet at (100 + x*10, 100 + z*10); click 10 px above them
+  const [cx, cy] = toScreen(PH_STORAGE_CHEST.x, 0, PH_STORAGE_CHEST.z);
+  const hit = staticAt("pale_hollow", cx, cy - 10, toScreen, h);
   assert.equal(hit?.send.type, "npc/interact");
-  assert.equal(staticAt("palace_hall", 132, 75, toScreen, h), undefined);
+  assert.equal(staticAt("palace_hall", cx, cy - 10, toScreen, h), undefined);
   assert.equal(staticAt("pale_hollow", 300, 75, toScreen, h), undefined);
 });
 

@@ -25,8 +25,6 @@ export type PlayerProgress = {
   claimedStarter: boolean;
   dust: number;
   subjob: string | null;
-  /** Pale Hollow kill task. Missing on saves from before the field quests. */
-  hollowQuest?: { active: { id: string; kills: number } | null; done: string[] };
   /** Spendable log items were copied into the bag and exported off the log. */
   logItemsMoved: boolean;
   /**

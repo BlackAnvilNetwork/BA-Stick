@@ -42,12 +42,17 @@ pub fn collapse(j: &mut Joints, ground: Vec3, yaw: f32, t: f32) {
 
 pub fn draw(fb: &mut Framebuffer, cam: &Camera, j: &Joints, pr: &Proportions, look: &Look, weapon: Weapon) {
     let garb = Garb { weapon: Some(WeaponLook::plain(weapon)), ..Garb::default() };
-    draw_garbed(fb, cam, j, pr, look, &garb, false);
+    draw_garbed(fb, cam, j, pr, look, &garb);
 }
 
-/// Figure with equipment applied (#14). `fp` draws only the forearms and the
+/// Figure with equipment applied (#14).
+pub fn draw_garbed(fb: &mut Framebuffer, cam: &Camera, j: &Joints, pr: &Proportions, look: &Look, garb: &Garb) {
+    draw_garbed_view(fb, cam, j, pr, look, garb, false);
+}
+
+/// `fp` draws only the forearms and the
 /// weapon (the eye is inside the head).
-pub fn draw_garbed(fb: &mut Framebuffer, cam: &Camera, j: &Joints, pr: &Proportions, look: &Look, garb: &Garb, fp: bool) {
+pub fn draw_garbed_view(fb: &mut Framebuffer, cam: &Camera, j: &Joints, pr: &Proportions, look: &Look, garb: &Garb, fp: bool) {
     let p = |v: Vec3| cam.project(v);
     let o = Some(C_OUTLINE);
     let t = pr.limb_px;
