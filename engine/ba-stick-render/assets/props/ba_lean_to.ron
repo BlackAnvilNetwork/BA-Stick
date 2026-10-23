@@ -1,0 +1,16 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Open lean-to. Four posts, high at the front, and a single sloping roof.
+(
+    id: "ba_lean_to",
+    posts: [
+        (x: -1.15, z: -0.75, y: 1.95, thick: 1.4),
+        (x: 1.15, z: -0.75, y: 1.95, thick: 1.4),
+        (x: -1.15, z: 0.85, y: 1.15, thick: 1.4),
+        (x: 1.15, z: 0.85, y: 1.15, thick: 1.4),
+    ],
+    roof: (y0: 2.05, y1: 1.2, x0: -1.4, x1: 1.4, z0: -0.95, z1: 1.05),
+    walls: [],
+)

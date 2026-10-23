@@ -1,0 +1,16 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Cypress. Two narrow cones, taller than they are wide.
+(
+    id: "ba_cypress",
+    trunk_y: 0.28,
+    trunk_r: 0.042,
+    droop: 0.16,
+    lump: 0.14,
+    tiers: [
+        (y0: 0.22, y1: 0.66, r: 0.20),
+        (y0: 0.48, y1: 1.04, r: 0.12),
+    ],
+)

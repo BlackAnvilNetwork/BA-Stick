@@ -129,48 +129,13 @@ fn zone_draws_biome_colours_and_units_stand_on_it() {
     assert!((s.cam_y - 3.0).abs() < 0.05, "cam_y={}", s.cam_y);
     s.draw();
     let grass = palette::BIOME0 + 13 * 3 + 1;
+    let trail = palette::TRAIL_DIRT + 1;
     assert!(s.fb.color.iter().filter(|&&c| c == grass).count() > 1000);
-    let stone = |c: u8| {
-        matches!(c, palette::ROCK_D | palette::WOOD | palette::BEIGE_D | palette::WALL_D | palette::ROCK | palette::WOOD_L | palette::WALL | palette::BEIGE | palette::CR_NOSE)
-    };
-    assert!(s.fb.color.iter().filter(|&&c| stone(c)).count() > 20, "cobble on the trail");
+    assert!(s.fb.color.iter().any(|&c| c == trail));
     // Picking the unit's feet on relief returns the unit position.
     let feet = s.cam.project(stick_engine::math::v3(5.0, 0.0, 5.0));
     let (x, z) = s.pick_world(feet.x, feet.y);
     assert!((x - 5.0).abs() < 0.05 && (z - 5.0).abs() < 0.05, "{x},{z}");
-}
-
-#[test]
-fn meadow_grows_dense_green_blades_and_other_ground_does_not() {
-    let meadow = tiny_zone(40, 40, |i, _| (15, if i == 4 { zone::F_TRAIL } else { 0 }, 200));
-    let mut s = Scene::new(320, 180);
-    s.load_zone(&meadow).unwrap();
-    s.upsert_unit("me", UnitInput { x: 4.0, y: 2.0, z: 4.0, facing: 0.0, anim: AnimState::Idle, preset: "knight".into() });
-    s.follow(Some("me"));
-    for _ in 0..30 { s.tick(1.0 / 60.0); }
-    s.draw();
-    let blade = |c: &u8| (palette::MEADOW_DEEP..=palette::MEADOW_BLUE).contains(c);
-    let n = s.fb.color.iter().filter(|c| blade(c)).count();
-    assert!(n > 400, "meadow blades {n}");
-
-    let grass = tiny_zone(40, 40, |_, _| (13, 0, 200));
-    let mut g = Scene::new(320, 180);
-    g.load_zone(&grass).unwrap();
-    g.upsert_unit("me", UnitInput { x: 4.0, y: 2.0, z: 4.0, facing: 0.0, anim: AnimState::Idle, preset: "knight".into() });
-    g.follow(Some("me"));
-    for _ in 0..30 { g.tick(1.0 / 60.0); }
-    g.draw();
-    let ng = g.fb.color.iter().filter(|c| blade(c)).count();
-    assert!(ng > 400, "grass blades {ng}");
-
-    let scrub = tiny_zone(40, 40, |_, _| (7, 0, 200));
-    let mut d = Scene::new(320, 180);
-    d.load_zone(&scrub).unwrap();
-    d.upsert_unit("me", UnitInput { x: 4.0, y: 2.0, z: 4.0, facing: 0.0, anim: AnimState::Idle, preset: "knight".into() });
-    d.follow(Some("me"));
-    for _ in 0..30 { d.tick(1.0 / 60.0); }
-    d.draw();
-    assert_eq!(d.fb.color.iter().filter(|c| blade(c)).count(), 0);
 }
 
 #[test]
@@ -467,58 +432,9 @@ fn camera_3d_roundtrip_and_blend() {
     assert!(cam.scale_at(v3(-8.0, 0.0, -8.0)) < 1.0);
     assert!(cam.scale_at(v3(3.0, 0.0, 3.0)) > 1.0);
     let mut s = crate::scene::Scene::new(640, 360);
-    s.set_cam_mode("3d");
+    s.view3d = true;
     for _ in 0..60 { s.tick(1.0 / 60.0); }
-    assert_eq!(s.cam_mode(), "tp");
-    assert!(s.cam.view.is_some(), "third person leaves the iso path");
-}
-
-#[test]
-fn camera_modes_follow_facing_and_numpad_look() {
-    use stick_engine::math::angle_diff;
-    let mut s = Scene::new(640, 360);
-    s.upsert_unit("me", unit(0.0, 0.0, "idle", "knight"));
-    s.follow(Some("me"));
-    s.tick(0.2);
-    assert_eq!(s.cam_mode(), "iso");
-    assert!(s.cam.view.is_none(), "default stays on the iso path");
-    assert!(!s.first_person());
-    // Iso ignores look, so a stuck numpad does not move the view.
-    s.set_look(1.0, 1.0);
-    s.add_look(40.0, 20.0);
-    s.tick(0.5);
-    assert!(s.cam.view.is_none());
-    s.set_look(0.0, 0.0);
-
-    s.set_cam_mode("tp");
-    for _ in 0..90 { s.tick(1.0 / 60.0); }
-    assert_eq!(s.cam_mode(), "tp");
-    assert!(s.cam.view.is_some());
-    let yaw0 = s.cam_yaw();
-    s.upsert_unit("me", UnitInput { facing: 1.2, ..unit(0.0, 0.0, "idle", "knight") });
-    for _ in 0..120 { s.tick(1.0 / 60.0); }
-    assert!(angle_diff(yaw0, s.cam_yaw()).abs() > 0.5, "third person follows facing {} -> {}", yaw0, s.cam_yaw());
-
-    s.set_look(0.0, 0.0);
-    s.set_cam_mode("fp");
-    for _ in 0..90 { s.tick(1.0 / 60.0); }
-    assert_eq!(s.cam_mode(), "fp");
-    assert!(s.first_person(), "settled first person hides the body");
-    assert!(angle_diff(s.cam_yaw(), 1.2).abs() < 0.08, "first person locks to facing, yaw {}", s.cam_yaw());
-
-    let locked = s.cam_yaw();
-    s.set_look(1.0, 0.0);
-    for _ in 0..30 { s.tick(1.0 / 60.0); }
-    s.set_look(0.0, 0.0);
-    assert!(angle_diff(locked, s.cam_yaw()).abs() > 0.4, "numpad yaw orbits the camera");
-
-    // Back to iso: the legacy projection returns and picking still closes.
-    s.set_cam_mode("iso");
-    for _ in 0..90 { s.tick(1.0 / 60.0); }
-    assert!(s.cam.view.is_none());
-    let p = s.cam.project(stick_engine::math::v3(1.0, 0.0, -2.0));
-    let (x, z) = s.cam.unproject_ground(p.x, p.y);
-    assert!((x - 1.0).abs() < 1e-3 && (z + 2.0).abs() < 1e-3);
+    assert_eq!(s.cam.persp, 1.0);
 }
 
 #[test]

@@ -270,7 +270,8 @@ function tokenize(src: string): Tok[] {
   const out: Tok[] = [];
   let i = 0;
   let line = 1;
-  const singles: Record<string, Tok["k"]> = { "(": "(", ")": ")", "[": "[", "]": "]", "{": "{", "}": "}", ":": ":", ",": "," };
+  type Punct = "(" | ")" | "[" | "]" | "{" | "}" | ":" | ",";
+  const singles: Record<string, Punct> = { "(": "(", ")": ")", "[": "[", "]": "]", "{": "{", "}": "}", ":": ":", ",": "," };
   while (i < src.length) {
     const c = src[i]!;
     if (c === "\n") { line++; i++; continue; }

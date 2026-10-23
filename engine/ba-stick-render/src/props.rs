@@ -5,10 +5,10 @@
 //! Static zone props (BAP1 from apps/stick-web/scripts/bake-props.ts): trees,
 //! ground cover, the hub encampment, rock wall and mountain peaks, drawn
 //! procedurally into the depth buffer so units sort in front of / behind them.
-use stick_engine::camera::{Camera, P2, HEIGHT_PX};
+use crate::compat::*;
+use stick_engine::camera::{Camera, HEIGHT_PX, P2};
 use stick_engine::math::{v3, Vec3};
 use stick_engine::raster::Framebuffer;
-use crate::compat::*;
 
 use crate::palette::*;
 
@@ -70,6 +70,10 @@ pub mod kind {
     /// Stone bridge: s = span, w = deck width, h = flat-deck lift over the end-to-end lerp,
     /// y = left end, d = right end height, var = ramp fraction x 200 (trapezoid profile).
     pub const BRIDGE: u8 = 48;
+    /// Closed shed from `ba_shack.ron`.
+    pub const SHACK: u8 = 49;
+    /// Stone stack from `ba_cairn.ron`.
+    pub const CAIRN: u8 = 50;
 }
 
 pub fn parse(bytes: &[u8]) -> Result<Vec<Prop>, String> {
@@ -88,8 +92,14 @@ pub fn parse(bytes: &[u8]) -> Result<Vec<Prop>, String> {
             Prop {
                 kind: bytes[o],
                 var: bytes[o + 1],
-                x: f(o + 2), z: f(o + 6), y: f(o + 10), yaw: f(o + 14),
-                s: f(o + 18), w: f(o + 22), h: f(o + 26), d: f(o + 30),
+                x: f(o + 2),
+                z: f(o + 6),
+                y: f(o + 10),
+                yaw: f(o + 14),
+                s: f(o + 18),
+                w: f(o + 22),
+                h: f(o + 26),
+                d: f(o + 30),
                 j: [0.0; 6],
             }
         })
@@ -106,7 +116,9 @@ pub fn parse(bytes: &[u8]) -> Result<Vec<Prop>, String> {
 /// clean corners, instead of overlapping boxes with stepped copings.
 pub fn link_walls(props: &mut [Prop]) {
     const TOL: f32 = 0.12;
-    let idx: Vec<usize> = (0..props.len()).filter(|&i| props[i].kind == kind::RIVER_WALL).collect();
+    let idx: Vec<usize> = (0..props.len())
+        .filter(|&i| props[i].kind == kind::RIVER_WALL)
+        .collect();
     // (prop, end 0 = start / 1 = end, x, z, direction pointing out of the segment through that end)
     let ends: Vec<(usize, usize, f32, f32, f32, f32)> = idx
         .iter()
@@ -114,7 +126,10 @@ pub fn link_walls(props: &mut [Prop]) {
             let p = props[i];
             let (fx, fz) = (p.yaw.sin(), p.yaw.cos());
             let h = p.s * 0.5;
-            [(i, 0, p.x - fx * h, p.z - fz * h, -fx, -fz), (i, 1, p.x + fx * h, p.z + fz * h, fx, fz)]
+            [
+                (i, 0, p.x - fx * h, p.z - fz * h, -fx, -fz),
+                (i, 1, p.x + fx * h, p.z + fz * h, fx, fz),
+            ]
         })
         .collect();
     for a in 0..ends.len() {
@@ -125,7 +140,9 @@ pub fn link_walls(props: &mut [Prop]) {
             .map(|e| (e, (e.2 - x).hypot(e.3 - z)))
             .filter(|(_, d)| *d < TOL)
             .min_by(|a, b| a.1.total_cmp(&b.1));
-        let Some((&(j, _, _, _, px, pz), _)) = best else { continue };
+        let Some((&(j, _, _, _, px, pz), _)) = best else {
+            continue;
+        };
         // travel into the joint along (ox, oz), leave it along -(px, pz)
         let (bx, bz) = (ox - px, oz - pz);
         let bl = bx.hypot(bz);
@@ -162,7 +179,8 @@ pub fn footprint(p: &Prop) -> Option<f32> {
         kind::TENT => 1.6,
         kind::CRATE => p.w.max(p.d) * 0.75,
         kind::CHEST => 0.6,
-        kind::LEAN_TO => 1.4,
+        kind::LEAN_TO | kind::SHACK => 1.6,
+        kind::CAIRN => 0.7,
         kind::TRAINER => 0.7,
         kind::STALL => 1.15,
         kind::WEAPON_RACK => 0.6,
@@ -183,7 +201,10 @@ pub fn draw_shadows(fb: &mut Framebuffer, cam: &Camera, props: &[Prop], cam_y: f
         let c = v3(p.x + ox, p.y - cam_y, p.z + oz);
         let q = cam.project(c);
         let k = cam.scale_at(c) * std::f32::consts::SQRT_2;
-        let (rx, ry) = (r * stick_engine::camera::ISO_X * k, r * stick_engine::camera::ISO_Y * k);
+        let (rx, ry) = (
+            r * stick_engine::camera::ISO_X * k,
+            r * stick_engine::camera::ISO_Y * k,
+        );
         if q.x + rx < 0.0 || q.x - rx > w || q.y + ry < 0.0 || q.y - ry > h {
             continue;
         }
@@ -271,28 +292,59 @@ fn face_dark(c: u8) -> u8 {
 impl Ctx<'_> {
     /// Local (right, up, forward) → projected point.
     fn p(&self, rx: f32, uy: f32, fz: f32) -> P2 {
-        self.cam.project(self.base + self.r * rx + v3(0.0, uy, 0.0) + self.f * fz)
+        self.cam
+            .project(self.base + self.r * rx + v3(0.0, uy, 0.0) + self.f * fz)
     }
     fn quad(&mut self, a: P2, b: P2, c: P2, d: P2, col: u8) {
         tri(self.fb, a, b, c, col);
         tri(self.fb, a, c, d, col);
     }
     fn edge(&mut self, a: P2, b: P2) {
-        self.fb.line(P2 { d: a.d - 0.02, ..a }, P2 { d: b.d - 0.02, ..b }, C_OUTLINE);
+        self.fb.line(
+            P2 { d: a.d - 0.02, ..a },
+            P2 { d: b.d - 0.02, ..b },
+            C_OUTLINE,
+        );
     }
     /// Oriented box centred at local (cx, cz), base at y0.
     #[allow(clippy::too_many_arguments)]
-    fn boxy(&mut self, cx: f32, y0: f32, cz: f32, w: f32, h: f32, d: f32, top: u8, lit: u8, dark: u8) {
+    fn boxy(
+        &mut self,
+        cx: f32,
+        y0: f32,
+        cz: f32,
+        w: f32,
+        h: f32,
+        d: f32,
+        top: u8,
+        lit: u8,
+        dark: u8,
+    ) {
         let (hw, hd) = (w * 0.5, d * 0.5);
         let c = |sx: f32, y: f32, sz: f32| (cx + sx * hw, y, cz + sz * hd);
-        let corners = [c(-1.0, 0.0, -1.0), c(1.0, 0.0, -1.0), c(1.0, 0.0, 1.0), c(-1.0, 0.0, 1.0)];
-        let lo: Vec<P2> = corners.iter().map(|&(x, y, z)| self.p(x, y0 + y, z)).collect();
-        let hi: Vec<P2> = corners.iter().map(|&(x, _, z)| self.p(x, y0 + h, z)).collect();
+        let corners = [
+            c(-1.0, 0.0, -1.0),
+            c(1.0, 0.0, -1.0),
+            c(1.0, 0.0, 1.0),
+            c(-1.0, 0.0, 1.0),
+        ];
+        let lo: Vec<P2> = corners
+            .iter()
+            .map(|&(x, y, z)| self.p(x, y0 + y, z))
+            .collect();
+        let hi: Vec<P2> = corners
+            .iter()
+            .map(|&(x, _, z)| self.p(x, y0 + h, z))
+            .collect();
         if !self.polish {
             // Side faces: draw all four; depth keeps the visible ones. Shade by facing.
             for i in 0..4 {
                 let j = (i + 1) % 4;
-                let col = if (hi[i].x + hi[j].x) * 0.5 > (hi[0].x + hi[2].x) * 0.5 { lit } else { dark };
+                let col = if (hi[i].x + hi[j].x) * 0.5 > (hi[0].x + hi[2].x) * 0.5 {
+                    lit
+                } else {
+                    dark
+                };
                 self.quad(lo[i], lo[j], hi[j], hi[i], col);
             }
             self.quad(hi[0], hi[1], hi[2], hi[3], top);
@@ -320,7 +372,10 @@ impl Ctx<'_> {
                 // P2: dithered strata row every ~0.6 m, one step darker.
                 let mut y = 0.6;
                 while y < h - 0.2 {
-                    let (a, b) = (self.p(corners[i].0, y0 + y, corners[i].2), self.p(corners[j].0, y0 + y, corners[j].2));
+                    let (a, b) = (
+                        self.p(corners[i].0, y0 + y, corners[i].2),
+                        self.p(corners[j].0, y0 + y, corners[j].2),
+                    );
                     self.dither_line(a, b, face_dark(col), 0.5);
                     y += 0.6;
                 }
@@ -336,7 +391,11 @@ impl Ctx<'_> {
             let my = lo.iter().map(|q| q.y).sum::<f32>() * 0.25;
             let score = |i: usize| {
                 let j = (i + 1) % 4;
-                if (lo[i].y + lo[j].y) * 0.5 <= my { -1.0 } else { (hi[j].x - hi[i].x).abs() }
+                if (lo[i].y + lo[j].y) * 0.5 <= my {
+                    -1.0
+                } else {
+                    (hi[j].x - hi[i].x).abs()
+                }
             };
             if let Some(i) = (0..4).max_by(|&a, &b| score(a).total_cmp(&score(b))) {
                 let j = (i + 1) % 4;
@@ -354,24 +413,34 @@ impl Ctx<'_> {
         // Screen-silhouette verticals stay black; interior verticals soften to the
         // face's dark step (P6); top edges over sun-facing faces get the pale
         // highlight (P1), the rest stay black.
-        let (minx, maxx) = hi.iter().fold((f32::MAX, f32::MIN), |(a, b), q| (a.min(q.x), b.max(q.x)));
+        let (minx, maxx) = hi
+            .iter()
+            .fold((f32::MAX, f32::MIN), |(a, b), q| (a.min(q.x), b.max(q.x)));
         for i in 0..4 {
             let j = (i + 1) % 4;
-            let top_col = if lit_face[i] { top_highlight(top) } else { C_OUTLINE };
+            let top_col = if lit_face[i] {
+                top_highlight(top)
+            } else {
+                C_OUTLINE
+            };
             self.edge_col(hi[i], hi[j], top_col);
             let sil = hi[i].x <= minx + 0.5 || hi[i].x >= maxx - 0.5;
             self.edge_col(lo[i], hi[i], if sil { C_OUTLINE } else { face_dark(dark) });
         }
     }
     fn edge_col(&mut self, a: P2, b: P2, col: u8) {
-        self.fb.line(P2 { d: a.d - 0.02, ..a }, P2 { d: b.d - 0.02, ..b }, col);
+        self.fb
+            .line(P2 { d: a.d - 0.02, ..a }, P2 { d: b.d - 0.02, ..b }, col);
     }
     /// Depth-tested line that only writes pixels passing a 2D ordered dither.
     fn dither_line(&mut self, a: P2, b: P2, col: u8, level: f32) {
         let n = (b.x - a.x).abs().max((b.y - a.y).abs()).ceil().max(1.0) as i32;
         for k in 0..=n {
             let t = k as f32 / n as f32;
-            let (x, y) = ((a.x + (b.x - a.x) * t) as i32, (a.y + (b.y - a.y) * t) as i32);
+            let (x, y) = (
+                (a.x + (b.x - a.x) * t) as i32,
+                (a.y + (b.y - a.y) * t) as i32,
+            );
             if crate::dither::on(x, y, level) {
                 self.fb.plot(x, y, a.d + (b.d - a.d) * t - 0.01, col);
             }
@@ -383,16 +452,40 @@ impl Ctx<'_> {
     /// `coping` rides on the (joined) wall top at both ends; the body runs from
     /// the joined base to the joined top.
     #[allow(clippy::too_many_arguments)]
-    fn wall_run(&mut self, p: &Prop, w: f32, y0: f32, h: f32, top: u8, lit: u8, dark: u8, coping: bool) {
+    fn wall_run(
+        &mut self,
+        p: &Prop,
+        w: f32,
+        y0: f32,
+        h: f32,
+        top: u8,
+        lit: u8,
+        dark: u8,
+        coping: bool,
+    ) {
         let hw = w * 0.5;
         let hs = p.s * 0.5;
         let [k0, k1, b0, b1, t0, t1] = p.j;
-        let joined = [k0 != 0.0 || b0 != 0.0 || t0 != 0.0, k1 != 0.0 || b1 != 0.0 || t1 != 0.0];
+        let joined = [
+            k0 != 0.0 || b0 != 0.0 || t0 != 0.0,
+            k1 != 0.0 || b1 != 0.0 || t1 != 0.0,
+        ];
         let (lo0, lo1) = if coping { (t0, t1) } else { (b0, b1) };
         // corners in boxy order: (-r,start) (+r,start) (+r,end) (-r,end)
-        let cs = [(-hw, -hs - hw * k0, lo0, t0), (hw, -hs + hw * k0, lo0, t0), (hw, hs + hw * k1, lo1, t1), (-hw, hs - hw * k1, lo1, t1)];
-        let lo: Vec<P2> = cs.iter().map(|&(rx, fz, dl, _)| self.p(rx, y0 + dl, fz)).collect();
-        let hi: Vec<P2> = cs.iter().map(|&(rx, fz, _, dt)| self.p(rx, y0 + h + dt, fz)).collect();
+        let cs = [
+            (-hw, -hs - hw * k0, lo0, t0),
+            (hw, -hs + hw * k0, lo0, t0),
+            (hw, hs + hw * k1, lo1, t1),
+            (-hw, hs - hw * k1, lo1, t1),
+        ];
+        let lo: Vec<P2> = cs
+            .iter()
+            .map(|&(rx, fz, dl, _)| self.p(rx, y0 + dl, fz))
+            .collect();
+        let hi: Vec<P2> = cs
+            .iter()
+            .map(|&(rx, fz, _, dt)| self.p(rx, y0 + h + dt, fz))
+            .collect();
         let mid = (hi[0].x + hi[2].x) * 0.5;
         for i in 0..4 {
             let j = (i + 1) % 4;
@@ -400,7 +493,11 @@ impl Ctx<'_> {
             if (i == 0 && joined[0]) || (i == 2 && joined[1]) {
                 continue;
             }
-            let col = if (hi[i].x + hi[j].x) * 0.5 > mid { lit } else { dark };
+            let col = if (hi[i].x + hi[j].x) * 0.5 > mid {
+                lit
+            } else {
+                dark
+            };
             self.quad(lo[i], lo[j], hi[j], hi[i], col);
         }
         self.quad(hi[0], hi[1], hi[2], hi[3], top);
@@ -427,10 +524,22 @@ impl Ctx<'_> {
             return;
         }
         let at = |c: &Self, side: f32, y: f32, fz: f32| c.p(rx + side * hw, y, fz);
-        let ll: Vec<P2> = st.iter().map(|&(fz, lo, _)| at(self, -1.0, lo, fz)).collect();
-        let lh: Vec<P2> = st.iter().map(|&(fz, _, hi)| at(self, -1.0, hi, fz)).collect();
-        let rl: Vec<P2> = st.iter().map(|&(fz, lo, _)| at(self, 1.0, lo, fz)).collect();
-        let rh: Vec<P2> = st.iter().map(|&(fz, _, hi)| at(self, 1.0, hi, fz)).collect();
+        let ll: Vec<P2> = st
+            .iter()
+            .map(|&(fz, lo, _)| at(self, -1.0, lo, fz))
+            .collect();
+        let lh: Vec<P2> = st
+            .iter()
+            .map(|&(fz, _, hi)| at(self, -1.0, hi, fz))
+            .collect();
+        let rl: Vec<P2> = st
+            .iter()
+            .map(|&(fz, lo, _)| at(self, 1.0, lo, fz))
+            .collect();
+        let rh: Vec<P2> = st
+            .iter()
+            .map(|&(fz, _, hi)| at(self, 1.0, hi, fz))
+            .collect();
         // the side further right on screen catches the light
         let right_lit = rh[st.len() / 2].x >= lh[st.len() / 2].x;
         let (lc, rc) = if right_lit { (dark, lit) } else { (lit, dark) };
@@ -460,6 +569,300 @@ impl Ctx<'_> {
     }
 }
 
+/// Radius of the trunk at height `t` (0 ground, 1 crown) and `angle`.
+/// Wide and rooted at the ground, narrower where it enters the crown.
+fn trunk_rad(seed: f32, t: f32, angle: f32, base: f32) -> f32 {
+    let taper = 1.0 - t * 0.58;
+    let flare = if t < 0.4 { 1.0 + (0.4 - t) / 0.4 * 0.75 } else { 1.0 };
+    let bark = 0.88 + 0.24 * hash(seed, angle.sin() * 4.0 + 1.3);
+    let mut rad = base * taper * flare * bark;
+    if t < 0.32 {
+        let mut spur = 0.0f32;
+        for k in 0..3 {
+            let root = hash(seed, 22.0 + k as f32) * std::f32::consts::TAU;
+            let d = (angle - root).abs().rem_euclid(std::f32::consts::TAU);
+            let d = d.min(std::f32::consts::TAU - d);
+            spur = spur.max((1.0 - d / 0.48).max(0.0));
+        }
+        rad *= 1.0 + spur * (1.0 - t / 0.32) * 0.85;
+    }
+    rad
+}
+
+fn draw_trunk(c: &mut Ctx, seed: f32, lean: (f32, f32), top: f32, base: f32) {
+    if top <= 0.05 || base <= 0.01 {
+        return;
+    }
+    const STEPS: usize = 10;
+    const BANDS: usize = 5;
+    let phase = hash(seed, 21.0) * std::f32::consts::TAU;
+    let mut rings: Vec<Vec<P2>> = Vec::with_capacity(BANDS + 1);
+    let mut xz: Vec<Vec<(f32, f32)>> = Vec::with_capacity(BANDS + 1);
+    for b in 0..=BANDS {
+        let t = b as f32 / BANDS as f32;
+        let y = top * t;
+        let mut ring = Vec::with_capacity(STEPS);
+        let mut flat = Vec::with_capacity(STEPS);
+        for i in 0..STEPS {
+            let a = phase + i as f32 / STEPS as f32 * std::f32::consts::TAU;
+            let rad = trunk_rad(seed, t, a, base);
+            let rx = a.cos() * rad + lean.0 * y;
+            let fz = a.sin() * rad + lean.1 * y;
+            ring.push(c.p(rx, y, fz));
+            flat.push((rx, fz));
+        }
+        rings.push(ring);
+        xz.push(flat);
+    }
+    for b in 0..BANDS {
+        for i in 0..STEPS {
+            let j = (i + 1) % STEPS;
+            let (ax, az) = xz[b][i];
+            let (bx, bz) = xz[b][j];
+            let col = foliage(sun_of(c, ax + bx, az + bz), WOOD_D, WOOD, WOOD_L);
+            c.quad(rings[b][i], rings[b][j], rings[b + 1][j], rings[b + 1][i], col);
+        }
+    }
+    // Outline the part that shows under the crown. The upper bands sit inside the boughs.
+    let shown = BANDS / 2 + 1;
+    for b in 0..shown {
+        let (mut li, mut ri) = (0usize, 0usize);
+        for i in 1..STEPS {
+            if rings[b][i].x < rings[b][li].x {
+                li = i;
+            }
+            if rings[b][i].x > rings[b][ri].x {
+                ri = i;
+            }
+        }
+        let (mut lj, mut rj) = (0usize, 0usize);
+        for i in 1..STEPS {
+            if rings[b + 1][i].x < rings[b + 1][lj].x {
+                lj = i;
+            }
+            if rings[b + 1][i].x > rings[b + 1][rj].x {
+                rj = i;
+            }
+        }
+        c.edge(rings[b][li], rings[b + 1][lj]);
+        c.edge(rings[b][ri], rings[b + 1][rj]);
+    }
+    let base_ring = &rings[0];
+    let mut ys: Vec<f32> = base_ring.iter().map(|p| p.y).collect();
+    ys.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    let midy = ys[STEPS / 2];
+    for i in 0..STEPS {
+        let j = (i + 1) % STEPS;
+        if base_ring[i].y >= midy && base_ring[j].y >= midy {
+            c.edge(base_ring[i], base_ring[j]);
+        }
+    }
+}
+
+/// Conifer grown from the species in RON. The trunk leans, and each tier is a
+/// solid core with a whorl of boughs whose lengths come from where the tree stands.
+fn draw_shelter(c: &mut Ctx, def: &crate::structure::ShelterDef) {
+    for post in &def.posts {
+        c.cap(c.p(post.x, 0.0, post.z), c.p(post.x, post.y, post.z), post.thick, WOOD_D);
+    }
+    let roof = &def.roof;
+    let lift = 0.08;
+    let fl = c.p(roof.x0, roof.y0, roof.z0);
+    let fr = c.p(roof.x1, roof.y0, roof.z0);
+    let br = c.p(roof.x1, roof.y1, roof.z1);
+    let bl = c.p(roof.x0, roof.y1, roof.z1);
+    let ufl = c.p(roof.x0, roof.y0 + lift, roof.z0);
+    let ufr = c.p(roof.x1, roof.y0 + lift, roof.z0);
+    let ubr = c.p(roof.x1, roof.y1 + lift, roof.z1);
+    let ubl = c.p(roof.x0, roof.y1 + lift, roof.z1);
+    c.quad(fl, fr, br, bl, OLIVE_D);
+    c.quad(ufl, ufr, ubr, ubl, OLIVE);
+    c.quad(fl, ufl, ubl, bl, WOOD);
+    c.quad(fr, ufr, ubr, br, WOOD_D);
+    for (a, b) in [(ufl, ufr), (ufr, ubr), (ubr, ubl), (ubl, ufl)] {
+        c.edge(a, b);
+    }
+    for wall in &def.walls {
+        let a = c.p(wall.x0, 0.04, wall.z0);
+        let b = c.p(wall.x1, 0.04, wall.z1);
+        let top_a = c.p(wall.x0, wall.y, wall.z0);
+        let top_b = c.p(wall.x1, wall.y, wall.z1);
+        c.quad(a, b, top_b, top_a, WOOD);
+        c.edge(top_a, top_b);
+    }
+}
+
+fn draw_cairn(c: &mut Ctx) {
+    const STEPS: usize = 8;
+    for tier in &crate::structure::cairn().tiers {
+        let mut rings = Vec::with_capacity(2);
+        let mut flat = Vec::with_capacity(2);
+        for (y, rad) in [(tier.y0, tier.r), (tier.y1, tier.r * 0.08)] {
+            let mut ring = Vec::with_capacity(STEPS);
+            let mut xz = Vec::with_capacity(STEPS);
+            for i in 0..STEPS {
+                let a = i as f32 / STEPS as f32 * std::f32::consts::TAU;
+                let rx = a.cos() * rad;
+                let fz = a.sin() * rad;
+                ring.push(c.p(rx, y, fz));
+                xz.push((rx, fz));
+            }
+            rings.push(ring);
+            flat.push(xz);
+        }
+        for i in 0..STEPS {
+            let j = (i + 1) % STEPS;
+            let (rx, fz) = flat[0][i];
+            let col = foliage(sun_of(c, rx, fz), ROCK_D, ROCK, ROCK_L);
+            c.quad(rings[0][i], rings[0][j], rings[1][j], rings[1][i], col);
+        }
+    }
+}
+
+fn draw_conifer(c: &mut Ctx, p: &Prop, def: &crate::tree::TreeDef, dark: u8, mid: u8, lit: u8) {
+    let seed = hash(p.x + p.kind as f32 * 17.0, p.z);
+    let s = p.s.max(0.4);
+    let lean = (
+        (hash(seed, 8.0) - 0.5) * 0.10,
+        (hash(seed, 9.0) - 0.5) * 0.10,
+    );
+    let top = s * def.trunk_y * (0.9 + 0.2 * hash(seed, 1.5));
+    let base_r = s * def.trunk_r * (0.88 + 0.28 * hash(seed, 1.7));
+    draw_trunk(c, seed, lean, top, base_r);
+    for (i, tier) in def.tiers.iter().enumerate() {
+        draw_tier(c, s, tier, i, seed, lean, def.droop, def.lump, dark, mid, lit);
+    }
+}
+
+fn foliage(sun: f32, dark: u8, mid: u8, lit: u8) -> u8 {
+    if sun > 0.22 {
+        lit
+    } else if sun < -0.12 {
+        dark
+    } else {
+        mid
+    }
+}
+
+fn sun_of(c: &Ctx, rx: f32, fz: f32) -> f32 {
+    let ox = c.r.x * rx + c.f.x * fz;
+    let oz = c.r.z * rx + c.f.z * fz;
+    oz / (ox * ox + oz * oz).sqrt().max(1e-3)
+}
+
+/// Length of bough `i` in a whorl, as a fraction of the tier radius.
+fn bough_grow(seed: f32, tier: usize, i: usize, n: usize, lump: f32) -> f32 {
+    let a = i as f32 / n as f32 * std::f32::consts::TAU;
+    (0.78 + lump * 1.15 * hash(seed + tier as f32 * 19.0, a)).min(1.2)
+}
+
+fn draw_tier(
+    c: &mut Ctx,
+    s: f32,
+    tier: &crate::tree::TreeTier,
+    tier_i: usize,
+    seed: f32,
+    lean: (f32, f32),
+    droop: f32,
+    lump: f32,
+    dark: u8,
+    mid: u8,
+    lit: u8,
+) {
+    let y0 = s * (tier.y0 + (hash(seed, 30.0 + tier_i as f32) - 0.5) * 0.05);
+    let mut y1 = s * (tier.y1 + (hash(seed, 31.0 + tier_i as f32) - 0.5) * 0.04);
+    y1 = y1.max(y0 + 0.12 * s);
+    let r0 = s * tier.r * (0.86 + 0.28 * hash(seed, 40.0 + tier_i as f32));
+    draw_core(c, y0, y1, r0, lean, seed, tier_i, droop, lump, dark, mid, lit);
+    let n = 5 + (hash(seed, 11.0 + tier_i as f32) * if droop < 0.25 { 2.0 } else { 4.0 }) as usize;
+    let phase = hash(seed, 12.0 + tier_i as f32) * std::f32::consts::TAU;
+    for i in 0..n {
+        let a = phase + i as f32 / n as f32 * std::f32::consts::TAU;
+        let len = r0 * bough_grow(seed, tier_i, i, n, lump);
+        let hang = droop * len * (0.65 + 0.7 * hash(seed, a + 4.0));
+        let y_tip = y0 - hang * 0.45;
+        let y_in = y0 + (y1 - y0) * 0.28;
+        let (sn, cs) = (a.sin(), a.cos());
+        let (px, pz) = (-sn, cs);
+        let inner = r0 * 0.4;
+        let wide = len * 0.22;
+        let at = |rad: f32, side: f32, y: f32| {
+            c.p(
+                cs * rad + px * side + lean.0 * y,
+                y,
+                sn * rad + pz * side + lean.1 * y,
+            )
+        };
+        let il = at(inner, inner * 0.45, y_in);
+        let ir = at(inner, -inner * 0.45, y_in);
+        let tl = at(len * 0.92, wide, y_tip + hang * 0.18);
+        let tr = at(len * 0.92, -wide, y_tip + hang * 0.18);
+        let tip = at(len, 0.0, y_tip);
+        let mut col = foliage(sun_of(c, cs, sn), dark, mid, lit);
+        if hash(seed, a * 9.0 + tier_i as f32) > 0.74 {
+            col = if col == lit { mid } else { lit };
+        }
+        c.quad(il, ir, tr, tl, col);
+        tri(c.fb, tl, tr, tip, col);
+        c.edge(tl, tip);
+        c.edge(tr, tip);
+    }
+}
+
+fn draw_core(
+    c: &mut Ctx,
+    y0: f32,
+    y1: f32,
+    r0: f32,
+    lean: (f32, f32),
+    seed: f32,
+    tier_i: usize,
+    droop: f32,
+    lump: f32,
+    dark: u8,
+    mid: u8,
+    lit: u8,
+) {
+    const STEPS: usize = 8;
+    const BANDS: usize = 3;
+    let lump_c = lump * 0.35;
+    let phase = hash(seed, 3.0 + tier_i as f32) * std::f32::consts::TAU;
+    let mut rings: Vec<Vec<P2>> = Vec::with_capacity(BANDS + 1);
+    let mut xz: Vec<Vec<(f32, f32)>> = Vec::with_capacity(BANDS + 1);
+    for b in 0..=BANDS {
+        let t = b as f32 / BANDS as f32;
+        let y_nom = y0 + (y1 - y0) * t;
+        let rad_b = r0 * 0.62 * (1.0 - t);
+        let mut ring = Vec::with_capacity(STEPS);
+        let mut flat = Vec::with_capacity(STEPS);
+        for i in 0..STEPS {
+            let a = phase + i as f32 / STEPS as f32 * std::f32::consts::TAU;
+            let n = hash(seed + tier_i as f32 * 19.0, a + t);
+            let rad = if b == BANDS {
+                r0 * 0.03
+            } else {
+                (rad_b * (1.0 - lump_c + 2.0 * lump_c * n)).max(r0 * 0.03)
+            };
+            let y = y_nom - rad * droop * 0.28 * (1.0 - t);
+            let rx = a.cos() * rad + lean.0 * y;
+            let fz = a.sin() * rad + lean.1 * y;
+            ring.push(c.p(rx, y, fz));
+            flat.push((rx, fz));
+        }
+        rings.push(ring);
+        xz.push(flat);
+    }
+    for b in 0..BANDS {
+        for i in 0..STEPS {
+            let j = (i + 1) % STEPS;
+            let (ax, az) = xz[b][i];
+            let (bx, bz) = xz[b][j];
+            let col = foliage(sun_of(c, ax + bx, az + bz), dark, mid, lit);
+            c.quad(rings[b][i], rings[b][j], rings[b + 1][j], rings[b + 1][i], col);
+        }
+    }
+}
+
 fn hash(a: f32, b: f32) -> f32 {
     let s = (a * 127.1 + b * 311.7).sin() * 43758.547;
     s - s.floor()
@@ -468,7 +871,11 @@ fn hash(a: f32, b: f32) -> f32 {
 /// Ramp fraction of a bridge prop: `var` carries it in 1/200 steps (the bake
 /// quantises `paleHollowBridgeGeom().ramp` the same way); 0 = default 0.3.
 pub fn bridge_ramp(p: &Prop) -> f32 {
-    if p.var == 0 { 0.3 } else { p.var as f32 / 200.0 }
+    if p.var == 0 {
+        0.3
+    } else {
+        p.var as f32 / 200.0
+    }
 }
 
 /// Deck height of a bridge prop at span parameter `t`, relative to its left end
@@ -486,14 +893,28 @@ pub fn draw(fb: &mut Framebuffer, cam: &Camera, props: &[Prop], cam_y: f32, time
         let base = v3(p.x, p.y - cam_y, p.z);
         let sp = cam.project(base);
         let pad = reach(p) * 40.0 + 40.0;
-        let tall = match p.kind { kind::BRIDGE => 120.0 + p.s * 16.0, kind::PEAK => p.h * HEIGHT_PX + 40.0, 0..=4 => p.s * HEIGHT_PX + 20.0, _ => 120.0 };
+        let tall = match p.kind {
+            kind::BRIDGE => 120.0 + p.s * 16.0,
+            kind::PEAK => p.h * HEIGHT_PX + 40.0,
+            0..=4 => p.s * HEIGHT_PX + 20.0,
+            _ => 120.0,
+        };
         if sp.x < -pad || sp.x > w + pad || sp.y < -pad || sp.y - tall > h + pad {
             continue;
         }
         let f = v3(p.yaw.sin(), 0.0, p.yaw.cos());
         let r = v3(p.yaw.cos(), 0.0, -p.yaw.sin());
-        let mut c = Ctx { fb, cam, base, f, r, polish: p.kind != kind::BRIDGE, strata: p.kind == kind::WALL_BLOCK,
-            crack: matches!(p.kind, kind::STONE | kind::ROCK).then(|| (p.x * 7.31 + p.z * 3.17).sin().abs()) };
+        let mut c = Ctx {
+            fb,
+            cam,
+            base,
+            f,
+            r,
+            polish: p.kind != kind::BRIDGE,
+            strata: p.kind == kind::WALL_BLOCK,
+            crack: matches!(p.kind, kind::STONE | kind::ROCK)
+                .then(|| (p.x * 7.31 + p.z * 3.17).sin().abs()),
+        };
         draw_one(&mut c, p, time);
     }
 }
@@ -516,68 +937,86 @@ fn draw_one(c: &mut Ctx, p: &Prop, time: f32) {
             let curve = |t: f32| bridge_curve(p, t);
             let ts = [0.0, r, 1.0 - r, 1.0];
             let st = |lo: f32, hi: f32| -> Vec<(f32, f32, f32)> {
-                ts.iter().map(|&t| (-p.s * 0.5 + p.s * t, curve(t) + lo, curve(t) + hi)).collect()
+                ts.iter()
+                    .map(|&t| (-p.s * 0.5 + p.s * t, curve(t) + lo, curve(t) + hi))
+                    .collect()
             };
             // deck top in the stone-trail colour: walkable surfaces share the trail palette,
             // so it reads apart from the (blocked) wall copings and parapets
             c.ribbon(0.0, p.w * 0.5, &st(-0.22, 0.0), TRAIL_STONE, BANK, BANK_D);
             for side in [-1.0f32, 1.0] {
-                c.ribbon(side * (p.w * 0.5 - 0.12), 0.12, &st(0.0, 0.42), BANK, BANK_D, BANK_DD);
+                c.ribbon(
+                    side * (p.w * 0.5 - 0.12),
+                    0.12,
+                    &st(0.0, 0.42),
+                    BANK,
+                    BANK_D,
+                    BANK_DD,
+                );
             }
             // abutments: a solid wedge under each ramp, from the bank grass up to the deck
             for (t0, t1, foot) in [(0.0f32, r, curve(0.0)), (1.0 - r, 1.0, curve(1.0))] {
-                let ab: Vec<(f32, f32, f32)> =
-                    [t0, t1].iter().map(|&t| (-p.s * 0.5 + p.s * t, foot - 0.3, curve(t) - 0.22)).collect();
+                let ab: Vec<(f32, f32, f32)> = [t0, t1]
+                    .iter()
+                    .map(|&t| (-p.s * 0.5 + p.s * t, foot - 0.3, curve(t) - 0.22))
+                    .collect();
                 c.ribbon(0.0, p.w * 0.5 - 0.02, &ab, BANK, BANK_D, BANK_DD);
             }
             // pier under mid-span down to the river bed
             let mid = curve(0.5);
-            c.boxy(0.0, -1.2, 0.0, p.w * 0.8, mid + 1.0, 0.7, BANK, BANK_D, BANK_DD);
+            c.boxy(
+                0.0,
+                -1.2,
+                0.0,
+                p.w * 0.8,
+                mid + 1.0,
+                0.7,
+                BANK,
+                BANK_D,
+                BANK_DD,
+            );
         }
         kind::PINE | kind::SPRUCE | kind::CYPRESS => {
-            let (d, m, l) = match p.kind {
-                kind::CYPRESS => (CYP_D, CYP, PINE),
-                kind::SPRUCE => (PINE_D, PINE_D, PINE),
-                _ => (PINE_D, PINE, PINE_L),
+            let (def, dark, mid, lit) = match p.kind {
+                kind::CYPRESS => (crate::tree::cypress(), CYP_D, CYP, PINE),
+                kind::SPRUCE => (crate::tree::spruce(), PINE_D, PINE_D, PINE),
+                _ => (crate::tree::pine(), PINE_D, PINE, PINE_L),
             };
-            let trunk_top = s * 0.3;
-            let (a, b) = (up(c, 0.0), up(c, trunk_top));
-            c.cap(a, b, 1.6 + s * 0.15, WOOD_D);
-            let tiers = if p.kind == kind::CYPRESS { 2 } else { 3 };
-            let width = if p.kind == kind::CYPRESS { 0.22 } else { 0.42 };
-            for t in 0..tiers {
-                let k = t as f32 / tiers as f32;
-                let y0 = trunk_top * 0.6 + (s - trunk_top * 0.6) * k * 0.78;
-                let y1 = y0 + (s - y0) * (if p.kind == kind::CYPRESS { 1.0 } else { 0.62 });
-                let rad = s * width * (1.0 - k * 0.45);
-                let apex = up(c, y1);
-                let lft = c.p(-rad, y0, 0.0);
-                let rgt = c.p(rad, y0, 0.0);
-                let fr = c.p(0.0, y0 - rad * 0.12, rad * 0.4);
-                // camera-facing silhouette with a lit right half
-                let mid = P2 { s: 1.0, x: apex.x, y: (lft.y + rgt.y) * 0.5 + 2.0, d: fr.d };
-                // P5: sun from the NW, so the screen-left half is lit, with a
-                // light rim on the left edge of each tier.
-                tri(c.fb, apex, lft, mid, if t == tiers - 1 { l } else { m });
-                tri(c.fb, apex, mid, rgt, d);
-                c.fb.line(P2 { d: apex.d - 0.02, ..apex }, P2 { d: lft.d - 0.02, ..lft }, l);
-                c.edge(apex, lft);
-                c.edge(apex, rgt);
-                c.edge(lft, mid);
-                c.edge(mid, rgt);
-            }
+            draw_conifer(c, p, def, dark, mid, lit);
         }
         kind::ASH_MED | kind::ASH_TALL => {
             let top = s * 0.62;
             c.cap(up(c, 0.0), up(c, top), 1.8 + s * 0.2, WOOD_D);
-            c.cap(up(c, top * 0.7), c.p(s * 0.18, top * 0.95, 0.0), 1.2, WOOD_D);
-            let blobs = [(0.0, 0.78, 0.26, ASH_D), (-0.17, 0.66, 0.2, ASH), (0.17, 0.7, 0.21, ASH), (0.06, 0.88, 0.17, ASH_L), (-0.08, 0.84, 0.15, ASH)];
+            c.cap(
+                up(c, top * 0.7),
+                c.p(s * 0.18, top * 0.95, 0.0),
+                1.2,
+                WOOD_D,
+            );
+            let blobs = [
+                (0.0, 0.78, 0.26, ASH_D),
+                (-0.17, 0.66, 0.2, ASH),
+                (0.17, 0.7, 0.21, ASH),
+                (0.06, 0.88, 0.17, ASH_L),
+                (-0.08, 0.84, 0.15, ASH),
+            ];
             for (dx, dy, rr, col) in blobs {
                 let q = c.p(dx * s, dy * s, 0.0);
-                c.fb.disc(P2 { d: q.d - 0.3, ..q }, rr * s * 26.0, col, Some(C_OUTLINE));
+                c.fb.disc(
+                    P2 { d: q.d - 0.3, ..q },
+                    rr * s * 26.0,
+                    col,
+                    Some(C_OUTLINE),
+                );
             }
         }
-        kind::LONG_GRASS | kind::TALL_PATCH | kind::TUFT | kind::REED | kind::STALK | kind::SCRUB | kind::FERN => {
+        kind::LONG_GRASS
+        | kind::TALL_PATCH
+        | kind::TUFT
+        | kind::REED
+        | kind::STALK
+        | kind::SCRUB
+        | kind::FERN => {
             let (n, hgt, col, col2, spread) = match p.kind {
                 kind::LONG_GRASS => (5, 0.32, GRASS, GRASS_L, 0.22),
                 kind::TALL_PATCH => (7, 0.45, GRASS_D, GRASS, 0.3),
@@ -593,7 +1032,11 @@ fn draw_one(c: &mut Ctx, p: &Prop, time: f32) {
                 let b = hash(p.z, p.x + i as f32) - 0.5;
                 let sway = (time * 1.4 + p.x * 0.3 + i as f32).sin() * 0.03 * s;
                 let root = c.p(a * spread * s, 0.0, b * spread * s);
-                let tip = c.p(a * spread * s * 1.8 + sway, hgt * s * (0.75 + 0.5 * hash(i as f32, p.x)), b * spread * s * 1.5);
+                let tip = c.p(
+                    a * spread * s * 1.8 + sway,
+                    hgt * s * (0.75 + 0.5 * hash(i as f32, p.x)),
+                    b * spread * s * 1.5,
+                );
                 c.fb.line(root, tip, if i % 2 == 0 { col } else { col2 });
                 if p.kind == kind::STALK {
                     c.fb.disc(tip, 1.2, STALK_C, None);
@@ -608,7 +1051,12 @@ fn draw_one(c: &mut Ctx, p: &Prop, time: f32) {
             }
         }
         kind::BUSH => {
-            for (dx, dy, rr, col) in [(0.0, 0.25, 0.3, GRASS_D), (-0.2, 0.18, 0.22, GRASS), (0.2, 0.2, 0.22, GRASS), (0.05, 0.35, 0.18, GRASS_L)] {
+            for (dx, dy, rr, col) in [
+                (0.0, 0.25, 0.3, GRASS_D),
+                (-0.2, 0.18, 0.22, GRASS),
+                (0.2, 0.2, 0.22, GRASS),
+                (0.05, 0.35, 0.18, GRASS_L),
+            ] {
                 let q = c.p(dx * s, dy * s, 0.0);
                 c.fb.disc(q, rr * s * 20.0, col, Some(C_OUTLINE));
             }
@@ -621,10 +1069,24 @@ fn draw_one(c: &mut Ctx, p: &Prop, time: f32) {
         kind::ROCK | kind::STONE | kind::PEBBLE => {
             let col = if p.var == 1 { ROCK_D } else { ROCK };
             let rr = s * 0.5;
-            c.boxy(0.0, 0.0, 0.0, rr * 1.4, rr * 0.8, rr * 1.1, ROCK_L, col, ROCK_D);
+            c.boxy(
+                0.0,
+                0.0,
+                0.0,
+                rr * 1.4,
+                rr * 0.8,
+                rr * 1.1,
+                ROCK_L,
+                col,
+                ROCK_D,
+            );
         }
         kind::WALL_BLOCK => {
-            let (top, lit, dark) = if p.var == 1 { (WALL_L, WALL, WALL_D) } else { (WALL, WALL_D, ROCK_D) };
+            let (top, lit, dark) = if p.var == 1 {
+                (WALL_L, WALL, WALL_D)
+            } else {
+                (WALL, WALL_D, ROCK_D)
+            };
             c.boxy(0.0, 0.0, 0.0, p.w, p.h * 0.9, p.d, top, lit, dark);
         }
         kind::MOSS => {
@@ -635,16 +1097,39 @@ fn draw_one(c: &mut Ctx, p: &Prop, time: f32) {
             for i in 0..12 {
                 let a = i as f32 / 12.0 * std::f32::consts::TAU;
                 let q = c.p(a.cos() * 1.0, 0.12, a.sin() * 1.0);
-                c.fb.disc(q, 3.0, if i % 2 == 0 { ROCK } else { ROCK_D }, Some(C_OUTLINE));
+                c.fb.disc(
+                    q,
+                    3.0,
+                    if i % 2 == 0 { ROCK } else { ROCK_D },
+                    Some(C_OUTLINE),
+                );
             }
-            for (i, (lx, lz, yaw)) in [(0.55, 0.18, 0.4), (-0.48, 0.38, 1.9), (0.14, -0.55, 0.1), (-0.32, -0.32, 2.4), (0.42, -0.22, 1.2), (-0.12, 0.5, 3.0)].iter().enumerate() {
+            for (i, (lx, lz, yaw)) in [
+                (0.55, 0.18, 0.4),
+                (-0.48, 0.38, 1.9),
+                (0.14, -0.55, 0.1),
+                (-0.32, -0.32, 2.4),
+                (0.42, -0.22, 1.2),
+                (-0.12, 0.5, 3.0),
+            ]
+            .iter()
+            .enumerate()
+            {
                 let (dx, dz) = (f32::cos(*yaw) * 0.25, f32::sin(*yaw) * 0.25);
                 let a = c.p(lx - dx, 0.1, lz - dz);
                 let b = c.p(lx + dx, 0.3, lz + dz);
                 c.cap(a, b, 2.0, if i % 2 == 0 { WOOD_D } else { WOOD });
             }
             let glow = c.p(0.0, 0.15, 0.0);
-            c.fb.disc(P2 { d: glow.d - 0.5, ..glow }, 6.0, COAL, None);
+            c.fb.disc(
+                P2 {
+                    d: glow.d - 0.5,
+                    ..glow
+                },
+                6.0,
+                COAL,
+                None,
+            );
             for i in 0..5 {
                 let a = time * 2.0 + i as f32 * 1.3;
                 let q = c.p(a.cos() * 0.25, 0.18, a.sin() * 0.25);
@@ -658,21 +1143,43 @@ fn draw_one(c: &mut Ctx, p: &Prop, time: f32) {
                 let a = c.p(ox, 0.15, oz);
                 let b = c.p(ox * 0.4 + (ph * 0.7).sin() * 0.06, 0.15 + hgt, oz * 0.4);
                 let r = 2.6 - (i % 3) as f32 * 0.5;
-                c.fb.capsule(P2 { d: a.d - 0.6, ..a }, P2 { d: b.d - 0.6, ..b }, r, COAL, None);
+                c.fb.capsule(
+                    P2 { d: a.d - 0.6, ..a },
+                    P2 { d: b.d - 0.6, ..b },
+                    r,
+                    COAL,
+                    None,
+                );
                 let m = c.p(ox * 0.7, 0.15 + hgt * 0.45, oz * 0.7);
-                c.fb.capsule(P2 { d: a.d - 0.7, ..a }, P2 { d: m.d - 0.7, ..m }, r * 0.6, EMBER, None);
+                c.fb.capsule(
+                    P2 { d: a.d - 0.7, ..a },
+                    P2 { d: m.d - 0.7, ..m },
+                    r * 0.6,
+                    EMBER,
+                    None,
+                );
             }
             for i in 0..8 {
                 let life = ((time * 0.6 + hash(i as f32, 3.0)) % 1.0 + 1.0) % 1.0;
-                let sx = (hash(i as f32, 7.0) - 0.5) * 0.6 + (time * 2.0 + i as f32).sin() * 0.08 * life;
+                let sx =
+                    (hash(i as f32, 7.0) - 0.5) * 0.6 + (time * 2.0 + i as f32).sin() * 0.08 * life;
                 let q = c.p(sx, 0.4 + life * 2.2, (hash(i as f32, 9.0) - 0.5) * 0.6);
                 if life < 0.85 {
-                    c.fb.plot(q.x as i32, q.y as i32, q.d - 1.0, if life < 0.4 { EMBER } else { COAL });
+                    c.fb.plot(
+                        q.x as i32,
+                        q.y as i32,
+                        q.d - 1.0,
+                        if life < 0.4 { EMBER } else { COAL },
+                    );
                 }
             }
         }
         kind::TENT => {
-            let (cl, cd) = if p.var == 1 { (BEIGE, BEIGE_D) } else { (OLIVE, OLIVE_D) };
+            let (cl, cd) = if p.var == 1 {
+                (BEIGE, BEIGE_D)
+            } else {
+                (OLIVE, OLIVE_D)
+            };
             let (hw, hl, rh) = (1.25, 1.5, 1.7);
             let r0 = c.p(0.0, rh, -hl);
             let r1 = c.p(0.0, rh, hl);
@@ -694,7 +1201,12 @@ fn draw_one(c: &mut Ctx, p: &Prop, time: f32) {
             for (a, b) in [(l0, r0), (r0, g0), (l1, r1), (r1, g1), (r0, r1)] {
                 c.edge(a, b);
             }
-            c.cap(c.p(0.0, 0.0, hl + 0.05), c.p(0.0, rh + 0.25, hl + 0.05), 1.0, WOOD_D);
+            c.cap(
+                c.p(0.0, 0.0, hl + 0.05),
+                c.p(0.0, rh + 0.25, hl + 0.05),
+                1.0,
+                WOOD_D,
+            );
         }
         kind::BEDROLL => {
             let col = if p.var == 1 { BEIGE_D } else { OLIVE_D };
@@ -711,40 +1223,61 @@ fn draw_one(c: &mut Ctx, p: &Prop, time: f32) {
             c.boxy(0.0, 0.0, 0.0, 0.95, 0.5, 0.6, WOOD_L, WOOD, WOOD_D);
             c.boxy(0.0, 0.5, 0.0, 0.95, 0.18, 0.6, WOOD_L, WOOD_L, WOOD);
             let lock = c.p(0.0, 0.45, 0.31);
-            c.fb.disc(P2 { d: lock.d - 0.2, ..lock }, 1.6, C_GOLD, None);
+            c.fb.disc(
+                P2 {
+                    d: lock.d - 0.2,
+                    ..lock
+                },
+                1.6,
+                C_GOLD,
+                None,
+            );
             for sx in [-0.3f32, 0.3] {
                 c.fb.line(c.p(sx, 0.0, 0.31), c.p(sx, 0.68, 0.31), IRON_C);
             }
         }
-        kind::LEAN_TO => {
-            for (x, zz, hh) in [(-1.1, -0.7, 1.9), (1.1, -0.7, 1.9), (-1.1, 0.8, 1.1), (1.1, 0.8, 1.1)] {
-                c.cap(c.p(x, 0.0, zz), c.p(x, hh, zz), 1.3, WOOD_D);
-            }
-            let (a, b, cc, d) = (c.p(-1.25, 2.0, -0.85), c.p(1.25, 2.0, -0.85), c.p(1.25, 1.15, 0.95), c.p(-1.25, 1.15, 0.95));
-            c.quad(a, b, cc, d, OLIVE);
-            for (x, y) in [(a, b), (b, cc), (cc, d), (d, a)] {
-                c.edge(x, y);
-            }
-            c.boxy(0.0, 0.0, -0.3, 1.4, 0.75, 0.55, WOOD_L, WOOD, WOOD_D);
-            let anvil = c.p(0.6, 0.85, -0.3);
-            c.fb.disc(anvil, 2.5, IRON_C, Some(C_OUTLINE));
-        }
+        kind::LEAN_TO => draw_shelter(c, crate::structure::lean_to()),
+        kind::SHACK => draw_shelter(c, crate::structure::shack()),
+        kind::CAIRN => draw_cairn(c),
         kind::TRAINER => {
             c.boxy(0.0, 0.34, 0.0, 1.15, 0.08, 0.48, WOOD_L, WOOD, WOOD_D);
             for (x, zz) in [(-0.45, -0.15), (0.45, -0.15), (-0.45, 0.15), (0.45, 0.15)] {
                 c.cap(c.p(x, 0.0, zz), c.p(x, 0.34, zz), 1.0, WOOD_D);
             }
             // books / scroll
-            c.boxy(-0.25, 0.42, 0.0, 0.3, 0.08, 0.22, ACCENT_BOOK, C_ACCENT, WOOD_D);
+            c.boxy(
+                -0.25,
+                0.42,
+                0.0,
+                0.3,
+                0.08,
+                0.22,
+                ACCENT_BOOK,
+                C_ACCENT,
+                WOOD_D,
+            );
             let orb = c.p(0.3, 0.55, 0.0);
-            c.fb.disc(P2 { d: orb.d - 0.2, ..orb }, 2.2, C_DASH, Some(C_OUTLINE));
+            c.fb.disc(
+                P2 {
+                    d: orb.d - 0.2,
+                    ..orb
+                },
+                2.2,
+                C_DASH,
+                Some(C_OUTLINE),
+            );
         }
         kind::STALL => {
             c.boxy(0.0, 0.0, 0.0, 1.8, 0.8, 0.7, WOOD_L, WOOD, WOOD_D);
             for (x, zz) in [(-0.9, -0.35), (0.9, -0.35), (-0.9, 0.35), (0.9, 0.35)] {
                 c.cap(c.p(x, 0.8, zz), c.p(x, 1.9, zz), 1.0, WOOD_D);
             }
-            let (a, b, cc, d) = (c.p(-1.05, 2.05, -0.45), c.p(1.05, 2.05, -0.45), c.p(1.05, 1.8, 0.6), c.p(-1.05, 1.8, 0.6));
+            let (a, b, cc, d) = (
+                c.p(-1.05, 2.05, -0.45),
+                c.p(1.05, 2.05, -0.45),
+                c.p(1.05, 1.8, 0.6),
+                c.p(-1.05, 1.8, 0.6),
+            );
             c.quad(a, b, cc, d, BEIGE);
             for (x, y) in [(a, b), (b, cc), (cc, d), (d, a)] {
                 c.edge(x, y);
@@ -760,8 +1293,20 @@ fn draw_one(c: &mut Ctx, p: &Prop, time: f32) {
             c.cap(c.p(-0.6, 1.15, 0.0), c.p(0.6, 1.15, 0.0), 1.0, WOOD);
             for i in 0..3 {
                 let x = -0.3 + i as f32 * 0.3;
-                c.fb.capsule(c.p(x, 0.3, 0.06), c.p(x, 1.25, 0.06), 0.8, C_STEEL, Some(C_OUTLINE));
-                c.fb.capsule(c.p(x - 0.08, 0.9, 0.06), c.p(x + 0.08, 0.9, 0.06), 0.7, C_GOLD, None);
+                c.fb.capsule(
+                    c.p(x, 0.3, 0.06),
+                    c.p(x, 1.25, 0.06),
+                    0.8,
+                    C_STEEL,
+                    Some(C_OUTLINE),
+                );
+                c.fb.capsule(
+                    c.p(x - 0.08, 0.9, 0.06),
+                    c.p(x + 0.08, 0.9, 0.06),
+                    0.7,
+                    C_GOLD,
+                    None,
+                );
             }
         }
         kind::FIREWOOD => {
@@ -769,7 +1314,12 @@ fn draw_one(c: &mut Ctx, p: &Prop, time: f32) {
                 let y = 0.12 + i as f32 * 0.1;
                 let a = i as f32 * 0.7;
                 let (dx, dz) = (a.cos() * 0.35, a.sin() * 0.35);
-                c.cap(c.p(-dx, y, -dz + i as f32 * 0.08), c.p(dx, y, dz + i as f32 * 0.08), 1.8, if i % 2 == 0 { WOOD } else { WOOD_D });
+                c.cap(
+                    c.p(-dx, y, -dz + i as f32 * 0.08),
+                    c.p(dx, y, dz + i as f32 * 0.08),
+                    1.8,
+                    if i % 2 == 0 { WOOD } else { WOOD_D },
+                );
             }
         }
         kind::BARREL => {
@@ -781,7 +1331,12 @@ fn draw_one(c: &mut Ctx, p: &Prop, time: f32) {
         kind::BANNER => {
             c.cap(up(c, 0.0), up(c, 2.2), 1.2, WOOD_D);
             let sway = (time * 1.8).sin() * 0.06;
-            let (a, b, cc, d) = (c.p(0.05, 2.0, 0.0), c.p(0.75 + sway, 1.95, 0.0), c.p(0.7 + sway * 1.5, 1.1, 0.0), c.p(0.05, 1.15, 0.0));
+            let (a, b, cc, d) = (
+                c.p(0.05, 2.0, 0.0),
+                c.p(0.75 + sway, 1.95, 0.0),
+                c.p(0.7 + sway * 1.5, 1.1, 0.0),
+                c.p(0.05, 1.15, 0.0),
+            );
             c.quad(a, b, cc, d, C_ACCENT);
             for (x, y) in [(a, b), (b, cc), (cc, d)] {
                 c.edge(x, y);
@@ -802,8 +1357,38 @@ fn draw_one(c: &mut Ctx, p: &Prop, time: f32) {
             let sl = c.p(-rad * 0.22, snow_y, 0.0);
             let sr = c.p(rad * 0.22, snow_y, 0.0);
             let sf = c.p(0.0, snow_y, rad * 0.22);
-            tri(c.fb, P2 { d: apex.d - 0.5, ..apex }, P2 { d: sl.d - 0.5, ..sl }, P2 { d: sf.d - 0.5, ..sf }, ROCK_L);
-            tri(c.fb, P2 { d: apex.d - 0.5, ..apex }, P2 { d: sf.d - 0.5, ..sf }, P2 { d: sr.d - 0.5, ..sr }, C_BODY);
+            tri(
+                c.fb,
+                P2 {
+                    d: apex.d - 0.5,
+                    ..apex
+                },
+                P2 {
+                    d: sl.d - 0.5,
+                    ..sl
+                },
+                P2 {
+                    d: sf.d - 0.5,
+                    ..sf
+                },
+                ROCK_L,
+            );
+            tri(
+                c.fb,
+                P2 {
+                    d: apex.d - 0.5,
+                    ..apex
+                },
+                P2 {
+                    d: sf.d - 0.5,
+                    ..sf
+                },
+                P2 {
+                    d: sr.d - 0.5,
+                    ..sr
+                },
+                C_BODY,
+            );
             for (a, b) in [(apex, l), (apex, rr), (apex, fr)] {
                 c.edge(a, b);
             }
@@ -847,5 +1432,129 @@ mod tests {
         assert_eq!(p[1].x, -3.0);
         assert!(parse(b"NOPE\0\0\0\0").is_err());
         assert!(parse(&b[..b.len() - 1]).is_err());
+    }
+
+    #[test]
+    fn pine_ron_is_three_cones() {
+        let p = crate::tree::pine();
+        assert_eq!(p.id, "ba_pine");
+        assert_eq!(p.tiers.len(), 3);
+        assert!(p.tiers[0].r > p.tiers[1].r && p.tiers[1].r > p.tiers[2].r);
+        assert!(p.tiers[2].y1 > p.tiers[0].y1);
+        assert_eq!(crate::tree::cypress().tiers.len(), 2);
+        assert!(crate::tree::spruce().tiers[0].r < p.tiers[0].r);
+        assert_eq!(crate::structure::lean_to().id, "ba_lean_to");
+        assert!(crate::structure::shack().walls.len() >= 3);
+        assert_eq!(crate::structure::cairn().tiers.len(), 3);
+        assert!(p.droop > crate::tree::cypress().droop);
+        assert!(p.lump > crate::tree::cypress().lump);
+        assert!(p.trunk_r > crate::tree::cypress().trunk_r);
+    }
+
+    #[test]
+    fn trunk_tapers_and_flares() {
+        let ground = trunk_rad(0.2, 0.0, 0.4, 1.0);
+        let crown = trunk_rad(0.2, 1.0, 0.4, 1.0);
+        assert!(ground > crown * 1.8, "the base is wider than the top");
+        let other = trunk_rad(0.85, 0.05, 2.2, 1.0);
+        assert!((ground - other).abs() > 0.05, "a neighbour is not the same trunk");
+    }
+
+    #[test]
+    fn pine_boughs_change_with_place() {
+        let lump = crate::tree::pine().lump;
+        let here: Vec<f32> = (0..7).map(|i| bough_grow(0.15, 0, i, 7, lump)).collect();
+        let there: Vec<f32> = (0..7).map(|i| bough_grow(0.83, 0, i, 7, lump)).collect();
+        let same: Vec<f32> = (0..7).map(|i| bough_grow(0.15, 0, i, 7, lump)).collect();
+        assert_eq!(here, same);
+        assert!(here.iter().zip(&there).any(|(a, b)| (a - b).abs() > 0.08));
+        let (lo, hi) = here.iter().fold((here[0], here[0]), |(lo, hi), v| (lo.min(*v), hi.max(*v)));
+        assert!(hi - lo > 0.12, "one whorl is not a circle");
+    }
+
+    #[test]
+    fn pine_draws_a_shaded_volume() {
+        use stick_engine::camera::Camera;
+        use stick_engine::raster::Framebuffer;
+        let mut fb = Framebuffer::new(220, 200);
+        let cam = Camera::new(220, 200);
+        let prop = Prop {
+            kind: kind::PINE,
+            var: 0,
+            x: 0.0,
+            z: 0.0,
+            y: 0.0,
+            yaw: 0.4,
+            s: 1.8,
+            w: 1.0,
+            h: 1.0,
+            d: 1.0,
+            j: [0.0; 6],
+        };
+        draw(&mut fb, &cam, &[prop], 0.0, 0.0);
+        let mut lit = 0;
+        let mut dark = 0;
+        let mut wood = 0;
+        let mut lit_bark = 0;
+        let (mut x0, mut x1) = (i32::MAX, i32::MIN);
+        let (mut wx0, mut wx1) = (i32::MAX, i32::MIN);
+        for y in 0..fb.h {
+            for x in 0..fb.w {
+                let col = fb.color[y * fb.w + x];
+                if col == PINE_L {
+                    lit += 1;
+                }
+                if col == PINE_D {
+                    dark += 1;
+                }
+                if col == WOOD_D || col == WOOD || col == WOOD_L {
+                    wood += 1;
+                    wx0 = wx0.min(x as i32);
+                    wx1 = wx1.max(x as i32);
+                }
+                if col == WOOD_L {
+                    lit_bark += 1;
+                }
+                if col == PINE || col == PINE_L || col == PINE_D {
+                    x0 = x0.min(x as i32);
+                    x1 = x1.max(x as i32);
+                }
+            }
+        }
+        assert!(lit > 20 && dark > 20, "both sides of the cone are shaded, lit {lit} dark {dark}");
+        assert!(wood > 30 && lit_bark > 0, "the trunk has a shaded face, wood {wood}");
+        assert!(wx1 - wx0 > 6, "the trunk is wider than a twig");
+        assert!(x1 - x0 > 12, "the crown is wider than a line");
+    }
+
+    #[test]
+    fn shelters_draw_a_roof() {
+        use stick_engine::camera::Camera;
+        use stick_engine::raster::Framebuffer;
+        for kind in [kind::LEAN_TO, kind::SHACK, kind::CAIRN] {
+            let mut fb = Framebuffer::new(220, 200);
+            let cam = Camera::new(220, 200);
+            draw(
+                &mut fb,
+                &cam,
+                &[Prop {
+                    kind,
+                    var: 0,
+                    x: 0.0,
+                    z: 0.0,
+                    y: 0.0,
+                    yaw: 0.4,
+                    s: 1.0,
+                    w: 1.0,
+                    h: 1.0,
+                    d: 1.0,
+                    j: [0.0; 6],
+                }],
+                0.0,
+                0.0,
+            );
+            let n = fb.color.iter().filter(|c| **c != 0).count();
+            assert!(n > 40, "kind {kind} drew {n} pixels");
+        }
     }
 }
