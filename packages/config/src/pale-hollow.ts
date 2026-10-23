@@ -1540,16 +1540,16 @@ export const PH_YARDS: readonly {
   kind: "lean_to" | "shack" | "cairn";
   yaw: number;
 }[] = [
-  { id: "span", x: 36, z: 210, kind: "lean_to", yaw: Math.PI },
-  { id: "terrace", x: -88, z: 92, kind: "lean_to", yaw: 0.4 },
-  { id: "clay", x: -116, z: 48, kind: "shack", yaw: 0.2 },
-  { id: "grove", x: -100, z: 180, kind: "shack", yaw: 1.2 },
-  { id: "hunter", x: 64, z: 174, kind: "lean_to", yaw: -0.6 },
-  { id: "cut", x: 16, z: 96, kind: "shack", yaw: 0.8 },
-  { id: "rim", x: 80, z: 100, kind: "lean_to", yaw: Math.PI },
-  { id: "seam", x: 40, z: 404, kind: "shack", yaw: -0.4 },
-  { id: "watch", x: -46, z: 430, kind: "lean_to", yaw: 0.3 },
-  { id: "cairn", x: 8, z: 456, kind: "cairn", yaw: 0 },
+  { id: "span", x: 28, z: 222, kind: "lean_to", yaw: -Math.PI / 2 },
+  { id: "terrace", x: -82, z: 123, kind: "lean_to", yaw: Math.PI },
+  { id: "clay", x: -35, z: 207, kind: "shack", yaw: Math.PI / 2 },
+  { id: "grove", x: -57, z: 167, kind: "shack", yaw: -1.1 },
+  { id: "hunter", x: 70, z: 180, kind: "lean_to", yaw: Math.atan2(-15, -30) },
+  { id: "cut", x: 53, z: 136, kind: "shack", yaw: Math.PI },
+  { id: "rim", x: 105, z: 93, kind: "lean_to", yaw: -Math.PI / 2 },
+  { id: "seam", x: 18, z: 412, kind: "shack", yaw: Math.PI / 2 },
+  { id: "watch", x: 8, z: 434, kind: "lean_to", yaw: -Math.PI / 2 },
+  { id: "cairn", x: 0, z: 450, kind: "cairn", yaw: 0 },
 ];
 
 export const PH_BUILDING_CLEARINGS: readonly { x: number; z: number; r: number }[] = PH_YARDS.map(
@@ -1624,46 +1624,46 @@ export type PaleHollowNodeDef = {
 };
 
 export const PH_SEGMENT_A_NODES: PaleHollowNodeDef[] = [
-  { id: "ph-farm-a", name: "Dustgrain Patch", x: -90, z: 90, kind: "harvest", yields: ["dustgrain", "pale-dust"], interactMs: 2500, respawnMs: 55_000 },
-  { id: "ph-farm-b", name: "Dustgrain Patch", x: -86, z: 90, kind: "harvest", yields: ["dustgrain", "pale-dust"], interactMs: 2500, respawnMs: 55_000 },
-  { id: "ph-farm-c", name: "Dustgrain Patch", x: -90, z: 94, kind: "harvest", yields: ["dustgrain"], interactMs: 2500, respawnMs: 50_000 },
-  { id: "ph-farm-d", name: "Dustgrain Patch", x: -86, z: 94, kind: "harvest", yields: ["dustgrain", "pale-dust"], interactMs: 2500, respawnMs: 55_000 },
-  { id: "ph-farm-e", name: "Dustgrain Patch", x: -84, z: 92, kind: "harvest", yields: ["dustgrain", "pale-dust"], interactMs: 2500, respawnMs: 55_000 },
-  { id: "ph-farm-f", name: "Dustgrain Patch", x: -92, z: 92, kind: "harvest", yields: ["dustgrain"], interactMs: 2500, respawnMs: 55_000 },
-  { id: "ph-flax-a", name: "Pale Flax Stand", x: -88, z: 88, kind: "harvest", yields: ["pale-flax", "dead-fiber"], interactMs: 2800, respawnMs: 60_000 },
-  { id: "ph-flax-b", name: "Pale Flax Stand", x: -88, z: 96, kind: "harvest", yields: ["pale-flax", "pale-dust"], interactMs: 2800, respawnMs: 60_000 },
-  { id: "ph-sand-a", name: "River Sand Bar", x: -114, z: 46, kind: "harvest", yields: ["river-sand", "pale-dust"], interactMs: 2500, respawnMs: 65_000 },
-  { id: "ph-clay-a", name: "Clay Bank", x: -118, z: 46, kind: "harvest", yields: ["potters-clay", "clay-crab", "river-sand"], interactMs: 2500, respawnMs: 65_000 },
-  { id: "ph-fish-a", name: "Chalk Pool", x: -114, z: 50, kind: "fish", yields: ["fossil-minnow"], interactMs: 4000, respawnMs: 75_000 },
-  { id: "ph-fish-b", name: "Chalk Pool", x: -118, z: 50, kind: "fish", yields: ["fossil-minnow"], interactMs: 4000, respawnMs: 75_000 },
-  { id: "ph-copper-nugget", name: "Copper Nugget Vein", x: 36, z: 406, kind: "mine", yields: ["copper-ore"], interactMs: 4000, respawnMs: 120_000 },
+  { id: "ph-farm-a", name: "Dustgrain Patch", x: -85, z: 121, kind: "harvest", yields: ["dustgrain", "pale-dust"], interactMs: 2500, respawnMs: 55_000 },
+  { id: "ph-farm-b", name: "Dustgrain Patch", x: -79, z: 121, kind: "harvest", yields: ["dustgrain", "pale-dust"], interactMs: 2500, respawnMs: 55_000 },
+  { id: "ph-farm-c", name: "Dustgrain Patch", x: -85, z: 125, kind: "harvest", yields: ["dustgrain"], interactMs: 2500, respawnMs: 50_000 },
+  { id: "ph-farm-d", name: "Dustgrain Patch", x: -79, z: 125, kind: "harvest", yields: ["dustgrain", "pale-dust"], interactMs: 2500, respawnMs: 55_000 },
+  { id: "ph-farm-e", name: "Dustgrain Patch", x: -82, z: 126, kind: "harvest", yields: ["dustgrain", "pale-dust"], interactMs: 2500, respawnMs: 55_000 },
+  { id: "ph-farm-f", name: "Dustgrain Patch", x: -82, z: 120, kind: "harvest", yields: ["dustgrain"], interactMs: 2500, respawnMs: 55_000 },
+  { id: "ph-flax-a", name: "Pale Flax Stand", x: -86, z: 123, kind: "harvest", yields: ["pale-flax", "dead-fiber"], interactMs: 2800, respawnMs: 60_000 },
+  { id: "ph-flax-b", name: "Pale Flax Stand", x: -78, z: 123, kind: "harvest", yields: ["pale-flax", "pale-dust"], interactMs: 2800, respawnMs: 60_000 },
+  { id: "ph-sand-a", name: "River Sand Bar", x: -33, z: 205, kind: "harvest", yields: ["river-sand", "pale-dust"], interactMs: 2500, respawnMs: 65_000 },
+  { id: "ph-clay-a", name: "Clay Bank", x: -37, z: 205, kind: "harvest", yields: ["potters-clay", "clay-crab", "river-sand"], interactMs: 2500, respawnMs: 65_000 },
+  { id: "ph-fish-a", name: "Chalk Pool", x: -33, z: 209, kind: "fish", yields: ["fossil-minnow"], interactMs: 4000, respawnMs: 75_000 },
+  { id: "ph-fish-b", name: "Chalk Pool", x: -37, z: 209, kind: "fish", yields: ["fossil-minnow"], interactMs: 4000, respawnMs: 75_000 },
+  { id: "ph-copper-nugget", name: "Copper Nugget Vein", x: 20, z: 410, kind: "mine", yields: ["copper-ore"], interactMs: 4000, respawnMs: 120_000 },
 ];
 
 export const PH_SEGMENT_B_NODES: PaleHollowNodeDef[] = [
-  { id: "ph-ash-a", name: "Ashbeam Log", x: -104, z: 178, kind: "harvest", yields: ["ashbeam-log", "bark-strip"], interactMs: 3000, respawnMs: 70_000 },
-  { id: "ph-ash-b", name: "Ashbeam Log", x: -96, z: 178, kind: "harvest", yields: ["ashbeam-log"], interactMs: 3000, respawnMs: 70_000 },
-  { id: "ph-ash-c", name: "Ashbeam Log", x: -104, z: 184, kind: "harvest", yields: ["ashbeam-log", "bark-strip"], interactMs: 3000, respawnMs: 70_000 },
-  { id: "ph-ash-d", name: "Ashbeam Log", x: -96, z: 184, kind: "harvest", yields: ["ashbeam-log"], interactMs: 3000, respawnMs: 70_000 },
-  { id: "ph-ash-e", name: "Ashbeam Log", x: -100, z: 176, kind: "harvest", yields: ["ashbeam-log", "bark-strip"], interactMs: 3000, respawnMs: 70_000 },
-  { id: "ph-fiber-a", name: "Dead Fiber Thicket", x: -108, z: 180, kind: "harvest", yields: ["dead-fiber", "pale-flax", "pale-dust"], interactMs: 2800, respawnMs: 60_000 },
-  { id: "ph-fiber-b", name: "Dead Fiber Thicket", x: -92, z: 180, kind: "harvest", yields: ["dead-fiber", "pale-flax"], interactMs: 2800, respawnMs: 60_000 },
-  { id: "ph-root-a", name: "Antidote Root", x: -100, z: 186, kind: "harvest", yields: ["antidote-root", "pale-dust"], interactMs: 3200, respawnMs: 90_000 },
+  { id: "ph-ash-a", name: "Ashbeam Log", x: -60, z: 165, kind: "harvest", yields: ["ashbeam-log", "bark-strip"], interactMs: 3000, respawnMs: 70_000 },
+  { id: "ph-ash-b", name: "Ashbeam Log", x: -54, z: 165, kind: "harvest", yields: ["ashbeam-log"], interactMs: 3000, respawnMs: 70_000 },
+  { id: "ph-ash-c", name: "Ashbeam Log", x: -60, z: 169, kind: "harvest", yields: ["ashbeam-log", "bark-strip"], interactMs: 3000, respawnMs: 70_000 },
+  { id: "ph-ash-d", name: "Ashbeam Log", x: -54, z: 169, kind: "harvest", yields: ["ashbeam-log"], interactMs: 3000, respawnMs: 70_000 },
+  { id: "ph-ash-e", name: "Ashbeam Log", x: -57, z: 164, kind: "harvest", yields: ["ashbeam-log", "bark-strip"], interactMs: 3000, respawnMs: 70_000 },
+  { id: "ph-fiber-a", name: "Dead Fiber Thicket", x: -63, z: 167, kind: "harvest", yields: ["dead-fiber", "pale-flax", "pale-dust"], interactMs: 2800, respawnMs: 60_000 },
+  { id: "ph-fiber-b", name: "Dead Fiber Thicket", x: -51, z: 167, kind: "harvest", yields: ["dead-fiber", "pale-flax"], interactMs: 2800, respawnMs: 60_000 },
+  { id: "ph-root-a", name: "Antidote Root", x: -57, z: 170, kind: "harvest", yields: ["antidote-root", "pale-dust"], interactMs: 3200, respawnMs: 90_000 },
 ];
 
 export const PH_SEGMENT_C_NODES: PaleHollowNodeDef[] = [
-  { id: "ph-cobble-a", name: "Cobble Heap", x: 14, z: 94, kind: "mine", yields: ["cobble", "pale-dust"], interactMs: 3500, respawnMs: 80_000 },
-  { id: "ph-lime-a", name: "Limestone Face", x: 18, z: 94, kind: "mine", yields: ["limestone", "rock-salt"], interactMs: 4000, respawnMs: 100_000 },
-  { id: "ph-lime-b", name: "Limestone Face", x: 16, z: 98, kind: "mine", yields: ["limestone", "cobble", "rock-salt"], interactMs: 4000, respawnMs: 100_000 },
-  { id: "ph-cord-a", name: "Climbing Cord", x: 78, z: 98, kind: "harvest", yields: ["climbing-cord"], interactMs: 3500, respawnMs: 110_000 },
-  { id: "ph-cord-b", name: "Climbing Cord", x: 82, z: 102, kind: "harvest", yields: ["climbing-cord"], interactMs: 3500, respawnMs: 110_000 },
+  { id: "ph-cobble-a", name: "Cobble Heap", x: 51, z: 134, kind: "mine", yields: ["cobble", "pale-dust"], interactMs: 3500, respawnMs: 80_000 },
+  { id: "ph-lime-a", name: "Limestone Face", x: 55, z: 134, kind: "mine", yields: ["limestone", "rock-salt"], interactMs: 4000, respawnMs: 100_000 },
+  { id: "ph-lime-b", name: "Limestone Face", x: 53, z: 138, kind: "mine", yields: ["limestone", "cobble", "rock-salt"], interactMs: 4000, respawnMs: 100_000 },
+  { id: "ph-cord-a", name: "Climbing Cord", x: 103, z: 91, kind: "harvest", yields: ["climbing-cord"], interactMs: 3500, respawnMs: 110_000 },
+  { id: "ph-cord-b", name: "Climbing Cord", x: 107, z: 95, kind: "harvest", yields: ["climbing-cord"], interactMs: 3500, respawnMs: 110_000 },
 ];
 
 export const PH_SEGMENT_D_NODES: PaleHollowNodeDef[] = [
-  { id: "ph-cu-a", name: "Copper Seam", x: 38, z: 402, kind: "mine", yields: ["copper-ore"], interactMs: 4500, respawnMs: 130_000 },
-  { id: "ph-sn-a", name: "Tin Seam", x: 42, z: 402, kind: "mine", yields: ["tin-ore"], interactMs: 4500, respawnMs: 130_000 },
-  { id: "ph-cu-b", name: "Copper Seam", x: 40, z: 406, kind: "mine", yields: ["copper-ore", "pale-dust"], interactMs: 4500, respawnMs: 140_000 },
-  { id: "ph-crystal-a", name: "Pale Dust Crystal", x: -50, z: 426, kind: "harvest", yields: ["pale-dust"], interactMs: 5000, respawnMs: 160_000 },
-  { id: "ph-crystal-b", name: "Pale Dust Crystal", x: -42, z: 434, kind: "harvest", yields: ["pale-dust"], interactMs: 5000, respawnMs: 160_000 },
+  { id: "ph-cu-a", name: "Copper Seam", x: 20, z: 414, kind: "mine", yields: ["copper-ore"], interactMs: 4500, respawnMs: 130_000 },
+  { id: "ph-sn-a", name: "Tin Seam", x: 22, z: 412, kind: "mine", yields: ["tin-ore"], interactMs: 4500, respawnMs: 130_000 },
+  { id: "ph-cu-b", name: "Copper Seam", x: 20, z: 416, kind: "mine", yields: ["copper-ore", "pale-dust"], interactMs: 4500, respawnMs: 140_000 },
+  { id: "ph-crystal-a", name: "Pale Dust Crystal", x: 10, z: 432, kind: "harvest", yields: ["pale-dust"], interactMs: 5000, respawnMs: 160_000 },
+  { id: "ph-crystal-b", name: "Pale Dust Crystal", x: 10, z: 436, kind: "harvest", yields: ["pale-dust"], interactMs: 5000, respawnMs: 160_000 },
 ];
 
 export const PH_ALL_NODES: PaleHollowNodeDef[] = [
@@ -1791,15 +1791,15 @@ export type PaleHollowMapLabelKind = "area" | "camp" | "landmark" | "water";
  */
 export const PH_MAP_LABELS: readonly { text: string; x: number; z: number; kind: PaleHollowMapLabelKind }[] = [
   { text: "The Shard Dwellings", x: PH_CAMP_SHIFT_X, z: 2 + PH_CAMP_SHIFT_Z, kind: "camp" },
-  { text: "Scavenger Camp", x: -100, z: 180, kind: "camp" },
-  { text: "Hollow Steps", x: -88, z: 92, kind: "area" },
+  { text: "Scavenger Camp", x: -57, z: 167, kind: "camp" },
+  { text: "Hollow Steps", x: -82, z: 123, kind: "area" },
   { text: "Ashbeam Reach", x: -120, z: 200, kind: "area" },
   { text: "Chalkworks", x: 40, z: 90, kind: "area" },
-  { text: "Pale Marches", x: 8, z: 456, kind: "area" },
+  { text: "Pale Marches", x: 0, z: 450, kind: "area" },
   { text: "Clay Bank", x: -125, z: 55, kind: "landmark" },
   { text: "Timber Bridge", x: (PH_TIMBER_BRIDGE.minX + PH_TIMBER_BRIDGE.maxX) / 2, z: (PH_TIMBER_BRIDGE.minZ + PH_TIMBER_BRIDGE.maxZ) / 2, kind: "landmark" },
   { text: "Quarry Cut", x: (PH_QUARRY_CUT.minX + PH_QUARRY_CUT.maxX) / 2, z: (PH_QUARRY_CUT.minZ + PH_QUARRY_CUT.maxZ) / 2, kind: "landmark" },
-  { text: "Hollow Quarry", x: 16, z: 96, kind: "landmark" },
+  { text: "Hollow Quarry", x: 53, z: 136, kind: "landmark" },
   { text: "Seam Tunnel", x: (PH_SEAM_TUNNEL.minX + PH_SEAM_TUNNEL.maxX) / 2, z: (PH_SEAM_TUNNEL.minZ + PH_SEAM_TUNNEL.maxZ) / 2, kind: "landmark" },
   { text: "Copper Seams", x: 20, z: 410, kind: "landmark" },
   { text: "Shard Crypt", x: -20, z: 430, kind: "landmark" },

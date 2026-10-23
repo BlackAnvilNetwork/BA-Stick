@@ -103,6 +103,30 @@ function grid(
   return out;
 }
 
+function chain(
+  origin: { x: number; z: number },
+  step: { x: number; z: number },
+  n: number,
+): { x: number; z: number }[] {
+  const got: { x: number; z: number }[] = [];
+  for (let i = 0; i < n; i++) {
+    let spot: { x: number; z: number } | null = null;
+    for (let dz = -3; dz <= 3 && !spot; dz++) {
+      for (let dx = -3; dx <= 3 && !spot; dx++) {
+        const p = { x: origin.x + step.x * i + dx, z: origin.z + step.z * i + dz };
+        if (!legal(p.x, p.z) || !far(p, placed, MIN_GAP) || !far(p, got, 8)) continue;
+        const prev = got[got.length - 1];
+        if (prev && (Math.hypot(p.x - prev.x, p.z - prev.z) > 12 || Math.hypot(p.x - prev.x, p.z - prev.z) < 8)) continue;
+        spot = p;
+      }
+    }
+    if (!spot) throw new Error(`chain missed ${i} at ${origin.x},${origin.z}`);
+    got.push(spot);
+  }
+  placed.push(...got);
+  return got;
+}
+
 function far(p: { x: number; z: number }, placed: { x: number; z: number }[], gap: number): boolean {
   for (const q of placed) {
     if (Math.hypot(p.x - q.x, p.z - q.z) < gap) return false;
@@ -233,8 +257,7 @@ const scavs = takePairs(westGrove, 10, 12, 28, placed, 4);
 const boarGround = grid(-150, 150, 150, 320, 4, (x, z) => paleHollowBiome(x, z) === "ashbeam");
 const boars = take(boarGround, 15, 18, placed, 5);
 
-const lookPatch = grid(2, 22, 96, 140, 3, (x, z) => paleHollowBiome(x, z) === "quarry");
-const lookouts = take(lookPatch, 5, 7, placed, 8);
+const lookouts = chain({ x: 8, z: 104 }, { x: 0, z: 9 }, 5);
 const rim = grid(50, 96, 48, 120, 2, (x, z) => {
   return paleHollowBiome(x, z) === "quarry" && x > paleHollowTributaryCenterX(z) + 8;
 });
@@ -245,14 +268,14 @@ const bowl = grid(-12, 70, 48, 136, 3, (x, z) => {
 });
 const dwellers = takePairs(bowl, 10, 12, 12, placed, 6);
 
-const seam = grid(20, 48, 392, 430, 2, (x, z) => paleHollowBiome(x, z) === "ore_seam" && x >= 22);
+const seam = grid(26, 48, 392, 430, 2, (x, z) => paleHollowBiome(x, z) === "ore_seam" && x >= 26);
 const golems = take(seam, 10, 10, placed, 9);
 
 const crypt = grid(-42, 2, 412, 452, 2, (x, z) => paleHollowBiome(x, z) === "crypt");
 const wights = takePairs(crypt, 7, 12, 12, placed, 10);
 const wightExtra = take(crypt, 1, 8, placed, 11);
 
-const lip = grid(-16, 20, 430, 464, 3, (x, z) => paleHollowBiome(x, z) === "scrub");
+const lip = grid(-36, 36, 456, 466, 2, (x, z) => paleHollowBiome(x, z) === "scrub");
 const roadDwellers = takePairs(lip, 5, 12, 24, placed, 12);
 
 const farm = grid(-140, 30, 30, 108, 3, (x, z) => paleHollowBiome(x, z) === "farm");
