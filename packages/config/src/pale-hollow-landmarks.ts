@@ -44,13 +44,8 @@ function round1(n: number): number {
 
 /** Readable labels for known sites. Unknown ids still appear — see PH_BRIDGE_SITES. */
 const BRIDGE_NOTES: Record<string, string> = {
-  "hub-west-farm": "West farm / clay exit across the chalk run — see PH_BRIDGE_SITES",
-  "hub-north": "North corridor out of the encampment — see PH_BRIDGE_SITES",
-  "ashbeam-corridor": "Ashbeam Reach corridor crossing — see PH_BRIDGE_SITES",
-  "chalkworks-corridor": "Chalkworks corridor crossing — see PH_BRIDGE_SITES",
-  "marches-corridor": "Pale Marches corridor crossing — see PH_BRIDGE_SITES",
-  "hub-east-trib": "Hub-side east tributary toward meadows — see PH_BRIDGE_SITES",
-  "ashbeam-east-trib": "East ashbeam tributary crossing — see PH_BRIDGE_SITES",
+  "hub-north": "Timber Bridge — out of the dwellings onto the west bank",
+  "chalkworks-corridor": "Quarry Cut — off the ashbeam bow onto the quarry's east rim",
 };
 
 function bridgeLandmark(site: PaleHollowBridgeSite): PaleHollowLandmark {
@@ -137,7 +132,7 @@ function staticLandmarks(): PaleHollowLandmark[] {
       name: "Ash Road",
       x: ashRoad.x,
       z: ashRoad.z,
-      note: "PH_ASH_ROAD rect center (blocked north gate)",
+      note: "PH_ASH_ROAD rect center (north gate onto Hollow Road)",
     },
   ];
 }

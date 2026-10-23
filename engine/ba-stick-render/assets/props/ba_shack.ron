@@ -1,0 +1,20 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Closed shed. Four equal posts, a low roof, and three walls. The front stays open.
+(
+    id: "ba_shack",
+    posts: [
+        (x: -1.2, z: -0.9, y: 1.7, thick: 1.5),
+        (x: 1.2, z: -0.9, y: 1.7, thick: 1.5),
+        (x: -1.2, z: 0.9, y: 1.7, thick: 1.5),
+        (x: 1.2, z: 0.9, y: 1.7, thick: 1.5),
+    ],
+    roof: (y0: 1.85, y1: 1.7, x0: -1.45, x1: 1.45, z0: -1.1, z1: 1.1),
+    walls: [
+        (x0: -1.2, z0: 0.9, x1: 1.2, z1: 0.9, y: 1.45),
+        (x0: -1.2, z0: -0.9, x1: -1.2, z1: 0.9, y: 1.45),
+        (x0: 1.2, z0: -0.9, x1: 1.2, z1: 0.9, y: 1.45),
+    ],
+)

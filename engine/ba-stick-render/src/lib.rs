@@ -12,24 +12,26 @@
 //! (job / mob archetype / NPC role).
 
 pub mod atmosphere;
-pub mod vfx;
 pub mod buffvfx;
 pub mod compat;
 pub mod creature;
 pub mod dither;
 pub mod figure;
+pub mod floaters;
 pub mod gear;
+pub mod ground;
 pub mod mapfont;
 pub mod minimap;
-pub mod floaters;
-pub mod ground;
 pub mod palette;
 pub mod preset;
 pub mod props;
 pub mod scene;
-pub mod zone;
+pub mod structure;
+pub mod tree;
+pub mod vfx;
 #[cfg(target_arch = "wasm32")]
 mod web;
+pub mod zone;
 
 pub use preset::{AnimState, RigPreset};
 pub use scene::{Scene, UnitFx, UnitInput};

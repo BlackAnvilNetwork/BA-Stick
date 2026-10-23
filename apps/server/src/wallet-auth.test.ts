@@ -19,9 +19,12 @@ import {
   authMessage,
   authVerifyClient,
   clientAddress,
+  acceptAuthResume,
   dropAuthConnection,
+  dropAuthResume,
   isLoopbackIp,
   issueAuthChallenge,
+  issueAuthResume,
   normalizeIp,
   resolveAuthOrigin,
   verifyAuthLogin,
@@ -483,6 +486,21 @@ test("a missing or foreign Origin is rejected on upgrade", async () => {
     connectionId: "siwe",
   });
   assert.equal(rejected.ok, false);
+});
+
+test("a resume token reconnects the signed wallet and rejects anyone else", () => {
+  __resetAuthNoncesForTests();
+  const wallet = "0x1111111111111111111111111111111111111111";
+  const other = "0x2222222222222222222222222222222222222222";
+  const token = issueAuthResume(wallet);
+  assert.equal(token.length, 64);
+  assert.equal(issueAuthResume(wallet), token);
+  assert.equal(acceptAuthResume(token, wallet).ok, true);
+  assert.equal(acceptAuthResume(token, other).ok, false);
+  assert.equal(acceptAuthResume("ab".repeat(32), wallet).ok, false);
+  assert.equal(acceptAuthResume(token, wallet, Date.now() + 13 * 60 * 60 * 1000).ok, false);
+  dropAuthResume(wallet);
+  assert.equal(acceptAuthResume(token, wallet).ok, false);
 });
 
 test("normalizeIp canonicalizes IPv4 and IPv6 to prevent rate-limit bypass", () => {

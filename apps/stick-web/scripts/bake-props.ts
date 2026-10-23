@@ -7,9 +7,20 @@
  * Output "BAP1": magic[4] | u32 n | n × { u8 kind | u8 var | f32 x z y yaw s w h d } (LE).
  */
 import {
+  FB_BRIDGE,
+  FB_BRIDGE_DECK_W,
+  FB_CAMP,
+  FB_MOUNTAINS,
+  FOREST_BASIN_BOUNDS,
+  PALE_HOLLOW_BOUNDS,
+  PH_CAMP_SHIFT_X,
+  forestBasinBiome,
+  forestBasinBridgeCenter,
+  forestBasinStandHeight,
+  forestBasinWalkable,
+  PH_CAMP_SHIFT_Z,
   PH_HUB,
   PH_MOUNTAINS,
-  PH_STORAGE_CHEST,
   paleHollowBiome,
   paleHollowHeight,
   paleHollowInBuildingClearing,
@@ -20,12 +31,14 @@ import {
   PH_RIVER_MAIN,
   PH_RIVER_TRIB,
   PH_RIVER_WALL,
+  PH_YARDS,
   paleHollowBankPoint,
   paleHollowBridgeGeom,
   paleHollowBridgeDeckY,
   paleHollowRiverCenterX,
   paleHollowTributaryCenterX,
   paleHollowTerrainMeshY,
+  paleHollowWalkable,
   paleHollowWaterSurfaceY,
   type PaleHollowRiverKind,
 } from "@bellgrave/config";
@@ -36,6 +49,7 @@ export const K = {
   longGrass: 10, tallPatch: 11, fern: 12, tuft: 13, bush: 14, rock: 15, stalk: 16, reed: 17, scrub: 18, bloom: 19, sapling: 20,
   wallBlock: 30, moss: 31, firePit: 32, tent: 33, bedroll: 34, crate: 35, chest: 36, leanTo: 37, trainer: 38, stall: 39,
   weaponRack: 40, firewood: 41, barrel: 42, banner: 43, stone: 44, pebble: 45, peak: 46, riverWall: 47, bridge: 48,
+  shack: 49, cairn: 50,
 } as const;
 
 export type Prop = { kind: number; v: number; x: number; z: number; y: number; yaw: number; s: number; w: number; h: number; d: number };
@@ -77,8 +91,8 @@ function trees(out: Prop[]): void {
     if (blocked(x, z)) return;
     out.push({ kind, v: 0, x, z, y: paleHollowHeight(x, z), yaw: hash2(x * 7, z * 7) * Math.PI * 2, s: height, w: 0, h: 0, d: 0 });
   };
-  for (let ix = -78; ix <= 78; ix += 7.5) {
-    for (let iz = 10; iz <= 245; iz += 8.5) {
+  for (let ix = PALE_HOLLOW_BOUNDS.minX + 12; ix <= PALE_HOLLOW_BOUNDS.maxX - 12; ix += 11) {
+    for (let iz = PALE_HOLLOW_BOUNDS.minZ + 16; iz <= PALE_HOLLOW_BOUNDS.maxZ - 16; iz += 12) {
       const jx = ix + (hash2(ix, iz) - 0.5) * 5.5;
       const jz = iz + (hash2(iz, ix) - 0.5) * 5.5;
       if (blocked(jx, jz)) continue;
@@ -108,7 +122,7 @@ function trees(out: Prop[]): void {
   }
 }
 
-const CLUTTER_IX0 = -82, CLUTTER_IZ0 = 6, CLUTTER_IX_STEP = 3.9, CLUTTER_IZ_STEP = 4.1, CLUTTER_IX_MAX = 82, CLUTTER_IZ_MAX = 252;
+const CLUTTER_IX0 = PALE_HOLLOW_BOUNDS.minX + 8, CLUTTER_IZ0 = PALE_HOLLOW_BOUNDS.minZ + 12, CLUTTER_IX_STEP = 6.4, CLUTTER_IZ_STEP = 6.6, CLUTTER_IX_MAX = PALE_HOLLOW_BOUNDS.maxX - 8, CLUTTER_IZ_MAX = PALE_HOLLOW_BOUNDS.maxZ - 16;
 
 function clutter(out: Prop[]): void {
   const push = (kind: number, x: number, z: number, s: number, salt = 0, v = 0) => {
@@ -134,14 +148,14 @@ function clutter(out: Prop[]): void {
       const h3 = hash2(Math.floor(jx * 7), Math.floor(jz * 11));
       if (h3 < 0.32) continue;
       const grassy = b === "grass" || b === "meadow" || b === "farm" || b === "ashbeam" || b === "scrub" || b === "riverbank";
-      if (grassy && h > 0.18) {
+      if (grassy && b !== "meadow" && h > 0.18) {
         const s = 0.85 + h * 1.05;
         if (h2 > 0.42) pushVariant(K.longGrass, jx, jz, s, 1);
         else pushVariant(K.tallPatch, jx, jz, s * 1.05, 2);
         if (h > 0.72 && h2 > 0.55) pushVariant(K.longGrass, jx + (h2 - 0.5) * 2.4, jz + (h3 - 0.5) * 2.2, 0.65 + h * 0.55, 3);
       }
       if ((b === "ashbeam" || b === "meadow" || b === "grass") && h > 0.55 && h2 > 0.45) pushVariant(K.fern, jx + (h - 0.5) * 1.2, jz + (h2 - 0.5) * 1.2, 0.9 + h * 0.7, 4);
-      if (grassy && h > 0.88 && h2 > 0.75) push(K.tuft, jx + (h3 - 0.5) * 1.5, jz + (h - 0.5) * 1.5, 0.4 + h * 0.25, 5);
+      if (grassy && b !== "meadow" && h > 0.88 && h2 > 0.75) push(K.tuft, jx + (h3 - 0.5) * 1.5, jz + (h - 0.5) * 1.5, 0.4 + h * 0.25, 5);
       if (b === "farm" && h > 0.28) {
         push(K.stalk, jx + (h2 - 0.5) * 1.4, jz + (h3 - 0.5) * 1.2, 0.95 + h * 0.75, 6);
         if (h2 > 0.55) push(K.stalk, jx - 0.9 + h3, jz + 0.7 - h, 0.8 + h * 0.5, 7);
@@ -163,8 +177,10 @@ function clutter(out: Prop[]): void {
 
 function hub(out: Prop[]): void {
   const y0 = PH_HUB.floorY;
+  const ox = PH_CAMP_SHIFT_X;
+  const oz = PH_CAMP_SHIFT_Z;
   const p = (kind: number, x: number, z: number, yaw = 0, s = 1, w = 0, h = 0, d = 0, v = 0, y = y0) =>
-    out.push({ kind, v, x, z, y, yaw, s, w, h, d });
+    out.push({ kind, v, x: x + ox, z: z + oz, y, yaw, s, w, h, d });
   // HubRearRockWall blocks [x, z, w, h, d, yaw]
   const wall: [number, number, number, number, number, number][] = [
     [-7.5, 8.6, 2.8, 1.9, 1.4, 0.2], [-5.2, 9.1, 3.4, 2.4, 1.8, -0.15], [-2.4, 9.4, 4.2, 2.8, 2.1, 0.08],
@@ -191,7 +207,7 @@ function hub(out: Prop[]): void {
   p(K.stone, 1.6, 3.8, 0.3, 0.8);
   p(K.banner, 1.05, 5.45);
   p(K.stone, -1.2, -4.2, 0.3, 1.1);
-  p(K.chest, PH_STORAGE_CHEST.x, PH_STORAGE_CHEST.z, -0.35);
+  p(K.chest, 3.2, -1.5, -0.35);
   for (const [x, z, yaw] of [[5.2, 2.0, 0.3], [-0.8, 4.2, 0.7], [2.6, -3.6, 1.2], [-2.6, 2.4, 2.0]] as const) p(K.pebble, x, z, yaw, 0.5);
 }
 
@@ -283,14 +299,106 @@ function riverBanks(out: Prop[]): void {
   }
 }
 
+export function forestBasinProps(): Prop[] {
+  const out: Prop[] = [];
+  const c = forestBasinBridgeCenter();
+  const deck = forestBasinStandHeight(c.x, c.z);
+  const span = FB_BRIDGE.halfSpan * 2;
+  out.push({
+    kind: K.bridge, v: Math.round(0.22 * 200), x: c.x, z: c.z, y: deck, yaw: Math.atan2(1, 0),
+    s: span, w: FB_BRIDGE_DECK_W, h: 0.35, d: deck,
+  });
+  for (const m of FB_MOUNTAINS) {
+    out.push({
+      kind: K.peak, v: 0, x: m.x, z: m.z, y: forestBasinStandHeight(m.x, m.z),
+      yaw: 0, s: Math.max(0.7, m.h / 8), w: 0, h: m.h, d: 0,
+    });
+  }
+  const camp = [
+    [K.tent, -6, 3, 0.4],
+    [K.tent, 5, 2, -0.3],
+    [K.firePit, 0, -1, 0],
+    [K.leanTo, 4, -4, 0.2],
+    [K.crate, -3, -3, 0.5],
+  ] as const;
+  for (const [kind, dx, dz, yaw] of camp) {
+    out.push({
+      kind, v: 0, x: FB_CAMP.x + dx, z: FB_CAMP.z + dz, y: FB_CAMP.floorY,
+      yaw, s: 1, w: 0, h: 0, d: 0,
+    });
+  }
+  const { minX, maxX, minZ, maxZ } = FOREST_BASIN_BOUNDS;
+  for (let iz = minZ + 8; iz <= maxZ - 8; iz += 6.8) {
+    for (let ix = minX + 8; ix <= maxX - 8; ix += 6.2) {
+      const jx = ix + (hash2(ix, iz) - 0.5) * 4;
+      const jz = iz + (hash2(iz, ix) - 0.5) * 4;
+      if (!forestBasinWalkable(jx, jz)) continue;
+      const b = forestBasinBiome(jx, jz);
+      if (b === "hub_indoor" || b === "river" || b === "bridge" || b === "mountain") continue;
+      const h = hash2(Math.floor(jx * 2), Math.floor(jz * 2));
+      if (h < 0.45) continue;
+      const kind = h > 0.72 ? K.pine : K.spruce;
+      out.push({
+        kind, v: 0, x: jx, z: jz, y: forestBasinStandHeight(jx, jz),
+        yaw: h * 6.28, s: 3.2 + h * 1.4, w: 0, h: 0, d: 0,
+      });
+    }
+  }
+  return out;
+}
+
 export function paleHollowProps(): Prop[] {
   const out: Prop[] = [];
   riverBanks(out);
   hub(out);
+  yards(out);
   peaks(out);
   trees(out);
   clutter(out);
   return out;
+}
+
+/** Roofs from the structure RON, plus the small clutter that belongs beside each job. */
+function yards(out: Prop[]): void {
+  const put = (kind: number, x: number, z: number, yaw = 0, s = 1, w = 0, h = 0, d = 0) => {
+    if (!paleHollowWalkable(x, z)) return;
+    out.push({ kind, v: 0, x, z, y: paleHollowStandHeight(x, z), yaw, s, w, h, d });
+  };
+  for (const yard of PH_YARDS) {
+    const kind = yard.kind === "shack" ? K.shack : yard.kind === "cairn" ? K.cairn : K.leanTo;
+    put(kind, yard.x, yard.z, yard.yaw);
+    const bx = yard.x + 2.6;
+    const bz = yard.z - 1.8;
+    if (yard.id === "span") {
+      put(K.firePit, bx, bz);
+      put(K.barrel, bx + 1.2, bz);
+    } else if (yard.id === "terrace") {
+      put(K.stall, bx, bz, 0.4);
+      put(K.crate, bx + 1.4, bz, 0.2, 1, 0.48, 0.38, 0.4);
+    } else if (yard.id === "clay") {
+      put(K.barrel, bx, bz);
+      put(K.crate, bx + 1.2, bz, 0.4, 1, 0.42, 0.32, 0.36);
+    } else if (yard.id === "grove") {
+      put(K.firePit, yard.x - 7, yard.z + 5);
+      put(K.bedroll, yard.x - 8.2, yard.z + 6.2, 0.6);
+      put(K.crate, yard.x - 6, yard.z + 6.4, 0.3, 1, 0.48, 0.38, 0.4);
+    } else if (yard.id === "hunter") {
+      put(K.firewood, bx, bz);
+      put(K.weaponRack, bx + 1.3, bz, -0.4);
+    } else if (yard.id === "cut") {
+      put(K.crate, bx, bz, 0.2, 1, 0.48, 0.38, 0.4);
+      put(K.stone, bx + 1.4, bz, 0.2, 0.8);
+    } else if (yard.id === "rim") {
+      put(K.barrel, bx, bz);
+    } else if (yard.id === "seam") {
+      put(K.firePit, bx, bz);
+      put(K.crate, bx + 1.3, bz, 0.5, 1, 0.42, 0.32, 0.36);
+    } else if (yard.id === "watch") {
+      put(K.firePit, bx, bz);
+    } else if (yard.id === "cairn") {
+      put(K.stone, bx, bz, 0.2, 0.7);
+    }
+  }
 }
 
 export function encodeProps(props: Prop[]): Buffer {

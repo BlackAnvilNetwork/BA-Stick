@@ -1,0 +1,17 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Road cairn. Three stone cones, wide then narrow, with no trunk.
+(
+    id: "ba_cairn",
+    trunk_y: 0.0,
+    trunk_r: 0.0,
+    droop: 0.0,
+    lump: 0.0,
+    tiers: [
+        (y0: 0.02, y1: 0.55, r: 0.62),
+        (y0: 0.38, y1: 0.9, r: 0.38),
+        (y0: 0.72, y1: 1.15, r: 0.16),
+    ],
+)
