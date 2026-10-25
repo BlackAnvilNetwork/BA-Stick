@@ -207,6 +207,9 @@
   "enSpellUntil": {
    "vfx": "none"
   },
+  "enSpellElement": {
+   "vfx": "none"
+  },
   "phalanxUntil": {
    "vfx": "protect"
   },
