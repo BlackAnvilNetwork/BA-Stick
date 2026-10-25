@@ -158,7 +158,7 @@ function shape(raw: unknown, i: number): GearShape {
       from: [0, 0, 0],
       to: [0, 0, 0],
       center: triple(o.center, [0, 0, 0]),
-      at: typeof o.at === "string" ? o.at : undefined,
+      at: typeof o.at === "string" && o.at !== "None" ? o.at : undefined,
       r: typeof o.r === "number" ? o.r : 0,
       ramp,
       thick,
