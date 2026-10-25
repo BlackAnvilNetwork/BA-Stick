@@ -672,6 +672,8 @@ impl Scene {
         self.minimap.invalidate();
     }
     pub fn clear_map_data(&mut self) {
+        // A zone without map data must not keep the previous zone's title.
+        self.minimap.title.clear();
         self.minimap.roads.clear();
         self.minimap.labels.clear();
         self.minimap.invalidate();

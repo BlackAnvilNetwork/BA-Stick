@@ -90,6 +90,7 @@ impl Minimap {
     }
 
     pub fn clear(&mut self) {
+        self.title.clear();
         self.roads.clear();
         self.labels.clear();
         self.tex.clear();
@@ -567,5 +568,13 @@ mod tests {
         assert_eq!(out[0], 7);
         let (px, py) = Minimap::panel_origin(fw);
         assert_ne!(out[((py + PANEL_H / 2) * fw + px + PANEL_W / 2) * 4], 7);
+    }
+
+    #[test]
+    fn clear_drops_the_old_zone_title() {
+        let mut m = Minimap::new();
+        m.title = "Pale Hollow".into();
+        m.clear();
+        assert!(m.title.is_empty());
     }
 }
