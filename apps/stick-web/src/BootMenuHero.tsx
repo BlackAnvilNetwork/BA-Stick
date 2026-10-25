@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useGame } from "@bellgrave/client-core/state";
-import type { JobId } from "@bellgrave/config";
+import type { JobId } from "@bellgrave/combat";
 import { createRenderer } from "./renderer";
 import { previewPreset } from "./gear";
 import type { StickRenderer } from "ba-stick-render";

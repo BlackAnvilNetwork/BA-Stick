@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { UnitSnapshot } from "@bellgrave/protocol";
+import type { UnitWithCraft } from "./units";
 import {
   animFor,
   craftActFor,
@@ -14,7 +15,7 @@ import {
 } from "./units";
 import { moveKeyFromCode, wasdTarget } from "./input";
 
-const unit = (o: Partial<UnitSnapshot>): UnitSnapshot => ({
+const unit = (o: Partial<UnitWithCraft>): UnitWithCraft => ({
   id: "a", kind: "player", name: "A", x: 0, y: 0, z: 0, facing: 0, hp: 1, maxHp: 1, mp: 0, maxMp: 0, tp: 0,
   anim: "idle", animUntil: 0, targetId: null, buffs: {} as UnitSnapshot["buffs"], ...o,
 });
