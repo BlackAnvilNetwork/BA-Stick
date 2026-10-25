@@ -382,17 +382,6 @@ export const CATALOG: ItemDef[] = [
     }
   },
   {
-    "id": 20,
-    "name": "Ashbeam Relic Peg×6",
-    "description": "Ashbeam Relic Peg×6 — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/ashbeam-relic-peg.png",
-    "slug": "ashbeam-relic-peg",
-    "kind": "filler",
-    "craftLevel": 39,
-    "craftSkill": "woodworking",
-    "craftOutputQty": 6
-  },
-  {
     "id": 21,
     "name": "Mythril Arrow×12",
     "description": "Mythril Arrow×12. Consumable from Bellgrave's alchemy and cookfires.",
@@ -414,37 +403,6 @@ export const CATALOG: ItemDef[] = [
     "craftOutputQty": 12
   },
   {
-    "id": 22,
-    "name": "Bloodbeam Peg×12",
-    "description": "Bloodbeam Peg×12 — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/bloodbeam-peg.png",
-    "slug": "bloodbeam-peg",
-    "kind": "filler",
-    "craftLevel": 60,
-    "craftSkill": "woodworking",
-    "craftOutputQty": 12
-  },
-  {
-    "id": 23,
-    "name": "Bell Bloodbeam Wand",
-    "description": "Bell Bloodbeam Wand — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/bell-bloodbeam-wand.png",
-    "slug": "bell-bloodbeam-wand",
-    "kind": "filler",
-    "craftLevel": 62,
-    "craftSkill": "woodworking"
-  },
-  {
-    "id": 24,
-    "name": "Bell Bloodbeam Pole",
-    "description": "Bell Bloodbeam Pole — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/bell-bloodbeam-pole.png",
-    "slug": "bell-bloodbeam-pole",
-    "kind": "filler",
-    "craftLevel": 64,
-    "craftSkill": "woodworking"
-  },
-  {
     "id": 25,
     "name": "Darksteel Bolt×12",
     "description": "Darksteel Bolt×12. Consumable from Bellgrave's alchemy and cookfires.",
@@ -464,57 +422,6 @@ export const CATALOG: ItemDef[] = [
       "hp": 68
     },
     "craftOutputQty": 12
-  },
-  {
-    "id": 26,
-    "name": "Bellwood Relic Peg×6",
-    "description": "Bellwood Relic Peg×6 — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/bellwood-relic-peg.png",
-    "slug": "bellwood-relic-peg",
-    "kind": "filler",
-    "craftLevel": 79,
-    "craftSkill": "woodworking",
-    "craftOutputQty": 6
-  },
-  {
-    "id": 27,
-    "name": "Throne Bellwood Ferrule",
-    "description": "Throne Bellwood Ferrule — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/throne-bellwood-ferrule.png",
-    "slug": "throne-bellwood-ferrule",
-    "kind": "filler",
-    "craftLevel": 87,
-    "craftSkill": "woodworking"
-  },
-  {
-    "id": 28,
-    "name": "Throne Bellwood Laminate",
-    "description": "Throne Bellwood Laminate — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/throne-bellwood-laminate.png",
-    "slug": "throne-bellwood-laminate",
-    "kind": "filler",
-    "craftLevel": 89,
-    "craftSkill": "woodworking"
-  },
-  {
-    "id": 29,
-    "name": "Throne Bellwood Shield Rim",
-    "description": "Throne Bellwood Shield Rim — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/throne-bellwood-shield-rim.png",
-    "slug": "throne-bellwood-shield-rim",
-    "kind": "filler",
-    "craftLevel": 94,
-    "craftSkill": "woodworking"
-  },
-  {
-    "id": 30,
-    "name": "Throne Bellwood Longbow",
-    "description": "Throne Bellwood Longbow — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/throne-bellwood-longbow.png",
-    "slug": "throne-bellwood-longbow",
-    "kind": "filler",
-    "craftLevel": 97,
-    "craftSkill": "woodworking"
   },
   {
     "id": 31,
@@ -823,27 +730,6 @@ export const CATALOG: ItemDef[] = [
     }
   },
   {
-    "id": 44,
-    "name": "Leather Cord×8",
-    "description": "Leather Cord×8 — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/leather-cord.png",
-    "slug": "leather-cord",
-    "kind": "filler",
-    "craftLevel": 21,
-    "craftSkill": "leathercraft",
-    "craftOutputQty": 8
-  },
-  {
-    "id": 45,
-    "name": "Ash Leather Emboss Kit",
-    "description": "Ash Leather Emboss Kit — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/ash-leather-emboss-kit.png",
-    "slug": "ash-leather-emboss-kit",
-    "kind": "filler",
-    "craftLevel": 34,
-    "craftSkill": "leathercraft"
-  },
-  {
     "id": 46,
     "name": "Leather Strip×8",
     "description": "Leather Strip×8 — synth material from Bellgrave crafts. Feed into higher recipes.",
@@ -853,49 +739,6 @@ export const CATALOG: ItemDef[] = [
     "craftLevel": 40,
     "craftSkill": "leathercraft",
     "craftOutputQty": 8
-  },
-  {
-    "id": 47,
-    "name": "Fine Leather Strip×8",
-    "description": "Fine Leather Strip×8 — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/fine-leather-strip.png",
-    "slug": "fine-leather-strip",
-    "kind": "filler",
-    "craftLevel": 60,
-    "craftSkill": "leathercraft",
-    "craftOutputQty": 8
-  },
-  {
-    "id": 48,
-    "name": "Bell Fine Leather Pouch",
-    "description": "Bell Fine Leather Pouch — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/bell-fine-leather-pouch.png",
-    "slug": "bell-fine-leather-pouch",
-    "kind": "filler",
-    "craftLevel": 64,
-    "craftSkill": "leathercraft"
-  },
-  {
-    "id": 49,
-    "name": "Scale Leather Strip×8",
-    "description": "Scale Leather Strip×8 — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/scale-leather-strip.png",
-    "slug": "scale-leather-strip",
-    "kind": "filler",
-    "craftLevel": 80,
-    "craftSkill": "leathercraft",
-    "craftOutputQty": 8
-  },
-  {
-    "id": 50,
-    "name": "Scale Leather Royal Cord×4",
-    "description": "Scale Leather Royal Cord×4 — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/scale-leather-royal-cord.png",
-    "slug": "scale-leather-royal-cord",
-    "kind": "filler",
-    "craftLevel": 99,
-    "craftSkill": "leathercraft",
-    "craftOutputQty": 4
   },
   {
     "id": 51,
@@ -912,27 +755,6 @@ export const CATALOG: ItemDef[] = [
     }
   },
   {
-    "id": 52,
-    "name": "Linen Bandage×6",
-    "description": "Linen Bandage×6 — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/linen-bandage.png",
-    "slug": "linen-bandage",
-    "kind": "filler",
-    "craftLevel": 26,
-    "craftSkill": "clothcraft",
-    "craftOutputQty": 6
-  },
-  {
-    "id": 53,
-    "name": "Ash Linen Sanctified Patch",
-    "description": "Ash Linen Sanctified Patch — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/ash-linen-sanctified-patch.png",
-    "slug": "ash-linen-sanctified-patch",
-    "kind": "filler",
-    "craftLevel": 38,
-    "craftSkill": "clothcraft"
-  },
-  {
     "id": 54,
     "name": "Shade Cotton Thread",
     "description": "Shade Cotton Thread — synth material from Bellgrave crafts. Feed into higher recipes.",
@@ -945,16 +767,6 @@ export const CATALOG: ItemDef[] = [
       "gold": 550,
       "materialsText": "Shade Cotton×2, Ash Dust×1"
     }
-  },
-  {
-    "id": 55,
-    "name": "Slag Linen Gloves",
-    "description": "Slag Linen Gloves — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/slag-linen-gloves.png",
-    "slug": "slag-linen-gloves",
-    "kind": "filler",
-    "craftLevel": 44,
-    "craftSkill": "clothcraft"
   },
   {
     "id": 56,
@@ -983,17 +795,6 @@ export const CATALOG: ItemDef[] = [
       "gold": 1250,
       "materialsText": "Velvet Fiber×2 or Velvet Dust×3, Bell Dust×1"
     }
-  },
-  {
-    "id": 58,
-    "name": "Velvet Bandage×6",
-    "description": "Velvet Bandage×6 — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/velvet-bandage.png",
-    "slug": "velvet-bandage",
-    "kind": "filler",
-    "craftLevel": 86,
-    "craftSkill": "clothcraft",
-    "craftOutputQty": 6
   },
   {
     "id": 59,
@@ -1088,27 +889,6 @@ export const CATALOG: ItemDef[] = [
     "craftOutputQty": 12
   },
   {
-    "id": 63,
-    "name": "Bone Needle×4",
-    "description": "Bone Needle×4 — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/bone-needle.png",
-    "slug": "bone-needle",
-    "kind": "filler",
-    "craftLevel": 22,
-    "craftSkill": "bonecraft",
-    "craftOutputQty": 4
-  },
-  {
-    "id": 64,
-    "name": "Ash Bone Knuckles",
-    "description": "Ash Bone Knuckles — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/ash-bone-knuckles.png",
-    "slug": "ash-bone-knuckles",
-    "kind": "filler",
-    "craftLevel": 27,
-    "craftSkill": "bonecraft"
-  },
-  {
     "id": 65,
     "name": "Ash Bone Shell Buckle",
     "description": "Ash Bone Shell Buckle — synth material from Bellgrave crafts. Feed into higher recipes.",
@@ -1121,210 +901,6 @@ export const CATALOG: ItemDef[] = [
       "gold": 730,
       "materialsText": "Bone Chip×2, Ash Dust×1"
     }
-  },
-  {
-    "id": 66,
-    "name": "Slag Bone Needle×4",
-    "description": "Slag Bone Needle×4 — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/slag-bone-needle.png",
-    "slug": "slag-bone-needle",
-    "kind": "filler",
-    "craftLevel": 42,
-    "craftSkill": "bonecraft",
-    "craftOutputQty": 4
-  },
-  {
-    "id": 67,
-    "name": "Slag Bone Hilt",
-    "description": "Slag Bone Hilt — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/slag-bone-hilt.png",
-    "slug": "slag-bone-hilt",
-    "kind": "filler",
-    "craftLevel": 44,
-    "craftSkill": "bonecraft"
-  },
-  {
-    "id": 68,
-    "name": "Slag Bone Knuckles",
-    "description": "Slag Bone Knuckles — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/slag-bone-knuckles.png",
-    "slug": "slag-bone-knuckles",
-    "kind": "filler",
-    "craftLevel": 47,
-    "craftSkill": "bonecraft"
-  },
-  {
-    "id": 69,
-    "name": "Slag Bone Inlay",
-    "description": "Slag Bone Inlay — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/slag-bone-inlay.png",
-    "slug": "slag-bone-inlay",
-    "kind": "filler",
-    "craftLevel": 52,
-    "craftSkill": "bonecraft"
-  },
-  {
-    "id": 70,
-    "name": "Slag Bone Shell Buckle",
-    "description": "Slag Bone Shell Buckle — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/slag-bone-shell-buckle.png",
-    "slug": "slag-bone-shell-buckle",
-    "kind": "filler",
-    "craftLevel": 54,
-    "craftSkill": "bonecraft"
-  },
-  {
-    "id": 71,
-    "name": "Slag Bone War Horn",
-    "description": "Slag Bone War Horn — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/slag-bone-war-horn.png",
-    "slug": "slag-bone-war-horn",
-    "kind": "filler",
-    "craftLevel": 57,
-    "craftSkill": "bonecraft"
-  },
-  {
-    "id": 72,
-    "name": "Slag Bone Relic Core",
-    "description": "Slag Bone Relic Core — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/slag-bone-relic-core.png",
-    "slug": "slag-bone-relic-core",
-    "kind": "filler",
-    "craftLevel": 59,
-    "craftSkill": "bonecraft"
-  },
-  {
-    "id": 73,
-    "name": "Bell Bone Arrowhead×6",
-    "description": "Bell Bone Arrowhead×6 — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/bell-bone-arrowhead.png",
-    "slug": "bell-bone-arrowhead",
-    "kind": "filler",
-    "craftLevel": 65,
-    "craftSkill": "bonecraft",
-    "craftOutputQty": 6
-  },
-  {
-    "id": 74,
-    "name": "Bell Bone Knuckles",
-    "description": "Bell Bone Knuckles — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/bell-bone-knuckles.png",
-    "slug": "bell-bone-knuckles",
-    "kind": "filler",
-    "craftLevel": 67,
-    "craftSkill": "bonecraft"
-  },
-  {
-    "id": 75,
-    "name": "Bell Bone Inlay",
-    "description": "Bell Bone Inlay — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/bell-bone-inlay.png",
-    "slug": "bell-bone-inlay",
-    "kind": "filler",
-    "craftLevel": 72,
-    "craftSkill": "bonecraft"
-  },
-  {
-    "id": 76,
-    "name": "Bell Bone Shell Buckle",
-    "description": "Bell Bone Shell Buckle — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/bell-bone-shell-buckle.png",
-    "slug": "bell-bone-shell-buckle",
-    "kind": "filler",
-    "craftLevel": 74,
-    "craftSkill": "bonecraft"
-  },
-  {
-    "id": 77,
-    "name": "Bell Bone Skull Charm",
-    "description": "Bell Bone Skull Charm — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/bell-bone-skull-charm.png",
-    "slug": "bell-bone-skull-charm",
-    "kind": "filler",
-    "craftLevel": 76,
-    "craftSkill": "bonecraft"
-  },
-  {
-    "id": 78,
-    "name": "Bell Bone Onyx Socket",
-    "description": "Bell Bone Onyx Socket — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/bell-bone-onyx-socket.png",
-    "slug": "bell-bone-onyx-socket",
-    "kind": "filler",
-    "craftLevel": 78,
-    "craftSkill": "bonecraft"
-  },
-  {
-    "id": 79,
-    "name": "Bone Bead×6",
-    "description": "Bone Bead×6 — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/bone-bead.png",
-    "slug": "bone-bead",
-    "kind": "filler",
-    "craftLevel": 80,
-    "craftSkill": "bonecraft",
-    "craftOutputQty": 6
-  },
-  {
-    "id": 80,
-    "name": "Throne Bone Needle×4",
-    "description": "Throne Bone Needle×4 — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/throne-bone-needle.png",
-    "slug": "throne-bone-needle",
-    "kind": "filler",
-    "craftLevel": 82,
-    "craftSkill": "bonecraft",
-    "craftOutputQty": 4
-  },
-  {
-    "id": 81,
-    "name": "Throne Bone Hilt",
-    "description": "Throne Bone Hilt — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/throne-bone-hilt.png",
-    "slug": "throne-bone-hilt",
-    "kind": "filler",
-    "craftLevel": 84,
-    "craftSkill": "bonecraft"
-  },
-  {
-    "id": 82,
-    "name": "Throne Bone Inlay",
-    "description": "Throne Bone Inlay — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/throne-bone-inlay.png",
-    "slug": "throne-bone-inlay",
-    "kind": "filler",
-    "craftLevel": 92,
-    "craftSkill": "bonecraft"
-  },
-  {
-    "id": 83,
-    "name": "Throne Bone Shell Buckle",
-    "description": "Throne Bone Shell Buckle — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/throne-bone-shell-buckle.png",
-    "slug": "throne-bone-shell-buckle",
-    "kind": "filler",
-    "craftLevel": 94,
-    "craftSkill": "bonecraft"
-  },
-  {
-    "id": 84,
-    "name": "Throne Bone Skull Charm",
-    "description": "Throne Bone Skull Charm — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/throne-bone-skull-charm.png",
-    "slug": "throne-bone-skull-charm",
-    "kind": "filler",
-    "craftLevel": 96,
-    "craftSkill": "bonecraft"
-  },
-  {
-    "id": 85,
-    "name": "Throne Bone Onyx Socket",
-    "description": "Throne Bone Onyx Socket — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/throne-bone-onyx-socket.png",
-    "slug": "throne-bone-onyx-socket",
-    "kind": "filler",
-    "craftLevel": 98,
-    "craftSkill": "bonecraft"
   },
   {
     "id": 86,
@@ -1434,88 +1010,6 @@ export const CATALOG: ItemDef[] = [
     }
   },
   {
-    "id": 92,
-    "name": "Iron Goldsmith Wire×6",
-    "description": "Iron Goldsmith Wire×6 — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/iron-goldsmith-wire.png",
-    "slug": "iron-goldsmith-wire",
-    "kind": "filler",
-    "craftLevel": 21,
-    "craftSkill": "goldsmithing",
-    "craftOutputQty": 6
-  },
-  {
-    "id": 93,
-    "name": "Iron Goldsmith Earring",
-    "description": "Iron Goldsmith Earring — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/iron-goldsmith-earring.png",
-    "slug": "iron-goldsmith-earring",
-    "kind": "filler",
-    "craftLevel": 23,
-    "craftSkill": "goldsmithing"
-  },
-  {
-    "id": 94,
-    "name": "Iron Goldsmith Cabochon",
-    "description": "Iron Goldsmith Cabochon — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/iron-goldsmith-cabochon.png",
-    "slug": "iron-goldsmith-cabochon",
-    "kind": "filler",
-    "craftLevel": 27,
-    "craftSkill": "goldsmithing"
-  },
-  {
-    "id": 95,
-    "name": "Iron Goldsmith Torque Links×4",
-    "description": "Iron Goldsmith Torque Links×4 — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/iron-goldsmith-torque-links.png",
-    "slug": "iron-goldsmith-torque-links",
-    "kind": "filler",
-    "craftLevel": 29,
-    "craftSkill": "goldsmithing",
-    "craftOutputQty": 4
-  },
-  {
-    "id": 96,
-    "name": "Iron Goldsmith Wash",
-    "description": "Iron Goldsmith Wash — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/iron-goldsmith-wash.png",
-    "slug": "iron-goldsmith-wash",
-    "kind": "filler",
-    "craftLevel": 32,
-    "craftSkill": "goldsmithing"
-  },
-  {
-    "id": 97,
-    "name": "Iron Goldsmith Dual Setting",
-    "description": "Iron Goldsmith Dual Setting — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/iron-goldsmith-dual-setting.png",
-    "slug": "iron-goldsmith-dual-setting",
-    "kind": "filler",
-    "craftLevel": 34,
-    "craftSkill": "goldsmithing"
-  },
-  {
-    "id": 98,
-    "name": "Iron Goldsmith Noble Chain",
-    "description": "Iron Goldsmith Noble Chain — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/iron-goldsmith-noble-chain.png",
-    "slug": "iron-goldsmith-noble-chain",
-    "kind": "filler",
-    "craftLevel": 36,
-    "craftSkill": "goldsmithing"
-  },
-  {
-    "id": 99,
-    "name": "Iron Goldsmith Regalia Filigree",
-    "description": "Iron Goldsmith Regalia Filigree — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/iron-goldsmith-regalia-filigree.png",
-    "slug": "iron-goldsmith-regalia-filigree",
-    "kind": "filler",
-    "craftLevel": 38,
-    "craftSkill": "goldsmithing"
-  },
-  {
     "id": 100,
     "name": "Bronze Ingot",
     "description": "Bronze Ingot — synth material from Bellgrave crafts. Feed into higher recipes.",
@@ -1528,17 +1022,6 @@ export const CATALOG: ItemDef[] = [
       "gold": 70,
       "materialsText": "Copper Ore×2, Tin Ore×1 or Metal Scrap×5, Pale Dust×1"
     }
-  },
-  {
-    "id": 101,
-    "name": "Iron Goldsmith Stud×6",
-    "description": "Iron Goldsmith Stud×6 — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/iron-goldsmith-stud.png",
-    "slug": "iron-goldsmith-stud",
-    "kind": "filler",
-    "craftLevel": 40,
-    "craftSkill": "goldsmithing",
-    "craftOutputQty": 6
   },
   {
     "id": 102,
@@ -1772,17 +1255,6 @@ export const CATALOG: ItemDef[] = [
     }
   },
   {
-    "id": 112,
-    "name": "Iron Goldsmith Chain Link×8",
-    "description": "Iron Goldsmith Chain Link×8 — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/iron-goldsmith-chain-link.png",
-    "slug": "iron-goldsmith-chain-link",
-    "kind": "filler",
-    "craftLevel": 42,
-    "craftSkill": "goldsmithing",
-    "craftOutputQty": 8
-  },
-  {
     "id": 113,
     "name": "Iron Great Axe",
     "description": "Iron Great Axe. Tempered gear from Bellgrave's craft halls.",
@@ -1909,16 +1381,6 @@ export const CATALOG: ItemDef[] = [
     "rarity": "Uncommon"
   },
   {
-    "id": 118,
-    "name": "Iron Cuirass Kit",
-    "description": "Iron Cuirass Kit — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/iron-cuirass-kit.png",
-    "slug": "iron-cuirass-kit",
-    "kind": "filler",
-    "craftLevel": 32,
-    "craftSkill": "smithing"
-  },
-  {
     "id": 119,
     "name": "Iron Tower Shield",
     "description": "Iron Tower Shield — synth material from Bellgrave crafts. Feed into higher recipes.",
@@ -1941,16 +1403,6 @@ export const CATALOG: ItemDef[] = [
       "gold": 750,
       "materialsText": "Iron Ingot×2, Iron Sand×1, Slag Dust×1"
     }
-  },
-  {
-    "id": 121,
-    "name": "Steel Blade Polish",
-    "description": "Steel Blade Polish — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/steel-blade-polish.png",
-    "slug": "steel-blade-polish",
-    "kind": "filler",
-    "craftLevel": 37,
-    "craftSkill": "smithing"
   },
   {
     "id": 122,
@@ -1980,16 +1432,6 @@ export const CATALOG: ItemDef[] = [
     "rarity": "Uncommon"
   },
   {
-    "id": 123,
-    "name": "Iron Goldsmith Bangle",
-    "description": "Iron Goldsmith Bangle — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/iron-goldsmith-bangle.png",
-    "slug": "iron-goldsmith-bangle",
-    "kind": "filler",
-    "craftLevel": 44,
-    "craftSkill": "goldsmithing"
-  },
-  {
     "id": 124,
     "name": "Mythril Ingot",
     "description": "Mythril Ingot — synth material from Bellgrave crafts. Feed into higher recipes.",
@@ -2002,16 +1444,6 @@ export const CATALOG: ItemDef[] = [
       "gold": 890,
       "materialsText": "Mythril Ore×3, Slag Dust×1"
     }
-  },
-  {
-    "id": 125,
-    "name": "Mythril Goldsmith Cabochon",
-    "description": "Mythril Goldsmith Cabochon — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/mythril-goldsmith-cabochon.png",
-    "slug": "mythril-goldsmith-cabochon",
-    "kind": "filler",
-    "craftLevel": 47,
-    "craftSkill": "goldsmithing"
   },
   {
     "id": 126,
@@ -2220,16 +1652,6 @@ export const CATALOG: ItemDef[] = [
     ],
     "weaponFamily": "greatsword",
     "rarity": "Rare"
-  },
-  {
-    "id": 135,
-    "name": "Mythril Goldsmith Dual Setting",
-    "description": "Mythril Goldsmith Dual Setting — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/mythril-goldsmith-dual-setting.png",
-    "slug": "mythril-goldsmith-dual-setting",
-    "kind": "filler",
-    "craftLevel": 54,
-    "craftSkill": "goldsmithing"
   },
   {
     "id": 136,
@@ -2458,26 +1880,6 @@ export const CATALOG: ItemDef[] = [
     "craftSkill": "smithing"
   },
   {
-    "id": 146,
-    "name": "Darksteel Hybrid Plate",
-    "description": "Darksteel Hybrid Plate — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/darksteel-hybrid-plate.png",
-    "slug": "darksteel-hybrid-plate",
-    "kind": "filler",
-    "craftLevel": 78,
-    "craftSkill": "smithing"
-  },
-  {
-    "id": 147,
-    "name": "Mythril Goldsmith Noble Chain",
-    "description": "Mythril Goldsmith Noble Chain — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/mythril-goldsmith-noble-chain.png",
-    "slug": "mythril-goldsmith-noble-chain",
-    "kind": "filler",
-    "craftLevel": 56,
-    "craftSkill": "goldsmithing"
-  },
-  {
     "id": 148,
     "name": "Orichalcum Ingot",
     "description": "Orichalcum Ingot — synth material from Bellgrave crafts. Feed into higher recipes.",
@@ -2490,16 +1892,6 @@ export const CATALOG: ItemDef[] = [
       "gold": 1690,
       "materialsText": "Orichalcum Ore×2, Mythril Ingot×1, Throne Dust×1"
     }
-  },
-  {
-    "id": 149,
-    "name": "Orichalcum Buckle",
-    "description": "Orichalcum Buckle — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/orichalcum-buckle.png",
-    "slug": "orichalcum-buckle",
-    "kind": "filler",
-    "craftLevel": 84,
-    "craftSkill": "smithing"
   },
   {
     "id": 150,
@@ -2771,16 +2163,6 @@ export const CATALOG: ItemDef[] = [
     }
   },
   {
-    "id": 164,
-    "name": "Mythril Goldsmith Regalia Filigree",
-    "description": "Mythril Goldsmith Regalia Filigree — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/mythril-goldsmith-regalia-filigree.png",
-    "slug": "mythril-goldsmith-regalia-filigree",
-    "kind": "filler",
-    "craftLevel": 58,
-    "craftSkill": "goldsmithing"
-  },
-  {
     "id": 165,
     "name": "Ashbeam Bow Stave",
     "description": "Ashbeam Bow Stave — synth material from Bellgrave crafts. Feed into higher recipes.",
@@ -2829,27 +2211,6 @@ export const CATALOG: ItemDef[] = [
     "rarity": "Common"
   },
   {
-    "id": 168,
-    "name": "Ashbeam Siege Stock",
-    "description": "Ashbeam Siege Stock — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/ashbeam-siege-stock.png",
-    "slug": "ashbeam-siege-stock",
-    "kind": "filler",
-    "craftLevel": 20,
-    "craftSkill": "woodworking"
-  },
-  {
-    "id": 169,
-    "name": "Mythril Goldsmith Stud×6",
-    "description": "Mythril Goldsmith Stud×6 — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/mythril-goldsmith-stud.png",
-    "slug": "mythril-goldsmith-stud",
-    "kind": "filler",
-    "craftLevel": 60,
-    "craftSkill": "goldsmithing",
-    "craftOutputQty": 6
-  },
-  {
     "id": 170,
     "name": "Ashbeam Wand",
     "description": "Ashbeam Wand — synth material from Bellgrave crafts. Feed into higher recipes.",
@@ -2857,16 +2218,6 @@ export const CATALOG: ItemDef[] = [
     "slug": "ashbeam-wand",
     "kind": "filler",
     "craftLevel": 22,
-    "craftSkill": "woodworking"
-  },
-  {
-    "id": 171,
-    "name": "Ashbeam Pole",
-    "description": "Ashbeam Pole — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/ashbeam-pole.png",
-    "slug": "ashbeam-pole",
-    "kind": "filler",
-    "craftLevel": 24,
     "craftSkill": "woodworking"
   },
   {
@@ -2896,26 +2247,6 @@ export const CATALOG: ItemDef[] = [
     "rarity": "Uncommon"
   },
   {
-    "id": 173,
-    "name": "Ashbeam Ferrule",
-    "description": "Ashbeam Ferrule — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/ashbeam-ferrule.png",
-    "slug": "ashbeam-ferrule",
-    "kind": "filler",
-    "craftLevel": 27,
-    "craftSkill": "woodworking"
-  },
-  {
-    "id": 174,
-    "name": "Ashbeam Laminate",
-    "description": "Ashbeam Laminate — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/ashbeam-laminate.png",
-    "slug": "ashbeam-laminate",
-    "kind": "filler",
-    "craftLevel": 29,
-    "craftSkill": "woodworking"
-  },
-  {
     "id": 175,
     "name": "Ashbeam Quarterstaff",
     "description": "Ashbeam Quarterstaff — synth material from Bellgrave crafts. Feed into higher recipes.",
@@ -2923,26 +2254,6 @@ export const CATALOG: ItemDef[] = [
     "slug": "ashbeam-quarterstaff",
     "kind": "filler",
     "craftLevel": 31,
-    "craftSkill": "woodworking"
-  },
-  {
-    "id": 176,
-    "name": "Ashbeam Club Blank",
-    "description": "Ashbeam Club Blank — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/ashbeam-club-blank.png",
-    "slug": "ashbeam-club-blank",
-    "kind": "filler",
-    "craftLevel": 33,
-    "craftSkill": "woodworking"
-  },
-  {
-    "id": 177,
-    "name": "Ashbeam String Kit",
-    "description": "Ashbeam String Kit — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/ashbeam-string-kit.png",
-    "slug": "ashbeam-string-kit",
-    "kind": "filler",
-    "craftLevel": 35,
     "craftSkill": "woodworking"
   },
   {
@@ -2954,17 +2265,6 @@ export const CATALOG: ItemDef[] = [
     "kind": "filler",
     "craftLevel": 37,
     "craftSkill": "woodworking"
-  },
-  {
-    "id": 179,
-    "name": "Mythril Goldsmith Chain Link×8",
-    "description": "Mythril Goldsmith Chain Link×8 — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/mythril-goldsmith-chain-link.png",
-    "slug": "mythril-goldsmith-chain-link",
-    "kind": "filler",
-    "craftLevel": 62,
-    "craftSkill": "goldsmithing",
-    "craftOutputQty": 8
   },
   {
     "id": 180,
@@ -2991,16 +2291,6 @@ export const CATALOG: ItemDef[] = [
     "craftSkill": "woodworking"
   },
   {
-    "id": 182,
-    "name": "Bloodbeam Pole",
-    "description": "Bloodbeam Pole — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/bloodbeam-pole.png",
-    "slug": "bloodbeam-pole",
-    "kind": "filler",
-    "craftLevel": 44,
-    "craftSkill": "woodworking"
-  },
-  {
     "id": 183,
     "name": "Ashbeam Club",
     "description": "Ashbeam Club. Tempered gear from Bellgrave's craft halls.",
@@ -3024,26 +2314,6 @@ export const CATALOG: ItemDef[] = [
     ],
     "weaponFamily": "club",
     "rarity": "Common"
-  },
-  {
-    "id": 184,
-    "name": "Bloodbeam Ferrule",
-    "description": "Bloodbeam Ferrule — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/bloodbeam-ferrule.png",
-    "slug": "bloodbeam-ferrule",
-    "kind": "filler",
-    "craftLevel": 47,
-    "craftSkill": "woodworking"
-  },
-  {
-    "id": 185,
-    "name": "Mythril Goldsmith Bangle",
-    "description": "Mythril Goldsmith Bangle — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/mythril-goldsmith-bangle.png",
-    "slug": "mythril-goldsmith-bangle",
-    "kind": "filler",
-    "craftLevel": 64,
-    "craftSkill": "goldsmithing"
   },
   {
     "id": 186,
@@ -3076,16 +2346,6 @@ export const CATALOG: ItemDef[] = [
     "craftSkill": "woodworking"
   },
   {
-    "id": 188,
-    "name": "Bloodbeam Shield Rim",
-    "description": "Bloodbeam Shield Rim — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/bloodbeam-shield-rim.png",
-    "slug": "bloodbeam-shield-rim",
-    "kind": "filler",
-    "craftLevel": 54,
-    "craftSkill": "woodworking"
-  },
-  {
     "id": 189,
     "name": "Bloodbeam Crook",
     "description": "Bloodbeam Crook — synth material from Bellgrave crafts. Feed into higher recipes.",
@@ -3094,26 +2354,6 @@ export const CATALOG: ItemDef[] = [
     "kind": "filler",
     "craftLevel": 56,
     "craftSkill": "woodworking"
-  },
-  {
-    "id": 190,
-    "name": "Bloodbeam Siege Stock",
-    "description": "Bloodbeam Siege Stock — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/bloodbeam-siege-stock.png",
-    "slug": "bloodbeam-siege-stock",
-    "kind": "filler",
-    "craftLevel": 58,
-    "craftSkill": "woodworking"
-  },
-  {
-    "id": 191,
-    "name": "Darksteel Goldsmith Wash",
-    "description": "Darksteel Goldsmith Wash — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/darksteel-goldsmith-wash.png",
-    "slug": "darksteel-goldsmith-wash",
-    "kind": "filler",
-    "craftLevel": 72,
-    "craftSkill": "goldsmithing"
   },
   {
     "id": 192,
@@ -3206,26 +2446,6 @@ export const CATALOG: ItemDef[] = [
     "rarity": "Rare"
   },
   {
-    "id": 197,
-    "name": "Bellwood Shield Rim",
-    "description": "Bellwood Shield Rim — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/bellwood-shield-rim.png",
-    "slug": "bellwood-shield-rim",
-    "kind": "filler",
-    "craftLevel": 74,
-    "craftSkill": "woodworking"
-  },
-  {
-    "id": 198,
-    "name": "Darksteel Goldsmith Dual Setting",
-    "description": "Darksteel Goldsmith Dual Setting — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/darksteel-goldsmith-dual-setting.png",
-    "slug": "darksteel-goldsmith-dual-setting",
-    "kind": "filler",
-    "craftLevel": 74,
-    "craftSkill": "goldsmithing"
-  },
-  {
     "id": 199,
     "name": "Bellwood Longbow",
     "description": "Bellwood Longbow — synth material from Bellgrave crafts. Feed into higher recipes.",
@@ -3233,46 +2453,6 @@ export const CATALOG: ItemDef[] = [
     "slug": "bellwood-longbow",
     "kind": "filler",
     "craftLevel": 77,
-    "craftSkill": "woodworking"
-  },
-  {
-    "id": 200,
-    "name": "Darksteel Goldsmith Royal Setting",
-    "description": "Darksteel Goldsmith Royal Setting — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/darksteel-goldsmith-royal-setting.png",
-    "slug": "darksteel-goldsmith-royal-setting",
-    "kind": "filler",
-    "craftLevel": 77,
-    "craftSkill": "goldsmithing"
-  },
-  {
-    "id": 201,
-    "name": "Bellwood Shaft",
-    "description": "Bellwood Shaft — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/bellwood-shaft.png",
-    "slug": "bellwood-shaft",
-    "kind": "filler",
-    "craftLevel": 81,
-    "craftSkill": "woodworking"
-  },
-  {
-    "id": 202,
-    "name": "Bellwood Cane",
-    "description": "Bellwood Cane — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/bellwood-cane.png",
-    "slug": "bellwood-cane",
-    "kind": "filler",
-    "craftLevel": 83,
-    "craftSkill": "woodworking"
-  },
-  {
-    "id": 203,
-    "name": "Bellwood Crosspiece",
-    "description": "Bellwood Crosspiece — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/bellwood-crosspiece.png",
-    "slug": "bellwood-crosspiece",
-    "kind": "filler",
-    "craftLevel": 85,
     "craftSkill": "woodworking"
   },
   {
@@ -3567,16 +2747,6 @@ export const CATALOG: ItemDef[] = [
     }
   },
   {
-    "id": 219,
-    "name": "Darksteel Goldsmith Accent Socket",
-    "description": "Darksteel Goldsmith Accent Socket — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/darksteel-goldsmith-accent-socket.png",
-    "slug": "darksteel-goldsmith-accent-socket",
-    "kind": "filler",
-    "craftLevel": 79,
-    "craftSkill": "goldsmithing"
-  },
-  {
     "id": 220,
     "name": "Darksteel Goldsmith Wire×6",
     "description": "Darksteel Goldsmith Wire×6 — synth material from Bellgrave crafts. Feed into higher recipes.",
@@ -3738,36 +2908,6 @@ export const CATALOG: ItemDef[] = [
     "rarity": "Uncommon"
   },
   {
-    "id": 227,
-    "name": "Leather Mail Skirt",
-    "description": "Leather Mail Skirt — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/leather-mail-skirt.png",
-    "slug": "leather-mail-skirt",
-    "kind": "filler",
-    "craftLevel": 36,
-    "craftSkill": "leathercraft"
-  },
-  {
-    "id": 228,
-    "name": "Leather Court Patch",
-    "description": "Leather Court Patch — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/leather-court-patch.png",
-    "slug": "leather-court-patch",
-    "kind": "filler",
-    "craftLevel": 38,
-    "craftSkill": "leathercraft"
-  },
-  {
-    "id": 229,
-    "name": "Orichalcum Goldsmith Earring",
-    "description": "Orichalcum Goldsmith Earring — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/orichalcum-goldsmith-earring.png",
-    "slug": "orichalcum-goldsmith-earring",
-    "kind": "filler",
-    "craftLevel": 83,
-    "craftSkill": "goldsmithing"
-  },
-  {
     "id": 230,
     "name": "Fine Leather",
     "description": "Fine Leather — synth material from Bellgrave crafts. Feed into higher recipes.",
@@ -3780,16 +2920,6 @@ export const CATALOG: ItemDef[] = [
       "gold": 890,
       "materialsText": "Soft Pelt×2, Slime Oil×1, Slag Dust×1"
     }
-  },
-  {
-    "id": 231,
-    "name": "Fine Leather Pouch",
-    "description": "Fine Leather Pouch — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/fine-leather-pouch.png",
-    "slug": "fine-leather-pouch",
-    "kind": "filler",
-    "craftLevel": 44,
-    "craftSkill": "leathercraft"
   },
   {
     "id": 232,
@@ -3811,16 +2941,6 @@ export const CATALOG: ItemDef[] = [
     },
     "slot": "head",
     "rarity": "Uncommon"
-  },
-  {
-    "id": 233,
-    "name": "Fine Leather Mantle Scrap",
-    "description": "Fine Leather Mantle Scrap — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/fine-leather-mantle-scrap.png",
-    "slug": "fine-leather-mantle-scrap",
-    "kind": "filler",
-    "craftLevel": 47,
-    "craftSkill": "leathercraft"
   },
   {
     "id": 234,
@@ -3949,36 +3069,6 @@ export const CATALOG: ItemDef[] = [
     "rarity": "Rare"
   },
   {
-    "id": 239,
-    "name": "Fine Leather Court Patch",
-    "description": "Fine Leather Court Patch — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/fine-leather-court-patch.png",
-    "slug": "fine-leather-court-patch",
-    "kind": "filler",
-    "craftLevel": 58,
-    "craftSkill": "leathercraft"
-  },
-  {
-    "id": 240,
-    "name": "Orichalcum Goldsmith Cabochon",
-    "description": "Orichalcum Goldsmith Cabochon — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/orichalcum-goldsmith-cabochon.png",
-    "slug": "orichalcum-goldsmith-cabochon",
-    "kind": "filler",
-    "craftLevel": 87,
-    "craftSkill": "goldsmithing"
-  },
-  {
-    "id": 241,
-    "name": "Fine Leather Belt",
-    "description": "Fine Leather Belt — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/fine-leather-belt.png",
-    "slug": "fine-leather-belt",
-    "kind": "filler",
-    "craftLevel": 62,
-    "craftSkill": "leathercraft"
-  },
-  {
     "id": 242,
     "name": "Scale Leather",
     "description": "Scale Leather — synth material from Bellgrave crafts. Feed into higher recipes.",
@@ -3991,16 +3081,6 @@ export const CATALOG: ItemDef[] = [
       "gold": 1350,
       "materialsText": "Scale Hide×2, Bell Dust×1"
     }
-  },
-  {
-    "id": 243,
-    "name": "Scale Leather Mantle Scrap",
-    "description": "Scale Leather Mantle Scrap — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/scale-leather-mantle-scrap.png",
-    "slug": "scale-leather-mantle-scrap",
-    "kind": "filler",
-    "craftLevel": 67,
-    "craftSkill": "leathercraft"
   },
   {
     "id": 244,
@@ -4139,17 +3219,6 @@ export const CATALOG: ItemDef[] = [
     "rarity": "Rare"
   },
   {
-    "id": 250,
-    "name": "Orichalcum Goldsmith Torque Links×4",
-    "description": "Orichalcum Goldsmith Torque Links×4 — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/orichalcum-goldsmith-torque-links.png",
-    "slug": "orichalcum-goldsmith-torque-links",
-    "kind": "filler",
-    "craftLevel": 89,
-    "craftSkill": "goldsmithing",
-    "craftOutputQty": 4
-  },
-  {
     "id": 251,
     "name": "Scale Leather Belt",
     "description": "Scale Leather Belt — synth material from Bellgrave crafts. Feed into higher recipes.",
@@ -4164,16 +3233,6 @@ export const CATALOG: ItemDef[] = [
     }
   },
   {
-    "id": 252,
-    "name": "Scale Leather Pouch",
-    "description": "Scale Leather Pouch — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/scale-leather-pouch.png",
-    "slug": "scale-leather-pouch",
-    "kind": "filler",
-    "craftLevel": 84,
-    "craftSkill": "leathercraft"
-  },
-  {
     "id": 253,
     "name": "Scale Leather Stud Kit",
     "description": "Scale Leather Stud Kit — synth material from Bellgrave crafts. Feed into higher recipes.",
@@ -4186,46 +3245,6 @@ export const CATALOG: ItemDef[] = [
       "gold": 1770,
       "materialsText": "Scale Leather×1, Throne Dust×1"
     }
-  },
-  {
-    "id": 254,
-    "name": "Scale Leather Collar",
-    "description": "Scale Leather Collar — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/scale-leather-collar.png",
-    "slug": "scale-leather-collar",
-    "kind": "filler",
-    "craftLevel": 88,
-    "craftSkill": "leathercraft"
-  },
-  {
-    "id": 255,
-    "name": "Scale Leather Shoulder Pad",
-    "description": "Scale Leather Shoulder Pad — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/scale-leather-shoulder-pad.png",
-    "slug": "scale-leather-shoulder-pad",
-    "kind": "filler",
-    "craftLevel": 90,
-    "craftSkill": "leathercraft"
-  },
-  {
-    "id": 256,
-    "name": "Scale Leather Oil-Cure",
-    "description": "Scale Leather Oil-Cure — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/scale-leather-oil-cure.png",
-    "slug": "scale-leather-oil-cure",
-    "kind": "filler",
-    "craftLevel": 92,
-    "craftSkill": "leathercraft"
-  },
-  {
-    "id": 257,
-    "name": "Scale Leather Emboss Kit",
-    "description": "Scale Leather Emboss Kit — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/scale-leather-emboss-kit.png",
-    "slug": "scale-leather-emboss-kit",
-    "kind": "filler",
-    "craftLevel": 94,
-    "craftSkill": "leathercraft"
   },
   {
     "id": 258,
@@ -4250,36 +3269,6 @@ export const CATALOG: ItemDef[] = [
       "rogue"
     ],
     "rarity": "Epic"
-  },
-  {
-    "id": 259,
-    "name": "Scale Leather Hardened Vest",
-    "description": "Scale Leather Hardened Vest — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/scale-leather-hardened-vest.png",
-    "slug": "scale-leather-hardened-vest",
-    "kind": "filler",
-    "craftLevel": 97,
-    "craftSkill": "leathercraft"
-  },
-  {
-    "id": 260,
-    "name": "Orichalcum Goldsmith Wash",
-    "description": "Orichalcum Goldsmith Wash — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/orichalcum-goldsmith-wash.png",
-    "slug": "orichalcum-goldsmith-wash",
-    "kind": "filler",
-    "craftLevel": 92,
-    "craftSkill": "goldsmithing"
-  },
-  {
-    "id": 261,
-    "name": "Master Leather Kit",
-    "description": "Master Leather Kit — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/master-leather-kit.png",
-    "slug": "master-leather-kit",
-    "kind": "filler",
-    "craftLevel": 100,
-    "craftSkill": "leathercraft"
   },
   {
     "id": 262,
@@ -4475,16 +3464,6 @@ export const CATALOG: ItemDef[] = [
     }
   },
   {
-    "id": 272,
-    "name": "Orichalcum Goldsmith Dual Setting",
-    "description": "Orichalcum Goldsmith Dual Setting — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/orichalcum-goldsmith-dual-setting.png",
-    "slug": "orichalcum-goldsmith-dual-setting",
-    "kind": "filler",
-    "craftLevel": 94,
-    "craftSkill": "goldsmithing"
-  },
-  {
     "id": 273,
     "name": "Spell Parchment",
     "description": "Spell Parchment — synth material from Bellgrave crafts. Feed into higher recipes.",
@@ -4507,16 +3486,6 @@ export const CATALOG: ItemDef[] = [
     "kind": "filler",
     "craftLevel": 24,
     "craftSkill": "clothcraft"
-  },
-  {
-    "id": 275,
-    "name": "Orichalcum Goldsmith Noble Chain",
-    "description": "Orichalcum Goldsmith Noble Chain — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/orichalcum-goldsmith-noble-chain.png",
-    "slug": "orichalcum-goldsmith-noble-chain",
-    "kind": "filler",
-    "craftLevel": 96,
-    "craftSkill": "goldsmithing"
   },
   {
     "id": 276,
@@ -4656,16 +3625,6 @@ export const CATALOG: ItemDef[] = [
     "rarity": "Uncommon"
   },
   {
-    "id": 281,
-    "name": "Linen Sash",
-    "description": "Linen Sash — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/linen-sash.png",
-    "slug": "linen-sash",
-    "kind": "filler",
-    "craftLevel": 42,
-    "craftSkill": "clothcraft"
-  },
-  {
     "id": 282,
     "name": "Silk Cloth",
     "description": "Silk Cloth — synth material from Bellgrave crafts. Feed into higher recipes.",
@@ -4678,16 +3637,6 @@ export const CATALOG: ItemDef[] = [
       "gold": 950,
       "materialsText": "Spun Silk×1, Slag Dust×1"
     }
-  },
-  {
-    "id": 283,
-    "name": "Silk Twill",
-    "description": "Silk Twill — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/silk-twill.png",
-    "slug": "silk-twill",
-    "kind": "filler",
-    "craftLevel": 47,
-    "craftSkill": "clothcraft"
   },
   {
     "id": 284,
@@ -4827,36 +3776,6 @@ export const CATALOG: ItemDef[] = [
     "rarity": "Rare"
   },
   {
-    "id": 289,
-    "name": "Silk Sanctified Patch",
-    "description": "Silk Sanctified Patch — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/silk-sanctified-patch.png",
-    "slug": "silk-sanctified-patch",
-    "kind": "filler",
-    "craftLevel": 58,
-    "craftSkill": "clothcraft"
-  },
-  {
-    "id": 290,
-    "name": "Orichalcum Goldsmith Regalia Filigree",
-    "description": "Orichalcum Goldsmith Regalia Filigree — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/orichalcum-goldsmith-regalia-filigree.png",
-    "slug": "orichalcum-goldsmith-regalia-filigree",
-    "kind": "filler",
-    "craftLevel": 98,
-    "craftSkill": "goldsmithing"
-  },
-  {
-    "id": 291,
-    "name": "Silk Sash",
-    "description": "Silk Sash — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/silk-sash.png",
-    "slug": "silk-sash",
-    "kind": "filler",
-    "craftLevel": 62,
-    "craftSkill": "clothcraft"
-  },
-  {
     "id": 292,
     "name": "Silk Gloves",
     "description": "Silk Gloves — synth material from Bellgrave crafts. Feed into higher recipes.",
@@ -4879,16 +3798,6 @@ export const CATALOG: ItemDef[] = [
       "gold": 1350,
       "materialsText": "Velvet Thread×3, Silk Cloth×1, Bell Dust×1"
     }
-  },
-  {
-    "id": 294,
-    "name": "Velvet Twill",
-    "description": "Velvet Twill — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/velvet-twill.png",
-    "slug": "velvet-twill",
-    "kind": "filler",
-    "craftLevel": 67,
-    "craftSkill": "clothcraft"
   },
   {
     "id": 295,
@@ -5048,16 +3957,6 @@ export const CATALOG: ItemDef[] = [
     "rarity": "Rare"
   },
   {
-    "id": 302,
-    "name": "Velvet Sash",
-    "description": "Velvet Sash — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/velvet-sash.png",
-    "slug": "velvet-sash",
-    "kind": "filler",
-    "craftLevel": 82,
-    "craftSkill": "clothcraft"
-  },
-  {
     "id": 303,
     "name": "Velvet Gloves",
     "description": "Velvet Gloves — synth material from Bellgrave crafts. Feed into higher recipes.",
@@ -5088,16 +3987,6 @@ export const CATALOG: ItemDef[] = [
     "slot": "earring",
     "jobRestrict": "all",
     "rarity": "Common"
-  },
-  {
-    "id": 305,
-    "name": "Velvet Stole",
-    "description": "Velvet Stole — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/velvet-stole.png",
-    "slug": "velvet-stole",
-    "kind": "filler",
-    "craftLevel": 88,
-    "craftSkill": "clothcraft"
   },
   {
     "id": 306,
@@ -5135,16 +4024,6 @@ export const CATALOG: ItemDef[] = [
     "rarity": "Epic"
   },
   {
-    "id": 308,
-    "name": "Velvet Scroll Bind",
-    "description": "Velvet Scroll Bind — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/velvet-scroll-bind.png",
-    "slug": "velvet-scroll-bind",
-    "kind": "filler",
-    "craftLevel": 94,
-    "craftSkill": "clothcraft"
-  },
-  {
     "id": 309,
     "name": "Throneweave Robe",
     "description": "Throneweave Robe. Throne-forged gear from Bellgrave's craft halls.",
@@ -5169,36 +4048,6 @@ export const CATALOG: ItemDef[] = [
       "sorcerer"
     ],
     "rarity": "Epic"
-  },
-  {
-    "id": 310,
-    "name": "Velvet Bellweave",
-    "description": "Velvet Bellweave — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/velvet-bellweave.png",
-    "slug": "velvet-bellweave",
-    "kind": "filler",
-    "craftLevel": 97,
-    "craftSkill": "clothcraft"
-  },
-  {
-    "id": 311,
-    "name": "Velvet Twinweave Kit",
-    "description": "Velvet Twinweave Kit — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/velvet-twinweave-kit.png",
-    "slug": "velvet-twinweave-kit",
-    "kind": "filler",
-    "craftLevel": 99,
-    "craftSkill": "clothcraft"
-  },
-  {
-    "id": 312,
-    "name": "Throneweave Set Accent",
-    "description": "Throneweave Set Accent — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/throneweave-set-accent.png",
-    "slug": "throneweave-set-accent",
-    "kind": "filler",
-    "craftLevel": 100,
-    "craftSkill": "clothcraft"
   },
   {
     "id": 313,
@@ -5546,26 +4395,6 @@ export const CATALOG: ItemDef[] = [
     "rarity": "Uncommon"
   },
   {
-    "id": 331,
-    "name": "Bone War Horn",
-    "description": "Bone War Horn — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/bone-war-horn.png",
-    "slug": "bone-war-horn",
-    "kind": "filler",
-    "craftLevel": 37,
-    "craftSkill": "bonecraft"
-  },
-  {
-    "id": 332,
-    "name": "Bone Relic Core",
-    "description": "Bone Relic Core — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/bone-relic-core.png",
-    "slug": "bone-relic-core",
-    "kind": "filler",
-    "craftLevel": 39,
-    "craftSkill": "bonecraft"
-  },
-  {
     "id": 333,
     "name": "Horn Ring",
     "description": "Horn Ring. Tempered gear from Bellgrave's craft halls.",
@@ -5671,36 +4500,6 @@ export const CATALOG: ItemDef[] = [
     "rarity": "Rare"
   },
   {
-    "id": 338,
-    "name": "Bone Pin",
-    "description": "Bone Pin — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/bone-pin.png",
-    "slug": "bone-pin",
-    "kind": "filler",
-    "craftLevel": 61,
-    "craftSkill": "bonecraft"
-  },
-  {
-    "id": 339,
-    "name": "Bone Charm",
-    "description": "Bone Charm — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/bone-charm.png",
-    "slug": "bone-charm",
-    "kind": "filler",
-    "craftLevel": 63,
-    "craftSkill": "bonecraft"
-  },
-  {
-    "id": 340,
-    "name": "Bone Pauldron",
-    "description": "Bone Pauldron — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/bone-pauldron.png",
-    "slug": "bone-pauldron",
-    "kind": "filler",
-    "craftLevel": 69,
-    "craftSkill": "bonecraft"
-  },
-  {
     "id": 341,
     "name": "Dark Onyx Ring",
     "description": "Dark Onyx Ring. Throne-forged gear from Bellgrave's craft halls.",
@@ -5740,16 +4539,6 @@ export const CATALOG: ItemDef[] = [
     "consume": {
       "hp": 47
     }
-  },
-  {
-    "id": 343,
-    "name": "Bone Mask Blank",
-    "description": "Bone Mask Blank — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/bone-mask-blank.png",
-    "slug": "bone-mask-blank",
-    "kind": "filler",
-    "craftLevel": 86,
-    "craftSkill": "bonecraft"
   },
   {
     "id": 344,
@@ -6152,26 +4941,6 @@ export const CATALOG: ItemDef[] = [
     }
   },
   {
-    "id": 365,
-    "name": "Bell Cluster Shell",
-    "description": "Bell Cluster Shell — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/bell-cluster-shell.png",
-    "slug": "bell-cluster-shell",
-    "kind": "filler",
-    "craftLevel": 77,
-    "craftSkill": "alchemy"
-  },
-  {
-    "id": 366,
-    "name": "Throne Ink Base",
-    "description": "Throne Ink Base — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/throne-ink-base.png",
-    "slug": "throne-ink-base",
-    "kind": "filler",
-    "craftLevel": 82,
-    "craftSkill": "alchemy"
-  },
-  {
     "id": 367,
     "name": "Mythril Ring",
     "description": "Mythril Ring. Tempered gear from Bellgrave's craft halls.",
@@ -6247,16 +5016,6 @@ export const CATALOG: ItemDef[] = [
     "rarity": "Rare"
   },
   {
-    "id": 371,
-    "name": "Goldsmith Pendant",
-    "description": "Goldsmith Pendant — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/goldsmith-pendant.png",
-    "slug": "goldsmith-pendant",
-    "kind": "filler",
-    "craftLevel": 66,
-    "craftSkill": "goldsmithing"
-  },
-  {
     "id": 372,
     "name": "Goldsmith Filigree",
     "description": "Goldsmith Filigree — synth material from Bellgrave crafts. Feed into higher recipes.",
@@ -6310,16 +5069,6 @@ export const CATALOG: ItemDef[] = [
     "consume": {
       "hp": 71
     }
-  },
-  {
-    "id": 375,
-    "name": "Goldsmith Setting",
-    "description": "Goldsmith Setting — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/goldsmith-setting.png",
-    "slug": "goldsmith-setting",
-    "kind": "filler",
-    "craftLevel": 85,
-    "craftSkill": "goldsmithing"
   },
   {
     "id": 376,
@@ -6704,16 +5453,6 @@ export const CATALOG: ItemDef[] = [
     }
   },
   {
-    "id": 395,
-    "name": "Cluster Shell",
-    "description": "Cluster Shell — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/cluster-shell.png",
-    "slug": "cluster-shell",
-    "kind": "filler",
-    "craftLevel": 37,
-    "craftSkill": "alchemy"
-  },
-  {
     "id": 396,
     "name": "Prism Powder",
     "description": "Prism Powder. Consumable from Bellgrave's alchemy and cookfires.",
@@ -6828,16 +5567,6 @@ export const CATALOG: ItemDef[] = [
     }
   },
   {
-    "id": 402,
-    "name": "Panacea Base",
-    "description": "Panacea Base — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/panacea-base.png",
-    "slug": "panacea-base",
-    "kind": "filler",
-    "craftLevel": 59,
-    "craftSkill": "alchemy"
-  },
-  {
     "id": 403,
     "name": "Scroll: Quicken",
     "description": "Scroll: Quicken. Consumable from Bellgrave's alchemy and cookfires.",
@@ -6856,16 +5585,6 @@ export const CATALOG: ItemDef[] = [
     "consume": {
       "hp": 59
     }
-  },
-  {
-    "id": 404,
-    "name": "Ink Base",
-    "description": "Ink Base — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/ink-base.png",
-    "slug": "ink-base",
-    "kind": "filler",
-    "craftLevel": 62,
-    "craftSkill": "alchemy"
   },
   {
     "id": 405,
@@ -6988,16 +5707,6 @@ export const CATALOG: ItemDef[] = [
     }
   },
   {
-    "id": 411,
-    "name": "Stat Oil Base",
-    "description": "Stat Oil Base — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/stat-oil-base.png",
-    "slug": "stat-oil-base",
-    "kind": "filler",
-    "craftLevel": 88,
-    "craftSkill": "alchemy"
-  },
-  {
     "id": 412,
     "name": "X-Potion",
     "description": "X-Potion. Desiccated grain medicine for wounds of the dead city.",
@@ -7060,26 +5769,6 @@ export const CATALOG: ItemDef[] = [
       "hp": 194,
       "mp": 194
     }
-  },
-  {
-    "id": 415,
-    "name": "Throne Multi-Status Base",
-    "description": "Throne Multi-Status Base — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/throne-multi-status-base.png",
-    "slug": "throne-multi-status-base",
-    "kind": "filler",
-    "craftLevel": 96,
-    "craftSkill": "alchemy"
-  },
-  {
-    "id": 416,
-    "name": "X-Ether Base",
-    "description": "X-Ether Base — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/x-ether-base.png",
-    "slug": "x-ether-base",
-    "kind": "filler",
-    "craftLevel": 98,
-    "craftSkill": "alchemy"
   },
   {
     "id": 417,
@@ -7231,16 +5920,6 @@ export const CATALOG: ItemDef[] = [
     }
   },
   {
-    "id": 426,
-    "name": "Carp Fillet",
-    "description": "Carp Fillet — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/carp-fillet.png",
-    "slug": "carp-fillet",
-    "kind": "filler",
-    "craftLevel": 16,
-    "craftSkill": "cooking"
-  },
-  {
     "id": 427,
     "name": "Marina Stew",
     "description": "Marina Stew — synth material from Bellgrave crafts. Feed into higher recipes.",
@@ -7276,26 +5955,6 @@ export const CATALOG: ItemDef[] = [
     }
   },
   {
-    "id": 429,
-    "name": "Scholar Tea",
-    "description": "Scholar Tea — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/scholar-tea.png",
-    "slug": "scholar-tea",
-    "kind": "filler",
-    "craftLevel": 22,
-    "craftSkill": "cooking"
-  },
-  {
-    "id": 430,
-    "name": "Rich Stock",
-    "description": "Rich Stock — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/rich-stock.png",
-    "slug": "rich-stock",
-    "kind": "filler",
-    "craftLevel": 24,
-    "craftSkill": "cooking"
-  },
-  {
     "id": 431,
     "name": "Stone Scale Soup",
     "description": "Stone Scale Soup. Consumable from Bellgrave's alchemy and cookfires.",
@@ -7315,76 +5974,6 @@ export const CATALOG: ItemDef[] = [
       "hp": 38,
       "foodDurationSec": 1800
     }
-  },
-  {
-    "id": 432,
-    "name": "Fortified Bread",
-    "description": "Fortified Bread — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/fortified-bread.png",
-    "slug": "fortified-bread",
-    "kind": "filler",
-    "craftLevel": 27,
-    "craftSkill": "cooking"
-  },
-  {
-    "id": 433,
-    "name": "War Broth",
-    "description": "War Broth — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/war-broth.png",
-    "slug": "war-broth",
-    "kind": "filler",
-    "craftLevel": 29,
-    "craftSkill": "cooking"
-  },
-  {
-    "id": 434,
-    "name": "Banquet Starter",
-    "description": "Banquet Starter — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/banquet-starter.png",
-    "slug": "banquet-starter",
-    "kind": "filler",
-    "craftLevel": 31,
-    "craftSkill": "cooking"
-  },
-  {
-    "id": 435,
-    "name": "Royal Stock",
-    "description": "Royal Stock — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/royal-stock.png",
-    "slug": "royal-stock",
-    "kind": "filler",
-    "craftLevel": 33,
-    "craftSkill": "cooking"
-  },
-  {
-    "id": 436,
-    "name": "Jewel Glaze",
-    "description": "Jewel Glaze — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/jewel-glaze.png",
-    "slug": "jewel-glaze",
-    "kind": "filler",
-    "craftLevel": 35,
-    "craftSkill": "cooking"
-  },
-  {
-    "id": 437,
-    "name": "Palace Banquet",
-    "description": "Palace Banquet — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/palace-banquet.png",
-    "slug": "palace-banquet",
-    "kind": "filler",
-    "craftLevel": 37,
-    "craftSkill": "cooking"
-  },
-  {
-    "id": 438,
-    "name": "Twin Plate",
-    "description": "Twin Plate — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/twin-plate.png",
-    "slug": "twin-plate",
-    "kind": "filler",
-    "craftLevel": 39,
-    "craftSkill": "cooking"
   },
   {
     "id": 439,
@@ -7418,16 +6007,6 @@ export const CATALOG: ItemDef[] = [
     "craftSkill": "cooking"
   },
   {
-    "id": 441,
-    "name": "Fish Stock",
-    "description": "Fish Stock — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/fish-stock.png",
-    "slug": "fish-stock",
-    "kind": "filler",
-    "craftLevel": 44,
-    "craftSkill": "cooking"
-  },
-  {
     "id": 442,
     "name": "Mage Biscuits",
     "description": "Mage Biscuits. Consumable from Bellgrave's alchemy and cookfires.",
@@ -7447,16 +6026,6 @@ export const CATALOG: ItemDef[] = [
       "hp": 65,
       "foodDurationSec": 1800
     }
-  },
-  {
-    "id": 443,
-    "name": "Slag Smoked Minnow",
-    "description": "Slag Smoked Minnow — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/slag-smoked-minnow.png",
-    "slug": "slag-smoked-minnow",
-    "kind": "filler",
-    "craftLevel": 47,
-    "craftSkill": "cooking"
   },
   {
     "id": 444,
@@ -7480,56 +6049,6 @@ export const CATALOG: ItemDef[] = [
     }
   },
   {
-    "id": 445,
-    "name": "Slag Crab Cake",
-    "description": "Slag Crab Cake — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/slag-crab-cake.png",
-    "slug": "slag-crab-cake",
-    "kind": "filler",
-    "craftLevel": 50,
-    "craftSkill": "cooking"
-  },
-  {
-    "id": 446,
-    "name": "Slag Hearty Ration",
-    "description": "Slag Hearty Ration — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/slag-hearty-ration.png",
-    "slug": "slag-hearty-ration",
-    "kind": "filler",
-    "craftLevel": 52,
-    "craftSkill": "cooking"
-  },
-  {
-    "id": 447,
-    "name": "Slag Grain Porridge",
-    "description": "Slag Grain Porridge — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/slag-grain-porridge.png",
-    "slug": "slag-grain-porridge",
-    "kind": "filler",
-    "craftLevel": 54,
-    "craftSkill": "cooking"
-  },
-  {
-    "id": 448,
-    "name": "Slag Carp Fillet",
-    "description": "Slag Carp Fillet — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/slag-carp-fillet.png",
-    "slug": "slag-carp-fillet",
-    "kind": "filler",
-    "craftLevel": 56,
-    "craftSkill": "cooking"
-  },
-  {
-    "id": 449,
-    "name": "Slag Marina Stew",
-    "description": "Slag Marina Stew — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/slag-marina-stew.png",
-    "slug": "slag-marina-stew",
-    "kind": "filler",
-    "craftLevel": 58,
-    "craftSkill": "cooking"
-  },
-  {
     "id": 450,
     "name": "Eel Skewer",
     "description": "Eel Skewer. Consumable from Bellgrave's alchemy and cookfires.",
@@ -7548,26 +6067,6 @@ export const CATALOG: ItemDef[] = [
     "consume": {
       "hp": 59
     }
-  },
-  {
-    "id": 451,
-    "name": "Bell Scholar Tea",
-    "description": "Bell Scholar Tea — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/bell-scholar-tea.png",
-    "slug": "bell-scholar-tea",
-    "kind": "filler",
-    "craftLevel": 62,
-    "craftSkill": "cooking"
-  },
-  {
-    "id": 452,
-    "name": "Bell Rich Stock",
-    "description": "Bell Rich Stock — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/bell-rich-stock.png",
-    "slug": "bell-rich-stock",
-    "kind": "filler",
-    "craftLevel": 64,
-    "craftSkill": "cooking"
   },
   {
     "id": 453,
@@ -7591,26 +6090,6 @@ export const CATALOG: ItemDef[] = [
     }
   },
   {
-    "id": 454,
-    "name": "Bell Fortified Bread",
-    "description": "Bell Fortified Bread — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/bell-fortified-bread.png",
-    "slug": "bell-fortified-bread",
-    "kind": "filler",
-    "craftLevel": 67,
-    "craftSkill": "cooking"
-  },
-  {
-    "id": 455,
-    "name": "Bell War Broth",
-    "description": "Bell War Broth — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/bell-war-broth.png",
-    "slug": "bell-war-broth",
-    "kind": "filler",
-    "craftLevel": 69,
-    "craftSkill": "cooking"
-  },
-  {
     "id": 456,
     "name": "Glass Eel Noodles",
     "description": "Glass Eel Noodles. Consumable from Bellgrave's alchemy and cookfires.",
@@ -7629,97 +6108,6 @@ export const CATALOG: ItemDef[] = [
     "consume": {
       "hp": 65
     }
-  },
-  {
-    "id": 457,
-    "name": "Throne Salt",
-    "description": "Throne Salt — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/throne-salt.png",
-    "slug": "throne-salt",
-    "kind": "filler",
-    "craftLevel": 72,
-    "craftSkill": "cooking"
-  },
-  {
-    "id": 458,
-    "name": "Coronation Loaf",
-    "description": "Coronation Loaf — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/coronation-loaf.png",
-    "slug": "coronation-loaf",
-    "kind": "filler",
-    "craftLevel": 74,
-    "craftSkill": "cooking"
-  },
-  {
-    "id": 459,
-    "name": "Sovereign Jerky",
-    "description": "Sovereign Jerky — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/sovereign-jerky.png",
-    "slug": "sovereign-jerky",
-    "kind": "filler",
-    "craftLevel": 76,
-    "craftSkill": "cooking"
-  },
-  {
-    "id": 460,
-    "name": "Feast Core",
-    "description": "Feast Core — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/feast-core.png",
-    "slug": "feast-core",
-    "kind": "filler",
-    "craftLevel": 78,
-    "craftSkill": "cooking"
-  },
-  {
-    "id": 461,
-    "name": "Salt Pinch×6",
-    "description": "Salt Pinch×6 — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/salt-pinch.png",
-    "slug": "salt-pinch",
-    "kind": "filler",
-    "craftLevel": 80,
-    "craftSkill": "cooking",
-    "craftOutputQty": 6
-  },
-  {
-    "id": 462,
-    "name": "Throne Hardtack",
-    "description": "Throne Hardtack — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/throne-hardtack.png",
-    "slug": "throne-hardtack",
-    "kind": "filler",
-    "craftLevel": 82,
-    "craftSkill": "cooking"
-  },
-  {
-    "id": 463,
-    "name": "Throne Fish Stock",
-    "description": "Throne Fish Stock — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/throne-fish-stock.png",
-    "slug": "throne-fish-stock",
-    "kind": "filler",
-    "craftLevel": 84,
-    "craftSkill": "cooking"
-  },
-  {
-    "id": 464,
-    "name": "Scale Crisp",
-    "description": "Scale Crisp — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/scale-crisp.png",
-    "slug": "scale-crisp",
-    "kind": "filler",
-    "craftLevel": 86,
-    "craftSkill": "cooking"
-  },
-  {
-    "id": 465,
-    "name": "Broth Base",
-    "description": "Broth Base — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/broth-base.png",
-    "slug": "broth-base",
-    "kind": "filler",
-    "craftLevel": 88,
-    "craftSkill": "cooking"
   },
   {
     "id": 466,
@@ -7749,46 +6137,6 @@ export const CATALOG: ItemDef[] = [
       "mp": 106,
       "foodDurationSec": 1800
     }
-  },
-  {
-    "id": 467,
-    "name": "Throne Hearty Ration",
-    "description": "Throne Hearty Ration — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/throne-hearty-ration.png",
-    "slug": "throne-hearty-ration",
-    "kind": "filler",
-    "craftLevel": 92,
-    "craftSkill": "cooking"
-  },
-  {
-    "id": 468,
-    "name": "Throne Grain Porridge",
-    "description": "Throne Grain Porridge — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/throne-grain-porridge.png",
-    "slug": "throne-grain-porridge",
-    "kind": "filler",
-    "craftLevel": 94,
-    "craftSkill": "cooking"
-  },
-  {
-    "id": 469,
-    "name": "Throne Carp Fillet",
-    "description": "Throne Carp Fillet — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/throne-carp-fillet.png",
-    "slug": "throne-carp-fillet",
-    "kind": "filler",
-    "craftLevel": 96,
-    "craftSkill": "cooking"
-  },
-  {
-    "id": 470,
-    "name": "Throne Marina Stew",
-    "description": "Throne Marina Stew — synth material from Bellgrave crafts. Feed into higher recipes.",
-    "icon": "/icons/items/throne-marina-stew.png",
-    "slug": "throne-marina-stew",
-    "kind": "filler",
-    "craftLevel": 98,
-    "craftSkill": "cooking"
   },
   {
     "id": 471,
