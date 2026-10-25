@@ -22,6 +22,14 @@ fn smoothstep(a: f32, b: f32, x: f32) -> f32 {
 fn lerp(a: f32, b: f32, t: f32) -> f32 {
     a + (b - a) * t
 }
+fn knee_lift(phase: f32) -> f32 {
+    let c = phase.cos();
+    // Smooth stand-in for max(0, cos). A hard clip locks the shin, then the
+    // bend starts at full speed, so every step hitches.
+    let soft = 0.5 * (c + (c * c + 0.12).sqrt());
+    let peak = 0.5 * (1.0 + 1.12_f32.sqrt());
+    soft / peak
+}
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Gait {
@@ -59,8 +67,8 @@ impl Gait {
         let delta = 0.6;
         q.set(Ch::LHip, l_hip);
         q.set(Ch::RHip, r_hip);
-        q.set(Ch::LKnee, k * (ph + delta).cos().max(0.0) + 5.0);
-        q.set(Ch::RKnee, k * (ph + PI + delta).cos().max(0.0) + 5.0);
+        q.set(Ch::LKnee, k * knee_lift(ph + delta) + 5.0);
+        q.set(Ch::RKnee, k * knee_lift(ph + PI + delta) + 5.0);
         let arm = -0.7 * p.arm_swing * sx.arm_mul;
         q.set(Ch::LShoulder, arm * l_hip);
         q.set(Ch::RShoulder, arm * r_hip);

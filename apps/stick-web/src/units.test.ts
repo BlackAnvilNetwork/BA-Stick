@@ -1,8 +1,18 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { UnitSnapshot } from "@bellgrave/protocol";
-import { animFor, presetFor, syncUnits, type UnitSink } from "./units";
-import { wasdTarget } from "./input";
+import {
+  animFor,
+  craftActFor,
+  gatherActFor,
+  LEATHERCRAFT_ANIM_MS,
+  presentCraft,
+  presentGather,
+  presetFor,
+  syncUnits,
+  type UnitSink,
+} from "./units";
+import { moveKeyFromCode, wasdTarget } from "./input";
 
 const unit = (o: Partial<UnitSnapshot>): UnitSnapshot => ({
   id: "a", kind: "player", name: "A", x: 0, y: 0, z: 0, facing: 0, hp: 1, maxHp: 1, mp: 0, maxMp: 0, tp: 0,
@@ -19,7 +29,73 @@ test("animFor holds melee/cast only until animUntil", () => {
   assert.equal(animFor(unit({ anim: "melee", animUntil: 2000 }), 1000), "melee");
   assert.equal(animFor(unit({ anim: "melee", animUntil: 2000 }), 3000), "idle");
   assert.equal(animFor(unit({ anim: "walk" }), 0), "walk");
+  assert.equal(animFor(unit({ anim: "rest" }), 0), "rest");
   assert.equal(animFor(unit({ anim: "dead" }), 0), "idle");
+  assert.equal(animFor(unit({ anim: "cast", animUntil: 2000, gatherTool: "shovel" }), 1000), "harvest");
+  assert.equal(animFor(unit({ anim: "cast", animUntil: 2000, gatherTool: "pick" }), 1000), "mine");
+  assert.equal(animFor(unit({ anim: "cast", animUntil: 2000, gatherTool: "shovel" }), 3000), "idle");
+  assert.equal(
+    animFor(unit({ anim: "idle", animUntil: 5000, craftChannel: "leathercraft" }), 1000),
+    "leathercraft",
+  );
+});
+
+test("leathercraft craft shows hammer animation for three strikes", () => {
+  const act = craftActFor("leathercraft", 1000);
+  assert.ok(act);
+  assert.equal(act!.until - act!.since, LEATHERCRAFT_ANIM_MS);
+  const me = unit({ id: "me", anim: "idle", animUntil: 0 });
+  const shown = presentCraft(me, act, 1500);
+  assert.equal(animFor(shown.unit, 1500), "leathercraft");
+  assert.equal(shown.unit.craftChannel, "leathercraft");
+  assert.equal(presentCraft(me, act, act!.until + 1).act, null);
+});
+
+test("smithing craft summons anvil animation for three strikes", () => {
+  const act = craftActFor("smithing", 1000);
+  assert.ok(act);
+  assert.equal(act!.skill, "smithing");
+  const me = unit({ id: "me", anim: "idle", animUntil: 0 });
+  const shown = presentCraft(me, act, 1500);
+  assert.equal(animFor(shown.unit, 1500), "smithing");
+  assert.equal(shown.unit.craftChannel, "smithing");
+});
+
+test("cooking craft shows pot stir animation for three pulses", () => {
+  const act = craftActFor("cooking", 1000);
+  assert.ok(act);
+  assert.equal(act!.skill, "cooking");
+  const me = unit({ id: "me", anim: "idle", animUntil: 0 });
+  const shown = presentCraft(me, act, 1500);
+  assert.equal(animFor(shown.unit, 1500), "cooking");
+  assert.equal(shown.unit.craftChannel, "cooking");
+});
+
+test("goldsmithing craft shows stake tap animation for three strikes", () => {
+  const act = craftActFor("goldsmithing", 1000);
+  assert.ok(act);
+  assert.equal(act!.skill, "goldsmithing");
+  const me = unit({ id: "me", anim: "idle", animUntil: 0 });
+  const shown = presentCraft(me, act, 1500);
+  assert.equal(animFor(shown.unit, 1500), "goldsmithing");
+  assert.equal(shown.unit.craftChannel, "goldsmithing");
+});
+
+test("a gather click puts the tool in hand until the channel ends", () => {
+  const flax = unit({ id: "ph-live-1", kind: "npc", name: "Pale Flax Stand", gatherNode: true, gatherYield: "pale-flax" });
+  const vein = unit({ id: "ph-live-2", kind: "npc", name: "Copper Nugget Vein", gatherNode: true, gatherYield: "copper-ore" });
+  const pool = unit({ id: "ph-live-3", kind: "npc", name: "Chalk Pool", gatherNode: true, gatherYield: "fossil-minnow" });
+  const dig = gatherActFor(flax, 1000);
+  assert.equal(dig?.tool, "shovel");
+  assert.ok(dig && dig.until - dig.since >= 2500);
+  assert.equal(gatherActFor(vein, 1000)?.tool, "pick");
+  assert.equal(gatherActFor(pool, 1000), null);
+  const me = unit({ id: "me", anim: "idle", animUntil: 0 });
+  const shown = presentGather(me, dig, 1200);
+  assert.equal(animFor(shown.unit, 1200), "harvest");
+  assert.equal(presentGather(me, gatherActFor(vein, 1000), 1200).unit.gatherTool, "pick");
+  assert.equal(presentGather(unit({ anim: "walk" }), dig, 2000).act, null);
+  assert.equal(animFor(presentGather(me, dig, (dig?.until ?? 0) + 1).unit, (dig?.until ?? 0) + 1), "idle");
 });
 
 test("syncUnits upserts present units and removes departed ones", () => {
@@ -33,6 +109,19 @@ test("syncUnits upserts present units and removes departed ones", () => {
   syncUnits(sink, [unit({ id: "b" })], known, 0);
   assert.deepEqual(calls, ["+a", "+b", "+g", "+b", "-a", "-g"]);
   assert.deepEqual([...known], ["b"]);
+});
+
+test("move keys are WASD and the arrows", () => {
+  assert.equal(moveKeyFromCode("KeyW"), "w");
+  assert.equal(moveKeyFromCode("ArrowUp"), "w");
+  assert.equal(moveKeyFromCode("KeyA"), "a");
+  assert.equal(moveKeyFromCode("ArrowLeft"), "a");
+  assert.equal(moveKeyFromCode("KeyS"), "s");
+  assert.equal(moveKeyFromCode("ArrowDown"), "s");
+  assert.equal(moveKeyFromCode("KeyD"), "d");
+  assert.equal(moveKeyFromCode("ArrowRight"), "d");
+  assert.equal(moveKeyFromCode("KeyM"), null);
+  assert.equal(moveKeyFromCode("Numpad8"), null);
 });
 
 test("wasdTarget follows the screen projection and steps 4.5 units", () => {

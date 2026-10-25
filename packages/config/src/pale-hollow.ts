@@ -4,6 +4,8 @@
  * Server + client share `paleHollowHeight`.
  */
 
+import { nearTrailCorridor } from "./trail-geom";
+
 /**
  * The basin is a region, not a valley you can see in one glance.
  * East is a spur (the camp). North-center is the Ash Pit. The river
@@ -939,9 +941,11 @@ export function paleHollowTrails(): PaleHollowTrail[] {
     },
     {
       id: "chalkworks-to-marches",
-      surface: "dirt",
+      surface: "stone",
       points: [
-        { x: -70, z: 330 },
+        { x: -55, z: 320 },
+        { x: -58, z: 335 },
+        { x: -52, z: 358 },
         { x: -30, z: 390 },
         { x: -8, z: 410 },
       ],
@@ -961,7 +965,14 @@ export function paleHollowTrails(): PaleHollowTrail[] {
     stoneApproach("chalkworks-corridor", "L", chalk),
     stoneApproach("chalkworks-corridor", "R", chalk),
   ];
-  return raw.map((t) => (t.surface === "dirt" ? { ...t, points: dryTrail(t.points) } : t));
+  return raw.map((t) => (t.bridgeId ? t : { ...t, points: dryTrail(t.points) }));
+}
+
+/** Packed-dirt / stone travel corridors (matches BAZ1 trail stamping). */
+export function paleHollowOnTrail(x: number, z: number): boolean {
+  return nearTrailCorridor(x, z, paleHollowTrails(), PH_TRAIL_WIDTH, (t) =>
+    t.surface === "stone" ? PH_TRAIL_STONE_WIDTH : PH_TRAIL_WIDTH,
+  );
 }
 
 function buildBridgeFrame(site: PaleHollowBridgeSite): BridgeFrame {
@@ -1028,13 +1039,31 @@ export function paleHollowInBridgeWaterGap(
   x: number,
   z: number,
   river?: PaleHollowRiverKind,
+  pad?: { along: number; across: number },
 ): boolean {
-  const padAlong = 0.5;
-  const padAcross = 0.6;
+  const padAlong = pad?.along ?? 0.5;
+  const padAcross = pad?.across ?? 0.6;
   for (const f of bridgeFrames()) {
     if (river && f.river !== river) continue;
     const { along, across } = bridgeLocal(f, x, z);
     if (Math.abs(along) <= f.spanHalf + padAlong && Math.abs(across) <= f.deckHalfW + padAcross) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Zone bake: walk deck + ramp abutments only — keep open water under the arch.
+ * (Full-span masks turned the channel to stone and hid water under the bridge.)
+ */
+export function paleHollowBakedOnBridge(x: number, z: number): boolean {
+  if (paleHollowOnBridge(x, z)) return true;
+  for (const f of bridgeFrames()) {
+    const { along, across } = bridgeLocal(f, x, z);
+    const alongPad = 0.55;
+    if (Math.abs(along) < f.spanHalf - alongPad) continue;
+    if (Math.abs(along) <= f.spanHalf + 0.2 && Math.abs(across) <= f.deckHalfW + 1.25) {
       return true;
     }
   }
@@ -1521,8 +1550,8 @@ export function paleHollowWaterSurfaceY(x: number, z: number): number | null {
  */
 export function paleHollowInOpenWater(x: number, z: number): boolean {
   if (paleHollowOnBridge(x, z)) return false;
-  if (paleHollowBiomeCore(x, z) === "bridge") return false;
-  return paleHollowWaterSurfaceY(x, z) != null || paleHollowBiomeCore(x, z) === "river";
+  if (paleHollowInRiverWall(x, z)) return false;
+  return paleHollowWaterSurfaceY(x, z) != null;
 }
 
 /**
@@ -1687,6 +1716,7 @@ export function paleHollowNodeSpawnPoints(): { id: string; name: string; x: numb
 export type PaleHollowArchetype =
   | "dust_hare"
   | "pale_slime"
+  | "clay_crab"
   | "hollow_scavenger"
   | "ashbeam_boar"
   | "ruin_dweller"
@@ -1701,6 +1731,9 @@ export type PaleHollowRareDrop = {
   /** Absolute drop chance in [0, 1] (independent of the flat 65% mat roll). */
   chance: number;
 };
+
+/** Always granted on kill (no 65% mat roll). */
+export type PaleHollowFixedDrop = { slug: string; qty: number };
 
 /**
  * Same ids as player `JobId` â€” kept local so `@bellgrave/config` stays free of a combat dep.
@@ -1725,6 +1758,7 @@ export type PaleHollowMobJob =
 export const PH_ARCHETYPE_DEFAULT_JOB: Record<PaleHollowArchetype, PaleHollowMobJob> = {
   dust_hare: "fighter",
   pale_slime: "battle_mage",
+  clay_crab: "fighter",
   hollow_scavenger: "rogue",
   ashbeam_boar: "fighter",
   ruin_dweller: "sorcerer",
@@ -1749,6 +1783,8 @@ export type PaleHollowMobDef = {
   drops: string[];
   /** Optional rare gear â€” rolled once per kill at the given chance. */
   rareDrops?: PaleHollowRareDrop[];
+  /** Optional guaranteed mats (no 65% mat roll). */
+  fixedDrops?: PaleHollowFixedDrop[];
 };
 
 export function paleHollowMobJob(

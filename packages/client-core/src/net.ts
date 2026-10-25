@@ -40,6 +40,11 @@ let visibilityBound = false;
 /** User chose Logout — drop the live session and do not auto-enter the character. */
 let intentionalLogout = false;
 let authInFlight = false;
+/** Set only after the server accepted a signature. A reconnect presents this instead of signing. */
+let resumeToken: string | null = null;
+let resumeAttempt = false;
+/** Set by the Connect button so the next socket open may ask for a signature. */
+let signOnNextOpen = false;
 let nameCheckWaiter:
   | {
       resolve: (r: { ok: true; name: string } | { ok: false; error: string }) => void;
@@ -147,9 +152,35 @@ function beginAuthHello(address: `0x${string}`) {
   socket.send(JSON.stringify({ type: "auth/hello", wallet: address } satisfies ClientMessage));
 }
 
+function beginAuthResume(address: `0x${string}`, token: string) {
+  if (!socket || socket.readyState !== WebSocket.OPEN) return;
+  if (authInFlight) return;
+  authInFlight = true;
+  resumeAttempt = true;
+  socket.send(
+    JSON.stringify({
+      type: "auth/resume",
+      wallet: address,
+      resumeToken: token,
+    } satisfies ClientMessage),
+  );
+}
+
 function tryAutoAuth() {
-  if (externalAuth) {
+  if (signOnNextOpen && externalAuth) {
+    signOnNextOpen = false;
     beginAuthHello(externalAuth.address);
+    return;
+  }
+  if (externalAuth && resumeToken) {
+    beginAuthResume(externalAuth.address, resumeToken);
+    return;
+  }
+  if (externalAuth) {
+    // The server forgot this page (restart). Signing here would pop the wallet
+    // on every reconnect, including when the player dismisses the prompt.
+    useGame.getState().setPhase("auth");
+    useGame.getState().pushLog("Session ended. Connect your wallet to sign in again.");
     return;
   }
   if (!burnerIdentityAllowed()) {
@@ -249,7 +280,9 @@ export async function loginWithWalletConnect(opts?: {
     externalAuth = { address, signMessage };
     authedWallet = null;
     authInFlight = false;
+    signOnNextOpen = true;
     if (socket?.readyState === WebSocket.OPEN) {
+      signOnNextOpen = false;
       beginAuthHello(address);
     } else {
       connectSocket();
@@ -362,6 +395,9 @@ export function releaseEscrowFillOnServer(priceWei: string, epoch: number): Prom
 
 export async function clearExternalWalletAuth(): Promise<void> {
   externalAuth = null;
+  resumeToken = null;
+  resumeAttempt = false;
+  signOnNextOpen = false;
   await disconnectAppKit();
 }
 
@@ -404,6 +440,7 @@ export function connectSocket() {
     useGame.getState().setConnected(false);
     authedWallet = null;
     authInFlight = false;
+    resumeAttempt = false;
     const wasLogout = intentionalLogout;
     intentionalLogout = false;
     if (!wasLogout) rememberResume();
@@ -433,6 +470,8 @@ export function connectSocket() {
     }
     if (msg.type === "auth/ok") {
       authInFlight = false;
+      resumeAttempt = false;
+      if (msg.resumeToken) resumeToken = msg.resumeToken;
       authedWallet = msg.wallet.toLowerCase();
       g.setWallet(msg.wallet);
       g.setPendingCreateEnter(false);
@@ -460,9 +499,7 @@ export function connectSocket() {
         g.setSelectedCharId(resumeId);
         g.setPhase("play");
         if (socket?.readyState === WebSocket.OPEN) {
-          socket.send(
-            JSON.stringify({ type: "char/enter", characterId: resumeId } satisfies ClientMessage),
-          );
+          socket.send(JSON.stringify(characterEnterMessage(resumeId)));
         }
         return;
       }
@@ -578,6 +615,11 @@ export function connectSocket() {
       if (authInFlight) {
         authInFlight = false;
         authedWallet = null;
+        if (resumeAttempt) {
+          resumeAttempt = false;
+          resumeToken = null;
+          g.setPhase("auth");
+        }
       }
       // Only resolve a pending nameCheck on errors that are replies to that request path.
       if (
@@ -624,6 +666,10 @@ export function logoutToMenu() {
   intentionalLogout = true;
   resumeCharId = null;
   clearResumeStorage();
+  if (socket?.readyState === WebSocket.OPEN) {
+    socket.send(JSON.stringify({ type: "auth/logout" } satisfies ClientMessage));
+  }
+  resumeToken = null;
   void clearExternalWalletAuth();
   if (reconnectTimer) {
     clearTimeout(reconnectTimer);
@@ -654,6 +700,25 @@ export function onSend(fn: (msg: ClientMessage) => void): () => void {
   sendListeners.add(fn);
   return () => {
     sendListeners.delete(fn);
+  };
+}
+
+/** URL `?zone=forest_basin&x=128&z=28` rides along with char/enter so the server places the body. */
+export function characterEnterMessage(characterId?: string): ClientMessage {
+  const msg: ClientMessage = characterId
+    ? { type: "char/enter", characterId }
+    : { type: "char/enter" };
+  if (typeof location === "undefined") return msg;
+  const q = new URLSearchParams(location.search);
+  const zone = q.get("zone");
+  if (zone !== "forest_basin" && zone !== "pale_hollow" && zone !== "hollow_road") return msg;
+  const x = Number(q.get("x"));
+  const z = Number(q.get("z"));
+  return {
+    ...msg,
+    zone,
+    ...(Number.isFinite(x) ? { x } : {}),
+    ...(Number.isFinite(z) ? { z } : {}),
   };
 }
 

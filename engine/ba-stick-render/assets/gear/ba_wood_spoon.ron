@@ -1,0 +1,17 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Cooking stir spoon — wood handle (+y), shallow bowl at the tip.
+(
+    id: "ba_wood_spoon",
+    slot: MainHand,
+    attach: Some("r_hand"),
+    stance: Some("1h"),
+    reach: 0.38,
+    swing_weight: 1.1,
+    material: Some("leather"),
+    shapes: [
+        Capsule(from: (0.0, -0.06, 0.0), to: (0.0, 0.28, 0.0), ramp: Trim, thick: 1.3),
+        Disc(at: None, center: (0.0, 0.32, 0.0), r: 0.055, ramp: Material),
+        Capsule(from: (-0.05, 0.30, 0.0), to: (0.05, 0.30, 0.0), ramp: Material, thick: 1.6),
+    ],
+)

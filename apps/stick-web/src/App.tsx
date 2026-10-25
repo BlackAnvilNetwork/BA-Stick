@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { ITEM, ZONES } from "@bellgrave/config";
+import { ITEM, MENU_MUSIC, musicForZone } from "@bellgrave/config";
 import { FigurePreviewContext } from "@bellgrave/ui/FigurePreview";
 import { StickPreview } from "./StickPreview";
 import { BootScreens, Hud, castAbility, hotbarAbilityAt, hotbarIndexFromCode } from "@bellgrave/ui/Hud";
@@ -8,20 +8,39 @@ import { useGame } from "@bellgrave/client-core/state";
 import { enterZoneMusic, unlockZoneMusic } from "@bellgrave/ui/zoneMusic";
 import { unlockCombatSfx } from "@bellgrave/ui/combatSfx";
 import { toggleMinimap } from "@bellgrave/ui/uiSettings";
+import { clearKeyboardMove } from "@bellgrave/ui/moveInput";
 import { StickWorld } from "./StickWorld";
+import { BootMenuBackdrop } from "./BootMenuBackdrop";
+import { BootMenuHero } from "./BootMenuHero";
+import { stopBootMenuFx } from "./boot-menu-runtime";
+import { BootWikiButton } from "./BootWikiButton";
 
 /** The @bellgrave/ui shell around the Stick Engine canvas. */
 export function App() {
   const phase = useGame((s) => s.phase);
+  const zoneId = useGame((s) => s.snapshot?.you.zoneId);
 
   useEffect(() => {
     connectSocket();
   }, []);
 
+  const bootMenuBackdropMode =
+    phase === "play" ? "off" : phase === "boot" || phase === "auth" ? "live" : "static";
+  const bootMenuShell = bootMenuBackdropMode !== "off";
+  const bootMenuHeroActive = phase === "select";
+
   useEffect(() => {
-    if (phase !== "play") return;
-    enterZoneMusic(ZONES.pale_hollow.music);
+    if (phase === "play") stopBootMenuFx();
   }, [phase]);
+
+  useEffect(() => {
+    if (phase !== "play") {
+      clearKeyboardMove();
+      enterZoneMusic(MENU_MUSIC);
+      return;
+    }
+    enterZoneMusic(musicForZone(zoneId));
+  }, [phase, zoneId]);
 
   useEffect(() => {
     const unlock = () => {
@@ -63,11 +82,21 @@ export function App() {
   }, []);
 
   return (
-    <div style={{ width: "100%", height: "100%", position: "relative" }}>
+    <div
+      className={bootMenuShell ? "boot-forge-shell" : undefined}
+      style={{ width: "100%", height: "100%", position: "relative" }}
+    >
+      {bootMenuShell && (
+        <>
+          <BootMenuBackdrop mode={bootMenuBackdropMode} />
+          <BootMenuHero active={bootMenuHeroActive} />
+        </>
+      )}
       {phase === "play" && <StickWorld />}
       <div className="world-html-root" aria-hidden />
       <FigurePreviewContext.Provider value={StickPreview}>
         <BootScreens />
+        <BootWikiButton />
         <Hud />
       </FigurePreviewContext.Provider>
     </div>

@@ -1,0 +1,12 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Scale mail helm. Same disk shell as iron helm; palette from the plate file.
+(
+    id: "ba_scale_mail_helm",
+    slot: Head,
+    attach: Some("head"),
+    material: Some("steel"),
+    shapes: [],
+)

@@ -26,11 +26,52 @@ fn upsert_and_remove() {
 fn anim_mapping() {
     assert_eq!(AnimState::parse("melee").clip(), "swing");
     assert_eq!(AnimState::parse("walk").clip(), "walk");
+    assert_eq!(AnimState::parse("rest").action_clip(), Some("rest"));
     assert_eq!(AnimState::parse("bogus"), AnimState::Idle);
     let mut s = Scene::new(64, 64);
     s.upsert_unit("a", unit(0.0, 0.0, "idle", "rogue"));
     s.upsert_unit("a", unit(0.0, 0.0, "melee", "rogue"));
     assert_eq!(s.unit_clip("a"), Some("swing"));
+}
+
+#[test]
+fn rest_clip_is_a_heros_rest() {
+    use stick_engine::anim::{Ch, Clip, MaskKind};
+    use stick_engine::body::{BodyParams, Sex};
+    use stick_engine::math::v3;
+    use stick_engine::rig::{solve, Joint};
+    let clip = Clip::from_ron(include_str!("../assets/clips/rest.ron")).unwrap();
+    assert!(clip.meta.looping);
+    assert_eq!(clip.meta.mask, MaskKind::Full);
+    let pose = clip.sample(0.0);
+    assert!(pose.get(Ch::Bob) < -0.4, "the hips drop to the ground");
+    assert!(pose.get(Ch::Head) > 15.0, "the head bows");
+    assert!(pose.get(Ch::RWpnPitch) < -60.0, "the sword aims down");
+    let j = solve(&pose, &BodyParams::preset(Sex::Male), v3(0.0, 0.0, 0.0), 0.0, 0.0);
+    let lk = j.get(Joint::LKnee);
+    let rk = j.get(Joint::RKnee);
+    let lf = j.get(Joint::LFoot);
+    let rf = j.get(Joint::RFoot);
+    let hand = j.get(Joint::RHand);
+    let where_ = format!(
+        "Lknee {:.2} Rknee {:.2}@{:.2} Lfoot {:.2} Rfoot {:.2}@{:.2} hand {:.2} wpn.y {:.2} head.z {:.2} neck.z {:.2}",
+        lk.y, rk.y, rk.z, lf.y, rf.y, rf.z, hand.y, j.wpn_dir[1].y, j.get(Joint::Head).z, j.get(Joint::Neck).z
+    );
+    assert!(lk.y > rk.y + 0.15, "one knee is up — {where_}");
+    assert!(lf.y < 0.1 && lf.y > -0.08, "the raised foot is planted — {where_}");
+    assert!(rf.y < 0.12 && rf.y > -0.08, "the other foot rests on the ground — {where_}");
+    assert!(rf.z > rk.z + 0.2, "the resting leg reaches forward — {where_}");
+    let hip = j.get(Joint::Pelvis);
+    let t = (rk.z - hip.z) / (rf.z - hip.z).max(1e-3);
+    let line_y = hip.y + t * (rf.y - hip.y);
+    assert!(rk.y > line_y + 0.03, "the resting knee bends up, not back — {where_}");
+    assert!(j.wpn_dir[1].y < -0.7, "the sword points into the ground — {where_}");
+    assert!(j.get(Joint::Head).z > j.get(Joint::Neck).z, "the head is forward of the neck — {where_}");
+    let breath = clip.sample(1.6);
+    assert!(breath.get(Ch::Bob) < pose.get(Ch::Bob), "the breath settles");
+    let mut s = Scene::new(64, 64);
+    s.upsert_unit("a", unit(0.0, 0.0, "rest", "fighter"));
+    assert_eq!(s.unit_clip("a"), Some("rest"));
 }
 
 #[test]
@@ -78,6 +119,34 @@ fn draws_stick_figure_pixels() {
     s.write_rgba(&mut rgba);
     let body = PALETTE[crate::compat::C_BODY as usize];
     assert!(rgba.chunks(4).any(|p| p[0] == (body >> 16) as u8 && p[1] == (body >> 8) as u8));
+}
+
+#[test]
+fn rain_weather_keeps_figure_and_meadow_grass() {
+    let bytes = tiny_zone(40, 40, |_, _| (15, 0, 200));
+    let mut s = Scene::new(320, 180);
+    s.load_zone(&bytes).unwrap();
+    s.upsert_unit("me", unit(5.0, 5.0, "idle", "knight"));
+    s.follow(Some("me"));
+    for _ in 0..60 {
+        s.tick(1.0 / 60.0);
+    }
+    s.set_weather(1, 0.0); // rain
+    for _ in 0..300 {
+        s.tick(1.0 / 60.0);
+    }
+    s.draw();
+    let meadow = crate::palette::MEADOW;
+    assert!(s.fb.color.iter().filter(|&&c| c == meadow).count() > 80, "meadow blades");
+    let body = crate::compat::C_BODY;
+    assert!(s.fb.color.iter().filter(|&&c| c == body).count() > 40, "figure pixels");
+    let rain_px = s
+        .fb
+        .color
+        .iter()
+        .filter(|&&c| c == crate::palette::ROCK || c == crate::palette::ROCK_L)
+        .count();
+    assert!(rain_px > 20, "rain streaks ({rain_px})");
 }
 
 #[test]
@@ -176,7 +245,18 @@ fn fx_bars_rings_fade_and_anchor() {
     s.upsert_unit("m", unit(0.0, 0.0, "cast", "mob:ruin_dweller"));
     s.tick(0.0);
     assert!(!s.set_fx("nope", UnitFx::default()));
-    assert!(s.set_fx("m", UnitFx { hp: 0.5, cast: 0.5, aoe: 2.0, flags: crate::scene::FX_SELECTED | crate::scene::FX_HOSTILE, fade: 1.0, level_up: 0.3 }));
+    assert!(s.set_fx(
+        "m",
+        UnitFx {
+            hp: 0.5,
+            cast: 0.5,
+            aoe: 2.0,
+            flags: crate::scene::FX_SELECTED | crate::scene::FX_HOSTILE,
+            fade: 1.0,
+            level_up: 0.3,
+            weapon_edge: 0,
+        },
+    ));
     s.draw();
     let has = |c: u8| s.fb.color.iter().any(|&x| x == c);
     for c in [FX_HP, FX_CAST, FX_TELL, FX_RING_HOSTILE, FX_LEVEL] {
@@ -392,11 +472,35 @@ fn gear_changes_the_figure_and_seeds_are_stable() {
     assert!(harness.contains(&crate::palette::GEAR_BONE));
     assert!(harness.contains(&crate::palette::CR_HARE));
     assert!(harness.contains(&crate::compat::C_SHADOW));
-    let helm = render(Some(garb(0, 0, 0, 0, 0, 3, 5, 0, 0)));
+    let helm = render(Some(garb(0, 0, 0, 0, 0, 3, crate::gear::IRON_HELM_ITEM, 0, 0)));
     assert_ne!(plain, helm);
     assert!(helm.contains(&crate::compat::C_STEEL));
     assert!(helm.contains(&crate::compat::C_GOLD));
     assert!(helm.contains(&crate::compat::C_BODY));
+    let band = render(Some(garb(0, 0, 0, 0, 0, 1, crate::gear::LINEN_HELM_ITEM, 0, 0)));
+    assert_ne!(plain, band);
+    assert!(band.contains(&crate::palette::GEAR_LEATHER));
+    assert!(band.contains(&crate::compat::C_BODY));
+    let hat = render(Some(garb(0, 0, 0, 0, 0, 1, 0, 0, 0)));
+    assert_ne!(plain, hat);
+    assert!(hat.contains(&crate::palette::WATER));
+    assert!(hat.contains(&crate::compat::C_BODY));
+    let mut shield = garb(0, 0, 0, 0, 0, 0, 0, 0, 0);
+    shield.shield = true;
+    let faced = render(Some(shield));
+    assert_ne!(plain, faced);
+    assert!(faced.contains(&crate::compat::C_STEEL));
+    assert!(faced.contains(&crate::compat::C_GOLD));
+    let mut kite = garb(0, 0, 0, 0, 0, 0, 0, 0, 0);
+    kite.kite = true;
+    let pointed = render(Some(kite));
+    assert_ne!(plain, pointed);
+    assert!(pointed.contains(&crate::compat::C_STEEL));
+    assert!(pointed.contains(&crate::compat::C_GOLD));
+    let cuisses = render(Some(garb(0, 0, 0, 0, 0, 0, 0, 3, 1)));
+    assert_ne!(plain, cuisses);
+    assert!(cuisses.contains(&crate::compat::C_STEEL));
+    assert!(cuisses.contains(&crate::compat::C_GOLD));
     for fam in 1..=7 { render(Some(garb(fam, 3, fam as u32, 1, 1, 1, 1, 1, 1))); }
 }
 
@@ -477,7 +581,7 @@ fn bridge_deck_is_one_continuous_ribbon() {
     let mut fb = Framebuffer::new(640, 360);
     // 10 m span along z, 3.9 m deck, 0.6 m flat-deck lift, level ends, 0.3 ramps
     let p = Prop { kind: kind::BRIDGE, var: 0, x: 0.0, z: 0.0, y: 0.0, yaw: 0.0, s: 10.0, w: 3.9, h: 0.6, d: 0.0, j: [0.0; 6] };
-    draw(&mut fb, &cam, &[p], 0.0, 0.0);
+    draw(&mut fb, &cam, &[p], 0.0, 0.0, 0.0, 0.0);
     // Walk the deck centre line: every sample is lit deck, with no slab seam or
     // step outline crossing the walkway (the old 12-slab bridge had 11).
     let mut seams = 0;
@@ -511,7 +615,22 @@ fn l1_slope_shade_follows_sun() {
 fn l2_keylight_warms_lit_cools_shadow() {
     use crate::atmosphere::*;
     let pal = crate::palette::palette();
-    let run = |c: u8, key: bool| { let mut o = [0u8; 4]; write_rgba_key(&pal, &[c], 1, 1, &[], &PALE_HOLLOW, 0.0, key, &mut o); o };
+    let run = |c: u8, key: bool| {
+        let mut o = [0u8; 4];
+        write_rgba_key(
+            &pal,
+            &[c],
+            1,
+            1,
+            &[],
+            &PALE_HOLLOW,
+            0.0,
+            key,
+            crate::atmosphere::Extra::NONE,
+            &mut o,
+        );
+        o
+    };
     let lit = crate::palette::BIOME0;
     let dark = crate::palette::BIOME0 + 2;
     assert!(run(lit, true)[0] >= run(lit, false)[0]);
@@ -554,4 +673,33 @@ fn bridge_mesh_matches_server_walk_height() {
         }
     }
     assert!(n >= 2 * 21);
+}
+
+#[test]
+fn boot_menu_renders_transparent_overlay() {
+    let (w, h) = (640usize, 360usize);
+    let mut s = Scene::new(w, h);
+    s.set_boot_menu(true);
+    for _ in 0..30 {
+        s.tick(1.0 / 60.0);
+    }
+    s.draw();
+    let mut rgba = vec![0u8; w * h * 4];
+    s.write_rgba(&mut rgba);
+    assert_eq!(s.unit_count(), 0, "photo backdrop — no menu hero in WASM");
+    let transparent = rgba.chunks(4).filter(|p| p[3] == 0).count();
+    assert!(
+        transparent > w * h * 9 / 10,
+        "boot WASM layer should be mostly keyed out, got {transparent}/{}",
+        w * h
+    );
+    if std::env::var("BOOT_MENU_PPM").is_ok() {
+        let mut rgb = Vec::with_capacity(w * h * 3);
+        for p in rgba.chunks(4) {
+            rgb.extend_from_slice(&p[0..3]);
+        }
+        let mut out = format!("P6\n{w} {h}\n255\n").into_bytes();
+        out.extend(rgb);
+        let _ = std::fs::write("target/boot_menu.ppm", out);
+    }
 }

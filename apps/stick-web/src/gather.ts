@@ -2,16 +2,25 @@ import { PH_ALL_NODES } from "@bellgrave/config";
 import type { UnitSnapshot } from "@bellgrave/protocol";
 
 export type GatherMethod = "mine" | "harvest" | "fish";
-type NodeDef = { name: string; kind: string; yields: readonly string[] };
+type NodeDef = { name: string; kind: string; yields: readonly string[]; interactMs?: number };
+
+function nodeDef(u: Pick<UnitSnapshot, "name" | "gatherYield">, defs: readonly NodeDef[]): NodeDef | undefined {
+  return defs.find((n) => n.name === u.name) ?? defs.find((n) => n.yields[0] === u.gatherYield);
+}
 
 /**
  * Gather method for a live node. Snapshots carry only name + primary yield
  * (live ids are `ph-live-N`), so match the authored defs by name, then yield.
  */
 export function gatherMethod(u: Pick<UnitSnapshot, "name" | "gatherYield">, defs: readonly NodeDef[] = PH_ALL_NODES): GatherMethod {
-  const d = defs.find((n) => n.name === u.name) ?? defs.find((n) => n.yields[0] === u.gatherYield);
-  const k = d?.kind;
+  const k = nodeDef(u, defs)?.kind;
   return k === "mine" || k === "fish" ? k : "harvest";
+}
+
+/** How long the gather channel lasts, from the authored node. */
+export function gatherInteractMs(u: Pick<UnitSnapshot, "name" | "gatherYield">, defs: readonly NodeDef[] = PH_ALL_NODES): number {
+  const ms = nodeDef(u, defs)?.interactMs;
+  return Math.max(500, Number.isFinite(ms) ? Math.floor(ms!) : 2500);
 }
 
 export type IconAtlas = { size: number; cols: number; index: Record<string, number> };

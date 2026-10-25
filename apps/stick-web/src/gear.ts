@@ -4,6 +4,7 @@ import type { Equipment, ItemDef } from "@bellgrave/items";
  * Gear visuals (#14): equipped catalog items → renderer `setGear` args.
  * Weapon family, material (craft skill) and the catalog id as a look seed,
  * so each item has a stable, distinct appearance. Cosmetic only.
+ * Tier head helms map catalog id → matching `ba_*_helm` plate in the renderer.
  */
 export const FAMILY: Record<string, number> = { sword: 1, greatsword: 2, dagger: 3, axe: 4, staff: 5, club: 6, knuckles: 7 };
 export const MAT: Record<string, number> = { clothcraft: 1, leathercraft: 2, smithing: 3, woodworking: 4, bonecraft: 5, goldsmithing: 6 };

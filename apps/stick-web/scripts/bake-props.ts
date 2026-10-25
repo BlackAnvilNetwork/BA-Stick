@@ -25,7 +25,9 @@ import {
   paleHollowHeight,
   paleHollowInBuildingClearing,
   paleHollowInOpenWater,
+  paleHollowOnTrail,
   paleHollowStandHeight,
+  forestBasinOnTrail,
   PH_BRIDGE_DECK_W,
   PH_BRIDGE_SITES,
   PH_RIVER_MAIN,
@@ -85,6 +87,7 @@ function trees(out: Prop[]): void {
   const blocked = (x: number, z: number) => {
     const b = paleHollowBiome(x, z);
     if (b === "river" || b === "hub_indoor" || b === "bridge" || b === "ash_road") return true;
+    if (paleHollowOnTrail(x, z)) return true;
     return paleHollowInOpenWater(x, z) || paleHollowInBuildingClearing(x, z) || treeInsidePeakRock(x, z);
   };
   const push = (x: number, z: number, kind: number, height: number) => {
@@ -142,6 +145,7 @@ function clutter(out: Prop[]): void {
       const jz = iz + (hash2(iz, ix) - 0.5) * 3.2;
       const b = paleHollowBiome(jx, jz);
       if (b === "hub_indoor" || b === "river" || b === "bridge" || b === "ash_road") continue;
+      if (paleHollowOnTrail(jx, jz)) continue;
       if (paleHollowInOpenWater(jx, jz) || paleHollowInBuildingClearing(jx, jz)) continue;
       const h = hash2(Math.floor(jx * 3), Math.floor(jz * 3));
       const h2 = hash2(Math.floor(jz * 5), Math.floor(jx * 5));
@@ -247,7 +251,6 @@ export function wallHitsBridge(a: { x: number; z: number }, b: { x: number; z: n
 
 function riverBanks(out: Prop[]): void {
   const wall = (a: { x: number; z: number }, b: { x: number; z: number }, pad: number) => {
-    if (wallHitsBridge(a, b)) return;
     const x = (a.x + b.x) * 0.5, z = (a.z + b.z) * 0.5;
     const len = Math.hypot(b.x - a.x, b.z - a.z);
     if (len < 0.15 || !Number.isFinite(x) || !Number.isFinite(z)) return;
@@ -333,6 +336,7 @@ export function forestBasinProps(): Prop[] {
       const jx = ix + (hash2(ix, iz) - 0.5) * 4;
       const jz = iz + (hash2(iz, ix) - 0.5) * 4;
       if (!forestBasinWalkable(jx, jz)) continue;
+      if (forestBasinOnTrail(jx, jz)) continue;
       const b = forestBasinBiome(jx, jz);
       if (b === "hub_indoor" || b === "river" || b === "bridge" || b === "mountain") continue;
       const h = hash2(Math.floor(jx * 2), Math.floor(jz * 2));

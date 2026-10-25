@@ -23,6 +23,8 @@ export type UnitFxState = {
   flags: number;
   fade: number;
   levelUp: number;
+  /** 0 none, 1 fire en-spell, 2 ice, 3 thunder — pixel overlay on sword. */
+  weaponEdge: number;
 };
 
 /**
@@ -79,5 +81,15 @@ export function unitFx(
   const hp = u.kind === "npc" || dead ? -1 : Math.max(0, Math.min(1, u.hp / Math.max(1, u.maxHp)));
   const lvl = u.buffs?.levelUpUntil ?? 0;
   const levelUp = lvl > ctx.now ? Math.max(0, Math.min(1, 1 - (lvl - ctx.now) / LEVEL_UP_MS)) : -1;
-  return { hp, cast: ctx.cast, aoe: ctx.cast >= 0 ? u.castAoe ?? 0 : 0, flags, fade, levelUp };
+  const weaponEdge =
+    u.buffs && u.buffs.enSpellUntil > ctx.now ? Math.min(3, Math.max(0, u.buffs.enSpellElement ?? 0)) : 0;
+  return {
+    hp,
+    cast: ctx.cast,
+    aoe: ctx.cast >= 0 ? u.castAoe ?? 0 : 0,
+    flags,
+    fade,
+    levelUp,
+    weaponEdge,
+  };
 }

@@ -9,12 +9,12 @@
   ownedMatQty,
   type CraftSkill,
 } from "@bellgrave/items";
-import type { SnapshotMessage } from "@bellgrave/protocol";
-import { useMemo, useState } from "react";
+import { useGame } from "@bellgrave/client-core/state";
 import { send } from "@bellgrave/client-core/net";
+import { memo, useMemo, useState } from "react";
+import { craftPanelDataSig } from "./craft-panel-sig";
 
 type Props = {
-  you: SnapshotMessage["you"];
   onClose: () => void;
 };
 
@@ -22,20 +22,28 @@ function isMatKind(kind: string | undefined): boolean {
   return kind === "base" || kind === "intermediate" || kind === "filler" || kind === "bait";
 }
 
-export function CraftingPanel({ you, onClose }: Props) {
+export const CraftingPanel = memo(function CraftingPanel({ onClose }: Props) {
+  const dataSig = useGame((s) => {
+    const you = s.snapshot?.you;
+    return you ? craftPanelDataSig(you) : "";
+  });
   const [skill, setSkill] = useState<CraftSkill | "all">("all");
-  const craftSkills = you.craftSkills ?? emptyCraftSkills();
 
-  const closeList = useMemo(
-    () =>
-      closeCraftRecipes(you.inventory, you.baseMats ?? {}, craftSkills, {
-        skill,
-        limit: 14,
-      }),
-    [you.inventory, you.baseMats, craftSkills, skill],
-  );
-
-  const matRows = useMemo(() => {
+  const { craftSkills, closeList, matRows, lokGold } = useMemo(() => {
+    const you = useGame.getState().snapshot?.you;
+    if (!you) {
+      return {
+        craftSkills: emptyCraftSkills(),
+        closeList: [] as ReturnType<typeof closeCraftRecipes>,
+        matRows: [] as { slug: string; amount: number; name: string; icon: string }[],
+        lokGold: "0",
+      };
+    }
+    const skills = you.craftSkills ?? emptyCraftSkills();
+    const list = closeCraftRecipes(you.inventory, you.baseMats ?? {}, skills, {
+      skill,
+      limit: 14,
+    });
     const rows: { slug: string; amount: number; name: string; icon: string }[] = [];
     const seen = new Set<string>();
     for (const [slug, amount] of Object.entries(you.baseMats ?? {})) {
@@ -52,8 +60,11 @@ export function CraftingPanel({ you, onClose }: Props) {
       seen.add(def.slug);
     }
     rows.sort((a, b) => a.name.localeCompare(b.name));
-    return rows;
-  }, [you.inventory, you.baseMats]);
+    return { craftSkills: skills, closeList: list, matRows: rows, lokGold: you.lok?.gold ?? "0" };
+  }, [dataSig, skill]);
+
+  const you = useGame.getState().snapshot?.you;
+  if (!you) return null;
 
   const focusSkill: CraftSkill | null = skill === "all" ? null : skill;
   const focusRow = focusSkill ? craftSkills[focusSkill] : null;
@@ -123,7 +134,7 @@ export function CraftingPanel({ you, onClose }: Props) {
           const goldCost = c.def.recipe?.gold ?? 0;
           let goldBal = 0n;
           try {
-            goldBal = BigInt(you.lok?.gold ?? "0");
+            goldBal = BigInt(lokGold);
           } catch {
             goldBal = 0n;
           }
@@ -172,7 +183,21 @@ export function CraftingPanel({ you, onClose }: Props) {
                 type="button"
                 className={`cmd-mini-btn${ready ? " on" : ""}`}
                 disabled={!ready}
-                onClick={() => send({ type: "craft", itemId: c.def.id })}
+                onClick={() => {
+                  if (
+                    c.def.craftSkill === "leathercraft" ||
+                    c.def.craftSkill === "smithing" ||
+                    c.def.craftSkill === "cooking" ||
+                    c.def.craftSkill === "goldsmithing"
+                  ) {
+                    window.dispatchEvent(
+                      new CustomEvent("bellgrave:craft-act", {
+                        detail: { skill: c.def.craftSkill },
+                      }),
+                    );
+                  }
+                  send({ type: "craft", itemId: c.def.id });
+                }}
               >
                 {ready ? "Craft" : !goldOk ? "gold" : c.skillLevel < c.needLevel ? `Lv ${c.needLevel}` : `${pct}%`}
               </button>
@@ -194,4 +219,4 @@ export function CraftingPanel({ you, onClose }: Props) {
       </div>
     </div>
   );
-}
+});

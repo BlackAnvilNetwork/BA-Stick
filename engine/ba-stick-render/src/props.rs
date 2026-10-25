@@ -264,6 +264,13 @@ struct Ctx<'a> {
     strata: bool,
     /// Stone/rock crack seed (0..1): one dithered crack on the first lit face.
     crack: Option<f32>,
+    /// 0..1 snow depth — tints canopy geometry while drawing (Pale Hollow weather).
+    snow_cover: f32,
+    /// 0..1 active snowfall (weather blend), whitens crown tips while flakes fall.
+    snow_weather: f32,
+    /// Crown height span for top-down snow (conifers set in `draw_conifer`).
+    tree_y_lo: f32,
+    tree_y_hi: f32,
 }
 
 /// Lit-edge highlight for a top colour (P1): chalk/stone gets a pale bone
@@ -719,6 +726,13 @@ fn draw_cairn(c: &mut Ctx) {
     }
 }
 
+fn tier_y_range(s: f32, tier: &crate::tree::TreeTier, tier_i: usize, seed: f32) -> (f32, f32) {
+    let y0 = s * (tier.y0 + (hash(seed, 30.0 + tier_i as f32) - 0.5) * 0.05);
+    let mut y1 = s * (tier.y1 + (hash(seed, 31.0 + tier_i as f32) - 0.5) * 0.04);
+    y1 = y1.max(y0 + 0.12 * s);
+    (y0, y1)
+}
+
 fn draw_conifer(c: &mut Ctx, p: &Prop, def: &crate::tree::TreeDef, dark: u8, mid: u8, lit: u8) {
     let seed = hash(p.x + p.kind as f32 * 17.0, p.z);
     let s = p.s.max(0.4);
@@ -728,6 +742,15 @@ fn draw_conifer(c: &mut Ctx, p: &Prop, def: &crate::tree::TreeDef, dark: u8, mid
     );
     let top = s * def.trunk_y * (0.9 + 0.2 * hash(seed, 1.5));
     let base_r = s * def.trunk_r * (0.88 + 0.28 * hash(seed, 1.7));
+    let mut y_lo = f32::MAX;
+    let mut y_hi = f32::MIN;
+    for (i, tier) in def.tiers.iter().enumerate() {
+        let (a, b) = tier_y_range(s, tier, i, seed);
+        y_lo = y_lo.min(a);
+        y_hi = y_hi.max(b);
+    }
+    c.tree_y_lo = y_lo;
+    c.tree_y_hi = y_hi;
     draw_trunk(c, seed, lean, top, base_r);
     for (i, tier) in def.tiers.iter().enumerate() {
         draw_tier(c, s, tier, i, seed, lean, def.droop, def.lump, dark, mid, lit);
@@ -742,6 +765,88 @@ fn foliage(sun: f32, dark: u8, mid: u8, lit: u8) -> u8 {
     } else {
         mid
     }
+}
+
+/// Effective snow on this prop (whole-tree melt order, same as ground patches).
+fn tree_snow_scale(c: &Ctx) -> f32 {
+    let k = c.snow_cover.clamp(0.0, 1.0);
+    if k < 0.03 {
+        return 0.0;
+    }
+    let keep = crate::weather::snow_keep_at(c.base.x, c.base.z, 0);
+    if keep > k {
+        return 0.0;
+    }
+    ((k - keep) / (1.0 - keep + 1e-3)).clamp(0.0, 1.0)
+}
+
+/// How far snow has moved down the crown (0 = green, 1 = all white).
+fn tree_snow_depth(c: &Ctx) -> f32 {
+    let k = tree_snow_scale(c);
+    let live = c.snow_weather.clamp(0.0, 1.0);
+    if live > 0.06 {
+        let tip = live * 0.38 * (1.0 - k * 0.45);
+        return k.max(tip);
+    }
+    k
+}
+
+fn tree_snow_span(c: &Ctx, y_top_hint: f32) -> (f32, f32) {
+    if c.tree_y_hi > c.tree_y_lo + 1e-3 {
+        (c.tree_y_lo, c.tree_y_hi)
+    } else {
+        (0.0, y_top_hint.max(1e-3))
+    }
+}
+
+fn snow_shell_col(sun: f32, strength: f32) -> u8 {
+    let t = strength.clamp(0.0, 1.0);
+    if t > 0.55 {
+        if sun > 0.2 {
+            WALL_L
+        } else if sun < -0.14 {
+            ROCK
+        } else {
+            ROCK_L
+        }
+    } else {
+        ROCK_L
+    }
+}
+
+/// Snow line moves from the crown tip downward as cover builds (and while flakes fall).
+fn foliage_with_tree_snow(
+    c: &Ctx,
+    y: f32,
+    y_top_hint: f32,
+    sun: f32,
+    dark: u8,
+    mid: u8,
+    lit: u8,
+    seed: f32,
+) -> u8 {
+    let p = tree_snow_depth(c);
+    if p < 0.02 {
+        return foliage(sun, dark, mid, lit);
+    }
+    let (y_lo, y_hi) = tree_snow_span(c, y_top_hint);
+    let span = (y_hi - y_lo).max(1e-3);
+    let line = y_hi - p * span;
+    let edge = span * 0.07;
+    let jitter = edge * hash(seed, y * 1.9);
+    if y >= line - jitter {
+        let strength = if y >= line {
+            1.0
+        } else {
+            ((y - (line - edge)) / edge.max(1e-3)).clamp(0.0, 1.0)
+        };
+        return snow_shell_col(sun, p * strength);
+    }
+    foliage(sun, dark, mid, lit)
+}
+
+fn canopy_disc_col(c: &Ctx, base: u8, lit: u8, dy: f32, y_top: f32, seed: f32) -> u8 {
+    foliage_with_tree_snow(c, dy, y_top, 0.15, base, base, lit, seed)
 }
 
 fn sun_of(c: &Ctx, rx: f32, fz: f32) -> f32 {
@@ -769,10 +874,9 @@ fn draw_tier(
     mid: u8,
     lit: u8,
 ) {
-    let y0 = s * (tier.y0 + (hash(seed, 30.0 + tier_i as f32) - 0.5) * 0.05);
-    let mut y1 = s * (tier.y1 + (hash(seed, 31.0 + tier_i as f32) - 0.5) * 0.04);
-    y1 = y1.max(y0 + 0.12 * s);
+    let (y0, y1) = tier_y_range(s, tier, tier_i, seed);
     let r0 = s * tier.r * (0.86 + 0.28 * hash(seed, 40.0 + tier_i as f32));
+    let y_top = c.tree_y_hi;
     draw_core(c, y0, y1, r0, lean, seed, tier_i, droop, lump, dark, mid, lit);
     let n = 5 + (hash(seed, 11.0 + tier_i as f32) * if droop < 0.25 { 2.0 } else { 4.0 }) as usize;
     let phase = hash(seed, 12.0 + tier_i as f32) * std::f32::consts::TAU;
@@ -798,8 +902,19 @@ fn draw_tier(
         let tl = at(len * 0.92, wide, y_tip + hang * 0.18);
         let tr = at(len * 0.92, -wide, y_tip + hang * 0.18);
         let tip = at(len, 0.0, y_tip);
-        let mut col = foliage(sun_of(c, cs, sn), dark, mid, lit);
-        if hash(seed, a * 9.0 + tier_i as f32) > 0.74 {
+        let y_sample = y_tip.max(y_in);
+        let sun = sun_of(c, cs, sn);
+        let mut col = foliage_with_tree_snow(
+            c,
+            y_sample,
+            y_top,
+            sun,
+            dark,
+            mid,
+            lit,
+            seed + a + tier_i as f32,
+        );
+        if hash(seed, a * 9.0 + tier_i as f32) > 0.74 && col != WALL_L && col != ROCK_L && col != ROCK {
             col = if col == lit { mid } else { lit };
         }
         c.quad(il, ir, tr, tl, col);
@@ -823,6 +938,7 @@ fn draw_core(
     mid: u8,
     lit: u8,
 ) {
+    let y_top = c.tree_y_hi;
     const STEPS: usize = 8;
     const BANDS: usize = 3;
     let lump_c = lump * 0.35;
@@ -857,7 +973,18 @@ fn draw_core(
             let j = (i + 1) % STEPS;
             let (ax, az) = xz[b][i];
             let (bx, bz) = xz[b][j];
-            let col = foliage(sun_of(c, ax + bx, az + bz), dark, mid, lit);
+            let y_mid = y0 + (y1 - y0) * (b as f32 + 0.5) / BANDS as f32;
+            let sun = sun_of(c, ax + bx, az + bz);
+            let col = foliage_with_tree_snow(
+                c,
+                y_mid,
+                y_top,
+                sun,
+                dark,
+                mid,
+                lit,
+                seed + tier_i as f32 + b as f32,
+            );
             c.quad(rings[b][i], rings[b][j], rings[b + 1][j], rings[b + 1][i], col);
         }
     }
@@ -887,7 +1014,15 @@ pub fn bridge_curve(p: &Prop, t: f32) -> f32 {
     (p.d - p.y) * t + p.h.max(0.0) * (t / r).min((1.0 - t) / r).min(1.0)
 }
 
-pub fn draw(fb: &mut Framebuffer, cam: &Camera, props: &[Prop], cam_y: f32, time: f32) {
+pub fn draw(
+    fb: &mut Framebuffer,
+    cam: &Camera,
+    props: &[Prop],
+    cam_y: f32,
+    time: f32,
+    snow_cover: f32,
+    snow_weather: f32,
+) {
     let (w, h) = (fb.w as f32, fb.h as f32);
     for p in props {
         let base = v3(p.x, p.y - cam_y, p.z);
@@ -914,6 +1049,10 @@ pub fn draw(fb: &mut Framebuffer, cam: &Camera, props: &[Prop], cam_y: f32, time
             strata: p.kind == kind::WALL_BLOCK,
             crack: matches!(p.kind, kind::STONE | kind::ROCK)
                 .then(|| (p.x * 7.31 + p.z * 3.17).sin().abs()),
+            snow_cover,
+            snow_weather,
+            tree_y_lo: 0.0,
+            tree_y_hi: 0.0,
         };
         draw_one(&mut c, p, time);
     }
@@ -985,6 +1124,7 @@ fn draw_one(c: &mut Ctx, p: &Prop, time: f32) {
             draw_conifer(c, p, def, dark, mid, lit);
         }
         kind::ASH_MED | kind::ASH_TALL => {
+            let seed = hash(p.x, p.z);
             let top = s * 0.62;
             c.cap(up(c, 0.0), up(c, top), 1.8 + s * 0.2, WOOD_D);
             c.cap(
@@ -1000,12 +1140,17 @@ fn draw_one(c: &mut Ctx, p: &Prop, time: f32) {
                 (0.06, 0.88, 0.17, ASH_L),
                 (-0.08, 0.84, 0.15, ASH),
             ];
-            for (dx, dy, rr, col) in blobs {
+            let y_top = s * 0.95;
+            c.tree_y_lo = s * 0.55;
+            c.tree_y_hi = y_top;
+            for (bi, (dx, dy, rr, col)) in blobs.iter().enumerate() {
                 let q = c.p(dx * s, dy * s, 0.0);
+                let lit = if *col == ASH_D { ASH } else { ASH_L };
+                let fill = canopy_disc_col(c, *col, lit, dy * s, y_top, seed + bi as f32);
                 c.fb.disc(
                     P2 { d: q.d - 0.3, ..q },
                     rr * s * 26.0,
-                    col,
+                    fill,
                     Some(C_OUTLINE),
                 );
             }
@@ -1051,20 +1196,31 @@ fn draw_one(c: &mut Ctx, p: &Prop, time: f32) {
             }
         }
         kind::BUSH => {
-            for (dx, dy, rr, col) in [
+            let seed = hash(p.x, p.z);
+            let y_top = s * 0.38;
+            c.tree_y_lo = s * 0.12;
+            c.tree_y_hi = y_top;
+            for (i, (dx, dy, rr, col)) in [
                 (0.0, 0.25, 0.3, GRASS_D),
                 (-0.2, 0.18, 0.22, GRASS),
                 (0.2, 0.2, 0.22, GRASS),
                 (0.05, 0.35, 0.18, GRASS_L),
-            ] {
+            ]
+            .iter()
+            .enumerate()
+            {
                 let q = c.p(dx * s, dy * s, 0.0);
-                c.fb.disc(q, rr * s * 20.0, col, Some(C_OUTLINE));
+                let fill = canopy_disc_col(c, *col, GRASS_L, dy * s, y_top, seed + i as f32);
+                c.fb.disc(q, rr * s * 20.0, fill, Some(C_OUTLINE));
             }
         }
         kind::SAPLING => {
+            c.tree_y_lo = s * 0.35;
+            c.tree_y_hi = s * 0.8;
             c.cap(up(c, 0.0), up(c, s * 0.7), 1.0, WOOD);
             let q = up(c, s * 0.75);
-            c.fb.disc(q, s * 6.0, ASH, Some(C_OUTLINE));
+            let fill = canopy_disc_col(c, ASH, ASH_L, s * 0.75, s * 0.8, hash(p.x, p.z));
+            c.fb.disc(q, s * 6.0, fill, Some(C_OUTLINE));
         }
         kind::ROCK | kind::STONE | kind::PEBBLE => {
             let col = if p.var == 1 { ROCK_D } else { ROCK };
@@ -1491,7 +1647,7 @@ mod tests {
             d: 1.0,
             j: [0.0; 6],
         };
-        draw(&mut fb, &cam, &[prop], 0.0, 0.0);
+        draw(&mut fb, &cam, &[prop], 0.0, 0.0, 0.0, 0.0);
         let mut lit = 0;
         let mut dark = 0;
         let mut wood = 0;
@@ -1550,6 +1706,8 @@ mod tests {
                     d: 1.0,
                     j: [0.0; 6],
                 }],
+                0.0,
+                0.0,
                 0.0,
                 0.0,
             );

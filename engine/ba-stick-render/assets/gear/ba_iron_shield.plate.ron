@@ -1,0 +1,30 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Shield face. 'e' steel, 'g' gold rim. One solid field, no dark bands.
+// Row 0 is the boss edge. The last row is the rim.
+(
+    id: "ba_iron_shield",
+    x0: -0.24,
+    y0: -0.08,
+    x1: 0.24,
+    y1: 0.40,
+    z: 0.04,
+    flow: 0.0,
+    sleeve_drop: 0.0,
+    wrap: 0.0,
+    arm_from: 0.0,
+    arm_to: 0.0,
+    arm_thick: 0.0,
+    cuff_from: 0.0,
+    cuff_to: 0.0,
+    cuff_thick: 0.0,
+    rows: [
+        "eeeeeeeeeeee",
+        "eeeeeeeeeeee",
+        "eeeeeeeeeeee",
+        "eeeeeeeeeeee",
+        "gggggggggggg",
+    ],
+)

@@ -11,7 +11,11 @@
 //! world position (x, y, z), a facing, a server `anim` state and a rig preset
 //! (job / mob archetype / NPC role).
 
+pub mod appearance;
+pub mod weather;
 pub mod atmosphere;
+pub mod boot_forge;
+pub mod boot_forge_blots;
 pub mod buffvfx;
 pub mod compat;
 pub mod creature;

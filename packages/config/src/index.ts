@@ -137,6 +137,7 @@ export {
   paleHollowInOpenWater,
   paleHollowInRiverWall,
   paleHollowOnBridge,
+  paleHollowBakedOnBridge,
   paleHollowInBridgeWaterGap,
   paleHollowInBridgeWallVisualGap,
   paleHollowBridgeDeckY,
@@ -146,6 +147,7 @@ export {
   PH_BRIDGE_RAMP,
   paleHollowBridgeGeom,
   paleHollowTrails,
+  paleHollowOnTrail,
   PH_ROAD_NAMES,
   PH_MAP_LABELS,
   type PaleHollowMapLabelKind,
@@ -192,13 +194,32 @@ export {
   PH_FIELD_NPCS,
   PH_QUESTS,
   emptyPaleHollowQuests,
+  normalizePaleHollowQuestState,
+  paleHollowQuestById,
   paleHollowQuestByNpc,
   paleHollowQuestCredit,
+  paleHollowQuestLogEntries,
   paleHollowQuestTalk,
   type PaleHollowFieldNpc,
   type PaleHollowQuestDef,
+  type PaleHollowQuestLogEntry,
+  type PaleHollowQuestProgress,
   type PaleHollowQuestState,
 } from "./pale-hollow-field";
+
+export {
+  PH_SNOW_ACCUM_SEC,
+  PH_SNOW_MELT_SEC,
+  PH_WEATHER_CYCLE_MS,
+  PH_WEATHER_KIND_ID,
+  PH_WEATHER_SEED_XOR,
+  PH_WEATHER_WEIGHTS,
+  paleHollowWeatherCycleIndex,
+  paleHollowWeatherKindAt,
+  rollPaleHollowWeather,
+  type PaleHollowWeatherKind,
+  type PaleHollowWeatherSnapshot,
+} from "./pale-hollow-weather";
 
 export {
   FOREST_BASIN_BOUNDS,
@@ -225,6 +246,7 @@ export {
   forestBasinHeight,
   forestBasinBiome,
   forestBasinTrails,
+  forestBasinOnTrail,
   forestBasinGateSoftLevel,
   type ForestBasinGate,
   type ForestBasinBiome,
@@ -274,6 +296,19 @@ export {
   type ZoneGate,
   type TravelStep,
 } from "./zone-fields";
+
+export {
+  BOOT_FORGE_MENU_BOUNDS,
+  BOOT_FORGE_MENU_HERO,
+  BOOT_FORGE_MENU_ID,
+  bootForgeMenuBiome,
+  bootForgeMenuInOpenWater,
+  bootForgeMenuOnBridge,
+  bootForgeMenuStandHeight,
+  bootForgeMenuTrails,
+  bootForgeMenuWalkable,
+  bootForgeMenuWaterSurfaceY,
+} from "./boot-forge-menu";
 
 export { paleHollowLandmarks, type PaleHollowLandmark } from "./pale-hollow-landmarks";
 
@@ -330,6 +365,11 @@ export const ZONE_IDS = [
 ] as const;
 export type ZoneId = (typeof ZONE_IDS)[number];
 
+/** Boot / wallet / character screens (loops until play). */
+export const MENU_MUSIC = "/audio/main-theme.mp3";
+/** Pale Hollow area field loop when a zone has no explicit track. */
+export const PALE_HOLLOW_MUSIC = "/audio/pale-hollow.mp3";
+
 export type ZoneDef = {
   id: ZoneId;
   name: string;
@@ -355,21 +395,21 @@ export const ZONES: Record<ZoneId, ZoneDef> = {
     name: "Pale Hollow",
     kind: "field",
     areaId: "pale_hollow",
-    music: "/audio/royal-march.mp3",
+    music: PALE_HOLLOW_MUSIC,
   },
   hollow_road: {
     id: "hollow_road",
     name: "Hollow Road",
     kind: "field",
     areaId: "pale_hollow",
-    music: "/audio/royal-march.mp3",
+    music: PALE_HOLLOW_MUSIC,
   },
   forest_basin: {
     id: "forest_basin",
     name: "Forest Basin",
     kind: "field",
     areaId: "pale_hollow",
-    music: "/audio/royal-march.mp3",
+    music: PALE_HOLLOW_MUSIC,
   },
   spur_road: {
     id: "spur_road",
@@ -468,3 +508,12 @@ export const ZONES: Record<ZoneId, ZoneDef> = {
     music: "/audio/royal-march.mp3",
   },
 };
+
+/** Resolve looping BGM for a zone id (area defaults, e.g. all of Pale Hollow). */
+export function musicForZone(zoneId: string | undefined): string | undefined {
+  const id = (zoneId && (ZONE_IDS as readonly string[]).includes(zoneId) ? zoneId : "pale_hollow") as ZoneId;
+  const def = ZONES[id];
+  if (def.music) return def.music;
+  if (def.areaId === "pale_hollow") return PALE_HOLLOW_MUSIC;
+  return undefined;
+}

@@ -8,7 +8,7 @@
  * beside that certificate.
  */
 import type { WebLightClientMessage, WebLightSibling } from "@bellgrave/protocol";
-import { proveCharacter, type LightCharacter } from "./character-light-proof";
+import { proveCharacter, proveCharacterCached, type LightCharacter } from "./character-light-proof";
 
 export type LightSibling = { hash: Uint8Array; left: boolean };
 
@@ -83,8 +83,14 @@ export function snapshotFor(input: {
   certifiedRootHex?: string | null;
   tokenId?: string | null;
   characters: readonly LightCharacter[];
+  /** Engine log length. Same length reuses the character-root tree. */
+  logLength?: number;
 }): WebLightClientMessage {
-  const proof = input.tokenId ? proveCharacter(input.characters, input.tokenId) : null;
+  const proof = !input.tokenId
+    ? null
+    : input.logLength == null
+      ? proveCharacter(input.characters, input.tokenId)
+      : proveCharacterCached(input.logLength, input.characters, input.tokenId);
   return snapshotLightClient({
     commitCertificateHex: input.commitCertificateHex,
     certifiedRootHex: input.certifiedRootHex,

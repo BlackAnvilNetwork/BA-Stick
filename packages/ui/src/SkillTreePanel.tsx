@@ -53,6 +53,16 @@ function nodeWeightClass(n: SkillNode): string {
 
 type Props = { onClose: () => void };
 
+type YouTree = {
+  tick: number;
+  job: JobId;
+  subjob: JobId | null | undefined;
+  level: number;
+  skillPrestige: number;
+  skillPoints: number;
+  skillUnlocked: string[];
+};
+
 function formatBonus(k: string, v: number): string {
   if (k === "hastePct" || k === "crit" || k === "movePct" || k === "physDt" || k === "magDt") {
     return `+${(v * 100).toFixed(1)}%`;
@@ -84,7 +94,30 @@ function bonusLabel(k: string): string {
 }
 
 export function SkillTreePanel({ onClose }: Props) {
-  const you = useGame((s) => s.snapshot?.you);
+  const snapshot = useGame((s) => s.snapshot);
+  const snapYou = snapshot?.you;
+  const skillUnlockedKey = snapYou?.skillUnlocked?.join("\0") ?? "";
+  const you = useMemo((): YouTree | null => {
+    if (!snapshot || !snapYou) return null;
+    return {
+      tick: snapshot.tick,
+      job: snapYou.job,
+      subjob: snapYou.subjob,
+      level: snapYou.level,
+      skillPrestige: snapYou.skillPrestige ?? 0,
+      skillPoints: snapYou.skillPoints ?? 0,
+      skillUnlocked: snapYou.skillUnlocked ?? [],
+    };
+  }, [
+    snapshot,
+    snapshot?.tick,
+    snapYou?.job,
+    snapYou?.subjob,
+    snapYou?.level,
+    snapYou?.skillPrestige,
+    snapYou?.skillPoints,
+    skillUnlockedKey,
+  ]);
   const mapRef = useRef<HTMLDivElement>(null);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(0.42);
@@ -94,21 +127,67 @@ export function SkillTreePanel({ onClose }: Props) {
   const [selected, setSelected] = useState<string | null>(null);
   const [focus, setFocus] = useState<SkillTreeFocus>("path");
   const [district, setDistrict] = useState<JobId | "all">("all");
+  /** Shown until the next snapshot confirms (or we roll back a failed unlock). */
+  const [pendingUnlocks, setPendingUnlocks] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!you) return;
+    const confirmed = new Set(you.skillUnlocked);
+    setPendingUnlocks((prev) => prev.filter((id) => !confirmed.has(id)));
+  }, [you?.tick, skillUnlockedKey]);
+
+  useEffect(() => {
+    if (pendingUnlocks.length === 0) return;
+    const t = window.setTimeout(() => {
+      setPendingUnlocks((prev) => {
+        const confirmed = new Set(you?.skillUnlocked ?? []);
+        return prev.filter((id) => !confirmed.has(id));
+      });
+    }, 5000);
+    return () => window.clearTimeout(t);
+  }, [pendingUnlocks, skillUnlockedKey, snapYou?.skillUnlocked]);
+
+  const mergedUnlocked = useMemo(() => {
+    if (!you) return [] as string[];
+    const out = [...you.skillUnlocked];
+    for (const id of pendingUnlocks) {
+      if (!out.includes(id)) out.push(id);
+    }
+    return out;
+  }, [you, pendingUnlocks, skillUnlockedKey]);
 
   const nodes = useMemo(() => Object.values(SKILL_NODES), []);
-  const unlocked = useMemo(() => new Set(you?.skillUnlocked ?? []), [you?.skillUnlocked]);
+  const unlocked = useMemo(() => new Set(mergedUnlocked), [mergedUnlocked]);
   const hubId = you ? skillHubForJob(you.job) : null;
   const subHubId = you?.subjob ? skillHubForJob(you.subjob) : null;
   const freeHubs = useMemo(
-    () => new Set(you ? freeSkillHubs(you.job, you.subjob, you.skillUnlocked) : []),
-    [you?.job, you?.subjob, you?.skillUnlocked],
+    () => new Set(you ? freeSkillHubs(you.job, you.subjob, mergedUnlocked) : []),
+    [you, mergedUnlocked],
   );
-  const spent = you ? skillPointsSpentOnTree(you.skillUnlocked, you.job, you.subjob) : 0;
+  const spent = you ? skillPointsSpentOnTree(mergedUnlocked, you.job, you.subjob) : 0;
   const earned = you ? skillPointsEarned(you.level, you.skillPrestige) : 0;
+  const pendingCost = useMemo(
+    () =>
+      pendingUnlocks
+        .filter((id) => !(you?.skillUnlocked.includes(id) ?? false))
+        .reduce((n, id) => n + skillNodeCost(id), 0),
+    [pendingUnlocks, you?.skillUnlocked, skillUnlockedKey],
+  );
   const remaining =
     you && typeof you.skillPoints === "number"
-      ? Math.max(0, you.skillPoints)
+      ? Math.max(0, you.skillPoints - pendingCost)
       : Math.max(0, earned - spent);
+
+  const requestUnlock = (nodeId: string) => {
+    if (pendingUnlocks.includes(nodeId) || unlocked.has(nodeId)) return;
+    setPendingUnlocks((prev) => [...prev, nodeId]);
+    send({ type: "skill/unlock", nodeId });
+  };
+
+  const requestRespec = () => {
+    setPendingUnlocks([]);
+    send({ type: "skill/respec" });
+  };
   const selectedNode = selected ? SKILL_NODES[selected] : null;
 
   const districts = useMemo(() => {
@@ -432,7 +511,7 @@ export function SkillTreePanel({ onClose }: Props) {
           </div>
 
           <aside className="skill-tree-detail">
-            <button type="button" className="cmd-mini-btn" onClick={() => send({ type: "skill/respec" })}>
+            <button type="button" className="cmd-mini-btn" onClick={requestRespec}>
               Respec (10000 gold)
             </button>
             {selectedNode ? (
@@ -487,7 +566,7 @@ export function SkillTreePanel({ onClose }: Props) {
                     type="button"
                     className="cmd-mini-btn on skill-tree-unlock"
                     disabled={remaining < skillNodeCost(selectedNode.id)}
-                    onClick={() => send({ type: "skill/unlock", nodeId: selectedNode.id })}
+                    onClick={() => requestUnlock(selectedNode.id)}
                   >
                     {skillNodeCost(selectedNode.id) === 0
                       ? "Unlock · free heart"

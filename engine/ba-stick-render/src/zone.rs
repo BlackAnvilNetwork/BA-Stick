@@ -42,7 +42,16 @@ impl Zone {
             .chunks_exact(2)
             .map(|c| i16::from_le_bytes([c[0], c[1]]) as f32 / 100.0)
             .collect();
-        Ok(Zone { min_x: f(4), min_z: f(8), cell: f(12), w, h, biome, flags, height })
+        Ok(Zone {
+            min_x: f(4),
+            min_z: f(8),
+            cell: f(12),
+            w,
+            h,
+            biome,
+            flags,
+            height,
+        })
     }
 
     #[inline]
@@ -52,9 +61,18 @@ impl Zone {
         j * self.w + i
     }
 
+    /// True when the point lies inside the grid (not the clamped edge).
+    pub fn contains_point(&self, x: f32, z: f32) -> bool {
+        let (i, j) = self.cell_of(x, z);
+        i >= 0 && j >= 0 && (i as usize) < self.w && (j as usize) < self.h
+    }
+
     /// Cell coords for a world point.
     pub fn cell_of(&self, x: f32, z: f32) -> (i32, i32) {
-        (((x - self.min_x) / self.cell).floor() as i32, ((z - self.min_z) / self.cell).floor() as i32)
+        (
+            ((x - self.min_x) / self.cell).floor() as i32,
+            ((z - self.min_z) / self.cell).floor() as i32,
+        )
     }
 
     /// Bilinear stand height at a world point (clamped to the grid).
@@ -77,10 +95,12 @@ impl Zone {
     /// where `paleHollowWaterSurfaceY` was defined at the exact point.
     pub fn deep_water_at(&self, x: f32, z: f32) -> bool {
         let (i, j) = self.cell_of(x, z);
-        [(0, 0), (1, 0), (-1, 0), (0, 1), (0, -1)].iter().all(|&(di, dj)| {
-            let f = self.flags[self.idx(i + di, j + dj)];
-            f & F_WATER != 0 && f & F_BRIDGE == 0
-        })
+        [(0, 0), (1, 0), (-1, 0), (0, 1), (0, -1)]
+            .iter()
+            .all(|&(di, dj)| {
+                let f = self.flags[self.idx(i + di, j + dj)];
+                f & F_WATER != 0 && f & F_BRIDGE == 0
+            })
     }
 
     pub fn flags_at(&self, x: f32, z: f32) -> u8 {
@@ -105,7 +125,16 @@ mod tests {
         for i in 0..w {
             flags[6 * w + i] = F_BRIDGE;
         }
-        Zone { min_x: 0.0, min_z: 0.0, cell: 0.5, w, h, biome: vec![0; w * h], flags, height: vec![0.0; w * h] }
+        Zone {
+            min_x: 0.0,
+            min_z: 0.0,
+            cell: 0.5,
+            w,
+            h,
+            biome: vec![0; w * h],
+            flags,
+            height: vec![0.0; w * h],
+        }
     }
 
     #[test]

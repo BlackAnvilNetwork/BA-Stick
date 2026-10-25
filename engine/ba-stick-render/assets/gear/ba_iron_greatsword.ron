@@ -1,0 +1,18 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Iron greatsword — iron sword pixel layout at 2× blade width, 1.5× blade and grip length.
+(
+    id: "ba_iron_greatsword",
+    slot: MainHand,
+    attach: Some("r_hand"),
+    stance: Some("2h"),
+    reach: 1.29,
+    swing_weight: 1.35,
+    material: Some("steel"),
+    shapes: [
+        Capsule(from: (0.0, -0.23, 0.0), to: (0.0, 0.04, 0.0), ramp: Material, thick: 2.0),
+        Capsule(from: (-0.11, 0.08, 0.0), to: (0.11, 0.08, 0.0), ramp: Material, thick: 1.6),
+    ],
+)

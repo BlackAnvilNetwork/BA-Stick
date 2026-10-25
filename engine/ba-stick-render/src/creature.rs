@@ -5,12 +5,15 @@
 //! Non-biped mobs: quadrupeds (hare hop / boar trot), serpent, blob.
 //! Driven by the unit's ground position, yaw, a gait phase that advances
 //! with distance travelled, and a death collapse factor.
-use stick_engine::camera::{Camera, P2, HEIGHT_PX};
+use crate::compat::*;
+use stick_engine::camera::{Camera, HEIGHT_PX, P2};
 use stick_engine::math::{v3, Vec3};
 use stick_engine::raster::Framebuffer;
-use crate::compat::*;
 
-use crate::palette::{CR_DOG, CR_DOG_FAR, CR_DOG_FILL, CR_DOG_SPOT, CR_NOSE, CR_TEETH, BLOOM_C, CR_TUSK, GRASS, GRASS_D, GRASS_L, ROCK, ROCK_D, ROCK_L, WATER};
+use crate::palette::{
+    BLOOM_C, CR_DOG, CR_DOG_FAR, CR_DOG_FILL, CR_DOG_SPOT, CR_NOSE, CR_TEETH, CR_TUSK, GRASS,
+    GRASS_D, GRASS_L, ROCK, ROCK_D, ROCK_L, WATER,
+};
 use crate::preset::Body;
 
 pub struct Pose {
@@ -36,7 +39,9 @@ pub const LUNGE_S: f32 = 0.55;
 pub fn height_px(body: &Body) -> f32 {
     match *body {
         Body::Biped => 0.0,
-        Body::Quadruped { size, hop: true, .. } => 0.62 * size * HEIGHT_PX + 6.0,
+        Body::Quadruped {
+            size, hop: true, ..
+        } => 0.62 * size * HEIGHT_PX + 6.0,
         Body::Quadruped { size, .. } => (0.75 * size) * HEIGHT_PX + 8.0,
         Body::Serpent { size, .. } => 0.35 * size * HEIGHT_PX + 6.0,
         Body::Blob { size, .. } => 0.7 * size * HEIGHT_PX + 4.0,
@@ -53,8 +58,20 @@ pub fn draw(fb: &mut Framebuffer, cam: &Camera, body: &Body, ps: &Pose) {
     let o = Some(C_OUTLINE);
     match *body {
         Body::Biped => {}
-        Body::Quadruped { size: s, hop: true, body: c, far, .. } => hare(fb, cam, s, c, far, ps),
-        Body::Quadruped { size: s, hop, tusks, body: c, far } => {
+        Body::Quadruped {
+            size: s,
+            hop: true,
+            body: c,
+            far,
+            ..
+        } => hare(fb, cam, s, c, far, ps),
+        Body::Quadruped {
+            size: s,
+            hop,
+            tusks,
+            body: c,
+            far,
+        } => {
             let (lift, legs_fold) = if hop {
                 let h = (ps.phase.sin()).abs() * 0.28 * s * ps.moving;
                 (h, (ps.phase.sin()).abs() * ps.moving)
@@ -79,8 +96,16 @@ pub fn draw(fb: &mut Framebuffer, cam: &Camera, body: &Body, ps: &Pose) {
                     // body between far and near legs
                     fb.capsule(p(hip), p(sh + up * breathe), limb + 2.2 * s + 0.8, c, o);
                 }
-                let sw = if hop { -0.12 * legs_fold * if i % 2 == 0 { 1.0 } else { -1.0 } } else { (ps.phase + off).sin() * 0.16 * s * ps.moving };
-                let fl = if hop { 0.0 } else { (ps.phase + off).cos().max(0.0) * 0.07 * s * ps.moving };
+                let sw = if hop {
+                    -0.12 * legs_fold * if i % 2 == 0 { 1.0 } else { -1.0 }
+                } else {
+                    (ps.phase + off).sin() * 0.16 * s * ps.moving
+                };
+                let fl = if hop {
+                    0.0
+                } else {
+                    (ps.phase + off).cos().max(0.0) * 0.07 * s * ps.moving
+                };
                 let foot = v3(top.x, ps.pos.y + fl + lift * 0.3, top.z) + f * sw;
                 let foot = foot + (top - foot) * (ps.dead * 0.6);
                 fb.capsule(p(top), p(foot), limb * 0.7, col, o);
@@ -106,13 +131,25 @@ pub fn draw(fb: &mut Framebuffer, cam: &Camera, body: &Body, ps: &Pose) {
         }
         Body::Serpent { size: s, body: c } => {
             let n = 9;
-            let raise = (1.0 - ps.dead) * (0.32 + (ps.time * 1.7).sin() * 0.04) * s * (1.0 - ps.moving * 0.4);
+            let raise = (1.0 - ps.dead)
+                * (0.32 + (ps.time * 1.7).sin() * 0.04)
+                * s
+                * (1.0 - ps.moving * 0.4);
             let mut prev: Option<(Vec3, f32)> = None;
             for i in 0..n {
                 let k = i as f32 / (n - 1) as f32;
-                let wave = (ps.phase * 1.5 - k * 5.0).sin() * 0.14 * s * (0.3 + 0.7 * ps.moving.max(0.25));
+                let wave =
+                    (ps.phase * 1.5 - k * 5.0).sin() * 0.14 * s * (0.3 + 0.7 * ps.moving.max(0.25));
                 let along = 0.35 * s - k * 1.0 * s;
-                let y = if i == 0 { raise } else if i == 1 { raise * 0.55 } else if i == 2 { raise * 0.15 } else { 0.04 * s };
+                let y = if i == 0 {
+                    raise
+                } else if i == 1 {
+                    raise * 0.55
+                } else if i == 2 {
+                    raise * 0.15
+                } else {
+                    0.04 * s
+                };
                 let pt = ps.pos + f * along + r * (wave * k) + up * y;
                 let rad = (2.2 * s) * (1.0 - k * 0.7) + 1.0;
                 if let Some((q, qr)) = prev {
@@ -131,7 +168,11 @@ pub fn draw(fb: &mut Framebuffer, cam: &Camera, body: &Body, ps: &Pose) {
         }
         Body::Node { method } => node(fb, cam, method, ps),
         Body::Canine { size: s } => canine(fb, cam, s, ps),
-        Body::Blob { size: s, body: c, far } => {
+        Body::Blob {
+            size: s,
+            body: c,
+            far,
+        } => {
             let squash = 1.0 + (ps.phase * 2.0).sin() * 0.18 * ps.moving.max(0.35) - ps.dead * 0.6;
             let hgt = 0.55 * s * squash.max(0.25);
             let wid = 0.62 * s / squash.max(0.4).sqrt();
@@ -162,7 +203,11 @@ pub fn hare_hop(phase: f32, moving: f32) -> (f32, f32, f32) {
     let c = (phase / std::f32::consts::PI).rem_euclid(1.0);
     let bump = |c0: f32, w: f32| (1.0 - ((c - c0) / w).powi(2)).max(0.0);
     let ext = bump(0.28, 0.22) * moving;
-    let lift = if (0.2..0.8).contains(&c) { ((c - 0.2) / 0.6 * std::f32::consts::PI).sin() } else { 0.0 } * moving;
+    let lift = if (0.2..0.8).contains(&c) {
+        ((c - 0.2) / 0.6 * std::f32::consts::PI).sin()
+    } else {
+        0.0
+    } * moving;
     // nose up on push-off, nose down on landing
     let pitch = (bump(0.25, 0.2) * 0.35 - bump(0.72, 0.15) * 0.3) * moving;
     (ext, lift, pitch)
@@ -200,7 +245,11 @@ fn hare(fb: &mut Framebuffer, cam: &Camera, s: f32, c: u8, far: u8, ps: &Pose) {
         let toe = gp(lerp(0.0, -0.6), 0.0, side);
         let (knee, hock, toe) = if ps.dead > 0.0 {
             let k = ps.dead * 0.5;
-            (knee + (hip - knee) * k, hock + (hip - hock) * k, toe + (hip - toe) * k)
+            (
+                knee + (hip - knee) * k,
+                hock + (hip - hock) * k,
+                toe + (hip - toe) * k,
+            )
         } else {
             (knee, hock, toe)
         };
@@ -221,10 +270,21 @@ fn hare(fb: &mut Framebuffer, cam: &Camera, s: f32, c: u8, far: u8, ps: &Pose) {
     hind(fb, -0.07, far);
     front(fb, -0.05, far);
     // Arched spine: rump → hump → shoulders → neck.
-    let spine = [(-0.26, 0.19, 0.115), (-0.14, 0.25 + breathe, 0.12), (0.0, 0.24 + breathe, 0.10), (0.12, 0.18, 0.085)];
+    let spine = [
+        (-0.26, 0.19, 0.115),
+        (-0.14, 0.25 + breathe, 0.12),
+        (0.0, 0.24 + breathe, 0.10),
+        (0.12, 0.18, 0.085),
+    ];
     for w in spine.windows(2) {
         let (a, b) = (w[0], w[1]);
-        fb.capsule(p(bp(a.0, a.1, 0.0)), p(bp(b.0, b.1, 0.0)), px((a.2 + b.2) * 0.5), c, o);
+        fb.capsule(
+            p(bp(a.0, a.1, 0.0)),
+            p(bp(b.0, b.1, 0.0)),
+            px((a.2 + b.2) * 0.5),
+            c,
+            o,
+        );
     }
     // cotton tail
     fb.disc(p(bp(-0.37, 0.24, 0.0)), px(0.045), C_TRAIL, o);
@@ -238,7 +298,9 @@ fn hare(fb: &mut Framebuffer, cam: &Camera, s: f32, c: u8, far: u8, ps: &Pose) {
     let sweep = 0.10 + lift * 0.12;
     for (side, col) in [(-1.0f32, far), (1.0, c)] {
         let eb = bp(0.17 + 0.03 * side, 0.33, 0.04 * side);
-        let tip = eb + up * ((0.36 - sweep * 0.4) * s * flat) - f * ((sweep + 0.05 - 0.05 * side) * s) + r * (0.12 * side * s);
+        let tip = eb + up * ((0.36 - sweep * 0.4) * s * flat)
+            - f * ((sweep + 0.05 - 0.05 * side) * s)
+            + r * (0.12 * side * s);
         let mid = eb + (tip - eb) * 0.5;
         fb.capsule(p(eb), p(mid), 2.0, col, o);
         fb.capsule(p(mid), p(tip), 1.6, col, o);
@@ -284,22 +346,36 @@ fn canine(fb: &mut Framebuffer, cam: &Camera, s: f32, ps: &Pose) {
         let drop = crouch * 0.06 * (a + 0.4).max(0.0);
         base + f * (a * s) + up * ((b - drop) * s * flat) + r * (side * s)
     };
-    let gp = |a: f32, b: f32, side: f32| ps.pos + f * ((a + lf * 0.35) * s) + up * (b * s) + r * (side * s);
+    let gp = |a: f32, b: f32, side: f32| {
+        ps.pos + f * ((a + lf * 0.35) * s) + up * (b * s) + r * (side * s)
+    };
     let stroke = (2.0 * s).max(1.6);
     let leg_w = (1.4 * s).max(1.2);
 
     // legs: (hip/shoulder a, b, side, phase offset, front?)
     let leg = |fb: &mut Framebuffer, a: f32, side: f32, off: f32, front: bool, col: u8| {
         let ph = ps.phase + off;
-        let sw = ph.sin() * 0.14 * trot + if ps.attack < 1.0 && front { lf * 0.6 } else { 0.0 };
+        let sw = ph.sin() * 0.14 * trot
+            + if ps.attack < 1.0 && front {
+                lf * 0.6
+            } else {
+                0.0
+            };
         let lift = ph.cos().max(0.0) * 0.07 * trot;
-        let top = if front { bp(a, 0.36, side) } else { bp(a, 0.42, side) };
+        let top = if front {
+            bp(a, 0.36, side)
+        } else {
+            bp(a, 0.42, side)
+        };
         let paw = gp(a + sw, lift, side);
         // knee: front legs bend backward a little, hind legs forward-then-hock
         let (knee, hock) = if front {
             (gp(a + sw * 0.5 + 0.04, 0.2 + lift * 0.6, side), None)
         } else {
-            (gp(a + sw * 0.4 + 0.07, 0.26 + lift * 0.5, side), Some(gp(a + sw * 0.8 - 0.06, 0.11 + lift, side)))
+            (
+                gp(a + sw * 0.4 + 0.07, 0.26 + lift * 0.5, side),
+                Some(gp(a + sw * 0.8 - 0.06, 0.11 + lift, side)),
+            )
         };
         let fold = |v: Vec3| v + (top - v) * (ps.dead * 0.55);
         let (knee, paw) = (fold(knee), fold(paw));
@@ -325,7 +401,12 @@ fn canine(fb: &mut Framebuffer, cam: &Camera, s: f32, ps: &Pose) {
     let t2 = bp(-0.6, 0.66, wag);
     fb.capsule(p(t0), p(t1), stroke * 0.8, CR_DOG, o);
     fb.capsule(p(t1), p(t2), stroke * 0.7, CR_DOG, o);
-    fb.disc(p(t2 + up * (0.03 * s) - f * (0.02 * s)), stroke * 0.8, CR_DOG, o);
+    fb.disc(
+        p(t2 + up * (0.03 * s) - f * (0.02 * s)),
+        stroke * 0.8,
+        CR_DOG,
+        o,
+    );
 
     // boxy torso: filled polygon outlined with thick strokes
     let breathe = (ps.time * 2.4).sin() * 0.006;
@@ -341,8 +422,18 @@ fn canine(fb: &mut Framebuffer, cam: &Camera, s: f32, ps: &Pose) {
     for i in 1..pp.len() - 1 {
         crate::props::tri(fb, pp[0], pp[i], pp[i + 1], CR_DOG_FILL);
     }
-    fb.disc(p(bp(0.06, 0.44, 0.0)), (0.05 * s * HEIGHT_PX).max(1.5), CR_DOG_SPOT, None);
-    fb.disc(p(bp(0.12, 0.40, 0.0)), (0.03 * s * HEIGHT_PX).max(1.0), CR_DOG_SPOT, None);
+    fb.disc(
+        p(bp(0.06, 0.44, 0.0)),
+        (0.05 * s * HEIGHT_PX).max(1.5),
+        CR_DOG_SPOT,
+        None,
+    );
+    fb.disc(
+        p(bp(0.12, 0.40, 0.0)),
+        (0.03 * s * HEIGHT_PX).max(1.0),
+        CR_DOG_SPOT,
+        None,
+    );
     for i in 0..poly.len() {
         fb.capsule(pp[i], pp[(i + 1) % pp.len()], stroke * 0.75, CR_DOG, o);
     }
@@ -356,7 +447,13 @@ fn canine(fb: &mut Framebuffer, cam: &Camera, s: f32, ps: &Pose) {
     let n1 = bp(0.32 + hx, 0.80 - 0.04 * jaw, 0.0);
     fb.capsule(p(n0), p(n1), stroke, CR_DOG, o);
     let hb = |a: f32, b: f32| bp(a + hx, b - 0.04 * jaw, 0.0);
-    let skull = [hb(0.27, 0.86), hb(0.38, 0.93), hb(0.64, 0.82), hb(0.40, 0.76), hb(0.30, 0.75)];
+    let skull = [
+        hb(0.27, 0.86),
+        hb(0.38, 0.93),
+        hb(0.64, 0.82),
+        hb(0.40, 0.76),
+        hb(0.30, 0.75),
+    ];
     let sp: Vec<_> = skull.iter().map(|&v| p(v)).collect();
     for i in 1..sp.len() - 1 {
         crate::props::tri(fb, sp[0], sp[i], sp[i + 1], CR_DOG_FILL);
@@ -405,7 +502,13 @@ fn node(fb: &mut Framebuffer, cam: &Camera, method: u8, ps: &Pose) {
             for x in (c.x - rx) as i32..=(c.x + rx) as i32 {
                 let (nx, ny) = ((x as f32 - c.x) / rx, (y as f32 - c.y) / ry);
                 let r2 = nx * nx + ny * ny;
-                if r2 <= 1.0 && (x + y) % 2 == 0 && x >= 0 && y >= 0 && (x as usize) < fb.w && (y as usize) < fb.h {
+                if r2 <= 1.0
+                    && (x + y) % 2 == 0
+                    && x >= 0
+                    && y >= 0
+                    && (x as usize) < fb.w
+                    && (y as usize) < fb.h
+                {
                     let i = y as usize * fb.w + x as usize;
                     if fb.depth[i] == f32::INFINITY {
                         fb.color[i] = if r2 < 0.35 { C_GOLD } else { C_DUST };
@@ -415,11 +518,19 @@ fn node(fb: &mut Framebuffer, cam: &Camera, method: u8, ps: &Pose) {
         }
     }
     let o = Some(C_OUTLINE);
-    let at = |dx: f32, dy: f32| P2 { s: 1.0, x: c.x + dx, y: c.y + dy, d: c.d - 0.05 };
+    let at = |dx: f32, dy: f32| P2 {
+        s: 1.0,
+        x: c.x + dx,
+        y: c.y + dy,
+        d: c.d - 0.05,
+    };
     match method {
         1 => {
             // herb tuft: a few leaves and a bloom
-            for (k, (dx, h)) in [(-4.0f32, 7.0f32), (-1.0, 10.0), (2.0, 8.0), (4.5, 6.0)].iter().enumerate() {
+            for (k, (dx, h)) in [(-4.0f32, 7.0f32), (-1.0, 10.0), (2.0, 8.0), (4.5, 6.0)]
+                .iter()
+                .enumerate()
+            {
                 let sway = (ps.time * 2.0 + k as f32).sin() * 1.0;
                 let col = [GRASS_D, GRASS, GRASS_L, GRASS][k];
                 fb.capsule(at(*dx, 0.0), at(dx + sway, -h), 1.2, col, o);
@@ -437,7 +548,8 @@ fn node(fb: &mut Framebuffer, cam: &Camera, method: u8, ps: &Pose) {
                 for i in 0..36 {
                     let a = i as f32 / 36.0 * std::f32::consts::TAU;
                     let (x, y) = ((c.x + a.cos() * rx) as i32, (c.y + a.sin() * ry) as i32);
-                    if x >= 0 && y >= 0 && (x as usize) < fb.w && (y as usize) < fb.h && i % 4 != 0 {
+                    if x >= 0 && y >= 0 && (x as usize) < fb.w && (y as usize) < fb.h && i % 4 != 0
+                    {
                         let ix = y as usize * fb.w + x as usize;
                         if fb.depth[ix] == f32::INFINITY {
                             fb.color[ix] = WATER + 3;
@@ -451,7 +563,10 @@ fn node(fb: &mut Framebuffer, cam: &Camera, method: u8, ps: &Pose) {
             fb.disc(at(-3.0, -3.0), 4.5, ROCK_D, o);
             fb.disc(at(2.0, -4.0), 5.5, ROCK, o);
             fb.disc(at(0.5, -6.5), 3.0, ROCK_L, None);
-            for (k, (dx, dy)) in [(-3.0f32, -4.0f32), (2.5, -6.0), (4.0, -3.0)].iter().enumerate() {
+            for (k, (dx, dy)) in [(-3.0f32, -4.0f32), (2.5, -6.0), (4.0, -3.0)]
+                .iter()
+                .enumerate()
+            {
                 if (ps.time * 3.0 + k as f32 * 2.1).sin() > 0.2 {
                     fb.plot((c.x + dx) as i32, (c.y + dy) as i32, c.d - 0.1, C_GOLD);
                 }
@@ -460,12 +575,20 @@ fn node(fb: &mut Framebuffer, cam: &Camera, method: u8, ps: &Pose) {
     }
     if ps.ready {
         // two twinkling sparks above the node
-        for (k, (ox, oy, sp)) in [(-5.0f32, -14.0f32, 2.6f32), (6.0, -19.0, 3.2)].iter().enumerate() {
+        for (k, (ox, oy, sp)) in [(-5.0f32, -14.0f32, 2.6f32), (6.0, -19.0, 3.2)]
+            .iter()
+            .enumerate()
+        {
             let tw = 0.5 + 0.5 * (ps.time * sp + k as f32 * 1.7 + ps.pos.x).sin();
             if tw.powi(3) > 0.45 {
                 let (x, y) = ((c.x + ox) as i32, (c.y + oy) as i32);
                 for (dx, dy) in [(0, 0), (1, 0), (-1, 0), (0, 1), (0, -1)] {
-                    fb.plot(x + dx, y + dy, 0.0, if dx == 0 && dy == 0 { C_TRAIL } else { C_GOLD });
+                    fb.plot(
+                        x + dx,
+                        y + dy,
+                        0.0,
+                        if dx == 0 && dy == 0 { C_TRAIL } else { C_GOLD },
+                    );
                 }
             }
         }

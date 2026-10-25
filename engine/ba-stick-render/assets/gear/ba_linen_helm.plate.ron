@@ -1,0 +1,32 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Linen helm bandana: woven linen (l/d) on the shared bandana mesh.
+(
+    id: "ba_linen_helm",
+    x0: -0.24,
+    y0: -0.06,
+    x1: 0.24,
+    y1: 0.12,
+    z: 0.0,
+    flow: 0.0,
+    sleeve_drop: 0.0,
+    wrap: 0.0,
+    arm_from: 0.0,
+    arm_to: 0.0,
+    arm_thick: 0.0,
+    cuff_from: 0.0,
+    cuff_to: 0.0,
+    cuff_thick: 0.0,
+    rows: [
+        "llllllllllll",
+        "dddddddddddd",
+        "llllllllllll",
+        "dddddddddddd",
+        "llllllllllll",
+        "dddddddddddd",
+        "llllllllllll",
+        "dddddddddddd",
+    ],
+)

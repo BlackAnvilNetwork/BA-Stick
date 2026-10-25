@@ -1,7 +1,7 @@
-//! Auto-generated from packages/items/src/catalog.json â€” do not edit by hand.
+//! Auto-generated from packages/items/src/catalog.json — do not edit by hand.
 //! Regenerate: python3 scripts/gen-craft-recipes.py
 
-/// skill_id index: 1=smithing â€¦ 8=cooking (see skill_label).
+/// skill_id index: 1=smithing … 8=cooking (see skill_label).
 #[derive(Clone, Copy, Debug)]
 pub struct CraftRecipe {
     pub item_id: u64,
@@ -309,6 +309,10 @@ pub const CRAFT_RECIPES: &[CraftRecipe] = &[
     CraftRecipe { item_id: 485, skill: 8, level: 100, output_qty: 6 },
     CraftRecipe { item_id: 489, skill: 7, level: 1, output_qty: 1 },
     CraftRecipe { item_id: 1063, skill: 6, level: 12, output_qty: 1 },
+    CraftRecipe { item_id: 1064, skill: 5, level: 2, output_qty: 1 },
+    CraftRecipe { item_id: 1065, skill: 5, level: 5, output_qty: 1 },
+    CraftRecipe { item_id: 1066, skill: 1, level: 2, output_qty: 8 },
+    CraftRecipe { item_id: 1067, skill: 1, level: 4, output_qty: 1 },
 ];
 
 pub fn craft_recipe(item_id: u64) -> Option<CraftRecipe> {

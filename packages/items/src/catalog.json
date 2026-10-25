@@ -1323,10 +1323,10 @@
   },
   {
     "id": 86,
-    "name": "Bone Parrying Dagger",
-    "description": "Bone Parrying Dagger. Ruined gear from Bellgrave's craft halls.",
+    "name": "Neolithic Dagger",
+    "description": "Neolithic Dagger. Ruined gear from Bellgrave's craft halls.",
     "icon": "/icons/items/bone-parrying-dagger.png",
-    "slug": "bone-parrying-dagger",
+    "slug": "neolithic-dagger",
     "kind": "equipment",
     "craftLevel": 10,
     "craftSkill": "bonecraft",
@@ -1348,10 +1348,10 @@
   },
   {
     "id": 87,
-    "name": "Fang Parrying Dagger",
-    "description": "Fang Parrying Dagger. Tempered gear from Bellgrave's craft halls.",
+    "name": "Fang Dagger",
+    "description": "Fang Dagger. Tempered gear from Bellgrave's craft halls.",
     "icon": "/icons/items/fang-parrying-dagger.png",
-    "slug": "fang-parrying-dagger",
+    "slug": "fang-dagger",
     "kind": "equipment",
     "craftLevel": 55,
     "craftSkill": "bonecraft",
@@ -1590,10 +1590,10 @@
   },
   {
     "id": 104,
-    "name": "Bronze Cap",
-    "description": "Bronze Cap. Ruined gear from Bellgrave's craft halls.",
-    "icon": "/icons/items/bronze-cap.png",
-    "slug": "bronze-cap",
+    "name": "Bronze Helm",
+    "description": "Bronze Helm. Ruined gear from Bellgrave's craft halls.",
+    "icon": "/icons/items/bronze-helm.png",
+    "slug": "bronze-helm",
     "kind": "equipment",
     "craftLevel": 8,
     "craftSkill": "smithing",
@@ -1805,10 +1805,10 @@
   },
   {
     "id": 114,
-    "name": "Iron Cap",
-    "description": "Iron Cap. Tempered gear from Bellgrave's craft halls.",
-    "icon": "/icons/items/iron-cap.png",
-    "slug": "iron-cap",
+    "name": "Iron Helm",
+    "description": "Iron Helm. Tempered gear from Bellgrave's craft halls.",
+    "icon": "/icons/items/iron-helm.png",
+    "slug": "iron-helm",
     "kind": "equipment",
     "craftLevel": 26,
     "craftSkill": "smithing",
@@ -2038,10 +2038,10 @@
   },
   {
     "id": 127,
-    "name": "Mythril Cap",
-    "description": "Mythril Cap. Tempered gear from Bellgrave's craft halls.",
-    "icon": "/icons/items/mythril-cap.png",
-    "slug": "mythril-cap",
+    "name": "Mythril Helm",
+    "description": "Mythril Helm. Tempered gear from Bellgrave's craft halls.",
+    "icon": "/icons/items/mythril-helm.png",
+    "slug": "mythril-helm",
     "kind": "equipment",
     "craftLevel": 48,
     "craftSkill": "smithing",
@@ -2296,10 +2296,10 @@
   },
   {
     "id": 139,
-    "name": "Darksteel Cap",
-    "description": "Darksteel Cap. Throne-forged gear from Bellgrave's craft halls.",
-    "icon": "/icons/items/darksteel-cap.png",
-    "slug": "darksteel-cap",
+    "name": "Darksteel Helm",
+    "description": "Darksteel Helm. Throne-forged gear from Bellgrave's craft halls.",
+    "icon": "/icons/items/darksteel-helm.png",
+    "slug": "darksteel-helm",
     "kind": "equipment",
     "craftLevel": 68,
     "craftSkill": "smithing",
@@ -2545,10 +2545,10 @@
   },
   {
     "id": 153,
-    "name": "Palace Cap",
-    "description": "Palace Cap. Throne-forged gear from Bellgrave's craft halls.",
-    "icon": "/icons/items/palace-cap.png",
-    "slug": "palace-cap",
+    "name": "Palace Helm",
+    "description": "Palace Helm. Throne-forged gear from Bellgrave's craft halls.",
+    "icon": "/icons/items/palace-helm.png",
+    "slug": "palace-helm",
     "kind": "equipment",
     "craftLevel": 92,
     "craftSkill": "smithing",
@@ -3819,10 +3819,10 @@
   },
   {
     "id": 234,
-    "name": "Fine Jerkin Cap",
-    "description": "Fine Jerkin Cap. Tempered gear from Bellgrave's craft halls.",
-    "icon": "/icons/items/fine-jerkin-cap.png",
-    "slug": "fine-jerkin-cap",
+    "name": "Fine Jerkin Helm",
+    "description": "Fine Jerkin Helm. Tempered gear from Bellgrave's craft halls.",
+    "icon": "/icons/items/fine-jerkin-helm.png",
+    "slug": "fine-jerkin-helm",
     "kind": "equipment",
     "craftLevel": 48,
     "craftSkill": "leathercraft",
@@ -4009,10 +4009,10 @@
   },
   {
     "id": 245,
-    "name": "Scale Mail Cap",
-    "description": "Scale Mail Cap. Throne-forged gear from Bellgrave's craft halls.",
-    "icon": "/icons/items/scale-mail-cap.png",
-    "slug": "scale-mail-cap",
+    "name": "Scale Mail Helm",
+    "description": "Scale Mail Helm. Throne-forged gear from Bellgrave's craft halls.",
+    "icon": "/icons/items/scale-mail-helm.png",
+    "slug": "scale-mail-helm",
     "kind": "equipment",
     "craftLevel": 70,
     "craftSkill": "leathercraft",
@@ -4306,10 +4306,10 @@
   },
   {
     "id": 264,
-    "name": "Linen Cap",
-    "description": "Linen Cap. Ruined gear from Bellgrave's craft halls.",
-    "icon": "/icons/items/linen-cap.png",
-    "slug": "linen-cap",
+    "name": "Linen Helm",
+    "description": "Linen Helm. Ruined gear from Bellgrave's craft halls.",
+    "icon": "/icons/items/linen-helm.png",
+    "slug": "linen-helm",
     "kind": "equipment",
     "craftLevel": 4,
     "craftSkill": "clothcraft",
@@ -4515,10 +4515,10 @@
   },
   {
     "id": 276,
-    "name": "Shade Cap",
-    "description": "Shade Cap. Tempered gear from Bellgrave's craft halls.",
-    "icon": "/icons/items/shade-cap.png",
-    "slug": "shade-cap",
+    "name": "Shade Helm",
+    "description": "Shade Helm. Tempered gear from Bellgrave's craft halls.",
+    "icon": "/icons/items/shade-helm.png",
+    "slug": "shade-helm",
     "kind": "equipment",
     "craftLevel": 28,
     "craftSkill": "clothcraft",
@@ -5478,10 +5478,10 @@
   },
   {
     "id": 328,
-    "name": "Bone Cap",
-    "description": "Bone Cap. Tempered gear from Bellgrave's craft halls.",
-    "icon": "/icons/items/bone-cap.png",
-    "slug": "bone-cap",
+    "name": "Bone Helm",
+    "description": "Bone Helm. Tempered gear from Bellgrave's craft halls.",
+    "icon": "/icons/items/bone-helm.png",
+    "slug": "bone-helm",
     "kind": "equipment",
     "craftLevel": 30,
     "craftSkill": "bonecraft",
@@ -8712,5 +8712,84 @@
     "jobRestrict": "all",
     "rarity": "Rare",
     "obtainedFrom": "Craft — goldsmithing"
+  },
+  {
+    "id": 1064,
+    "name": "Decayed Sword",
+    "description": "Decayed Sword. Ruined gear from Bellgrave's craft halls.",
+    "icon": "/icons/items/decayed-sword.png",
+    "slug": "decayed-sword",
+    "kind": "equipment",
+    "craftLevel": 2,
+    "craftSkill": "bonecraft",
+    "recipe": {
+      "gold": 250,
+      "materialsText": "Dustgrain×5"
+    },
+    "stats": {
+      "atk": 9
+    },
+    "delayMs": 2400,
+    "slot": "main",
+    "jobRestrict": [
+      "knight",
+      "fighter",
+      "battlemage"
+    ],
+    "weaponFamily": "sword",
+    "rarity": "Common"
+  },
+  {
+    "id": 1065,
+    "name": "Decayed Axe",
+    "description": "Decayed Axe. Ruined gear from Bellgrave's craft halls.",
+    "icon": "/icons/items/decayed-axe.png",
+    "slug": "decayed-axe",
+    "kind": "equipment",
+    "craftLevel": 5,
+    "craftSkill": "bonecraft",
+    "recipe": {
+      "gold": 170,
+      "materialsText": "Dustgrain×10"
+    },
+    "stats": {
+      "atk": 6
+    },
+    "delayMs": 2600,
+    "slot": "main",
+    "jobRestrict": [
+      "fighter"
+    ],
+    "weaponFamily": "axe",
+    "rarity": "Common"
+  },
+  {
+    "id": 1066,
+    "name": "Bronze Rivet×8",
+    "description": "Bronze Rivet×8 — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "icon": "/icons/items/bronze-rivet.png",
+    "slug": "bronze-rivet",
+    "kind": "intermediate",
+    "craftLevel": 2,
+    "craftSkill": "smithing",
+    "recipe": {
+      "gold": 90,
+      "materialsText": "Bronze Ingot×1, Pale Dust×1"
+    },
+    "craftOutputQty": 8
+  },
+  {
+    "id": 1067,
+    "name": "Bronze Sheet",
+    "description": "Bronze Sheet — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "icon": "/icons/items/bronze-sheet.png",
+    "slug": "bronze-sheet",
+    "kind": "intermediate",
+    "craftLevel": 4,
+    "craftSkill": "smithing",
+    "recipe": {
+      "gold": 130,
+      "materialsText": "Bronze Ingot×2, Pale Dust×1"
+    }
   }
 ]

@@ -68,9 +68,9 @@ pub fn draw_body(fb: &mut Framebuffer, cam: &Camera, j: &Joints, b: &BodyParams,
 
 /// Hair silhouette in the `Hair` slot. Each part is depth-tested at its own
 /// 3D position, biased behind the face unless the figure faces away, so the
-/// face wins from the front, the hair wins from behind and in profile the
+/// Face wins from the front, the hair wins from behind and in profile the
 /// parts show past the head outline. Loose strand tips follow `hair_sway`.
-fn draw_hair(fb: &mut Framebuffer, cam: &Camera, j: &Joints, b: &BodyParams, c: u8, skin: u8, ol: Option<u8>) {
+pub fn draw_hair(fb: &mut Framebuffer, cam: &Camera, j: &Joints, b: &BodyParams, c: u8, skin: u8, ol: Option<u8>) {
     use crate::body::HairStyle as H;
     use crate::math::Vec3;
     let hm = b.head_r * b.bone_thickness_mul[Bone::Head as usize];

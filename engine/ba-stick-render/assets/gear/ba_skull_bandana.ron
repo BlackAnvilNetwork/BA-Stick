@@ -1,0 +1,12 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Skull bandana. Same bandana mesh; bone skull plate.
+(
+    id: "ba_skull_bandana",
+    slot: Head,
+    attach: Some("head"),
+    material: Some("bone"),
+    shapes: [],
+)

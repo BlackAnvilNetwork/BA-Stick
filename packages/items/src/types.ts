@@ -14,6 +14,7 @@ export const EQUIP_SLOTS = [
   "legs",
   "feet",
   "ring",
+  "ring2",
   "earring",
   "main",
   "sub",
@@ -23,6 +24,48 @@ export const EQUIP_SLOTS = [
 ] as const;
 export type EquipSlot = (typeof EQUIP_SLOTS)[number];
 export type Equipment = Record<EquipSlot, number | null>;
+
+/** Paperdoll slots that accept catalog `slot: "ring"` gear. */
+export const RING_EQUIP_SLOTS = ["ring", "ring2"] as const satisfies readonly EquipSlot[];
+
+/** Whether an item's catalog slot may be worn in a given equip slot. */
+export function itemFitsEquipSlot(catalogSlot: EquipSlot | undefined, equipSlot: EquipSlot): boolean {
+  if (!catalogSlot) return false;
+  if (catalogSlot === equipSlot) return true;
+  return catalogSlot === "ring" && equipSlot === "ring2";
+}
+
+/** How many slots already wear this token (and HQ flag), optionally ignoring one slot. */
+export function countEquippedCopies(
+  equipment: Partial<Record<EquipSlot, number | null | undefined>>,
+  equipHq: Partial<Record<EquipSlot, boolean>> | undefined,
+  tokenId: number,
+  hq: boolean,
+  slots: readonly EquipSlot[],
+  ignoreSlot?: EquipSlot,
+): number {
+  let n = 0;
+  for (const s of slots) {
+    if (ignoreSlot && s === ignoreSlot) continue;
+    if (equipment[s] === tokenId && !!equipHq?.[s] === hq) n++;
+  }
+  return n;
+}
+
+/** Bag stacks are shared; each equipped copy needs its own stack count (rings). */
+export function canEquipAnotherCopy(
+  bagAmount: number,
+  equipment: Partial<Record<EquipSlot, number | null | undefined>>,
+  equipHq: Partial<Record<EquipSlot, boolean>> | undefined,
+  tokenId: number,
+  hq: boolean,
+  slots: readonly EquipSlot[],
+  targetSlot: EquipSlot,
+): boolean {
+  if (bagAmount < 1) return false;
+  const elsewhere = countEquippedCopies(equipment, equipHq, tokenId, hq, slots, targetSlot);
+  return bagAmount >= elsewhere + 1;
+}
 
 export type CraftSkill =
   | "smithing"

@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Gear RON Editor</title>
+    <style>
+      :root { color-scheme: dark; }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        height: 100vh;
+        display: grid;
+        grid-template-columns: 270px 1fr 330px;
+        grid-template-rows: auto 1fr;
+        background: #18161f;
+        color: #e8e2d0;
+        font: 12px/1.45 ui-monospace, Consolas, monospace;
+      }
+      header {
+        grid-column: 1 / -1;
+        display: flex;
+        gap: 14px;
+        align-items: center;
+        padding: 8px 14px;
+        background: #14121a;
+        border-bottom: 1px solid #34303f;
+      }
+      h1 { margin: 0; font-size: 14px; font-weight: 600; letter-spacing: 0.04em; }
+      header p { margin: 0; color: #7d7486; flex: 1; }
+      a { color: #d9a441; }
+      aside { overflow: auto; padding: 10px 12px; min-height: 0; }
+      #left { border-right: 1px solid #34303f; }
+      #right { border-left: 1px solid #34303f; }
+      main { display: grid; grid-template-rows: auto auto 1fr; min-height: 0; min-width: 0; }
+      h2 { margin: 14px 0 6px; font-size: 12px; color: #c9b98f; text-transform: uppercase; letter-spacing: 0.06em; }
+      h2:first-child { margin-top: 0; }
+      label { display: grid; grid-template-columns: 92px 1fr; gap: 6px; align-items: center; margin: 4px 0; color: #c9b98f; }
+      label.row { display: flex; gap: 6px; }
+      input, select, textarea, button {
+        font: inherit;
+        color: inherit;
+        background: #221f2a;
+        border: 1px solid #34303f;
+        padding: 3px 6px;
+        min-width: 0;
+      }
+      input[type="checkbox"] { width: auto; }
+      textarea { width: 100%; resize: vertical; }
+      button { cursor: pointer; }
+      button:hover { border-color: #6a645c; }
+      button.on { border-color: #d9a441; color: #f4f7ff; background: #2a2633; }
+      .bar { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; padding: 6px 10px; border-bottom: 1px solid #34303f; }
+      .bar .sep { width: 1px; height: 20px; background: #34303f; margin: 0 4px; }
+      .bar label { display: flex; gap: 4px; margin: 0; }
+      .bar input[type="number"] { width: 70px; }
+      #stage { display: grid; place-items: center; min-height: 0; padding: 6px; position: relative; }
+      canvas { max-width: 100%; max-height: 100%; background: #221f2a; image-rendering: pixelated; touch-action: none; }
+      #hint { position: absolute; left: 14px; bottom: 10px; color: #7d7486; pointer-events: none; }
+      #shapes { list-style: none; margin: 0; padding: 0; max-height: 220px; overflow: auto; }
+      #shapes button { width: 100%; text-align: left; border-color: transparent; background: transparent; padding: 3px 6px; }
+      #shapes button.on { border-color: #d9a441; }
+      #shapes small { color: #7d7486; }
+      .xyz { display: grid; grid-template-columns: 40px 1fr 1fr 1fr; gap: 4px; align-items: center; margin: 4px 0; color: #c9b98f; }
+      .btns { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; }
+      #palette { display: flex; flex-wrap: wrap; gap: 3px; }
+      #palette button { width: 30px; height: 26px; padding: 0; font-weight: 600; text-shadow: 0 0 2px #000; }
+      #grid { display: grid; gap: 1px; background: #34303f; padding: 1px; margin-top: 6px; width: max-content; user-select: none; }
+      #grid div { width: 13px; height: 13px; }
+      #checks { list-style: none; padding: 0; margin: 0; }
+      #checks li.ok { color: #7fb069; }
+      #checks li.warn { color: #d9a441; }
+      #checks li.error { color: #e05d5d; }
+      #out { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+      #out textarea { height: 220px; font-size: 11px; white-space: pre; }
+      .muted { color: #7d7486; }
+      .mtable { display: grid; grid-template-columns: 1fr 70px 26px; gap: 4px; margin: 4px 0; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>GEAR RON EDITOR</h1>
+      <p>Click and drag on the figure to add shapes. Paint the plate in the front view. Saves .ron files the gear viewer and the game load.</p>
+      <a href="./gear-viewer.html" target="gear-viewer">Gear viewer</a>
+    </header>
+
+    <aside id="left">
+      <h2>File</h2>
+      <div class="btns">
+        <select id="slot-new" title="Slot for a new item"></select>
+        <button type="button" id="new">New</button>
+      </div>
+      <label>Open <select id="bundled"><option value="">bundled gear…</option></select></label>
+      <label>From disk <input id="file" type="file" accept=".ron" multiple /></label>
+
+      <h2>Item</h2>
+      <label>id <input id="f-id" /></label>
+      <label>slot <select id="f-slot"></select></label>
+      <label>attach <select id="f-attach"></select></label>
+      <label>stance <input id="f-stance" list="stances" placeholder="none" /></label>
+      <datalist id="stances"></datalist>
+      <label>reach <input id="f-reach" type="number" step="0.01" /></label>
+      <label>swing weight <input id="f-swing" type="number" step="0.05" /></label>
+      <label>material <select id="f-material"></select></label>
+      <label style="grid-template-columns: 1fr">header comment<textarea id="f-header" rows="5"></textarea></label>
+
+      <h2>Bone thickness</h2>
+      <div id="mul"></div>
+      <div class="btns"><button type="button" id="mul-add">Add bone</button></div>
+
+      <h2>Plate</h2>
+      <label class="row"><input id="p-on" type="checkbox" /> front-face plate (.plate.ron)</label>
+      <div id="plate-fields">
+        <div class="xyz"><span>x</span><input id="p-x0" type="number" step="0.01" /><input id="p-x1" type="number" step="0.01" /><span></span></div>
+        <div class="xyz"><span>y</span><input id="p-y0" type="number" step="0.01" /><input id="p-y1" type="number" step="0.01" /><span></span></div>
+        <label>z <input id="p-z" type="number" step="0.005" /></label>
+        <div class="xyz"><span>size</span><input id="p-cols" type="number" min="1" max="64" title="columns" /><input id="p-rows" type="number" min="1" max="64" title="rows" /><span class="muted">cols × rows</span></div>
+        <div class="xyz"><span>arm</span><input id="p-armFrom" type="number" step="0.02" title="arm_from" /><input id="p-armTo" type="number" step="0.02" title="arm_to" /><input id="p-armThick" type="number" step="0.1" title="arm_thick" /></div>
+        <div class="xyz"><span>cuff</span><input id="p-cuffFrom" type="number" step="0.02" title="cuff_from" /><input id="p-cuffTo" type="number" step="0.02" title="cuff_to" /><input id="p-cuffThick" type="number" step="0.1" title="cuff_thick" /></div>
+        <div class="xyz"><span>cloth</span><input id="p-flow" type="number" step="0.02" title="flow" /><input id="p-sleeveDrop" type="number" step="0.02" title="sleeve_drop" /><input id="p-wrap" type="number" step="0.02" title="wrap" /></div>
+        <p class="muted">arm and cuff: from, to, thick. cloth: flow, sleeve_drop, wrap. Cloth plates preview flat here; the viewer shows the wrap.</p>
+        <label style="grid-template-columns: 1fr">plate header<textarea id="p-header" rows="3"></textarea></label>
+      </div>
+    </aside>
+
+    <main>
+      <div class="bar" id="tools">
+        <button type="button" data-tool="select" title="V">Select</button>
+        <button type="button" data-tool="Capsule" title="C">Capsule</button>
+        <button type="button" data-tool="Line" title="L">Line</button>
+        <button type="button" data-tool="Disc" title="D">Disc</button>
+        <button type="button" data-tool="joint" title="J">Disc on joint</button>
+        <button type="button" data-tool="paint" title="P">Paint</button>
+        <button type="button" data-tool="rect" title="R">Plate quad</button>
+        <span class="sep"></span>
+        <button type="button" data-view="front" title="1">Front</button>
+        <button type="button" data-view="side" title="2">Side</button>
+        <button type="button" data-view="figure" title="3">On figure</button>
+        <button type="button" id="fit" title="F">Fit</button>
+        <span class="sep"></span>
+        <button type="button" id="undo" title="Ctrl+Z">Undo</button>
+        <button type="button" id="redo" title="Ctrl+Y">Redo</button>
+      </div>
+      <div class="bar">
+        <label>ramp <select id="d-ramp"></select></label>
+        <label>thick <input id="d-thick" type="number" step="0.1" /></label>
+        <label>disc r <input id="d-r" type="number" step="0.005" /></label>
+        <label title="The coordinate the view looks along: z in front, x in side">depth <input id="d-depth" type="number" step="0.005" /></label>
+        <label>snap <select id="d-snap"><option value="0">off</option><option value="0.001">0.001</option><option value="0.005">0.005</option><option value="0.01">0.01</option><option value="0.025">0.025</option></select></label>
+        <label><input id="d-body" type="checkbox" checked /> body</label>
+      </div>
+      <div id="stage">
+        <canvas id="view" width="960" height="600"></canvas>
+        <div id="hint"></div>
+      </div>
+    </main>
+
+    <aside id="right">
+      <h2>Shapes <span id="count" class="muted"></span></h2>
+      <ul id="shapes"></ul>
+      <div id="inspector"></div>
+
+      <h2>Paint</h2>
+      <div id="palette"></div>
+      <div class="btns">
+        <button type="button" id="mirror-plate" title="Copy the left half onto the right">Mirror left → right</button>
+        <button type="button" id="clear-plate">Clear</button>
+      </div>
+      <div id="grid"></div>
+
+      <h2>Checks</h2>
+      <ul id="checks"></ul>
+
+      <h2>RON</h2>
+      <div class="btns">
+        <button type="button" id="save">Save .ron</button>
+        <button type="button" id="save-plate">Save .plate.ron</button>
+        <button type="button" id="copy">Copy</button>
+        <button type="button" id="viewer">Open in viewer</button>
+      </div>
+      <p class="muted">Gear files live in engine/ba-stick-render/assets/gear/. Edit the text and press Apply to load it back.</p>
+      <div id="out" style="grid-template-columns: 1fr">
+        <textarea id="ron-gear" spellcheck="false"></textarea>
+        <textarea id="ron-plate" spellcheck="false" placeholder="no plate"></textarea>
+      </div>
+      <div class="btns"><button type="button" id="apply">Apply text</button></div>
+    </aside>
+
+    <script type="module" src="/src/gear-editor.ts"></script>
+  </body>
+</html>

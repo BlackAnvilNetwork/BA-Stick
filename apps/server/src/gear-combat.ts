@@ -14,6 +14,7 @@ import {
   aggregateEquipmentStatsScaled,
   EQUIP_SLOTS,
   getItem,
+  itemFitsEquipSlot,
   scaleGearStat,
 } from "@bellgrave/items";
 
@@ -40,7 +41,7 @@ export function meleeAtkBonus(p: Geared): number {
     const tokenId = equip?.[slot];
     if (tokenId == null) continue;
     const def = getItem(tokenId);
-    if (!def || def.slot !== slot) continue;
+    if (!def || !itemFitsEquipSlot(def.slot, slot)) continue;
     const slotIlvl = def.craftLevel ?? 1;
     gearAtk += scaleGearStat(def.stats?.atk ?? 0, playerLevel, slotIlvl);
   }

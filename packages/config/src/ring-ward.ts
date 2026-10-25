@@ -22,6 +22,7 @@
  */
 
 import { zoneLink } from "./zone-links";
+import { nearTrailCorridor } from "./trail-geom";
 
 export const RW_BOUNDS = { minX: -100, maxX: 100, minZ: -100, maxZ: 100 } as const;
 
@@ -386,6 +387,13 @@ export function ringWardTrails(): RingWardTrail[] {
       ],
     },
   ];
+}
+
+/** Streets, quay approach, and minimap trail polylines (matches BAZ1 trails). */
+export function ringWardOnTrail(x: number, z: number): boolean {
+  if (ringWardBiome(x, z) === "ash_road") return true;
+  if (ringWardOnApproach(x, z)) return true;
+  return nearTrailCorridor(x, z, ringWardTrails(), RW_TRAIL_WIDTH);
 }
 
 export const RW_ROAD_NAMES: Readonly<Record<string, string>> = {

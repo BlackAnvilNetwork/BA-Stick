@@ -1,12 +1,13 @@
 /**
- * Pale Hollow field for the enlarged basin: 225 spawns, a roof only where
- * the ground already has a job, and a short kill quest at each roof.
+ * Pale Hollow field for the enlarged basin: 226 grid spawns plus tutorial mobs,
+ * a roof only where the ground already has a job, and a short kill quest at each roof.
  * Spacing is deterministic. Linked packs keep one neighbor inside 12 m.
  */
 import {
   PH_ASH_ROAD,
   PH_CAMP_SHIFT_X,
   PH_CAMP_SHIFT_Z,
+  PH_HUB_SPAWN,
   PH_QUARRY_CUT,
   PH_SEAM_TUNNEL,
   PH_TIMBER_BRIDGE,
@@ -46,10 +47,21 @@ export type PaleHollowQuestDef = {
   mobIds: readonly string[];
 };
 
+export type PaleHollowQuestProgress = { id: string; kills: number };
+
 export type PaleHollowQuestState = {
   zoneId: "pale_hollow";
-  active: { id: string; kills: number } | null;
+  active: PaleHollowQuestProgress[];
   done: string[];
+};
+
+export type PaleHollowQuestLogEntry = {
+  id: string;
+  title: string;
+  kills: number;
+  need: number;
+  progress: string;
+  ready: boolean;
 };
 
 const MIN_GAP = 6.5;
@@ -341,6 +353,52 @@ export const PH_ALL_MOBS: PaleHollowMobDef[] = [
     roadDwellers,
     "ph-lip",
   ),
+  {
+    id: "ph-camp-dog",
+    name: "Camp Dog",
+    x: PH_HUB_SPAWN.x,
+    z: PH_HUB_SPAWN.z + 18,
+    level: 1,
+    archetype: "hollow_scavenger",
+    job: "rogue",
+    aggro: "safe",
+    aggroRange: 0,
+    hp: 40,
+    drops: [],
+    /** One craft (×2 for cooking) per bench skill near hub; extra pale dust shared across recipes */
+    fixedDrops: [
+      { slug: "pale-dust", qty: 12 },
+      { slug: "dried-ration-scrap", qty: 4 },
+      { slug: "ashbeam-log", qty: 4 },
+      { slug: "bark-strip", qty: 2 },
+      { slug: "pale-flax", qty: 4 },
+      { slug: "dead-fiber", qty: 2 },
+      { slug: "bone-chip", qty: 4 },
+      { slug: "antidote-root", qty: 2 },
+      { slug: "desiccated-hide", qty: 4 },
+      { slug: "copper-ore", qty: 3 },
+      { slug: "tin-ore", qty: 2 },
+    ],
+  },
+  {
+    id: "ph-clay-crab",
+    name: "Clay Crab",
+    x: PH_HUB_SPAWN.x - 10,
+    z: PH_HUB_SPAWN.z + 18,
+    level: 2,
+    archetype: "clay_crab",
+    job: "fighter",
+    aggro: "safe",
+    aggroRange: 0,
+    hp: 55,
+    drops: ["clay-crab"],
+    /** Glass Bead (Lv 1 goldsmith): sand×2, clay×1, pale dust×1 — enough for two crafts */
+    fixedDrops: [
+      { slug: "river-sand", qty: 4 },
+      { slug: "potters-clay", qty: 2 },
+      { slug: "pale-dust", qty: 2 },
+    ],
+  },
 ];
 
 export const PH_SEGMENT_A_MOBS = PH_ALL_MOBS.filter((m) => m.level <= 4);
@@ -406,47 +464,97 @@ export const PH_QUESTS: readonly PaleHollowQuestDef[] = [
 ];
 
 export function emptyPaleHollowQuests(): PaleHollowQuestState {
-  return { zoneId: "pale_hollow", active: null, done: [] };
+  return { zoneId: "pale_hollow", active: [], done: [] };
+}
+
+/** Load save JSON — supports legacy single `active` object. */
+export function normalizePaleHollowQuestState(raw: unknown): PaleHollowQuestState {
+  if (!raw || typeof raw !== "object") return emptyPaleHollowQuests();
+  const row = raw as { active?: unknown; done?: unknown };
+  const done = Array.isArray(row.done) ? row.done.filter((id): id is string => typeof id === "string") : [];
+  if (Array.isArray(row.active)) {
+    const active: PaleHollowQuestProgress[] = [];
+    for (const item of row.active) {
+      if (!item || typeof item !== "object") continue;
+      const e = item as { id?: unknown; kills?: unknown };
+      if (typeof e.id !== "string" || !Number.isInteger(e.kills) || (e.kills as number) < 0) continue;
+      active.push({ id: e.id, kills: e.kills as number });
+    }
+    return { zoneId: "pale_hollow", active, done };
+  }
+  if (row.active && typeof row.active === "object") {
+    const leg = row.active as { id?: unknown; kills?: unknown };
+    if (typeof leg.id === "string" && Number.isInteger(leg.kills) && (leg.kills as number) >= 0) {
+      return { zoneId: "pale_hollow", active: [{ id: leg.id, kills: leg.kills as number }], done };
+    }
+  }
+  return { zoneId: "pale_hollow", active: [], done };
 }
 
 export function paleHollowQuestByNpc(npcId: string): PaleHollowQuestDef | undefined {
   return PH_QUESTS.find((q) => q.npcId === npcId);
 }
 
+export function paleHollowQuestById(id: string): PaleHollowQuestDef | undefined {
+  return PH_QUESTS.find((q) => q.id === id);
+}
+
+export function paleHollowQuestLogEntries(state: PaleHollowQuestState): PaleHollowQuestLogEntry[] {
+  return state.active.map((entry) => {
+    const quest = paleHollowQuestById(entry.id);
+    if (!quest) {
+      return { id: entry.id, title: entry.id, kills: entry.kills, need: 1, progress: "", ready: false };
+    }
+    return {
+      id: quest.id,
+      title: quest.title,
+      kills: entry.kills,
+      need: quest.need,
+      progress: quest.progress,
+      ready: entry.kills >= quest.need,
+    };
+  });
+}
+
 export function paleHollowQuestCredit(state: PaleHollowQuestState, mobId: string): PaleHollowQuestState {
-  const active = state.active;
-  if (!active) return state;
-  const quest = PH_QUESTS.find((q) => q.id === active.id);
-  if (!quest || !quest.mobIds.includes(mobId) || active.kills >= quest.need) return state;
-  return { ...state, active: { id: active.id, kills: active.kills + 1 } };
+  const st = normalizePaleHollowQuestState(state);
+  if (st.active.length === 0) return st;
+  let changed = false;
+  const active = st.active.map((entry) => {
+    const quest = paleHollowQuestById(entry.id);
+    if (!quest || !quest.mobIds.includes(mobId) || entry.kills >= quest.need) return entry;
+    changed = true;
+    return { ...entry, kills: entry.kills + 1 };
+  });
+  return changed ? { ...st, active } : st;
 }
 
 export function paleHollowQuestTalk(
   state: PaleHollowQuestState,
   npcId: string,
 ): { state: PaleHollowQuestState; title: string; body: string; gold: number } {
+  const st = normalizePaleHollowQuestState(state);
   const quest = paleHollowQuestByNpc(npcId);
-  if (!quest) return { state, title: "…", body: "…", gold: 0 };
-  if (state.done.includes(quest.id)) {
-    return { state, title: quest.title, body: quest.done, gold: 0 };
+  if (!quest) return { state: st, title: "…", body: "…", gold: 0 };
+  if (st.done.includes(quest.id)) {
+    return { state: st, title: quest.title, body: quest.done, gold: 0 };
   }
-  const active = state.active;
-  if (!active || active.id !== quest.id) {
-    if (active) {
-      return { state, title: quest.title, body: "Finish the task you already carry.", gold: 0 };
-    }
+  const idx = st.active.findIndex((a) => a.id === quest.id);
+  if (idx < 0) {
     return {
-      state: { ...state, active: { id: quest.id, kills: 0 } },
+      state: { ...st, active: [...st.active, { id: quest.id, kills: 0 }] },
       title: quest.title,
       body: quest.offer,
       gold: 0,
     };
   }
-  if (active.kills < quest.need) {
-    return { state, title: quest.title, body: `${quest.progress} ${active.kills}/${quest.need}.`, gold: 0 };
+  const entry = st.active[idx]!;
+  if (entry.kills < quest.need) {
+    return { state: st, title: quest.title, body: `${quest.progress} ${entry.kills}/${quest.need}.`, gold: 0 };
   }
+  const active = st.active.filter((a) => a.id !== quest.id);
   return {
-    state: { zoneId: "pale_hollow", active: null, done: [...state.done, quest.id] },
+    state: { zoneId: "pale_hollow", active, done: [...st.done, quest.id] },
     title: quest.title,
     body: quest.done,
     gold: quest.gold,

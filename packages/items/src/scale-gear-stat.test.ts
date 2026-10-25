@@ -114,7 +114,7 @@ describe("aggregateEquipmentStatsScaled", () => {
   it("aggregates multiple items with different iLevels", () => {
     const BRONZE_CAP = 104;
     const cap = getItem(BRONZE_CAP);
-    assert.ok(cap, "Bronze Cap exists");
+    assert.ok(cap, "Bronze Helm exists");
     const capIlv = cap.craftLevel ?? 1;
 
     const stats = aggregateEquipmentStatsScaled({ body: IRON_MAIL, head: BRONZE_CAP }, 10);

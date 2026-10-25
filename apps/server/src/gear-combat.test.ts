@@ -47,11 +47,11 @@ test("player defense is VIT defense plus equipped gear def", () => {
 
 test("gear stats scale with player level vs item level (#103)", () => {
   // Iron Mail: iLv 28, def 20, vit 7, hp 29
-  // Bronze Cap: iLv 8, def 3
+  // Bronze Helm: iLv 8, def 3
   const ironMailIlv = getItem(IRON_MAIL)!.craftLevel!;
   const bronzeCapIlv = getItem(BRONZE_CAP)!.craftLevel!;
   assert.equal(ironMailIlv, 28, "Iron Mail iLv fixture");
-  assert.equal(bronzeCapIlv, 8, "Bronze Cap iLv fixture");
+  assert.equal(bronzeCapIlv, 8, "Bronze Helm iLv fixture");
 
   // At level 28+, Iron Mail gives full 20 def
   const atLevel = { equip: { body: IRON_MAIL }, level: 28 };
@@ -70,7 +70,7 @@ test("gear stats scale with player level vs item level (#103)", () => {
 
   // Combining items with different iLevels: each scales independently
   // At level 14, Iron Mail (iLv 28) gives floor(20 * 14/28) = 10
-  // Bronze Cap (iLv 8) at level 14 > iLv 8, so full 3
+  // Bronze Helm (iLv 8) at level 14 > iLv 8, so full 3
   const mixedGear = { equip: { body: IRON_MAIL, head: BRONZE_CAP }, level: 14 };
   assert.equal(gearDef(mixedGear), 10 + 3, "mixed gear: scaled mail + full cap");
 });

@@ -65,12 +65,24 @@
       .err { color: #b33939; }
       label input { vertical-align: middle; }
       input[type="file"] { color: #7d7486; }
+      html.embed body {
+        grid-template-columns: 1fr;
+        grid-template-rows: 1fr;
+        height: 100%;
+        min-height: 0;
+      }
+      html.embed header,
+      html.embed footer,
+      html.embed aside { display: none; }
+      html.embed #stage { min-height: 0; height: 100%; }
+      html.embed canvas { width: 100%; height: 100%; max-height: 100%; }
     </style>
   </head>
   <body>
     <header>
       <h1>GEAR RON</h1>
-      <p>Drag the figure to turn it. Drop a .ron file to preview it before it is saved.</p>
+      <p>Drag the figure to turn it. Drop .ron and .plate.ron files to preview them before they are saved.</p>
+      <a href="./gear-editor.html" target="gear-editor" style="color: #d9a441">Gear editor</a>
     </header>
     <aside>
       <div id="drop">

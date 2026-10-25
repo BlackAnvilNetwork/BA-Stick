@@ -14,7 +14,7 @@ if (process.argv[3]) {
   await p.screenshot({ path: "/workspace/ba-research/screens/m5-view-iso.png" });
   console.log("settings", await click("^Settings$")); await sleep(500);
   console.log("btns", await p.evaluate(() => [...document.querySelectorAll("button")].map(b => b.textContent.trim()).join("|").slice(-600)), await p.evaluate(() => document.documentElement.dataset.renderer));
-  console.log("3d", await click("^3D$")); await sleep(300);
+  console.log("3d", await click("^Third person$")); await sleep(300);
   await p.screenshot({ path: "/workspace/ba-research/screens/m5-view-settings.png" });
   await click("^Close$"); await sleep(1200);
   console.log("dataset", await p.evaluate(() => document.documentElement.dataset.uiView));

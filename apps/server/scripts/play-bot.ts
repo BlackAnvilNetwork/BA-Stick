@@ -80,8 +80,8 @@ const HARE_LEVEL = new Map(
 
 const FLEET: { id: string; job: JobId; bridge: string; biasX: number; route: TourId }[] = [
   { id: "bot-sorcerer", job: "sorcerer", bridge: "hub-north", biasX: -3, route: "north-spine" },
-  { id: "bot-cleric", job: "cleric", bridge: "hub-west-farm", biasX: 3, route: "west-silo" },
-  { id: "bot-rogue", job: "rogue", bridge: "hub-east-trib", biasX: -7, route: "east-trib" },
+  { id: "bot-cleric", job: "cleric", bridge: "hub-north", biasX: 3, route: "west-silo" },
+  { id: "bot-rogue", job: "rogue", bridge: "hub-north", biasX: -7, route: "east-trib" },
   { id: "bot-fighter", job: "fighter", bridge: "chalkworks-corridor", biasX: 7, route: "chalk-marches" },
 ];
 
@@ -143,41 +143,27 @@ function tourWaypoints(id: TourId): Wp[] {
     add(trailWps("camp-to-north"));
     bridge("hub-north");
     add(trailWps("north-to-ashbeam"));
-    bridge("ashbeam-corridor");
-    add([dryWp(-8, 78, "ashbeam"), dryWp(10, 92, "ashbeam-grove")]);
-    add(trailWps("ashbeam-to-chalkworks"));
     bridge("chalkworks-corridor");
-    add([dryWp(8, 150, "chalkworks")]);
+    add(trailWps("ashbeam-to-chalkworks"));
     add(trailWps("chalkworks-to-marches"));
-    bridge("marches-corridor");
     add(trailWps("marches-to-ash-road"));
-    add([chalkBank(230, "chalk-run-north", -1)]);
   } else if (id === "west-silo") {
     add([dryWp(-26, -6, "silo")]);
     camp();
     add(trailWps("camp-to-west-farm"));
-    bridge("hub-west-farm");
-    add(trailWps("west-farm-onward"));
-    add([dryWp(-50, 28, "mountain-shoulder-west"), chalkBank(18, "chalk-run-south", -1)]);
+    add([chalkBank(34, "clay-bank", -1)]);
   } else if (id === "east-trib") {
     camp();
-    add([tribBank(39, "east-trib-end-z39", 1)]);
-    add(trailWps("camp-to-east-trib"));
-    bridge("hub-east-trib");
-    add(trailWps("east-trib-to-ashbeam"));
-    bridge("ashbeam-east-trib");
-    add(trailWps("east-ashbeam-grove"));
-    add([tribBank(155, "east-trib-end-z155", -1), dryWp(48, 50, "mountain-shoulder-east")]);
+    add(trailWps("east-grove"));
+    add([dryWp(36, 72, "chalk-pool")]);
   } else {
     camp();
-    add([chalkBank(16, "chalk-run-south", 1)]);
     add(trailWps("camp-to-north"));
     bridge("hub-north");
-    add([dryWp(22, 70, "ashbeam-east-flank"), dryWp(-24, 96, "ashbeam-west-grove")]);
+    add(trailWps("north-to-ashbeam"));
     bridge("chalkworks-corridor");
-    add([dryWp(-28, 160, "chalkworks-west")]);
-    bridge("marches-corridor");
-    add([dryWp(-40, 148, "mountain-shoulder-marches"), chalkBank(220, "chalk-run-north", 1)]);
+    add(trailWps("ashbeam-to-chalkworks"));
+    add([chalkBank(220, "chalk-run-north", 1)]);
   }
   return out;
 }
@@ -1126,7 +1112,7 @@ async function main() {
         {
           id: args.id ?? `bot-${args.job}`,
           job: args.job as JobId,
-          bridge: args.bridge ?? "hub-west-farm",
+          bridge: args.bridge ?? "hub-north",
           biasX: 0,
           route: (args.route as TourId) || "north-spine",
         },

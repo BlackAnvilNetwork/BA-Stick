@@ -1,0 +1,13 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Linen headband. A short stack of invisible horizontal disks around the forehead.
+// Strips connect them. No top cap; the face stays open.
+(
+    id: "ba_headband",
+    slot: Head,
+    attach: Some("head"),
+    material: Some("dust"),
+    shapes: [],
+)

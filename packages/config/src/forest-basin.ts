@@ -22,6 +22,7 @@
  */
 
 import { zoneLink } from "./zone-links";
+import { nearTrailCorridor } from "./trail-geom";
 
 export const FOREST_BASIN_BOUNDS = {
   minX: -160,
@@ -395,6 +396,10 @@ export function forestBasinTrails(): ForestBasinTrail[] {
       ],
     },
   ];
+}
+
+export function forestBasinOnTrail(x: number, z: number): boolean {
+  return nearTrailCorridor(x, z, forestBasinTrails(), FB_TRAIL_WIDTH);
 }
 
 export const FB_ROAD_NAMES: Readonly<Record<string, string>> = {

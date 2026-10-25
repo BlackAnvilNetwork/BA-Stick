@@ -11,9 +11,10 @@ describe("regen / healPotency gear hooks", () => {
     assert.equal(withHealPotency({ equip }, 100), 105);
   });
 
-  it("sums across slots", () => {
-    const equip = { ...emptyEquipment(), ring: 1063 };
-    assert.equal(gearRegen({ equip }), 1);
+  it("sums two ring slots", () => {
+    const equip = { ...emptyEquipment(), ring: 1063, ring2: 1063 };
+    assert.equal(gearRegen({ equip }), 2);
+    assert.equal(gearHealPotency({ equip }), 10);
   });
 });
 

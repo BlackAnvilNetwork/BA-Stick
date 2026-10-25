@@ -1,0 +1,12 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Linen helm. Same bandana mesh as leather bandana; woven linen plate.
+(
+    id: "ba_linen_helm",
+    slot: Head,
+    attach: Some("head"),
+    material: Some("dust"),
+    shapes: [],
+)

@@ -10,11 +10,19 @@ export type ZoneRender = {
 
 /**
  * Zone registry keyed by `you.zoneId`. Every `ZONES` entry resolves; only zones
- * the server actually serves get baked terrain (today: Pale Hollow, which also
- * hosts the Ash Pit). The rest fall back to the flat floor until the server
- * ships their world data (see #15).
+ * the server actually serves get baked terrain. The rest fall back to the flat floor.
  */
-const BAKED: Partial<Record<ZoneId, string>> = { pale_hollow: "pale_hollow" };
+const BAKED: Partial<Record<ZoneId, string>> = {
+  pale_hollow: "pale_hollow",
+  hollow_road: "hollow_road",
+  forest_basin: "forest_basin",
+  spur_road: "spur_road",
+  ring_ward: "ring_ward",
+  islet_fords: "islet_fords",
+  green_reach: "green_reach",
+  coil_pass: "coil_pass",
+  coil_ridge: "coil_ridge",
+};
 
 export function zoneRender(zoneId: string | undefined): ZoneRender {
   const id = zoneId || "pale_hollow";

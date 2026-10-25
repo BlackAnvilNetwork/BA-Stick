@@ -359,6 +359,30 @@ function isCraftableRecipe(def: ItemDef): boolean {
   return recipeMaterialGroups(def).length > 0;
 }
 
+let CRAFTABLE_RECIPES: ItemDef[] | null = null;
+
+/** Every recipe the craft command accepts, sorted by craft level then name. */
+export function allCraftableRecipes(): readonly ItemDef[] {
+  if (!CRAFTABLE_RECIPES) {
+    CRAFTABLE_RECIPES = CATALOG.filter((def) => isCraftableRecipe(def)).sort(
+      (a, b) => a.craftLevel! - b.craftLevel! || a.name.localeCompare(b.name),
+    );
+  }
+  return CRAFTABLE_RECIPES;
+}
+
+/** Craftables for one skill, lowest level first (same order as {@link allCraftableRecipes}). */
+export function craftablesForSkill(skill: CraftSkill): readonly ItemDef[] {
+  return allCraftableRecipes().filter((d) => d.craftSkill === skill);
+}
+
+/** Highest craft level among recipes for this skill, or 0 if none. */
+export function maxCraftLevelForSkill(skill: CraftSkill): number {
+  let max = 0;
+  for (const d of craftablesForSkill(skill)) max = Math.max(max, d.craftLevel ?? 0);
+  return max;
+}
+
 let USED_IN_INDEX: Map<string, ItemDef[]> | null = null;
 
 /** Ingredient slug -> craftable results that take it in any AND-slot or OR option. Built once. */

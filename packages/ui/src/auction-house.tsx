@@ -1,5 +1,18 @@
 import { explorerTxUrl } from "@bellgrave/config";
-import { CATALOG, EQUIP_SLOTS, getItem, type EquipSlot, type ItemDef, type ItemKind } from "@bellgrave/items";
+import { CATALOG, getItem, type ItemDef } from "@bellgrave/items";
+import { CatalogSortToggle } from "./catalog-sort";
+import {
+  categoryCount,
+  compareCatalogDefs,
+  EQUIP_SLOTS,
+  KIND_TREE,
+  matchesCategory,
+  SLOT_LABEL,
+  type CatalogSort,
+  WEAPON_FAMILIES,
+  WEAPON_FAMILY_LABEL,
+  weaponCategoryId,
+} from "./catalog-tree";
 import {
   AH_FEE_BPS,
   compareAsks,
@@ -22,30 +35,6 @@ import { settlementSymbol } from "@bellgrave/client-core/settlement-label";
 import { useGame } from "@bellgrave/client-core/state";
 
 const WEEK_SEC = 7 * 24 * 60 * 60;
-
-const KIND_TREE: { kind: ItemKind; label: string; slots: boolean }[] = [
-  { kind: "base", label: "Materials", slots: false },
-  { kind: "intermediate", label: "Components", slots: false },
-  { kind: "consumable", label: "Consumables", slots: false },
-  { kind: "bait", label: "Bait", slots: false },
-  { kind: "filler", label: "Filler", slots: false },
-  { kind: "equipment", label: "Equipment", slots: true },
-];
-
-const SLOT_LABEL: Record<EquipSlot, string> = {
-  head: "Head",
-  body: "Body",
-  hands: "Hands",
-  legs: "Legs",
-  feet: "Feet",
-  ring: "Ring",
-  earring: "Earring",
-  main: "Main hand",
-  sub: "Off hand",
-  grip: "Grip",
-  ranged: "Ranged",
-  ammo: "Ammo",
-};
 
 function itemName(tokenId: number): string {
   return getItem(tokenId)?.name ?? "Item " + tokenId;
@@ -134,12 +123,6 @@ type Commodity = {
   rows: LokListingView[];
 };
 
-function matchesCategory(def: ItemDef, selected: string): boolean {
-  if (selected.startsWith("slot:")) return def.kind === "equipment" && def.slot === selected.slice(5);
-  if (selected.startsWith("kind:")) return def.kind === selected.slice(5);
-  return false;
-}
-
 function bookByItem(listings: LokListingView[]): Map<number, LokListingView[]> {
   const groups = new Map<number, LokListingView[]>();
   for (const row of listings) {
@@ -166,7 +149,7 @@ function commodityOf(def: ItemDef, rows: LokListingView[]): Commodity {
 }
 
 /** Full content catalog, enriched with asks already on the client. Search never hits the chain. */
-function commodities(listings: LokListingView[], query: string, selected: string | null): Commodity[] {
+function commodities(listings: LokListingView[], query: string, selected: string | null, sort: CatalogSort): Commodity[] {
   const q = query.trim().toLowerCase();
   const groups = bookByItem(listings);
   const out: Commodity[] = [];
@@ -178,7 +161,12 @@ function commodities(listings: LokListingView[], query: string, selected: string
     }
     out.push(commodityOf(def, groups.get(def.id) ?? []));
   }
-  out.sort((a, b) => a.name.localeCompare(b.name) || a.itemId - b.itemId);
+  out.sort((a, b) => {
+    const da = getItem(a.itemId);
+    const db = getItem(b.itemId);
+    if (!da || !db) return a.name.localeCompare(b.name) || a.itemId - b.itemId;
+    return compareCatalogDefs(da, db, sort);
+  });
   return out;
 }
 
@@ -187,17 +175,6 @@ function commodityById(listings: LokListingView[], itemId: number): Commodity | 
   if (!def) return null;
   const rows = listings.filter((row) => row.book && row.itemId === itemId);
   return commodityOf(def, rows);
-}
-
-function categoryCount(selected: string, query: string): number {
-  const q = query.trim().toLowerCase();
-  let count = 0;
-  for (const def of CATALOG) {
-    if (!matchesCategory(def, selected)) continue;
-    if (q && !def.name.toLowerCase().includes(q)) continue;
-    count += 1;
-  }
-  return count;
 }
 
 function buyNote(plan: QuantityPlan, qty: number, feeBps = AH_FEE_BPS, symbol = "ETH"): string {
@@ -255,13 +232,15 @@ export function AuctionBook({ listings, buyer, ahEscrow, eezSyncBuy }: Props) {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
   const [equipmentOpen, setEquipmentOpen] = useState(true);
+  const [mainHandOpen, setMainHandOpen] = useState(true);
+  const [sort, setSort] = useState<CatalogSort>("name");
   const [buyingId, setBuyingId] = useState<number | null>(null);
   const [qtyText, setQtyText] = useState("1");
   const [paying, setPaying] = useState(false);
   const homeOptions = listHomeChainOptions(eezSyncBuy);
   const [homeChainId, setHomeChainId] = useState<number | null>(homeOptions[0]?.chainId ?? null);
   const unit = settlementSymbol(ahEscrow?.currency, ahEscrow?.chainId);
-  const lines = commodities(listings, query, selected);
+  const lines = commodities(listings, query, selected, sort);
   const buying = buyingId == null ? null : commodityById(listings, buyingId);
   const qty = Number(qtyText);
   const plan =
@@ -343,6 +322,7 @@ export function AuctionBook({ listings, buyer, ahEscrow, eezSyncBuy }: Props) {
           onChange={(e) => setQuery(e.target.value)}
         />
       </label>
+      <CatalogSortToggle value={sort} onChange={setSort} />
       <div className="prov-split">
         <div className="prov-tree" role="tree" aria-label="Item categories">
           {KIND_TREE.map((node) => {
@@ -376,6 +356,50 @@ export function AuctionBook({ listings, buyer, ahEscrow, eezSyncBuy }: Props) {
                     {EQUIP_SLOTS.map((slot) => {
                       const slotId = "slot:" + slot;
                       const slotCount = categoryCount(slotId, query);
+                      if (slot === "main") {
+                        return (
+                          <div key={slot} role="treeitem" aria-expanded={mainHandOpen}>
+                            <div className="prov-branch">
+                              <button
+                                type="button"
+                                className="prov-chev"
+                                aria-label={mainHandOpen ? "Collapse main-hand weapons" : "Expand main-hand weapons"}
+                                onClick={() => setMainHandOpen((o) => !o)}
+                              >
+                                {mainHandOpen ? "-" : "+"}
+                              </button>
+                              <button
+                                type="button"
+                                className={selected === slotId && !searching ? "prov-node on" : "prov-node"}
+                                onClick={() => setSelected(slotId)}
+                              >
+                                {SLOT_LABEL[slot]}
+                                <span className="prov-count">{slotCount}</span>
+                              </button>
+                            </div>
+                            {mainHandOpen && (
+                              <div className="prov-children">
+                                {WEAPON_FAMILIES.map((family) => {
+                                  const wid = weaponCategoryId(family);
+                                  const wCount = categoryCount(wid, query);
+                                  return (
+                                    <button
+                                      key={family}
+                                      type="button"
+                                      role="treeitem"
+                                      className={selected === wid && !searching ? "prov-node on" : "prov-node"}
+                                      onClick={() => setSelected(wid)}
+                                    >
+                                      {WEAPON_FAMILY_LABEL[family]}
+                                      <span className="prov-count">{wCount}</span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      }
                       return (
                         <button
                           key={slot}

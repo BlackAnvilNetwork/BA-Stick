@@ -47,6 +47,7 @@ export type BattleMagePlayer = {
   widenReady: boolean;
   enSpellUntil: number;
   enSpellBonus: number;
+  enSpellElement: number;
   phalanxUntil: number;
   phalanxPhysMul: number;
   stoneskinUntil: number;
@@ -302,6 +303,7 @@ export function resolveBattleMageAbility(
     m.hp -= dmg;
     p.enSpellUntil = 0;
     p.enSpellBonus = 0;
+    p.enSpellElement = 0;
     p.anim = "cast";
     p.animUntil = now + castAnimMs;
     hooks.pushLog(p, `${def.label} — ${dmg} rune burst!`);
@@ -315,6 +317,8 @@ export function resolveBattleMageAbility(
     const dur = Math.floor((def.durationMs ?? 180_000) * enhanceDurationMul(p));
     p.enSpellUntil = now + dur;
     p.enSpellBonus = def.enSpellBonus ?? 10;
+    p.enSpellElement =
+      id === "bm_flame_edge" ? 1 : id === "bm_frost_edge" ? 2 : id === "bm_thunder_edge" ? 3 : 0;
     p.anim = "cast";
     p.animUntil = now + castAnimMs;
     if (p.spontaneityReady) p.spontaneityReady = false;
@@ -621,6 +625,7 @@ export function clearBattleMageBuffs(p: BattleMagePlayer) {
   p.widenReady = false;
   p.enSpellUntil = 0;
   p.enSpellBonus = 0;
+  p.enSpellElement = 0;
   p.phalanxUntil = 0;
   p.phalanxPhysMul = 1;
   p.stoneskinUntil = 0;

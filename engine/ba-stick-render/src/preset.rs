@@ -15,6 +15,18 @@ pub enum AnimState {
     Cast,
     Rest,
     Dead,
+    /// Gather channel: shovel, sword stowed.
+    Harvest,
+    /// Gather channel: pickaxe, sword stowed.
+    Mine,
+    /// Leathercraft channel: hammer + workpiece, sword stowed.
+    Leathercraft,
+    /// Smithing channel: summoned anvil + hammer, sword stowed.
+    Smithing,
+    /// Cooking channel: summoned pot + spoon, sword stowed.
+    Cooking,
+    /// Goldsmithing channel: jeweler's stake + hammer, sword stowed.
+    Goldsmithing,
 }
 
 impl AnimState {
@@ -26,23 +38,30 @@ impl AnimState {
             "cast" => AnimState::Cast,
             "rest" => AnimState::Rest,
             "dead" => AnimState::Dead,
+            "harvest" => AnimState::Harvest,
+            "mine" => AnimState::Mine,
+            "leathercraft" => AnimState::Leathercraft,
+            "smithing" => AnimState::Smithing,
+            "cooking" => AnimState::Cooking,
+            "goldsmithing" => AnimState::Goldsmithing,
             _ => AnimState::Idle,
         }
     }
-    /// Builtin Stick Engine clip used for this state. `cast`, `rest` and
-    /// `dead` fall back until dedicated clips land (M2).
+    /// Builtin Stick Engine clip used for this state. `cast` and `dead`
+    /// fall back until dedicated clips land. Rest is a hero's rest via `action_clip`.
     pub fn clip(self) -> &'static str {
         match self {
             AnimState::Walk => "walk",
             AnimState::Run => "run",
             AnimState::Melee | AnimState::Cast => "swing",
-            AnimState::Idle | AnimState::Rest | AnimState::Dead => "idle",
+            AnimState::Idle | AnimState::Rest | AnimState::Dead | AnimState::Harvest | AnimState::Mine | AnimState::Leathercraft | AnimState::Smithing | AnimState::Cooking | AnimState::Goldsmithing => "idle",
         }
     }
     /// Action-layer clip (None = base idle/gait layer only).
     pub fn action_clip(self) -> Option<&'static str> {
         match self {
             AnimState::Melee | AnimState::Cast => Some("swing"),
+            AnimState::Rest => Some("rest"),
             _ => None,
         }
     }
@@ -57,15 +76,32 @@ impl AnimState {
 pub enum Body {
     Biped,
     /// Four legs; `hop` = arc-hop gait (Dust Hare), else trot. `size` scales.
-    Quadruped { size: f32, hop: bool, tusks: bool, body: u8, far: u8 },
+    Quadruped {
+        size: f32,
+        hop: bool,
+        tusks: bool,
+        body: u8,
+        far: u8,
+    },
     /// Ground snake (Cliff Adder).
-    Serpent { size: f32, body: u8 },
+    Serpent {
+        size: f32,
+        body: u8,
+    },
     /// Bouncing blob (Pale Slime).
-    Blob { size: f32, body: u8, far: u8 },
+    Blob {
+        size: f32,
+        body: u8,
+        far: u8,
+    },
     /// Stick dog: angular torso, long snout, thin bent legs; trot + lunge.
-    Canine { size: f32 },
+    Canine {
+        size: f32,
+    },
     /// Gather node marker (#30): 0 mine (ore rock), 1 harvest (herb), 2 fish (ripples).
-    Node { method: u8 },
+    Node {
+        method: u8,
+    },
 }
 
 /// What a biped holds (`JOB_WEAPON` in packages/combat).
@@ -96,7 +132,13 @@ fn with(f: impl FnOnce(&mut Proportions, &mut Look)) -> RigPreset {
     let mut props = Proportions::default();
     let mut look = Look::default();
     f(&mut props, &mut look);
-    RigPreset { props, look, body: Body::Biped, weapon: Weapon::Sword, npc_mark: None }
+    RigPreset {
+        props,
+        look,
+        body: Body::Biped,
+        weapon: Weapon::Sword,
+        npc_mark: None,
+    }
 }
 
 fn staff(mut p: RigPreset) -> RigPreset {
@@ -106,12 +148,27 @@ fn staff(mut p: RigPreset) -> RigPreset {
 
 /// Every mob archetype in packages/config (`PaleHollowArchetype`) plus the
 /// legacy hall guard. Exposed for tests.
-pub const MOB_ARCHETYPES: [&str; 9] = [
-    "dust_hare", "pale_slime", "hollow_scavenger", "ashbeam_boar", "ruin_dweller",
-    "cliff_adder", "seam_golem", "shard_wight", "guard",
+pub const MOB_ARCHETYPES: [&str; 10] = [
+    "dust_hare",
+    "pale_slime",
+    "clay_crab",
+    "hollow_scavenger",
+    "ashbeam_boar",
+    "ruin_dweller",
+    "cliff_adder",
+    "seam_golem",
+    "shard_wight",
+    "guard",
 ];
 /// Every `npcRole` in packages/protocol.
-pub const NPC_ROLES: [&str; 6] = ["job_master", "spell_trainer", "guide", "quest_giver", "crafter", "vendor"];
+pub const NPC_ROLES: [&str; 6] = [
+    "job_master",
+    "spell_trainer",
+    "guide",
+    "quest_giver",
+    "crafter",
+    "vendor",
+];
 
 impl RigPreset {
     /// Resolve a preset key: a Black Anvil job id (`knight`, `time_mage`...),
@@ -120,26 +177,67 @@ impl RigPreset {
     pub fn resolve(key: &str) -> RigPreset {
         let (base, variant) = key.split_once('/').unwrap_or((key, ""));
         let mut p = match base {
-            "knight" => with(|p, l| { p.limb_px = 2.8; p.shoulder_w = 0.22; l.accent = C_STEEL; }),
-            "fighter" => with(|p, l| { p.limb_px = 2.6; l.accent = C_ACCENT; }),
-            "rogue" => with(|p, l| { p.limb_px = 1.9; p.sword = 0.55; l.accent = C_SHADOW; }),
-            "battle_mage" => with(|p, l| { p.limb_px = 2.4; l.accent = C_DASH; l.far = C_STEEL; }),
-            "cleric" => staff(with(|p, l| { p.sword = 0.0; l.accent = C_GOLD; })),
-            "sorcerer" => staff(with(|p, l| { p.limb_px = 1.9; p.sword = 0.0; l.accent = C_DASH; })),
-            "time_mage" => staff(with(|p, l| { p.limb_px = 2.0; p.sword = 0.0; l.accent = C_GOLD; l.body = C_TRAIL; })),
+            "knight" => with(|p, l| {
+                p.limb_px = 2.8;
+                p.shoulder_w = 0.22;
+                l.accent = C_STEEL;
+            }),
+            "fighter" => with(|p, l| {
+                p.limb_px = 2.6;
+                l.accent = C_ACCENT;
+            }),
+            "rogue" => with(|p, l| {
+                p.limb_px = 1.9;
+                p.sword = 0.55;
+                l.accent = C_SHADOW;
+            }),
+            "battle_mage" => with(|p, l| {
+                p.limb_px = 2.4;
+                l.accent = C_DASH;
+                l.far = C_STEEL;
+            }),
+            "cleric" => staff(with(|p, l| {
+                p.sword = 0.0;
+                l.accent = C_GOLD;
+            })),
+            "sorcerer" => staff(with(|p, l| {
+                p.limb_px = 1.9;
+                p.sword = 0.0;
+                l.accent = C_DASH;
+            })),
+            "time_mage" => staff(with(|p, l| {
+                p.limb_px = 2.0;
+                p.sword = 0.0;
+                l.accent = C_GOLD;
+                l.body = C_TRAIL;
+            })),
             b if b.starts_with("npc:") => npc(&b[4..]),
             b if b.starts_with("mob:") => mob(&b[4..]),
             b if b.starts_with("gather:") => {
-                let method = match &b[7..] { "harvest" => 1, "fish" => 2, _ => 0 };
-                RigPreset { body: Body::Node { method }, weapon: Weapon::None, ..with(|_, _| {}) }
+                let method = match &b[7..] {
+                    "harvest" => 1,
+                    "fish" => 2,
+                    _ => 0,
+                };
+                RigPreset {
+                    body: Body::Node { method },
+                    weapon: Weapon::None,
+                    ..with(|_, _| {})
+                }
             }
             _ => with(|_, _| {}),
         };
         match variant {
-            "female" => { p.props.shoulder_w *= 0.88; p.props.limb_px *= 0.9; }
+            "female" => {
+                p.props.shoulder_w *= 0.88;
+                p.props.limb_px *= 0.9;
+            }
             "pepeka" => {
-                p.props.thigh *= 0.7; p.props.shin *= 0.7; p.props.spine *= 0.8;
-                p.props.head_r *= 1.5; p.props.limb_px *= 1.1;
+                p.props.thigh *= 0.7;
+                p.props.shin *= 0.7;
+                p.props.spine *= 0.8;
+                p.props.head_r *= 1.5;
+                p.props.limb_px *= 1.1;
             }
             _ => {}
         }
@@ -158,7 +256,13 @@ fn npc(role: &str) -> RigPreset {
         "vendor" => (crate::palette::FX_HP, crate::palette::FX_HP, Weapon::None),
         _ => (C_GOLD, C_GOLD, Weapon::None),
     };
-    let mut p = with(|p, l| { p.sword = 0.0; p.limb_px = 2.4; l.accent = accent; l.body = C_DUST; l.far = C_STONE_FAR; });
+    let mut p = with(|p, l| {
+        p.sword = 0.0;
+        p.limb_px = 2.4;
+        l.accent = accent;
+        l.body = C_DUST;
+        l.far = C_STONE_FAR;
+    });
     p.weapon = wpn;
     p.npc_mark = Some(mark);
     p
@@ -168,28 +272,109 @@ fn mob(arch: &str) -> RigPreset {
     use crate::palette::*;
     let biped = |f: &dyn Fn(&mut Proportions, &mut Look)| with(|p, l| f(p, l));
     match arch {
-        "dust_hare" => RigPreset { body: Body::Quadruped { size: 0.95, hop: true, tusks: false, body: CR_HARE, far: CR_HARE_FAR }, weapon: Weapon::None, ..with(|_, _| {}) },
-        "ashbeam_boar" => RigPreset { body: Body::Quadruped { size: 1.35, hop: false, tusks: true, body: CR_BOAR, far: CR_BOAR_FAR }, weapon: Weapon::None, ..with(|_, _| {}) },
-        "pale_slime" => RigPreset { body: Body::Blob { size: 1.3, body: CR_SLIME, far: CR_SLIME_FAR }, weapon: Weapon::None, ..with(|_, _| {}) },
-        "cliff_adder" => RigPreset { body: Body::Serpent { size: 1.5, body: CR_ADDER }, weapon: Weapon::None, ..with(|_, _| {}) },
+        "dust_hare" => RigPreset {
+            body: Body::Quadruped {
+                size: 0.95,
+                hop: true,
+                tusks: false,
+                body: CR_HARE,
+                far: CR_HARE_FAR,
+            },
+            weapon: Weapon::None,
+            ..with(|_, _| {})
+        },
+        "ashbeam_boar" => RigPreset {
+            body: Body::Quadruped {
+                size: 1.35,
+                hop: false,
+                tusks: true,
+                body: CR_BOAR,
+                far: CR_BOAR_FAR,
+            },
+            weapon: Weapon::None,
+            ..with(|_, _| {})
+        },
+        "pale_slime" => RigPreset {
+            body: Body::Blob {
+                size: 1.3,
+                body: CR_SLIME,
+                far: CR_SLIME_FAR,
+            },
+            weapon: Weapon::None,
+            ..with(|_, _| {})
+        },
+        "clay_crab" => RigPreset {
+            body: Body::Blob {
+                size: 0.92,
+                body: CR_BOAR,
+                far: CR_BOAR_FAR,
+            },
+            weapon: Weapon::None,
+            ..with(|_, _| {})
+        },
+        "cliff_adder" => RigPreset {
+            body: Body::Serpent {
+                size: 1.5,
+                body: CR_ADDER,
+            },
+            weapon: Weapon::None,
+            ..with(|_, _| {})
+        },
         // No canine archetype exists server-side; the scavenger is drawn as one.
-        "hollow_scavenger" => RigPreset { body: Body::Canine { size: 1.0 }, weapon: Weapon::None, ..with(|_, _| {}) },
-        "ruin_dweller" => biped(&|p, l| { p.limb_px = 2.4; p.sword = 0.7; l.body = C_STONE; l.far = C_STONE_FAR; l.accent = C_ACCENT; }),
+        "hollow_scavenger" => RigPreset {
+            body: Body::Canine { size: 1.0 },
+            weapon: Weapon::None,
+            ..with(|_, _| {})
+        },
+        "ruin_dweller" => biped(&|p, l| {
+            p.limb_px = 2.4;
+            p.sword = 0.7;
+            l.body = C_STONE;
+            l.far = C_STONE_FAR;
+            l.accent = C_ACCENT;
+        }),
         "seam_golem" => {
             let mut p = biped(&|p, l| {
-                p.limb_px = 4.2; p.shoulder_w = 0.3; p.thigh *= 1.15; p.shin *= 1.15; p.spine *= 1.2; p.head_r = 0.12; p.sword = 0.0;
-                l.body = C_STONE; l.far = C_STONE_FAR; l.accent = C_DASH;
+                p.limb_px = 4.2;
+                p.shoulder_w = 0.3;
+                p.thigh *= 1.15;
+                p.shin *= 1.15;
+                p.spine *= 1.2;
+                p.head_r = 0.12;
+                p.sword = 0.0;
+                l.body = C_STONE;
+                l.far = C_STONE_FAR;
+                l.accent = C_DASH;
             });
             p.weapon = Weapon::None;
             p
         }
         "shard_wight" => {
-            let mut p = biped(&|p, l| { p.limb_px = 1.6; p.spine *= 1.1; p.sword = 0.0; l.body = CR_WIGHT; l.far = C_STONE_FAR; l.accent = C_DASH; });
+            let mut p = biped(&|p, l| {
+                p.limb_px = 1.6;
+                p.spine *= 1.1;
+                p.sword = 0.0;
+                l.body = CR_WIGHT;
+                l.far = C_STONE_FAR;
+                l.accent = C_DASH;
+            });
             p.weapon = Weapon::Staff;
             p
         }
-        "guard" => biped(&|p, l| { p.limb_px = 2.8; p.shoulder_w = 0.22; l.body = C_STONE; l.far = C_STONE_FAR; l.accent = C_STEEL; }),
-        _ => biped(&|p, l| { p.limb_px = 2.6; p.head_r = 0.17; l.accent = C_ACCENT; l.body = C_STONE; l.far = C_STONE_FAR; }),
+        "guard" => biped(&|p, l| {
+            p.limb_px = 2.8;
+            p.shoulder_w = 0.22;
+            l.body = C_STONE;
+            l.far = C_STONE_FAR;
+            l.accent = C_STEEL;
+        }),
+        _ => biped(&|p, l| {
+            p.limb_px = 2.6;
+            p.head_r = 0.17;
+            l.accent = C_ACCENT;
+            l.body = C_STONE;
+            l.far = C_STONE_FAR;
+        }),
     }
 }
 

@@ -1,0 +1,14 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Iron cuisses. A shell over each hip and around the thigh, front, outside,
+// and back. The inner thigh stays open. The knee stays clear. The arcs are
+// not drawn. A stride carries the thigh; the hip cap stays at the waist.
+(
+    id: "ba_iron_cuisses",
+    slot: Legs,
+    attach: Some("pelvis"),
+    material: Some("steel"),
+    shapes: [],
+)

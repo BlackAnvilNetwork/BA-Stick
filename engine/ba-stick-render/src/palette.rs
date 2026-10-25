@@ -92,7 +92,14 @@ pub const BANK_L: u8 = 140;
 pub const GEAR_LEATHER: u8 = 77;
 pub const GEAR_LEATHER_FAR: u8 = 78;
 pub const GEAR_BONE: u8 = 79;
-pub const GEAR: [(u8, u32); 3] = [(GEAR_LEATHER, 0x7a5233), (GEAR_LEATHER_FAR, 0x553823), (GEAR_BONE, 0xd8cfb4)];
+/// Warm bronze (blades, trim).
+pub const GEAR_BRONZE: u8 = 141;
+pub const GEAR: [(u8, u32); 4] = [
+    (GEAR_LEATHER, 0x7a5233),
+    (GEAR_LEATHER_FAR, 0x553823),
+    (GEAR_BONE, 0xd8cfb4),
+    (GEAR_BRONZE, 0xb8924a),
+];
 /// Canine (scavenger dog): orange-brown strokes, golden-tan fill, dark spot.
 pub const CR_DOG: u8 = 142;
 pub const CR_DOG_FAR: u8 = 143;
@@ -100,33 +107,105 @@ pub const CR_DOG_FILL: u8 = 144;
 pub const CR_DOG_SPOT: u8 = 145;
 pub const CR_TEETH: u8 = 146;
 pub const CR_NOSE: u8 = 147;
-pub const CANINE: [(u8, u32); 6] = [(CR_DOG, 0xc4561c), (CR_DOG_FAR, 0x8e3c14), (CR_DOG_FILL, 0xb8860e), (CR_DOG_SPOT, 0x9a3a12), (CR_TEETH, 0xf4f1e6), (CR_NOSE, 0x141014)];
-pub const MASONRY: [(u8, u32); 4] = [(BANK_DD, 0x4e575c), (BANK_D, 0x6f7a80), (BANK, 0x8e9a9e), (BANK_L, 0xa8b2b6)];
-pub const FLOAT: [(u8, u32); 5] = [(FN_DMG, 0xf6eedc), (FN_SELF, 0xe8503c), (FN_HEAL, 0x72e07c), (FN_CRIT, 0xffa832), (FN_MISS, 0xa6a2b4)];
+pub const CANINE: [(u8, u32); 6] = [
+    (CR_DOG, 0xc4561c),
+    (CR_DOG_FAR, 0x8e3c14),
+    (CR_DOG_FILL, 0xb8860e),
+    (CR_DOG_SPOT, 0x9a3a12),
+    (CR_TEETH, 0xf4f1e6),
+    (CR_NOSE, 0x141014),
+];
+pub const MASONRY: [(u8, u32); 4] = [
+    (BANK_DD, 0x4e575c),
+    (BANK_D, 0x6f7a80),
+    (BANK, 0x8e9a9e),
+    (BANK_L, 0xa8b2b6),
+];
+pub const FLOAT: [(u8, u32); 5] = [
+    (FN_DMG, 0xf6eedc),
+    (FN_SELF, 0xe8503c),
+    (FN_HEAL, 0x72e07c),
+    (FN_CRIT, 0xffa832),
+    (FN_MISS, 0xa6a2b4),
+];
 
 /// Prop colours (100..148): foliage, ground cover, stone, wood, cloth, fire.
 pub const PROP: [(u8, u32); 32] = [
-    (PINE_D, 0x1f3a2c), (PINE, 0x2e5238), (PINE_L, 0x46704a),
-    (ASH_D, 0x4a5a32), (ASH, 0x6b7c45), (ASH_L, 0x8fa060),
-    (CYP_D, 0x24382a), (CYP, 0x34503a),
-    (GRASS_D, 0x5a6a34), (GRASS, 0x7d8c46), (GRASS_L, 0xa3ad62),
-    (SCRUB_C, 0x8a7a4a), (REED_C, 0x8e9a58), (STALK_C, 0xc9a85a), (BLOOM_C, 0xe8e0f0),
-    (ROCK_D, 0x6e675e), (ROCK, 0x9a9283), (ROCK_L, 0xc2baa8),
-    (WALL_D, 0x8f8268), (WALL, 0xb8a888), (WALL_L, 0xd2c4a2), (MOSS_C, 0x5f7040),
-    (WOOD_D, 0x4a3a2a), (WOOD, 0x7a6850), (WOOD_L, 0x9c8a6a),
-    (OLIVE_D, 0x4a5238), (OLIVE, 0x7a8458), (BEIGE_D, 0x7a6c54), (BEIGE, 0xb5a484),
-    (IRON_C, 0x5a5f66), (COAL, 0xd07030), (EMBER, 0xffc060),
+    (PINE_D, 0x1f3a2c),
+    (PINE, 0x2e5238),
+    (PINE_L, 0x46704a),
+    (ASH_D, 0x4a5a32),
+    (ASH, 0x6b7c45),
+    (ASH_L, 0x8fa060),
+    (CYP_D, 0x24382a),
+    (CYP, 0x34503a),
+    (GRASS_D, 0x5a6a34),
+    (GRASS, 0x7d8c46),
+    (GRASS_L, 0xa3ad62),
+    (SCRUB_C, 0x8a7a4a),
+    (REED_C, 0x8e9a58),
+    (STALK_C, 0xc9a85a),
+    (BLOOM_C, 0xe8e0f0),
+    (ROCK_D, 0x6e675e),
+    (ROCK, 0x9a9283),
+    (ROCK_L, 0xc2baa8),
+    (WALL_D, 0x8f8268),
+    (WALL, 0xb8a888),
+    (WALL_L, 0xd2c4a2),
+    (MOSS_C, 0x5f7040),
+    (WOOD_D, 0x4a3a2a),
+    (WOOD, 0x7a6850),
+    (WOOD_L, 0x9c8a6a),
+    (OLIVE_D, 0x4a5238),
+    (OLIVE, 0x7a8458),
+    (BEIGE_D, 0x7a6c54),
+    (BEIGE, 0xb5a484),
+    (IRON_C, 0x5a5f66),
+    (COAL, 0xd07030),
+    (EMBER, 0xffc060),
 ];
-pub const PINE_D: u8 = 100; pub const PINE: u8 = 101; pub const PINE_L: u8 = 102;
-pub const ASH_D: u8 = 103; pub const ASH: u8 = 104; pub const ASH_L: u8 = 105;
-pub const CYP_D: u8 = 106; pub const CYP: u8 = 107;
-pub const GRASS_D: u8 = 108; pub const GRASS: u8 = 109; pub const GRASS_L: u8 = 110;
-pub const SCRUB_C: u8 = 111; pub const REED_C: u8 = 112; pub const STALK_C: u8 = 113; pub const BLOOM_C: u8 = 114;
-pub const ROCK_D: u8 = 115; pub const ROCK: u8 = 116; pub const ROCK_L: u8 = 117;
-pub const WALL_D: u8 = 118; pub const WALL: u8 = 119; pub const WALL_L: u8 = 120; pub const MOSS_C: u8 = 121;
-pub const WOOD_D: u8 = 122; pub const WOOD: u8 = 123; pub const WOOD_L: u8 = 124;
-pub const OLIVE_D: u8 = 125; pub const OLIVE: u8 = 126; pub const BEIGE_D: u8 = 127; pub const BEIGE: u8 = 128;
-pub const IRON_C: u8 = 129; pub const COAL: u8 = 130; pub const EMBER: u8 = 131;
+pub const PINE_D: u8 = 100;
+pub const PINE: u8 = 101;
+pub const PINE_L: u8 = 102;
+pub const ASH_D: u8 = 103;
+pub const ASH: u8 = 104;
+pub const ASH_L: u8 = 105;
+pub const CYP_D: u8 = 106;
+pub const CYP: u8 = 107;
+pub const GRASS_D: u8 = 108;
+pub const GRASS: u8 = 109;
+pub const GRASS_L: u8 = 110;
+pub const SCRUB_C: u8 = 111;
+pub const REED_C: u8 = 112;
+pub const STALK_C: u8 = 113;
+pub const BLOOM_C: u8 = 114;
+pub const ROCK_D: u8 = 115;
+pub const ROCK: u8 = 116;
+pub const ROCK_L: u8 = 117;
+pub const WALL_D: u8 = 118;
+pub const WALL: u8 = 119;
+pub const WALL_L: u8 = 120;
+pub const MOSS_C: u8 = 121;
+pub const WOOD_D: u8 = 122;
+pub const WOOD: u8 = 123;
+pub const WOOD_L: u8 = 124;
+pub const OLIVE_D: u8 = 125;
+pub const OLIVE: u8 = 126;
+pub const BEIGE_D: u8 = 127;
+pub const BEIGE: u8 = 128;
+pub const IRON_C: u8 = 129;
+pub const COAL: u8 = 130;
+pub const EMBER: u8 = 131;
+/// Meadow blade ramp, dark to sun, then a blue-green. Slots 132..147 sit before the tint blocks.
+pub const MEADOW_DEEP: u8 = 132;
+pub const MEADOW_D: u8 = 133;
+pub const MEADOW: u8 = 134;
+pub const MEADOW_MID: u8 = 135;
+pub const MEADOW_L: u8 = 136;
+pub const MEADOW_SUN: u8 = 137;
+pub const MEADOW_BLUE: u8 = 138;
+/// Cook pot broth surface.
+pub const STEW: u8 = 139;
 
 /// Tinted copies of the tintable colours (engine 0..16 and FX/creature 80..100):
 /// cast glow, stone (petrify / dead) and shiny gold, 36 entries each.
@@ -175,12 +254,30 @@ pub fn palette() -> [u32; 256] {
         p[TRAIL_STONE as usize + s] = mul(0x8e8a80, m);
         p[BRIDGE as usize + s] = mul(0x8a6440, m);
     }
-    for (k, c) in [0x2c5d78u32, 0x336a86, 0x3b7792, 0x336a86].iter().enumerate() {
+    for (k, c) in [0x2c5d78u32, 0x336a86, 0x3b7792, 0x336a86]
+        .iter()
+        .enumerate()
+    {
         p[WATER as usize + k] = *c;
     }
-    for &(i, c) in FX.iter().chain(PROP.iter()).chain(FLOAT.iter()).chain(MASONRY.iter()).chain(CANINE.iter()).chain(GEAR.iter()) {
+    for &(i, c) in FX
+        .iter()
+        .chain(PROP.iter())
+        .chain(FLOAT.iter())
+        .chain(MASONRY.iter())
+        .chain(CANINE.iter())
+        .chain(GEAR.iter())
+    {
         p[i as usize] = c;
     }
+    p[MEADOW_DEEP as usize] = 0x163d22;
+    p[MEADOW_D as usize] = 0x1e5c30;
+    p[MEADOW as usize] = 0x2f7a3c;
+    p[MEADOW_MID as usize] = 0x3d9a4a;
+    p[MEADOW_L as usize] = 0x5aaa58;
+    p[MEADOW_SUN as usize] = 0x9ed36a;
+    p[MEADOW_BLUE as usize] = 0x3f8f78;
+    p[STEW as usize] = 0x5a7a38;
     for c in (0u8..16).chain(80..100) {
         let s = tint_slot(c).unwrap() as usize;
         let src = p[c as usize];
@@ -188,6 +285,7 @@ pub fn palette() -> [u32; 256] {
         p[TINT_STONE as usize + s] = lerp_rgb(mul(src, 0.55), 0x7d7486, 0.6);
         p[TINT_SHINY as usize + s] = lerp_rgb(src, 0xffd65a, 0.5);
     }
+    crate::appearance::bake_palette(&mut p);
     debug_assert!(TINT_SHINY as usize + TINT_N <= 256);
     p
 }

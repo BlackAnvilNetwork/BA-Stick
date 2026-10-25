@@ -1,3 +1,6 @@
+import { PIXEL_AXE_GEAR_IDS } from "./pixel-axe.ts";
+import { PIXEL_SWORD_GEAR_IDS } from "./pixel-sword.ts";
+
 /**
  * Stick Engine gear RON: the subset used by chest, hand, and shield files
  * (`id`, `slot`, `shapes` of Line / Capsule / Disc). The figure pose matches
@@ -94,8 +97,8 @@ export function parsePlate(src: string): PlateDef {
   }
   const rows = o.rows as string[];
   const w = rows[0]!.length;
-  if (rows.some((r) => r.length !== w || /[^.grckbmdlhsei]/.test(r))) {
-    throw new GearParseError("plate rows must be the same width and use . g r c k b m d l h s e i");
+  if (rows.some((r) => r.length !== w || /[^.grckbmdlhseiown]/.test(r))) {
+    throw new GearParseError("plate rows must be the same width and use . g r c k b m d l h s e i o w n");
   }
   return {
     id, x0: num("x0"), y0: num("y0"), x1: num("x1"), y1: num("y1"), z: num("z"),
@@ -437,12 +440,35 @@ function solveFigure(yaw: number, pose: Record<string, number>): Figure {
 
 export type Frame = { o: Vec3; x: Vec3; y: Vec3; z: Vec3 };
 
+/** Blade direction: square to the forearm, point up. */
+export function acrossHand(forearm: Vec3): Vec3 {
+  const arm = norm(forearm);
+  const lift = { x: -arm.x * arm.y, y: 1 - arm.y * arm.y, z: -arm.z * arm.y };
+  if (vlen(lift) > 0.25) return norm(lift);
+  const flat = { x: arm.z, y: 0, z: -arm.x };
+  return vlen(flat) > 1e-3 ? norm(flat) : { x: 1, y: 0, z: 0 };
+}
+
 export function gearFrame(gear: GearDef, fig: Figure): Frame {
   const o = fig.joints[gear.attach] ?? fig.joints.chest!;
   let y = norm(sub(fig.joints.chest!, fig.joints.pelvis!));
   if (gear.attach === "r_hand") y = norm(fig.wpnR);
   else if (gear.attach === "l_hand") y = norm(fig.wpnL);
-  let x = norm(cross(y, UP));
+  const flatTool =
+    PIXEL_SWORD_GEAR_IDS.has(gear.id) ||
+    PIXEL_AXE_GEAR_IDS.has(gear.id) ||
+    gear.id === "ba_iron_shovel" ||
+    gear.id === "ba_iron_pickaxe";
+  if (flatTool) {
+    const elbow = fig.joints.r_elbow;
+    const hand = fig.joints.r_hand;
+    if (elbow && hand) y = acrossHand(sub(hand, elbow));
+  }
+  const front = norm(cross(fig.right, UP));
+  const alongFront = sub(front, mul(y, dot(y, front)));
+  let x = flatTool ? alongFront : cross(y, UP);
+  if (vlen(x) < 0.5) x = norm(cross(y, UP));
+  else x = norm(x);
   if (vlen(x) < 0.5) x = fig.right;
   const z = norm(cross(x, y));
   return { o, x, y, z };

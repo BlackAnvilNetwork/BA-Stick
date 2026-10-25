@@ -136,15 +136,15 @@ export function loadGameRoll(dir: string): void {
 }
 
 /**
- * Persist the cursor and append this tick's rolls. No-ops when nothing rolled
- * or the server has not called loadGameRoll (unit tests).
+ * Persist the cursor and append this tick's rolls.
+ * False when nothing rolled, or the server has not called loadGameRoll.
  */
-export function flushGameRoll(): void {
-  if (!dataDir) return;
-  if (count === flushedCount && pending.length === 0) return;
+export function flushGameRoll(): boolean {
+  if (!dataDir) return false;
+  if (count === flushedCount && pending.length === 0) return false;
   // Cursor first: a crash after this cannot repeat the sequence.
   if (count !== flushedCount) writeCursor();
-  if (pending.length === 0) return;
+  if (pending.length === 0) return true;
   const payload = Buffer.from(pending.map((row) => JSON.stringify(row) + "\n").join(""), "utf8");
   const fd = openSync(join(dataDir, TAPE_NAME), "a");
   try {
@@ -159,6 +159,7 @@ export function flushGameRoll(): void {
     closeSync(fd);
   }
   pending = [];
+  return true;
 }
 
 /**

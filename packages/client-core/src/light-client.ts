@@ -47,6 +47,12 @@ const SIGNER_BYTES = 96;
 
 /** Allowlisted replica public keys. A snapshot proof cannot add to this list. */
 let allowlistedReplicas: Uint8Array[] = [];
+let allowlistRev = 0;
+
+/** Bumps when the replica allowlist changes. Proof verdicts key on this. */
+export function allowlistGeneration(): number {
+  return allowlistRev;
+}
 
 /** Sibling on the path from a leaf to a root. */
 export type Sibling = {
@@ -129,6 +135,7 @@ export function setReplicaAllowlist(keys: readonly (Uint8Array | string)[]): voi
     next.push(copy);
   }
   allowlistedReplicas = next;
+  allowlistRev += 1;
 }
 
 /**

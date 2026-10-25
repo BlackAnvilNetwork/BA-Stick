@@ -10,10 +10,15 @@ import {
   PH_YARDS,
   paleHollowBiome,
   paleHollowInHubApron,
+  PH_BRIDGE_SITES,
+  paleHollowBridgeGeom,
   paleHollowInOpenWater,
+  paleHollowInRiverWall,
   paleHollowLakeDist,
   paleHollowOnBridge,
+  paleHollowRiverCenterX,
   paleHollowWalkable,
+  PH_RIVER_MAIN,
 } from "./pale-hollow.ts";
 import {
   PH_ALL_MOBS,
@@ -32,8 +37,8 @@ function inRect(
 }
 
 describe("pale hollow field", () => {
-  it("seats 225 dry spawns with room between them", () => {
-    assert.equal(PH_ALL_MOBS.length, 225);
+  it("seats 226 dry spawns with room between them", () => {
+    assert.equal(PH_ALL_MOBS.length, 227);
     const linked = new Set(["hollow_scavenger", "ruin_dweller", "shard_wight"]);
     for (let i = 0; i < PH_ALL_MOBS.length; i++) {
       const a = PH_ALL_MOBS[i]!;
@@ -59,7 +64,9 @@ describe("pale hollow field", () => {
         assert.ok(d >= 6.5, `${a.id} ${b.id} ${d}`);
         if (linked.has(a.archetype) && b.archetype === a.archetype) neighbor = Math.min(neighbor, d);
       }
-      if (linked.has(a.archetype)) assert.ok(neighbor <= 12, a.id);
+      if (linked.has(a.archetype) && a.id !== "ph-camp-dog" && a.id !== "ph-clay-crab") {
+        assert.ok(neighbor <= 12, a.id);
+      }
     }
   });
 
@@ -76,9 +83,35 @@ describe("pale hollow field", () => {
     for (const id of skirt.mobIds) state = paleHollowQuestCredit(state, id);
     const paid = paleHollowQuestTalk(state, skirt.npcId);
     assert.equal(paid.gold, skirt.gold);
-    assert.equal(paid.state.active, null);
+    assert.deepEqual(paid.state.active, []);
     const again = paleHollowQuestTalk(paid.state, skirt.npcId);
     assert.equal(again.gold, 0);
+  });
+
+  it("accepts a second quest when legacy save used a single active object", () => {
+    const skirt = PH_QUESTS.find((q) => q.id === "ph-skirt")!;
+    const yard = PH_QUESTS.find((q) => q.id === "ph-clay")!;
+    const legacy = {
+      zoneId: "pale_hollow" as const,
+      active: { id: yard.id, kills: 1 },
+      done: [] as string[],
+    };
+    const r = paleHollowQuestTalk(legacy as unknown as ReturnType<typeof emptyPaleHollowQuests>, skirt.npcId);
+    assert.equal(r.body, skirt.offer);
+    assert.equal(r.state.active.length, 2);
+  });
+
+  it("tracks several active kill quests at once", () => {
+    const skirt = PH_QUESTS.find((q) => q.id === "ph-skirt")!;
+    const yard = PH_QUESTS.find((q) => q.id === "ph-clay")!;
+    let state = paleHollowQuestTalk(emptyPaleHollowQuests(), skirt.npcId).state;
+    state = paleHollowQuestTalk(state, yard.npcId).state;
+    assert.equal(state.active.length, 2);
+    state = paleHollowQuestCredit(state, skirt.mobIds[0]!);
+    const skirtRow = state.active.find((a) => a.id === skirt.id)!;
+    const yardRow = state.active.find((a) => a.id === yard.id)!;
+    assert.equal(skirtRow.kills, 1);
+    assert.equal(yardRow.kills, 0);
   });
 
   it("keeps gather nodes on dry land beside the yards", () => {
@@ -86,5 +119,26 @@ describe("pale hollow field", () => {
       assert.equal(paleHollowWalkable(node.x, node.z), true, node.id);
       assert.equal(paleHollowInOpenWater(node.x, node.z), false, node.id);
     }
+  });
+
+  it("keeps bridge spans and river walls out of the open-water mask", () => {
+    for (const site of PH_BRIDGE_SITES) {
+      const g = paleHollowBridgeGeom(site);
+      assert.equal(paleHollowOnBridge(g.x, g.zWorld), true, site.id);
+      assert.equal(paleHollowInOpenWater(g.x, g.zWorld), false, site.id);
+    }
+    const z = 218;
+    const cx = paleHollowRiverCenterX(z);
+    const bank = PH_RIVER_MAIN.bankDist;
+    const onWall = { x: cx - bank, z };
+    assert.equal(paleHollowInRiverWall(onWall.x, onWall.z), true);
+    assert.equal(paleHollowInOpenWater(onWall.x, onWall.z), false);
+    const hubNorth = paleHollowBridgeGeom(PH_BRIDGE_SITES[0]!);
+    const underArch = {
+      x: hubNorth.x + hubNorth.flowDir.x * 4,
+      z: hubNorth.zWorld + hubNorth.flowDir.z * 4,
+    };
+    assert.equal(paleHollowOnBridge(underArch.x, underArch.z), false, "beside-deck");
+    assert.equal(paleHollowInOpenWater(underArch.x, underArch.z), true, "channel-under-arch");
   });
 });

@@ -25,6 +25,8 @@ export type PlayerProgress = {
   claimedStarter: boolean;
   dust: number;
   subjob: string | null;
+  /** Pale Hollow kill tasks. Legacy saves used one nullable `active`. */
+  hollowQuest?: { active: { id: string; kills: number }[] | { id: string; kills: number } | null; done: string[] };
   /** Spendable log items were copied into the bag and exported off the log. */
   logItemsMoved: boolean;
   /**
