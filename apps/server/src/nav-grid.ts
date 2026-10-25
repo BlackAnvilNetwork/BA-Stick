@@ -112,9 +112,27 @@ function simplify(points: NavPoint[]): NavPoint[] {
  * when the click is blocked. Empty when already there. Waypoints do not
  * include the start point.
  */
-export function paleHollowFindPath(fromX: number, fromZ: number, toX: number, toZ: number): NavPoint[] {
-  const from = clampPaleHollow(fromX, fromZ);
-  const to = clampPaleHollow(toX, toZ);
+export type NavZone = {
+  bounds: { minX: number; maxX: number; minZ: number; maxZ: number };
+  walkable: (x: number, z: number) => boolean;
+  clamp: (x: number, z: number) => { x: number; z: number };
+};
+
+const PALE_HOLLOW_NAV: NavZone = {
+  bounds: PALE_HOLLOW_BOUNDS,
+  walkable: paleHollowWalkable,
+  clamp: clampPaleHollow,
+};
+
+export function paleHollowFindPath(
+  fromX: number,
+  fromZ: number,
+  toX: number,
+  toZ: number,
+  zone: NavZone = PALE_HOLLOW_NAV,
+): NavPoint[] {
+  const from = zone.clamp(fromX, fromZ);
+  const to = zone.clamp(toX, toZ);
   const walkMemo = new Map<number, boolean>();
   const walkCell = (ix: number, iz: number): boolean => {
     const k = cellKey(ix, iz);
@@ -123,11 +141,11 @@ export function paleHollowFindPath(fromX: number, fromZ: number, toX: number, to
     const x = ix * CELL;
     const z = iz * CELL;
     const ok =
-      x >= PALE_HOLLOW_BOUNDS.minX &&
-      x <= PALE_HOLLOW_BOUNDS.maxX &&
-      z >= PALE_HOLLOW_BOUNDS.minZ &&
-      z <= PALE_HOLLOW_BOUNDS.maxZ &&
-      paleHollowWalkable(x, z);
+      x >= zone.bounds.minX &&
+      x <= zone.bounds.maxX &&
+      z >= zone.bounds.minZ &&
+      z <= zone.bounds.maxZ &&
+      zone.walkable(x, z);
     walkMemo.set(k, ok);
     return ok;
   };
@@ -168,7 +186,7 @@ export function paleHollowFindPath(fromX: number, fromZ: number, toX: number, to
   const start = nearest(Math.round(from.x / CELL), Math.round(from.z / CELL), from.x, from.z, 3);
   if (!start) return [];
 
-  const exactWalk = paleHollowWalkable(to.x, to.z);
+  const exactWalk = zone.walkable(to.x, to.z);
   const goalCell = exactWalk
     ? nearest(Math.round(to.x / CELL), Math.round(to.z / CELL), to.x, to.z, 2) ?? {
         ix: Math.round(to.x / CELL),
@@ -219,7 +237,7 @@ export function paleHollowFindPath(fromX: number, fromZ: number, toX: number, to
       }
       const mx = ((node.ix + ix) / 2) * CELL;
       const mz = ((node.iz + iz) / 2) * CELL;
-      if (!paleHollowWalkable(mx, mz)) continue;
+      if (!zone.walkable(mx, mz)) continue;
       const nk2 = cellKey(ix, iz);
       const g2 = node.g + cost;
       const prev = gScore.get(nk2);
@@ -271,5 +289,5 @@ export function paleHollowFindPath(fromX: number, fromZ: number, toX: number, to
 
   const withStart = [{ x: from.x, z: from.z }, ...chain.filter((p) => Math.hypot(p.x - from.x, p.z - from.z) > 0.3)];
   const smooth = simplify(withStart);
-  return smooth.slice(1).filter((p) => paleHollowWalkable(p.x, p.z));
+  return smooth.slice(1).filter((p) => zone.walkable(p.x, p.z));
 }
