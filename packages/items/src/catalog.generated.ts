@@ -273,10 +273,14 @@ export const CATALOG: ItemDef[] = [
     "description": "Steel Nail×12 — synth material from Bellgrave crafts. Feed into higher recipes.",
     "icon": "/icons/items/steel-nail.png",
     "slug": "steel-nail",
-    "kind": "filler",
+    "kind": "intermediate",
     "craftLevel": 40,
     "craftSkill": "smithing",
-    "craftOutputQty": 12
+    "craftOutputQty": 12,
+    "recipe": {
+      "gold": 850,
+      "materialsText": "Steel Ingot×1, Slag Dust×1"
+    }
   },
   {
     "id": 13,
@@ -299,10 +303,14 @@ export const CATALOG: ItemDef[] = [
     "description": "Mythril Nail×12 — synth material from Bellgrave crafts. Feed into higher recipes.",
     "icon": "/icons/items/mythril-nail.png",
     "slug": "mythril-nail",
-    "kind": "filler",
+    "kind": "intermediate",
     "craftLevel": 60,
     "craftSkill": "smithing",
-    "craftOutputQty": 12
+    "craftOutputQty": 12,
+    "recipe": {
+      "gold": 1250,
+      "materialsText": "Mythril Ingot×1, Bell Dust×1"
+    }
   },
   {
     "id": 15,
@@ -310,10 +318,14 @@ export const CATALOG: ItemDef[] = [
     "description": "Darksteel Nail×12 — synth material from Bellgrave crafts. Feed into higher recipes.",
     "icon": "/icons/items/darksteel-nail.png",
     "slug": "darksteel-nail",
-    "kind": "filler",
+    "kind": "intermediate",
     "craftLevel": 80,
     "craftSkill": "smithing",
-    "craftOutputQty": 12
+    "craftOutputQty": 12,
+    "recipe": {
+      "gold": 1650,
+      "materialsText": "Darksteel Ingot×1, Throne Dust×1"
+    }
   },
   {
     "id": 16,
@@ -735,10 +747,14 @@ export const CATALOG: ItemDef[] = [
     "description": "Leather Strip×8 — synth material from Bellgrave crafts. Feed into higher recipes.",
     "icon": "/icons/items/leather-strip.png",
     "slug": "leather-strip",
-    "kind": "filler",
-    "craftLevel": 40,
+    "kind": "intermediate",
+    "craftLevel": 12,
     "craftSkill": "leathercraft",
-    "craftOutputQty": 8
+    "craftOutputQty": 8,
+    "recipe": {
+      "gold": 290,
+      "materialsText": "Leather×1, Pale Dust×1"
+    }
   },
   {
     "id": 51,
@@ -938,7 +954,7 @@ export const CATALOG: ItemDef[] = [
     "craftSkill": "bonecraft",
     "recipe": {
       "gold": 1150,
-      "materialsText": "Giant Femur×1, Fine Leather×1, Slag Dust×1"
+      "materialsText": "Giant Femur×1, Fine Leather×1, Bone Hilt×1, Slag Dust×1"
     },
     "stats": {
       "atk": 22,
@@ -1532,7 +1548,7 @@ export const CATALOG: ItemDef[] = [
     "craftSkill": "smithing",
     "recipe": {
       "gold": 1050,
-      "materialsText": "Mythril Ingot×3, Slag Dust×1"
+      "materialsText": "Mythril Ingot×3, Steel Nail×1, Slag Dust×1"
     },
     "stats": {
       "def": 35,
@@ -1604,7 +1620,7 @@ export const CATALOG: ItemDef[] = [
     "craftSkill": "smithing",
     "recipe": {
       "gold": 1130,
-      "materialsText": "Mythril Ingot×3, Slag Dust×1"
+      "materialsText": "Mythril Ingot×3, Steel Nail×1, Slag Dust×1"
     },
     "stats": {
       "def": 24,
@@ -1782,7 +1798,7 @@ export const CATALOG: ItemDef[] = [
     "craftSkill": "smithing",
     "recipe": {
       "gold": 1450,
-      "materialsText": "Darksteel Ingot×3, Bell Dust×1"
+      "materialsText": "Darksteel Ingot×3, Mythril Nail×1, Bell Dust×1"
     },
     "stats": {
       "def": 47,
@@ -1857,7 +1873,7 @@ export const CATALOG: ItemDef[] = [
     "craftSkill": "smithing",
     "recipe": {
       "gold": 1530,
-      "materialsText": "Darksteel Ingot×3, Bell Dust×1"
+      "materialsText": "Darksteel Ingot×3, Mythril Nail×1, Bell Dust×1"
     },
     "stats": {
       "def": 32,
@@ -1999,7 +2015,7 @@ export const CATALOG: ItemDef[] = [
     "craftSkill": "smithing",
     "recipe": {
       "gold": 1930,
-      "materialsText": "Orichalcum Ingot×3, Marble Chip×2, Darksteel Goldsmith Wire×2, Goldsmith Filigree×1, Throne Dust×1"
+      "materialsText": "Orichalcum Ingot×3, Marble Chip×2, Darksteel Goldsmith Wire×2, Goldsmith Filigree×1, Darksteel Nail×1, Throne Dust×1"
     },
     "stats": {
       "def": 59,
@@ -2023,7 +2039,7 @@ export const CATALOG: ItemDef[] = [
     "craftSkill": "smithing",
     "recipe": {
       "gold": 1950,
-      "materialsText": "Orichalcum Ingot×2, Marble Chip×1, Throne Dust×1"
+      "materialsText": "Orichalcum Ingot×2, Marble Chip×1, Darksteel Nail×1, Throne Dust×1"
     },
     "stats": {
       "def": 31,
@@ -2139,7 +2155,7 @@ export const CATALOG: ItemDef[] = [
     "craftSkill": "woodworking",
     "recipe": {
       "gold": 130,
-      "materialsText": "Ashbeam Lumber×2, Cracked Brick×1, Pale Dust×1"
+      "materialsText": "Ashbeam Lumber×2, Cracked Brick×1, Ashbeam Shield Rim×1, Pale Dust×1"
     },
     "stats": {
       "def": 4,
@@ -2182,11 +2198,11 @@ export const CATALOG: ItemDef[] = [
     "description": "Ashbeam Shield Rim — synth material from Bellgrave crafts. Feed into higher recipes.",
     "icon": "/icons/items/ashbeam-shield-rim.png",
     "slug": "ashbeam-shield-rim",
-    "kind": "filler",
-    "craftLevel": 14,
+    "kind": "intermediate",
+    "craftLevel": 3,
     "craftSkill": "woodworking",
     "recipe": {
-      "gold": 330,
+      "gold": 110,
       "materialsText": "Ashbeam Lumber×1, Pale Dust×1"
     }
   },
@@ -2326,7 +2342,7 @@ export const CATALOG: ItemDef[] = [
     "craftSkill": "woodworking",
     "recipe": {
       "gold": 1050,
-      "materialsText": "Bloodbeam Lumber×2, Silk Thread×1, Slag Dust×1"
+      "materialsText": "Bloodbeam Bow Stave×1, Bloodbeam Lumber×1, Silk Thread×1, Slag Dust×1"
     },
     "stats": {
       "agi": 6,
@@ -2341,9 +2357,13 @@ export const CATALOG: ItemDef[] = [
     "description": "Bloodbeam Bow Stave — synth material from Bellgrave crafts. Feed into higher recipes.",
     "icon": "/icons/items/bloodbeam-bow-stave.png",
     "slug": "bloodbeam-bow-stave",
-    "kind": "filler",
-    "craftLevel": 52,
-    "craftSkill": "woodworking"
+    "kind": "intermediate",
+    "craftLevel": 48,
+    "craftSkill": "woodworking",
+    "recipe": {
+      "gold": 1010,
+      "materialsText": "Bloodbeam Lumber×1, Slag Dust×1"
+    }
   },
   {
     "id": 189,
@@ -2466,7 +2486,7 @@ export const CATALOG: ItemDef[] = [
     "craftSkill": "woodworking",
     "recipe": {
       "gold": 1850,
-      "materialsText": "Bellwood Lumber×2, Horn×1, Throne Dust×1"
+      "materialsText": "Bellwood Bow Stave×1, Bellwood Lumber×1, Horn×1, Throne Dust×1"
     },
     "stats": {
       "agi": 10,
@@ -2481,9 +2501,13 @@ export const CATALOG: ItemDef[] = [
     "description": "Bellwood Bow Stave — synth material from Bellgrave crafts. Feed into higher recipes.",
     "icon": "/icons/items/bellwood-bow-stave.png",
     "slug": "bellwood-bow-stave",
-    "kind": "filler",
-    "craftLevel": 92,
-    "craftSkill": "woodworking"
+    "kind": "intermediate",
+    "craftLevel": 88,
+    "craftSkill": "woodworking",
+    "recipe": {
+      "gold": 1810,
+      "materialsText": "Bellwood Lumber×1, Throne Dust×1"
+    }
   },
   {
     "id": 206,
@@ -2723,7 +2747,7 @@ export const CATALOG: ItemDef[] = [
     "craftSkill": "leathercraft",
     "recipe": {
       "gold": 350,
-      "materialsText": "Leather×1, Ash Dust×1"
+      "materialsText": "Leather×1, Leather Strip×2, Ash Dust×1"
     },
     "stats": {
       "acc": 3,
@@ -4280,9 +4304,13 @@ export const CATALOG: ItemDef[] = [
     "description": "Bone Hilt — synth material from Bellgrave crafts. Feed into higher recipes.",
     "icon": "/icons/items/bone-hilt.png",
     "slug": "bone-hilt",
-    "kind": "filler",
+    "kind": "intermediate",
     "craftLevel": 24,
-    "craftSkill": "bonecraft"
+    "craftSkill": "bonecraft",
+    "recipe": {
+      "gold": 530,
+      "materialsText": "Bone Chip×1, Ash Dust×1"
+    }
   },
   {
     "id": 326,
