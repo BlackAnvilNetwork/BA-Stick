@@ -9,7 +9,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test src/pay-wallet.test.ts src/ah-buy.test.ts src/eez-sync-buy.test.ts src/pvp-place.test.ts src/burner-identity.test.ts src/light-client.test.ts src/mobile-light-client.test.ts"
+    "test": "tsx --test src/pay-wallet.test.ts src/ah-buy.test.ts src/eez-sync-buy.test.ts src/pvp-place.test.ts src/burner-identity.test.ts src/light-client.test.ts src/mobile-light-client.test.ts src/req-waiters.test.ts"
   },
   "dependencies": {
     "@bellgrave/config": "workspace:*",

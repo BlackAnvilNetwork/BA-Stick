@@ -10,6 +10,7 @@ import { burnerIdentityAllowed } from "./burner-identity";
 import { connectInjectedWallet, injectedWalletAvailable } from "./injected-login";
 import { clearPendingMint, clearPendingMintIfTokenBound } from "./pending-mint";
 import { setReplicaAllowlist } from "./light-client";
+import { ReqWaiters } from "./req-waiters";
 import { useGame } from "./state";
 import { setPreferredPayoutWallet } from "./wallet";
 import { defaultRpcUrl, walletConnectConfigured } from "./walletconnect";
@@ -46,14 +47,9 @@ let nameCheckWaiter:
       timer: ReturnType<typeof setTimeout>;
     }
   | null = null;
-let admitFillWaiter:
-  | {
-      req: number;
-      resolve: (r: { ok: true; epoch: number } | { ok: false; error: string }) => void;
-      timer: ReturnType<typeof setTimeout>;
-    }
-  | null = null;
-let admitFillReq = 0;
+type FillReply = { ok: true; epoch: number } | { ok: false; error: string };
+/** One slot per ah/admitFill|pinFill|releaseFill request, keyed by `req`. */
+const fillWaiters = new ReqWaiters<FillReply>();
 
 /** External wallet used for auth challenge signing (injected / WalletConnect). */
 type ExternalAuth = {
@@ -313,41 +309,18 @@ export function requestEscrowFillAdmission(
   if (!isServerAuthed()) {
     return Promise.resolve({ ok: false, error: "Sign in before buying." });
   }
-  if (admitFillWaiter) {
-    clearTimeout(admitFillWaiter.timer);
-    admitFillWaiter.resolve({ ok: false, error: "Epoch cap check superseded." });
-    admitFillWaiter = null;
-  }
-  const req = admitFillReq + 1;
-  admitFillReq = req;
-  return new Promise((resolve) => {
-    const timer = setTimeout(() => {
-      if (admitFillWaiter?.req === req) admitFillWaiter = null;
-      resolve({ ok: false, error: "Epoch cap check timed out." });
-    }, 8_000);
-    admitFillWaiter = { req, resolve, timer };
-    socket!.send(JSON.stringify({ type: "ah/admitFill", priceWei, req } satisfies ClientMessage));
-  });
+  const { req, done } = fillWaiters.open(8_000, () => ({ ok: false, error: "Epoch cap check timed out." }));
+  socket.send(JSON.stringify({ type: "ah/admitFill", priceWei, req } satisfies ClientMessage));
+  return done;
 }
 
 function epochFillRoundTrip(
   body: { type: "ah/pinFill"; priceWei: string; epoch: number; paidAtMs: number } | { type: "ah/releaseFill"; priceWei: string; epoch: number },
 ): Promise<void> {
   if (!socket || socket.readyState !== WebSocket.OPEN || !isServerAuthed()) return Promise.resolve();
-  const req = admitFillReq + 1;
-  admitFillReq = req;
-  return new Promise((resolve) => {
-    const timer = setTimeout(() => {
-      if (admitFillWaiter?.req === req) admitFillWaiter = null;
-      resolve();
-    }, 8_000);
-    admitFillWaiter = {
-      req,
-      timer,
-      resolve: () => resolve(),
-    };
-    socket!.send(JSON.stringify({ ...body, req } satisfies ClientMessage));
-  });
+  const { req, done } = fillWaiters.open(8_000, () => ({ ok: false, error: "timed out" }));
+  socket.send(JSON.stringify({ ...body, req } satisfies ClientMessage));
+  return done.then(() => undefined);
 }
 
 /** Keep a landed buyAsk in the epoch of its receipt. */
@@ -390,16 +363,21 @@ export function connectSocket() {
     reconnectTimer = null;
   }
   rememberResume();
-  socket = new WebSocket(WS_URL);
+  const ws = new WebSocket(WS_URL);
+  socket = ws;
   let opened = false;
-  socket.addEventListener("open", () => {
+  ws.addEventListener("open", () => {
+    if (socket !== ws) return; // superseded by a newer socket
     opened = true;
     useGame.getState().setConnected(true);
     useGame.getState().pushLog("Connected to Black Anvil server.");
     startHeartbeat();
     tryAutoAuth();
   });
-  socket.addEventListener("close", () => {
+  ws.addEventListener("close", () => {
+    // A stale socket closing late must not tear down the session of the newer one.
+    if (socket !== ws) return;
+    fillWaiters.settleAll(() => ({ ok: false, error: "Disconnected from the server." }));
     clearHeartbeat();
     useGame.getState().setConnected(false);
     authedWallet = null;
@@ -421,8 +399,14 @@ export function connectSocket() {
     }
     reconnectTimer = setTimeout(connectSocket, wasLogout ? 0 : 1200);
   });
-  socket.addEventListener("message", (ev) => {
-    const msg = JSON.parse(String(ev.data)) as ServerMessage;
+  ws.addEventListener("message", (ev) => {
+    if (socket !== ws) return;
+    let msg: ServerMessage;
+    try {
+      msg = JSON.parse(String(ev.data)) as ServerMessage;
+    } catch {
+      return; // malformed frame: drop it instead of throwing out of the handler
+    }
     const g = useGame.getState();
     if (msg.type === "pong") {
       return;
@@ -521,20 +505,14 @@ export function connectSocket() {
         else resolve({ ok: false, error: msg.error ?? "That name is not available." });
       }
     } else if (msg.type === "ah/admitFill") {
-      if (admitFillWaiter && admitFillWaiter.req === msg.req) {
-        clearTimeout(admitFillWaiter.timer);
-        const resolve = admitFillWaiter.resolve;
-        admitFillWaiter = null;
-        if (msg.ok && msg.epoch != null) resolve({ ok: true, epoch: msg.epoch });
-        else resolve({ ok: false, error: msg.error ?? "This epoch cannot take that ask." });
-      }
+      fillWaiters.settle(
+        msg.req,
+        msg.ok && msg.epoch != null
+          ? { ok: true, epoch: msg.epoch }
+          : { ok: false, error: msg.error ?? "This epoch cannot take that ask." },
+      );
     } else if (msg.type === "ah/pinFill" || msg.type === "ah/releaseFill") {
-      if (admitFillWaiter && admitFillWaiter.req === msg.req) {
-        clearTimeout(admitFillWaiter.timer);
-        const resolve = admitFillWaiter.resolve;
-        admitFillWaiter = null;
-        resolve({ ok: true, epoch: msg.type === "ah/pinFill" && msg.epoch != null ? msg.epoch : 0 });
-      }
+      fillWaiters.settle(msg.req, { ok: true, epoch: msg.type === "ah/pinFill" && msg.epoch != null ? msg.epoch : 0 });
     } else if (msg.type === "log") {
       g.pushLog(msg.message);
     } else if (msg.type === "pvp/joined") {
@@ -612,7 +590,7 @@ export function connectSocket() {
       });
     }
   });
-  return socket;
+  return ws;
 }
 
 /**

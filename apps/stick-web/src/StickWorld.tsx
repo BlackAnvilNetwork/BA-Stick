@@ -115,7 +115,7 @@ export function StickWorld() {
         const g = useGame.getState();
         if (g.phase !== "play" || !myUnit()) return;
         const [sx, sy] = toFramebuffer(canvas, e.clientX, e.clientY);
-        if (sx < 0 || sy < 0 || sx > FB_W || sy > FB_H) return;
+        if (sx < 0 || sy < 0 || sx >= FB_W || sy >= FB_H) return; // FB_W/FB_H are one past the last pixel
         const hit = e.button === 0 ? unitAt(e) : undefined;
         if (hit && !sameId(hit.id, g.wallet)) {
           const res = routeUnitClick(hit, g.wallet);

@@ -532,3 +532,12 @@ fn bridge_mesh_matches_server_walk_height() {
     }
     assert!(n >= 7 * 21);
 }
+
+#[test]
+fn clear_map_data_drops_the_title() {
+    // A zone with no map data must not show the previous zone's minimap title.
+    let mut s = Scene::new(64, 64);
+    s.set_map_title("Pale Hollow");
+    s.clear_map_data();
+    assert!(s.minimap.title.is_empty());
+}
