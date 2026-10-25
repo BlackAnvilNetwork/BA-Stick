@@ -53,6 +53,8 @@ export function fetchZone(id: string): Promise<Uint8Array> {
       }
       return new Uint8Array(await res.arrayBuffer());
     });
+    // Do not cache a failure: a transient error would otherwise stick until reload.
+    p.catch(() => zoneCache.delete(id));
     zoneCache.set(id, p);
   }
   return p;
@@ -63,7 +65,13 @@ const propCache = new Map<string, Promise<Uint8Array | null>>();
 export function fetchProps(id: string): Promise<Uint8Array | null> {
   let p = propCache.get(id);
   if (!p) {
-    p = fetch(`${import.meta.env.BASE_URL}zones/${id}.bap`).then(async (res) => (res.ok ? new Uint8Array(await res.arrayBuffer()) : null));
+    // Props are optional: a network error means "no props", not a failed zone load.
+    p = fetch(`${import.meta.env.BASE_URL}zones/${id}.bap`)
+      .then(async (res) => (res.ok ? new Uint8Array(await res.arrayBuffer()) : null))
+      .catch(() => {
+        propCache.delete(id);
+        return null;
+      });
     propCache.set(id, p);
   }
   return p;

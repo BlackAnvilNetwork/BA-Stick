@@ -82,6 +82,22 @@ export function StickWorld() {
       viewObs.observe(root, { attributes: true, attributeFilter: ["data-ui-view", "data-ui-minimap"] });
       cleanups.push(() => viewObs.disconnect());
       let zoneLoaded: string | null = null;
+      let zoneRetryAt = 0;
+      const loadTerrain = (want: string) => {
+        void Promise.all([fetchZone(want), fetchProps(want)])
+          .then(([b, p]) => {
+            if (!alive || zoneLoaded !== want) return;
+            r.loadZone(b);
+            if (p) r.loadProps(p);
+            applyMapData(r, want);
+          })
+          .catch((err: unknown) => {
+            // Was an unhandled rejection: the zone stayed flat until a reload.
+            if (!alive || zoneLoaded !== want) return;
+            console.warn("zone load failed, retrying in 2 s", err);
+            zoneRetryAt = performance.now() + 2000;
+          });
+      };
       const zones = new ZoneTracker();
       const origin = { x: 0, z: 0 };
       let activeZone = "pale_hollow";
@@ -144,7 +160,7 @@ export function StickWorld() {
         const g = useGame.getState();
         if (g.phase !== "play" || !myUnit()) return;
         const [sx, sy] = toFramebuffer(canvas, e.clientX, e.clientY);
-        if (sx < 0 || sy < 0 || sx > FB_W || sy > FB_H) return;
+        if (sx < 0 || sy < 0 || sx >= FB_W || sy >= FB_H) return; // FB_W/FB_H are one past the last pixel
         if (e.button === 0 && r.minimapButton(sx, sy)) {
           r.setMinimapFull(!r.minimapFull());
           return;
@@ -325,17 +341,14 @@ export function StickWorld() {
           const want = bakedZoneFor(zid);
           if (want !== zoneLoaded) {
             zoneLoaded = want;
+            zoneRetryAt = 0;
             if (!want) r.clearZone();
-            else
-              void Promise.all([fetchZone(want), fetchProps(want)]).then(([b, p]) => {
-                if (!alive || zoneLoaded !== want) return;
-                r.loadZone(b);
-                if (p) r.loadProps(p);
-                applyMapData(r, want);
-              }).catch(() => {
-                if (zoneLoaded === want) zoneLoaded = null;
-              });
+            else loadTerrain(want);
           }
+        } else if (zoneRetryAt > 0 && now >= zoneRetryAt && zoneLoaded) {
+          // A failed terrain fetch retries without touching units.
+          zoneRetryAt = 0;
+          loadTerrain(zoneLoaded);
         }
         if (snap && snap !== lastSnap) {
           lastSnap = snap;
