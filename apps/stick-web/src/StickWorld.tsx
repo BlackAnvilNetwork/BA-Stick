@@ -70,6 +70,22 @@ export function StickWorld() {
       viewObs.observe(root, { attributes: true, attributeFilter: ["data-ui-view", "data-ui-minimap"] });
       cleanups.push(() => viewObs.disconnect());
       let zoneLoaded: string | null = null;
+      let zoneRetryAt = 0;
+      const loadTerrain = (want: string) => {
+        void Promise.all([fetchZone(want), fetchProps(want)])
+          .then(([b, p]) => {
+            if (!alive || zoneLoaded !== want) return;
+            r.loadZone(b);
+            if (p) r.loadProps(p);
+            applyMapData(r, want);
+          })
+          .catch((err: unknown) => {
+            // Was an unhandled rejection: the zone stayed flat until a reload.
+            if (!alive || zoneLoaded !== want) return;
+            console.warn("zone load failed, retrying in 2 s", err);
+            zoneRetryAt = performance.now() + 2000;
+          });
+      };
       const zones = new ZoneTracker();
       let lastSnap: unknown = null;
       let followed: string | undefined;
@@ -196,15 +212,14 @@ export function StickWorld() {
           const want = bakedZoneFor(zid);
           if (want !== zoneLoaded) {
             zoneLoaded = want;
+            zoneRetryAt = 0;
             if (!want) r.clearZone();
-            else
-              void Promise.all([fetchZone(want), fetchProps(want)]).then(([b, p]) => {
-                if (!alive || zoneLoaded !== want) return;
-                r.loadZone(b);
-                if (p) r.loadProps(p);
-                applyMapData(r, want);
-              });
+            else loadTerrain(want);
           }
+        } else if (zoneRetryAt > 0 && now >= zoneRetryAt && zoneLoaded) {
+          // A failed terrain fetch retries without touching units.
+          zoneRetryAt = 0;
+          loadTerrain(zoneLoaded);
         }
         if (snap && snap !== lastSnap) {
           lastSnap = snap;
