@@ -237,9 +237,16 @@ fn zone_draws_biome_colours_and_units_stand_on_it() {
     assert!((s.cam_y - 3.0).abs() < 0.05, "cam_y={}", s.cam_y);
     s.draw();
     let grass = palette::BIOME0 + 13 * 3 + 1;
-    let trail = palette::TRAIL_DIRT + 1;
     assert!(s.fb.color.iter().filter(|&&c| c == grass).count() > 1000);
-    assert!(s.fb.color.iter().any(|&c| c == trail));
+    // Trails render as cobbles now (no flat TRAIL_DIRT fill); they must still show up.
+    let mut plain = Scene::new(320, 180);
+    plain.load_zone(&tiny_zone(40, 40, |_, _| (13, 0, 300))).unwrap();
+    plain.upsert_unit("me", UnitInput { x: 5.0, y: 3.0, z: 5.0, facing: 0.0, anim: AnimState::Idle, preset: "knight".into() });
+    plain.follow(Some("me"));
+    for _ in 0..120 { plain.tick(1.0 / 60.0); }
+    plain.draw();
+    let diff = s.fb.color.iter().zip(&plain.fb.color).filter(|(a, b)| a != b).count();
+    assert!(diff > 100, "trail changed only {diff} px");
     // Picking the unit's feet on relief returns the unit position.
     let feet = s.cam.project(stick_engine::math::v3(5.0, 0.0, 5.0));
     let (x, z) = s.pick_world(feet.x, feet.y);
@@ -807,4 +814,104 @@ fn follow_lift_is_the_same_on_screen_in_iso_and_3d() {
         let want = 360.0 * 0.55 - s.follow_lift_px;
         assert!((feet - want).abs() < 0.05, "persp {persp}: feet {feet} want {want}");
     }
+}
+
+fn cam3d_scene(mode: &str) -> Scene {
+    // 160 m × 160 m flat meadow: far ground must reach well past the 22 m detail disc.
+    let bytes = tiny_zone(320, 320, |_, _| (13, 0, 0));
+    let mut s = Scene::new(320, 180);
+    s.load_zone(&bytes).unwrap();
+    s.upsert_unit("me", UnitInput { x: 78.0, y: 0.0, z: 78.0, facing: 0.0, anim: AnimState::Idle, preset: "knight".into() });
+    s.follow(Some("me"));
+    s.set_cam_mode(mode);
+    for _ in 0..240 { s.tick(1.0 / 60.0); }
+    s.draw();
+    s
+}
+
+fn fb_hash(s: &Scene) -> u64 {
+    s.fb.color.iter().fold(0xcbf29ce484222325u64, |h, &c| (h ^ c as u64).wrapping_mul(0x100000001b3))
+}
+
+#[test]
+fn cam3d_ground_reaches_the_horizon() {
+    let grass = |c: u8| (palette::BIOME0 + 13 * 3..palette::BIOME0 + 13 * 3 + 3).contains(&c);
+    for mode in ["tp", "fp"] {
+        let s = cam3d_scene(mode);
+        // The band just under the horizon is > 22 m away; it must be ground, not sky.
+        let mut best = 0;
+        for y in 0..s.fb.h {
+            let row = &s.fb.color[y * s.fb.w..(y + 1) * s.fb.w];
+            let g = row.iter().filter(|&&c| grass(c)).count();
+            if g * 2 > s.fb.w { best = best.max(s.fb.h - y); }
+        }
+        assert!(best * 10 > s.fb.h * 4, "{mode}: ground covers only {best}/{} rows", s.fb.h);
+    }
+}
+
+#[test]
+fn cam3d_changes_leave_iso_deterministic() {
+    let a = fb_hash(&cam3d_scene("iso"));
+    let mut s = cam3d_scene("tp");
+    s.set_cam_mode("iso");
+    for _ in 0..240 { s.tick(1.0 / 60.0); }
+    s.draw();
+    assert_eq!(a, fb_hash(&cam3d_scene("iso")));
+    assert!(s.cam.view.is_none());
+}
+
+fn sky_below_horizon(s: &Scene) -> usize {
+    // A sky pixel with ground above it in the same column (or on the last row) is a hole.
+    let (w, h) = (s.fb.w, s.fb.h);
+    let sky = crate::atmosphere::SKY;
+    let mut n = 0;
+    for x in 0..w {
+        let mut seen = false;
+        for y in 0..h {
+            let c = s.fb.color[y * w + x];
+            if c != sky { seen = true } else if seen || y == h - 1 { n += 1 }
+        }
+    }
+    n
+}
+
+fn bowl_scene(mode: &str, yaw: f32, pitch: f32) -> Scene {
+    // Flat 3 m pad around the player, then walls climbing 3 m per m: an unclamped
+    // tp boom (6 m) ends inside the wall whatever the yaw.
+    let bytes = tiny_zone(320, 320, |i, j| {
+        let (x, z) = (-2.0 + i as f32 * 0.5 - 78.0, -2.0 + j as f32 * 0.5 - 78.0);
+        let r = (x * x + z * z).sqrt();
+        (13, 0, (((r - 3.0).max(0.0) * 3.0).min(30.0) * 100.0) as i16)
+    });
+    let mut s = Scene::new(320, 180);
+    s.load_zone(&bytes).unwrap();
+    s.atmosphere = false;
+    s.upsert_unit("me", UnitInput { x: 78.0, y: 0.0, z: 78.0, facing: 0.0, anim: AnimState::Idle, preset: "knight".into() });
+    s.follow(Some("me"));
+    s.set_cam_mode(mode);
+    for _ in 0..120 { s.tick(1.0 / 60.0); }
+    s.set_look(yaw, pitch);
+    for _ in 0..120 { s.tick(1.0 / 60.0); }
+    s.draw();
+    s
+}
+
+#[test]
+fn tp_boom_stays_out_of_hills() {
+    for k in 0..8 {
+        let s = bowl_scene("tp", k as f32 * std::f32::consts::FRAC_PI_4, 0.0);
+        let eye = s.cam.view.and_then(|v| v.eye()).expect("tp has an eye");
+        let ground = s.zone_height(eye.x, eye.z);
+        assert!(eye.y > ground + 0.2, "yaw {k}/8: eye y {} under terrain {ground}", eye.y);
+        let holes = sky_below_horizon(&s);
+        assert!(holes < s.fb.w, "yaw {k}/8: {holes} sky px under ground");
+    }
+}
+
+#[test]
+fn fp_looking_down_fills_the_ground_under_the_eye() {
+    let s = bowl_scene("fp", 0.0, 1.2);
+    let (w, h) = (s.fb.w, s.fb.h);
+    let sky = s.fb.color[h / 2 * w..].iter().filter(|&&c| c == crate::atmosphere::SKY).count();
+    assert_eq!(sky, 0, "{sky} sky px in the lower half looking down");
 }

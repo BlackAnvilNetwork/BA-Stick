@@ -200,7 +200,15 @@ pub fn draw_shadows(fb: &mut Framebuffer, cam: &Camera, props: &[Prop], cam_y: f
         let (ox, oz) = crate::atmosphere::shadow_offset(r);
         let c = v3(p.x + ox, p.y - cam_y, p.z + oz);
         let q = cam.project(c);
-        let k = cam.scale_at(c) * std::f32::consts::SQRT_2;
+        // Behind the 3D eye `project` returns (0, 0) with s = 0, which passed
+        // the on-screen test below and stamped every rear shadow in the corner.
+        if q.culled() {
+            continue;
+        }
+        // 3D views carry their depth scale in `q.s`; `scale_at` is the iso
+        // persp-blend factor and stays 1 there, so far shadows were full size.
+        let ds = if cam.view.is_some() { q.s } else { cam.scale_at(c) };
+        let k = ds * std::f32::consts::SQRT_2;
         let (rx, ry) = (
             r * stick_engine::camera::ISO_X * k,
             r * stick_engine::camera::ISO_Y * k,
@@ -209,6 +217,41 @@ pub fn draw_shadows(fb: &mut Framebuffer, cam: &Camera, props: &[Prop], cam_y: f
             continue;
         }
         crate::dither::soft_shadow(fb, q.x, q.y, rx, ry, 0.85);
+    }
+}
+
+/// 3D views only: true when a sphere of `radius` around `p` lies wholly
+/// behind the eye's near plane. A culled base projects to (0, 0), which used
+/// to pass the on-screen test, so every prop behind the camera was drawn.
+/// Always false in iso (`view == None`), which keeps iso output unchanged.
+pub(crate) fn behind_eye(cam: &Camera, p: Vec3, radius: f32) -> bool {
+    let Some(v) = cam.view else { return false };
+    let Some(eye) = v.eye() else { return false };
+    (p - eye).dot(v.fwd()) + radius < stick_engine::camera::NEAR
+}
+
+/// 3D-only prop culling. A prop is skipped when its bounding sphere lies
+/// wholly behind the eye, or past the engine's `FAR` plane where the ground
+/// ends in sky. Before this, 3D had no draw distance (every tree in the zone,
+/// hundreds at ~30 us each, was drawn each frame), and a base behind the eye
+/// projects to (0, 0) with s = 0, which passed the on-screen test.
+pub(crate) struct ViewCull {
+    eye: Vec3,
+    fwd: Vec3,
+}
+
+impl ViewCull {
+    /// None for iso (`view == None`) and orthographic views.
+    pub(crate) fn new(cam: &Camera) -> Option<ViewCull> {
+        let v = cam.view?;
+        Some(ViewCull { eye: v.eye()?, fwd: v.fwd() })
+    }
+
+    pub(crate) fn skips(&self, p: Vec3, reach: f32) -> bool {
+        let q = p - self.eye;
+        let far = stick_engine::camera::FAR + reach;
+        // Behind: 6 m of slack for tall props whose top can still reach the view.
+        q.dot(q) > far * far || q.dot(self.fwd) + reach + 6.0 < stick_engine::camera::NEAR
     }
 }
 
@@ -1026,8 +1069,15 @@ pub fn draw(
     snow_melting: bool,
 ) {
     let (w, h) = (fb.w as f32, fb.h as f32);
+    // None in iso, so the iso loop pays one branch per prop.
+    let eye = ViewCull::new(cam);
     for p in props {
         let base = v3(p.x, p.y - cam_y, p.z);
+        if let Some(e) = &eye {
+            if e.skips(base, reach(p)) {
+                continue;
+            }
+        }
         let sp = cam.project(base);
         let pad = reach(p) * 40.0 + 40.0;
         let tall = match p.kind {
@@ -1720,3 +1770,4 @@ mod tests {
         }
     }
 }
+
