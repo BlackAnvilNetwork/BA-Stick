@@ -4,7 +4,7 @@
 
 //! Height-aware iso ground: painter's-order quads over the baked zone grid.
 use stick_engine::camera::{Camera, P2, HEIGHT_PX, ISO_Y};
-use stick_engine::math::v3;
+use stick_engine::math::{v3, Vec3};
 use stick_engine::raster::Framebuffer;
 
 use crate::palette::*;
@@ -553,7 +553,11 @@ pub(crate) fn draw_zone_in(fb: &mut Framebuffer, cam: &Camera, zone: &Zone, cam_
     if clear {
         fb.color.fill(crate::atmosphere::SKY);
     }
-    let Some((i0, j0, i1, j1)) = view_cells(fb, cam, zone) else {
+    let near = view_cells(fb, cam, zone);
+    if cam.view.is_some() {
+        draw_zone_far(fb, cam, zone, cam_y, time, near);
+    }
+    let Some((i0, j0, i1, j1)) = near else {
         return;
     };
     let c = zone.cell;
@@ -575,90 +579,206 @@ pub(crate) fn draw_zone_in(fb: &mut Framebuffer, cam: &Camera, zone: &Zone, cam_
         }
     }
     let sh = |i: i32, j: i32| shades[(j - cj0) as usize * cw + (i - ci0) as usize];
-    // Back to front: increasing i + j.
-    for s in (i0 + j0)..=(i1 + j1) {
-        let ilo = i0.max(s - j1);
-        let ihi = i1.min(s - j0);
-        for i in ilo..=ihi {
-            let j = s - i;
-            let (p00, p10, p01, p11) = (pt(i, j), pt(i + 1, j), pt(i, j + 1), pt(i + 1, j + 1));
-            if p00.culled() || p10.culled() || p01.culled() || p11.culled() {
-                continue;
-            }
-            if p11.y < -2.0 || p00.y > fb.h as f32 + 2.0 + 300.0 {
-                continue;
-            }
-            let col = cell_color(zone, i, j, time, sh(i, j));
-            // W2/W3: water next to land. Banks on the SE (downstream of the NW
-            // sun) get a dithered foam line; banks on the NW side shade the water.
-            if zone.flags[zone.idx(i, j)] & (F_WATER | F_BRIDGE) == F_WATER {
-                let side = |di: i32, dj: i32, c: u8| land(zone, i + di, j + dj).then_some(c);
-                let nb = [side(-1, 0, WATER_DEEP), side(1, 0, WATER_FOAM), side(0, -1, WATER_DEEP), side(0, 1, WATER_FOAM)];
-                if nb.iter().any(|x| x.is_some()) {
-                    // Foam flickers by shifting the dither origin twice a second.
-                    let o2 = (org.0 + ((time * 2.0) as i32 & 1) * 2, org.1);
-                    fill_tri_edge(fb, p00, p10, p11, (0.0, 0.0), (1.0, 0.0), (1.0, 1.0), col, nb, o2, SHORE_BAND);
-                    fill_tri_edge(fb, p00, p11, p01, (0.0, 0.0), (1.0, 1.0), (0.0, 1.0), col, nb, o2, SHORE_BAND);
+    // One cell, stamped into both loops below so the iso loop compiles
+    // exactly as before (a shared closure cost iso ~0.2 ms per frame).
+    macro_rules! draw_cell {
+        ($i:expr, $j:expr) => {{
+            let (i, j) = ($i, $j);
+                let (p00, p10, p01, p11) = (pt(i, j), pt(i + 1, j), pt(i, j + 1), pt(i + 1, j + 1));
+                if p00.culled() || p10.culled() || p01.culled() || p11.culled() {
                     continue;
                 }
-            }
-            // B1: dither toward differing neighbour biomes (same shade step).
-            if let Some(b) = plain_biome(zone, i, j) {
-                let shade = col - (BIOME0 + b * 3);
-                // Neighbour colour if it differs in biome or (after L1) in shade step,
-                // so slope-shading steps dither too instead of forming cell blocks.
-                let n = |di: i32, dj: i32| {
-                    let (ni, nj) = (i + di, j + dj);
-                    if ni > zone.w as i32 - 2 || nj > zone.h as i32 - 2 {
-                        return None;
-                    }
-                    if trail_base(zone, ni, nj).is_some() {
-                        return None;
-                    }
-                    let nb = plain_biome(zone, ni, nj)?;
-                    let nc = BIOME0 + nb * 3 + sh(ni, nj);
-                    (nc != col).then_some(if nb != b { BIOME0 + nb * 3 + shade } else { nc })
-                };
-                let nb = [n(-1, 0), n(1, 0), n(0, -1), n(0, 1)];
-                if nb.iter().any(|x| x.is_some()) {
-                    fill_tri_edge(fb, p00, p10, p11, (0.0, 0.0), (1.0, 0.0), (1.0, 1.0), col, nb, org, (EDGE_BAND, EDGE_MAX));
-                    fill_tri_edge(fb, p00, p11, p01, (0.0, 0.0), (1.0, 1.0), (0.0, 1.0), col, nb, org, (EDGE_BAND, EDGE_MAX));
+                if p11.y < -2.0 || p00.y > fb.h as f32 + 2.0 + 300.0 {
                     continue;
                 }
-            }
-            // Roads: cobble in world space. The road cell dithers its edge
-            // toward grass; the grass cell does not paint a flat dirt fringe.
-            if trail_base(zone, i, j).is_some() {
-                let shade = sh(i, j);
-                let n = |di: i32, dj: i32| {
-                    let (ni, nj) = (i + di, j + dj);
-                    if ni > zone.w as i32 - 2 || nj > zone.h as i32 - 2 {
-                        return None;
+                let col = cell_color(zone, i, j, time, sh(i, j));
+                // W2/W3: water next to land. Banks on the SE (downstream of the NW
+                // sun) get a dithered foam line; banks on the NW side shade the water.
+                if zone.flags[zone.idx(i, j)] & (F_WATER | F_BRIDGE) == F_WATER {
+                    let side = |di: i32, dj: i32, c: u8| land(zone, i + di, j + dj).then_some(c);
+                    let nb = [side(-1, 0, WATER_DEEP), side(1, 0, WATER_FOAM), side(0, -1, WATER_DEEP), side(0, 1, WATER_FOAM)];
+                    if nb.iter().any(|x| x.is_some()) {
+                        // Foam flickers by shifting the dither origin twice a second.
+                        let o2 = (org.0 + ((time * 2.0) as i32 & 1) * 2, org.1);
+                        fill_tri_edge(fb, p00, p10, p11, (0.0, 0.0), (1.0, 0.0), (1.0, 1.0), col, nb, o2, SHORE_BAND);
+                        fill_tri_edge(fb, p00, p11, p01, (0.0, 0.0), (1.0, 1.0), (0.0, 1.0), col, nb, o2, SHORE_BAND);
+                        continue;
                     }
-                    if trail_base(zone, ni, nj).is_some() {
-                        return None;
+                }
+                // B1: dither toward differing neighbour biomes (same shade step).
+                if let Some(b) = plain_biome(zone, i, j) {
+                    let shade = col - (BIOME0 + b * 3);
+                    // Neighbour colour if it differs in biome or (after L1) in shade step,
+                    // so slope-shading steps dither too instead of forming cell blocks.
+                    let n = |di: i32, dj: i32| {
+                        let (ni, nj) = (i + di, j + dj);
+                        if ni > zone.w as i32 - 2 || nj > zone.h as i32 - 2 {
+                            return None;
+                        }
+                        if trail_base(zone, ni, nj).is_some() {
+                            return None;
+                        }
+                        let nb = plain_biome(zone, ni, nj)?;
+                        let nc = BIOME0 + nb * 3 + sh(ni, nj);
+                        (nc != col).then_some(if nb != b { BIOME0 + nb * 3 + shade } else { nc })
+                    };
+                    let nb = [n(-1, 0), n(1, 0), n(0, -1), n(0, 1)];
+                    if nb.iter().any(|x| x.is_some()) {
+                        fill_tri_edge(fb, p00, p10, p11, (0.0, 0.0), (1.0, 0.0), (1.0, 1.0), col, nb, org, (EDGE_BAND, EDGE_MAX));
+                        fill_tri_edge(fb, p00, p11, p01, (0.0, 0.0), (1.0, 1.0), (0.0, 1.0), col, nb, org, (EDGE_BAND, EDGE_MAX));
+                        continue;
                     }
-                    plain_biome(zone, ni, nj).map(|b| BIOME0 + b * 3 + shade)
-                };
-                let nb = [n(-1, 0), n(1, 0), n(0, -1), n(0, 1)];
-                let origin = (zone.min_x, zone.min_z);
-                fill_tri_cobble(fb, p00, p10, p11, (0.0, 0.0), (1.0, 0.0), (1.0, 1.0), origin, c, (i, j), shade, nb, org);
-                fill_tri_cobble(fb, p00, p11, p01, (0.0, 0.0), (1.0, 1.0), (0.0, 1.0), origin, c, (i, j), shade, nb, org);
-                continue;
-            }
-            fill_tri(fb, p00, p10, p11, col);
-            fill_tri(fb, p00, p11, p01, col);
-            // B4: sparse ground grain on plain biome cells (not water or trails).
-            if plain_biome(zone, i, j).is_some() && cell_hash(i, j) % FLECK_EVERY == 0 {
-                if let Some(d) = crate::dither::darker(col) {
-                    let (cx, cy) = (((p00.x + p11.x) * 0.5) as i32, ((p00.y + p11.y) * 0.5) as i32);
-                    for dx in 0..2 {
-                        let x = cx + dx;
-                        if x >= 0 && cy >= 0 && x < fb.w as i32 && cy < fb.h as i32 {
-                            fb.color[cy as usize * fb.w + x as usize] = d;
+                }
+                // Roads: cobble in world space. The road cell dithers its edge
+                // toward grass; the grass cell does not paint a flat dirt fringe.
+                if trail_base(zone, i, j).is_some() {
+                    let shade = sh(i, j);
+                    let n = |di: i32, dj: i32| {
+                        let (ni, nj) = (i + di, j + dj);
+                        if ni > zone.w as i32 - 2 || nj > zone.h as i32 - 2 {
+                            return None;
+                        }
+                        if trail_base(zone, ni, nj).is_some() {
+                            return None;
+                        }
+                        plain_biome(zone, ni, nj).map(|b| BIOME0 + b * 3 + shade)
+                    };
+                    let nb = [n(-1, 0), n(1, 0), n(0, -1), n(0, 1)];
+                    let origin = (zone.min_x, zone.min_z);
+                    fill_tri_cobble(fb, p00, p10, p11, (0.0, 0.0), (1.0, 0.0), (1.0, 1.0), origin, c, (i, j), shade, nb, org);
+                    fill_tri_cobble(fb, p00, p11, p01, (0.0, 0.0), (1.0, 1.0), (0.0, 1.0), origin, c, (i, j), shade, nb, org);
+                    continue;
+                }
+                fill_tri(fb, p00, p10, p11, col);
+                fill_tri(fb, p00, p11, p01, col);
+                // B4: sparse ground grain on plain biome cells (not water or trails).
+                if plain_biome(zone, i, j).is_some() && cell_hash(i, j) % FLECK_EVERY == 0 {
+                    if let Some(d) = crate::dither::darker(col) {
+                        let (cx, cy) = (((p00.x + p11.x) * 0.5) as i32, ((p00.y + p11.y) * 0.5) as i32);
+                        for dx in 0..2 {
+                            let x = cx + dx;
+                            if x >= 0 && cy >= 0 && x < fb.w as i32 && cy < fb.h as i32 {
+                                fb.color[cy as usize * fb.w + x as usize] = d;
+                            }
                         }
                     }
                 }
+        }};
+    }
+    match cam.view {
+        // 3D: far to near along the view direction. The iso diagonal order
+        // below is only back-to-front for the iso azimuth.
+        Some(v) => {
+            let fwd = v.fwd();
+            let (fi, fj) = (fwd.x > 0.0, fwd.z > 0.0);
+            let at = |lo: i32, hi: i32, toward_hi: bool, k: i32| if toward_hi { hi - k } else { lo + k };
+            if fwd.x.abs() >= fwd.z.abs() {
+                for a in 0..=(i1 - i0) {
+                    for b in 0..=(j1 - j0) {
+                        draw_cell!(at(i0, i1, fi, a), at(j0, j1, fj, b));
+                    }
+                }
+            } else {
+                for b in 0..=(j1 - j0) {
+                    for a in 0..=(i1 - i0) {
+                        draw_cell!(at(i0, i1, fi, a), at(j0, j1, fj, b));
+                    }
+                }
+            }
+        }
+        // Iso: back to front, increasing i + j.
+        None => {
+            for s in (i0 + j0)..=(i1 + j1) {
+                let ilo = i0.max(s - j1);
+                let ihi = i1.min(s - j0);
+                for i in ilo..=ihi {
+                    draw_cell!(i, s - i);
+                }
+            }
+        }
+    }
+}
+
+/// Cells per side of one far-ground block (2 m at 0.5 m cells).
+const FAR_BLOCK: i32 = 4;
+
+/// 3D only: coarse ground from the edge of the detailed `view_cells` disc out
+/// to the engine's `FAR` plane. The detailed pass stops ~22 m from the camera
+/// to keep its cost near iso, which left the rest of a 3D frame as bare sky
+/// while props were drawn all the way out. One flat-coloured quad per block,
+/// painted far to near; the detailed pass then draws over the near disc.
+#[inline(never)]
+#[cold]
+fn draw_zone_far(fb: &mut Framebuffer, cam: &Camera, zone: &Zone, cam_y: f32, time: f32, near: Option<(i32, i32, i32, i32)>) {
+    let Some(v) = cam.view else { return };
+    let Some(eye) = v.eye() else { return };
+    let far = stick_engine::camera::FAR;
+    let (ei0, ej0) = zone.cell_of(eye.x - far, eye.z - far);
+    let (ei1, ej1) = zone.cell_of(eye.x + far, eye.z + far);
+    let k = FAR_BLOCK;
+    let last_i = zone.w as i32 - 1;
+    let last_j = zone.h as i32 - 1;
+    // Block indices covering the disc, clipped to the grid.
+    let (bi0, bj0) = (ei0.max(0) / k, ej0.max(0) / k);
+    let (bi1, bj1) = (ei1.min(last_i - 1) / k, ej1.min(last_j - 1) / k);
+    if bi0 > bi1 || bj0 > bj1 {
+        return;
+    }
+    let c = zone.cell;
+    let (w, h) = (fb.w as f32, fb.h as f32);
+    let fwd = v.fwd();
+    let pt = |i: i32, j: i32| {
+        let (i, j) = (i.min(last_i), j.min(last_j));
+        let y = zone.height[zone.idx(i, j)] - cam_y;
+        cam.project(v3(zone.min_x + i as f32 * c, y, zone.min_z + j as f32 * c))
+    };
+    sweep_far_to_near((bi0, bj0, bi1, bj1), fwd, |bi, bj| {
+        let (i, j) = (bi * k, bj * k);
+        // Wholly inside the detailed disc: that pass paints it.
+        if let Some((ni0, nj0, ni1, nj1)) = near {
+            if i >= ni0 && j >= nj0 && i + k <= ni1 + 1 && j + k <= nj1 + 1 {
+                return;
+            }
+        }
+        let mid = v3(zone.min_x + (i as f32 + k as f32 * 0.5) * c, eye.y, zone.min_z + (j as f32 + k as f32 * 0.5) * c);
+        let q = mid - eye;
+        let half = k as f32 * c * std::f32::consts::FRAC_1_SQRT_2;
+        if q.dot(q) > (far + half) * (far + half) || q.dot(fwd) < -half {
+            return;
+        }
+        let (p00, p10, p01, p11) = (pt(i, j), pt(i + k, j), pt(i, j + k), pt(i + k, j + k));
+        if p00.culled() || p10.culled() || p01.culled() || p11.culled() {
+            return;
+        }
+        let (x0, x1) = (p00.x.min(p10.x).min(p01.x).min(p11.x), p00.x.max(p10.x).max(p01.x).max(p11.x));
+        let (y0, y1) = (p00.y.min(p10.y).min(p01.y).min(p11.y), p00.y.max(p10.y).max(p01.y).max(p11.y));
+        if x1 < 0.0 || x0 > w || y1 < 0.0 || y0 > h {
+            return;
+        }
+        let (ci, cj) = ((i + k / 2).min(last_i - 1), (j + k / 2).min(last_j - 1));
+        let col = cell_color(zone, ci, cj, time, slope_shade(zone, ci, cj));
+        fill_tri(fb, p00, p10, p11, col);
+        fill_tri(fb, p00, p11, p01, col);
+    });
+}
+
+/// Visit every cell of an inclusive block from the far side to the near side
+/// of `fwd` (outer loop on the dominant axis), so a heightfield paints in
+/// painter's order for any 3D yaw.
+pub(crate) fn sweep_far_to_near((i0, j0, i1, j1): (i32, i32, i32, i32), fwd: Vec3, mut f: impl FnMut(i32, i32)) {
+    // Looking toward +axis puts the high end far away: step it first.
+    let at = |lo: i32, hi: i32, toward_hi: bool, k: i32| if toward_hi { hi - k } else { lo + k };
+    let (fi, fj) = (fwd.x > 0.0, fwd.z > 0.0);
+    if fwd.x.abs() >= fwd.z.abs() {
+        for a in 0..=(i1 - i0) {
+            for b in 0..=(j1 - j0) {
+                f(at(i0, i1, fi, a), at(j0, j1, fj, b));
+            }
+        }
+    } else {
+        for b in 0..=(j1 - j0) {
+            for a in 0..=(i1 - i0) {
+                f(at(i0, i1, fi, a), at(j0, j1, fj, b));
             }
         }
     }
