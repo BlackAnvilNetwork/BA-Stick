@@ -330,23 +330,27 @@ pub(crate) fn view_cells(fb: &Framebuffer, cam: &Camera, zone: &Zone) -> Option<
         z0 = z0.min(z);
         z1 = z1.max(z);
     }
-    // Perspective corners above the horizon collapse to the camera centre and
-    // the far ground can run out to FAR. Clamp to a disc about the size of
-    // the iso view so a 3D frame does not rasterize the whole zone.
-    if cam.view.is_some() {
+    // 3D: screen-corner unprojection is unreliable (corners above the horizon
+    // collapse to the camera centre; steep or wide views clip the near ground),
+    // so the detailed pass covers a fixed square around the ground just ahead
+    // of the eye instead. Ground past it is the coarse far pass. While the eye
+    // is still far out (iso -> tp dolly) centre on the followed target.
+    if let Some(v) = cam.view {
         let r = 22.0;
-        x0 = x0.max(cam.cx - r);
-        x1 = x1.min(cam.cx + r);
-        z0 = z0.max(cam.cz - r);
-        z1 = z1.min(cam.cz + r);
-        if x1 - x0 < 2.0 {
-            x0 = cam.cx - r;
-            x1 = cam.cx + r;
+        let (mut mx, mut mz) = (cam.cx, cam.cz);
+        if let Some(eye) = v.eye() {
+            let (dx, dz) = (eye.x - v.target.x, eye.z - v.target.z);
+            if dx * dx + dz * dz < 20.0 * 20.0 {
+                let f = v.fwd();
+                let fl = (f.x * f.x + f.z * f.z).sqrt().max(1e-4);
+                mx = eye.x + f.x / fl * 8.0;
+                mz = eye.z + f.z / fl * 8.0;
+            }
         }
-        if z1 - z0 < 2.0 {
-            z0 = cam.cz - r;
-            z1 = cam.cz + r;
-        }
+        x0 = mx - r;
+        x1 = mx + r;
+        z0 = mz - r;
+        z1 = mz + r;
     }
     let pad = if cam.view.is_some() { 2.0 } else { margin_m };
     let (i0, j0) = zone.cell_of(x0 - pad, z0 - pad);
@@ -582,15 +586,36 @@ pub(crate) fn draw_zone_in(fb: &mut Framebuffer, cam: &Camera, zone: &Zone, cam_
     // One cell, stamped into both loops below so the iso loop compiles
     // exactly as before (a shared closure cost iso ~0.2 ms per frame).
     macro_rules! draw_cell {
-        ($i:expr, $j:expr) => {{
+        // Iso never culls a corner. 3D: a cell under or beside the eye can
+        // straddle the near plane; clip it instead of dropping it (a hole).
+        (@straddle iso, $i:ident, $j:ident) => {};
+        (@straddle view, $i:ident, $j:ident) => {{
+            let wp = |i: i32, j: i32| v3(zone.min_x + i as f32 * c, zone.height[zone.idx(i, j)] - cam_y, zone.min_z + j as f32 * c);
+            let col = cell_color(zone, $i, $j, time, sh($i, $j));
+            fill_quad_near_clipped(fb, cam, [wp($i, $j), wp($i + 1, $j), wp($i + 1, $j + 1), wp($i, $j + 1)], col);
+        }};
+        // Iso: p11 is always the top corner and p00 the bottom.
+        (@onscreen iso, $p00:ident, $p10:ident, $p01:ident, $p11:ident) => {
+            if $p11.y < -2.0 || $p00.y > fb.h as f32 + 2.0 + 300.0 {
+                continue;
+            }
+        };
+        // 3D: any corner can be the top one, depending on yaw.
+        (@onscreen view, $p00:ident, $p10:ident, $p01:ident, $p11:ident) => {{
+            let (y0, y1) = ($p00.y.min($p10.y).min($p01.y).min($p11.y), $p00.y.max($p10.y).max($p01.y).max($p11.y));
+            let (x0, x1) = ($p00.x.min($p10.x).min($p01.x).min($p11.x), $p00.x.max($p10.x).max($p01.x).max($p11.x));
+            if y1 < -2.0 || y0 > fb.h as f32 + 2.0 || x1 < -2.0 || x0 > fb.w as f32 + 2.0 {
+                continue;
+            }
+        }};
+        ($i:expr, $j:expr, $view:tt) => {{
             let (i, j) = ($i, $j);
                 let (p00, p10, p01, p11) = (pt(i, j), pt(i + 1, j), pt(i, j + 1), pt(i + 1, j + 1));
                 if p00.culled() || p10.culled() || p01.culled() || p11.culled() {
+                    draw_cell!(@straddle $view, i, j);
                     continue;
                 }
-                if p11.y < -2.0 || p00.y > fb.h as f32 + 2.0 + 300.0 {
-                    continue;
-                }
+                draw_cell!(@onscreen $view, p00, p10, p01, p11);
                 let col = cell_color(zone, i, j, time, sh(i, j));
                 // W2/W3: water next to land. Banks on the SE (downstream of the NW
                 // sun) get a dithered foam line; banks on the NW side shade the water.
@@ -675,13 +700,13 @@ pub(crate) fn draw_zone_in(fb: &mut Framebuffer, cam: &Camera, zone: &Zone, cam_
             if fwd.x.abs() >= fwd.z.abs() {
                 for a in 0..=(i1 - i0) {
                     for b in 0..=(j1 - j0) {
-                        draw_cell!(at(i0, i1, fi, a), at(j0, j1, fj, b));
+                        draw_cell!(at(i0, i1, fi, a), at(j0, j1, fj, b), view);
                     }
                 }
             } else {
                 for b in 0..=(j1 - j0) {
                     for a in 0..=(i1 - i0) {
-                        draw_cell!(at(i0, i1, fi, a), at(j0, j1, fj, b));
+                        draw_cell!(at(i0, i1, fi, a), at(j0, j1, fj, b), view);
                     }
                 }
             }
@@ -692,7 +717,7 @@ pub(crate) fn draw_zone_in(fb: &mut Framebuffer, cam: &Camera, zone: &Zone, cam_
                 let ilo = i0.max(s - j1);
                 let ihi = i1.min(s - j0);
                 for i in ilo..=ihi {
-                    draw_cell!(i, s - i);
+                    draw_cell!(i, s - i, iso);
                 }
             }
         }
@@ -748,6 +773,13 @@ fn draw_zone_far(fb: &mut Framebuffer, cam: &Camera, zone: &Zone, cam_y: f32, ti
         }
         let (p00, p10, p01, p11) = (pt(i, j), pt(i + k, j), pt(i, j + k), pt(i + k, j + k));
         if p00.culled() || p10.culled() || p01.culled() || p11.culled() {
+            let wp = |i: i32, j: i32| {
+                let (i, j) = (i.min(last_i), j.min(last_j));
+                v3(zone.min_x + i as f32 * c, zone.height[zone.idx(i, j)] - cam_y, zone.min_z + j as f32 * c)
+            };
+            let (ci, cj) = ((i + k / 2).min(last_i - 1), (j + k / 2).min(last_j - 1));
+            let col = cell_color(zone, ci, cj, time, slope_shade(zone, ci, cj));
+            fill_quad_near_clipped(fb, cam, [wp(i, j), wp(i + k, j), wp(i + k, j + k), wp(i, j + k)], col);
             return;
         }
         let (x0, x1) = (p00.x.min(p10.x).min(p01.x).min(p11.x), p00.x.max(p10.x).max(p01.x).max(p11.x));
@@ -760,6 +792,45 @@ fn draw_zone_far(fb: &mut Framebuffer, cam: &Camera, zone: &Zone, cam_y: f32, ti
         fill_tri(fb, p00, p10, p11, col);
         fill_tri(fb, p00, p11, p01, col);
     });
+}
+
+/// Fill a ground quad (corners in winding order) that crosses the 3D near
+/// plane: clip it to the visible side so the ground under the eye has no hole.
+fn fill_quad_near_clipped(fb: &mut Framebuffer, cam: &Camera, q: [Vec3; 4], col: u8) {
+    let Some(v) = cam.view else { return };
+    if v.inv_d <= 0.0 {
+        return;
+    }
+    let f = v.fwd();
+    // project_view culls when 1 + z * inv_d <= NEAR * inv_d; keep a hair inside.
+    let zc = (stick_engine::camera::NEAR * v.inv_d - 1.0) / v.inv_d + 1e-3;
+    let z = |p: Vec3| (p - v.target).dot(f);
+    let mut out: [Vec3; 8] = [v3(0.0, 0.0, 0.0); 8];
+    let mut n = 0;
+    for k in 0..4 {
+        let (a, b) = (q[k], q[(k + 1) % 4]);
+        let (za, zb) = (z(a), z(b));
+        if za > zc {
+            out[n] = a;
+            n += 1;
+        }
+        if (za > zc) != (zb > zc) {
+            let t = (zc - za) / (zb - za);
+            out[n] = a + (b - a) * t;
+            n += 1;
+        }
+    }
+    if n < 3 {
+        return;
+    }
+    let p0 = cam.project(out[0]);
+    for k in 1..n - 1 {
+        let (p1, p2) = (cam.project(out[k]), cam.project(out[k + 1]));
+        if p0.culled() || p1.culled() || p2.culled() {
+            continue;
+        }
+        fill_tri(fb, p0, p1, p2, col);
+    }
 }
 
 /// Visit every cell of an inclusive block from the far side to the near side

@@ -156,6 +156,8 @@ pub struct Scene {
     lights: Vec<crate::atmosphere::Light>,
     /// Lighting, haze, skyline and vignette (#26).
     pub atmosphere: bool,
+    /// Extra third-person boom pitch that keeps the eye out of the terrain.
+    boom_lift: f32,
     /// L2 directional key light (round 1 polish). Off by default; `?keylight`.
     pub keylight: bool,
     /// Buff / ailment visuals per unit (#34).
@@ -209,6 +211,7 @@ impl Scene {
             pal: palette::palette(),
             lights: Vec::new(),
             atmosphere: true,
+            boom_lift: 0.0,
             keylight: false,
             buffs: BTreeMap::new(),
             minimap: crate::minimap::Minimap::new(),
@@ -570,7 +573,96 @@ impl Scene {
         let s = self.subject();
         let (w, h) = (self.cam.w, self.cam.h);
         self.rig.update(dt, self.look_pitch, &s, self.cam.cx, self.cam.cz, w, h);
-        self.cam.view = self.rig.view;
+        self.cam.view = match self.rig.view {
+            Some(v) => {
+                let (lift, _) = self.boom_clear_of_ground(v, 0.0);
+                // Rise at once (no frame inside a hill), settle back smoothly.
+                self.boom_lift = lift.max(self.boom_lift * (-dt * 3.0).exp());
+                Some(self.boom_clear_of_ground(v, self.boom_lift).1)
+            }
+            None => {
+                self.boom_lift = 0.0;
+                None
+            }
+        };
+    }
+
+    /// Third-person boom collision: pull the eye in toward the target until
+    /// the boom clears the terrain. Without it the eye sinks into hills and
+    /// slopes and the frame shows sky (the inside of the heightfield) where
+    /// the ground should be. Iso (`view == None`) never gets here.
+    /// Returns the extra pitch the boom needs and the view with `lift` (at
+    /// least) applied, pulled in if it is still blocked.
+    fn boom_clear_of_ground(&self, v: stick_engine::camera::View, lift: f32) -> (f32, stick_engine::camera::View) {
+        if v.inv_d <= 0.0 || (self.zone.is_none() && self.world.is_empty()) {
+            return (0.0, v);
+        }
+        let d = 1.0 / v.inv_d;
+        if !(0.5..=20.0).contains(&d) {
+            // Past 20 m: iso -> tp dolly, the eye is still far above the scene.
+            // Under 0.5 m: first person, the eye is the head.
+            return (0.0, v);
+        }
+        const CLEAR: f32 = 0.35;
+        const PAD: f32 = 0.4;
+        // `pad` widens the probe at the eye so the near plane does not graze a wall.
+        let ground = |x: f32, z: f32, pad: f32| {
+            let mut m = self.zone_height(x, z);
+            if pad > 0.0 {
+                for (dx, dz) in [(pad, 0.0), (-pad, 0.0), (0.0, pad), (0.0, -pad)] {
+                    m = m.max(self.zone_height(x + dx, z + dz));
+                }
+            }
+            m - self.cam_y
+        };
+        // Longest clear boom length for a view direction.
+        let clear_len = |v: &stick_engine::camera::View| {
+            let f = v.fwd();
+            let step = 0.1;
+            let mut t = 0.3f32.min(d);
+            while t < d + 1e-4 {
+                let p = v.target - f * t.min(d);
+                let pad = if t >= d - 1.0 { PAD } else { 0.0 };
+                if p.y < ground(p.x, p.z, pad) + CLEAR {
+                    return (t - step).max(0.3f32.min(d));
+                }
+                t += step;
+            }
+            d
+        };
+        let max_pitch = 80f32.to_radians();
+        let lifted = |l: f32| {
+            let mut w = v;
+            w.pitch = (v.pitch + l).min(max_pitch.max(v.pitch));
+            w
+        };
+        // First swing the boom up over the obstacle (keeps the framing
+        // distance), then, under an overhang or in a cleft, pull it in.
+        let mut need = 0.0;
+        let mut best = (clear_len(&lifted(lift)), lift);
+        if best.0 < d - 1e-4 {
+            for k in 1..=16 {
+                let l = lift.max(k as f32 * 5f32.to_radians());
+                let len = clear_len(&lifted(l));
+                if len > best.0 + 1e-4 {
+                    best = (len, l);
+                }
+                if len >= d - 1e-4 {
+                    break;
+                }
+            }
+        }
+        if best.1 > lift {
+            need = best.1;
+        } else if lift == 0.0 {
+            need = 0.0;
+        }
+        let mut w = lifted(best.1);
+        if best.0 < d - 1e-4 {
+            w.scale *= d / best.0;
+            w.inv_d = 1.0 / best.0;
+        }
+        (need, w)
     }
 
     pub fn tick(&mut self, dt: f32) {
