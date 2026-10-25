@@ -70,6 +70,8 @@ type GameState = {
   /** Leader snapshots stay provisional. A passing light proof is the committed view. */
   light: { leaderView: "provisional"; committed: Extract<WebLightResult, { ok: true }> | null };
   logs: string[];
+  /** Client-side lines (errors, wallet prompts) kept across snapshots for LOCAL_LOG_MS. */
+  localLogs: { m: string; t: number }[];
   selectedTarget: string | null;
   npcDialog: NpcDialog | null;
   explorer: ExplorerView | null;
@@ -98,6 +100,9 @@ type GameState = {
   me: () => UnitSnapshot | null;
 };
 
+/** How long a client-side log line survives server snapshots. */
+export const LOCAL_LOG_MS = 10_000;
+
 export const useGame = create<GameState>((set, get) => ({
   phase: "boot",
   wallet: null,
@@ -111,6 +116,7 @@ export const useGame = create<GameState>((set, get) => ({
   snapshot: null,
   light: { leaderView: "provisional", committed: null },
   logs: [],
+  localLogs: [],
   selectedTarget: null,
   npcDialog: null,
   explorer: null,
@@ -160,16 +166,25 @@ export const useGame = create<GameState>((set, get) => ({
       leaderView: "provisional" as const,
       committed: verdict.ok === true ? verdict : null,
     };
+    // The server log replaces the view each tick; keep recent client-side lines
+    // (pushLog: errors, wallet prompts) under it instead of dropping them.
+    const now = Date.now();
+    const localLogs = get().localLogs.filter((l) => now - l.t < LOCAL_LOG_MS);
+    const serverLog = snapshot.log ?? prev?.log;
     set({
       ...(mint !== undefined ? { characterMint: mint ?? null } : {}),
       light,
       snapshot,
-      logs: snapshot.log ?? prev?.log ?? get().logs,
+      localLogs,
+      logs: serverLog ? [...serverLog, ...localLogs.map((l) => l.m)] : get().logs,
       selectedTarget,
     });
   },
   pushLog: (message) =>
-    set((s) => ({ logs: [...s.logs.slice(-30), message] })),
+    set((s) => ({
+      logs: [...s.logs.slice(-30), message],
+      localLogs: [...s.localLogs.slice(-7), { m: message, t: Date.now() }],
+    })),
   setSelectedTarget: (selectedTarget) => set({ selectedTarget }),
   setNpcDialog: (npcDialog) => set({ npcDialog }),
   setExplorer: (explorer) => set({ explorer }),

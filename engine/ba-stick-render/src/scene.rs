@@ -188,6 +188,9 @@ impl Scene {
     }
 
     pub fn prop_count(&self) -> usize { self.props.len() }
+
+    #[cfg(test)]
+    pub(crate) fn set_zone_for_test(&mut self, z: Zone) { self.zone = Some(z); }
     pub fn has_zone(&self) -> bool { self.zone.is_some() }
 
     /// Stand height from the zone (0 without a zone).
@@ -359,7 +362,7 @@ impl Scene {
         if let Some(f) = self.follow.as_ref().and_then(|id| self.units.get(id)) {
             // Lift the followed unit above the engine's 55% line so the HUD
             // (hotbar + log along the bottom) does not cover the action.
-            let k = self.follow_lift_px / (2.0 * stick_engine::camera::ISO_Y);
+            let k = follow_offset(self.follow_lift_px, self.cam.persp);
             self.cam.cx = f.pos.x + k;
             self.cam.cz = f.pos.z + k;
             let ty = f.pos.y;
@@ -373,9 +376,13 @@ impl Scene {
         let (mut x, mut z) = self.cam.unproject_ground(sx, sy);
         for _ in 0..3 {
             let dy = self.zone_height(x, z) - self.cam_y;
-            let (nx, nz) = self.cam.unproject_ground(sx, sy + dy * stick_engine::camera::HEIGHT_PX);
-            x = nx;
-            z = nz;
+            if self.cam.view.is_some() {
+                let (nx, nz) = self.cam.unproject_ground(sx, sy + dy * stick_engine::camera::HEIGHT_PX);
+                x = nx;
+                z = nz;
+                continue;
+            }
+            (x, z) = unproject_at_height(&self.cam, sx, sy, dy);
         }
         (x, z)
     }
@@ -398,9 +405,11 @@ impl Scene {
                 continue;
             }
             let feet = self.cam.project(self.rel(u.pos));
-            let half_w = (body_radius(&u.preset.body) * 28.0).max(12.0);
-            let height = unit_height_px(u).max(24.0);
-            if (sx - feet.x).abs() <= half_w && sy <= feet.y + 6.0 && sy >= feet.y - height {
+            // Figures are drawn scaled by s(v) in 3D; scale the click box to match (s = 1 in iso).
+            let s = self.cam.scale_at(u.pos);
+            let half_w = (body_radius(&u.preset.body) * 28.0).max(12.0) * s;
+            let height = unit_height_px(u).max(24.0) * s;
+            if (sx - feet.x).abs() <= half_w && sy <= feet.y + 6.0 * s && sy >= feet.y - height {
                 if best.map_or(true, |(_, d)| feet.d < d) {
                     best = Some((id.as_str(), feet.d));
                 }
@@ -443,7 +452,7 @@ impl Scene {
     pub fn anchor(&self, id: &str) -> Option<(f32, f32, f32)> {
         let u = self.units.get(id)?;
         let feet = self.cam.project(self.rel(u.pos));
-        Some((feet.x, feet.y - unit_height_px(u), feet.y))
+        Some((feet.x, feet.y - unit_height_px(u) * self.cam.scale_at(u.pos), feet.y))
     }
 
     /// Framebuffer position of a world point.
@@ -749,6 +758,30 @@ pub fn melee_lunge(t: f32) -> f32 {
     let k = (t.max(0.0) % MELEE_SWING_S) / MELEE_SWING_S;
     let punch = if k < 0.35 { k / 0.35 } else { (1.0 - (k - 0.35) / 0.65).max(0.0) };
     0.06 + punch * 0.22
+}
+
+/// Exact inverse of the iso / persp-blend projection for a point `dy` above
+/// the reference plane: sy - 0.55h = (v ISO_Y - dy HEIGHT_PX) / (1 - a v),
+/// sx - 0.5w = u ISO_X / (1 - a v). In iso (a = 0) this is the old shift.
+fn unproject_at_height(cam: &Camera, sx: f32, sy: f32, dy: f32) -> (f32, f32) {
+    use stick_engine::camera::{HEIGHT_PX, ISO_X, ISO_Y, PERSP_K};
+    let a = PERSP_K * cam.persp;
+    let yy = sy - cam.h * 0.55;
+    let v = (yy + dy * HEIGHT_PX) / (ISO_Y + a * yy);
+    let inv_s = (1.0 - a * v).max(0.2);
+    let u = (sx - cam.w * 0.5) * inv_s / ISO_X;
+    (cam.cx + (u + v) * 0.5, cam.cz + (v - u) * 0.5)
+}
+
+/// World offset (added to x and z) that puts the followed unit `lift_px`
+/// above the 55% line. Iso: v * ISO_Y = -lift. Under the persp blend the
+/// screen offset is v * ISO_Y * s(v), s(v) = 1 / (1 - a v), so solve
+/// y = v / (1 - a v) for v: v = y / (1 + a y).
+pub(crate) fn follow_offset(lift_px: f32, persp: f32) -> f32 {
+    let y = -lift_px / stick_engine::camera::ISO_Y;
+    let a = stick_engine::camera::PERSP_K * persp;
+    let v = y / (1.0 + a * y).max(0.2);
+    -v * 0.5
 }
 
 fn unit_height_px(u: &Unit) -> f32 {

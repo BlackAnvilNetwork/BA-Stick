@@ -541,3 +541,58 @@ fn clear_map_data_drops_the_title() {
     s.clear_map_data();
     assert!(s.minimap.title.is_empty());
 }
+
+fn raised_zone(h: f32) -> crate::zone::Zone {
+    let (w, d) = (120, 120);
+    crate::zone::Zone { min_x: -30.0, min_z: -30.0, cell: 0.5, w, h: d, biome: vec![13; w * d], flags: vec![0; w * d], height: vec![h; w * d] }
+}
+
+#[test]
+fn pick_world_honors_the_persp_blend_on_raised_ground() {
+    use stick_engine::math::v3;
+    let mut s = Scene::new(640, 360);
+    s.set_zone_for_test(raised_zone(2.0));
+    for persp in [0.0, 1.0] {
+        s.cam.persp = persp;
+        for (x, z) in [(-6.0, -7.0), (4.0, 3.0), (0.0, 0.0)] {
+            let (sx, sy) = s.world_to_screen(x, 2.0, z);
+            let (px, pz) = s.pick_world(sx, sy);
+            assert!((px - x).abs() < 0.05 && (pz - z).abs() < 0.05, "persp {persp}: ({x},{z}) -> ({px},{pz})");
+        }
+    }
+    let _ = v3(0.0, 0.0, 0.0);
+}
+
+#[test]
+fn pick_unit_box_scales_with_depth_in_3d() {
+    let mut s = Scene::new(640, 360);
+    s.cam.persp = 1.0;
+    // Near unit (positive view depth) is drawn larger; its head must still be clickable.
+    s.upsert_unit("near", unit(4.0, 4.0, "idle", "knight"));
+    s.tick(0.0);
+    let (x, top, feet) = s.anchor("near").unwrap();
+    let iso_h = { let mut t = Scene::new(640, 360); t.upsert_unit("n", unit(4.0, 4.0, "idle", "knight")); t.tick(0.0); let a = t.anchor("n").unwrap(); a.2 - a.1 };
+    assert!(feet - top > iso_h * 1.05, "3D anchor height {} should exceed iso {}", feet - top, iso_h);
+    assert_eq!(s.pick_unit(x, top + 2.0), Some("near"));
+    // Far unit is drawn smaller: a click just outside its scaled box misses.
+    s.upsert_unit("far", unit(-9.0, -9.0, "idle", "knight"));
+    s.tick(0.0);
+    let (fx, ftop, _) = s.anchor("far").unwrap();
+    assert_eq!(s.pick_unit(fx, ftop + 1.0), Some("far"));
+    assert_eq!(s.pick_unit(fx, ftop - (iso_h - (s.anchor("far").unwrap().2 - ftop)) * 0.5 - 3.0), None);
+}
+
+#[test]
+fn follow_lift_is_the_same_on_screen_in_iso_and_3d() {
+    for persp in [0.0, 0.5, 1.0] {
+        let mut s = Scene::new(640, 360);
+        s.view3d = persp > 0.0;
+        s.cam.persp = persp;
+        s.upsert_unit("me", unit(10.0, -4.0, "idle", "knight"));
+        s.follow(Some("me"));
+        s.tick(0.0);
+        let (_, _, feet) = s.anchor("me").unwrap();
+        let want = 360.0 * 0.55 - s.follow_lift_px;
+        assert!((feet - want).abs() < 0.05, "persp {persp}: feet {feet} want {want}");
+    }
+}
