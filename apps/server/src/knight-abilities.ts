@@ -16,6 +16,7 @@ import type { AbilityId } from "@bellgrave/protocol";
 export type KnightPlayer = {
   level: number;
   job: string;
+  wallet: string;
   mp: number;
   maxMp: number;
   hp: number;
@@ -167,6 +168,20 @@ export function findInterposeGuard<T extends InterposeUnit>(
 
 function spikeEnmity(p: KnightPlayer, amount: number) {
   p.enmity = Math.min(10_000, p.enmity + amount);
+}
+
+function resolveAlly(
+  p: KnightPlayer,
+  targetId: string | undefined,
+  hooks: KnightHooks,
+  range: number,
+): KnightPlayer {
+  const tid = targetId ?? p.targetId;
+  if (tid) {
+    const ally = hooks.allPlayers().find((pl) => pl.wallet.toLowerCase() === tid.toLowerCase());
+    if (ally && hooks.dist(p.x, p.z, ally.x, ally.z) <= range) return ally;
+  }
+  return p;
 }
 
 function pullMob(p: KnightPlayer, m: KnightMob, amount: number) {
@@ -386,11 +401,15 @@ export function resolveKnightAbility(
   // —— Cures ——
   if (id === "kn_cure" || id === "kn_cure_ii" || id === "kn_cure_iii" || id === "kn_cure_iv") {
     spend();
+    const ally = resolveAlly(p, targetId, hooks, def.range ?? 12);
     const heal = Math.floor((def.heal ?? 45) + combatStats.mnd * 1.5);
-    p.hp = Math.min(p.maxHp, p.hp + heal);
+    ally.hp = Math.min(ally.maxHp, ally.hp + heal);
     p.anim = "cast";
     p.animUntil = now + 500;
-    hooks.pushLog(p, `${def.label} — recover ${heal} HP.`);
+    hooks.pushLog(
+      p,
+      `${def.label} — ${ally.wallet === p.wallet ? "you recover" : "ally recovers"} ${heal} HP.`,
+    );
     return true;
   }
 
@@ -401,20 +420,28 @@ export function resolveKnightAbility(
     id === "kn_protect_iii"
   ) {
     spend();
-    p.protectUntil = now + (def.durationMs ?? 180_000);
-    p.protectPhysMul = def.physDt ?? 0.9;
+    const ally = resolveAlly(p, targetId, hooks, def.range ?? 12);
+    ally.protectUntil = now + (def.durationMs ?? 180_000);
+    ally.protectPhysMul = def.physDt ?? 0.9;
     p.anim = "cast";
     p.animUntil = now + 500;
-    hooks.pushLog(p, `${def.label} — physical ward.`);
+    hooks.pushLog(
+      p,
+      ally.wallet === p.wallet ? `${def.label} — physical ward.` : `${def.label} — ally warded.`,
+    );
     return true;
   }
   if (id === "kn_shell" || id === "kn_shell_ii" || id === "kn_shell_iii") {
     spend();
-    p.shellUntil = now + (def.durationMs ?? 180_000);
-    p.shellMagMul = def.magDt ?? 0.9;
+    const ally = resolveAlly(p, targetId, hooks, def.range ?? 12);
+    ally.shellUntil = now + (def.durationMs ?? 180_000);
+    ally.shellMagMul = def.magDt ?? 0.9;
     p.anim = "cast";
     p.animUntil = now + 500;
-    hooks.pushLog(p, `${def.label} — magic ward.`);
+    hooks.pushLog(
+      p,
+      ally.wallet === p.wallet ? `${def.label} — magic ward.` : `${def.label} — ally warded.`,
+    );
     return true;
   }
 

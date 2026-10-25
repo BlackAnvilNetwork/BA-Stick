@@ -9,7 +9,7 @@ export type ClickResult = { select?: string | null; send?: ClientMessage };
  * carries a PvP bounty); self → nothing; ground → move (handled by caller).
  */
 export function routeUnitClick(u: UnitSnapshot, wallet: string | null): ClickResult {
-  if (sameId(u.id, wallet)) return {};
+  if (sameId(u.id, wallet)) return { select: u.id };
   // Gather node billboard onClick → gather (#30); fishing uses the same message.
   if (u.gatherNode) return u.hp > 0 ? { send: { type: "gather", nodeId: u.id } } : {};
   switch (u.kind) {

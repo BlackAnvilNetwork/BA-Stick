@@ -188,6 +188,45 @@ fn zone_parse_and_height() {
 }
 
 #[test]
+fn ground_draws_in_third_person() {
+    let bytes = tiny_zone(40, 40, |i, j| (13, 0, 300));
+    let mut s = Scene::new(640, 360);
+    s.load_zone(&bytes).unwrap();
+    s.set_cam_mode("tp");
+    s.upsert_unit("me", UnitInput { x: 5.0, y: 3.0, z: 5.0, facing: 0.0, anim: AnimState::Idle, preset: "knight".into() });
+    s.follow(Some("me"));
+    for _ in 0..90 {
+        s.tick(1.0 / 60.0);
+    }
+    s.draw();
+    let grass = palette::BIOME0 + 13 * 3 + 1;
+    assert!(
+        s.fb.color.iter().filter(|&&c| c == grass).count() > 500,
+        "third-person view should rasterize meadow ground, not only sky"
+    );
+    // Culled vertices project to (0, 0); must not smear ground into the sky band.
+    let sky_band = s.fb.w as usize * (s.fb.h / 4);
+    let sky_grass = s.fb.color[..sky_band].iter().filter(|&&c| c == grass).count();
+    assert!(sky_grass < 80, "ground in sky: {sky_grass} grass pixels in top quarter");
+}
+
+#[test]
+fn ground_draws_in_first_person() {
+    let bytes = tiny_zone(40, 40, |_i, _j| (13, 0, 300));
+    let mut s = Scene::new(640, 360);
+    s.load_zone(&bytes).unwrap();
+    s.set_cam_mode("fp");
+    s.upsert_unit("me", UnitInput { x: 5.0, y: 3.0, z: 5.0, facing: 0.0, anim: AnimState::Idle, preset: "knight".into() });
+    s.follow(Some("me"));
+    for _ in 0..90 {
+        s.tick(1.0 / 60.0);
+    }
+    s.draw();
+    let grass = palette::BIOME0 + 13 * 3 + 1;
+    assert!(s.fb.color.iter().filter(|&&c| c == grass).count() > 400);
+}
+
+#[test]
 fn zone_draws_biome_colours_and_units_stand_on_it() {
     let bytes = tiny_zone(40, 40, |i, j| (13, if i == j { zone::F_TRAIL } else { 0 }, 300));
     let mut s = Scene::new(320, 180);
@@ -536,9 +575,10 @@ fn camera_3d_roundtrip_and_blend() {
     assert!(cam.scale_at(v3(-8.0, 0.0, -8.0)) < 1.0);
     assert!(cam.scale_at(v3(3.0, 0.0, 3.0)) > 1.0);
     let mut s = crate::scene::Scene::new(640, 360);
-    s.view3d = true;
+    s.set_cam_mode("tp");
     for _ in 0..60 { s.tick(1.0 / 60.0); }
-    assert_eq!(s.cam.persp, 1.0);
+    assert_eq!(s.cam_mode(), "tp");
+    assert!(s.cam.view.is_some());
 }
 
 #[test]
@@ -581,7 +621,7 @@ fn bridge_deck_is_one_continuous_ribbon() {
     let mut fb = Framebuffer::new(640, 360);
     // 10 m span along z, 3.9 m deck, 0.6 m flat-deck lift, level ends, 0.3 ramps
     let p = Prop { kind: kind::BRIDGE, var: 0, x: 0.0, z: 0.0, y: 0.0, yaw: 0.0, s: 10.0, w: 3.9, h: 0.6, d: 0.0, j: [0.0; 6] };
-    draw(&mut fb, &cam, &[p], 0.0, 0.0, 0.0, 0.0);
+    draw(&mut fb, &cam, &[p], 0.0, 0.0, 0.0, 0.0, false);
     // Walk the deck centre line: every sample is lit deck, with no slab seam or
     // step outline crossing the walkway (the old 12-slab bridge had 11).
     let mut seams = 0;
@@ -737,6 +777,7 @@ fn pick_world_honors_the_persp_blend_on_raised_ground() {
 #[test]
 fn pick_unit_box_scales_with_depth_in_3d() {
     let mut s = Scene::new(640, 360);
+    s.set_cam_mode("tp");
     s.cam.persp = 1.0;
     // Near unit (positive view depth) is drawn larger; its head must still be clickable.
     s.upsert_unit("near", unit(4.0, 4.0, "idle", "knight"));
@@ -757,7 +798,7 @@ fn pick_unit_box_scales_with_depth_in_3d() {
 fn follow_lift_is_the_same_on_screen_in_iso_and_3d() {
     for persp in [0.0, 0.5, 1.0] {
         let mut s = Scene::new(640, 360);
-        s.view3d = persp > 0.0;
+        s.set_cam_mode(if persp > 0.0 { "tp" } else { "iso" });
         s.cam.persp = persp;
         s.upsert_unit("me", unit(10.0, -4.0, "idle", "knight"));
         s.follow(Some("me"));

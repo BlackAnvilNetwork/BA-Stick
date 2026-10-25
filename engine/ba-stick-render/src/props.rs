@@ -268,6 +268,7 @@ struct Ctx<'a> {
     snow_cover: f32,
     /// 0..1 active snowfall (weather blend), whitens crown tips while flakes fall.
     snow_weather: f32,
+    snow_melting: bool,
     /// Crown height span for top-down snow (conifers set in `draw_conifer`).
     tree_y_lo: f32,
     tree_y_hi: f32,
@@ -769,7 +770,7 @@ fn foliage(sun: f32, dark: u8, mid: u8, lit: u8) -> u8 {
 
 /// Effective snow on this prop (whole-tree melt order, same as ground patches).
 fn tree_snow_scale(c: &Ctx) -> f32 {
-    let k = c.snow_cover.clamp(0.0, 1.0);
+    let k = crate::weather::snow_cover_display(c.snow_cover, c.snow_melting);
     if k < 0.03 {
         return 0.0;
     }
@@ -1022,6 +1023,7 @@ pub fn draw(
     time: f32,
     snow_cover: f32,
     snow_weather: f32,
+    snow_melting: bool,
 ) {
     let (w, h) = (fb.w as f32, fb.h as f32);
     for p in props {
@@ -1051,6 +1053,7 @@ pub fn draw(
                 .then(|| (p.x * 7.31 + p.z * 3.17).sin().abs()),
             snow_cover,
             snow_weather,
+            snow_melting,
             tree_y_lo: 0.0,
             tree_y_hi: 0.0,
         };
@@ -1647,7 +1650,7 @@ mod tests {
             d: 1.0,
             j: [0.0; 6],
         };
-        draw(&mut fb, &cam, &[prop], 0.0, 0.0, 0.0, 0.0);
+        draw(&mut fb, &cam, &[prop], 0.0, 0.0, 0.0, 0.0, false);
         let mut lit = 0;
         let mut dark = 0;
         let mut wood = 0;
@@ -1710,6 +1713,7 @@ mod tests {
                 0.0,
                 0.0,
                 0.0,
+                false,
             );
             let n = fb.color.iter().filter(|c| **c != 0).count();
             assert!(n > 40, "kind {kind} drew {n} pixels");

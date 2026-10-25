@@ -413,7 +413,13 @@ export function StickWorld() {
         r.tick(dt);
         // Effects + labels
         const wall = Date.now();
-        const ctxBase = { now: wall, wallet: g.wallet ?? null, selected: g.selectedTarget, hovered };
+        const ctxBase = {
+          now: wall,
+          wallet: g.wallet ?? null,
+          selected: g.selectedTarget,
+          hovered,
+          combatTargetId: me?.targetId ?? null,
+        };
         const shown = new Map<string, { text: string; cls: string; x: number; y: number }>();
         for (const u of snap?.units ?? []) {
           if (!known.has(u.id)) continue;

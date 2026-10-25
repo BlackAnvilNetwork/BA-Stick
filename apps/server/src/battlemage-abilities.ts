@@ -148,6 +148,22 @@ function enhanceDurationMul(p: BattleMagePlayer): number {
   return p.focusWeave ? 2.2 : 1;
 }
 
+function resolveAlly(
+  p: BattleMagePlayer & { wallet: string },
+  targetId: string | undefined,
+  hooks: BattleMageHooks,
+  range: number,
+): BattleMagePlayer {
+  const tid = targetId ?? p.targetId;
+  if (tid) {
+    const ally = hooks
+      .allPlayers()
+      .find((pl) => pl.wallet.toLowerCase() === tid.toLowerCase());
+    if (ally && hooks.dist(p.x, p.z, ally.x, ally.z) <= range) return ally;
+  }
+  return p;
+}
+
 export function resolveBattleMageAbility(
   p: BattleMagePlayer & { wallet: string },
   id: AbilityId,
@@ -326,15 +342,18 @@ export function resolveBattleMageAbility(
     return true;
   }
 
-  // Self heals
   if (id === "bm_cure" || id === "bm_cure_ii" || id === "bm_cure_iii" || id === "bm_cure_iv") {
     spend();
+    const ally = resolveAlly(p, targetId, hooks, def.range ?? 12);
     const heal = withHealPotency(p, Math.floor((def.heal ?? 35) + combatStats.mnd * 1.1));
-    p.hp = Math.min(p.maxHp, p.hp + heal);
+    ally.hp = Math.min(ally.maxHp, ally.hp + heal);
     p.anim = "cast";
     p.animUntil = now + castAnimMs;
     if (p.spontaneityReady) p.spontaneityReady = false;
-    hooks.pushLog(p, `${def.label} — recover ${heal} HP.`);
+    hooks.pushLog(
+      p,
+      `${def.label} — ${ally.wallet === p.wallet ? "you recover" : "ally recovers"} ${heal} HP.`,
+    );
     return true;
   }
 
@@ -356,8 +375,12 @@ export function resolveBattleMageAbility(
       }
       hooks.pushLog(p, `${label} — party weave (${hit} in ${aoe} y).`);
     } else {
-      apply(p);
-      hooks.pushLog(p, `${label}.`);
+      const ally = resolveAlly(p, targetId, hooks, def.range ?? 12);
+      apply(ally);
+      hooks.pushLog(
+        p,
+        ally.wallet === p.wallet ? `${label}.` : `${label} on ally.`,
+      );
     }
     p.anim = "cast";
     p.animUntil = now + castAnimMs;

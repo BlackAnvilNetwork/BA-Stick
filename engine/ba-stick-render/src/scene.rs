@@ -78,6 +78,7 @@ pub const FX_PLAYER_CAST: u32 = 32;
 pub const FX_PETRIFIED: u32 = 64;
 /// Gather node already harvested (greyed, no glow).
 pub const FX_DEPLETED: u32 = 128;
+pub const FX_MOB: u32 = 256;
 /// Background index in preview mode (keyed to transparent).
 const BACKDROP: u8 = crate::atmosphere::SKY;
 
@@ -571,6 +572,12 @@ impl Scene {
         let (w, h) = (self.cam.w, self.cam.h);
         self.rig.update(dt, self.look_pitch, &s, self.cam.cx, self.cam.cz, w, h);
         self.cam.view = self.rig.view;
+        // Legacy iso follow lift uses `cam.persp`; keep it in sync with the 3D rail.
+        if self.cam.view.is_some() {
+            self.cam.persp = self.rig.r.min(1.0);
+        } else {
+            self.cam.persp = 0.0;
+        }
     }
 
     pub fn tick(&mut self, dt: f32) {
@@ -884,8 +891,12 @@ impl Scene {
                 }
             } else {
                 self.fb.color.fill(crate::atmosphere::SKY);
+                let foot = ground::view_world_rect(&self.fb, &self.cam);
                 // North first, so a nearer southern zone paints over it.
                 for z in self.world.iter().rev() {
+                    if !ground::zone_overlaps_world_rect(z, foot.0, foot.1, foot.2, foot.3) {
+                        continue;
+                    }
                     ground::draw_zone_in(&mut self.fb, &self.cam, z, self.cam_y, self.time, false);
                 }
             }
@@ -897,7 +908,11 @@ impl Scene {
             self.fb.clear_depth();
         } else if !self.backdrop {
             self.fb.clear_depth();
-            let melting = self.weather_snow_target < self.weather_snow - 1e-4;
+            let melting = crate::weather::snow_melting(
+                self.weather_snow,
+                self.weather_snow_target,
+                self.weather_kind_to,
+            );
             let snow = crate::weather::snow_cover_display(self.weather_snow, melting);
             let grass_breeze = self.grass_breeze();
             if self.world.is_empty() {
@@ -915,7 +930,11 @@ impl Scene {
                     }
                 }
             } else {
+                let foot = ground::view_world_rect(&self.fb, &self.cam);
                 for z in self.world.iter().rev() {
+                    if !ground::zone_overlaps_world_rect(z, foot.0, foot.1, foot.2, foot.3) {
+                        continue;
+                    }
                     ground::draw_meadow_grass(
                         &mut self.fb,
                         &self.cam,
@@ -935,6 +954,12 @@ impl Scene {
         let placed = !self.world.is_empty();
         let props = if placed { &self.world_props } else { &self.props };
         if !self.boot_menu && (self.zone.is_some() || placed) {
+            let melting = crate::weather::snow_melting(
+                self.weather_snow,
+                self.weather_snow_target,
+                self.weather_kind_to,
+            );
+            let snow = crate::weather::snow_cover_display(self.weather_snow, melting);
             let snow_w = Self::precip_kind_blend(
                 crate::weather::Kind::from_u8(self.weather_kind_from),
                 crate::weather::Kind::from_u8(self.weather_kind_to),
@@ -947,8 +972,9 @@ impl Scene {
                 props,
                 self.cam_y,
                 t,
-                self.weather_snow,
+                snow,
                 snow_w,
+                melting,
             );
             props::draw_shadows(&mut self.fb, &cam, props, self.cam_y);
         }
@@ -991,9 +1017,18 @@ impl Scene {
             }
             let size = body_radius(&u.preset.body);
             if fx.flags & FX_SELECTED != 0 {
-                let col = if fx.flags & FX_HOSTILE != 0 { FX_RING_HOSTILE } else if fx.flags & FX_SELF != 0 { FX_RING_SELF } else { FX_RING_FRIEND };
-                ring(&mut self.fb, &cam, c, size, col, None);
-                ring(&mut self.fb, &cam, c, size + 0.08, col, None);
+                if fx.flags & FX_HOSTILE != 0 {
+                    ring(&mut self.fb, &cam, c, size, FX_RING_HOSTILE, None);
+                    ring(&mut self.fb, &cam, c, size + 0.08, FX_RING_HOSTILE, None);
+                } else if fx.flags & FX_SELF != 0 {
+                    ring(&mut self.fb, &cam, c, size, FX_RING_SELF, None);
+                    ring(&mut self.fb, &cam, c, size + 0.08, FX_RING_SELF, None);
+                } else if fx.flags & FX_MOB != 0 {
+                    ring(&mut self.fb, &cam, c, size, FX_HOVER, Some(t * 1.5));
+                } else {
+                    ring(&mut self.fb, &cam, c, size, FX_RING_FRIEND, None);
+                    ring(&mut self.fb, &cam, c, size + 0.08, FX_RING_FRIEND, None);
+                }
             } else if fx.flags & FX_HOVERED != 0 {
                 ring(&mut self.fb, &cam, c, size, FX_HOVER, Some(t * 1.5));
             }
@@ -1222,13 +1257,26 @@ impl Scene {
         if self.weather_blend < 1.0 {
             self.weather_blend = (self.weather_blend + dt / BLEND_SECS).min(1.0);
         }
-        let melting = self.weather_snow_target < self.weather_snow - 1e-4;
+        let melting = crate::weather::snow_melting(
+            self.weather_snow,
+            self.weather_snow_target,
+            self.weather_kind_to,
+        );
         let rate = if melting { 16.0 } else { 11.0 };
         let k = 1.0 - (-rate * dt).exp();
         self.weather_snow += (self.weather_snow_target - self.weather_snow) * k;
         // Snap to full cover so the blanket does not shimmer on the last step.
         if !melting && self.weather_snow_target >= 0.99 && self.weather_snow > 0.94 {
             self.weather_snow = self.weather_snow.max(self.weather_snow_target);
+        }
+        // Hold displayed melt steps steady (lerp between quant steps flickers tiles).
+        if melting {
+            let shown = crate::weather::snow_cover_display(self.weather_snow, true);
+            if self.weather_snow > shown + 0.5 / 40.0 {
+                // still falling toward the next dissolve step
+            } else if self.weather_snow > self.weather_snow_target {
+                self.weather_snow = shown.max(self.weather_snow_target);
+            }
         }
     }
 
@@ -1301,7 +1349,13 @@ impl Scene {
             if (u.pos.x - cx).abs() > 70.0 || (u.pos.z - cz).abs() > 70.0 {
                 continue;
             }
-            let kind = if u.fx.flags & FX_HOSTILE != 0 { 1 } else if u.preset.npc_mark.is_some() { 2 } else { 3 };
+            let kind = if u.fx.flags & (FX_HOSTILE | FX_MOB) != 0 {
+                1
+            } else if u.preset.npc_mark.is_some() {
+                2
+            } else {
+                3
+            };
             marks.push(Marker { x: u.pos.x - self.map_ox, z: u.pos.z - self.map_oz, kind });
         }
         (cx - self.map_ox, cz - self.map_oz, yaw, marks)

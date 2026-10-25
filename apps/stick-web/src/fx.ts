@@ -6,11 +6,14 @@ export const FX = {
   SELECTED: 1,
   HOVERED: 2,
   SHINY: 4,
+  /** Aggro / engaged — red selection ring. */
   HOSTILE: 8,
   SELF: 16,
   PLAYER_CAST: 32,
   PETRIFIED: 64,
   DEPLETED: 128,
+  /** Mob unit (incl. passive) — white target ring when tab-selected. */
+  MOB: 256,
 } as const;
 
 /** Server level-up window (apps/server: `levelUpUntil = now + 2400`). */
@@ -58,15 +61,28 @@ export function sameId(a: string | null | undefined, b: string | null | undefine
 /** Effect state for one unit this frame. */
 export function unitFx(
   u: UnitSnapshot,
-  ctx: { now: number; wallet: string | null; selected: string | null; hovered: string | null; cast: number },
+  ctx: {
+    now: number;
+    wallet: string | null;
+    selected: string | null;
+    hovered: string | null;
+    cast: number;
+    /** Your combat target id from the server snapshot. */
+    combatTargetId?: string | null;
+  },
 ): UnitFxState {
   const isSelf = sameId(u.id, ctx.wallet);
-  const hostile = u.kind === "mob" || (u.kind === "player" && !!u.pvpBounty && !isSelf);
+  const mobEngaged =
+    u.kind === "mob" &&
+    (sameId(u.targetId, ctx.wallet) || sameId(ctx.combatTargetId, u.id));
+  const combatHostile =
+    mobEngaged || (u.kind === "player" && !!u.pvpBounty && !isSelf);
   let flags = 0;
   if (ctx.selected === u.id) flags |= FX.SELECTED;
   if (ctx.hovered === u.id) flags |= FX.HOVERED;
   if (u.shiny) flags |= FX.SHINY;
-  if (hostile) flags |= FX.HOSTILE;
+  if (u.kind === "mob") flags |= FX.MOB;
+  if (combatHostile) flags |= FX.HOSTILE;
   if (isSelf) flags |= FX.SELF;
   if (u.kind !== "mob") flags |= FX.PLAYER_CAST;
   if (u.gatherNode && u.hp <= 0) flags |= FX.DEPLETED;

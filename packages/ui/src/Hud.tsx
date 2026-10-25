@@ -7,7 +7,9 @@ import {
   abilityIconUrl,
   abilityLabel,
   abilityMp,
-  abilityNeedsTarget,
+  resolveAbilityTargetId,
+  isHostileTabUnit,
+  enemyTargetLabel,
   abilityRecastMs,
   abilityTooltip,
   categoryTabsDual,
@@ -96,8 +98,13 @@ export function hotbarIndexFromCode(code: string): number | null {
 
 function abilityTargetId(id: AbilityId, selected: string | null): string | undefined {
   if (!isAbilityId(id)) return undefined;
-  if (abilityNeedsTarget(id)) return selected ?? "mob-guard-1";
-  return undefined;
+  const g = useGame.getState();
+  const snap = g.snapshot;
+  const wallet = g.wallet;
+  if (!snap || !wallet) return undefined;
+  const me = snap.units.find((u) => u.id.toLowerCase() === wallet.toLowerCase() && u.kind === "player");
+  const combatTargetId = me?.targetId ?? null;
+  return resolveAbilityTargetId(id, selected, wallet, combatTargetId, snap.units);
 }
 
 function hudAbilityTip(id: CombatAbilityId): { title: string; body: string; meta: string } {
@@ -771,6 +778,13 @@ export function Hud() {
     return Array.isArray(raw) ? raw : [];
   }, [snapshot?.tick, snapshot?.you.questLog]);
 
+  const focusEnemy = useMemo(() => {
+    if (!snapshot || !selectedTarget || !wallet) return null;
+    const u = snapshot.units.find((x) => x.id === selectedTarget);
+    if (!u || !isHostileTabUnit(u, wallet)) return null;
+    return u;
+  }, [snapshot, selectedTarget, wallet]);
+
   if (phase !== "play" || !snapshot || !me) return null;
   const you = snapshot.you;
   const potions = you.inventory.reduce((n, i) => n + (i.tokenId === ITEM.POTION ? i.amount : 0), 0);
@@ -791,11 +805,27 @@ export function Hud() {
 
   const mobileLayout = layoutUsesArcadeControls(uiSettings.layout);
 
+  const focusHpPct =
+    focusEnemy && focusEnemy.maxHp > 0
+      ? Math.max(0, Math.min(100, (focusEnemy.hp / focusEnemy.maxHp) * 100))
+      : 0;
+
   return (
     <div
       className={`hud-root${mobileLayout ? " hud-layout-mobile" : ""}`}
       data-ui-layout={uiSettings.layout}
     >
+      {focusEnemy && (
+        <div className="target-focus-plate" role="status" aria-live="polite">
+          <div className="target-focus-name">{enemyTargetLabel(focusEnemy)}</div>
+          <div className="target-focus-bar">
+            <i style={{ width: `${focusHpPct}%` }} />
+          </div>
+          <div className="target-focus-num">
+            {focusEnemy.hp}/{focusEnemy.maxHp}
+          </div>
+        </div>
+      )}
       <div className="hud-chrome">
         <div className="hud-corner-left">
           <div className="hud-vitals-dock">
@@ -847,13 +877,19 @@ export function Hud() {
           </div>
         </div>
 
-        <div className="hud-menu-dock" role="menu" aria-label="Commands">
+        <div className="hud-menu-dock" role="menu" aria-label="Commands" onKeyDownCapture={(e) => {
+          if (e.key === "Tab") {
+            e.preventDefault();
+            e.stopPropagation();
+          }
+        }}>
           <div className="hud-commands-kicker">Black Anvil</div>
           <div className="hud-commands-header">Commands</div>
           {dualHasSpellbook(you.job, you.subjob) && (
             <button
               type="button"
               role="menuitem"
+              tabIndex={-1}
               className={`hud-cmd-btn${menuFocus === "spellbook" ? " selected" : ""}`}
               onMouseEnter={() => setMenuFocus("spellbook")}
               onFocus={() => setMenuFocus("spellbook")}
@@ -868,6 +904,7 @@ export function Hud() {
           <button
             type="button"
             role="menuitem"
+            tabIndex={-1}
             className={`hud-cmd-btn${menuFocus === "character" ? " selected" : ""}`}
             onMouseEnter={() => setMenuFocus("character")}
             onFocus={() => setMenuFocus("character")}
@@ -881,6 +918,7 @@ export function Hud() {
           <button
             type="button"
             role="menuitem"
+            tabIndex={-1}
             className={`hud-cmd-btn${menuFocus === "crafting" ? " selected" : ""}`}
             onMouseEnter={() => setMenuFocus("crafting")}
             onFocus={() => setMenuFocus("crafting")}
@@ -894,6 +932,7 @@ export function Hud() {
           <button
             type="button"
             role="menuitem"
+            tabIndex={-1}
             className={`hud-cmd-btn${menuFocus === "questlog" ? " selected" : ""}`}
             onMouseEnter={() => setMenuFocus("questlog")}
             onFocus={() => setMenuFocus("questlog")}
@@ -907,6 +946,7 @@ export function Hud() {
           <button
             type="button"
             role="menuitem"
+            tabIndex={-1}
             className={`hud-cmd-btn${menuFocus === "skills" ? " selected" : ""}`}
             title="Master skill tree — 1 point per level + 100 from post-max EXP"
             onMouseEnter={() => setMenuFocus("skills")}
@@ -921,6 +961,7 @@ export function Hud() {
           <button
             type="button"
             role="menuitem"
+            tabIndex={-1}
             className={`hud-cmd-btn${menuFocus === "party" ? " selected" : ""}`}
             onMouseEnter={() => setMenuFocus("party")}
             onFocus={() => setMenuFocus("party")}
@@ -934,6 +975,7 @@ export function Hud() {
           <button
             type="button"
             role="menuitem"
+            tabIndex={-1}
             className={`hud-cmd-btn${menuFocus === "ashpit" ? " selected" : ""}${
               you.pvp?.bountyOpen ? " ash-pit-marked" : ""
             }`}
@@ -950,6 +992,7 @@ export function Hud() {
           <button
             type="button"
             role="menuitem"
+            tabIndex={-1}
             className={`hud-cmd-btn${menuFocus === "explorer" ? " selected" : ""}`}
             onMouseEnter={() => setMenuFocus("explorer")}
             onFocus={() => setMenuFocus("explorer")}
@@ -963,6 +1006,7 @@ export function Hud() {
           <button
             type="button"
             role="menuitem"
+            tabIndex={-1}
             className={`hud-cmd-btn${menuFocus === "settings" ? " selected" : ""}`}
             onMouseEnter={() => setMenuFocus("settings")}
             onFocus={() => setMenuFocus("settings")}
@@ -977,6 +1021,7 @@ export function Hud() {
           <button
             type="button"
             role="menuitem"
+            tabIndex={-1}
             className={`hud-cmd-btn hud-cmd-status${menuFocus === "maxlv" ? " selected" : ""}`}
             title="Dev: set level 75 and learn all Time Mage spells"
             onMouseEnter={() => setMenuFocus("maxlv")}

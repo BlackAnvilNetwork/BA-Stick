@@ -2,13 +2,116 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
 
-//! Height-aware iso ground: painter's-order quads over the baked zone grid.
-use stick_engine::camera::{Camera, P2, HEIGHT_PX, ISO_Y};
-use stick_engine::math::v3;
+//! Height-aware ground: iso uses painter's-order quads; 3D modes clip at the
+//! near plane and sort quads by view depth so TP/FP stay solid without sky smears.
+use stick_engine::camera::{Camera, P2, View, HEIGHT_PX, ISO_Y, NEAR};
+use stick_engine::math::{v3, Vec3};
 use stick_engine::raster::Framebuffer;
 
 use crate::palette::*;
 use crate::zone::*;
+
+/// Skip a ground quad only when every corner is behind the near plane (3D).
+#[inline]
+pub(crate) fn quad_all_culled(a: P2, b: P2, c: P2, d: P2) -> bool {
+    a.culled() && b.culled() && c.culled() && d.culled()
+}
+
+/// True when the quad's screen bounds miss the framebuffer (iso + 3D).
+#[inline]
+pub(crate) fn quad_off_screen(fb: &Framebuffer, a: P2, b: P2, c: P2, d: P2) -> bool {
+    let min_y = a.y.min(b.y).min(c.y).min(d.y);
+    let max_y = a.y.max(b.y).max(c.y).max(d.y);
+    let min_x = a.x.min(b.x).min(c.x).min(d.x);
+    let max_x = a.x.max(b.x).max(c.x).max(d.x);
+    max_y < -2.0 || min_y > fb.h as f32 + 2.0 || max_x < -2.0 || min_x > fb.w as f32 + 2.0
+}
+
+/// Near-plane cull returns (0, 0); never rasterize a tri that includes such a vertex.
+#[inline]
+pub(crate) fn tri_ok(a: P2, b: P2, c: P2) -> bool {
+    !a.culled() && !b.culled() && !c.culled()
+}
+
+/// CamRig third- / first-person (not iso, not legacy `persp` blend on `view == None`).
+#[inline]
+pub(crate) fn perspective_ground(cam: &Camera) -> Option<View> {
+    cam.view.filter(|v| v.inv_d > 0.0)
+}
+
+#[inline]
+fn eye_dist(v: &View, p: Vec3) -> f32 {
+    if v.inv_d <= 0.0 {
+        return f32::INFINITY;
+    }
+    let q = p - v.target;
+    let z = q.dot(v.fwd());
+    1.0 / v.inv_d + z
+}
+
+const NEAR_GROUND: f32 = NEAR + 0.02;
+
+#[inline]
+fn lerp_v3(a: Vec3, b: Vec3, t: f32) -> Vec3 {
+    a + (b - a) * t
+}
+
+#[inline]
+fn lerp_uv(a: (f32, f32), b: (f32, f32), t: f32) -> (f32, f32) {
+    (a.0 + (b.0 - a.0) * t, a.1 + (b.1 - a.1) * t)
+}
+
+/// Clip a convex polygon to points at or beyond the perspective near plane.
+fn clip_poly_near_uv(v: &View, input: &[(Vec3, (f32, f32))]) -> Vec<(Vec3, (f32, f32))> {
+    if v.inv_d <= 0.0 || input.len() < 3 {
+        return input.to_vec();
+    }
+    let mut output = Vec::new();
+    let n = input.len();
+    let mut s = input[n - 1];
+    let mut ds = eye_dist(v, s.0);
+    for e in input {
+        let de = eye_dist(v, e.0);
+        let (s_in, e_in) = (ds >= NEAR_GROUND, de >= NEAR_GROUND);
+        if e_in {
+            if !s_in {
+                let t = (NEAR_GROUND - ds) / (de - ds);
+                output.push((lerp_v3(s.0, e.0, t), lerp_uv(s.1, e.1, t)));
+            }
+            output.push(*e);
+        } else if s_in {
+            let t = (NEAR_GROUND - ds) / (de - ds);
+            output.push((lerp_v3(s.0, e.0, t), lerp_uv(s.1, e.1, t)));
+        }
+        s = *e;
+        ds = de;
+    }
+    output
+}
+
+fn fan_tris_uv(poly: &[(Vec3, (f32, f32))]) -> Vec<[(Vec3, (f32, f32)); 3]> {
+    if poly.len() < 3 {
+        return Vec::new();
+    }
+    (1..poly.len() - 1)
+        .map(|i| [poly[0], poly[i], poly[i + 1]])
+        .collect()
+}
+
+pub(crate) fn project_tri_plain(fb: &mut Framebuffer, cam: &Camera, v: &View, tri: [Vec3; 3], col: u8) {
+    let (a, b, c) = (cam.project(tri[0]), cam.project(tri[1]), cam.project(tri[2]));
+    if tri_ok(a, b, c) {
+        fill_tri(fb, a, b, c, col);
+        return;
+    }
+    let poly = clip_poly_near_uv(v, &tri.map(|p| (p, (0.0, 0.0))));
+    for t in fan_tris_uv(&poly) {
+        let (a, b, c) = (cam.project(t[0].0), cam.project(t[1].0), cam.project(t[2].0));
+        if tri_ok(a, b, c) {
+            fill_tri(fb, a, b, c, col);
+        }
+    }
+}
 
 /// Fill a triangle into the colour buffer (no depth).
 pub fn fill_tri(fb: &mut Framebuffer, a: P2, b: P2, c: P2, col: u8) {
@@ -317,40 +420,86 @@ fn cell_color(z: &Zone, i: i32, j: i32, time: f32, shade: u8) -> u8 {
     BIOME0 + b * 3 + shade
 }
 
-/// Cells of `zone` that can appear on screen. Quads need a neighbour, so the
-/// span stops one cell short of the grid edge.
-pub(crate) fn view_cells(fb: &Framebuffer, cam: &Camera, zone: &Zone) -> Option<(i32, i32, i32, i32)> {
+/// World-space rectangle that may contain visible ground this frame.
+pub(crate) fn view_world_rect(fb: &Framebuffer, cam: &Camera) -> (f32, f32, f32, f32) {
     let margin_m = 4.0 + 12.0 * HEIGHT_PX / ISO_Y / 2.0;
     let corners = [(0.0, 0.0), (fb.w as f32, 0.0), (0.0, fb.h as f32), (fb.w as f32, fb.h as f32)];
     let (mut x0, mut x1, mut z0, mut z1) = (f32::MAX, f32::MIN, f32::MAX, f32::MIN);
+    let mut hits = 0;
     for (sx, sy) in corners {
-        let (x, z) = cam.unproject_ground(sx, sy);
+        let Some((x, z)) = (if cam.view.is_some() {
+            cam.pick_ground(sx, sy)
+        } else {
+            Some(cam.unproject_ground(sx, sy))
+        }) else {
+            continue;
+        };
+        hits += 1;
         x0 = x0.min(x);
         x1 = x1.max(x);
         z0 = z0.min(z);
         z1 = z1.max(z);
     }
-    // Perspective corners above the horizon collapse to the camera centre and
-    // the far ground can run out to FAR. Clamp to a disc about the size of
-    // the iso view so a 3D frame does not rasterize the whole zone.
+    let (focus_x, focus_z) = cam
+        .view
+        .as_ref()
+        .map(|v| (v.target.x, v.target.z))
+        .unwrap_or((cam.cx, cam.cz));
+    if hits == 0 {
+        let fb_r = if cam.view.is_some() { 28.0 } else { 12.0 };
+        x0 = focus_x - fb_r;
+        x1 = focus_x + fb_r;
+        z0 = focus_z - fb_r;
+        z1 = focus_z + fb_r;
+    }
     if cam.view.is_some() {
-        let r = 22.0;
-        x0 = x0.max(cam.cx - r);
-        x1 = x1.min(cam.cx + r);
-        z0 = z0.max(cam.cz - r);
-        z1 = z1.min(cam.cz + r);
+        let r = 28.0;
+        x0 = x0.max(focus_x - r);
+        x1 = x1.min(focus_x + r);
+        z0 = z0.max(focus_z - r);
+        z1 = z1.min(focus_z + r);
         if x1 - x0 < 2.0 {
-            x0 = cam.cx - r;
-            x1 = cam.cx + r;
+            x0 = focus_x - r;
+            x1 = focus_x + r;
         }
         if z1 - z0 < 2.0 {
-            z0 = cam.cz - r;
-            z1 = cam.cz + r;
+            z0 = focus_z - r;
+            z1 = focus_z + r;
+        }
+        let y = fb.h as f32 * 0.94;
+        let w = fb.w as f32;
+        for sx in [0.0, w * 0.25, w * 0.5, w * 0.75, w] {
+            if let Some((x, z)) = cam.pick_ground(sx, y) {
+                x0 = x0.min(x);
+                x1 = x1.max(x);
+                z0 = z0.min(z);
+                z1 = z1.max(z);
+            }
         }
     }
     let pad = if cam.view.is_some() { 2.0 } else { margin_m };
-    let (i0, j0) = zone.cell_of(x0 - pad, z0 - pad);
-    let (i1, j1) = zone.cell_of(x1 + pad, z1 + pad);
+    (x0 - pad, x1 + pad, z0 - pad, z1 + pad)
+}
+
+#[inline]
+pub(crate) fn zone_overlaps_world_rect(zone: &Zone, x0: f32, x1: f32, z0: f32, z1: f32) -> bool {
+    let (zx0, zz0) = (zone.min_x, zone.min_z);
+    let (zx1, zz1) = (
+        zone.min_x + zone.w as f32 * zone.cell,
+        zone.min_z + zone.h as f32 * zone.cell,
+    );
+    x0 <= zx1 && x1 >= zx0 && z0 <= zz1 && z1 >= zz0
+}
+
+/// Cells of `zone` that can appear on screen. Quads need a neighbour, so the
+/// span stops one cell short of the grid edge.
+pub(crate) fn view_cells(fb: &Framebuffer, cam: &Camera, zone: &Zone) -> Option<(i32, i32, i32, i32)> {
+    let (x0, x1, z0, z1) = view_world_rect(fb, cam);
+    if !zone_overlaps_world_rect(zone, x0, x1, z0, z1) {
+        return None;
+    }
+    let (i0, j0) = zone.cell_of(x0, z0);
+    let (i1, j1) = zone.cell_of(x1, z1);
     let i0 = i0.max(0);
     let j0 = j0.max(0);
     let i1 = i1.min(zone.w as i32 - 2);
@@ -559,10 +708,12 @@ pub(crate) fn draw_zone_in(fb: &mut Framebuffer, cam: &Camera, zone: &Zone, cam_
     let c = zone.cell;
     let o = cam.project(v3(zone.min_x, -cam_y, zone.min_z));
     let org = (o.x.round() as i32, o.y.round() as i32);
-    let pt = |i: i32, j: i32| {
+    let wpt = |i: i32, j: i32| {
         let h = zone.height[zone.idx(i, j)] - cam_y;
-        cam.project(v3(zone.min_x + i as f32 * c, h, zone.min_z + j as f32 * c))
+        v3(zone.min_x + i as f32 * c, h, zone.min_z + j as f32 * c)
     };
+    let pt = |i: i32, j: i32| cam.project(wpt(i, j));
+    let pg = perspective_ground(cam);
     // One slope_shade per visible block, cached for this frame (cells plus a
     // one-cell rim for neighbour lookups).
     let (ci0, cj0) = ((i0 - 1).max(0), (j0 - 1).max(0));
@@ -575,20 +726,25 @@ pub(crate) fn draw_zone_in(fb: &mut Framebuffer, cam: &Camera, zone: &Zone, cam_
         }
     }
     let sh = |i: i32, j: i32| shades[(j - cj0) as usize * cw + (i - ci0) as usize];
-    // Back to front: increasing i + j.
     for s in (i0 + j0)..=(i1 + j1) {
         let ilo = i0.max(s - j1);
         let ihi = i1.min(s - j0);
         for i in ilo..=ihi {
             let j = s - i;
+            let (w00, w10, w01, w11) = (wpt(i, j), wpt(i + 1, j), wpt(i, j + 1), wpt(i + 1, j + 1));
             let (p00, p10, p01, p11) = (pt(i, j), pt(i + 1, j), pt(i, j + 1), pt(i + 1, j + 1));
-            if p00.culled() || p10.culled() || p01.culled() || p11.culled() {
+            if quad_off_screen(fb, p00, p10, p01, p11) {
                 continue;
             }
-            if p11.y < -2.0 || p00.y > fb.h as f32 + 2.0 + 300.0 {
+            if pg.is_none() && quad_all_culled(p00, p10, p01, p11) {
                 continue;
             }
             let col = cell_color(zone, i, j, time, sh(i, j));
+            if let Some(v) = pg {
+                project_tri_plain(fb, cam, &v, [w00, w10, w11], col);
+                project_tri_plain(fb, cam, &v, [w00, w11, w01], col);
+                continue;
+            }
             // W2/W3: water next to land. Banks on the SE (downstream of the NW
             // sun) get a dithered foam line; banks on the NW side shade the water.
             if zone.flags[zone.idx(i, j)] & (F_WATER | F_BRIDGE) == F_WATER {
@@ -597,8 +753,12 @@ pub(crate) fn draw_zone_in(fb: &mut Framebuffer, cam: &Camera, zone: &Zone, cam_
                 if nb.iter().any(|x| x.is_some()) {
                     // Foam flickers by shifting the dither origin twice a second.
                     let o2 = (org.0 + ((time * 2.0) as i32 & 1) * 2, org.1);
-                    fill_tri_edge(fb, p00, p10, p11, (0.0, 0.0), (1.0, 0.0), (1.0, 1.0), col, nb, o2, SHORE_BAND);
-                    fill_tri_edge(fb, p00, p11, p01, (0.0, 0.0), (1.0, 1.0), (0.0, 1.0), col, nb, o2, SHORE_BAND);
+                    if tri_ok(p00, p10, p11) {
+                        fill_tri_edge(fb, p00, p10, p11, (0.0, 0.0), (1.0, 0.0), (1.0, 1.0), col, nb, o2, SHORE_BAND);
+                    }
+                    if tri_ok(p00, p11, p01) {
+                        fill_tri_edge(fb, p00, p11, p01, (0.0, 0.0), (1.0, 1.0), (0.0, 1.0), col, nb, o2, SHORE_BAND);
+                    }
                     continue;
                 }
             }
@@ -621,8 +781,12 @@ pub(crate) fn draw_zone_in(fb: &mut Framebuffer, cam: &Camera, zone: &Zone, cam_
                 };
                 let nb = [n(-1, 0), n(1, 0), n(0, -1), n(0, 1)];
                 if nb.iter().any(|x| x.is_some()) {
-                    fill_tri_edge(fb, p00, p10, p11, (0.0, 0.0), (1.0, 0.0), (1.0, 1.0), col, nb, org, (EDGE_BAND, EDGE_MAX));
-                    fill_tri_edge(fb, p00, p11, p01, (0.0, 0.0), (1.0, 1.0), (0.0, 1.0), col, nb, org, (EDGE_BAND, EDGE_MAX));
+                    if tri_ok(p00, p10, p11) {
+                        fill_tri_edge(fb, p00, p10, p11, (0.0, 0.0), (1.0, 0.0), (1.0, 1.0), col, nb, org, (EDGE_BAND, EDGE_MAX));
+                    }
+                    if tri_ok(p00, p11, p01) {
+                        fill_tri_edge(fb, p00, p11, p01, (0.0, 0.0), (1.0, 1.0), (0.0, 1.0), col, nb, org, (EDGE_BAND, EDGE_MAX));
+                    }
                     continue;
                 }
             }
@@ -642,12 +806,20 @@ pub(crate) fn draw_zone_in(fb: &mut Framebuffer, cam: &Camera, zone: &Zone, cam_
                 };
                 let nb = [n(-1, 0), n(1, 0), n(0, -1), n(0, 1)];
                 let origin = (zone.min_x, zone.min_z);
-                fill_tri_cobble(fb, p00, p10, p11, (0.0, 0.0), (1.0, 0.0), (1.0, 1.0), origin, c, (i, j), shade, nb, org);
-                fill_tri_cobble(fb, p00, p11, p01, (0.0, 0.0), (1.0, 1.0), (0.0, 1.0), origin, c, (i, j), shade, nb, org);
+                if tri_ok(p00, p10, p11) {
+                    fill_tri_cobble(fb, p00, p10, p11, (0.0, 0.0), (1.0, 0.0), (1.0, 1.0), origin, c, (i, j), shade, nb, org);
+                }
+                if tri_ok(p00, p11, p01) {
+                    fill_tri_cobble(fb, p00, p11, p01, (0.0, 0.0), (1.0, 1.0), (0.0, 1.0), origin, c, (i, j), shade, nb, org);
+                }
                 continue;
             }
-            fill_tri(fb, p00, p10, p11, col);
-            fill_tri(fb, p00, p11, p01, col);
+            if tri_ok(p00, p10, p11) {
+                fill_tri(fb, p00, p10, p11, col);
+            }
+            if tri_ok(p00, p11, p01) {
+                fill_tri(fb, p00, p11, p01, col);
+            }
             // B4: sparse ground grain on plain biome cells (not water or trails).
             if plain_biome(zone, i, j).is_some() && cell_hash(i, j) % FLECK_EVERY == 0 {
                 if let Some(d) = crate::dither::darker(col) {
