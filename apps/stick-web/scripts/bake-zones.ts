@@ -17,6 +17,7 @@ import { ringWardProps } from "./zone-props/ring-ward";
 import { hollowRoadProps } from "./zone-props/hollow-road";
 import { spurRoadProps } from "./zone-props/spur-road";
 import { bootForgeMenuProps } from "./zone-props/boot-forge-menu";
+import { withSeamCamps } from "./zone-props/seam-country-camps";
 import { dirname, resolve } from "node:path";
 import { ecoMosaic, naturalBiome, trailVerge } from "./natural-edges";
 import { fileURLToPath } from "node:url";
@@ -226,7 +227,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1
   const chainOnly = only === "chain";
   const t0 = Date.now();
   if (!chainOnly && (!only || only === "pale_hollow")) writeZone("pale_hollow", bakePaleHollow(), paleHollowProps());
-  if (!chainOnly && (!only || only === "forest_basin")) writeZone("forest_basin", bakeForestBasin(), forestBasinProps());
+  if (!chainOnly && (!only || only === "forest_basin")) writeZone("forest_basin", bakeForestBasin(), withSeamCamps("forest_basin", forestBasinProps()));
   if (!chainOnly && (!only || only === "boot_forge")) writeZone("boot_forge", bakeBootForgeMenu(), bootForgeMenuProps());
   for (const [id, props] of Object.entries(FIELD_PROPS)) {
     const spec = ZONE_FIELDS[id];
@@ -241,7 +242,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1
       walkable: spec.walkable,
       trails: spec.trails(),
       trailWidth: spec.trailWidth,
-    }), props());
+    }), withSeamCamps(id, props()));
   }
   console.log(`done in ${Date.now() - t0} ms`);
 }

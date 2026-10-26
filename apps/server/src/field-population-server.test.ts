@@ -4,7 +4,7 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { PH_HUB_SPAWN, ZONE_FIELDS, fieldMobDefs, fieldNpcDefs, paleHollowWalkable } from "@bellgrave/config";
+import { PH_HUB_SPAWN, ZONE_FIELDS, fieldMobDefs, fieldNpcDefs, isLandmarkId, paleHollowWalkable } from "@bellgrave/config";
 import { steerMobStep } from "./mob-steer";
 import { lookupMobDef } from "./shiny-hq-runtime";
 import { chooseEntryPoint } from "./zone-entry";
@@ -40,7 +40,8 @@ test("every field mob spawns on its field's mob ground, outside NPC clearings, a
       assert.equal((lookupMobDef(m.id) as { zoneId?: string }).zoneId, zone);
     }
     for (const n of fieldNpcDefs(zone)) {
-      assert.ok(g.walkable(n.x, n.z), `${n.id} not walkable`);
+      // Readable landmarks may stand on wharves or in shallows; people must stand on ground.
+      if (!isLandmarkId(n.id)) assert.ok(g.walkable(n.x, n.z), `${n.id} not walkable`);
       assert.ok(g.inClearing(n.x, n.z), `${n.id} has no clearing`);
     }
   }

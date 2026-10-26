@@ -277,3 +277,10 @@ test("gather nodes: method from authored defs, click sends gather, depleted is i
   assert.deepEqual(iconCell(atlas, "copper-ore"), { x: 128, y: 16 });
   assert.deepEqual(iconCell(atlas, "nope"), { x: 48, y: 0 });
 });
+
+test("Seam Country landmarks render as a standing stone and click to read", () => {
+  const lm = unit({ id: "lm-hr-seventh-post", kind: "npc", npcRole: "guide", archetype: "landmark" } as Partial<UnitSnapshot>);
+  assert.equal(presetFor(lm), "landmark");
+  assert.deepEqual(routeUnitClick(lm, "0xme"), { send: { type: "npc/interact", npcId: "lm-hr-seventh-post" } });
+  assert.equal(presetFor(unit({ kind: "npc", npcRole: "quest_giver" } as Partial<UnitSnapshot>)), "npc:quest_giver");
+});

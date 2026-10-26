@@ -21,7 +21,11 @@ function zone(id: PoiZone): Z {
     };
   }
   const f = (C.ZONE_FIELDS as any)[id];
-  return { bounds: f.bounds, walkable: f.walkable, spawn: f.spawn, gates: f.gates, anchors: [{ id: "spawn", ...f.spawn }, ...arrivals] };
+  // Seam Country population (seam-country-field.ts). Landmarks are the POIs themselves, so they are not anchors.
+  const sc = C.isSeamCountryZone(id)
+    ? [...C.seamCountryMobs(id), ...C.seamCountryNpcs(id), ...C.seamCountryCamps(id)].map((a) => ({ id: a.id, x: a.x, z: a.z }))
+    : [];
+  return { bounds: f.bounds, walkable: f.walkable, spawn: f.spawn, gates: f.gates, anchors: [{ id: "spawn", ...f.spawn }, ...arrivals, ...sc] };
 }
 
 const reachCache = new Map<string, (x: number, z: number) => boolean>();
