@@ -23,8 +23,9 @@ test("weapon subgroups filter by weaponFamily on main hand", () => {
 
 test("knuckles subgroup includes bonecraft knuckle synth mats", () => {
   const knId = weaponCategoryId("knuckles");
-  assert.equal(categoryCount(knId, ""), 4);
-  assert.equal(categoryCount(knId, "ash"), 1);
+  // #93 removed the other three unwired knuckle fillers; Bone Knuckles is the one left.
+  assert.equal(categoryCount(knId, ""), 1);
+  assert.equal(categoryCount(knId, "ash"), 0);
   const boneKnuckles = getItem(316)!;
   assert.equal(boneKnuckles.kind, "filler");
   assert.equal(matchesCategory(boneKnuckles, knId), true);

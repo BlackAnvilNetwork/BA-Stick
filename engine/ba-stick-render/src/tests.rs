@@ -198,9 +198,16 @@ fn zone_draws_biome_colours_and_units_stand_on_it() {
     assert!((s.cam_y - 3.0).abs() < 0.05, "cam_y={}", s.cam_y);
     s.draw();
     let grass = palette::BIOME0 + 13 * 3 + 1;
-    let trail = palette::TRAIL_DIRT + 1;
     assert!(s.fb.color.iter().filter(|&&c| c == grass).count() > 1000);
-    assert!(s.fb.color.iter().any(|&c| c == trail));
+    // Trails render as cobbles now (no flat TRAIL_DIRT fill); they must still show up.
+    let mut plain = Scene::new(320, 180);
+    plain.load_zone(&tiny_zone(40, 40, |_, _| (13, 0, 300))).unwrap();
+    plain.upsert_unit("me", UnitInput { x: 5.0, y: 3.0, z: 5.0, facing: 0.0, anim: AnimState::Idle, preset: "knight".into() });
+    plain.follow(Some("me"));
+    for _ in 0..120 { plain.tick(1.0 / 60.0); }
+    plain.draw();
+    let diff = s.fb.color.iter().zip(&plain.fb.color).filter(|(a, b)| a != b).count();
+    assert!(diff > 100, "trail changed only {diff} px");
     // Picking the unit's feet on relief returns the unit position.
     let feet = s.cam.project(stick_engine::math::v3(5.0, 0.0, 5.0));
     let (x, z) = s.pick_world(feet.x, feet.y);
@@ -535,10 +542,6 @@ fn camera_3d_roundtrip_and_blend() {
     // Far things shrink, near things grow in 3D.
     assert!(cam.scale_at(v3(-8.0, 0.0, -8.0)) < 1.0);
     assert!(cam.scale_at(v3(3.0, 0.0, 3.0)) > 1.0);
-    let mut s = crate::scene::Scene::new(640, 360);
-    s.view3d = true;
-    for _ in 0..60 { s.tick(1.0 / 60.0); }
-    assert_eq!(s.cam.persp, 1.0);
 }
 
 #[test]
@@ -757,7 +760,6 @@ fn pick_unit_box_scales_with_depth_in_3d() {
 fn follow_lift_is_the_same_on_screen_in_iso_and_3d() {
     for persp in [0.0, 0.5, 1.0] {
         let mut s = Scene::new(640, 360);
-        s.view3d = persp > 0.0;
         s.cam.persp = persp;
         s.upsert_unit("me", unit(10.0, -4.0, "idle", "knight"));
         s.follow(Some("me"));

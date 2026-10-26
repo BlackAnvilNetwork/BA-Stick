@@ -570,7 +570,7 @@ const edgeCanvas = document.createElement("canvas");
 let layerCtx: CanvasRenderingContext2D | null = null;
 let edgeCtx: CanvasRenderingContext2D | null = null;
 
-const readback2d = { willReadFrequently: true } as const;
+const readback2d: CanvasRenderingContext2DSettings = { willReadFrequently: true };
 
 function layerContext(w: number, h: number): CanvasRenderingContext2D {
   if (layerCanvas.width !== w || layerCanvas.height !== h) {
