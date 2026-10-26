@@ -108,6 +108,24 @@ const STAIR_HALF = 3.4;
 const STAIR_S0 = near(STAIR, 0, -116).s; // leaves the apron
 const STAIR_S1 = near(STAIR, 6, -42).s; // tops out on the shelf
 
+/**
+ * Scarp Cave: a rare alternative to the King's Stair. It opens on the west side of the apron, winds west under
+ * the scarp in uneven switchback galleries and comes out on the shelf west of Scarp Head. Single-floor
+ * heightfield, so it is modelled as a cave mouth plus an interior ramp (a narrow graded gallery cut into the
+ * otherwise blocked scarp). Grow-only: it only opens scarp cells that were blocked before.
+ */
+const CAVE = line([
+  { x: -16, z: -125 }, { x: -30, z: -119 }, { x: -47, z: -113 }, { x: -63, z: -107 }, { x: -73, z: -99 }, { x: -67, z: -91 },
+  { x: -52, z: -87 }, { x: -48, z: -80 }, { x: -57, z: -74 }, { x: -75, z: -70 }, { x: -81, z: -62 }, { x: -71, z: -55 },
+  { x: -61, z: -49 }, { x: -58, z: -40 },
+]);
+const CAVE_HALF = 1.5;
+const CAVE_S0 = near(CAVE, -16, -125).s;
+const CAVE_S1 = CAVE.len;
+function inCave(x: number, z: number): boolean {
+  const n = near(CAVE, x, z); return n.d <= CAVE_HALF * (1 + 0.25 * vnoise(n.s / 4, 21));
+}
+
 /** Brook (north rim → Mirror Tarn). */
 const BROOK = line([{ x: -62, z: 112 }, { x: -55, z: 92 }, { x: -41, z: 74 }, { x: -46, z: 54 }, { x: -40, z: 38 }, { x: -29, z: 27 }, { x: -22, z: 20 }]);
 const BROOK_HALF = 2.1;
@@ -250,7 +268,7 @@ export function coilRidgeInShallows(x: number, z: number): boolean {
 export function coilRidgeWalkable(x: number, z: number): boolean {
   if (!inBounds(x, z)) return false;
   if (coilRidgeOnBridge(x, z)) return true;
-  const onLand = inApron(x, z) || inStair(x, z) || inShelf(x, z);
+  const onLand = inApron(x, z) || inStair(x, z) || inShelf(x, z) || inCave(x, z);
   if (!onLand) return false;
   const w = waterAt(x, z);
   if (w) return w.surf - w.bed <= WADE_DEPTH + 0.05;
@@ -269,6 +287,16 @@ export function coilRidgeStandHeight(x: number, z: number): number {
     const y0 = ground(p0.x, p0.z), y1 = ground(p1.x, p1.z);
     const t = (s - STAIR_S0) / (STAIR_S1 - STAIR_S0);
     const y = y0 + (y1 - y0) * t + 0.12 * vnoise(n.s / 3, 7); // graded, slightly uneven
+    return Math.max(-0.5, Math.min(11.5, y));
+  }
+  if (inCave(x, z) && !inApron(x, z) && !inShelf(x, z)) {
+    const n = near(CAVE, x, z);
+    const p0 = at(CAVE, CAVE_S0), p1 = at(CAVE, CAVE_S1 - 0.01);
+    const y0 = ground(p0.x, p0.z), y1 = ground(p1.x, p1.z);
+    const t = Math.max(0, Math.min(1, (n.s - CAVE_S0) / (CAVE_S1 - CAVE_S0)));
+    // blend the mouth and the exit back into the apron / shelf ground they open onto
+    const lip = Math.min(smooth((n.s - CAVE_S0) / 10), smooth((CAVE_S1 - n.s) / 10));
+    const y = (y0 + (y1 - y0) * t + 0.1 * vnoise(n.s / 2.5, 23)) * lip + g * (1 - lip);
     return Math.max(-0.5, Math.min(11.5, y));
   }
   return Math.max(-0.5, Math.min(11.5, g));
@@ -297,6 +325,7 @@ export function coilRidgeBiome(x: number, z: number): CoilRidgeBiome {
     if (tuft < 0.18 * (1 - (d - rim) / (r.r * 0.34))) return "quarry"; // scattered stones beyond the rim
   }
   if (tarnRho(x, z) < 1.25 || near(BROOK, x, z).d < BROOK_HALF + 3) return "riverbank";
+  if (inCave(x, z) && !inApron(x, z) && !inShelf(x, z)) return "quarry"; // cave gallery floor
   if (inStair(x, z) || inApron(x, z)) return "scrub";
   return coilRidgeStandHeight(x, z) > 10.4 ? "grass" : "meadow";
 }
@@ -307,6 +336,8 @@ export function coilRidgeTrails(): CoilRidgeTrail[] {
   return [
     { id: "kings-stair", surface: "stone", points: stair },
     { id: "stele-way", surface: "dirt", points: chaikin([{ x: 0, z: -32 }, { x: -12, z: -16 }, { x: -34, z: -6 }, { x: -46, z: 16 }, { x: -50, z: 40 }, { x: -58, z: 58 }, { x: -70, z: 66 }], 2) },
+    { id: "scarp-cave", surface: "stone", points: CAVE.p.filter((_, i) => i % 3 === 0 || i === CAVE.p.length - 1).map((p) => ({ x: p.x, z: p.z })) },
+    { id: "cave-way", surface: "dirt", points: chaikin([{ x: -58, z: -40 }, { x: -50, z: -26 }, { x: -40, z: -14 }, { x: -34, z: -6 }], 2) },
     { id: "gatehouse-way", surface: "dirt", points: chaikin([{ x: 0, z: -32 }, { x: 8, z: -26 }, BR_LEFT, BR_RIGHT, { x: 40, z: 6 }, { x: 54, z: 22 }], 2) },
   ];
 }
@@ -314,6 +345,8 @@ export const CR_ROAD_NAMES: Readonly<Record<string, string>> = {
   "kings-stair": "King's Stair",
   "stele-way": "Stele Way",
   "gatehouse-way": "Gatehouse Way",
+  "scarp-cave": "Scarp Cave",
+  "cave-way": "Cave Way",
 };
 
 export type CoilRidgeLabelKind = "area" | "camp" | "landmark" | "water";
@@ -324,6 +357,7 @@ export const CR_MAP_LABELS: readonly { text: string; x: number; z: number; kind:
   { text: "Sundered Gorge", x: 58, z: -76, kind: "water" },
   { text: "Kingsbridge", x: CR_BRIDGE.x, z: CR_BRIDGE.z, kind: "landmark" },
   { text: "Stele Field", x: -72, z: 70, kind: "landmark" },
+  { text: "Scarp Cave", x: -62, z: -100, kind: "landmark" },
   { text: "Toppled Gatehouse", x: 60, z: 28, kind: "landmark" },
 ];
 
