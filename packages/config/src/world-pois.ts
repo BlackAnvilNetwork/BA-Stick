@@ -161,7 +161,7 @@ export const WORLD_POIS: WorldPoi[] = [
     story: "A grassed-over ring at the trail fan; shepherds will not graze it, and the grass grows in seven bands.",
     props: ["untouched grass circle", "shepherd's warding cords"] },
   { id: "gr-white-caps-lookout", zone: "green_reach", name: "White Caps Summit", x: 40, z: 45, kind: "lookout",
-    story: "From the summit the seven ring sites of the north line up on one bearing, pointing at the Coil Ridge.",
+    story: "From the summit the seven ring sites of the north line up on one bearing, pointing at the Broken Stair.",
     props: ["sighting stones aligned north", "a cut bearing line"],
     fragmentId: F[9], requires: after(9) },
   { id: "gr-east-cap-ledge", zone: "green_reach", name: "East Cap Ledge", x: 70, z: 30, kind: "lookout",
