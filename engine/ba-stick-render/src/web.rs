@@ -292,6 +292,21 @@ impl StickRenderer {
         vec![x, z]
     }
 
+    /// `[x, z]` on the ground under a pixel, or `[]` when it misses (sky /
+    /// beyond the far plane in 3D). Iso always hits.
+    #[wasm_bindgen(js_name = pickGround)]
+    pub fn pick_ground(&self, sx: f32, sy: f32) -> Vec<f32> {
+        self.scene.pick_ground_hit(sx, sy).map_or_else(Vec::new, |(x, z)| vec![x, z])
+    }
+
+    /// Client-side WASD heading (radians) for third/first person; `undefined` clears it.
+    #[wasm_bindgen(js_name = setHeading)]
+    pub fn set_heading(&mut self, heading: Option<f32>) { self.scene.set_heading(heading); }
+
+    /// Camera yaw in effect (radians).
+    #[wasm_bindgen(js_name = camYaw)]
+    pub fn cam_yaw(&self) -> f32 { self.scene.cam_yaw() }
+
     #[wasm_bindgen(js_name = pickUnit)]
     pub fn pick_unit(&self, sx: f32, sy: f32, skip: Option<String>) -> Option<String> {
         self.scene.pick_unit_except(sx, sy, skip.as_deref()).map(str::to_owned)

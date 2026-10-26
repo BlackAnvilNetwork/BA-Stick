@@ -915,3 +915,88 @@ fn fp_looking_down_fills_the_ground_under_the_eye() {
     let sky = s.fb.color[h / 2 * w..].iter().filter(|&&c| c == crate::atmosphere::SKY).count();
     assert_eq!(sky, 0, "{sky} sky px in the lower half looking down");
 }
+
+fn settled_3d(mode: &str, h: f32) -> Scene {
+    let mut s = Scene::new(640, 360);
+    s.set_zone_for_test(raised_zone(h));
+    s.upsert_unit("me", UnitInput { y: h, ..unit(0.0, 0.0, "idle", "knight") });
+    s.follow(Some("me"));
+    s.set_cam_mode(mode);
+    for _ in 0..240 {
+        s.tick(1.0 / 60.0);
+    }
+    s
+}
+
+#[test]
+fn ground_pick_round_trips_in_3d_including_far_rows() {
+    for mode in ["tp", "fp"] {
+        let s = settled_3d(mode, 2.0);
+        let yaw = s.cam_yaw();
+        let (f, r) = ((yaw.sin(), yaw.cos()), (yaw.cos(), -yaw.sin()));
+        let mut checked = 0;
+        for (ahead, side) in [(3.0, 0.0), (8.0, 2.0), (20.0, -4.0), (40.0, 6.0)] {
+            let (x, z) = (f.0 * ahead + r.0 * side, f.1 * ahead + r.1 * side);
+            let (sx, sy) = s.world_to_screen(x, 2.0, z);
+            if !(0.0..640.0).contains(&sx) || !(0.0..360.0).contains(&sy) {
+                continue;
+            }
+            let (px, pz) = s.pick_ground_hit(sx, sy).unwrap_or_else(|| panic!("{mode}: ({x},{z}) missed"));
+            assert!((px - x).abs() < 0.1 && (pz - z).abs() < 0.1, "{mode}: ({x},{z}) -> ({px},{pz})");
+            assert_eq!(s.pick_world(sx, sy), (px, pz));
+            checked += 1;
+        }
+        assert!(checked >= 3, "{mode}: only {checked} points on screen");
+    }
+}
+
+#[test]
+fn ground_pick_reports_sky_as_a_miss_in_first_person() {
+    let s = settled_3d("fp", 0.0);
+    assert_eq!(s.pick_ground_hit(320.0, 0.0), None, "top row looks at the sky");
+    let iso = { let mut t = Scene::new(640, 360); t.tick(0.0); t };
+    assert!(iso.pick_ground_hit(320.0, 0.0).is_some(), "iso always hits");
+}
+
+#[test]
+fn heading_steers_the_3d_camera_and_figure_but_not_iso() {
+    let mut s = settled_3d("tp", 0.0);
+    s.set_heading(Some(1.2));
+    for _ in 0..240 {
+        s.tick(1.0 / 60.0);
+    }
+    assert!(stick_engine::math::angle_diff(s.cam_yaw(), 1.2).abs() < 0.02, "cam yaw {}", s.cam_yaw());
+    s.set_cam_mode("iso");
+    for _ in 0..240 {
+        s.tick(1.0 / 60.0);
+    }
+    let mut plain = Scene::new(640, 360);
+    plain.set_zone_for_test(raised_zone(0.0));
+    plain.upsert_unit("me", unit(0.0, 0.0, "idle", "knight"));
+    plain.follow(Some("me"));
+    for _ in 0..240 {
+        plain.tick(1.0 / 60.0);
+    }
+    assert_eq!(s.pick_world(100.0, 80.0), plain.pick_world(100.0, 80.0), "iso ignores the heading");
+}
+
+#[test]
+fn look_bias_resets_when_entering_3d_from_iso() {
+    let mut s = settled_3d("tp", 0.0);
+    s.add_look(200.0, 0.0);
+    s.set_cam_mode("iso");
+    s.set_cam_mode("tp");
+    for _ in 0..240 {
+        s.tick(1.0 / 60.0);
+    }
+    assert!(stick_engine::math::angle_diff(s.cam_yaw(), 0.0).abs() < 0.02, "stale bias: {}", s.cam_yaw());
+}
+
+#[test]
+fn settled_first_person_hides_the_body_while_walking() {
+    let mut s = settled_3d("fp", 0.0);
+    assert!(s.first_person());
+    s.upsert_unit("me", unit(0.0, 3.0, "walk", "knight"));
+    s.tick(1.0 / 60.0);
+    assert!(s.first_person(), "eye trailing the head must not reveal the body");
+}

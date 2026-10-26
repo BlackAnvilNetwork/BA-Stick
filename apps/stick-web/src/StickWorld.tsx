@@ -13,7 +13,7 @@ import { staticAt } from "./statics";
 import { CombatFloaters } from "./floaters";
 import { GatherIcons, loadIconAtlas, type IconAtlas } from "./gather";
 import { craftActFor, gatherActFor, presentCraft, presentGather, syncUnits, type CraftAct, type GatherAct } from "./units";
-import { getMoveKeys, moveKeyFromCode, wasdTarget } from "./input";
+import { getMoveKeys, headingEase, headingStep, headingTarget, headingToward, moveKeyFromCode, shouldResend, wasdTarget } from "./input";
 import { atmosphereFor, isCoarsePointer, keylightFor } from "./mobile";
 import { CastClock, sameId, unitFx } from "./fx";
 import { routeUnitClick } from "./clicks";
@@ -125,6 +125,12 @@ export function StickWorld() {
       const resonance = new ResonanceClock();
       const statusCols = new StatusColumns(labelsRef.current!);
       let wasdAccum = 0;
+      // Third/first person: client-side WASD heading (A/D turn, W/S walk it).
+      // Iso keeps screen-relative WASD and never sets it.
+      let heading: number | null = null;
+      let headingGoal: number | null = null;
+      let lastWasd: { keys: string; heading: number; at: number; x: number; z: number } | null = null;
+      const view3d = () => camModeFromDataset(root.dataset.uiView) !== "iso";
       let last = performance.now();
 
       const myUnit = () => {
@@ -134,6 +140,21 @@ export function StickWorld() {
       const pick = (sx: number, sy: number): [number, number] => {
         const p = r.pickWorld(sx, sy);
         return [p[0] - origin.x, p[1] - origin.z];
+      };
+      /** Ground under a pixel, or null when a 3D pick hits the sky. */
+      const pickHit = (sx: number, sy: number): [number, number] | null => {
+        const p = r.pickGround(sx, sy);
+        return p.length < 2 ? null : [p[0] - origin.x, p[1] - origin.z];
+      };
+      /** Click-to-move. In 3D the heading turns toward the click. */
+      const moveTo = (sx: number, sy: number) => {
+        const hit = pickHit(sx, sy);
+        if (!hit) return;
+        const c = clampHere(hit[0], hit[1]);
+        const me = myUnit();
+        if (heading !== null && me) headingGoal = headingToward(me, c.x, c.z);
+        lastWasd = null;
+        send({ type: "move", x: c.x, z: c.z });
       };
       const clampHere = (x: number, z: number) => {
         const field = fieldById(activeZone);
@@ -189,9 +210,7 @@ export function StickWorld() {
             return;
           }
         }
-        const [x, z] = pick(sx, sy);
-        const c = clampHere(x, z);
-        send({ type: "move", x: c.x, z: c.z });
+        moveTo(sx, sy);
       };
       const onMove = (e: PointerEvent) => {
         if (drag && (e.buttons & 2)) {
@@ -221,9 +240,7 @@ export function StickWorld() {
         const pending = drag;
         drag = null;
         if (pending.turned) return;
-        const [x, z] = pick(pending.sx, pending.sy);
-        const c = clampHere(x, z);
-        send({ type: "move", x: c.x, z: c.z });
+        moveTo(pending.sx, pending.sy);
       };
       const onContext = (e: MouseEvent) => e.preventDefault();
       const typing = (e: KeyboardEvent) => {
@@ -399,11 +416,45 @@ export function StickWorld() {
         }
         const axes = lookAxes(look, document.documentElement.dataset.uiCam, document.documentElement.dataset.uiView);
         r.setLook(axes.yaw, axes.pitch);
+        const keys = getMoveKeys();
+        if (!view3d()) {
+          if (heading !== null) {
+            heading = null;
+            headingGoal = null;
+            lastWasd = null;
+            r.setHeading(undefined);
+          }
+        } else if (me) {
+          heading = heading ?? me.facing;
+          if (keys.a || keys.d || keys.w || keys.s) headingGoal = null;
+          if (headingGoal !== null) {
+            const e = headingEase(heading, headingGoal, dt);
+            heading = e.heading;
+            if (e.done) headingGoal = null;
+          }
+          heading = headingStep(keys, heading, dt);
+          r.setHeading(heading);
+        }
         wasdAccum += dt;
         if (me && wasdAccum >= WASD_INTERVAL) {
           wasdAccum = 0;
-          const t = wasdTarget(getMoveKeys(), me, pick, [FB_W / 2, FB_H / 2], (ax, az, bx, bz) => fieldClampMove(activeZone, ax, az, bx, bz) ?? paleHollowClampMove(ax, az, bx, bz));
-          if (t) send({ type: "move", x: t.x, z: t.z });
+          const moveClamp = (ax: number, az: number, bx: number, bz: number) => fieldClampMove(activeZone, ax, az, bx, bz) ?? paleHollowClampMove(ax, az, bx, bz);
+          if (heading === null) {
+            const t = wasdTarget(keys, me, pick, [FB_W / 2, FB_H / 2], moveClamp);
+            if (t) send({ type: "move", x: t.x, z: t.z });
+          } else {
+            const keyStr = `${keys.w ? "w" : ""}${keys.s ? "s" : ""}`;
+            const t = headingTarget(keys, me, heading, moveClamp);
+            const at = performance.now();
+            if (t && shouldResend(lastWasd, { keys: keyStr, heading, at }, me)) {
+              send({ type: "move", x: t.x, z: t.z });
+              lastWasd = { keys: keyStr, heading, at, x: t.x, z: t.z };
+            } else if (!t && lastWasd) {
+              // W/S released: stop where we are instead of finishing the step.
+              send({ type: "move", x: me.x, z: me.z });
+              lastWasd = null;
+            }
+          }
         }
         if (activeZone === "pale_hollow" && snap?.weather) {
           r.setWeather(PH_WEATHER_KIND_ID[snap.weather.kind], snap.weather.snowCover);
