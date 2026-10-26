@@ -1015,14 +1015,25 @@ impl Scene {
             let grass_breeze = self.grass_breeze();
             if self.world.is_empty() {
                 if let Some(z) = &self.zone {
-                    ground::draw_meadow_grass(
-                        &mut self.fb,
-                        &self.cam,
-                        z,
-                        self.cam_y,
-                        self.time,
-                        grass_breeze,
-                    );
+                    if self.cam.view.is_some() {
+                        ground::draw_meadow_grass_view(
+                            &mut self.fb,
+                            &self.cam,
+                            z,
+                            self.cam_y,
+                            self.time,
+                            grass_breeze,
+                        );
+                    } else {
+                        ground::draw_meadow_grass(
+                            &mut self.fb,
+                            &self.cam,
+                            z,
+                            self.cam_y,
+                            self.time,
+                            grass_breeze,
+                        );
+                    }
                     if snow > 0.0 {
                         crate::weather::draw_snow_ground(&mut self.fb, &self.cam, z, self.cam_y, snow, melting);
                     }
@@ -1033,14 +1044,25 @@ impl Scene {
                     if !ground::zone_overlaps_world_rect(z, foot.0, foot.1, foot.2, foot.3) {
                         continue;
                     }
-                    ground::draw_meadow_grass(
-                        &mut self.fb,
-                        &self.cam,
-                        z,
-                        self.cam_y,
-                        self.time,
-                        grass_breeze,
-                    );
+                    if self.cam.view.is_some() {
+                        ground::draw_meadow_grass_view(
+                            &mut self.fb,
+                            &self.cam,
+                            z,
+                            self.cam_y,
+                            self.time,
+                            grass_breeze,
+                        );
+                    } else {
+                        ground::draw_meadow_grass(
+                            &mut self.fb,
+                            &self.cam,
+                            z,
+                            self.cam_y,
+                            self.time,
+                            grass_breeze,
+                        );
+                    }
                     if snow > 0.0 {
                         crate::weather::draw_snow_ground(&mut self.fb, &self.cam, z, self.cam_y, snow, melting);
                     }
