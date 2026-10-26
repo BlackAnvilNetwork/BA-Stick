@@ -142,3 +142,10 @@ Warp circles: pale_hollow (84,216); coil_ridge (-3,-40).
   - Water, bridges, hub floors, riverbank and parchment-outside cells are never changed.
 - Props in coil_ridge, green_reach and islet_fords follow the warped biome (`naturalSample`). Tests are updated to match.
 - Pale Hollow Ash Pit west shelf (`phWestShelf`, config): the bed within ~5 m of the west shore (|angle| > 2.2 rad) is lifted to 0.12–0.48 m below the surface. This adds ~1,100 wadeable shallows cells. It only raises the bed and leaves the lake surface unchanged.
+
+## Natural areas (pass 3)
+
+- forest_basin: the glade discs in `forestBasinMaskDistRaw` get grow-only lobes (`gladeLobe`, radius ×1.0–1.39) and an edge wobble with amp 7. The lake cap uses the pre-lobe mask (`fbLakeRoom`), so the Ash-tarn shore and its shallows are unchanged. Walkable cells went from 133,318 to 177,795; no trail samples were lost.
+- hollow_road / spur_road: valley half-width gets grow-only, side-specific bays (×1.0–1.8 hollow, ×1.0–1.46 spur, which keeps the spur walkable fraction at 0.571 < 0.6). The camp pads get lobes too.
+- islet_fords: grow-only lobed islet shores (×1.0–1.38).
+- generate-field.ts: worn dirt along the config trails (the same `ecoMosaic` verge rule as the legacy bake).
