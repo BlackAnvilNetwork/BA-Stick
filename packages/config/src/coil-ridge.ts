@@ -285,7 +285,17 @@ export function coilRidgeBiome(x: number, z: number): CoilRidgeBiome {
   if (coilRidgeOnBridge(x, z)) return "riverbank";
   const w = waterAt(x, z); if (w) return "river";
   if (!coilRidgeWalkable(x, z)) return "mountain";
-  for (const r of CR_RUINS) if (Math.hypot(x - r.x, z - r.z) < r.r) return "quarry";
+  for (let i = 0; i < CR_RUINS.length; i++) {
+    const r = CR_RUINS[i]!, dx = x - r.x, dz = z - r.z, d = Math.hypot(dx, dz);
+    if (d >= r.r * 1.2) continue;
+    // broken, overgrown plaza edge (visual only): a ragged rim of tumbled paving and grass pushing through
+    const a = Math.atan2(dz, dx), p = i * 2.399;
+    const rim = r.r * (0.86 + 0.08 * Math.sin(3 * a + p) + 0.06 * Math.sin(7 * a - 2 * p) + 0.04 * Math.sin(13 * a + p));
+    const h = Math.sin(x * 12.9898 + z * 78.233 + i) * 43758.5453, tuft = h - Math.floor(h);
+    if (d < rim * 0.7) return tuft < 0.06 ? "meadow" : "quarry";
+    if (d < rim) return tuft < 0.25 + 0.5 * ((d / rim - 0.7) / 0.3) ? "meadow" : "quarry";
+    if (tuft < 0.18 * (1 - (d - rim) / (r.r * 0.34))) return "quarry"; // scattered stones beyond the rim
+  }
   if (tarnRho(x, z) < 1.25 || near(BROOK, x, z).d < BROOK_HALF + 3) return "riverbank";
   if (inStair(x, z) || inApron(x, z)) return "scrub";
   return coilRidgeStandHeight(x, z) > 10.4 ? "grass" : "meadow";
