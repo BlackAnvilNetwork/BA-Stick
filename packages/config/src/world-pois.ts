@@ -184,7 +184,7 @@ export const WORLD_POIS: WorldPoi[] = [
     fragmentId: F[10], requires: after(10) },
 
   // ── Coil Ridge ─────────────────────────────────────────────────────────
-  { id: "cr-scarp-cave-shrine", zone: "coil_ridge", name: "Scarp Cave Shrine", x: -37, z: -95, kind: "shrine",
+  { id: "cr-scarp-cave-shrine", zone: "coil_ridge", name: "Scarp Cave Shrine", x: -67, z: -72, kind: "shrine",
     story: "Inside the cave climb, the Scriveners' Oath struck in stone: seven hands sworn to record, never rule. Six signatures are re-cut as crowns; the seventh is a hammer laid crosswise.",
     props: ["oath wall", "scribe's inkstones"],
     fragmentId: F[11], requires: after(11) },
