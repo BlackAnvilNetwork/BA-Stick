@@ -145,3 +145,24 @@ export function moveKeyFromCode(code: string): "w" | "a" | "s" | "d" | null {
 }
 
 export { getMoveKeys };
+
+/** Metres a stop lands ahead of the (one-snapshot-old) server position. */
+export const STOP_LEAD = 0.3;
+
+/**
+ * Where to send the unit when move keys are released: the server position plus a
+ * short lead toward the last WASD target, so the stop neither finishes the 4.5 m
+ * step nor tugs the unit back to where the last snapshot saw it.
+ */
+export function stopTarget(
+  me: { x: number; z: number },
+  last: { x: number; z: number },
+  lead = STOP_LEAD,
+): { x: number; z: number } {
+  const dx = last.x - me.x;
+  const dz = last.z - me.z;
+  const d = Math.hypot(dx, dz);
+  if (d < 1e-6) return { x: me.x, z: me.z };
+  const k = Math.min(lead, d) / d;
+  return { x: me.x + dx * k, z: me.z + dz * k };
+}
