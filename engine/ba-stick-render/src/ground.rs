@@ -531,6 +531,7 @@ fn value_noise(x: f32, z: f32) -> f32 {
 
 /// 0..6 along the meadow ramp. A broad octave sets the patch, a finer one
 /// drifts it, and a slow pocket pulls the top of the ramp into blue-green.
+#[inline(always)]
 fn grass_field(i: i32, j: i32) -> f32 {
     let x = i as f32 / 12.0;
     let z = j as f32 / 12.0;
@@ -545,6 +546,7 @@ fn grass_field(i: i32, j: i32) -> f32 {
     }
 }
 
+#[inline(always)]
 fn grass_blade_color(cols: &[u8; 7], i: i32, j: i32, pick: f32) -> u8 {
     let t = grass_field(i, j);
     let lo = t.floor().clamp(0.0, 6.0) as usize;
@@ -675,6 +677,109 @@ pub fn draw_meadow_grass(
         }
     }
 }
+
+/// 3D (tp/fp) grass; scene calls this instead of [`draw_meadow_grass`] when
+/// `cam.view` is set. Same blades as iso, but cells behind the eye or off the
+/// sides of the screen are skipped, and blades thin out with distance (a far
+/// blade is a pixel or two over ground of the same green). Iso keeps the
+/// plain loop above, so its frames are unchanged.
+#[inline(never)]
+pub fn draw_meadow_grass_view(
+    fb: &mut Framebuffer,
+    cam: &Camera,
+    zone: &Zone,
+    cam_y: f32,
+    time: f32,
+    breeze: f32,
+) {
+    let breeze = breeze.clamp(0.0, 1.0);
+    let Some((i0, j0, i1, j1)) = view_cells(fb, cam, zone) else {
+        return;
+    };
+    let cols = [
+        crate::palette::MEADOW_DEEP,
+        crate::palette::MEADOW_D,
+        crate::palette::MEADOW,
+        crate::palette::MEADOW_MID,
+        crate::palette::MEADOW_L,
+        crate::palette::MEADOW_SUN,
+        crate::palette::MEADOW_BLUE,
+    ];
+    let gust = grass_gust(time) * breeze;
+    let Some(v) = cam.view else { return };
+    let Some(eye) = v.eye() else { return };
+    let fwd = v.fwd();
+    let cell = zone.cell;
+    let (w, h) = (fb.w as f32, fb.h as f32);
+    for j in j0..=j1 {
+        for i in i0..=i1 {
+            let k = zone.idx(i, j);
+            if !GREEN_GROUND.contains(&zone.biome[k]) {
+                continue;
+            }
+            if zone.flags[k] & (F_WATER | F_BRIDGE | F_TRAIL) != 0 {
+                continue;
+            }
+            let x = zone.min_x + i as f32 * cell;
+            let z = zone.min_z + j as f32 * cell;
+            let y = zone.height[k] - cam_y;
+            // Cell centre (blades sit in roughly [-0.15, 0.85] of the cell).
+            let c = v3(x + cell * 0.35, y + 0.15, z + cell * 0.35);
+            let q = c - eye;
+            let depth = q.dot(fwd);
+            let reach = cell + 0.4;
+            if depth + reach < NEAR {
+                continue;
+            }
+            let dist2 = q.dot(q);
+            if depth > 2.0 {
+                let p = cam.project(c);
+                // A cell spans about cell/depth of the focal length; pad for it.
+                let pad = 24.0 + 400.0 * reach / depth;
+                if p.culled() || p.x < -pad || p.x > w + pad || p.y < -pad || p.y > h + pad {
+                    continue;
+                }
+            }
+            let hc = cell_hash(i, j);
+            let n = 7 + (hc & 1) as usize;
+            let n = if dist2 < GRASS_FULL_M * GRASS_FULL_M {
+                n
+            } else if dist2 < GRASS_HALF_M * GRASS_HALF_M {
+                n.div_ceil(2)
+            } else {
+                n.div_ceil(4)
+            };
+            let wave = (time * 1.35 - x * 0.55 - z * 0.22).sin();
+            for b in 0..n {
+                let hb = cell_hash(
+                    i.wrapping_mul(13) + b as i32,
+                    j.wrapping_mul(17) ^ hc as i32,
+                );
+                let u = (hb & 255) as f32 / 255.0;
+                let vv = ((hb >> 8) & 255) as f32 / 255.0;
+                let lean = ((hb >> 16) & 255) as f32 / 255.0 - 0.5;
+                let ox = (u - 0.15) * cell;
+                let oz = (vv - 0.15) * cell;
+                let ht = 0.14 + 0.2 * (((hb >> 4) & 255) as f32 / 255.0);
+                let shiver = (time * 2.4 + x * 1.7 + b as f32).sin() * 0.012 * breeze;
+                let sway = shiver + gust * wave * (0.07 + 0.05 * (hb & 1) as f32);
+                let root = cam.project(v3(x + ox, y, z + oz));
+                let tip = cam.project(v3(
+                    x + ox + lean * 0.04 + sway,
+                    y + ht,
+                    z + oz + lean * 0.03,
+                ));
+                let col = grass_blade_color(&cols, i, j, (hb & 255) as f32 / 255.0);
+                fb.line(root, tip, col);
+            }
+        }
+    }
+}
+
+/// 3D grass keeps every blade within this distance of the eye (m)...
+const GRASS_FULL_M: f32 = 9.0;
+/// ...half of them out to here, and a quarter beyond.
+const GRASS_HALF_M: f32 = 16.0;
 
 /// Draw the zone. `cam_y` is subtracted from all heights so the camera's
 /// reference height sits at the screen centre line.
