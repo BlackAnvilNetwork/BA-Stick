@@ -4,7 +4,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { engageHeadingGoal, headingEase, headingStep, headingTarget, headingToward, shouldResend, TURN_RATE, WASD_STEP, wasdIntent, wasdTarget } from "./input";
+import { engageHeadingGoal, headingEase, headingStep, headingTarget, headingToward, shouldResend, STOP_LEAD, stopTarget, TURN_RATE, WASD_STEP, wasdIntent, wasdTarget } from "./input";
 
 const none = { w: false, a: false, s: false, d: false };
 const free = (_ax: number, _az: number, x: number, z: number) => ({ x, z });
@@ -74,4 +74,20 @@ test("engageHeadingGoal follows the server facing only while engaged and idle-ha
   assert.equal(engageHeadingGoal({ facing: 1.2, targetId: null }, none), null, "tab-selecting alone does not set targetId");
   assert.equal(engageHeadingGoal({ facing: 1.2 }, none), null);
   for (const k of ["w", "a", "s", "d"] as const) assert.equal(engageHeadingGoal({ facing: 1.2, targetId: "mob-1" }, { ...none, [k]: true }), null, `${k} overrides`);
+});
+
+test("stopTarget lands just ahead of the server position, never past the step", () => {
+  const p = stopTarget({ x: 10, z: 10 }, { x: 10, z: 14.5 });
+  assert.ok(Math.abs(p.x - 10) < 1e-9 && Math.abs(p.z - (10 + STOP_LEAD)) < 1e-9);
+  const near = stopTarget({ x: 0, z: 0 }, { x: 0.1, z: 0 });
+  assert.ok(Math.abs(near.x - 0.1) < 1e-9);
+  assert.deepEqual(stopTarget({ x: 3, z: 4 }, { x: 3, z: 4 }), { x: 3, z: 4 });
+});
+
+test("iso holds resend only on key change, near the target, or keep-alive", () => {
+  const me = { x: 0, z: 0 };
+  const prev = { keys: "wd", heading: 0.7, at: 1000, x: 3, z: 3 };
+  assert.equal(shouldResend(prev, { keys: "wd", heading: 0.7, at: 1050 }, me), false);
+  assert.equal(shouldResend(prev, { keys: "w", heading: 0.7, at: 1050 }, me), true);
+  assert.equal(shouldResend(prev, { keys: "wd", heading: 0.7, at: 1300 }, me), true);
 });

@@ -13,7 +13,7 @@ import { staticAt } from "./statics";
 import { CombatFloaters } from "./floaters";
 import { GatherIcons, loadIconAtlas, type IconAtlas } from "./gather";
 import { craftActFor, gatherActFor, presentCraft, presentGather, syncUnits, type CraftAct, type GatherAct } from "./units";
-import { engageHeadingGoal, getMoveKeys, headingEase, headingStep, headingTarget, headingToward, moveKeyFromCode, shouldResend, wasdTarget } from "./input";
+import { engageHeadingGoal, getMoveKeys, headingEase, headingStep, headingTarget, headingToward, moveKeyFromCode, shouldResend, stopTarget, wasdTarget } from "./input";
 import { atmosphereFor, isCoarsePointer, keylightFor } from "./mobile";
 import { CastClock, sameId, unitFx } from "./fx";
 import { routeUnitClick } from "./clicks";
@@ -444,7 +444,18 @@ export function StickWorld() {
           const moveClamp = (ax: number, az: number, bx: number, bz: number) => fieldClampMove(activeZone, ax, az, bx, bz) ?? paleHollowClampMove(ax, az, bx, bz);
           if (heading === null) {
             const t = wasdTarget(keys, me, pick, [FB_W / 2, FB_H / 2], moveClamp);
-            if (t) send({ type: "move", x: t.x, z: t.z });
+            const keyStr = `${keys.w ? "w" : ""}${keys.a ? "a" : ""}${keys.s ? "s" : ""}${keys.d ? "d" : ""}`;
+            const at = performance.now();
+            const dir = t ? Math.atan2(t.x - me.x, t.z - me.z) : 0;
+            if (t && shouldResend(lastWasd, { keys: keyStr, heading: dir, at }, me)) {
+              send({ type: "move", x: t.x, z: t.z });
+              lastWasd = { keys: keyStr, heading: dir, at, x: t.x, z: t.z };
+            } else if (!t && lastWasd) {
+              // Keys released: stop just ahead of the server position instead of finishing the 4.5 m step.
+              const p = stopTarget(me, lastWasd);
+              send({ type: "move", x: p.x, z: p.z });
+              lastWasd = null;
+            }
           } else {
             const keyStr = `${keys.w ? "w" : ""}${keys.s ? "s" : ""}`;
             const t = headingTarget(keys, me, heading, moveClamp);
@@ -454,7 +465,8 @@ export function StickWorld() {
               lastWasd = { keys: keyStr, heading, at, x: t.x, z: t.z };
             } else if (!t && lastWasd) {
               // W/S released: stop where we are instead of finishing the step.
-              send({ type: "move", x: me.x, z: me.z });
+              const p = stopTarget(me, lastWasd);
+              send({ type: "move", x: p.x, z: p.z });
               lastWasd = null;
             }
           }
