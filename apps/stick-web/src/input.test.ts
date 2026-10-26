@@ -4,7 +4,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { headingEase, headingStep, headingTarget, headingToward, shouldResend, TURN_RATE, WASD_STEP, wasdIntent, wasdTarget } from "./input";
+import { engageHeadingGoal, headingEase, headingStep, headingTarget, headingToward, shouldResend, TURN_RATE, WASD_STEP, wasdIntent, wasdTarget } from "./input";
 
 const none = { w: false, a: false, s: false, d: false };
 const free = (_ax: number, _az: number, x: number, z: number) => ({ x, z });
@@ -67,4 +67,11 @@ test("headingEase turns along the short arc without snapping", () => {
   assert.equal(done, true);
   assert.equal(h, 1.5);
   assert.ok(headingEase(0, 1.5, 1 / 60).heading < 0.5, "one frame covers part of the turn");
+});
+
+test("engageHeadingGoal follows the server facing only while engaged and idle-handed", () => {
+  assert.equal(engageHeadingGoal({ facing: 1.2, targetId: "mob-1" }, none), 1.2);
+  assert.equal(engageHeadingGoal({ facing: 1.2, targetId: null }, none), null, "tab-selecting alone does not set targetId");
+  assert.equal(engageHeadingGoal({ facing: 1.2 }, none), null);
+  for (const k of ["w", "a", "s", "d"] as const) assert.equal(engageHeadingGoal({ facing: 1.2, targetId: "mob-1" }, { ...none, [k]: true }), null, `${k} overrides`);
 });

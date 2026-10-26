@@ -70,6 +70,18 @@ export function headingEase(heading: number, goal: number, dt: number): { headin
   return { heading: Math.atan2(Math.sin(h), Math.cos(h)), done: false };
 }
 
+/**
+ * Third/first-person heading goal while fighting. The server already turns an
+ * engaged / auto-attacking player toward its target (iso shows that facing);
+ * the 3D heading follows the same server facing, under the same trigger
+ * (`targetId`, set by Enter/engage or auto-attack, not by tab selection).
+ * Any move key hands control back to the player.
+ */
+export function engageHeadingGoal(me: { facing: number; targetId?: string | null }, keys: MoveKeys): number | null {
+  if (!me.targetId || keys.w || keys.a || keys.s || keys.d) return null;
+  return Number.isFinite(me.facing) ? me.facing : null;
+}
+
 /** Yaw that faces from `me` toward a point (server convention). */
 export function headingToward(me: { x: number; z: number }, x: number, z: number): number | null {
   const dx = x - me.x;
