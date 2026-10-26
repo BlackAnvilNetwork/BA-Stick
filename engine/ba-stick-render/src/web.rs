@@ -303,6 +303,13 @@ impl StickRenderer {
     #[wasm_bindgen(js_name = setHeading)]
     pub fn set_heading(&mut self, heading: Option<f32>) { self.scene.set_heading(heading); }
 
+    /// Client dash prediction for the own unit (see Scene::predict_dash).
+    #[wasm_bindgen(js_name = predictDash)]
+    pub fn predict_dash(&mut self, id: &str, x: f32, z: f32, secs: f32) { self.scene.predict_dash(id, x, z, secs); }
+
+    #[wasm_bindgen(js_name = cancelDash)]
+    pub fn cancel_dash(&mut self, id: &str) { self.scene.cancel_dash(id); }
+
     /// Camera yaw in effect (radians).
     #[wasm_bindgen(js_name = camYaw)]
     pub fn cam_yaw(&self) -> f32 { self.scene.cam_yaw() }

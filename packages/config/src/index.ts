@@ -518,3 +518,4 @@ export function musicForZone(zoneId: string | undefined): string | undefined {
   if (def.areaId === "pale_hollow") return PALE_HOLLOW_MUSIC;
   return undefined;
 }
+export * from "./dash";

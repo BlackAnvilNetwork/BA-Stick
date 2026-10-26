@@ -66,6 +66,9 @@ declare module "ba-stick-render" {
     pickGround(sx: number, sy: number): Float32Array;
     /** Client WASD heading (radians) for third/first person; `undefined` clears it. */
     setHeading(heading?: number): void;
+    /** Client dash prediction for the own unit; a running one only moves its landing. */
+    predictDash(id: string, x: number, z: number, secs: number): void;
+    cancelDash(id: string): void;
     camYaw(): number;
     pickUnit(sx: number, sy: number, skip?: string): string | undefined;
     tick(dt: number): void;

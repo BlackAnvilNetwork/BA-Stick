@@ -1,3 +1,4 @@
+import { DASH_COOLDOWN_MS, dashPos, planDash, type DashRun } from "@bellgrave/config";
 import {
   JOBS,
   JOB_IDS,
@@ -370,6 +371,9 @@ import {
 } from "./party";
 
 type Player = {
+  /** Active dash (general ability, every class). */
+  dash?: DashRun | null;
+  lastDashAt?: number;
   wallet: string;
   /** Stable character slot id within the account (multi-char). */
   charId: string;
@@ -2722,6 +2726,33 @@ function facingTo(fromX: number, fromZ: number, toX: number, toZ: number): numbe
   return Math.atan2(toX - fromX, toZ - fromZ);
 }
 
+/** General dash (#dash): every class, server-validated. See dash.ts. */
+function handleDash(p: Player, dx: number, dz: number) {
+  const now = Date.now();
+  if (p.hp <= 0) return;
+  if (now < p.petrifyUntil) {
+    pushLog(p, "You are petrified.");
+    return;
+  }
+  if (p.dash) return;
+  if (p.anim === "cast" && now < p.animUntil && !p.gathering) {
+    pushLog(p, "You can't dash while casting.");
+    return;
+  }
+  const plan = planDash(p, { dx, dz }, (fx, fz, tx, tz) => clampPlayerMove(fx, fz, tx, tz, p.zoneId), now, p.lastDashAt);
+  if (!plan.ok) {
+    if (plan.reason === "cooldown") pushLog(p, `Dash ready in ${((plan.readyIn ?? DASH_COOLDOWN_MS) / 1000).toFixed(1)}s.`);
+    else if (plan.reason === "blocked") pushLog(p, "No room to dash.");
+    return;
+  }
+  stopRest(p, "You break rest to dash.");
+  clearRoute(p);
+  p.lastMoveInputAt = now;
+  p.lastDashAt = now;
+  p.dash = plan.run;
+  p.facing = plan.facing;
+}
+
 function clearRoute(p: Player) {
   p.moveTo = null;
   p.movePath = [];
@@ -3038,6 +3069,7 @@ function snapshotFor(p: Player): SnapshotMessage {
       tp: pl.tp,
       anim: pl.hp <= 0 && Date.now() < pl.fallenUntil ? "dead" : pl.anim,
       animUntil: pl.animUntil,
+      ...(pl.dash ? { dashTo: { x: pl.dash.tx, z: pl.dash.tz } } : {}),
       gatherTool: gatherToolFor(pl),
       targetId: pl.targetId,
       job: pl.job,
@@ -5941,7 +5973,16 @@ function tickSimBody() {
     // Gather channel (#67): grant only after interactMs, break on move/damage/engage
     tickGathering(p, now);
 
-    if (p.moveTo) {
+    if (p.dash) {
+      const at = dashPos(p.dash, now);
+      p.x = at.x;
+      p.z = at.z;
+      syncUnitY(p);
+      if (at.done) {
+        p.dash = null;
+        crossField(p);
+      }
+    } else if (p.moveTo) {
       stopRest(p, "You stand and break your rest.");
       const speed = playerMoveSpeed(p, now);
       let guard = 0;
@@ -6906,6 +6947,7 @@ function onMessage(ws: WebSocket, data: string) {
   // #274: live ownership gate for character-mutating play (after Transfer kick window).
   const needsOwnerGate =
     msg.type !== "move" &&
+    msg.type !== "dash" &&
     msg.type !== "disengage" &&
     msg.type !== "lok/explore" &&
     !String(msg.type).startsWith("party/");
@@ -6924,6 +6966,9 @@ function onMessage(ws: WebSocket, data: string) {
       p.lastMoveInputAt = Date.now();
       assignRoute(p, msg.x, msg.z);
       if (p.moveTo) warnSoftGate(p, p.movePath.at(-1)?.z ?? p.moveTo.z);
+      break;
+    case "dash":
+      handleDash(p, msg.dx, msg.dz);
       break;
     case "gather":
       handleGather(p, msg.nodeId);
