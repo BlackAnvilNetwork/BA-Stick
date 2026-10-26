@@ -1292,6 +1292,7 @@ export function paleHollowClampMove(
  * feathered in/out by angle. Only ever raises the bed (never adds deep water); the centre is untouched so the
  * lake surface is unchanged.
  */
+let phWestSurf: number | undefined;
 function phWestShelf(x: number, z: number, y: number): number {
   const dx = x - PH_LAKE.x, dz = z - PH_LAKE.z;
   const a = Math.abs(Math.atan2(dz, dx));
@@ -1299,7 +1300,7 @@ function phWestShelf(x: number, z: number, y: number): number {
   const ld = paleHollowLakeDist(x, z);
   const inner = PH_LAKE.r - 6;
   if (ld < inner || ld > PH_LAKE.r + 0.5) return y;
-  const surf = paleHollowHeightFieldRaw(PH_LAKE.x, PH_LAKE.z) + PALE_HOLLOW_WATER_CLEARANCE;
+  const surf = (phWestSurf ??= paleHollowHeightFieldRaw(PH_LAKE.x, PH_LAKE.z) + PALE_HOLLOW_WATER_CLEARANCE);
   const t = smooth01(Math.min(1, (PH_LAKE.r - ld) / 5)); // 0 at shore -> 1 at the drop-off
   const fadeA = smooth01(Math.min(1, (a - 2.2) / 0.25));
   const fadeIn = smooth01(Math.min(1, (ld - inner) / 1)); // vertical-ish lip to the deep water
