@@ -214,7 +214,7 @@ fn meadow_blade(c: u8) -> bool {
     )
 }
 
-fn emissive(c: u8) -> bool {
+pub(crate) fn emissive(c: u8) -> bool {
     matches!(c, 9 | 11 | 14)
         || (80..=90).contains(&c)
         || c == COAL

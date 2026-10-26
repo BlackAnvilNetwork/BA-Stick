@@ -1041,10 +1041,20 @@ fn pixel_sky_follows_clock_and_weather_in_3d_only() {
         assert!(n > m + 50.0, "{mode}: noon {n} vs midnight {m}");
         assert!((r - n).abs() > 5.0, "{mode}: rain {r} vs clear {n}");
     }
-    // Iso ignores the clock entirely.
-    let (_, a) = sky_rgba("iso", 0.5, 0);
+    // Iso: no sky, and only character pixels follow the clock (they are lit
+    // by time of day in every view); terrain/props stay frame-identical.
+    let (s, a) = sky_rgba("iso", 0.5, 0);
     let (_, b) = sky_rgba("iso", 0.0, 0);
-    assert!(a == b, "iso output must not depend on time of day");
+    let mut unit_diff = 0;
+    for i in 0..s.fb.color.len() {
+        let same = a[i * 4..i * 4 + 4] == b[i * 4..i * 4 + 4];
+        if s.unit_px[i] == 0 {
+            assert!(same, "iso world pixel {i} changed with time of day");
+        } else if !same {
+            unit_diff += 1;
+        }
+    }
+    assert!(unit_diff > 20, "iso characters dim at night ({unit_diff} px)");
 }
 
 /// `SKY_SHOTS=/dir cargo test -p ba_stick_render sky_shots -- --ignored` writes PPMs.

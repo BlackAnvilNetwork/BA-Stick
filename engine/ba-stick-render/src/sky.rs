@@ -77,6 +77,19 @@ pub fn ambient_scale(phase: f32) -> [f32; 3] {
     [s(0.42), s(0.46), s(0.62)]
 }
 
+/// RGB multiplier for characters: full at noon, warm at dawn/dusk, cool
+/// moonlight at night with a floor so figures stay readable. Overcast dims a little.
+pub fn unit_light(phase: f32, w: SkyWeather) -> [f32; 3] {
+    let day = daylight(phase);
+    let sun = sun_dir(phase);
+    let twi = (1.0 - (sun[1] / 0.28).abs()).clamp(0.0, 1.0);
+    let night = [0.62, 0.68, 0.92];
+    let mut m = mix(night, [1.0, 1.0, 1.0], day);
+    m = mix(m, [1.06, 0.9, 0.76], twi * 0.7);
+    let dim = 1.0 - 0.12 * w.cover * w.dark;
+    [m[0] * dim, m[1] * dim, m[2] * dim]
+}
+
 fn norm(v: [f32; 3]) -> [f32; 3] {
     let l = (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt().max(1e-6);
     [v[0] / l, v[1] / l, v[2] / l]
@@ -266,6 +279,17 @@ mod tests {
         assert!(sun_dir(0.25)[0] > 0.9 && sun_dir(0.25)[1].abs() < 0.01);
         assert!(sun_dir(0.5)[1] > 0.8);
         assert!(daylight(0.0) == 0.0 && daylight(0.5) == 1.0);
+    }
+
+    #[test]
+    fn unit_light_cycle() {
+        let c = sky_weather(Kind::Clear);
+        assert_eq!(unit_light(0.5, c), [1.0, 1.0, 1.0]);
+        let n = unit_light(0.0, c);
+        assert!(n[0] >= 0.6 && n[2] > n[0], "night has a floor and is bluish: {n:?}");
+        let d = unit_light(0.25, c);
+        assert!(d[0] > d[2], "dawn is warm: {d:?}");
+        assert!(unit_light(0.5, sky_weather(Kind::Rain))[0] < 1.0);
     }
 
     #[test]

@@ -210,6 +210,8 @@ pub struct Scene {
     weather_time: f64,
     /// Time of day 0..1 (0 midnight, 0.5 noon) from the host's shared wall clock.
     day_phase: f32,
+    /// Per pixel: unit colour + 1 where a unit was drawn this frame, else 0.
+    pub(crate) unit_px: Vec<u16>,
     /// Local player hair style and colours (Stick Engine cosmetics).
     player_appearance: crate::appearance::Appearance,
     player_hair_spring: [stick_engine::character::HairSpring; 3],
@@ -260,6 +262,7 @@ impl Scene {
             weather_snow_target: 0.0,
             weather_time: 0.0,
             day_phase: 0.5,
+            unit_px: Vec::new(),
             player_appearance: crate::appearance::Appearance::default(),
             player_hair_spring: [stick_engine::character::HairSpring::default(); 3],
         }
@@ -1336,6 +1339,7 @@ impl Scene {
                 crate::dither::soft_shadow_on(&mut self.fb, p.x, p.y, 13.0 * size / 0.5, 6.0 * size / 0.5, 1.0, crate::dither::UNIT_CORE, Some(p.d));
             }
         }
+        let pre_units = self.fb.color.clone();
         // Units back to front (depth buffer also resolves overlaps).
         // Iso depth is -(x+z); a perspective view sorts by view z instead.
         let follow = self.follow.clone();
@@ -1478,6 +1482,9 @@ impl Scene {
                 }
             }
         }
+        // Pixels the units painted (players, NPCs, mobs, gear, hair): lit by time of day.
+        self.unit_px.clear();
+        self.unit_px.extend(pre_units.iter().zip(&self.fb.color).map(|(&a, &b)| if a != b { b as u16 + 1 } else { 0 }));
         self.vfx.project(&cam, self.cam_y, &self.fb.depth, self.fb.w, self.fb.h);
         // Buff / ailment visuals over the bodies (#34).
         let bl: Vec<_> = self.buffs.iter().filter_map(|(id, b)| self.units.get(id).map(|u| (self.buff_anchor(id, u), *b))).collect();
@@ -1635,6 +1642,39 @@ impl Scene {
     }
     pub fn time_of_day(&self) -> f32 { self.day_phase }
 
+    /// Character light for the current time of day and weather, all views.
+    /// In 3D the world ambient already carries the night dim, so divide it out.
+    fn light_units(&self, out: &mut [u8]) {
+        if self.unit_px.len() != self.fb.color.len() {
+            return;
+        }
+        let w = crate::sky::lerp_weather(
+            crate::sky::sky_weather(crate::weather::Kind::from_u8(self.weather_kind_from)),
+            crate::sky::sky_weather(crate::weather::Kind::from_u8(self.weather_kind_to)),
+            smoothstep(self.weather_blend),
+        );
+        let mut m = crate::sky::unit_light(self.day_phase, w);
+        if self.atmosphere && self.sky_ctx().is_some() {
+            let a = crate::sky::ambient_scale(self.day_phase);
+            for k in 0..3 {
+                m[k] /= a[k];
+            }
+        }
+        if m == [1.0; 3] {
+            return;
+        }
+        for (i, (&u, &c)) in self.unit_px.iter().zip(&self.fb.color).enumerate() {
+            // Skip pixels covered since (props, floaters, bars) and glowing ones.
+            if u == 0 || u - 1 != c as u16 || crate::atmosphere::emissive(c) {
+                continue;
+            }
+            let o = &mut out[i * 4..i * 4 + 3];
+            for k in 0..3 {
+                o[k] = (o[k] as f32 * m[k]).min(255.0) as u8;
+            }
+        }
+    }
+
     /// Pixel sky context when the camera is a settled-enough 3D view.
     fn sky_ctx(&self) -> Option<crate::sky::SkyCtx> {
         if self.rig.mode == CamMode::Iso || self.boot_menu || self.backdrop {
@@ -1767,6 +1807,9 @@ impl Scene {
             );
         } else {
             palette::write_rgba(&self.pal, &self.fb.color, out);
+        }
+        if !self.boot_menu && !self.backdrop && self.has_zone() {
+            self.light_units(out);
         }
         crate::vfx::blend(&self.vfx.sparks, self.fb.w, self.fb.h, out);
         if !self.backdrop && !self.boot_menu && self.zone.is_some() && self.minimap.on {
