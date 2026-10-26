@@ -45,7 +45,7 @@ export const MAYFLOWER_DISTRICTS: readonly MayflowerDistrict[] = [
   { id: "scout_gate", keeper: "Wenna Gatesmoke", name: "The Scout Gate", npcs: ["npc-ph-herald"], x: 168, z: 190, r: 0, level: 3.0, seed: 0,
     blurb: "The old encampment: watch-fires, lookout post toward the Ash Road, the Herald's lectern." },
   { id: "tally_row", keeper: "Maudry Saltpenny", name: "Tally Row", npcs: ["npc-ph-vendor"], x: 196, z: 178, r: 10, level: 3.2, seed: 1.3,
-    blurb: "Covered market: stalls, barrels, granary and smokehouses; honest scales." },
+    blurb: "Covered market: stalls, barrels, granary and smokehouses; Maudry keeps two sets of scales, the Crown's and the honest." },
   { id: "turning_yard", keeper: "Ilse Morrowglass", name: "The Turning Yard", npcs: ["npc-ph-chronomancer"], x: 192, z: 150, r: 11, level: 1.6, seed: 2.1,
     blurb: "Sand yard under the seven-hour sundial tower: dummies, sparring ring, archery butts." },
   { id: "strongroom", keeper: "Gaunt Hobb", name: "The Strongroom", npcs: ["npc-ph-storage"], x: 214, z: 194, r: 6.5, level: 4.0, seed: 3.7,
@@ -58,10 +58,10 @@ export const MAYFLOWER_DISTRICTS: readonly MayflowerDistrict[] = [
     blurb: "Whitewashed terraces at the top of the town; the spring and the aqueduct head; lookout over the hollow." },
 ];
 
-type Node = { x: number; z: number; level: number | null };
+type Node = { x: number; z: number; level: number | null; id?: MayflowerDistrictId };
 const D = (id: MayflowerDistrictId): Node => {
   const d = MAYFLOWER_DISTRICTS.find((q) => q.id === id)!;
-  return { x: d.x, z: d.z, level: d.level };
+  return { x: d.x, z: d.z, level: d.level, id };
 };
 
 /** Curved streets: [from, to, perpendicular bow (m), half width]. level null = natural ground there. */
@@ -94,8 +94,8 @@ export const EIGHTFOLD_HALLS = [
 ] as const;
 
 const EF = MAYFLOWER_DISTRICTS.find((d) => d.id === "eightfold")!;
-// Halls sit on the inner rim; the arcs facing the streets (west, south-west, north) are left open.
-const HALL_ANGLES = [-1.25, -0.65, -0.05, 0.55, 1.1, 2.45, 3.0, 3.55].map((a) => a);
+// Halls sit on the inner rim; the arcs where the streets arrive (west and north-north-west) are left open.
+const HALL_ANGLES = [-1.95, -1.5, -1.05, -0.6, -0.15, 0.45, 0.95, 2.3];
 
 export const MAYFLOWER_BUILDINGS: readonly MayflowerBuilding[] = [
   { id: "great-forge-hall", district: "eightfold", name: "Great Forge Hall", x: EF.x + 4.5, z: EF.z + 0.5, w: 7, d: 5, yaw: 0.35, h: 4.2 },
@@ -151,7 +151,7 @@ function wobble(d: MayflowerDistrict, x: number, z: number): number {
 const TERRACES = MAYFLOWER_DISTRICTS.filter((d) => d.r > 0);
 
 type Seg = { ax: number; az: number; bx: number; bz: number; la: number; lb: number; t0: number; t1: number };
-let streetSegs: { halfW: number; a: Node; b: Node; segs: Seg[] }[] | null = null;
+let streetSegs: { halfW: number; a: Node; b: Node; segs: Seg[]; ta: number; tb: number }[] | null = null;
 function streets() {
   if (streetSegs) return streetSegs;
   streetSegs = MAYFLOWER_STREETS.map((s) => {
@@ -164,7 +164,20 @@ function streets() {
     }
     const segs: Seg[] = [];
     for (let i = 0; i < N; i++) segs.push({ ax: pts[i].x, az: pts[i].z, bx: pts[i + 1].x, bz: pts[i + 1].z, la: 0, lb: 0, t0: pts[i].t, t1: pts[i + 1].t });
-    return { halfW: s.halfW, a: s.a, b: s.b, segs };
+    // The ramp runs only between the terrace rims, so a street meets each terrace flush.
+    const inside = (n: Node, p: { x: number; z: number }) => {
+      const d = n.id ? TERRACES.find((q) => q.id === n.id) : undefined;
+      return d ? Math.hypot(p.x - d.x, p.z - d.z) - wobble(d, p.x, p.z) <= 0 : false;
+    };
+    let ta = 0, tb = 1;
+    for (let i = 0; i <= 200; i++) {
+      const t = i / 200, u = 1 - t;
+      const p = { x: u * u * s.a.x + 2 * u * t * mx + t * t * s.b.x, z: u * u * s.a.z + 2 * u * t * mz + t * t * s.b.z };
+      if (inside(s.a, p)) ta = t;
+      if (inside(s.b, p) && tb === 1) tb = t;
+    }
+    if (tb <= ta) { ta = 0; tb = 1; }
+    return { halfW: s.halfW, a: s.a, b: s.b, segs, ta, tb };
   });
   return streetSegs;
 }
@@ -206,26 +219,30 @@ export function mayflowerSample(
     if (e <= 0) return { y: d.level, walk: !inBuilding(x, z), district: d.id, onStreet: false };
     if (e < edge) { edge = e; edgeLevel = d.level; }
   }
-  // Streets
+  // Streets: use the nearest point over every segment, so the ramp is continuous.
+  let best: { dist: number; e: number; lvl: number; tt: number; s: ReturnType<typeof streets>[number] } | null = null;
   for (const s of streets()) {
     const la = s.a.level ?? groundAt(s.a.x, s.a.z), lb = s.b.level ?? groundAt(s.b.x, s.b.z);
     for (const g of s.segs) {
       const dx = g.bx - g.ax, dz = g.bz - g.az, l2 = dx * dx + dz * dz || 1;
       const t = Math.max(0, Math.min(1, ((x - g.ax) * dx + (z - g.az) * dz) / l2));
       const dist = Math.hypot(x - (g.ax + t * dx), z - (g.az + t * dz));
-      const tt = g.t0 + (g.t1 - g.t0) * t;
-      const lvl = la + (lb - la) * tt;
       const e = dist - s.halfW;
-      if (e <= 0) {
-        // Natural-ground street ends fade the ramp into the ground.
-        let y = lvl;
-        if (s.b.level == null && tt > 0.7) y = lvl + (ground() - lvl) * smooth01((tt - 0.7) / 0.3);
-        if (s.a.level == null && tt < 0.3) y = lvl + (ground() - lvl) * smooth01((0.3 - tt) / 0.3);
-        return { y, walk: !inBuilding(x, z), district: null, onStreet: true };
-      }
-      if (e < edge) { edge = e; edgeLevel = lvl; }
+      if (best && e >= best.e) continue;
+      const tt = g.t0 + (g.t1 - g.t0) * t;
+      const lvl = la + (lb - la) * Math.max(0, Math.min(1, (tt - s.ta) / (s.tb - s.ta)));
+      best = { dist, e, lvl, tt, s };
     }
   }
+  if (best && best.e <= 0) {
+    const { lvl, tt, s } = best;
+    // Natural-ground street ends fade the ramp into the ground.
+    let y = lvl;
+    if (s.b.level == null && tt > 0.7) y = lvl + (ground() - lvl) * smooth01((tt - 0.7) / 0.3);
+    if (s.a.level == null && tt < 0.3) y = lvl + (ground() - lvl) * smooth01((0.3 - tt) / 0.3);
+    return { y, walk: !inBuilding(x, z), district: null, onStreet: true };
+  }
+  if (best && best.e < edge) { edge = best.e; edgeLevel = best.lvl; }
   if (edge >= BAND) return null;
   const g = ground();
   const y = edgeLevel + (g - edgeLevel) * smooth01(edge / BAND);

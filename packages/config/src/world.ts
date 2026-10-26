@@ -521,7 +521,7 @@ function hubNpcs(cityId: CityId, prefix: string): CityNpcDef[] {
       id: `${prefix}-vendor`,
       name: "Provisioner",
       role: "vendor",
-      blurb: "Buys log stacks for gold; lists and sends on the ledger.",
+      blurb: "Buys log stacks for gold and sends goods on to other players.",
     },
   ];
 }

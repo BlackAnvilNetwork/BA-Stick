@@ -4763,7 +4763,7 @@ function handleNpcInteract(p: Player, npcId: string) {
       crafter:
         "Bring base mats from the field. Synth at my bench — I'll rank your crafts as you work.",
       vendor:
-        "The camp ledger is here. Send or list what the log already holds. Items enter only from field play — I cannot mint them, and this counter cannot.",
+        "Two sets of scales on this counter: the Crown's, and the honest ones. Yours go on the honest pair. Sell me what you've brought in from the field, or send it on to a friend. I only trade in what the field gives.",
     };
     send(p.ws, {
       type: "npc/dialog",

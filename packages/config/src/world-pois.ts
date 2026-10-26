@@ -41,7 +41,7 @@ export interface WorldPoi {
 export const LORE_FRAGMENTS = [
   "f01-crest-over-anvil", "f02-mooring-tally", "f03-mill-census", "f04-saddle-ruts",
   "f05-seventh-post", "f06-drowned-village", "f07-boundary-seven", "f08-older-paving",
-  "f09-ring-held", "f10-view-of-seven", "f11-crown-alignment", "f12-scriveners-oath",
+  "f09-ring-held", "f10-view-of-seven", "f11-crown-alignment", "f12-makers-oath",
   "f13-seven-hands",
 ] as const;
 export type LoreFragmentId = (typeof LORE_FRAGMENTS)[number];
@@ -50,7 +50,7 @@ export type LoreFragmentId = (typeof LORE_FRAGMENTS)[number];
 export const TRAIL_ENDPOINT = {
   fragmentId: "f14-struck-once", area: "throne_approach", place: "Seven-Stone Ring, Anvil Hall",
   requires: ["f13-seven-hands"],
-  story: "Six of the seven stones carry a re-cut House mark. The seventh is plain: its rune is the hammer laid crosswise, the open strike scraped from every defaced Anvil. The Seventh Seat was never a throne. Struck once, true for all.",
+  story: "Six of the seven stones carry a re-cut House mark. The seventh is plain: its rune is the hammer laid crosswise, the open strike scraped from every defaced Anvil. The Seventh Seat was never a throne; it was a smith's stool. Struck once, true for all.",
 } as const;
 
 const F = LORE_FRAGMENTS;
@@ -78,7 +78,7 @@ export const WORLD_POIS: WorldPoi[] = [
     props: ["paired wheel ruts in bedrock", "a cart axle pin", "toll-gate sightline back to the ruts"],
     fragmentId: F[3], requires: after(3) },
   { id: "ph-sheepfold-ring", zone: "pale_hollow", name: "The Sheepfold", x: 84, z: 216, kind: "warp-remnant",
-    story: "Rune stones ring a sunken floor at the old crossroads: a Time Mage circle of the pre-Kings network, dormant.",
+    story: "Rune stones ring a sunken floor at the old crossroads: a Time Mage circle older than any crown, dormant.",
     props: ["rune stones under turf", "sunken paving floor", "no sheep dung anywhere"] },
   { id: "ph-westwatch-lookout", zone: "pale_hollow", name: "Westwatch", x: -198, z: 90, kind: "lookout",
     story: "From here the old shore terrace reads as one ring around the Ash Pit, and the saddle ruts line up with the defaced stele.",
@@ -125,10 +125,10 @@ export const WORLD_POIS: WorldPoi[] = [
 
   // ── Spur Road ──────────────────────────────────────────────────────────
   { id: "sr-seven-stones", zone: "spur_road", name: "Seven-Stone Bench", x: 5, z: 64, kind: "warp-remnant",
-    story: "Seven stones on the bench mark a boundary no charter records — the edge of a free hold, counted in sevens like the moorings.",
+    story: "Seven stones on the bench mark a boundary no royal charter ever granted — the edge of a free hold, counted in sevens like the moorings.",
     props: ["seven standing stones", "boundary oath cut in Anvil-reckoning"],
     fragmentId: F[6], requires: after(6) },
-  { id: "sr-toll-ledger", zone: "spur_road", name: "Toll-Keeper's Cairn", x: -4, z: 140, kind: "waystone",
+  { id: "sr-toll-cairn", zone: "spur_road", name: "Toll-Keeper's Cairn", x: -4, z: 140, kind: "waystone",
     story: "Older tolls cut below the royal one were paid in labour, not coin.",
     props: ["layered toll schedules", "coin slot added later"] },
 
@@ -150,7 +150,7 @@ export const WORLD_POIS: WorldPoi[] = [
     props: ["stones with flood rings below them", "old river bank far to the side"],
     fragmentId: F[8], requires: after(8) },
   { id: "if-west-cairn", zone: "islet_fords", name: "West Cairn", x: 32, z: 2, kind: "grave",
-    story: "Ferrymen's graves, with ferry tokens of the old network.",
+    story: "Ferrymen's graves, each with a ferry token stamped with the old crossing-mark.",
     props: ["ferry tokens", "oar planted as marker"] },
   { id: "if-east-causeway", zone: "islet_fords", name: "Broken Causeway", x: 160, z: -2, kind: "old-road",
     story: "Causeway stones under the shallows link the islets in a straight line.",
@@ -165,7 +165,7 @@ export const WORLD_POIS: WorldPoi[] = [
     props: ["sighting stones aligned north", "a cut bearing line"],
     fragmentId: F[9], requires: after(9) },
   { id: "gr-east-cap-ledge", zone: "green_reach", name: "East Cap Ledge", x: 70, z: 30, kind: "lookout",
-    story: "A sentry niche with Unwritten graffiti mocking the Ledger.",
+    story: "A sentry niche with Unwritten graffiti mocking the Crown's edicts.",
     props: ["carved niche", "graffiti"] },
   { id: "gr-hollow-stair", zone: "green_reach", name: "Hollow Stair Top", x: -20, z: 70, kind: "shrine",
     story: "A Struck Faith refuge at the top of the cave stair: names of erased Time Mages struck in stone.",
@@ -185,7 +185,7 @@ export const WORLD_POIS: WorldPoi[] = [
 
   // ── Coil Ridge ─────────────────────────────────────────────────────────
   { id: "cr-scarp-cave-shrine", zone: "coil_ridge", name: "Scarp Cave Shrine", x: -67, z: -72, kind: "shrine",
-    story: "Inside the cave climb, the Scriveners' Oath struck in stone: seven hands sworn to record, never rule. Six signatures are re-cut as crowns; the seventh is a hammer laid crosswise.",
+    story: "Inside the cave climb, the Makers' Oath struck in stone: seven hands sworn to make, never to rule. Six signatures are re-cut as crowns; the seventh is a hammer laid crosswise.",
     props: ["oath wall", "scribe's inkstones"],
     fragmentId: F[11], requires: after(11) },
   { id: "cr-scarp-head-ring", zone: "coil_ridge", name: "Scarp Head Ring", x: 6, z: -32, kind: "warp-remnant",

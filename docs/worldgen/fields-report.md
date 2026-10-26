@@ -78,7 +78,7 @@ Notes:
 - **pale_hollow:** old-shore quays above a lake the census calls ancient; defaced stele; a millrace in a hollow that "never milled"; the warp circle mapped as a "sheepfold".
 - **hollow_road:** the road shoulders are dressed stone (the pass was cut, not found). Seven "mile posts" form the circle.
 - **forest_basin:** a spoke trail dead-ends at the pond where royal maps show a village. In the Counting Ring, the trees are all one age.
-- **spur_road:** boundary stones that no charter records.
+- **spur_road:** boundary stones of a free hold that no royal charter ever granted.
 - **ring_ward:** a paving circle older than the walls; the walls bend around it.
 - **islet_fords:** the river moved, the ring did not.
 - **green_reach:** the ring shepherds won't graze.
