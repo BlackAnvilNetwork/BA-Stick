@@ -116,11 +116,13 @@ export function generateField(id: string, cell = 0.5) {
   // ecology mosaic (visual only): groves, clearings, scree, moisture / elevation gradients over the climate classes
   { let lo = Infinity, hi = -Infinity; for (let k = 0; k < N; k++) if (walk[k] && !wet[k]) { lo = Math.min(lo, h[k]!); hi = Math.max(hi, h[k]!); }
     const span = Math.max(1, hi - lo); const src = biome.slice();
+    const tSegs = f.trails().flatMap((t) => t.points.slice(1).map((b2, i2) => [t.points[i2]!, b2] as const)); const tHalf = f.trailWidth / 2;
+    const tDist = (x: number, z: number) => { let d = Infinity; for (const [p0, p1] of tSegs) { const dx = p1.x - p0.x, dz = p1.z - p0.z, l2 = dx * dx + dz * dz || 1; const u = Math.max(0, Math.min(1, ((x - p0.x) * dx + (z - p0.z) * dz) / l2)); d = Math.min(d, Math.hypot(x - p0.x - u * dx, z - p0.z - u * dz)); } return d; };
     const at = (x: number, z: number) => { const i = Math.round((x - minX) / cell), j = Math.round((z - minZ) / cell); if (i < 0 || j < 0 || i >= W || j >= H) return "crypt"; const kk = j * W + i; return wet[kk] || br[kk] ? "river" : BIOMES[src[kk]!]!; };
     for (let k = 0; k < N; k++) { if (wet[k] || br[k] || (!walk[k] && BIOMES[biome[k]!] === "crypt")) continue; const i = k % W, j = (k / W) | 0; const wx = o.x + X(k), wz = o.z + Z(k);
       const sl = i > 1 && i < W - 2 && j > 1 && j < H - 2 ? Math.max(Math.abs(h[k + 2]! - h[k - 2]!), Math.abs(h[k + 2 * W]! - h[k - 2 * W]!)) / (4 * cell) : 0;
       const own = f.biome(X(k), Z(k)); const cur = BIOMES[biome[k]!]!;
-      const e = ecoMosaic(own, cur, at, X(k), Z(k), { slope: sl, elev: (h[k]! - lo) / span, trailD: Infinity, trailHalf: 0, blocked: !walk[k] });
+      const e = ecoMosaic(own, cur, at, X(k), Z(k), { slope: sl, elev: (h[k]! - lo) / span, trailD: walk[k] ? tDist(X(k), Z(k)) : Infinity, trailHalf: tHalf, blocked: !walk[k] });
       void wx; void wz; biome[k] = Math.max(0, BIOMES.indexOf(e as any)); } }
   // ---- props: legacy kept verbatim; vegetation only on blocked dry scenery, density graded by distance to the floor ----
   const legacy = LEGACY_PROPS[id]!(); const props: Prop[] = [...legacy];

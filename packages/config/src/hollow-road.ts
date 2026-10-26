@@ -80,8 +80,13 @@ export function hollowRoadMaskDist(x: number, z: number): number {
 
 /** Geometric mask before the natural edge. */
 export function hollowRoadMaskDistRaw(x: number, z: number): number {
-  const road = Math.abs(x) - HR_ROAD_HALF;
-  const pad = Math.hypot(x - HR_PAD.x, z - HR_PAD.z) - HR_PAD.r;
+  // grow-only, side-specific bays so the valley floor reads as worn ground, not a ruled strip
+  const side = x >= 0 ? 1 : -1;
+  const ph = 0.0 + (side > 0 ? 0 : 2.1);
+  const bay = 1 + 0.22 * (1 + Math.sin(z / 23 + ph)) + 0.12 * (1 + Math.sin(z / 9.7 + 1.9 * ph)) + 0.06 * (1 + Math.sin(z / 4.1 - ph));
+  const road = Math.abs(x) - HR_ROAD_HALF * bay;
+  const a = Math.atan2(z - HR_PAD.z, x - HR_PAD.x);
+  const pad = Math.hypot(x - HR_PAD.x, z - HR_PAD.z) - HR_PAD.r * (1 + 0.12 * (1 + Math.sin(3 * a + ph)) + 0.06 * (1 + Math.sin(5 * a - ph)));
   return Math.min(road, pad);
 }
 
