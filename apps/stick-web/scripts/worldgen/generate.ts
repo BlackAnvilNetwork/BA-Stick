@@ -267,7 +267,18 @@ export function generatePaleHollow() {
     const wc = whittaker(temp[k]!, pmm(k) + (m - moist[k]!) * 900); whitt[k] = wc;
     let b: number, c: number;
     if (s > 0.75 || e > 22 + ne.n(X(k) / 50, Z(k) / 50) * 4) { b = B("mountain"); c = 6; }
-    else if (ld < 26 && e < LAKE_Y + 1.6 && m < 0.9) { b = B("terrace"); c = 7; }
+    else if (ld < 12 + 16 * (0.5 + 0.5 * ne.n(X(k) / 30 + 3, Z(k) / 30 - 8)) && e < LAKE_Y + 1.6 + ne.n(X(k) / 13, Z(k) / 13) * 0.5 && m < 0.95) {
+      // varied shore: rock on steep banks, gravel on wave-exposed slopes, reeds/mud in sheltered wet bays,
+      // patchy sand (chalk playa) with dune-grass tufts on the open flats
+      const ax = X(k) - PH_LAKE.x, az = Z(k) - PH_LAKE.z, al = Math.hypot(ax, az) || 1;
+      const expo = 0.5 + 0.5 * ((ax / al) * 0.8 + (az / al) * 0.6); // prevailing wind from the SW drives waves onto the NE shore
+      const pn = ne.fbm(X(k) / 14 + 21, Z(k) / 14 - 4, 3), tn = ne.n(X(k) / 4.5, Z(k) / 4.5);
+      if (s > 0.32 + pn * 0.08) { b = B("mountain"); c = 6; }
+      else if (s > 0.16 + pn * 0.06 || (expo > 0.7 && pn > 0.1 && ld < 10)) { b = B("quarry"); c = 6; }
+      else if ((expo < 0.42 && ld < 14 && pn > -0.25) || (m > 0.6 && pn > 0.2)) { b = tn > 0.45 ? B("meadow") : B("riverbank"); c = 8; }
+      else if (pn < -0.3 || tn > 0.55) { b = B("scrub"); c = 5; }
+      else { b = B("terrace"); c = 7; }
+    }
     else if (dWet[k]! * cell < 3.5 || (creek[k] && s < 0.15)) { b = B("riverbank"); c = 8; }
     else if (m > 0.85 && s < 0.25) { b = B("ashbeam"); c = 3; }
     // zonal vegetation from the Whittaker class (temperature x annual precipitation)
