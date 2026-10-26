@@ -1228,3 +1228,120 @@ fn sweep_top_band() {
     eprintln!("WORST {worst:?}");
 }
 
+
+#[test]
+#[ignore]
+fn pan_flicker_probe() {
+    let zd = std::env::var("ZONES").unwrap();
+    let dir = std::env::var("SKY_SHOTS").unwrap_or_else(|_| "/tmp".into());
+    let phase: f32 = std::env::var("PHASE").ok().and_then(|v| v.parse().ok()).unwrap_or(0.0);
+    let wk: u8 = std::env::var("WK").ok().and_then(|v| v.parse().ok()).unwrap_or(0);
+    let mut s = world_scene(&zd);
+    let (x, z) = (80.0f32, 450.0f32);
+    let y = s.zone_height(x, z);
+    s.upsert_unit("me", UnitInput { x, y, z, facing: std::env::var("FACE").ok().and_then(|v| v.parse().ok()).unwrap_or(3.93), anim: AnimState::Idle, preset: "knight".into() });
+    s.follow(Some("me"));
+    s.set_cam_mode(&std::env::var("MODE").unwrap_or_else(|_| "fp".into()));
+    s.set_time_of_day(phase);
+    s.set_weather(wk, 0.0);
+    for _ in 0..300 { s.tick(1.0 / 60.0); }
+    s.set_look(0.3, 0.0);
+    let meadow = |c: u8| (crate::palette::MEADOW_DEEP..=crate::palette::MEADOW_BLUE).contains(&c);
+    for fr in 0..40 {
+        s.tick(1.0 / 60.0);
+        s.draw();
+        let mut out = vec![0u8; s.fb.w * s.fb.h * 4];
+        s.write_rgba(&mut out);
+        let (mut ms, mut mn, mut gs, mut gn) = (0f64, 0, 0f64, 0);
+        for (i, &c) in s.fb.color.iter().enumerate() {
+            let l = out[i * 4 + 1] as f64;
+            if meadow(c) { ms += l; mn += 1 } else if (16..64).contains(&c) { gs += l; gn += 1 }
+        }
+        eprintln!("fr{fr:02} meadow n={mn:6} g={:6.1}  biome n={gn:6} g={:6.1}", ms / mn.max(1) as f64, gs / gn.max(1) as f64);
+        if fr == 0 {
+            let mut hist = [0usize; 256];
+            for &c in &s.fb.color { hist[c as usize] += 1; }
+            let top: Vec<_> = (0..256).filter(|&c| hist[c] > 200).map(|c| (c, hist[c])).collect();
+            eprintln!("hist {top:?}");
+        }
+        if fr < 2 {
+            let mut f = format!("P6\n{} {}\n255\n", s.fb.w, s.fb.h).into_bytes();
+            for px in out.chunks(4) { f.extend_from_slice(&px[..3]); }
+            std::fs::write(format!("{dir}/pan-{fr}.ppm"), f).unwrap();
+        }
+    }
+}
+
+/// Regression (grass flicker): meadow blade indices share palette slots with
+/// the floating combat numbers, which used to make grass "emissive" so it
+/// skipped ambient, weather and fog. Blades then glowed neon over dim ground
+/// and patches popped bright/dark as cells entered the view. Grass must be lit
+/// like the ground under it, at night, in rain, and frame to frame while panning.
+#[test]
+fn meadow_grass_is_lit_like_ground_and_stable_under_pan() {
+    let meadow = |c: u8| (palette::MEADOW_DEEP..=palette::MEADOW_BLUE).contains(&c);
+    let ground = |c: u8| (palette::BIOME0 + 13 * 3..palette::BIOME0 + 13 * 3 + 3).contains(&c);
+    for mode in ["tp", "fp"] {
+        for (phase, wk) in [(0.0f32, 0u8), (0.82, 1), (0.5, 0)] {
+            let mut s = cam3d_scene(mode);
+            s.minimap.on = false;
+            s.set_time_of_day(phase);
+            s.set_weather(wk, 0.0);
+            for _ in 0..400 { s.tick(1.0 / 60.0); }
+            s.set_look(0.25, 0.0);
+            let mut prev: Option<f64> = None;
+            for fr in 0..12 {
+                s.tick(1.0 / 60.0);
+                s.draw();
+                let mut out = vec![0u8; s.fb.w * s.fb.h * 4];
+                s.write_rgba(&mut out);
+                let (mut ms, mut mn, mut gs, mut gn) = (0f64, 0usize, 0f64, 0usize);
+                for (i, &c) in s.fb.color.iter().enumerate() {
+                    let l = out[i * 4..i * 4 + 3].iter().map(|&v| v as f64).sum::<f64>() / 3.0;
+                    if meadow(c) { ms += l; mn += 1 } else if ground(c) { gs += l; gn += 1 }
+                }
+                assert!(mn > 80 && gn > 500, "{mode} {phase} fr{fr}: blades {mn} ground {gn}");
+                let (m, g) = (ms / mn as f64, gs / gn as f64);
+                // Blades may be a little lighter than the ground, never a glow over it.
+                assert!(m < g * 1.9 + 12.0, "{mode} phase {phase} wk {wk} fr{fr}: grass {m:.1} vs ground {g:.1}");
+                if let Some(p) = prev {
+                    assert!((m - p).abs() < 6.0, "{mode} phase {phase} fr{fr}: grass luma jumped {p:.1} -> {m:.1}");
+                }
+                prev = Some(m);
+            }
+        }
+    }
+}
+
+/// Floating numbers keep their own colours (FN_* overlap the meadow slots).
+#[test]
+fn floaters_resolve_their_own_colours() {
+    for &(c, rgb) in palette::FLOAT.iter() {
+        assert_eq!(palette::float_rgb(c), Some(rgb));
+    }
+    assert!(!crate::atmosphere::emissive(palette::MEADOW));
+}
+
+/// Without the 3D sky (iso, or any frame where it is off) grass used to skip
+/// ambient entirely: a dark/wet ambient left blades at full palette brightness.
+#[test]
+fn meadow_follows_ambient_without_sky() {
+    let pal = palette::palette();
+    let (w, h) = (32, 32);
+    let g = palette::BIOME0 + 13 * 3 + 1;
+    let mut color = vec![g; w * h];
+    for (i, c) in color.iter_mut().enumerate() { if i % w >= w / 2 { *c = palette::MEADOW; } }
+    let luma = |amb: f32| {
+        let mut p = crate::atmosphere::PALE_HOLLOW;
+        p.ambient = [amb; 3];
+        p.vignette = 0.0;
+        let mut out = vec![0u8; w * h * 4];
+        crate::atmosphere::write_rgba_key(&pal, &color, w, h, &[], &p, 0.0, false, crate::atmosphere::Extra::NONE, &mut out);
+        let px = |i: usize| out[i * 4 + 1] as f32;
+        (px(w * 16 + 8), px(w * 16 + 24))
+    };
+    let (g_hi, m_hi) = luma(1.0);
+    let (g_lo, m_lo) = luma(0.3);
+    let (rg, rm) = (g_lo / g_hi, m_lo / m_hi);
+    assert!((rg - rm).abs() < 0.12, "ground x{rg:.2} vs grass x{rm:.2} when ambient drops");
+}

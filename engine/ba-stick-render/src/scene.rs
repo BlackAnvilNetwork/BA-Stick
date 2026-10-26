@@ -212,6 +212,10 @@ pub struct Scene {
     day_phase: f32,
     /// Per pixel: unit colour + 1 where a unit was drawn this frame, else 0.
     pub(crate) unit_px: Vec<u16>,
+    /// Floating combat-number pixels `(pixel, FN_* index)`. The FN_* indices
+    /// share palette slots with the meadow grass, so these are resolved from
+    /// `palette::FLOAT` after lighting instead of through the palette.
+    pub(crate) float_px: Vec<(u32, u8)>,
     /// Local player hair style and colours (Stick Engine cosmetics).
     player_appearance: crate::appearance::Appearance,
     player_hair_spring: [stick_engine::character::HairSpring; 3],
@@ -263,6 +267,7 @@ impl Scene {
             weather_time: 0.0,
             day_phase: 0.5,
             unit_px: Vec::new(),
+            float_px: Vec::new(),
             player_appearance: crate::appearance::Appearance::default(),
             player_hair_spring: [stick_engine::character::HairSpring::default(); 3],
         }
@@ -1516,6 +1521,8 @@ impl Scene {
         }
         // Floating combat numbers follow their unit (or stay where it vanished).
         let mut fl = std::mem::take(&mut self.floaters);
+        self.float_px.clear();
+        let pre_float = if fl.is_empty() { None } else { Some(self.fb.color.clone()) };
         for f in &mut fl {
             if let Some((x, y, _)) = self.anchor(&f.unit) {
                 f.at = Some((x, y));
@@ -1525,6 +1532,15 @@ impl Scene {
             }
         }
         self.floaters = fl;
+        if let Some(pre) = pre_float {
+            self.float_px.extend(
+                pre.iter()
+                    .zip(&self.fb.color)
+                    .enumerate()
+                    .filter(|(_, (&a, &b))| a != b && crate::palette::float_rgb(b).is_some())
+                    .map(|(i, (_, &b))| (i as u32, b)),
+            );
+        }
         if !self.boot_menu && !self.backdrop && (self.zone.is_some() || placed) {
             let t = if self.weather_kind_from == self.weather_kind_to {
                 1.0
@@ -1810,6 +1826,14 @@ impl Scene {
         }
         if !self.boot_menu && !self.backdrop && self.has_zone() {
             self.light_units(out);
+        }
+        for &(i, c) in &self.float_px {
+            if self.fb.color.get(i as usize) == Some(&c) {
+                if let Some(rgb) = crate::palette::float_rgb(c) {
+                    let o = &mut out[i as usize * 4..i as usize * 4 + 3];
+                    o.copy_from_slice(&[(rgb >> 16) as u8, (rgb >> 8) as u8, rgb as u8]);
+                }
+            }
         }
         crate::vfx::blend(&self.vfx.sparks, self.fb.w, self.fb.h, out);
         if !self.backdrop && !self.boot_menu && self.zone.is_some() && self.minimap.on {

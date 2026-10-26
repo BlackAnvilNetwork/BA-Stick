@@ -219,7 +219,6 @@ pub(crate) fn emissive(c: u8) -> bool {
         || (80..=90).contains(&c)
         || c == COAL
         || c == EMBER
-        || (FN_DMG..=FN_MISS).contains(&c)
         || c == BLOOM_C
 }
 
@@ -419,16 +418,6 @@ pub fn write_rgba_key(
                 v
             } else {
                 let mut v = lut[c as usize];
-                if emis[c as usize] && meadow_blade(c) {
-                    // Meadow indices share the floater (emissive) range, so they skip
-                    // ambient; in 3D still let the time of day dim them.
-                    if let Some(s) = ex.sky.as_ref() {
-                        let m = crate::sky::ambient_scale(s.phase);
-                        for k in 0..3 {
-                            v[k] *= m[k];
-                        }
-                    }
-                }
                 if !emis[c as usize] {
                     let wm = warm[i];
                     let cloud = bank_at(x, y);
