@@ -11,7 +11,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   PALE_HOLLOW_BOUNDS, paleHollowBridgeDeckY, paleHollowGroundHeight, paleHollowInOpenWater,
-  paleHollowOnBridge, paleHollowRiverCenterX, paleHollowTributaryCenterX, paleHollowWalkable, paleHollowWaterSurfaceY,
+  paleHollowOnBridge, paleHollowStandHeight, paleHollowRiverCenterX, paleHollowTributaryCenterX, paleHollowWalkable, paleHollowWaterSurfaceY,
 } from "@bellgrave/config";
 // PH_LAKE is not re-exported by the package index; read it from source (read-only).
 import { PH_LAKE } from "../../../../packages/config/src/pale-hollow";
@@ -414,6 +414,7 @@ export function bakeGenerated(g: Gen, cellOut = 0.5): Buffer {
     let flags = 0; let y = g.groundAt(x, z); const onBr = paleHollowOnBridge(x, z);
     if (g.water[gk]) { flags |= 1; y = g.wy[gk]!; } else if (onBr) { flags |= 4; y = paleHollowBridgeDeckY(x, z) ?? y; }
     if (!paleHollowWalkable(x, z)) flags |= 8;
+    else if (!(flags & 5)) y = paleHollowStandHeight(x, z); // contract: walkable ground = server stand height; relief only on blocked scenery
     if (!(flags & 5) && g.road[gk]) flags |= 2;
     if (!(flags & 5) && !g.road[gk] && inCreek(x, z)) flags |= 1, (y = g.groundAt(x, z) + 0.05); // creek: fordable (not blocked)
     buf.writeUInt8(g.biome[gk]!, bio + k); buf.writeUInt8(flags, flg + k); buf.writeInt16LE(Math.max(-32768, Math.min(32767, Math.round(y * 100))), hgt + k * 2); }

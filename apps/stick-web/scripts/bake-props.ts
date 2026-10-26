@@ -32,6 +32,7 @@ import {
   PH_BRIDGE_SITES,
   PH_RIVER_MAIN,
   PH_RIVER_TRIB,
+  paleHollowRiverJunctionOpen,
   PH_RIVER_WALL,
   PH_YARDS,
   paleHollowBankPoint,
@@ -254,6 +255,7 @@ function riverBanks(out: Prop[]): void {
     const x = (a.x + b.x) * 0.5, z = (a.z + b.z) * 0.5;
     const len = Math.hypot(b.x - a.x, b.z - a.z);
     if (len < 0.15 || !Number.isFinite(x) || !Number.isFinite(z)) return;
+    if (paleHollowRiverJunctionOpen(x, z)) return; // confluence: no wall across the tributary mouth
     const y = paleHollowTerrainMeshY(x, z) + 0.04;
     // Where the bank sits low, the river surface can stand above a standard
     // wall's coping, so open water showed over the far wall as blue teeth.
@@ -284,7 +286,7 @@ function riverBanks(out: Prop[]): void {
       }
     }
     // semicircular bowls closing each channel end
-    for (const [zEnd, outward] of [[r.z0, -1], [r.z1, 1]] as const) {
+    for (const [zEnd, outward] of (river === "tributary" ? [[r.z0, -1]] : [[r.z0, -1], [r.z1, 1]]) as readonly (readonly [number, 1 | -1])[]) {
       const eps = 0.85;
       const tx = centerX(zEnd + eps) - centerX(zEnd - eps), tz = eps * 2, tl = Math.hypot(tx, tz) || 1;
       const fx = tx / tl, fz = tz / tl, rx = -fz, rz = fx, ox = fx * outward, oz = fz * outward, cx = centerX(zEnd);

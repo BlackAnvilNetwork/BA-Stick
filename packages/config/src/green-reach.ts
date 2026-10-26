@@ -1,3 +1,4 @@
+import { inShoreShallows, inShoreWater, shoreDist, shoreTerrainY } from "./natural-shore";
 /**
  * Green Reach — one island between islet_fords and coil_pass.
  *
@@ -43,8 +44,8 @@ export const GR_DISCS = [
 ] as const;
 
 export const GR_POOLS = [
-  { x: 25, z: 25, r: 10, surface: GR_SURFACE },
-  { x: 55, z: -15, r: 6, surface: GR_SURFACE },
+  { x: 25, z: 25, r: 10, surface: GR_SURFACE, seed: 811 },
+  { x: 55, z: -15, r: 6, surface: GR_SURFACE, seed: 812 },
 ] as const;
 
 export const GR_PEAKS = [
@@ -93,7 +94,7 @@ export function greenReachMaskDist(x: number, z: number): number {
 
 export function greenReachInOpenWater(x: number, z: number): boolean {
   for (const p of GR_POOLS) {
-    if (Math.hypot(x - p.x, z - p.z) <= p.r) return true;
+    if (inShoreWater(p, x, z, 1.5)) return true;
   }
   return false;
 }
@@ -113,10 +114,16 @@ function inRect(x: number, z: number, g: GreenReachGate): boolean {
   return x >= g.minX && x <= g.maxX && z >= g.minZ && z <= g.maxZ;
 }
 
+/** Wadeable pool fringe (rho >= 0.8, <= 0.5 m deep). */
+export function greenReachInPoolShallows(x: number, z: number): boolean {
+  return GR_POOLS.some((p) => inShoreShallows(p, x, z, 1.5));
+}
+
 export function greenReachWalkable(x: number, z: number): boolean {
   if (x < GR_BOUNDS.minX || x > GR_BOUNDS.maxX) return false;
   if (z < GR_BOUNDS.minZ || z > GR_BOUNDS.maxZ) return false;
   if (greenReachMaskDist(x, z) > 0) return false;
+  if (greenReachInPoolShallows(x, z)) return true;
   if (greenReachInOpenWater(x, z)) return false;
   if (inPeakCore(x, z)) return false;
   for (const g of GR_GATES) {
@@ -148,12 +155,7 @@ function terrainY(x: number, z: number): number {
   const d = greenReachMaskDist(x, z);
   if (d > 0) y = Math.max(y, 1.3 + smooth(Math.min(d, 24) / 24) * 6.4);
   for (const p of GR_POOLS) {
-    const pd = Math.hypot(x - p.x, z - p.z);
-    const reach = p.r + 4;
-    if (pd < reach) {
-      const bed = p.surface - 1.35;
-      y = bed + (y - bed) * smooth(pd / reach);
-    }
+    if (shoreDist(p, x, z, 1.5) < p.r + 5) y = Math.min(y, shoreTerrainY(p, x, z, y, 5, 1.5));
   }
   return y;
 }
@@ -175,7 +177,7 @@ export function greenReachBiome(x: number, z: number): GreenReachBiome {
     if (Math.hypot(x - m.x, z - m.z) < m.r * 0.62) return "mountain";
   }
   for (const p of GR_POOLS) {
-    if (Math.hypot(x - p.x, z - p.z) < p.r + 3.5) return "riverbank";
+    if (shoreDist(p, x, z, 1.5) < p.r + 3.5) return "riverbank";
   }
   if (Math.hypot(x - 20, z + 60) < 22) return "meadow";
   if (Math.hypot(x - 80, z - 20) < 18) return "meadow";

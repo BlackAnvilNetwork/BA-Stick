@@ -1,3 +1,4 @@
+import { inShoreShallows, inShoreWater, shoreDist, shoreTerrainY } from "./natural-shore";
 /**
  * Forest Basin — a branching field north of the hollow's scale.
  *
@@ -37,7 +38,7 @@ export const FB_TRAIL_WIDTH = 3.3;
 export const FB_BRIDGE_DECK_W = 3.9;
 
 /** Northern mere. The river leaves the south shore. */
-export const FB_LAKE = { x: 0, z: 115, r: 22, surface: 1.55 } as const;
+export const FB_LAKE = { x: 0, z: 115, r: 22, surface: 1.55, seed: 611 } as const;
 
 /** Eastern spur camp. Local pad is flat. */
 export const FB_CAMP = { x: 128, z: 28, r: 16, floorY: 2.35 } as const;
@@ -180,7 +181,7 @@ function nearRiver(x: number, z: number): number {
 
 export function forestBasinInOpenWater(x: number, z: number): boolean {
   if (forestBasinMaskDist(x, z) > 1) return false;
-  if (Math.hypot(x - FB_LAKE.x, z - FB_LAKE.z) < FB_LAKE.r) return true;
+  if (inShoreWater(FB_LAKE, x, z)) return true;
   if (z <= RIVER_Z0 && z >= RIVER_Z1 && nearRiver(x, z) < riverHalf(z)) return true;
   for (const b of BROOKS) {
     if (segDist(x, z, b.ax, b.az, b.bx, b.bz) < b.r) return true;
@@ -204,12 +205,18 @@ function inRect(x: number, z: number, g: ForestBasinGate): boolean {
   return x >= g.minX && x <= g.maxX && z >= g.minZ && z <= g.maxZ;
 }
 
+/** Wadeable fringe of the North Mere (rho >= 0.8, <= 0.5 m deep). */
+export function forestBasinInLakeShallows(x: number, z: number): boolean {
+  return forestBasinMaskDist(x, z) <= 1 && inShoreShallows(FB_LAKE, x, z);
+}
+
 export function forestBasinWalkable(x: number, z: number): boolean {
   if (x < FOREST_BASIN_BOUNDS.minX || x > FOREST_BASIN_BOUNDS.maxX) return false;
   if (z < FOREST_BASIN_BOUNDS.minZ || z > FOREST_BASIN_BOUNDS.maxZ) return false;
   if (forestBasinOnBridge(x, z)) return true;
   if (forestBasinMaskDist(x, z) > 0) return false;
   if (inPeakCore(x, z)) return false;
+  if (forestBasinInLakeShallows(x, z)) return true;
   if (forestBasinInOpenWater(x, z)) return false;
   for (const g of FB_GATES) {
     if (g.blocked && inRect(x, z, g)) return false;
@@ -240,11 +247,10 @@ function terrainY(x: number, z: number): number {
   const d = forestBasinMaskDist(x, z);
   if (d > 0) y = Math.max(y, 1.15 + smooth(d / 16) * 8.3);
 
-  const ld = Math.hypot(x - FB_LAKE.x, z - FB_LAKE.z);
+  const ld = shoreDist(FB_LAKE, x, z);
   if (ld < FB_LAKE.r + 12) {
-    const bowl = 0.15 + (2.4 - 0.15) * smooth(ld / (FB_LAKE.r + 4));
-    const rim = ld > FB_LAKE.r ? 4.2 * smooth((ld - FB_LAKE.r) / 10) : 0;
-    y = bowl + rim * (1 - smooth(ld / (FB_LAKE.r + 12)));
+    const rim = 4.2 * smooth((ld - FB_LAKE.r) / 10) * (1 - smooth(ld / (FB_LAKE.r + 12)));
+    y = shoreTerrainY(FB_LAKE, x, z, FB_LAKE.surface + 0.5 + Math.max(0, rim), 6);
   }
 
   const rd = nearRiver(x, z);
@@ -305,7 +311,7 @@ export function forestBasinBiome(x: number, z: number): ForestBasinBiome {
   if (Math.hypot(x - FB_CAMP.x, z - FB_CAMP.z) < 11) return "hub_indoor";
   if (forestBasinOnBridge(x, z)) return "bridge";
   if (forestBasinInOpenWater(x, z)) return "river";
-  if (Math.hypot(x - FB_LAKE.x, z - FB_LAKE.z) < FB_LAKE.r + 5) return "riverbank";
+  if (shoreDist(FB_LAKE, x, z) < FB_LAKE.r + 5) return "riverbank";
   if (z <= RIVER_Z0 && z >= RIVER_Z1 && nearRiver(x, z) < riverHalf(z) + 4) return "riverbank";
   const d = forestBasinMaskDist(x, z);
   // Outside the mask is empty on the minimap (blocked crypt). Peak cores stay highland.

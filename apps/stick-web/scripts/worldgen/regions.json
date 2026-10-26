@@ -463,8 +463,12 @@
       "warpEntryM": 35,
       "seed": 50618,
       "entryFrom": "coil_pass",
-      "warpWhy": "tongue-lip arrival shelf below the coil: entry to the ridge, overlooking the Ashlands",
-      "warpHook": "The last ring before the Ember Crown. Its stones are fused glass on the north face."
+      "warpWhy": "Scarp Head: the crossroads where the King's Stair tops out onto the shelf; every route (Stele Way, Kingsbridge, Ember Crown flank) leaves from here.",
+      "warpHook": "The stair's last landing is a ring of cut stones older than the stair itself; the chroniclers who rewrote the Ascent left it off every map.",
+      "warpBias": [
+        -8,
+        -30
+      ]
     }
   }
 }

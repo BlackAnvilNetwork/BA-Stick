@@ -375,9 +375,37 @@ function tributaryCenterX(z: number): number {
   return sampleRun(CHALK_FORK, z);
 }
 
-export function paleHollowLakeDist(x: number, z: number): number {
-  return Math.hypot(x - PH_LAKE.x, z - PH_LAKE.z);
+/**
+ * Ash Pit shoreline radius at polar angle `a` (radians, atan2(dz, dx)). Low harmonics plus a
+ * delta lobe toward the outflow (south) and a drowned bay to the north-west, so the lake reads as
+ * a natural basin rather than a disc. Mean radius stays PH_LAKE.r.
+ */
+export function paleHollowLakeShoreR(a: number): number {
+  const lobe = Math.exp(-(((Math.atan2(Math.sin(a + Math.PI / 2), Math.cos(a + Math.PI / 2))) / 0.45) ** 2));
+  const bay = Math.exp(-(((Math.atan2(Math.sin(a - 2.3), Math.cos(a - 2.3))) / 0.35) ** 2));
+  const k = 1 + 0.11 * Math.sin(2 * a + 0.7) + 0.07 * Math.sin(3 * a + 2.1) + 0.045 * Math.sin(5 * a + 0.3) + 0.025 * Math.sin(8 * a + 1.9)
+    + 0.08 * lobe + 0.1 * bay;
+  // Keep the shore off the Seam Tunnel gate (rect x -28..16, z 400..424, centre (-6,412) at ~1.49 rad):
+  // in that sector the shore stays at most 0.94 r, a dry margin of >= 3 m before the gate.
+  const seam = Math.exp(-(((Math.atan2(Math.sin(a - 1.49), Math.cos(a - 1.49))) / 0.5) ** 2));
+  return PH_LAKE.r * (k * (1 - seam) + Math.min(k, 0.94) * seam);
 }
+
+/**
+ * Normalised lake distance: PH_LAKE.r on the (irregular) shoreline, smaller inside. Every
+ * `paleHollowLakeDist(x, z) < PH_LAKE.r` test therefore follows the natural shoreline.
+ */
+export function paleHollowLakeDist(x: number, z: number): number {
+  const dx = x - PH_LAKE.x, dz = z - PH_LAKE.z;
+  const d = Math.hypot(dx, dz);
+  if (d < 1e-6) return 0;
+  return (d * PH_LAKE.r) / paleHollowLakeShoreR(Math.atan2(dz, dx));
+}
+
+/** Width (normalised metres) of the wadeable shelf just inside the Ash Pit shoreline. */
+export const PH_LAKE_SHALLOW_BAND = 4;
+/** Deepest water a stick may wade (m). Deeper water blocks. */
+export const PH_WADE_MAX = 0.6;
 
 /** Shared with client water ribbon / shore foam. */
 export function paleHollowRiverCenterX(z: number): number {
@@ -1142,13 +1170,28 @@ function paleHollowRiverWallBand(x: number, z: number): boolean {
     const dist = Math.hypot(x - qx, z - qz);
     return Math.abs(dist - bankDist) <= solid;
   };
+  if (paleHollowRiverJunctionOpen(x, z)) return false;
   if (hit("main", PH_RIVER_MAIN.z0, PH_RIVER_MAIN.z1)) return true;
   if (hit("tributary", PH_RIVER_TRIB.z0, PH_RIVER_TRIB.z1)) return true;
   if (culdesacWall(riverCenterX, PH_RIVER_MAIN.z0, PH_RIVER_MAIN.bankDist, -1, x, z)) return true;
   if (culdesacWall(riverCenterX, PH_RIVER_MAIN.z1, PH_RIVER_MAIN.bankDist, 1, x, z)) return true;
   if (culdesacWall(tributaryCenterX, PH_RIVER_TRIB.z0, PH_RIVER_TRIB.bankDist, -1, x, z)) return true;
-  if (culdesacWall(tributaryCenterX, PH_RIVER_TRIB.z1, PH_RIVER_TRIB.bankDist, 1, x, z)) return true;
+  // no end wall at PH_RIVER_TRIB.z1: the tributary mouth opens into the main stem (confluence near (-4,198))
   return false;
+}
+
+/**
+ * Confluence opening: where the main-stem and tributary corridors (bank + wall) overlap, neither
+ * bank wall is solid, so the tributary flows into the main stem instead of dead-ending.
+ * Shared with the client bank-wall props so collision and visuals agree.
+ */
+export function paleHollowRiverJunctionOpen(x: number, z: number): boolean {
+  if (z < PH_RIVER_TRIB.z1 - 30 || z > PH_RIVER_TRIB.z1 + 6) return false;
+  const pad = PH_RIVER_WALL.thick * 0.5 + PH_RIVER_WALL.collidePad + 0.35;
+  const dm = Math.abs(x - riverCenterX(z));
+  const dt = Math.abs(x - tributaryCenterX(Math.min(z, PH_RIVER_TRIB.z1)));
+  const inTribMouth = z <= PH_RIVER_TRIB.z1 + 0.5 ? dt <= PH_RIVER_TRIB.bankDist + pad : false;
+  return dm <= PH_RIVER_MAIN.bankDist + pad && inTribMouth;
 }
 
 /** Rounded end wall: semicircle of radius `bankDist` bulging out of the channel. */
@@ -1189,9 +1232,21 @@ export function paleHollowInRiverWall(x: number, z: number): boolean {
  * Clear walkable check: dry land OR on-bridge; reject open water and river walls.
  * Soft-gate landmark "bridge" biomes are dry land and remain walkable.
  */
+/**
+ * Wadeable shelf of the Ash Pit: just inside the natural shoreline and no deeper than
+ * PH_WADE_MAX. Open water (drawn wet) but walkable; feet stand on the bed.
+ */
+export function paleHollowInLakeShallows(x: number, z: number): boolean {
+  const ld = paleHollowLakeDist(x, z);
+  if (ld > PH_LAKE.r || ld < PH_LAKE.r - PH_LAKE_SHALLOW_BAND) return false;
+  const surf = paleHollowHeightField(PH_LAKE.x, PH_LAKE.z) + PALE_HOLLOW_WATER_CLEARANCE;
+  return surf - paleHollowTerrainMeshY(x, z) <= PH_WADE_MAX;
+}
+
 export function paleHollowWalkable(x: number, z: number): boolean {
   if (paleHollowInHubRearWall(x, z)) return false;
   if (paleHollowOnBridge(x, z)) return true;
+  if (paleHollowInLakeShallows(x, z)) return true;
   if (paleHollowInOpenWater(x, z)) return false;
   if (paleHollowInRiverWall(x, z)) return false;
   if (paleHollowBiomeCore(x, z) === "river") return false;

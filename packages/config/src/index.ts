@@ -135,6 +135,9 @@ export {
   paleHollowTerrainWeights,
   paleHollowWaterSurfaceY,
   paleHollowInOpenWater,
+  paleHollowRiverJunctionOpen,
+  paleHollowInLakeShallows,
+  paleHollowLakeShoreR,
   paleHollowInRiverWall,
   paleHollowOnBridge,
   paleHollowBakedOnBridge,
@@ -239,6 +242,7 @@ export {
   forestBasinMaskDist,
   forestBasinRiverX,
   forestBasinInOpenWater,
+  forestBasinInLakeShallows,
   forestBasinBridgeCenter,
   forestBasinOnBridge,
   forestBasinWalkable,
@@ -556,3 +560,4 @@ export {
   type WarpCircle,
   type WarpCircleId,
 } from "./warp-unlocks";
+export * from "./natural-shore";

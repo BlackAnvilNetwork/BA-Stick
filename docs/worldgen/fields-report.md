@@ -104,3 +104,21 @@ Notes:
 - a forest/conifer biome palette entry;
 - a server/client terrain hash;
 - the nav-grid lineClear bug (nav-grid.ts:86), reported earlier and not fixed.
+
+## Milestone 3 (2026-10-26): coil_ridge replaced, lakes naturalised
+
+**coil_ridge → "The Broken Stair"** (proposed display name; zone id `coil_ridge` unchanged).
+The spiral is gone. A ruin-strewn scarp: a sloped apron below the `tongue-lip` gate (spawn 0,-120 unchanged; feet 2.61 m, was 2.4),
+the King's Stair (switchbacks up the scarp), and a broken highland shelf rising north toward the Ember Crown flank.
+Water: the Stele Brook (shallow, wadeable) feeds the Mirror Tarn (irregular shore, wadeable shelf, deep core ~3 m), which drains by
+the Sundered Gorge race (deep, 1.4 m, surface falling monotonically 8.05 → 0.8 m) to the SE corner. The Kingsbridge spans the race.
+Ruins: Stele Field, Toppled Gatehouse, Scarp Head. Lore: the stair the chroniclers say was "always there" is cut through older stones.
+Warp circle (data only, unwired): Scarp Head (-3,-40), the crossroads at the top of the stair.
+Trail `tongue-track` removed; new trails `kings-stair`, `stele-way`, `gatehouse-way`.
+
+**Lakes.** Shared `natural-shore.ts` (harmonic shoreline, tiers: wadeable fringe ρ≥0.8 ≤0.5 m, deep, deeper core).
+Applied to the forest_basin North Mere, the green_reach pools and the ring_ward wharf basin. Pale Hollow lake: irregular shoreline, wadeable
+east fringe, tributary/main-stem confluence opened near (-4,198). islet_fords: its water is a strait with round islets (land discs, not water); left as is.
+Pale Hollow golems were pinned to their old positions so the lake change does not reshuffle `ph-golem-*` ids (golem-1 now reads riverbank, still dry).
+Guard run-2 fixes: the Seam Tunnel gate (-6,412) stays dry (shore capped in that sector). pale_hollow_gen now writes the server stand height on every dry walkable cell, so it matches the config contract.
+Warp circles: pale_hollow (84,216); coil_ridge (-3,-40).
