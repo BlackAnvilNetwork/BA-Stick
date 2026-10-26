@@ -149,12 +149,34 @@ function baseY(x: number, z: number): number {
   return 1.3 + 1.1 * inland;
 }
 
+/** Grow-only footprint of a peak massif by polar angle: spurs reach out, saddles sit between them. */
+function massifLobe(i: number, a: number): number {
+  const p = 1.1 + i * 2.399;
+  return 1 + 0.16 * (1 + Math.sin(3 * a + p)) + 0.08 * (1 + Math.sin(5 * a - 1.3 * p)) + 0.04 * (1 + Math.sin(9 * a + p));
+}
+
+/**
+ * Eroded massif profile (0..1) at normalised radius t: a broad shoulder with ridged spurs radiating out and
+ * gullies between them, instead of a smooth cone. Spurs twist slightly with distance so they read as ridges.
+ */
+function massifShape(i: number, a: number, t: number): number {
+  const p = 0.4 + i * 1.913;
+  const spur = 1 - Math.abs(Math.sin(2.5 * a + p + t * 1.6)); // 1 on a ridge line, 0 in a gully
+  const sub = 1 - Math.abs(Math.sin(6 * a - p - t * 2.4));
+  const base = Math.pow(1 - t, 1.7);
+  const r0 = 0.62 + 0.28 * spur * spur + 0.1 * sub;
+  const rid = r0 + (1 - r0) * Math.pow(1 - t, 6); // summit keeps its full height
+  return Math.min(1, base * rid * (1 + 0.35 * (1 - t) * (1 - t)));
+}
+
 function terrainY(x: number, z: number): number {
   let y = baseY(x, z);
-  for (const m of GR_PEAKS) {
-    const t = Math.hypot(x - m.x, z - m.z) / m.r;
+  for (let i = 0; i < GR_PEAKS.length; i++) {
+    const m = GR_PEAKS[i]!;
+    const a = Math.atan2(z - m.z, x - m.x);
+    const t = Math.hypot(x - m.x, z - m.z) / (m.r * massifLobe(i, a));
     if (t < 1) {
-      const k = (1 - t) * (1 - t);
+      const k = massifShape(i, a, t);
       y = Math.max(y, m.h * k + baseY(x, z) * (1 - k));
     }
   }
@@ -179,8 +201,9 @@ export type GreenReachBiome = "river" | "riverbank" | "grass" | "meadow" | "moun
 export function greenReachBiome(x: number, z: number): GreenReachBiome {
   if (greenReachInOpenWater(x, z)) return "river";
   if (greenReachMaskDist(x, z) > 0) return "mountain";
-  for (const m of GR_PEAKS) {
-    if (Math.hypot(x - m.x, z - m.z) < m.r * 0.62) return "mountain";
+  for (let i = 0; i < GR_PEAKS.length; i++) {
+    const m = GR_PEAKS[i]!;
+    if (Math.hypot(x - m.x, z - m.z) < m.r * 0.62 * massifLobe(i, Math.atan2(z - m.z, x - m.x))) return "mountain";
   }
   for (const p of GR_POOLS) {
     if (shoreDist(p, x, z, 1.5) < p.r + 3.5) return "riverbank";
