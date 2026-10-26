@@ -27,6 +27,8 @@ pub enum AnimState {
     Cooking,
     /// Goldsmithing channel: jeweler's stake + hammer, sword stowed.
     Goldsmithing,
+    /// General dash (every class): Stick Engine's `dash` lunge clip.
+    Dash,
 }
 
 impl AnimState {
@@ -44,6 +46,7 @@ impl AnimState {
             "smithing" => AnimState::Smithing,
             "cooking" => AnimState::Cooking,
             "goldsmithing" => AnimState::Goldsmithing,
+            "dash" => AnimState::Dash,
             _ => AnimState::Idle,
         }
     }
@@ -52,7 +55,7 @@ impl AnimState {
     pub fn clip(self) -> &'static str {
         match self {
             AnimState::Walk => "walk",
-            AnimState::Run => "run",
+            AnimState::Run | AnimState::Dash => "run",
             AnimState::Melee | AnimState::Cast => "swing",
             AnimState::Idle | AnimState::Rest | AnimState::Dead | AnimState::Harvest | AnimState::Mine | AnimState::Leathercraft | AnimState::Smithing | AnimState::Cooking | AnimState::Goldsmithing => "idle",
         }
@@ -62,6 +65,7 @@ impl AnimState {
         match self {
             AnimState::Melee | AnimState::Cast => Some("swing"),
             AnimState::Rest => Some("rest"),
+            AnimState::Dash => Some("dash"),
             _ => None,
         }
     }

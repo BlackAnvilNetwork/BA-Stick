@@ -4,7 +4,7 @@ import { VfxDirector, playSteps } from "./vfx";
 import { gearArgs } from "./gear";
 import { getItem } from "@bellgrave/items";
 import { useGame } from "@bellgrave/client-core/state";
-import { clampPaleHollow, fieldById, fieldClampMove, paleHollowClampMove, PH_WEATHER_KIND_ID, zoneOrigin } from "@bellgrave/config";
+import { clampPaleHollow, DASH_COOLDOWN_MS, DASH_MS, fieldById, fieldClampMove, paleHollowClampMove, PH_WEATHER_KIND_ID, planDash, zoneOrigin } from "@bellgrave/config";
 import type { UnitSnapshot } from "@bellgrave/protocol";
 import { NpcInteractMenu } from "@bellgrave/ui/NpcInteractMenu";
 import { clearKeyboardMove, setKeyboardMoveKey } from "@bellgrave/ui/moveInput";
@@ -13,7 +13,7 @@ import { staticAt } from "./statics";
 import { CombatFloaters } from "./floaters";
 import { GatherIcons, loadIconAtlas, type IconAtlas } from "./gather";
 import { craftActFor, gatherActFor, presentCraft, presentGather, syncUnits, type CraftAct, type GatherAct } from "./units";
-import { engageHeadingGoal, getMoveKeys, headingEase, headingStep, headingTarget, headingToward, moveKeyFromCode, shouldResend, stopTarget, wasdTarget } from "./input";
+import { engageHeadingGoal, getMoveKeys, headingEase, headingStep, headingTarget, headingToward, moveKeyFromCode, shouldResend, stopTarget, wasdTarget, DASH_KEY_CODE, DashClock, dashDirection } from "./input";
 import { atmosphereFor, isCoarsePointer, keylightFor } from "./mobile";
 import { CastClock, sameId, unitFx } from "./fx";
 import { routeUnitClick } from "./clicks";
@@ -131,6 +131,31 @@ export function StickWorld() {
       let headingGoal: number | null = null;
       let lastWasd: { keys: string; heading: number; at: number; x: number; z: number } | null = null;
       const view3d = () => camModeFromDataset(root.dataset.uiView) !== "iso";
+      // General dash (every class): predicted here, validated by the server.
+      const dashClock = new DashClock(DASH_COOLDOWN_MS);
+      let localDash: { x: number; z: number; until: number } | null = null;
+      let cursorFb: [number, number] | null = null;
+      const clampMoveHere = (ax: number, az: number, bx: number, bz: number) =>
+        fieldClampMove(activeZone, ax, az, bx, bz) ?? paleHollowClampMove(ax, az, bx, bz);
+      const tryDash = () => {
+        const me = myUnit();
+        const now = performance.now();
+        if (!me || me.hp <= 0 || !dashClock.ready(now)) return;
+        const keys = getMoveKeys();
+        const isoKey = heading === null ? wasdTarget(keys, me, pick, [FB_W / 2, FB_H / 2], clampMoveHere) : null;
+        const cursor = heading === null && cursorFb ? pickHit(cursorFb[0], cursorFb[1]) : null;
+        const dir = dashDirection(keys, me, heading, isoKey, cursor);
+        send({ type: "dash", dx: dir.dx, dz: dir.dz });
+        dashClock.start(now);
+        // Same wall walk as the server, so the prediction lands where the server will.
+        const plan = planDash(me, dir, clampMoveHere, Date.now(), undefined);
+        if (plan.ok) {
+          const secs = (plan.run.end - plan.run.start) / 1000;
+          localDash = { x: plan.run.tx, z: plan.run.tz, until: now + secs * 1000 + 120 };
+          r.predictDash(me.id, plan.run.tx + origin.x, plan.run.tz + origin.z, secs);
+          lastWasd = null;
+        }
+      };
       let last = performance.now();
 
       const myUnit = () => {
@@ -226,6 +251,7 @@ export function StickWorld() {
           return;
         }
         const [sx, sy] = toFramebuffer(canvas, e.clientX, e.clientY);
+        cursorFb = [sx, sy];
         if (r.minimapButton(sx, sy)) {
           hovered = null;
           canvas.style.cursor = "pointer";
@@ -254,6 +280,11 @@ export function StickWorld() {
           e.preventDefault();
         }
         if (typing(e) || e.repeat) return;
+        if (e.code === DASH_KEY_CODE) {
+          e.preventDefault();
+          tryDash();
+          return;
+        }
         if (followed) {
           if (e.code === "Semicolon") {
             r.cycleHairStyle(1);
@@ -379,6 +410,9 @@ export function StickWorld() {
             unit = gNext.unit;
             const cNext = presentCraft(unit, craftAct, nowMs);
             craftAct = cNext.act;
+            if (localDash && performance.now() < localDash.until && !cNext.unit.dashTo) {
+              return { ...cNext.unit, dashTo: { x: localDash.x, z: localDash.z } };
+            }
             return cNext.unit;
           });
           syncUnits(
@@ -408,6 +442,14 @@ export function StickWorld() {
           if (gearKey !== lastGearKey) {
             lastGearKey = gearKey;
             r.setGear(me.id, ...g);
+          }
+        }
+        if (me) {
+          const srv = me.dashTo;
+          if (srv) r.predictDash(me.id, srv.x + origin.x, srv.z + origin.z, DASH_MS / 1000);
+          if (dashClock.refused(performance.now(), !!srv)) {
+            r.cancelDash(me.id);
+            localDash = null;
           }
         }
         if (me?.id !== followed) {

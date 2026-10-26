@@ -113,7 +113,29 @@ struct Unit {
     /// Rising embers off en-spelled weapons (forge menu cadence).
     weapon_edge_emit: f32,
     snap: bool,
+    /// Dash afterimages: (position, life). Empty unless the unit dashed.
+    ghosts: Vec<(Vec3, f32)>,
+    ghost_emit: f32,
+    /// Client-predicted dash for the own unit; server snapshots retarget its end.
+    pred: Option<DashPred>,
+    /// Latest server position while `pred` drives `target`.
+    server_target: Vec3,
 }
+
+#[derive(Clone, Copy, Debug)]
+struct DashPred {
+    from: Vec3,
+    to: Vec3,
+    t: f32,
+    dur: f32,
+}
+
+/// After the predicted dash ends, hold its landing this long before the server owns the unit again.
+const DASH_PRED_HOLD: f32 = 0.12;
+
+/// Stick Engine's dash trail: one afterimage per `GHOST_EVERY`, each fading over `GHOST_LIFE`.
+pub(crate) const GHOST_EVERY: f32 = 0.04;
+pub(crate) const GHOST_LIFE: f32 = 0.25;
 
 /// Head centre above the feet, matching the reference biped (`thigh+shin+torso+neck+head_r`).
 const HEAD_Y: f32 = 1.63;
@@ -407,6 +429,27 @@ impl Scene {
 
     /// Insert or update a unit. New units snap to their position; existing
     /// ones interpolate toward it.
+    /// Predict (or retarget) a dash for unit `id` to (x, z) over `secs`. A
+    /// running prediction keeps its start and timing and only moves its end,
+    /// so the server's wall-clipped landing blends in mid-flight.
+    pub fn predict_dash(&mut self, id: &str, x: f32, z: f32, secs: f32) {
+        if let Some(u) = self.units.get_mut(id) {
+            let to = v3(x, u.server_target.y, z);
+            match u.pred.as_mut() {
+                Some(p) => p.to = to,
+                None => u.pred = Some(DashPred { from: u.pos, to, t: 0.0, dur: secs.max(0.05) }),
+            }
+        }
+    }
+    /// Drop a prediction the server refused; the unit eases back to the server position.
+    pub fn cancel_dash(&mut self, id: &str) {
+        if let Some(u) = self.units.get_mut(id) {
+            if u.pred.take().is_some() {
+                u.target = u.server_target;
+            }
+        }
+    }
+
     pub fn upsert_unit(&mut self, id: &str, u: UnitInput) {
         let target = v3(u.x, u.y, u.z);
         match self.units.get_mut(id) {
@@ -417,7 +460,10 @@ impl Scene {
                     e.pos = target;
                     e.yaw = u.facing;
                 }
-                e.target = target;
+                e.server_target = target;
+                if e.pred.is_none() {
+                    e.target = target;
+                }
                 e.target_yaw = u.facing;
                 if e.preset_key != u.preset {
                     e.preset = RigPreset::resolve(&u.preset);
@@ -451,6 +497,10 @@ impl Scene {
                     act_t: 0.0,
                     weapon_edge_emit: 0.0,
                     snap: true,
+                    ghosts: Vec::new(),
+                    ghost_emit: 0.0,
+                    pred: None,
+                    server_target: target,
                     fx: UnitFx::default(),
                     gait: 0.0,
                     moving: 0.0,
@@ -744,6 +794,31 @@ impl Scene {
                 u.target_yaw = h;
             }
             let before = u.pos;
+            if let Some(p) = u.pred.as_mut() {
+                p.t += dt;
+                if p.t >= p.dur + DASH_PRED_HOLD {
+                    u.pred = None;
+                    u.target = u.server_target;
+                } else {
+                    let k = dash_ease(p.t / p.dur);
+                    u.target = v3(p.from.x + (p.to.x - p.from.x) * k, u.server_target.y, p.from.z + (p.to.z - p.from.z) * k);
+                }
+            }
+            if !u.ghosts.is_empty() || u.anim == AnimState::Dash {
+                for g in u.ghosts.iter_mut() {
+                    g.1 -= dt;
+                }
+                u.ghosts.retain(|g| g.1 > 0.0);
+                if u.anim == AnimState::Dash {
+                    u.ghost_emit -= dt;
+                    if u.ghost_emit <= 0.0 && u.ghosts.len() < 8 {
+                        u.ghosts.push((u.pos, GHOST_LIFE));
+                        u.ghost_emit = GHOST_EVERY;
+                    }
+                } else {
+                    u.ghost_emit = 0.0;
+                }
+            }
             if u.snap {
                 u.snap = false;
             } else {
@@ -1315,6 +1390,9 @@ impl Scene {
                             j.sword_tip = j.sword_tip + push;
                         }
                     }
+                    if !u.ghosts.is_empty() && !fp {
+                        dash_ghosts(&mut self.fb, &cam, &j, u.pos, &u.ghosts);
+                    }
                     let swinging = matches!(u.anim, AnimState::Melee | AnimState::Cast);
                     let tool = match u.anim {
                         AnimState::Harvest => figure::GatherTool::Shovel,
@@ -1795,6 +1873,36 @@ impl BBox {
     }
 }
 
+/// Ease-out used by the server's dash (apps/server/src/dash.ts `dashPos`).
+pub(crate) fn dash_ease(t: f32) -> f32 {
+    let t = t.clamp(0.0, 1.0);
+    1.0 - (1.0 - t) * (1.0 - t)
+}
+
+/// Dash afterimages: the current figure's bones, shifted back to each trail
+/// point. Lines only, so a ghost costs ~10 segments and no extra rig solve.
+pub(crate) fn dash_ghosts(fb: &mut Framebuffer, cam: &Camera, j: &Fig, at: Vec3, ghosts: &[(Vec3, f32)]) {
+    for &(g, life) in ghosts {
+        // Older ghosts thin out: arms drop first as they fade.
+        let fresh = life > GHOST_LIFE * 0.5;
+        let o = v3(g.x - at.x, g.y - at.y, g.z - at.z);
+        if o.len() < 0.05 {
+            continue;
+        }
+        let seg = |fb: &mut Framebuffer, a: Vec3, b: Vec3| fb.line(cam.project(a + o), cam.project(b + o), FX_CAST);
+        seg(fb, j.pelvis, j.chest);
+        seg(fb, j.chest, j.head);
+        for i in 0..2 {
+            seg(fb, j.hip[i], j.knee[i]);
+            seg(fb, j.knee[i], j.foot[i]);
+            if fresh {
+                seg(fb, j.shoulder[i], j.elbow[i]);
+                seg(fb, j.elbow[i], j.hand[i]);
+            }
+        }
+    }
+}
+
 /// Ground ring of world radius `r` (y = centre height). `dash` = rotating dashes phase.
 fn ring(fb: &mut Framebuffer, cam: &Camera, c: Vec3, r: f32, col: u8, dash: Option<f32>) {
     if r <= 0.01 {
@@ -1950,5 +2058,81 @@ mod lunge_tests {
         let idle = draw(AnimState::Idle, MELEE_SWING_S * 0.35);
         let hit = draw(AnimState::Melee, MELEE_SWING_S * 0.35);
         assert_ne!(idle, hit);
+    }
+}
+
+#[cfg(test)]
+mod dash_tests {
+    use super::*;
+
+    fn me(x: f32, z: f32, anim: AnimState) -> UnitInput {
+        UnitInput { x, y: 0.0, z, facing: 0.0, anim, preset: "player:default".into() }
+    }
+
+    #[test]
+    fn dash_maps_to_stick_engine_lunge_clip() {
+        assert_eq!(AnimState::parse("dash"), AnimState::Dash);
+        assert_eq!(AnimState::Dash.action_clip(), Some("dash"));
+        assert!(AnimLibrary::builtin().get("dash").is_some(), "stick-engine dash clip is builtin");
+    }
+
+    #[test]
+    fn dash_leaves_a_fading_trail_and_draws_it() {
+        let mut s = Scene::new(200, 160);
+        s.atmosphere = false;
+        s.upsert_unit("me", me(0.0, 0.0, AnimState::Idle));
+        s.set_camera(0.0, 0.0);
+        s.tick(1.0 / 60.0);
+        s.draw();
+        let still = s.fb.color.clone();
+        s.upsert_unit("me", me(0.0, 0.0, AnimState::Dash));
+        s.predict_dash("me", 0.0, 4.0, 0.24);
+        for _ in 0..8 {
+            s.tick(1.0 / 60.0);
+        }
+        let n = s.units["me"].ghosts.len();
+        assert!((2..=8).contains(&n), "ghosts {n}");
+        s.draw();
+        assert!(s.fb.color.iter().any(|&c| c == FX_CAST), "afterimage drawn");
+        assert_ne!(s.fb.color, still);
+        // Back to idle: the trail fades out completely and nothing is left behind.
+        s.upsert_unit("me", me(0.0, 4.0, AnimState::Idle));
+        for _ in 0..40 {
+            s.tick(1.0 / 60.0);
+        }
+        assert!(s.units["me"].ghosts.is_empty());
+        assert!(s.units["me"].pred.is_none());
+    }
+
+    #[test]
+    fn prediction_leads_the_server_and_takes_its_wall_clipped_landing() {
+        let mut s = Scene::new(64, 48);
+        s.upsert_unit("me", me(0.0, 0.0, AnimState::Idle));
+        s.tick(1.0 / 60.0);
+        s.predict_dash("me", 0.0, 4.0, 0.24);
+        for _ in 0..6 {
+            s.upsert_unit("me", me(0.0, 0.0, AnimState::Dash)); // server not there yet
+            s.tick(1.0 / 60.0);
+        }
+        assert!(s.unit_pos("me").unwrap().2 > 1.0, "moves before the server confirms");
+        // Server: a wall at z = 2.5.
+        s.predict_dash("me", 0.0, 2.5, 0.24);
+        for _ in 0..60 {
+            s.upsert_unit("me", me(0.0, 2.5, AnimState::Idle));
+            s.tick(1.0 / 60.0);
+        }
+        let z = s.unit_pos("me").unwrap().2;
+        assert!((z - 2.5).abs() < 0.05, "settles on the server landing, got {z}");
+        // A refused dash eases back to the server position.
+        s.predict_dash("me", 0.0, 6.5, 0.24);
+        for _ in 0..5 {
+            s.tick(1.0 / 60.0);
+        }
+        s.cancel_dash("me");
+        for _ in 0..60 {
+            s.upsert_unit("me", me(0.0, 2.5, AnimState::Idle));
+            s.tick(1.0 / 60.0);
+        }
+        assert!((s.unit_pos("me").unwrap().2 - 2.5).abs() < 0.05);
     }
 }

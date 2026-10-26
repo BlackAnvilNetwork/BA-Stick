@@ -69,6 +69,8 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
     name: z.string().min(2).max(16),
   }),
   z.object({ type: z.literal("move"), x: z.number(), z: z.number() }),
+  /** General dash: a direction only. The server picks the distance and checks walls and cooldown. */
+  z.object({ type: z.literal("dash"), dx: z.number().finite(), dz: z.number().finite() }),
   z.object({ type: z.literal("engage"), targetId: z.string().min(1).max(64) }),
   z.object({ type: z.literal("disengage") }),
   z.object({ type: z.literal("ability"), id: AbilityId, targetId: z.string().min(1).max(64).optional() }),
@@ -367,6 +369,8 @@ export type UnitSnapshot = {
   anim: "idle" | "walk" | "melee" | "cast" | "rest" | "dead";
   /** Unix ms when current anim ends — bumps each swing so clients can replay melee/cast. */
   animUntil: number;
+  /** Set while this player is mid-dash (general ability): the server-validated landing point. */
+  dashTo?: { x: number; z: number };
   /** Set while this unit is gathering. The sword is stowed and this tool is in the hand. */
   gatherTool?: "shovel" | "pick";
   /** Enemy spell splash radius. Present only while an AoE cast is winding up. */

@@ -166,3 +166,63 @@ export function stopTarget(
   const k = Math.min(lead, d) / d;
   return { x: me.x + dx * k, z: me.z + dz * k };
 }
+
+/** Default dash bind (Stick Engine's own). Nothing else in the game uses Space. */
+export const DASH_KEY_CODE = "Space";
+
+type Keys = { w: boolean; a: boolean; s: boolean; d: boolean };
+
+/**
+ * Dash direction as a unit XZ vector.
+ * - 3D (tp/fp, `heading` set): along the heading; S alone dashes backwards. A/D turn, so they are ignored.
+ * - Iso: the held WASD direction (screen-relative, as walking); with no key held, toward the cursor's
+ *   ground point; failing that, the way the unit faces.
+ */
+export function dashDirection(
+  keys: Keys,
+  me: { x: number; z: number; facing: number },
+  heading: number | null,
+  isoKeyTarget: { x: number; z: number } | null,
+  cursor: [number, number] | null,
+): { dx: number; dz: number } {
+  if (heading !== null) {
+    const back = keys.s && !keys.w ? -1 : 1;
+    return { dx: Math.sin(heading) * back, dz: Math.cos(heading) * back };
+  }
+  const unit = (x: number, z: number) => {
+    const d = Math.hypot(x, z);
+    return d > 0.05 ? { dx: x / d, dz: z / d } : null;
+  };
+  return (
+    (isoKeyTarget && unit(isoKeyTarget.x - me.x, isoKeyTarget.z - me.z)) ||
+    (cursor && unit(cursor[0] - me.x, cursor[1] - me.z)) || { dx: Math.sin(me.facing), dz: Math.cos(me.facing) }
+  );
+}
+
+/** Client dash state: local cooldown and the prediction waiting for the server's `dashTo`. */
+export class DashClock {
+  lastAt = -Infinity;
+  pendingSince: number | null = null;
+  constructor(readonly cooldownMs: number) {}
+  ready(now: number): boolean {
+    return now - this.lastAt >= this.cooldownMs;
+  }
+  start(now: number) {
+    this.lastAt = now;
+    this.pendingSince = now;
+  }
+  /** Each frame: true when the server never confirmed, so the prediction must be dropped. */
+  refused(now: number, serverDashing: boolean, timeoutMs = 400): boolean {
+    if (this.pendingSince === null) return false;
+    if (serverDashing) {
+      this.pendingSince = null;
+      return false;
+    }
+    if (now - this.pendingSince > timeoutMs) {
+      this.pendingSince = null;
+      this.lastAt = -Infinity; // refused (e.g. server cooldown or wall): don't lock the key locally
+      return true;
+    }
+    return false;
+  }
+}

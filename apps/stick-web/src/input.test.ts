@@ -4,7 +4,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { engageHeadingGoal, headingEase, headingStep, headingTarget, headingToward, shouldResend, STOP_LEAD, stopTarget, TURN_RATE, WASD_STEP, wasdIntent, wasdTarget } from "./input";
+import { engageHeadingGoal, headingEase, headingStep, headingTarget, headingToward, shouldResend, DashClock, dashDirection, STOP_LEAD, stopTarget, TURN_RATE, WASD_STEP, wasdIntent, wasdTarget } from "./input";
 
 const none = { w: false, a: false, s: false, d: false };
 const free = (_ax: number, _az: number, x: number, z: number) => ({ x, z });
@@ -90,4 +90,35 @@ test("iso holds resend only on key change, near the target, or keep-alive", () =
   assert.equal(shouldResend(prev, { keys: "wd", heading: 0.7, at: 1050 }, me), false);
   assert.equal(shouldResend(prev, { keys: "w", heading: 0.7, at: 1050 }, me), true);
   assert.equal(shouldResend(prev, { keys: "wd", heading: 0.7, at: 1300 }, me), true);
+});
+
+test("dash direction: heading in 3D (S = back), WASD then cursor then facing in iso", () => {
+  const me = { x: 0, z: 0, facing: Math.PI / 2 };
+  const none = { w: false, a: false, s: false, d: false };
+  const h = dashDirection({ ...none, w: true }, me, 0, null, null);
+  assert.ok(Math.abs(h.dx) < 1e-9 && Math.abs(h.dz - 1) < 1e-9);
+  const back = dashDirection({ ...none, s: true }, me, 0, null, null);
+  assert.ok(Math.abs(back.dz + 1) < 1e-9);
+  const turn = dashDirection({ ...none, a: true }, me, 0, null, null);
+  assert.ok(Math.abs(turn.dz - 1) < 1e-9, "A/D only turn in 3D");
+  const key = dashDirection({ ...none, w: true }, me, null, { x: 3, z: 4 }, [100, 0]);
+  assert.ok(Math.abs(key.dx - 0.6) < 1e-9 && Math.abs(key.dz - 0.8) < 1e-9);
+  const cur = dashDirection(none, me, null, null, [0, -2]);
+  assert.ok(Math.abs(cur.dz + 1) < 1e-9);
+  const face = dashDirection(none, me, null, null, [0.01, 0]);
+  assert.ok(Math.abs(face.dx - 1) < 1e-9, "cursor on the feet falls back to facing");
+});
+
+test("DashClock: local cooldown, confirm, and refusal release", () => {
+  const c = new DashClock(3000);
+  assert.ok(c.ready(0));
+  c.start(1000);
+  assert.ok(!c.ready(2000));
+  assert.equal(c.refused(1100, true), false, "server confirmed");
+  assert.equal(c.refused(2000, false), false);
+  assert.ok(c.ready(4000));
+  c.start(5000);
+  assert.equal(c.refused(5200, false), false);
+  assert.equal(c.refused(5500, false), true, "never confirmed: drop the prediction");
+  assert.ok(c.ready(5500), "a refused dash does not lock the key");
 });

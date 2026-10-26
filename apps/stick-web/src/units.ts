@@ -38,6 +38,7 @@ const CRAFT_ANIM_MS: Record<CraftChannel, number> = {
 export function animFor(u: UnitWithCraft, now: number): string {
   if (u.craftChannel && now < u.animUntil) return u.craftChannel;
   if (u.gatherTool && now < u.animUntil) return u.gatherTool === "pick" ? "mine" : "harvest";
+  if (u.dashTo) return "dash";
   switch (u.anim) {
     case "melee":
     case "cast":
