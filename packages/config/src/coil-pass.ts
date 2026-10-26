@@ -101,11 +101,27 @@ export function coilPassPathDist(x: number, z: number): number {
 
 /** Geometric switchback distance before the natural edge. */
 export function coilPassPathDistRaw(x: number, z: number): number {
+  // Grow-only: the corridor widens unevenly along its length (0..+31%) and each turn gets an off-centre
+  // landing that bulges toward the outside of the bend, so switchbacks read as worn ground, not a ruled zigzag.
   let d = Infinity;
+  let along = 0;
   for (let i = 1; i < CP_POLYLINE.length; i++) {
     const a = CP_POLYLINE[i - 1]!;
     const b = CP_POLYLINE[i]!;
-    d = Math.min(d, segDist(x, z, a.x, a.z, b.x, b.z));
+    const L = Math.hypot(b.x - a.x, b.z - a.z) || 1;
+    const dx = b.x - a.x, dz = b.z - a.z;
+    const t = Math.max(0, Math.min(1, ((x - a.x) * dx + (z - a.z) * dz) / (L * L)));
+    const s = along + t * L;
+    const grow = ROAD_HALF * (0.09 * (1 + Math.sin(s / 19 + 0.7)) + 0.05 * (1 + Math.sin(s / 7.3 + 2.1)) + 0.015 * (1 + Math.sin(s / 2.9)));
+    d = Math.min(d, segDist(x, z, a.x, a.z, b.x, b.z) - grow);
+    along += L;
+  }
+  for (let i = 1; i < CP_POLYLINE.length - 1; i++) {
+    const p = CP_POLYLINE[i - 1]!, c = CP_POLYLINE[i]!, n = CP_POLYLINE[i + 1]!;
+    // outside of the bend = away from the mean of the neighbours
+    const mx = (p.x + n.x) / 2 - c.x, mz = (p.z + n.z) / 2 - c.z, ml = Math.hypot(mx, mz) || 1;
+    const off = 2 + 2.5 * ((i * 0.618) % 1), r = 2 + 3 * ((i * 0.381 + 0.2) % 1);
+    d = Math.min(d, Math.hypot(x - (c.x - (mx / ml) * off), z - (c.z - (mz / ml) * off)) - r);
   }
   return d;
 }
