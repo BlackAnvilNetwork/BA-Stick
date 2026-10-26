@@ -3652,7 +3652,7 @@ function createPlayer(
     unlockCacheKey: "",
     unlockCache: [],
     recasts: {},
-    lastLog: [`Welcome to Bellgrave, ${name}.`],
+    lastLog: [`Welcome to Black Anvil, ${name}.`],
     ws,
   };
   if (existingCharId) {

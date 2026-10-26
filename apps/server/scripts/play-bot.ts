@@ -1,6 +1,6 @@
 /**
  * Headless Pale Hollow gameplay bot.
- * Connects only to a local Bellgrave game server, walks, crosses a bridge,
+ * Connects only to a local Black Anvil game server, walks, crosses a bridge,
  * fights a nearby level-1 Dust Hare, and writes bugs it can actually see.
  *
  *   pnpm --filter @bellgrave/server exec tsx scripts/play-bot.ts

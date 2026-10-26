@@ -28,7 +28,7 @@ pnpm install
 pnpm dev
 ```
 
-- Web: http://localhost:5173
+- Web: http://localhost:5174
 - Server: `ws://localhost:8787`
 
 ## Play loop
@@ -37,7 +37,9 @@ pnpm dev
 2. **Create character** — pick appearance + job; claim starter kit
 3. Campaign world (see [`docs/world.md`](docs/world.md)):
    - **Pale Hollow** ↔ The Shard Dwellings → **Ashlands** ↔ Obsidia → **Slagpits** ↔ The Great Filter → **Bellmarsh** ↔ Belltower Keep → **Throne Approach** ↔ the Citadel of the Seven Seats
-   - Areas: mobs + harvest nodes · Cities: NPCs + quests · Craft while progressing
+   - Playable today: Pale Hollow (new characters start at Emberwatch) and its field chain Hollow Road → Forest Basin → Spur Road → Ring Ward → Islet Fords → Green Reach → Coil Pass → Coil Ridge. Every field has level-scaled monsters and a warden NPC; later areas and cities are defined in `packages/config/src/world.ts`.
+   - Areas: mobs + harvest/mine/fish nodes · Cities: NPCs + quests · Craft with gold + materials (8 crafts: Smithing, Woodworking, Leathercraft, Clothcraft, Bonecraft, Goldsmithing, Alchemy, Cooking)
+   - Seven jobs: Time Mage, Knight, Rogue, Cleric, Sorcerer, Fighter, Battle Mage; support job at Lv10; level cap 75; 600-node skill tree
 4. Clear the campaign, then replay with enemies scaled to your level
 5. The Citadel hall fight vs Petrified Guard still runs (hotbar keys **1–4**)
 

@@ -18,7 +18,7 @@ const script = `async (page) => {
   });
   await p.goto("http://127.0.0.1:5173/", { waitUntil: "domcontentloaded" });
   const nameInput = p.locator("input[name=name]");
-  const enter = p.getByRole("button", { name: "Enter Bellgrave" });
+  const enter = p.getByRole("button", { name: "Enter Black Anvil" });
   await Promise.race([nameInput.waitFor({ timeout: 25000 }), enter.waitFor({ timeout: 25000 })]);
   if (await nameInput.isVisible().catch(() => false)) {
     await nameInput.fill("ScoutCam");

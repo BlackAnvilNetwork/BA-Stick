@@ -103,7 +103,7 @@ const MP_BASE: Record<Exclude<Grade, "none">, number> = {
   F: 25,
 };
 
-/** Locked grades from Bellgrave job plan §4. */
+/** Locked grades from the Black Anvil job plan §4. */
 export const JOB_GRADES: Record<JobId, JobGrades> = {
   time_mage: {
     hp: "C",
