@@ -35,6 +35,13 @@ function segDist(px: number, pz: number, ax: number, az: number, bx: number, bz:
   return { d: Math.hypot(px - cx, pz - cz), t, side, len: Math.sqrt(l2) };
 }
 
+/** Whittaker (1975) biome class for the temperate-to-boreal band, from mean annual temperature (C) and precipitation (mm). */
+export function whittaker(T: number, P: number): string {
+  if (T < -2) return "tundra"; if (T < 4) return P > 300 ? "boreal" : "tundra";
+  if (P < 250) return "desert-shrub"; if (P < 550) return T > 14 && P < 400 ? "desert-shrub" : "grassland";
+  if (P < 850) return "woodland"; if (P < 1600) return "temperate-forest"; return "temperate-rainforest";
+}
+
 export function generatePaleHollow() {
   const R = CFG.regions.pale_hollow; const seed = R.seed >>> 0;
   const nz = new Noise2(hashSeed(seed, "landform")), nw = new Noise2(hashSeed(seed, "warp")), nr = new Noise2(hashSeed(seed, "ridge"));
@@ -98,6 +105,15 @@ export function generatePaleHollow() {
   };
   const h = new Float32Array(N);
   for (let k = 0; k < N; k++) h[k] = natural(X(k), Z(k));
+  // Hillslope dissection: warped ridged noise inverted into V-valleys, scaled by local landform slope, so overland flow
+  // converges into branching gullies (dendritic) instead of running in parallel D8 lines down planar slopes.
+  { const nd = new Noise2(hashSeed(seed, "dissect")); const c = h.slice();
+    for (let k = 0; k < N; k++) { const i = k % W, j = (k / W) | 0; const x = X(k), z = Z(k);
+      const sx = (c[Math.min(W - 1, i + 1) + j * W]! - c[Math.max(0, i - 1) + j * W]!) / (2 * cell), sz = (c[i + Math.min(H - 1, j + 1) * W]! - c[i + Math.max(0, j - 1) * W]!) / (2 * cell);
+      const sl = Math.hypot(sx, sz); if (sl < 0.02) continue;
+      const wx = x + nd.fbm(x / 70, z / 70, 3) * 30, wz = z + nd.fbm(x / 70 + 9, z / 70 - 5, 3) * 30;
+      const v = nd.ridged(wx / 42, wz / 42, 3) * 0.7 + nd.ridged(wx / 17 + 3, wz / 17, 2) * 0.3;
+      h[k] -= (R.dissection ?? 2.2) * Math.min(1, sl / 0.2) * v; } }
   const landformOnly = h.slice();
 
   // ---- Legacy water footprint (gameplay contract: server walkability). River id + surface per cell.
@@ -168,7 +184,7 @@ export function generatePaleHollow() {
       const wx = x + nw.fbm(x / 23, z / 23, 3) * 7, wz = z + nw.fbm(x / 23 + 31, z / 23 - 17, 3) * 7;
       let w = 0; for (const p of softPads) w = Math.max(w, padWeight(p, wx, wz));
       // never perfectly flat: keep a gentle ~0.3 m swell inside the levelled footprint
-      if (w > 0) { h[k] = lerp(h[k]!, mean[k]! + 0.3 * nz.fbm(x / 11, z / 11, 2), w * 0.85); padW[k] = Math.max(padW[k]!, w); } } }
+      if (w > 0) { h[k] = lerp(h[k]!, mean[k]! + 0.3 * nz.fbm(x / 11, z / 11, 2), w * 0.72); padW[k] = Math.max(padW[k]!, w); } } }
   // Channels last (except where hard anchors hold legacy bridge banks): bed under water, soft banks above it.
   for (let k = 0; k < N; k++) {
     if (hardCore[k]) continue;
@@ -202,6 +218,19 @@ export function generatePaleHollow() {
   const SHALLOW_MAX = 0.7; const depth = new Float32Array(N), depthClass = new Uint8Array(N);
   for (let k = 0; k < N; k++) { if (water[k]) { depth[k] = wy[k]! - h[k]!; depthClass[k] = lake[k] && depth[k]! > 2 ? 3 : depth[k]! <= SHALLOW_MAX ? 1 : 2; }
     else if (creek[k]) { depth[k] = Math.min(SHALLOW_MAX, 0.08 * Math.pow(acc[k]! * cell * cell / 1000, 0.4)); depthClass[k] = 1; } }
+  // Creek centrelines: trace each head down its receivers, add gentle meander (normal offset, zero at the ends) and
+  // Chaikin-smooth, so the bake draws curving channels instead of stair-stepped 1 m D8 cells. Width ~ catchment^0.3.
+  const creekSegs: { ax: number; az: number; bx: number; bz: number; w: number }[] = [];
+  { const up = new Uint8Array(N); for (let k = 0; k < N; k++) if (creek[k] && rec[k]! >= 0 && creek[rec[k]!]) up[rec[k]!] = 1;
+    const done = new Uint8Array(N); const nm = new Noise2(hashSeed(seed, "meander"));
+    for (let k0 = 0; k0 < N; k0++) { if (!creek[k0] || up[k0]) continue; const pts: { x: number; z: number; a: number }[] = []; let k = k0;
+      while (k >= 0) { pts.push({ x: X(k), z: Z(k), a: acc[k]! }); if (!creek[k] || done[k]) break; done[k] = 1; k = rec[k]!; if (k >= 0 && water[k]) { pts.push({ x: X(k), z: Z(k), a: acc[k]! }); break; } }
+      if (pts.length < 3) continue;
+      let q = pts.map((p, i) => { if (i === 0 || i === pts.length - 1) return p; const a = pts[i - 1]!, b = pts[i + 1]!; const tx = b.x - a.x, tz = b.z - a.z, l = Math.hypot(tx, tz) || 1;
+        const off = nm.n(p.x / 13, p.z / 13) * 1.4 * Math.min(1, i / 4, (pts.length - 1 - i) / 4); return { x: p.x - (tz / l) * off, z: p.z + (tx / l) * off, a: p.a }; });
+      for (let it = 0; it < 3; it++) { const o = [q[0]!]; for (let i = 0; i < q.length - 1; i++) { const a = q[i]!, b = q[i + 1]!;
+          o.push({ x: a.x * 0.75 + b.x * 0.25, z: a.z * 0.75 + b.z * 0.25, a: a.a }, { x: a.x * 0.25 + b.x * 0.75, z: a.z * 0.25 + b.z * 0.75, a: b.a }); } o.push(q[q.length - 1]!); q = o; }
+      for (let i = 1; i < q.length; i++) { const a = q[i - 1]!, b = q[i]!; creekSegs.push({ ax: a.x, az: a.z, bx: b.x, bz: b.z, w: Math.min(2.4, 0.5 + 0.12 * Math.pow(b.a * cell * cell / 100, 0.3)) }); } } }
   const slope = new Float32Array(N);
   for (let k = 0; k < N; k++) { const i = k % W, j = (k / W) | 0; const a = h[Math.min(W - 1, i + 1) + j * W]! - h[Math.max(0, i - 1) + j * W]!;
     const b = h[i + Math.min(H - 1, j + 1) * W]! - h[i + Math.max(0, j - 1) * W]!; slope[k] = Math.hypot(a, b) / (2 * cell); }
@@ -225,20 +254,27 @@ export function generatePaleHollow() {
     moist[k] = Math.min(1.4, 0.2 + 0.45 * ((precip[k]! - pMin) / (pMax - pMin + 1e-9)) + 0.05 * Math.max(0, twi - 4) + 0.6 * gw); }
 
   // ---- Stage 6: biomes (continuous fields -> renderer biome ids). Playa = evaporite flats around the terminal lake.
+  // Annual precipitation proxy (mm): orographic rainfall field + groundwater bonus; Whittaker classes for temperate band.
+  const pmm = (k: number) => 180 + 900 * ((precip[k]! - pMin) / (pMax - pMin + 1e-9)) + 260 * Math.exp(-(dWet[k]! * cell) / 25) + Math.min(250, acc[k]! * cell * cell / 40);
+  const whitt: string[] = new Array(N);
   const biome = new Uint8Array(N); const eco = new Uint8Array(N); // eco: 0 none 1 conifer 2 woodland 3 riparian 4 grass 5 steppe/scrub 6 rock 7 playa 8 wetland
   const lakeD = (k: number) => Math.hypot(X(k) - PH_LAKE.x, Z(k) - PH_LAKE.z) - PH_LAKE.r;
   const ne = new Noise2(hashSeed(seed, "ecotone"));
   for (let k = 0; k < N; k++) {
     if (water[k]) { biome[k] = B("river"); continue; }
-    const m = moist[k]! + ne.fbm(X(k) / 35, Z(k) / 35, 3) * 0.08, s = slope[k]!, e = h[k]!, ld = lakeD(k);
+    // ecotones interfinger: two noise scales jitter the moisture used for classification (no straight biome borders)
+    const m = moist[k]! + ne.fbm(X(k) / 35, Z(k) / 35, 3) * 0.12 + ne.n(X(k) / 9, Z(k) / 9) * 0.05, s = slope[k]!, e = h[k]!, ld = lakeD(k);
+    const wc = whittaker(temp[k]!, pmm(k) + (m - moist[k]!) * 900); whitt[k] = wc;
     let b: number, c: number;
     if (s > 0.75 || e > 22 + ne.n(X(k) / 50, Z(k) / 50) * 4) { b = B("mountain"); c = 6; }
     else if (ld < 26 && e < LAKE_Y + 1.6 && m < 0.9) { b = B("terrace"); c = 7; }
     else if (dWet[k]! * cell < 3.5 || (creek[k] && s < 0.15)) { b = B("riverbank"); c = 8; }
-    else if (m > 0.78 && s < 0.25) { b = B("ashbeam"); c = 3; }
-    else if (e > 11 && m > 0.42) { b = B("vine_cliff"); c = 1; }
-    else if (m > 0.52) { b = B("grass"); c = 2; }
-    else if (m > 0.36) { b = B("grass"); c = 4; }
+    else if (m > 0.85 && s < 0.25) { b = B("ashbeam"); c = 3; }
+    // zonal vegetation from the Whittaker class (temperature x annual precipitation)
+    else if (wc === "boreal" || wc === "tundra") { b = B("vine_cliff"); c = 1; }
+    else if (wc === "temperate-rainforest" || wc === "temperate-forest") { b = e > 11 ? B("vine_cliff") : B("meadow"); c = e > 11 ? 1 : 2; }
+    else if (wc === "woodland") { b = B("grass"); c = 2; }
+    else if (wc === "grassland") { b = B("grass"); c = 4; }
     else { b = B("scrub"); c = 5; }
     biome[k] = b; eco[k] = c;
   }
@@ -282,7 +318,9 @@ export function generatePaleHollow() {
   const farmSeats = [destinations.terrace, destinations.clay, destinations.hub];
   for (let k = 0; k < N; k++) { if (water[k] || road[k] || padW[k]! > 0.2) continue; const x = X(k), z = Z(k);
     const near = Math.min(...farmSeats.map((s) => Math.hypot(x - s.x, z - s.z)));
-    if (near < 55 && slope[k]! < 0.06 && moist[k]! > 0.45 && moist[k]! < 1.1 && dWet[k]! * cell < 70 && eco[k] !== 7) { biome[k] = B("farm"); eco[k] = 9; } }
+    // ragged, terrain-following parcels: warped reach, slope limit and moisture window; hedge gaps from a fine noise
+    const fn = ne.fbm(x / 28 + 40, z / 28, 3), hedge = Math.abs(ne.n(x / 6.5 + 11, z / 6.5 - 4)) < 0.05;
+    if (!hedge && near < 52 + fn * 22 && slope[k]! < 0.07 + fn * 0.03 && moist[k]! > 0.42 + fn * 0.06 && moist[k]! < 1.1 && dWet[k]! * cell < 70 + fn * 20 && eco[k] !== 7) { biome[k] = B("farm"); eco[k] = 9; } }
 
   // Ruin / lore hooks (data only). Placed where geography explains them.
   const lore: { id: string; kind: string; x: number; z: number; why: string; hook: string }[] = [];
@@ -359,7 +397,7 @@ export function generatePaleHollow() {
   for (const l of lore) { props.push({ kind: K.cairn, v: 0, x: l.x, z: l.z, y: groundAt(l.x, l.z), yaw: 0, s: 1, w: 0, h: 0, d: 0 });
     for (let i = 0; i < 5; i++) { const a = rnd() * 6.28, d = 2 + rnd() * 4; const x = l.x + Math.cos(a) * d, z = l.z + Math.sin(a) * d; props.push({ kind: K.wallBlock, v: 0, x, z, y: groundAt(x, z) - 0.3, yaw: rnd() * 3, s: 0.5 + rnd() * 0.4, w: 0.8, h: 0.6 + rnd() * 0.8, d: 0.5 }); } }
 
-  return { depth, depthClass, SHALLOW_MAX, W, H, cell, minX, minZ, maxX, maxZ, X, Z, kAt, h, landformOnly, eroded, water, wy, lake, creek, acc, rec, slope, precip, temp, moist, biome, eco, road, roads, padW, fixed, raised, props, civicKept, vegRejects, lore, anchors: A, mainY, tribY, LAKE_Y, groundAt };
+  return { creekSegs, whitt, depth, depthClass, SHALLOW_MAX, W, H, cell, minX, minZ, maxX, maxZ, X, Z, kAt, h, landformOnly, eroded, water, wy, lake, creek, acc, rec, slope, precip, temp, moist, biome, eco, road, roads, padW, fixed, raised, props, civicKept, vegRejects, lore, anchors: A, mainY, tribY, LAKE_Y, groundAt };
 }
 export type Gen = ReturnType<typeof generatePaleHollow>;
 
@@ -369,12 +407,15 @@ export function bakeGenerated(g: Gen, cellOut = 0.5): Buffer {
   const header = 24; const buf = Buffer.alloc(header + w * hh * 4);
   buf.write("BAZ1", 0, "ascii"); buf.writeFloatLE(minX, 4); buf.writeFloatLE(minZ, 8); buf.writeFloatLE(cellOut, 12); buf.writeUInt32LE(w, 16); buf.writeUInt32LE(hh, 20);
   const bio = header, flg = header + w * hh, hgt = header + w * hh * 2;
+  const bucket = new Map<number, typeof g.creekSegs>(); const BK = 4; const key = (a: number, b: number) => a * 100003 + b;
+  for (const sg of g.creekSegs) { const r = sg.w / 2 + 0.5; for (let a = Math.floor((Math.min(sg.ax, sg.bx) - r) / BK); a <= Math.floor((Math.max(sg.ax, sg.bx) + r) / BK); a++) for (let b = Math.floor((Math.min(sg.az, sg.bz) - r) / BK); b <= Math.floor((Math.max(sg.az, sg.bz) + r) / BK); b++) { const kk = key(a, b); (bucket.get(kk) ?? bucket.set(kk, []).get(kk)!).push(sg); } }
+  const inCreek = (x: number, z: number) => { for (const sg of bucket.get(key(Math.floor(x / BK), Math.floor(z / BK))) ?? []) if (segDist(x, z, sg.ax, sg.az, sg.bx, sg.bz).d <= sg.w / 2) return true; return false; };
   for (let j = 0; j < hh; j++) for (let i = 0; i < w; i++) { const x = minX + i * cellOut, z = minZ + j * cellOut, k = j * w + i, gk = g.kAt(x, z);
     let flags = 0; let y = g.groundAt(x, z); const onBr = paleHollowOnBridge(x, z);
     if (g.water[gk]) { flags |= 1; y = g.wy[gk]!; } else if (onBr) { flags |= 4; y = paleHollowBridgeDeckY(x, z) ?? y; }
     if (!paleHollowWalkable(x, z)) flags |= 8;
     if (!(flags & 5) && g.road[gk]) flags |= 2;
-    if (!(flags & 5) && g.creek[gk] && !g.road[gk]) flags |= 1, (y = g.groundAt(x, z) + 0.05); // creek: fordable (not blocked)
+    if (!(flags & 5) && !g.road[gk] && inCreek(x, z)) flags |= 1, (y = g.groundAt(x, z) + 0.05); // creek: fordable (not blocked)
     buf.writeUInt8(g.biome[gk]!, bio + k); buf.writeUInt8(flags, flg + k); buf.writeInt16LE(Math.max(-32768, Math.min(32767, Math.round(y * 100))), hgt + k * 2); }
   return buf;
 }

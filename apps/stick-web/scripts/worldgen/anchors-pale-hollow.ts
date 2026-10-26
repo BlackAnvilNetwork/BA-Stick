@@ -43,8 +43,8 @@ export function paleHollowAnchors() {
   const pads: Pad[] = [
     { id: "hub-apron", kind: "rect", x0: hub.minX, z0: hub.minZ, x1: hub.maxX, z1: hub.maxZ, r: 0, soft: 22 },
     { id: "ash-pit", kind: "rect", x0: ASH_PIT.bounds.minX, z0: ASH_PIT.bounds.minZ, x1: ASH_PIT.bounds.maxX, z1: ASH_PIT.bounds.maxZ, r: 0, soft: 12 },
-    ...gates.map((g) => ({ id: `gate:${g.id}`, kind: "rect" as const, x0: g.minX, z0: g.minZ, x1: g.maxX, z1: Math.min(g.maxZ, PALE_HOLLOW_BOUNDS.maxZ), r: 0, soft: 10 })),
-    ...PH_YARDS.map((y) => ({ id: `yard:${y.id}`, kind: "disk" as const, x0: y.x, z0: y.z, x1: y.x, z1: y.z, r: 10, soft: 10 })),
+    ...gates.map((g) => ({ id: `gate:${g.id}`, kind: "rect" as const, x0: g.minX, z0: g.minZ, x1: g.maxX, z1: Math.min(g.maxZ, PALE_HOLLOW_BOUNDS.maxZ), r: 0, soft: 16 })),
+    ...PH_YARDS.map((y) => ({ id: `yard:${y.id}`, kind: "disk" as const, x0: y.x, z0: y.z, x1: y.x, z1: y.z, r: 10, soft: 18 })),
     ...bridges.map((b) => ({ id: `bridge:${b.id}`, kind: "disk" as const, x0: b.x, z0: b.z, x1: b.x, z1: b.z, r: b.spanHalf + 5, soft: 12 })),
   ];
   return { points, pads, bridges, lake: PH_LAKE, hub: PH_HUB, yards: PH_YARDS };

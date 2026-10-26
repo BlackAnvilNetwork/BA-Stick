@@ -96,7 +96,7 @@ async function main() {
   const reach = new Uint8Array(N); { const s = g.kAt(g.anchors.points[1]!.x, g.anchors.points[1]!.z); const q = [s]; reach[s] = 1;
     while (q.length) { const k = q.pop()!; const i = k % W, j = (k / W) | 0; for (const [di, dj] of D8) { const ni = i + di, nj = j + dj; if (ni < 0 || nj < 0 || ni >= W || nj >= H) continue; const n = nj * W + ni; if (!reach[n] && walk[n]) { reach[n] = 1; q.push(n); } } } }
   const nearReach = (x: number, z: number, r: number) => { for (let dz = -r; dz <= r; dz++) for (let dx = -r; dx <= r; dx++) if (reach[g.kAt(x + dx, z + dz)]) return true; return false; };
-  const unreachable: string[] = []; const heightDelta: Record<string, { max: number; n: number }> = {};
+  const warns: string[] = []; const unreachable: string[] = []; const heightDelta: Record<string, { max: number; n: number }> = {};
   for (const p of g.anchors.points) { const r = p.kind === "fish" ? 4 : 1; if (!nearReach(p.x, p.z, r)) unreachable.push(`${p.kind}:${p.id}`);
     const d = Math.abs(g.groundAt(p.x, p.z) - paleHollowGroundHeight(p.x, p.z)); const e = (heightDelta[p.kind] ??= { max: 0, n: 0 }); e.max = Math.max(e.max, +d.toFixed(2)); e.n++; }
   report.anchorsChecked = g.anchors.points.length; report.unreachableAnchors = unreachable; report.anchorHeightDeltaVsLegacy = heightDelta;
@@ -167,6 +167,14 @@ async function main() {
     const counts: Record<string, number> = {}; for (const b of gen.biome) counts[b] = (counts[b] ?? 0) + 1;
     report.terrain = { reliefAfter: [+hMin.toFixed(1), +hMax.toFixed(1)], reliefBefore: [+lmin.toFixed(1), +lmax.toFixed(1)], slopeP50: q(0.5), slopeP90: q(0.9), slopeP99: q(0.99), cellsSteeperThan45deg: steepCells, biomeCellShare: Object.fromEntries(Object.entries(counts).map(([k, v]) => [k, +(v / N).toFixed(3)])) }; }
   report.lore = g.lore;
+  // Whittaker sanity: zonal eco vs the temperature/precipitation class (azonal riparian/wetland/playa/rock/farm exempt)
+  { const want: Record<string, number[]> = { tundra: [1, 6], boreal: [1], "temperate-rainforest": [1, 2], "temperate-forest": [1, 2], woodland: [2, 4], grassland: [4, 2, 5], "desert-shrub": [5, 4] };
+    let zonal = 0, ok = 0; const cls: Record<string, number> = {}; for (let k = 0; k < N; k++) { const e = g.eco[k]!; const w = g.whitt[k]; if (!w || [0, 3, 6, 7, 8, 9].includes(e)) continue; zonal++; cls[w] = (cls[w] ?? 0) + 1; if (want[w]!.includes(e)) ok++; }
+    const share: Record<string, number> = {}; let land = 0; for (let k = 0; k < N; k++) if (!g.water[k]) { land++; share[g.biome[k]!] = (share[g.biome[k]!] ?? 0) + 1; }
+    const top = Math.max(...Object.values(share)) / land;
+    report.whittaker = { zonalCells: zonal, consistent: +(ok / Math.max(1, zonal)).toFixed(3), classes: cls, dominantBiomeShare: +top.toFixed(3) };
+    if (ok / Math.max(1, zonal) < 0.95) fails.push("Whittaker consistency < 95%"); if (top > 0.45) warns.push(`one biome covers ${(top * 100).toFixed(0)}% of land`); }
+
   { const wc = g.lore.find((l) => l.kind === "time-mage-warp-circle"); report.warpCircle = wc ? { ...wc, reachable: nearReach(wc.x, wc.z, 1) } : null;
     if (!wc || !nearReach(wc.x, wc.z, 1)) fails.push("warp-circle site missing or unreachable"); }
   // ---------- Walkability + anchors overlay
@@ -198,7 +206,7 @@ async function main() {
       const ppm = `/tmp/mm_${tag}.ppm`; execFileSync(bin, [resolve(zones, `${zid}.baz`), resolve(zones, `${zid}.bap`), ppm]);
       const f = `${IMG}/minimap-${tag}.png`; const buf = readFileSync(ppm); const m = /^P6\n(\d+) (\d+)\n255\n/.exec(buf.subarray(0, 32).toString("latin1"))!;
       await sharp(buf.subarray(m[0].length), { raw: { width: +m[1]!, height: +m[2]!, channels: 3 } }).png().toFile(f); out.push(f); } }
-  report.hardFailures = fails; report.images = out;
+  report.warnings = warns; report.hardFailures = fails; report.images = out;
   writeFileSync(resolve(HERE, "out", `${region}.validation.json`), JSON.stringify(report, null, 2));
   writeFileSync(resolve(IMG, `${region}.validation.json`), JSON.stringify(report, null, 2));
   console.log(JSON.stringify({ ...report, lore: undefined, roads: undefined, images: out.length }, null, 1));
