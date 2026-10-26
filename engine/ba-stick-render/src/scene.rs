@@ -117,6 +117,10 @@ struct Unit {
 
 /// Head centre above the feet, matching the reference biped (`thigh+shin+torso+neck+head_r`).
 const HEAD_Y: f32 = 1.63;
+/// First-person view-model offset (m): forearms and weapon pushed ahead of
+/// and below the eye so nothing is drawn against the lens.
+const FP_VIEWMODEL_FWD: f32 = 0.45;
+const FP_VIEWMODEL_DOWN: f32 = 0.25;
 
 pub struct Scene {
     pub fb: Framebuffer,
@@ -129,6 +133,9 @@ pub struct Scene {
     look_pitch: f32,
     /// Extra yaw so numpad / mouse look orbits without a server facing message.
     yaw_bias: f32,
+    /// Client-side WASD heading (radians) in third/first person. The camera
+    /// and the followed figure face it; iso ignores it.
+    heading: Option<f32>,
     lib: AnimLibrary,
     units: BTreeMap<String, Unit>,
     follow: Option<String>,
@@ -195,6 +202,7 @@ impl Scene {
             look_yaw: 0.0,
             look_pitch: 0.0,
             yaw_bias: 0.0,
+            heading: None,
             lib,
             units: BTreeMap::new(),
             follow: None,
@@ -520,6 +528,10 @@ impl Scene {
         }) else {
             return;
         };
+        // Look bias from an earlier 3D session must not carry into a new one.
+        if self.rig.mode == CamMode::Iso && mode != CamMode::Iso {
+            self.yaw_bias = 0.0;
+        }
         let s = self.subject();
         let cur = self.cam.effective_view();
         self.rig.set_mode(mode, &s, cur);
@@ -552,8 +564,31 @@ impl Scene {
         self.rig.fp_pitch = (self.rig.fp_pitch + dy * stick_engine::game::MOUSE_PITCH).clamp(-lim, lim);
     }
 
+    /// Client-side WASD heading for third/first person (`None` = follow the
+    /// server facing, as iso always does).
+    pub fn set_heading(&mut self, heading: Option<f32>) {
+        self.heading = heading.filter(|h| h.is_finite()).map(wrap_angle);
+    }
+
+    pub fn heading(&self) -> Option<f32> { self.heading }
+
+    /// Heading in effect for the camera and the followed figure.
+    fn active_heading(&self) -> Option<f32> {
+        if self.rig.mode == CamMode::Iso { None } else { self.heading }
+    }
+
+    /// First person once the rig has settled there. The eye trails the head a
+    /// little while walking, so a pure distance test let the body (and its
+    /// red neck disc) pop in right in front of the lens.
+    fn fp_locked(&self) -> bool {
+        self.rig.mode == CamMode::FirstPerson && self.rig.t >= 1.0 && self.cam.view.is_some()
+    }
+
     /// True once the eye is inside the followed head (body should not be drawn).
     pub fn first_person(&self) -> bool {
+        if self.fp_locked() {
+            return true;
+        }
         let Some(eye) = self.cam.view.and_then(|v| v.eye()) else { return false };
         (eye - self.subject().head).len() < FP_HIDE_RADIUS
     }
@@ -563,6 +598,7 @@ impl Scene {
             Some(u) => (u.pos.x, u.pos.y - self.cam_y, u.pos.z, u.yaw),
             None => (self.cam.cx, 0.0, self.cam.cz, 0.0),
         };
+        let yaw = self.active_heading().unwrap_or(yaw);
         Subject {
             pos: v3(x, y, z),
             yaw: wrap_angle(yaw + self.yaw_bias),
@@ -702,7 +738,11 @@ impl Scene {
         let k = 1.0 - (-self.smoothing * dt).exp();
         let follow_id = self.follow.clone();
         let cam_y = self.cam_y;
+        let heading = self.active_heading();
         for (id, u) in self.units.iter_mut() {
+            if let Some(h) = heading.filter(|_| follow_id.as_deref() == Some(id.as_str())) {
+                u.target_yaw = h;
+            }
             let before = u.pos;
             if u.snap {
                 u.snap = false;
@@ -836,6 +876,11 @@ impl Scene {
 
     /// Screen pixel (framebuffer space) → ground point (x, z).
     pub fn pick_world(&self, sx: f32, sy: f32) -> (f32, f32) {
+        if self.cam.view.is_some() {
+            if let Some(hit) = self.ray_ground(sx, sy) {
+                return hit;
+            }
+        }
         // Iterate: unproject at the reference plane, then correct by local relief.
         let (mut x, mut z) = self.cam.unproject_ground(sx, sy);
         for _ in 0..3 {
@@ -849,6 +894,58 @@ impl Scene {
             (x, z) = unproject_at_height(&self.cam, sx, sy, dy);
         }
         (x, z)
+    }
+
+    /// Ground under a pixel, or `None` when the pixel misses the ground (sky,
+    /// or farther than the far plane) in a 3D view. Iso always hits.
+    pub fn pick_ground_hit(&self, sx: f32, sy: f32) -> Option<(f32, f32)> {
+        if self.cam.view.is_none() {
+            return Some(self.pick_world(sx, sy));
+        }
+        if let Some(hit) = self.ray_ground(sx, sy) {
+            return Some(hit);
+        }
+        // Mid-blend (iso skew still mixed in): the reference-plane pick.
+        if self.cam.effective_view().skew >= 1e-3 {
+            return self.cam.pick_ground(sx, sy).map(|_| self.pick_world(sx, sy));
+        }
+        None
+    }
+
+    /// Perspective pixel ray marched against the zone heightfield.
+    fn ray_ground(&self, sx: f32, sy: f32) -> Option<(f32, f32)> {
+        let v = self.cam.effective_view();
+        if v.skew >= 1e-3 || v.inv_d <= 0.0 {
+            return None;
+        }
+        let eye = v.eye()?;
+        let (r, dn) = v.basis();
+        let s2 = v.scale * v.scale;
+        let q = v.target + r * ((sx - v.ax) / s2) + dn * ((sy - v.ay) / s2);
+        let dir = (q - eye).norm();
+        let above = |t: f32| {
+            let p = eye + dir * t;
+            p.y - (self.zone_height(p.x, p.z) - self.cam_y)
+        };
+        const STEP: f32 = 0.25;
+        let mut t0 = stick_engine::camera::NEAR;
+        if above(t0) <= 0.0 {
+            return None;
+        }
+        while t0 < stick_engine::camera::FAR {
+            let t1 = (t0 + STEP).min(stick_engine::camera::FAR);
+            if above(t1) <= 0.0 {
+                let (mut lo, mut hi) = (t0, t1);
+                for _ in 0..10 {
+                    let m = 0.5 * (lo + hi);
+                    if above(m) > 0.0 { lo = m } else { hi = m }
+                }
+                let p = eye + dir * hi;
+                return Some((p.x, p.z));
+            }
+            t0 = t1;
+        }
+        None
     }
 
     fn rel(&self, p: Vec3) -> Vec3 {
@@ -1142,6 +1239,7 @@ impl Scene {
         // Units back to front (depth buffer also resolves overlaps).
         // Iso depth is -(x+z); a perspective view sorts by view z instead.
         let follow = self.follow.clone();
+        let fp_locked = self.fp_locked();
         let mut order: Vec<(&String, &Unit)> = self.units.iter().collect();
         order.sort_by(|a, b| {
             let key = |u: &Unit| if cam.view.is_some() { -cam.project(rel(u.pos)).d } else { u.pos.x + u.pos.z };
@@ -1179,7 +1277,22 @@ impl Scene {
                         garb.weapon = Some(crate::gear::WeaponLook::plain(u.preset.weapon));
                     }
                     let fp = follow.as_deref() == Some(id.as_str())
-                        && cam.view.and_then(|v| v.eye()).is_some_and(|e| (e - j.head).len() < FP_HIDE_RADIUS);
+                        && (fp_locked
+                            || cam.view.and_then(|v| v.eye()).is_some_and(|e| (e - j.head).len() < FP_HIDE_RADIUS));
+                    if fp {
+                        // First-person view model: the forearms and weapon sit
+                        // in front of the eye. Held where the body stands, a
+                        // staff head was drawn inches from the lens as a huge disc.
+                        if let Some(v) = cam.view {
+                            let f = v.fwd();
+                            let push = v3(f.x, 0.0, f.z).norm() * FP_VIEWMODEL_FWD - v3(0.0, FP_VIEWMODEL_DOWN, 0.0);
+                            for i in 0..2 {
+                                j.elbow[i] = j.elbow[i] + push;
+                                j.hand[i] = j.hand[i] + push;
+                            }
+                            j.sword_tip = j.sword_tip + push;
+                        }
+                    }
                     let swinging = matches!(u.anim, AnimState::Melee | AnimState::Cast);
                     let tool = match u.anim {
                         AnimState::Harvest => figure::GatherTool::Shovel,

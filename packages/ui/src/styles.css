@@ -1492,6 +1492,16 @@ textarea {
   line-height: 1.5;
   color: var(--ash);
 }
+/* 3D views (#88 move3d #9): the ground in front of the feet sits behind the
+   log, so let clicks fall through the log body to the canvas and show the
+   world through it. The header (and the hotbar) stay interactive. */
+:root:is([data-ui-view="tp"], [data-ui-view="fp"], [data-ui-view="3d"], [data-ui-view="third"], [data-ui-view="first"]) .hud-log-frame {
+  pointer-events: none;
+  background: rgba(12, 10, 8, 0.35);
+}
+:root:is([data-ui-view="tp"], [data-ui-view="fp"], [data-ui-view="3d"], [data-ui-view="third"], [data-ui-view="first"]) .hud-log-head {
+  pointer-events: auto;
+}
 .hud-log-line {
   padding: 1px 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.03);
