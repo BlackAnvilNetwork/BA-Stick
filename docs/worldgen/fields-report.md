@@ -160,3 +160,9 @@ Warp circles: pale_hollow (84,216); coil_ridge (-3,-40).
   Hollow Stair Cave (peak 2, 1.5 turns, modelled as a cave mouth plus an interior ramp carved below the rock surface).
   Each runs from a rim mouth to a summit vista, max grade 0.47, max adjacent step equal to the pre-existing 0.62 m,
   and links to Claw Path through the Caps, East Cap and Cave spurs. Ascents are narrower (about 1.6 m) than GR_TRAIL_WIDTH.
+
+### Ascents, round 2
+- coil_ridge Scarp Cave: winds up the scarp west of the King's Stair in uneven switchback galleries, from the apron to the shelf west of Scarp Head, joined to Stele Way by Cave Way. It's a cave mouth plus an interior ramp, max grade 0.31. 1707 cells gained, 0 lost, 0 height changes on cells that were already walkable.
+- forest_basin (shared helper natural-ascent.ts): West Ridge Cave (peak -150,28, coils 1.5 turns, grade 0.24 to 0.43) and Corner Stair (peak 142,-132, grade 0.48 to 0.51). They're linked to West Reach Road by the West Ridge Spur and to the Southeast Path by the Corner Spur. The Corner Spur bends round the southeast-gap gate so walking it can't trigger a zone change. 346 cells gained, 0 lost.
+- pale_hollow: the land is already walkable everywhere and the height contract freezes it, so this is a path only. Westwatch Climb takes the least-grade route from the west farm up 8.2 m to the western upland vista, max grade 0.31.
+- coil_pass: none added. Legs 20 m apart and a 6 m+ half-width leave the corridor nearly all road, so a cut would save no distance.
