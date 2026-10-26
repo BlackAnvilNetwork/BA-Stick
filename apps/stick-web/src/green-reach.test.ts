@@ -49,7 +49,7 @@ test("green reach spawn is dry and both pools hold water", () => {
   assert.equal(greenReachWalkable(-16, 40), true);
   assert.equal(greenReachInOpenWater(-16, 40), false);
   for (const m of GR_PEAKS) {
-    assert.equal(greenReachWalkable(m.x, m.z), false, `${m.x},${m.z}`);
+    assert.equal(greenReachWalkable(m.x, m.z), true, `${m.x},${m.z} summit vista reached by its ascent`);
     const cap = greenReachStandHeight(m.x, m.z);
     assert.ok(Math.abs(cap - m.h) < 0.05, `cap ${cap} expected ${m.h}`);
   }
@@ -125,7 +125,8 @@ test("green reach gates are reachable from the claw spawn", () => {
 test("green reach trail stays dry and every road is named", () => {
   const wet: string[] = [];
   for (const t of greenReachTrails()) {
-    assert.equal(t.surface, "dirt");
+    const ascent = ["white-caps-stair", "east-cap-ledge", "north-cave"].includes(t.id); // narrow natural ascents
+    assert.equal(t.surface, ascent ? "stone" : "dirt", t.id);
     assert.ok(GR_ROAD_NAMES[t.id], t.id);
     for (let i = 1; i < t.points.length; i++) {
       const a = t.points[i - 1]!;
@@ -139,7 +140,7 @@ test("green reach trail stays dry and every road is named", () => {
         const u = s / 16;
         const x = a.x + dx * u;
         const z = a.z + dz * u;
-        for (const side of [0, 1.5, -1.5] as const) {
+        for (const side of ascent ? ([0, 0.4, -0.4] as const) : ([0, 1.5, -1.5] as const)) {
           const px = x + nx * side;
           const pz = z + nz * side;
           if (!greenReachWalkable(px, pz) || greenReachInOpenWater(px, pz)) {

@@ -149,3 +149,14 @@ Warp circles: pale_hollow (84,216); coil_ridge (-3,-40).
 - hollow_road / spur_road: valley half-width gets grow-only, side-specific bays (×1.0–1.8 hollow, ×1.0–1.46 spur, which keeps the spur walkable fraction at 0.571 < 0.6). The camp pads get lobes too.
 - islet_fords: grow-only lobed islet shores (×1.0–1.38).
 - generate-field.ts: worn dirt along the config trails (the same `ecoMosaic` verge rule as the legacy bake).
+
+## Natural areas pass 4 and natural ascents
+
+- green_reach: ridged, lobed massifs replace cone peaks (walkability unchanged).
+- pale_hollow gen: lake shore varies by slope and wave exposure (rock, gravel, reeds, scrub, sand).
+- coil_pass: uneven switchback widths and off-centre turn landings (grow-only: 0 cells lost, 2956 gained; walk fraction 0.362).
+- coil_ridge: ruin plazas have broken, overgrown rims with scattered stones (visual biome only).
+- green_reach ascents (grow-only, 0 cells lost): White Caps Stair (rock-cut, peak 0), East Cap Ledge (peak 1),
+  Hollow Stair Cave (peak 2, 1.5 turns, modelled as a cave mouth plus an interior ramp carved below the rock surface).
+  Each runs from a rim mouth to a summit vista, max grade 0.47, max adjacent step equal to the pre-existing 0.62 m,
+  and links to Claw Path through the Caps, East Cap and Cave spurs. Ascents are narrower (about 1.6 m) than GR_TRAIL_WIDTH.
