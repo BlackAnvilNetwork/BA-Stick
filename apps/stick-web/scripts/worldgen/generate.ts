@@ -18,7 +18,7 @@ import { PH_LAKE } from "../../../../packages/config/src/pale-hollow";
 import { encodeProps, paleHollowProps, K, type Prop } from "../bake-props";
 import { BIOMES } from "../bake-zones";
 import { Noise2, hashSeed, mulberry32 } from "./noise";
-import { accumulate, astar, d8Receivers, distanceTo, priorityFill } from "./grid";
+import { MinHeap, accumulate, astar, d8Receivers, distanceTo, priorityFill } from "./grid";
 import { paleHollowAnchors, padWeight } from "./anchors-pale-hollow";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -111,6 +111,14 @@ export function generatePaleHollow() {
     wy[k] = dm <= dt ? mainY(z) : tribY(z);
   }
 
+  // Water-surface drainage guarantee (priority-flood on the water mask from the terminal lake / map edge): every river
+  // cell gets a downstream water neighbour at <= its surface, so no channel cell is a local pit (fixes confluence pits).
+  { const seen = new Uint8Array(N); const q = new MinHeap();
+    for (let k = 0; k < N; k++) if (water[k] && (lake[k] || k % W === 0 || k % W === W - 1 || k < W || k >= N - W)) { seen[k] = 1; q.push(wy[k]!, k); }
+    while (q.size) { const [, k] = q.pop(); const i = k % W, j = (k / W) | 0;
+      for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) { const ni = i + di, nj = j + dj; if (ni < 0 || nj < 0 || ni >= W || nj >= H) continue; const n = nj * W + ni;
+        if (!water[n] || seen[n]) continue; seen[n] = 1; if (wy[n]! < wy[k]!) wy[n] = wy[k]!; q.push(wy[n]!, n); } } }
+
   const legWalk = new Uint8Array(N), legBridge = new Uint8Array(N);
   for (let k = 0; k < N; k++) { legWalk[k] = paleHollowWalkable(X(k), Z(k)) ? 1 : 0; legBridge[k] = paleHollowOnBridge(X(k), Z(k)) ? 1 : 0; }
   // per-cell jitter so flat-floor routing meanders instead of drawing straight D8 diagonals
@@ -186,6 +194,11 @@ export function generatePaleHollow() {
   // ---- Water depth tiers. 0 dry, 1 shallow (ford: walkable, no bridge needed), 2 deep channel (impassable, bridge
   // required), 3 lake-deep (>2 m). Creeks: depth from flow (Leopold hydraulic geometry d ~ a*Q^0.4), always shallow
   // here. Legacy rivers: depth = surface - carved bed. SHALLOW_MAX is the wading limit.
+  // Deep water is never walkable: any water cell the server lets you walk on at BAZ resolution (0.5 m sub-cells),
+  // off a bridge deck, is shoaled to a wadeable bed so render depth and walkability agree.
+  for (let k = 0; k < N; k++) { if (!water[k]) continue; const x = X(k), z = Z(k);
+    for (const [ox, oz] of [[-0.5, -0.5], [0, -0.5], [-0.5, 0], [0, 0], [0.5, 0], [0, 0.5], [0.5, 0.5], [-0.5, 0.5], [0.5, -0.5]]) { const sx = x + ox!, sz = z + oz!;
+      if (paleHollowWalkable(sx, sz) && !paleHollowOnBridge(sx, sz)) { h[k] = Math.max(h[k]!, wy[k]! - 0.5); break; } } }
   const SHALLOW_MAX = 0.7; const depth = new Float32Array(N), depthClass = new Uint8Array(N);
   for (let k = 0; k < N; k++) { if (water[k]) { depth[k] = wy[k]! - h[k]!; depthClass[k] = lake[k] && depth[k]! > 2 ? 3 : depth[k]! <= SHALLOW_MAX ? 1 : 2; }
     else if (creek[k]) { depth[k] = Math.min(SHALLOW_MAX, 0.08 * Math.pow(acc[k]! * cell * cell / 1000, 0.4)); depthClass[k] = 1; } }

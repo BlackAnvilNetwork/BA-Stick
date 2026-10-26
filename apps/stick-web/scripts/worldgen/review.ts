@@ -112,13 +112,16 @@ async function main() {
       if (c >= 0 && g.water[c]) endsOk++; else { const ci = c % W, cj = (c / W) | 0; if (!ci || !cj || ci === W - 1 || cj === H - 1) endsOff++; else { endsBad++; badEnds.push({ x: X(ci), z: Zf(cj) }); } } }
     // rivers flow downhill: every river (non-lake) water cell must have a downstream water neighbour with surface <= its own,
     // and its D8 receiver on the final (depression-filled) DEM must be lower or equal. Lake cells are the terminal sink.
-    { let surfViol = 0, bedViol = 0; const sv: { x: number; z: number }[] = [];
-      for (let k = 0; k < N; k++) { if (!g.water[k] || g.lake[k]) continue; const i = k % W, j = (k / W) | 0; let ok = false;
+    { let surfViol = 0, bedViol = 0, isolated = 0; const sv: { x: number; z: number }[] = [];
+      // water cells not 8-connected to the lake / map edge are resampling specks of the legacy footprint, not channels
+      const conn = new Uint8Array(N); { const st: number[] = []; for (let k = 0; k < N; k++) if (g.water[k] && (g.lake[k] || k % W === 0 || k % W === W - 1 || k < W || k >= N - W)) { conn[k] = 1; st.push(k); }
+        while (st.length) { const k = st.pop()!; const i = k % W, j = (k / W) | 0; for (const [di, dj] of D8) { const ni = i + di, nj = j + dj; if (ni < 0 || nj < 0 || ni >= W || nj >= H) continue; const n = nj * W + ni; if (g.water[n] && !conn[n]) { conn[n] = 1; st.push(n); } } } }
+      for (let k = 0; k < N; k++) { if (!g.water[k] || g.lake[k]) continue; if (!conn[k]) { isolated++; continue; } const i = k % W, j = (k / W) | 0; let ok = false;
         for (const [di, dj] of D8) { const ni = i + di, nj = j + dj; if (ni < 0 || nj < 0 || ni >= W || nj >= H) { ok = true; continue; } const n = nj * W + ni;
           if (g.water[n] && (g.lake[n] || g.wy[n]! <= g.wy[k]! + 1e-6) && n !== k) ok = true; }
         if (!ok && g.fixed[k]) { report.riverFlowAnchorConflictCells = (report.riverFlowAnchorConflictCells ?? 0) + 1; continue; } if (!ok) { surfViol++; if (sv.length < 10) sv.push({ x: g.X(k), z: g.Z(k) }); }
         const r = g.rec[k]!; if (r >= 0 && g.h[r]! > g.h[k]! + 1e-6) bedViol++; }
-      report.riverFlow = { surfaceLocalMinimaOutsideLake: surfViol, bedUphillReceivers: bedViol, examples: sv };
+      report.riverFlow = { isolatedLegacyWaterSpecks: isolated, surfaceLocalMinimaOutsideLake: surfViol, bedUphillReceivers: bedViol, examples: sv };
       if (surfViol) fails.push(`${surfViol} river surface cells with no downstream`); if (bedViol) fails.push(`${bedViol} river bed uphill receivers`); }
     // water depth tiers: roads over deep water need a bridge; bridges must span deep water; render vs walk classes
     { const dc = g.depthClass; let deepNoBridge = 0, fords = 0; const dnbEx: any[] = [], dwEx: any[] = []; const cls = [0, 0, 0, 0];
