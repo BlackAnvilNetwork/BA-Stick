@@ -970,6 +970,8 @@ function buildPaleHollowTrails(): PaleHollowTrail[] {
         near(chalk, "R"),
       ],
     },
+    // Westwatch Climb: a least-grade, terrain-following path from the west farm up the western upland to a vista.
+    { id: "westwatch-climb", surface: "dirt", points: [{x:-125,z:55},{x:-134,z:56},{x:-141,z:59},{x:-152,z:67},{x:-161,z:68},{x:-169,z:72},{x:-178,z:82},{x:-182,z:89},{x:-186,z:93},{x:-192,z:93},{x:-198,z:90}] },
     {
       id: "east-grove",
       surface: "dirt",
@@ -1904,6 +1906,7 @@ export const PH_HUB_NPCS = [
  * Stone bridge approaches are drawn but not named; they read as part of the bridge.
  */
 export const PH_ROAD_NAMES: Readonly<Record<string, string>> = {
+  "westwatch-climb": "Westwatch Climb",
   "camp-to-north": "Terrace Way",
   "camp-to-west-farm": "Clay Bank Path",
   "north-to-ashbeam": "Hollow Steps Road",
