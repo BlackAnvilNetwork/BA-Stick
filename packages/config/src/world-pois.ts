@@ -33,7 +33,7 @@ export interface WorldPoi {
   props: string[];
   /** Campaign-thread fragment carried here, if any. */
   fragmentId?: string;
-  /** Fragment ids that must already be read for `truth` to be legible. */
+  /** Fragment ids that must already be read for `story` to be legible. */
   requires?: string[];
 }
 
