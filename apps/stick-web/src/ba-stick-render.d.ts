@@ -26,6 +26,8 @@ declare module "ba-stick-render" {
     setAtmosphere(on: boolean): void;
     /** 0 clear, 1 rain, 2 fog, 3 snow; snowCover 0..1. */
     setWeather(kind: number, snowCover: number): void;
+    /** Time of day 0..1 (0 midnight, 0.5 noon) for the 3D pixel sky. */
+    setTimeOfDay(phase: number): void;
     cycleHairStyle(delta?: number): void;
     cycleHairColor(delta?: number): void;
     cycleBodyColor(delta?: number): void;

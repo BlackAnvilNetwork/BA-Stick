@@ -28,6 +28,18 @@ export function paleHollowWeatherCycleIndex(nowMs: number): number {
   return Math.floor(nowMs / PH_WEATHER_CYCLE_MS);
 }
 
+/**
+ * One game day = four weather spells (72 min). Same wall clock the server
+ * rolls weather on, so every client sees the same time of day.
+ */
+export const PH_DAY_CYCLE_MS = 4 * PH_WEATHER_CYCLE_MS;
+
+/** Time of day 0..1 at `nowMs`: 0 midnight, 0.25 sunrise, 0.5 noon, 0.75 sunset. */
+export function paleHollowDayPhaseAt(nowMs: number): number {
+  const p = (nowMs % PH_DAY_CYCLE_MS) / PH_DAY_CYCLE_MS;
+  return p < 0 ? p + 1 : p;
+}
+
 /** Kind for the spell active at `nowMs` (deterministic from the cycle index). */
 export function paleHollowWeatherKindAt(nowMs: number): PaleHollowWeatherKind {
   const idx = paleHollowWeatherCycleIndex(nowMs);

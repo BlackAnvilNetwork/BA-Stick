@@ -208,6 +208,8 @@ pub struct Scene {
     weather_snow_target: f32,
     /// Frame clock for precipitation (f64 avoids long-session banding).
     weather_time: f64,
+    /// Time of day 0..1 (0 midnight, 0.5 noon) from the host's shared wall clock.
+    day_phase: f32,
     /// Local player hair style and colours (Stick Engine cosmetics).
     player_appearance: crate::appearance::Appearance,
     player_hair_spring: [stick_engine::character::HairSpring; 3],
@@ -257,6 +259,7 @@ impl Scene {
             weather_snow: 0.0,
             weather_snow_target: 0.0,
             weather_time: 0.0,
+            day_phase: 0.5,
             player_appearance: crate::appearance::Appearance::default(),
             player_hair_spring: [stick_engine::character::HairSpring::default(); 3],
         }
@@ -1625,6 +1628,43 @@ impl Scene {
         self.weather_snow_target = snow_cover;
     }
 
+    /// Time of day 0..1 (0 = midnight, 0.25 sunrise, 0.5 noon, 0.75 sunset).
+    /// Drives the third/first-person sky; iso is unchanged.
+    pub fn set_time_of_day(&mut self, phase: f32) {
+        self.day_phase = if phase.is_finite() { phase.rem_euclid(1.0) } else { 0.5 };
+    }
+    pub fn time_of_day(&self) -> f32 { self.day_phase }
+
+    /// Pixel sky context when the camera is a settled-enough 3D view.
+    fn sky_ctx(&self) -> Option<crate::sky::SkyCtx> {
+        if self.rig.mode == CamMode::Iso || self.boot_menu || self.backdrop {
+            return None;
+        }
+        let v = self.cam.view?;
+        if v.inv_d <= 0.0 || v.skew > 0.5 {
+            return None;
+        }
+        let f = v.fwd();
+        let (sy, cy) = v.yaw.sin_cos();
+        let (sp, cp) = v.pitch.sin_cos();
+        let w = crate::sky::lerp_weather(
+            crate::sky::sky_weather(crate::weather::Kind::from_u8(self.weather_kind_from)),
+            crate::sky::sky_weather(crate::weather::Kind::from_u8(self.weather_kind_to)),
+            smoothstep(self.weather_blend),
+        );
+        Some(crate::sky::SkyCtx {
+            fwd: [f.x, f.y, f.z],
+            right: [-cy, 0.0, sy],
+            down: [-sy * sp, -cp, -cy * sp],
+            ax: v.ax,
+            ay: v.ay,
+            focal: v.scale / v.inv_d,
+            phase: self.day_phase,
+            weather: w,
+            time: self.time,
+        })
+    }
+
     /// Minimap data from the host (names from @bellgrave/config). Re-bakes on next draw.
     pub fn set_map_title(&mut self, t: &str) {
         self.minimap.title = t.to_owned();
@@ -1694,7 +1734,20 @@ impl Scene {
                 );
                 crate::atmosphere::lerp_params(a, b, smoothstep(self.weather_blend))
             };
+            let sky = self.sky_ctx();
+            let mut params = params;
+            if sky.is_some() {
+                // Night dims the world and its haze in 3D, in step with the sky.
+                let m = crate::sky::ambient_scale(self.day_phase);
+                for k in 0..3 {
+                    params.ambient[k] *= m[k];
+                }
+                let h = params.haze;
+                let ch = |sh: u32, k: usize| ((((h >> sh) & 255) as f32 * m[k]) as u32).min(255) << sh;
+                params.haze = ch(16, 0) | ch(8, 1) | ch(0, 2);
+            }
             let ex = crate::atmosphere::Extra {
+                sky,
                 time: self.time,
                 depth: Some(&self.fb.depth),
                 clear_center: self.fog_clear_center(),

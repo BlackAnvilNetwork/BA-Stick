@@ -4,7 +4,7 @@ import { VfxDirector, playSteps } from "./vfx";
 import { gearArgs } from "./gear";
 import { getItem } from "@bellgrave/items";
 import { useGame } from "@bellgrave/client-core/state";
-import { clampPaleHollow, DASH_COOLDOWN_MS, DASH_MS, fieldById, fieldClampMove, paleHollowClampMove, PH_WEATHER_KIND_ID, planDash, zoneOrigin } from "@bellgrave/config";
+import { clampPaleHollow, DASH_COOLDOWN_MS, DASH_MS, fieldById, fieldClampMove, paleHollowClampMove, PH_WEATHER_KIND_ID, paleHollowDayPhaseAt, planDash, zoneOrigin } from "@bellgrave/config";
 import type { UnitSnapshot } from "@bellgrave/protocol";
 import { NpcInteractMenu } from "@bellgrave/ui/NpcInteractMenu";
 import { clearKeyboardMove, setKeyboardMoveKey } from "@bellgrave/ui/moveInput";
@@ -518,6 +518,8 @@ export function StickWorld() {
         } else {
           r.setWeather(0, 0);
         }
+        // 3D pixel sky: same wall clock the server rolls weather on.
+        r.setTimeOfDay(paleHollowDayPhaseAt(Date.now()));
         r.tick(dt);
         // Effects + labels
         const wall = Date.now();

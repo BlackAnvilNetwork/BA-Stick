@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  PH_DAY_CYCLE_MS,
+  paleHollowDayPhaseAt,
   PH_WEATHER_CYCLE_MS,
   PH_WEATHER_SEED_XOR,
   PH_WEATHER_WEIGHTS,
@@ -32,5 +34,12 @@ describe("pale hollow weather", () => {
     }
     assert.equal(kinds.has("snow"), true);
     assert.notEqual(kinds.size, 1, "wall-clock cycles should not repeat one kind forever");
+  });
+
+  it("day phase wraps once per day cycle", () => {
+    assert.equal(paleHollowDayPhaseAt(0), 0);
+    assert.equal(paleHollowDayPhaseAt(PH_DAY_CYCLE_MS / 2), 0.5);
+    assert.equal(paleHollowDayPhaseAt(PH_DAY_CYCLE_MS * 3 + PH_DAY_CYCLE_MS / 4), 0.25);
+    assert.equal(PH_DAY_CYCLE_MS % PH_WEATHER_CYCLE_MS, 0);
   });
 });

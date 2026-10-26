@@ -1000,3 +1000,67 @@ fn settled_first_person_hides_the_body_while_walking() {
     s.tick(1.0 / 60.0);
     assert!(s.first_person(), "eye trailing the head must not reveal the body");
 }
+
+fn sky_rgba(mode: &str, phase: f32, weather: u8) -> (Scene, Vec<u8>) {
+    let mut s = cam3d_scene(mode);
+    s.minimap.on = false;
+    // Tilt the eye ~15° above the horizon so the shot shows sky and ground.
+    if mode != "iso" { s.set_look(0.0, -1.0); }
+    for _ in 0..8 { s.tick(1.0 / 60.0); }
+    s.set_look(0.0, 0.0);
+    s.set_time_of_day(phase);
+    s.set_weather(weather, 0.0);
+    for _ in 0..400 { s.tick(1.0 / 60.0); }
+    s.draw();
+    let mut out = vec![0u8; s.fb.w * s.fb.h * 4];
+    s.write_rgba(&mut out);
+    (s, out)
+}
+
+fn sky_luma(s: &Scene, out: &[u8]) -> f32 {
+    let (mut t, mut n) = (0.0, 0.0);
+    for (i, &c) in s.fb.color.iter().enumerate() {
+        if c == crate::atmosphere::SKY {
+            t += out[i * 4] as f32 * 0.3 + out[i * 4 + 1] as f32 * 0.59 + out[i * 4 + 2] as f32 * 0.11;
+            n += 1.0;
+        }
+    }
+    assert!(n > 0.0, "frame shows some sky");
+    t / n
+}
+
+#[test]
+fn pixel_sky_follows_clock_and_weather_in_3d_only() {
+    // Third person looks 30° down at a flat meadow, so only first person is
+    // guaranteed a sky band here; tp shares the same path (`Scene::sky_ctx`).
+    for mode in ["fp"] {
+        let (s, noon) = sky_rgba(mode, 0.5, 0);
+        let (_, night) = sky_rgba(mode, 0.0, 0);
+        let (_, rain) = sky_rgba(mode, 0.5, 1);
+        let (n, m, r) = (sky_luma(&s, &noon), sky_luma(&s, &night), sky_luma(&s, &rain));
+        assert!(n > m + 50.0, "{mode}: noon {n} vs midnight {m}");
+        assert!((r - n).abs() > 5.0, "{mode}: rain {r} vs clear {n}");
+    }
+    // Iso ignores the clock entirely.
+    let (_, a) = sky_rgba("iso", 0.5, 0);
+    let (_, b) = sky_rgba("iso", 0.0, 0);
+    assert!(a == b, "iso output must not depend on time of day");
+}
+
+/// `SKY_SHOTS=/dir cargo test -p ba_stick_render sky_shots -- --ignored` writes PPMs.
+#[test]
+#[ignore]
+fn sky_shots() {
+    let dir = std::env::var("SKY_SHOTS").unwrap_or_else(|_| "/tmp".into());
+    for mode in ["iso", "tp", "fp"] {
+        for (pn, phase) in [("midnight", 0.0), ("dawn", 0.26), ("noon", 0.5), ("dusk", 0.74)] {
+            for (wn, wk) in [("clear", 0u8), ("rain", 1), ("fog", 2), ("snow", 3)] {
+                if mode == "iso" && wn != "clear" { continue; }
+                let (s, out) = sky_rgba(mode, phase, wk);
+                let mut f = format!("P6\n{} {}\n255\n", s.fb.w, s.fb.h).into_bytes();
+                for px in out.chunks(4) { f.extend_from_slice(&px[..3]); }
+                std::fs::write(format!("{dir}/{mode}-{pn}-{wn}.ppm"), f).unwrap();
+            }
+        }
+    }
+}
