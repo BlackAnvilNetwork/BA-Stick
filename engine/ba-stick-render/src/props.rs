@@ -255,6 +255,23 @@ impl ViewCull {
     }
 }
 
+/// Projected trunk-to-crown height in pixels picks the 3D tree detail level.
+/// Iso never calls this, so its frames are unchanged.
+fn tree_lod(cam: &Camera, base: Vec3, sp: P2, s: f32) -> u8 {
+    let top = cam.project(base + v3(0.0, s.max(0.4), 0.0));
+    let hpx = (sp.y - top.y).abs();
+    if hpx < LOD_FAR_PX {
+        2
+    } else if hpx < LOD_MID_PX {
+        1
+    } else {
+        0
+    }
+}
+const BACK_SIGN: f32 = -1.0;
+const LOD_FAR_PX: f32 = 40.0;
+const LOD_MID_PX: f32 = 96.0;
+
 fn reach(p: &Prop) -> f32 {
     match p.kind {
         kind::PEAK => 6.0 * p.s,
@@ -282,7 +299,15 @@ pub fn tri(fb: &mut Framebuffer, a: P2, b: P2, c: P2, col: u8) {
     let inv = 1.0 / area;
     for y in min_y..=max_y {
         let py = y as f32 + 0.5;
-        for x in min_x..=max_x {
+        // Each weight is linear in px on this row, so only scan the x range where
+        // all three can be >= 0, padded by a pixel and a small weight margin. The
+        // per-pixel test below is unchanged, so the same pixels are written; the
+        // narrower scan only skips pixels that test would reject.
+        let (x0, x1) = match tri_row_span(a, b, c, inv, py, min_x, max_x) {
+            Some(r) => r,
+            None => continue,
+        };
+        for x in x0..=x1 {
             let px = x as f32 + 0.5;
             let w0 = ((b.x - px) * (c.y - py) - (b.y - py) * (c.x - px)) * inv;
             let w1 = ((c.x - px) * (a.y - py) - (c.y - py) * (a.x - px)) * inv;
@@ -292,6 +317,38 @@ pub fn tri(fb: &mut Framebuffer, a: P2, b: P2, c: P2, col: u8) {
             }
         }
     }
+}
+
+/// Conservative x range on row `py` where a pixel can pass `tri`'s weight test.
+fn tri_row_span(a: P2, b: P2, c: P2, inv: f32, py: f32, min_x: i32, max_x: i32) -> Option<(i32, i32)> {
+    // w0 = ((b.x - px) * (c.y - py) - (b.y - py) * (c.x - px)) * inv, etc.
+    let b0 = ((b.y - py) - (c.y - py)) * inv;
+    let a0 = (b.x * (c.y - py) - (b.y - py) * c.x) * inv;
+    let b1 = ((c.y - py) - (a.y - py)) * inv;
+    let a1 = (c.x * (a.y - py) - (c.y - py) * a.x) * inv;
+    let (a2, b2) = (1.0 - a0 - a1, -b0 - b1);
+    let mut lo = min_x as f32;
+    let mut hi = max_x as f32;
+    const EPS: f32 = 1e-3;
+    for (k, m) in [(a0, b0), (a1, b1), (a2, b2)] {
+        if m.abs() < 1e-6 {
+            if k < -0.5 {
+                return None;
+            }
+            continue;
+        }
+        // k + m * px >= -EPS
+        let t = (-EPS - k) / m - 0.5;
+        if m > 0.0 {
+            lo = lo.max(t - 1.0);
+        } else {
+            hi = hi.min(t + 1.0);
+        }
+    }
+    if lo.is_nan() || hi.is_nan() || lo > hi {
+        return None;
+    }
+    Some((lo.floor().max(min_x as f32) as i32, hi.ceil().min(max_x as f32) as i32))
 }
 
 struct Ctx<'a> {
@@ -315,6 +372,15 @@ struct Ctx<'a> {
     /// Crown height span for top-down snow (conifers set in `draw_conifer`).
     tree_y_lo: f32,
     tree_y_hi: f32,
+    /// 3D-only tree detail level: 0 full (always in iso), 1 mid, 2 far.
+    /// Picked from the tree's projected height so distant trees use fewer rings.
+    lod: u8,
+    /// 3D only: skip back-facing trunk and crown-core quads, which the front
+    /// faces always cover. Iso keeps drawing both so its frames are unchanged.
+    cull_back: bool,
+    /// Eye height above the prop base (3D), used to keep a crown core's inside
+    /// visible when looking up into its open underside.
+    eye_y: f32,
 }
 
 /// Lit-edge highlight for a top colour (P1): chalk/stone gets a pale bone
@@ -345,6 +411,14 @@ impl Ctx<'_> {
     fn p(&self, rx: f32, uy: f32, fz: f32) -> P2 {
         self.cam
             .project(self.base + self.r * rx + v3(0.0, uy, 0.0) + self.f * fz)
+    }
+    /// `quad` for a ring-built tube (trunk, crown core). With `cull`, a quad whose
+    /// screen winding marks it as facing away is skipped.
+    fn quad_tube(&mut self, a: P2, b: P2, c: P2, d: P2, col: u8, cull: bool) {
+        if cull && BACK_SIGN * ((b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x)) > 0.0 {
+            return;
+        }
+        self.quad(a, b, c, d, col);
     }
     fn quad(&mut self, a: P2, b: P2, c: P2, d: P2, col: u8) {
         tri(self.fb, a, b, c, col);
@@ -644,18 +718,17 @@ fn draw_trunk(c: &mut Ctx, seed: f32, lean: (f32, f32), top: f32, base: f32) {
     if top <= 0.05 || base <= 0.01 {
         return;
     }
-    const STEPS: usize = 10;
-    const BANDS: usize = 5;
+    let (steps, bands) = match c.lod { 0 => (10, 5), 1 => (7, 3), _ => (5, 2) };
     let phase = hash(seed, 21.0) * std::f32::consts::TAU;
-    let mut rings: Vec<Vec<P2>> = Vec::with_capacity(BANDS + 1);
-    let mut xz: Vec<Vec<(f32, f32)>> = Vec::with_capacity(BANDS + 1);
-    for b in 0..=BANDS {
-        let t = b as f32 / BANDS as f32;
+    let mut rings: Vec<Vec<P2>> = Vec::with_capacity(bands + 1);
+    let mut xz: Vec<Vec<(f32, f32)>> = Vec::with_capacity(bands + 1);
+    for b in 0..=bands {
+        let t = b as f32 / bands as f32;
         let y = top * t;
-        let mut ring = Vec::with_capacity(STEPS);
-        let mut flat = Vec::with_capacity(STEPS);
-        for i in 0..STEPS {
-            let a = phase + i as f32 / STEPS as f32 * std::f32::consts::TAU;
+        let mut ring = Vec::with_capacity(steps);
+        let mut flat = Vec::with_capacity(steps);
+        for i in 0..steps {
+            let a = phase + i as f32 / steps as f32 * std::f32::consts::TAU;
             let rad = trunk_rad(seed, t, a, base);
             let rx = a.cos() * rad + lean.0 * y;
             let fz = a.sin() * rad + lean.1 * y;
@@ -665,20 +738,21 @@ fn draw_trunk(c: &mut Ctx, seed: f32, lean: (f32, f32), top: f32, base: f32) {
         rings.push(ring);
         xz.push(flat);
     }
-    for b in 0..BANDS {
-        for i in 0..STEPS {
-            let j = (i + 1) % STEPS;
+    for b in 0..bands {
+        for i in 0..steps {
+            let j = (i + 1) % steps;
             let (ax, az) = xz[b][i];
             let (bx, bz) = xz[b][j];
             let col = foliage(sun_of(c, ax + bx, az + bz), WOOD_D, WOOD, WOOD_L);
-            c.quad(rings[b][i], rings[b][j], rings[b + 1][j], rings[b + 1][i], col);
+            let cull = c.cull_back;
+            c.quad_tube(rings[b][i], rings[b][j], rings[b + 1][j], rings[b + 1][i], col, cull);
         }
     }
     // Outline the part that shows under the crown. The upper bands sit inside the boughs.
-    let shown = BANDS / 2 + 1;
+    let shown = bands / 2 + 1;
     for b in 0..shown {
         let (mut li, mut ri) = (0usize, 0usize);
-        for i in 1..STEPS {
+        for i in 1..steps {
             if rings[b][i].x < rings[b][li].x {
                 li = i;
             }
@@ -687,7 +761,7 @@ fn draw_trunk(c: &mut Ctx, seed: f32, lean: (f32, f32), top: f32, base: f32) {
             }
         }
         let (mut lj, mut rj) = (0usize, 0usize);
-        for i in 1..STEPS {
+        for i in 1..steps {
             if rings[b + 1][i].x < rings[b + 1][lj].x {
                 lj = i;
             }
@@ -701,9 +775,9 @@ fn draw_trunk(c: &mut Ctx, seed: f32, lean: (f32, f32), top: f32, base: f32) {
     let base_ring = &rings[0];
     let mut ys: Vec<f32> = base_ring.iter().map(|p| p.y).collect();
     ys.sort_by(|a, b| a.partial_cmp(b).unwrap());
-    let midy = ys[STEPS / 2];
-    for i in 0..STEPS {
-        let j = (i + 1) % STEPS;
+    let midy = ys[steps / 2];
+    for i in 0..steps {
+        let j = (i + 1) % steps;
         if base_ring[i].y >= midy && base_ring[j].y >= midy {
             c.edge(base_ring[i], base_ring[j]);
         }
@@ -923,6 +997,8 @@ fn draw_tier(
     let y_top = c.tree_y_hi;
     draw_core(c, y0, y1, r0, lean, seed, tier_i, droop, lump, dark, mid, lit);
     let n = 5 + (hash(seed, 11.0 + tier_i as f32) * if droop < 0.25 { 2.0 } else { 4.0 }) as usize;
+    // Far 3D trees keep the whorl silhouette with fewer boughs.
+    let n = if c.lod >= 2 { n.min(5) } else { n };
     let phase = hash(seed, 12.0 + tier_i as f32) * std::f32::consts::TAU;
     for i in 0..n {
         let a = phase + i as f32 / n as f32 * std::f32::consts::TAU;
@@ -968,6 +1044,7 @@ fn draw_tier(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn draw_core(
     c: &mut Ctx,
     y0: f32,
@@ -983,22 +1060,21 @@ fn draw_core(
     lit: u8,
 ) {
     let y_top = c.tree_y_hi;
-    const STEPS: usize = 8;
-    const BANDS: usize = 3;
+    let (steps, bands) = match c.lod { 0 => (8, 3), 1 => (7, 2), _ => (6, 1) };
     let lump_c = lump * 0.35;
     let phase = hash(seed, 3.0 + tier_i as f32) * std::f32::consts::TAU;
-    let mut rings: Vec<Vec<P2>> = Vec::with_capacity(BANDS + 1);
-    let mut xz: Vec<Vec<(f32, f32)>> = Vec::with_capacity(BANDS + 1);
-    for b in 0..=BANDS {
-        let t = b as f32 / BANDS as f32;
+    let mut rings: Vec<Vec<P2>> = Vec::with_capacity(bands + 1);
+    let mut xz: Vec<Vec<(f32, f32)>> = Vec::with_capacity(bands + 1);
+    for b in 0..=bands {
+        let t = b as f32 / bands as f32;
         let y_nom = y0 + (y1 - y0) * t;
         let rad_b = r0 * 0.62 * (1.0 - t);
-        let mut ring = Vec::with_capacity(STEPS);
-        let mut flat = Vec::with_capacity(STEPS);
-        for i in 0..STEPS {
-            let a = phase + i as f32 / STEPS as f32 * std::f32::consts::TAU;
+        let mut ring = Vec::with_capacity(steps);
+        let mut flat = Vec::with_capacity(steps);
+        for i in 0..steps {
+            let a = phase + i as f32 / steps as f32 * std::f32::consts::TAU;
             let n = hash(seed + tier_i as f32 * 19.0, a + t);
-            let rad = if b == BANDS {
+            let rad = if b == bands {
                 r0 * 0.03
             } else {
                 (rad_b * (1.0 - lump_c + 2.0 * lump_c * n)).max(r0 * 0.03)
@@ -1012,12 +1088,12 @@ fn draw_core(
         rings.push(ring);
         xz.push(flat);
     }
-    for b in 0..BANDS {
-        for i in 0..STEPS {
-            let j = (i + 1) % STEPS;
+    for b in 0..bands {
+        for i in 0..steps {
+            let j = (i + 1) % steps;
             let (ax, az) = xz[b][i];
             let (bx, bz) = xz[b][j];
-            let y_mid = y0 + (y1 - y0) * (b as f32 + 0.5) / BANDS as f32;
+            let y_mid = y0 + (y1 - y0) * (b as f32 + 0.5) / bands as f32;
             let sun = sun_of(c, ax + bx, az + bz);
             let col = foliage_with_tree_snow(
                 c,
@@ -1029,7 +1105,8 @@ fn draw_core(
                 lit,
                 seed + tier_i as f32 + b as f32,
             );
-            c.quad(rings[b][i], rings[b][j], rings[b + 1][j], rings[b + 1][i], col);
+            let cull = c.cull_back && c.eye_y > y0;
+            c.quad_tube(rings[b][i], rings[b][j], rings[b + 1][j], rings[b + 1][i], col, cull);
         }
     }
 }
@@ -1106,6 +1183,9 @@ pub fn draw(
             snow_melting,
             tree_y_lo: 0.0,
             tree_y_hi: 0.0,
+            lod: if eye.is_some() && p.kind <= 4 { tree_lod(cam, base, sp, p.s) } else { 0 },
+            cull_back: eye.is_some(),
+            eye_y: eye.as_ref().map_or(0.0, |e| e.eye.y - base.y),
         };
         draw_one(&mut c, p, time);
     }
@@ -1770,4 +1850,6 @@ mod tests {
         }
     }
 }
+
+
 
