@@ -108,7 +108,10 @@ impl Framebuffer {
             return;
         }
         let i = y as usize * self.w + x as usize;
-        if d <= self.depth[i] {
+        // A point culled behind the 3D eye projects with d = INFINITY; over
+        // cleared (sky) pixels `INF <= INF` used to pass and smeared wedges
+        // toward (0, 0) across the top of the screen.
+        if d <= self.depth[i] && d < f32::INFINITY {
             self.depth[i] = d;
             self.color[i] = c;
         }

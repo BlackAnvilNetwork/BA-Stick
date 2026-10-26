@@ -1099,3 +1099,132 @@ fn sky_wow_shots() {
         }
     }
 }
+
+// Floating-ground sweep over the real zones (props included); see
+// props::tests::culled_vertex_never_paints_cleared_sky for the unit check.
+fn world_scene(zd: &str) -> Scene {
+    let origins = [
+        ("pale_hollow", 0.0),
+        ("hollow_road", 500.0),
+        ("forest_basin", 820.0),
+        ("spur_road", 980.0),
+        ("ring_ward", 1280.0),
+        ("islet_fords", 1416.0),
+        ("green_reach", 1542.0),
+        ("coil_pass", 1652.0),
+        ("coil_ridge", 1982.0),
+    ];
+    let mut s = Scene::new(320, 180);
+    for (id, oz) in origins {
+        let b = std::fs::read(format!("{zd}/{id}.baz")).unwrap();
+        s.place_zone(&b, 0.0, oz).unwrap();
+        if std::env::var("NOPROPS").is_err() {
+            if let Ok(p) = std::fs::read(format!("{zd}/{id}.bap")) {
+                let _ = s.place_props(&p, 0.0, oz);
+            }
+        }
+    }
+    s.minimap.on = false;
+    s
+}
+
+/// Columns where terrain sits above sky that itself sits above terrain
+/// (a floating ground band). Hills and props connect down to the ground.
+fn floating_ground_cols(s: &Scene) -> usize {
+    let (w, h) = (s.fb.w, s.fb.h);
+    let sky = crate::atmosphere::SKY;
+    let mut n = 0;
+    for x in 0..w {
+        let col: Vec<bool> = (0..h).map(|y| s.fb.color[y * w + x] == sky).collect();
+        // ground at row 0..k, then a run of >= 3 sky rows, then ground again
+        if col[0] {
+            continue;
+        }
+        let Some(a) = col.iter().position(|&c| c) else {
+            continue;
+        };
+        let Some(b) = col[a..].iter().position(|&c| !c) else {
+            continue;
+        };
+        if b >= 3 {
+            n += 1;
+        }
+    }
+    n
+}
+
+#[test]
+#[ignore]
+fn sweep_top_band() {
+    let zd = std::env::var("ZONES").unwrap();
+    let dir = std::env::var("SKY_SHOTS").unwrap_or_else(|_| "/tmp".into());
+    let mut s = world_scene(&zd);
+    let mut worst = (0, String::new());
+    for &(x, z) in &[
+        (106.4f32, 461.9f32),
+        (106.4, 480.0),
+        (80.0, 450.0),
+        (130.0, 495.0),
+        (100.0, 300.0),
+    ] {
+        let y = s.zone_height(x, z);
+        for k in 0..16 {
+            for up in [0usize, 6, 14] {
+                let f = k as f32 * std::f32::consts::PI / 8.0;
+                s.upsert_unit(
+                    "me",
+                    UnitInput {
+                        x,
+                        y,
+                        z,
+                        facing: f,
+                        anim: AnimState::Idle,
+                        preset: "knight".into(),
+                    },
+                );
+                s.follow(Some("me"));
+                s.set_cam_mode("fp");
+                s.set_look(0.0, 1.0);
+                for _ in 0..90 {
+                    s.tick(1.0 / 60.0);
+                }
+                s.set_look(0.0, -1.0);
+                for _ in 0..(30 + up) {
+                    s.tick(1.0 / 60.0);
+                }
+                s.set_look(0.0, 0.0);
+                for _ in 0..60 {
+                    s.tick(1.0 / 60.0);
+                }
+                s.draw();
+                let n = floating_ground_cols(&s);
+                let tag = format!("{x},{z},k{k},up{up}");
+                if n > worst.0 || tag == "80,450,k10,up6" {
+                    if n > worst.0 {
+                        worst = (n, tag.clone());
+                    }
+                    let mut out = vec![0u8; s.fb.w * s.fb.h * 4];
+                    s.write_rgba(&mut out);
+                    let mut fbuf = format!("P6\n{} {}\n255\n", s.fb.w, s.fb.h).into_bytes();
+                    for px in out.chunks(4) {
+                        fbuf.extend_from_slice(&px[..3]);
+                    }
+                    std::fs::write(
+                        format!(
+                            "{dir}/{}.ppm",
+                            if tag == "80,450,k10,up6" {
+                                "pose"
+                            } else {
+                                "worst"
+                            }
+                        ),
+                        fbuf,
+                    )
+                    .unwrap();
+                }
+            }
+        }
+    }
+    eprintln!("WORST {worst:?}");
+}
+
