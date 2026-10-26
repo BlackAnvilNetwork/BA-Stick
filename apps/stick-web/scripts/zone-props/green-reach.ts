@@ -1,3 +1,4 @@
+import { naturalSample } from "../natural-edges";
 /**
  * Green Reach props. One peak rock on each cap, pine and spruce on walkable
  * grass and meadow. Grid is 8 m by 8.5 m. Pools and peak cores are skipped.
@@ -50,7 +51,7 @@ export function greenReachProps(): Prop[] {
       if (inPeakCore(jx, jz)) continue;
       if (!greenReachWalkable(jx, jz)) continue;
       if (onLane(jx, jz)) continue;
-      const b = greenReachBiome(jx, jz);
+      const b = naturalSample(greenReachBiome, jx, jz);
       if (b !== "grass" && b !== "meadow") continue;
       if (h < 0.32) continue;
       const kind = h > 0.66 ? K.pine : K.spruce;

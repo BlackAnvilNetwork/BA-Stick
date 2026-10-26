@@ -130,3 +130,15 @@ Warp circles: pale_hollow (84,216); coil_ridge (-3,-40).
 - Land masks in hollow_road, spur_road (amp 8), islet_fords, green_reach, forest_basin and coil_pass (amp 4) are wrapped by `naturalMaskDist`. It only bulges outward, so every previously walkable cell stays walkable. `*Raw` exports keep the geometric versions.
 - The forest_basin lake gets a per-angle `cap` (no more straight clip). The PH gen terrace ring around the lake uses a warped lake distance.
 - Left built/straight on purpose: ring_ward city, bridges, hub interiors, zone bounds.
+
+## Natural areas (pass 2)
+
+- `ecoMosaic` (natural-edges.ts) is a visual-only ecology pass run after the edge warp in the legacy bake (`bake-zones.ts`, second pass with slope, elevation and trail distance) and in `generate-field.ts`. It does the following:
+  - Far-warps region borders (±~45 m), so disc and rectangle regions become lobes.
+  - Splits classes along moisture (noise minus elevation): wet lowland meadow, dry upland scrub.
+  - Adds groves (ashbeam) in grass, clearings and glades in ashbeam, copses in meadow, and fallow or hedgerow strips in farms.
+  - Puts scree (mountain/quarry) on steep ground and scree aprons around mountains.
+  - Adds worn dirt (ash_road) along trail verges.
+  - Water, bridges, hub floors, riverbank and parchment-outside cells are never changed.
+- Props in coil_ridge, green_reach and islet_fords follow the warped biome (`naturalSample`). Tests are updated to match.
+- Pale Hollow Ash Pit west shelf (`phWestShelf`, config): the bed within ~5 m of the west shore (|angle| > 2.2 rad) is lifted to 0.12–0.48 m below the surface. This adds ~1,100 wadeable shallows cells. It only raises the bed and leaves the lake surface unchanged.

@@ -1,3 +1,4 @@
+import { naturalSample } from "../natural-edges";
 /**
  * Coil Ridge ("the Broken Stair") props: the Kingsbridge deck, ruin stones (Stele Field,
  * Toppled Gatehouse, Scarp Head) and sparse pines on the walkable shelf off the trails and water.
@@ -33,7 +34,7 @@ export function coilRidgeProps(): Prop[] {
       const jx = ix + (hash2(ix, iz) - 0.5) * 1.5, jz = iz + (hash2(iz, ix) - 0.5) * 1.5;
       if (!coilRidgeWalkable(jx, jz) || coilRidgeInOpenWater(jx, jz) || coilRidgeOnBridge(jx, jz)) continue;
       if (nearTrailCorridor(jx, jz, coilRidgeTrails(), CR_TRAIL_WIDTH + 1)) continue;
-      if (coilRidgeBiome(jx, jz) !== "meadow") continue;
+      if (naturalSample(coilRidgeBiome, jx, jz) !== "meadow") continue;
       if (CR_RUINS.some((r) => Math.hypot(jx - r.x, jz - r.z) < r.r + 4)) continue;
       const h = hash2(Math.floor(jx * 2), Math.floor(jz * 2));
       if (h < 0.55) continue;

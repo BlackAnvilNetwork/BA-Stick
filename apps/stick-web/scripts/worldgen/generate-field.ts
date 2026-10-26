@@ -5,7 +5,7 @@
  * Continent coords = the game's own ZONE_ORIGINS (zone-layout.ts), so adjacent bands share one continuous relief field.
  * Usage: tsx scripts/worldgen/generate-field.ts <field_id>   (writes public/zones/<id>_gen.{baz,bap}; legacy files untouched)
  */
-import { naturalBiome } from "../natural-edges";
+import { ecoMosaic, naturalBiome } from "../natural-edges";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -113,6 +113,15 @@ export function generateField(id: string, cell = 0.5) {
     const sl = i > 0 && i < W - 1 && j > 0 && j < H - 1 ? Math.hypot(h[k + 1]! - h[k - 1]!, h[k + W]! - h[k - W]!) / (2 * cell) : 0;
     if (!walk[k] && sl > 1.1) b = "mountain"; else if (!walk[k] && sl > 0.7 && b !== "scrub") b = "vine_cliff";
     biome[k] = BIOMES.indexOf(b as any); }
+  // ecology mosaic (visual only): groves, clearings, scree, moisture / elevation gradients over the climate classes
+  { let lo = Infinity, hi = -Infinity; for (let k = 0; k < N; k++) if (walk[k] && !wet[k]) { lo = Math.min(lo, h[k]!); hi = Math.max(hi, h[k]!); }
+    const span = Math.max(1, hi - lo); const src = biome.slice();
+    const at = (x: number, z: number) => { const i = Math.round((x - minX) / cell), j = Math.round((z - minZ) / cell); if (i < 0 || j < 0 || i >= W || j >= H) return "crypt"; const kk = j * W + i; return wet[kk] || br[kk] ? "river" : BIOMES[src[kk]!]!; };
+    for (let k = 0; k < N; k++) { if (wet[k] || br[k] || (!walk[k] && BIOMES[biome[k]!] === "crypt")) continue; const i = k % W, j = (k / W) | 0; const wx = o.x + X(k), wz = o.z + Z(k);
+      const sl = i > 1 && i < W - 2 && j > 1 && j < H - 2 ? Math.max(Math.abs(h[k + 2]! - h[k - 2]!), Math.abs(h[k + 2 * W]! - h[k - 2 * W]!)) / (4 * cell) : 0;
+      const own = f.biome(X(k), Z(k)); const cur = BIOMES[biome[k]!]!;
+      const e = ecoMosaic(own, cur, at, X(k), Z(k), { slope: sl, elev: (h[k]! - lo) / span, trailD: Infinity, trailHalf: 0, blocked: !walk[k] });
+      void wx; void wz; biome[k] = Math.max(0, BIOMES.indexOf(e as any)); } }
   // ---- props: legacy kept verbatim; vegetation only on blocked dry scenery, density graded by distance to the floor ----
   const legacy = LEGACY_PROPS[id]!(); const props: Prop[] = [...legacy];
   const rnd = mulberry32(hashSeed(seed, "veg")); const occ = new Map<number, [number, number, number][]>(); const BK = 4; const key = (a: number, b: number) => a * 100003 + b;

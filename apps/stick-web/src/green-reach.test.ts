@@ -1,3 +1,4 @@
+import { naturalSample } from "../scripts/natural-edges";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { K } from "../scripts/bake-props";
@@ -176,7 +177,8 @@ test("green reach props stay under the budget and off the pools", () => {
     assert.ok(p.kind === K.pine || p.kind === K.spruce, `kind ${p.kind}`);
     assert.equal(greenReachWalkable(p.x, p.z), true);
     assert.equal(greenReachInOpenWater(p.x, p.z), false);
-    const b = greenReachBiome(p.x, p.z);
+    // trees follow the warped (natural-edge) biome the ground is painted with
+    const b = naturalSample(greenReachBiome, p.x, p.z);
     assert.ok(b === "grass" || b === "meadow", b);
     for (const m of GR_PEAKS) {
       assert.ok(Math.hypot(p.x - m.x, p.z - m.z) >= m.r * 0.38);

@@ -59,3 +59,83 @@ export function naturalSample<T extends string>(biome: (x: number, z: number) =>
   const b = biome(p.x, p.z);
   return EXACT_BIOMES.has(b) || b === "riverbank" || own === "riverbank" ? own : b;
 }
+
+/** Region classes that read as open country: they warp far and break into mosaics. */
+export const SOFT_BIOMES = new Set(["grass", "meadow", "scrub", "farm", "quarry", "ashbeam", "mountain", "ore_seam", "terrace", "vine_cliff", "crypt"]);
+
+export type EcoCtx = {
+  /** Rise over run of the stand surface around the cell (0 flat, 1 = 45 deg). */
+  slope: number;
+  /** 0 = lowest land in the zone, 1 = highest. */
+  elev: number;
+  /** Metres to the nearest trail centreline (Infinity if none). */
+  trailD: number;
+  /** Trail half width used by the bake. */
+  trailHalf: number;
+  /** Cell is unwalkable land (outside a land mask, cliff, wall). */
+  blocked: boolean;
+};
+
+/**
+ * Ecology pass (visual only). Takes the edge-warped class and turns big uniform blocks into a mosaic:
+ * far-warped region borders (discs become blobs and lobes), moisture/elevation gradients (wet lowland meadow,
+ * dry upland scrub), groves and clearings, scree on steep ground, and worn dirt beside trails.
+ */
+export function ecoMosaic(own: string, warped: string, biome: (x: number, z: number) => string, x: number, z: number, c: EcoCtx): string {
+  if (EXACT_BIOMES.has(own) || own === "river" || own === "riverbank" || own === "ash_road" || own === "hub_indoor") return warped;
+  if (own === "crypt" && c.blocked) return warped; // parchment / scenery outside irregular land masks stays as chosen
+  let b = warped;
+  if (SOFT_BIOMES.has(own) && SOFT_BIOMES.has(b)) {
+    // far warp: region blobs instead of discs and rectangles
+    const p = edgeWarp(x * 0.6 + 400, z * 0.6 - 250, 1);
+    const q = biome(x + (p.x - (x * 0.6 + 400)) * 2.4, z + (p.z - (z * 0.6 - 250)) * 2.4);
+    if (SOFT_BIOMES.has(q) && q !== "crypt") b = q;
+  }
+  const n1 = N1.fbm(x / 22 + 7, z / 22 - 3, 3); // patches
+  const n2 = N2.fbm(x / 70 - 11, z / 70 + 5, 2); // moisture field
+  const n3 = N3.fbm(x / 9 + 2, z / 9 + 13, 2); // small clumps
+  const moist = n2 * 0.8 - (c.elev - 0.45) * 0.9;
+  const t = hash(x * 1.7 + 3, z * 1.3 - 7) - 0.5; // dither
+  if (!c.blocked && c.trailD < c.trailHalf + 1.2 + 1.6 * (0.5 + 0.5 * n3) + t) {
+    if (b === "grass" || b === "meadow" || b === "scrub" || b === "farm") return "ash_road"; // worn verge
+  }
+  const steep = c.slope + n3 * 0.15 + t * 0.1;
+  if (steep > 1.1 && b !== "terrace") return n1 > 0 ? "mountain" : "quarry"; // scree
+  switch (b) {
+    case "grass":
+      if (steep > 0.6) return "scrub";
+      if (moist > 0.28 + t * 0.1) return "meadow";
+      if (moist < -0.3 && n1 > 0.15) return "scrub";
+      if (n1 < -0.5 + t * 0.08) return "ashbeam"; // grove
+      if (n3 > 0.62) return "meadow";
+      return b;
+    case "ashbeam":
+      if (n1 > 0.2 + t * 0.1) return "meadow"; // clearing
+      if (n1 > 0.02 || n3 > 0.45) return "grass"; // open glade fringe
+      return b;
+    case "meadow":
+      if (n1 < -0.42 + t * 0.1) return "grass";
+      if (n1 > 0.58 && n3 > 0) return "ashbeam"; // copse
+      if (moist < -0.35) return "scrub";
+      return b;
+    case "farm":
+      if (N4.n(x / 34 + 9, z / 34) > 0.5 + t * 0.1) return "grass"; // fallow/hedgerow
+      if (n3 > 0.66) return "meadow";
+      return b;
+    case "scrub":
+      if (moist > 0.3) return "grass";
+      if (n1 > 0.55) return "mountain"; // rock outcrop
+      if (n3 > 0.6) return "quarry";
+      return b;
+    case "quarry":
+      if (n1 > 0.45) return "scrub";
+      if (n3 < -0.6) return "mountain";
+      return b;
+    case "mountain":
+      if (n1 < -0.1 + t * 0.1) return "quarry"; // scree apron
+      if (steep < 0.5 && n3 > 0.15) return "scrub";
+      return b;
+    default:
+      return b;
+  }
+}

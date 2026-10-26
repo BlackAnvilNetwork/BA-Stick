@@ -1,3 +1,4 @@
+import { naturalSample } from "../scripts/natural-edges";
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
@@ -172,7 +173,7 @@ test("coil ridge props: one bridge, ruin stones, trees on dry meadow 8 m apart",
     assert.equal(coilRidgeWalkable(t.x, t.z), true);
     assert.equal(coilRidgeInOpenWater(t.x, t.z), false);
   }
-  for (const t of trees) assert.equal(coilRidgeBiome(t.x, t.z), "meadow");
+  for (const t of trees) assert.equal(naturalSample(coilRidgeBiome, t.x, t.z), "meadow"); // warped ground biome
   for (let i = 0; i < trees.length; i++) {
     for (let j = i + 1; j < trees.length; j++) {
       if (Math.hypot(trees[i]!.x - trees[j]!.x, trees[i]!.z - trees[j]!.z) < 8 - 1e-3) assert.fail("trees closer than 8 m");
