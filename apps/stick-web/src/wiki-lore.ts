@@ -69,9 +69,9 @@ export const LORE_PAGES: LorePage[] = [
   },
   {
     key: "coldhearth",
-    title: "Coldhearth and its people",
+    title: "Mayflower and its people",
     lines: [
-      "On Pale Hollow's eastern spur, past the scout encampment, a humble town of makers has grown into the Shard's broken fragments. Coldhearth is a salvage-camp sort of place: low fires, honest work, tools older than anyone can account for. Its founders came here long ago with their tools on their backs; ask where from, and the elders change the subject.",
+      "On Pale Hollow's eastern spur, past the scout encampment, a humble town of makers has grown into the Shard's broken fragments. Mayflower is a salvage-camp sort of place: low fires, honest work, tools older than anyone can account for. The first settlers came in May, tools on their backs, and found the valley full of wildflowers; they named the town for it. Ask where they came from, and the elders change the subject.",
       "- Wenna Gatesmoke, Herald of the Scout Gate: reads the Crown's news each morning and minds the signal fires. \"Crown's own news, read fair.\"",
       "- Old Orrin Haltmark, Shard Elder of the Elder's Stair: tells visitors the story of the Crown Spire. \"Come back after dark and I'll tell you what everyone forgot.\"",
       "- Brann Coldiron, Craft Master of the Eightfold: master of the eight craft halls, smithing to cooking. \"Bank the fire low and strike it true.\"",
@@ -117,7 +117,7 @@ export const LORE_PAGES: LorePage[] = [
       "- Scrape the whitewash off the Shard and there is writing underneath.",
       "- There are people called the Unwritten, who remember for those who cannot. Nobody admits to knowing one.",
       "- The Crownwardens topple any old stone circle that glows. Why would a stone glow?",
-      "- Every masterwork in Coldhearth carries its maker's mark. Look closely and there is something else stamped beside it.",
+      "- Every masterwork in Mayflower carries its maker's mark. Look closely and there is something else stamped beside it.",
     ],
   },
 ];
