@@ -13,7 +13,7 @@ import { staticAt } from "./statics";
 import { CombatFloaters } from "./floaters";
 import { GatherIcons, loadIconAtlas, type IconAtlas } from "./gather";
 import { craftActFor, gatherActFor, presentCraft, presentGather, syncUnits, type CraftAct, type GatherAct } from "./units";
-import { getMoveKeys, headingEase, headingStep, headingTarget, headingToward, moveKeyFromCode, shouldResend, wasdTarget } from "./input";
+import { engageHeadingGoal, getMoveKeys, headingEase, headingStep, headingTarget, headingToward, moveKeyFromCode, shouldResend, wasdTarget } from "./input";
 import { atmosphereFor, isCoarsePointer, keylightFor } from "./mobile";
 import { CastClock, sameId, unitFx } from "./fx";
 import { routeUnitClick } from "./clicks";
@@ -427,6 +427,9 @@ export function StickWorld() {
         } else if (me) {
           heading = heading ?? me.facing;
           if (keys.a || keys.d || keys.w || keys.s) headingGoal = null;
+          // Engaged / auto-attacking: turn smoothly toward the server facing
+          // (which already points at the target, as in iso).
+          headingGoal = engageHeadingGoal(me, keys) ?? headingGoal;
           if (headingGoal !== null) {
             const e = headingEase(heading, headingGoal, dt);
             heading = e.heading;
