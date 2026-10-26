@@ -1074,3 +1074,28 @@ fn sky_shots() {
         }
     }
 }
+
+/// Wide upward first-person shots of the clear sky (galaxy / cumulus showcase).
+#[test]
+#[ignore]
+fn sky_wow_shots() {
+    let dir = std::env::var("SKY_SHOTS").unwrap_or_else(|_| "/tmp".into());
+    for (pn, phase) in [("midnight", 0.0), ("dawn", 0.255), ("noon", 0.5), ("dusk", 0.745), ("night-late", 0.1)] {
+        for (ln, look) in [("up", 16), ("high", 40)] {
+            let mut s = cam3d_scene("fp");
+            s.minimap.on = false;
+            s.set_look(0.0, -1.0);
+            for _ in 0..look { s.tick(1.0 / 60.0); }
+            s.set_look(0.0, 0.0);
+            s.set_time_of_day(phase);
+            s.set_weather(0, 0.0);
+            for _ in 0..400 { s.tick(1.0 / 60.0); }
+            s.draw();
+            let mut out = vec![0u8; s.fb.w * s.fb.h * 4];
+            s.write_rgba(&mut out);
+            let mut f = format!("P6\n{} {}\n255\n", s.fb.w, s.fb.h).into_bytes();
+            for px in out.chunks(4) { f.extend_from_slice(&px[..3]); }
+            std::fs::write(format!("{dir}/wow-{pn}-{ln}.ppm"), f).unwrap();
+        }
+    }
+}
