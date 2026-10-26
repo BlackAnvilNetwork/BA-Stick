@@ -78,6 +78,7 @@ pub const FX_PLAYER_CAST: u32 = 32;
 pub const FX_PETRIFIED: u32 = 64;
 /// Gather node already harvested (greyed, no glow).
 pub const FX_DEPLETED: u32 = 128;
+pub const FX_MOB: u32 = 256;
 /// Background index in preview mode (keyed to transparent).
 const BACKDROP: u8 = crate::atmosphere::SKY;
 
@@ -156,6 +157,10 @@ pub struct Scene {
     lights: Vec<crate::atmosphere::Light>,
     /// Lighting, haze, skyline and vignette (#26).
     pub atmosphere: bool,
+    /// Extra third-person boom pitch that keeps the eye out of the terrain.
+    boom_lift: f32,
+    /// `cam.persp` was last written by the CamRig (3D rail), not a caller.
+    rig_persp: bool,
     /// L2 directional key light (round 1 polish). Off by default; `?keylight`.
     pub keylight: bool,
     /// Buff / ailment visuals per unit (#34).
@@ -209,6 +214,8 @@ impl Scene {
             pal: palette::palette(),
             lights: Vec::new(),
             atmosphere: true,
+            boom_lift: 0.0,
+            rig_persp: false,
             keylight: false,
             buffs: BTreeMap::new(),
             minimap: crate::minimap::Minimap::new(),
@@ -570,7 +577,105 @@ impl Scene {
         let s = self.subject();
         let (w, h) = (self.cam.w, self.cam.h);
         self.rig.update(dt, self.look_pitch, &s, self.cam.cx, self.cam.cz, w, h);
-        self.cam.view = self.rig.view;
+        self.cam.view = match self.rig.view {
+            Some(v) => {
+                let (lift, _) = self.boom_clear_of_ground(v, 0.0);
+                // Rise at once (no frame inside a hill), settle back smoothly.
+                self.boom_lift = lift.max(self.boom_lift * (-dt * 3.0).exp());
+                Some(self.boom_clear_of_ground(v, self.boom_lift).1)
+            }
+            None => {
+                self.boom_lift = 0.0;
+                None
+            }
+        };
+        // Legacy iso follow lift uses `cam.persp`; keep it in sync with the 3D rail.
+        // Only undo a persp the rig set, so a caller-set legacy blend survives in iso.
+        if self.cam.view.is_some() {
+            self.cam.persp = self.rig.r.min(1.0);
+            self.rig_persp = true;
+        } else if self.rig_persp {
+            self.cam.persp = 0.0;
+            self.rig_persp = false;
+        }
+    }
+
+    /// Third-person boom collision: pull the eye in toward the target until
+    /// the boom clears the terrain. Without it the eye sinks into hills and
+    /// slopes and the frame shows sky (the inside of the heightfield) where
+    /// the ground should be. Iso (`view == None`) never gets here.
+    /// Returns the extra pitch the boom needs and the view with `lift` (at
+    /// least) applied, pulled in if it is still blocked.
+    fn boom_clear_of_ground(&self, v: stick_engine::camera::View, lift: f32) -> (f32, stick_engine::camera::View) {
+        if v.inv_d <= 0.0 || (self.zone.is_none() && self.world.is_empty()) {
+            return (0.0, v);
+        }
+        let d = 1.0 / v.inv_d;
+        if !(0.5..=20.0).contains(&d) {
+            // Past 20 m: iso -> tp dolly, the eye is still far above the scene.
+            // Under 0.5 m: first person, the eye is the head.
+            return (0.0, v);
+        }
+        const CLEAR: f32 = 0.35;
+        const PAD: f32 = 0.4;
+        // `pad` widens the probe at the eye so the near plane does not graze a wall.
+        let ground = |x: f32, z: f32, pad: f32| {
+            let mut m = self.zone_height(x, z);
+            if pad > 0.0 {
+                for (dx, dz) in [(pad, 0.0), (-pad, 0.0), (0.0, pad), (0.0, -pad)] {
+                    m = m.max(self.zone_height(x + dx, z + dz));
+                }
+            }
+            m - self.cam_y
+        };
+        // Longest clear boom length for a view direction.
+        let clear_len = |v: &stick_engine::camera::View| {
+            let f = v.fwd();
+            let step = 0.1;
+            let mut t = 0.3f32.min(d);
+            while t < d + 1e-4 {
+                let p = v.target - f * t.min(d);
+                let pad = if t >= d - 1.0 { PAD } else { 0.0 };
+                if p.y < ground(p.x, p.z, pad) + CLEAR {
+                    return (t - step).max(0.3f32.min(d));
+                }
+                t += step;
+            }
+            d
+        };
+        let max_pitch = 80f32.to_radians();
+        let lifted = |l: f32| {
+            let mut w = v;
+            w.pitch = (v.pitch + l).min(max_pitch.max(v.pitch));
+            w
+        };
+        // First swing the boom up over the obstacle (keeps the framing
+        // distance), then, under an overhang or in a cleft, pull it in.
+        let mut need = 0.0;
+        let mut best = (clear_len(&lifted(lift)), lift);
+        if best.0 < d - 1e-4 {
+            for k in 1..=16 {
+                let l = lift.max(k as f32 * 5f32.to_radians());
+                let len = clear_len(&lifted(l));
+                if len > best.0 + 1e-4 {
+                    best = (len, l);
+                }
+                if len >= d - 1e-4 {
+                    break;
+                }
+            }
+        }
+        if best.1 > lift {
+            need = best.1;
+        } else if lift == 0.0 {
+            need = 0.0;
+        }
+        let mut w = lifted(best.1);
+        if best.0 < d - 1e-4 {
+            w.scale *= d / best.0;
+            w.inv_d = 1.0 / best.0;
+        }
+        (need, w)
     }
 
     pub fn tick(&mut self, dt: f32) {
@@ -884,8 +989,12 @@ impl Scene {
                 }
             } else {
                 self.fb.color.fill(crate::atmosphere::SKY);
+                let foot = ground::view_world_rect(&self.fb, &self.cam);
                 // North first, so a nearer southern zone paints over it.
                 for z in self.world.iter().rev() {
+                    if !ground::zone_overlaps_world_rect(z, foot.0, foot.1, foot.2, foot.3) {
+                        continue;
+                    }
                     ground::draw_zone_in(&mut self.fb, &self.cam, z, self.cam_y, self.time, false);
                 }
             }
@@ -897,7 +1006,11 @@ impl Scene {
             self.fb.clear_depth();
         } else if !self.backdrop {
             self.fb.clear_depth();
-            let melting = self.weather_snow_target < self.weather_snow - 1e-4;
+            let melting = crate::weather::snow_melting(
+                self.weather_snow,
+                self.weather_snow_target,
+                self.weather_kind_to,
+            );
             let snow = crate::weather::snow_cover_display(self.weather_snow, melting);
             let grass_breeze = self.grass_breeze();
             if self.world.is_empty() {
@@ -915,7 +1028,11 @@ impl Scene {
                     }
                 }
             } else {
+                let foot = ground::view_world_rect(&self.fb, &self.cam);
                 for z in self.world.iter().rev() {
+                    if !ground::zone_overlaps_world_rect(z, foot.0, foot.1, foot.2, foot.3) {
+                        continue;
+                    }
                     ground::draw_meadow_grass(
                         &mut self.fb,
                         &self.cam,
@@ -935,6 +1052,12 @@ impl Scene {
         let placed = !self.world.is_empty();
         let props = if placed { &self.world_props } else { &self.props };
         if !self.boot_menu && (self.zone.is_some() || placed) {
+            let melting = crate::weather::snow_melting(
+                self.weather_snow,
+                self.weather_snow_target,
+                self.weather_kind_to,
+            );
+            let snow = crate::weather::snow_cover_display(self.weather_snow, melting);
             let snow_w = Self::precip_kind_blend(
                 crate::weather::Kind::from_u8(self.weather_kind_from),
                 crate::weather::Kind::from_u8(self.weather_kind_to),
@@ -947,8 +1070,9 @@ impl Scene {
                 props,
                 self.cam_y,
                 t,
-                self.weather_snow,
+                snow,
                 snow_w,
+                melting,
             );
             props::draw_shadows(&mut self.fb, &cam, props, self.cam_y);
         }
@@ -991,9 +1115,18 @@ impl Scene {
             }
             let size = body_radius(&u.preset.body);
             if fx.flags & FX_SELECTED != 0 {
-                let col = if fx.flags & FX_HOSTILE != 0 { FX_RING_HOSTILE } else if fx.flags & FX_SELF != 0 { FX_RING_SELF } else { FX_RING_FRIEND };
-                ring(&mut self.fb, &cam, c, size, col, None);
-                ring(&mut self.fb, &cam, c, size + 0.08, col, None);
+                if fx.flags & FX_HOSTILE != 0 {
+                    ring(&mut self.fb, &cam, c, size, FX_RING_HOSTILE, None);
+                    ring(&mut self.fb, &cam, c, size + 0.08, FX_RING_HOSTILE, None);
+                } else if fx.flags & FX_SELF != 0 {
+                    ring(&mut self.fb, &cam, c, size, FX_RING_SELF, None);
+                    ring(&mut self.fb, &cam, c, size + 0.08, FX_RING_SELF, None);
+                } else if fx.flags & FX_MOB != 0 {
+                    ring(&mut self.fb, &cam, c, size, FX_HOVER, Some(t * 1.5));
+                } else {
+                    ring(&mut self.fb, &cam, c, size, FX_RING_FRIEND, None);
+                    ring(&mut self.fb, &cam, c, size + 0.08, FX_RING_FRIEND, None);
+                }
             } else if fx.flags & FX_HOVERED != 0 {
                 ring(&mut self.fb, &cam, c, size, FX_HOVER, Some(t * 1.5));
             }
@@ -1222,13 +1355,26 @@ impl Scene {
         if self.weather_blend < 1.0 {
             self.weather_blend = (self.weather_blend + dt / BLEND_SECS).min(1.0);
         }
-        let melting = self.weather_snow_target < self.weather_snow - 1e-4;
+        let melting = crate::weather::snow_melting(
+            self.weather_snow,
+            self.weather_snow_target,
+            self.weather_kind_to,
+        );
         let rate = if melting { 16.0 } else { 11.0 };
         let k = 1.0 - (-rate * dt).exp();
         self.weather_snow += (self.weather_snow_target - self.weather_snow) * k;
         // Snap to full cover so the blanket does not shimmer on the last step.
         if !melting && self.weather_snow_target >= 0.99 && self.weather_snow > 0.94 {
             self.weather_snow = self.weather_snow.max(self.weather_snow_target);
+        }
+        // Hold displayed melt steps steady (lerp between quant steps flickers tiles).
+        if melting {
+            let shown = crate::weather::snow_cover_display(self.weather_snow, true);
+            if self.weather_snow > shown + 0.5 / 40.0 {
+                // still falling toward the next dissolve step
+            } else if self.weather_snow > self.weather_snow_target {
+                self.weather_snow = shown.max(self.weather_snow_target);
+            }
         }
     }
 
@@ -1301,7 +1447,13 @@ impl Scene {
             if (u.pos.x - cx).abs() > 70.0 || (u.pos.z - cz).abs() > 70.0 {
                 continue;
             }
-            let kind = if u.fx.flags & FX_HOSTILE != 0 { 1 } else if u.preset.npc_mark.is_some() { 2 } else { 3 };
+            let kind = if u.fx.flags & (FX_HOSTILE | FX_MOB) != 0 {
+                1
+            } else if u.preset.npc_mark.is_some() {
+                2
+            } else {
+                3
+            };
             marks.push(Marker { x: u.pos.x - self.map_ox, z: u.pos.z - self.map_oz, kind });
         }
         (cx - self.map_ox, cz - self.map_oz, yaw, marks)

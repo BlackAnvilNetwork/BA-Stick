@@ -159,6 +159,10 @@ importers:
         version: 6.4.3(@types/node@22.20.4)(tsx@4.23.15)
 
   packages/combat:
+    dependencies:
+      '@bellgrave/protocol':
+        specifier: workspace:*
+        version: link:../protocol
     devDependencies:
       '@types/node':
         specifier: ^22.13.10

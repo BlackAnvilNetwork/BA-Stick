@@ -152,7 +152,20 @@ test("unitFx: flags for self, selection, hostility, shiny", () => {
   const me = unitFx(unit({ id: "0xme" }), { ...ctx, selected: "0xme" });
   assert.equal(me.flags & (FX.SELF | FX.SELECTED | FX.HOSTILE), FX.SELF | FX.SELECTED);
   const mob = unitFx(unit({ id: "m", kind: "mob", shiny: true }), { ...ctx, hovered: "m" });
-  assert.equal(mob.flags & (FX.HOSTILE | FX.SHINY | FX.HOVERED | FX.PLAYER_CAST), FX.HOSTILE | FX.SHINY | FX.HOVERED);
+  assert.equal(
+    mob.flags & (FX.MOB | FX.SHINY | FX.HOVERED | FX.PLAYER_CAST),
+    FX.MOB | FX.SHINY | FX.HOVERED,
+  );
+  assert.equal(mob.flags & FX.HOSTILE, 0);
+  const mobSel = unitFx(unit({ id: "m", kind: "mob" }), { ...ctx, selected: "m" });
+  assert.ok(mobSel.flags & (FX.MOB | FX.SELECTED));
+  assert.equal(mobSel.flags & FX.HOSTILE, 0);
+  const mobAggro = unitFx(unit({ id: "m", kind: "mob", targetId: "0xme" }), {
+    ...ctx,
+    selected: "m",
+    wallet: "0xme",
+  });
+  assert.ok(mobAggro.flags & FX.HOSTILE);
   const bounty = unitFx(unit({ id: "p2", pvpBounty: true }), ctx);
   assert.ok(bounty.flags & FX.HOSTILE);
 });
@@ -182,7 +195,7 @@ test("routeUnitClick matches the legacy click rules", () => {
   assert.deepEqual(routeUnitClick(unit({ id: "m", kind: "mob", anim: "dead", hp: 0 }), "0xme"), {});
   assert.deepEqual(routeUnitClick(unit({ id: "p" }), "0xme"), { select: "p" });
   assert.deepEqual(routeUnitClick(unit({ id: "p", pvpBounty: true }), "0xme"), { select: "p", send: { type: "engage", targetId: "p" } });
-  assert.deepEqual(routeUnitClick(unit({ id: "0xME" }), "0xme"), {});
+  assert.deepEqual(routeUnitClick(unit({ id: "0xME" }), "0xme"), { select: "0xME" });
 });
 
 import { labelFor } from "./labels";

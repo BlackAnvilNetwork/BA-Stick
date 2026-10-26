@@ -5,12 +5,12 @@
 //! Zone weather overlays — snow on ground (blanket) and generative canopy tint,
 //! screen-space rain/snow, atmosphere tuning via Scene.
 
-use stick_engine::camera::{Camera, P2};
+use stick_engine::camera::Camera;
 use stick_engine::math::v3;
 use stick_engine::raster::Framebuffer;
 
 use crate::atmosphere::{FOG_DEPTH_SANITY, SKY};
-use crate::ground::{cell_hash, fill_tri, view_cells};
+use crate::ground::{cell_hash, fill_tri, perspective_ground, project_tri_plain, tri_ok, view_cells};
 use crate::palette::{ROCK, ROCK_L, WALL_L};
 use crate::zone::{F_BRIDGE, F_WATER, Zone};
 
@@ -64,59 +64,15 @@ pub fn snow_cover_display(cover: f32, melting: bool) -> f32 {
     (c * steps).floor() / steps
 }
 
-/// Patch dissolve for melt; whole-cell fill while snow is building up.
-fn fill_tri_snow(
-    fb: &mut Framebuffer,
-    a: P2,
-    b: P2,
-    c: P2,
-    ua: (f32, f32),
-    ub: (f32, f32),
-    uc: (f32, f32),
-    cell_i: i32,
-    cell_j: i32,
-    cover: f32,
-) {
-    let min_x = a.x.min(b.x).min(c.x).floor().max(0.0) as i32;
-    let max_x = a.x.max(b.x).max(c.x).ceil().min(fb.w as f32 - 1.0) as i32;
-    let min_y = a.y.min(b.y).min(c.y).floor().max(0.0) as i32;
-    let max_y = a.y.max(b.y).max(c.y).ceil().min(fb.h as f32 - 1.0) as i32;
-    if min_x > max_x || min_y > max_y {
-        return;
+/// Ground + trees use dissolve (not build) while cover remains after a snow spell ends.
+pub fn snow_melting(snow: f32, snow_target: f32, kind_to: u8) -> bool {
+    if snow <= 0.015 {
+        return false;
     }
-    let area = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
-    if area.abs() < 1e-6 {
-        return;
+    if snow > snow_target + 1e-4 {
+        return true;
     }
-    let s = area.signum();
-    let cover = cover.clamp(0.0, 1.0);
-    let w = fb.w;
-    for y in min_y..=max_y {
-        let py = y as f32 + 0.5;
-        for x in min_x..=max_x {
-            let px = x as f32 + 0.5;
-            let w0 = ((b.x - a.x) * (py - a.y) - (b.y - a.y) * (px - a.x)) * s;
-            let w1 = ((c.x - b.x) * (py - b.y) - (c.y - b.y) * (px - b.x)) * s;
-            let w2 = ((a.x - c.x) * (py - c.y) - (a.y - c.y) * (px - c.x)) * s;
-            if w0 < 0.0 || w1 < 0.0 || w2 < 0.0 {
-                continue;
-            }
-            let u = ua.0 * w0 + ub.0 * w1 + uc.0 * w2;
-            let v = ua.1 * w0 + ub.1 * w1 + uc.1 * w2;
-            // World-locked patches melt in fixed order as cover falls (no screen static).
-            let pu = (u * 4.0).floor() as i32 & 3;
-            let pv = (v * 4.0).floor() as i32 & 3;
-            let order = snow_hash(
-                cell_i.wrapping_mul(4).wrapping_add(pu),
-                cell_j.wrapping_mul(4).wrapping_add(pv),
-            );
-            if order > cover {
-                continue;
-            }
-            let h = cell_hash(cell_i, cell_j) ^ cell_hash(pu, pv);
-            fb.color[y as usize * w + x as usize] = snow_tone(h);
-        }
-    }
+    kind_to != Kind::Snow as u8
 }
 
 fn land_cell(zone: &Zone, i: i32, j: i32) -> bool {
@@ -150,12 +106,13 @@ pub fn draw_snow_ground(
         return;
     };
     let c = zone.cell;
-    let pt = |i: i32, j: i32| {
+    let wpt = |i: i32, j: i32| {
         let h = zone.height[zone.idx(i, j)] - cam_y;
-        cam.project(v3(zone.min_x + i as f32 * c, h + 0.012, zone.min_z + j as f32 * c))
+        v3(zone.min_x + i as f32 * c, h + 0.012, zone.min_z + j as f32 * c)
     };
+    let pt = |i: i32, j: i32| cam.project(wpt(i, j));
+    let pg = perspective_ground(cam);
     let full_blanket = cover >= 0.99;
-    let cell_accum = !melting && !full_blanket;
     for s in (i0 + j0)..=(i1 + j1) {
         let ilo = i0.max(s - j1);
         let ihi = i1.min(s - j0);
@@ -164,54 +121,49 @@ pub fn draw_snow_ground(
             if !land_cell(zone, i, j) {
                 continue;
             }
+            let (w00, w10, w01, w11) = (wpt(i, j), wpt(i + 1, j), wpt(i, j + 1), wpt(i + 1, j + 1));
             let (p00, p10, p01, p11) = (pt(i, j), pt(i + 1, j), pt(i, j + 1), pt(i + 1, j + 1));
-            if p00.culled() || p10.culled() || p01.culled() || p11.culled() {
+            if crate::ground::quad_off_screen(fb, p00, p10, p01, p11) {
                 continue;
             }
-            if p11.y < -2.0 || p00.y > fb.h as f32 + 2.0 + 300.0 {
+            if pg.is_none()
+                && crate::ground::quad_all_culled(p00, p10, p01, p11)
+            {
                 continue;
             }
             if full_blanket {
                 let col = snow_tone(cell_hash(i, j) as u32);
-                fill_tri(fb, p00, p10, p11, col);
-                fill_tri(fb, p00, p11, p01, col);
-                continue;
-            }
-            if cell_accum {
-                if snow_hash(i, j) > cover {
-                    continue;
+                if let Some(v) = pg {
+                    project_tri_plain(fb, cam, &v, [w00, w10, w11], col);
+                    project_tri_plain(fb, cam, &v, [w00, w11, w01], col);
+                } else {
+                    if tri_ok(p00, p10, p11) {
+                        fill_tri(fb, p00, p10, p11, col);
+                    }
+                    if tri_ok(p00, p11, p01) {
+                        fill_tri(fb, p00, p11, p01, col);
+                    }
                 }
-                let col = snow_tone(cell_hash(i, j) as u32);
-                fill_tri(fb, p00, p10, p11, col);
-                fill_tri(fb, p00, p11, p01, col);
                 continue;
             }
-            fill_tri_snow(
-                fb,
-                p00,
-                p10,
-                p11,
-                (0.0, 0.0),
-                (1.0, 0.0),
-                (1.0, 1.0),
-                i,
-                j,
-                cover,
-            );
-            fill_tri_snow(
-                fb,
-                p00,
-                p11,
-                p01,
-                (0.0, 0.0),
-                (1.0, 1.0),
-                (0.0, 1.0),
-                i,
-                j,
-                cover,
-            );
+            // Build-up and melt both use whole-cell thresholds (stable; no sub-tri shimmer).
+            if snow_hash(i, j) > cover {
+                continue;
+            }
+            let col = snow_tone(cell_hash(i, j) as u32);
+            if let Some(v) = pg {
+                project_tri_plain(fb, cam, &v, [w00, w10, w11], col);
+                project_tri_plain(fb, cam, &v, [w00, w11, w01], col);
+            } else {
+                if tri_ok(p00, p10, p11) {
+                    fill_tri(fb, p00, p10, p11, col);
+                }
+            if tri_ok(p00, p11, p01) {
+                fill_tri(fb, p00, p11, p01, col);
+            }
         }
     }
+}
 }
 
 /// Uniform in [0, 1). Fully mixed, so (x, y, t) behave as independent streams.

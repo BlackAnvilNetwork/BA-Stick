@@ -91,6 +91,7 @@ export type BattleMageAbilityDef = {
   range?: number;
   aoe?: number;
   needsTarget?: boolean;
+  allyTarget?: boolean;
   weaponRequired?: boolean;
   /** En-spell bonus damage on melee while active. */
   enSpellBonus?: number;
@@ -226,6 +227,8 @@ export const BATTLEMAGE_ABILITIES: Record<BattleMageAbilityId, BattleMageAbility
     recastMs: 0,
     category: "heal",
     heal: 35,
+    range: 12,
+    allyTarget: true,
   },
   bm_cure_ii: {
     id: "bm_cure_ii",
@@ -236,6 +239,8 @@ export const BATTLEMAGE_ABILITIES: Record<BattleMageAbilityId, BattleMageAbility
     recastMs: 0,
     category: "heal",
     heal: 75,
+    range: 12,
+    allyTarget: true,
   },
   bm_cure_iii: {
     id: "bm_cure_iii",
@@ -246,6 +251,8 @@ export const BATTLEMAGE_ABILITIES: Record<BattleMageAbilityId, BattleMageAbility
     recastMs: 0,
     category: "heal",
     heal: 140,
+    range: 12,
+    allyTarget: true,
   },
   bm_cure_iv: {
     id: "bm_cure_iv",
@@ -256,6 +263,8 @@ export const BATTLEMAGE_ABILITIES: Record<BattleMageAbilityId, BattleMageAbility
     recastMs: 0,
     category: "heal",
     heal: 250,
+    range: 12,
+    allyTarget: true,
   },
   bm_protect: {
     id: "bm_protect",
@@ -267,6 +276,8 @@ export const BATTLEMAGE_ABILITIES: Record<BattleMageAbilityId, BattleMageAbility
     category: "enhance",
     durationMs: 180_000,
     physDt: 0.88,
+    range: 12,
+    allyTarget: true,
   },
   bm_shell: {
     id: "bm_shell",
@@ -278,6 +289,8 @@ export const BATTLEMAGE_ABILITIES: Record<BattleMageAbilityId, BattleMageAbility
     category: "enhance",
     durationMs: 180_000,
     magDt: 0.88,
+    range: 12,
+    allyTarget: true,
   },
   bm_phalanx: {
     id: "bm_phalanx",
@@ -289,6 +302,8 @@ export const BATTLEMAGE_ABILITIES: Record<BattleMageAbilityId, BattleMageAbility
     category: "enhance",
     durationMs: 120_000,
     physDt: 0.75,
+    range: 12,
+    allyTarget: true,
   },
   bm_stoneskin: {
     id: "bm_stoneskin",
@@ -299,6 +314,8 @@ export const BATTLEMAGE_ABILITIES: Record<BattleMageAbilityId, BattleMageAbility
     recastMs: 0,
     category: "enhance",
     durationMs: 300_000,
+    range: 12,
+    allyTarget: true,
   },
   bm_haste: {
     id: "bm_haste",
@@ -310,6 +327,8 @@ export const BATTLEMAGE_ABILITIES: Record<BattleMageAbilityId, BattleMageAbility
     category: "enhance",
     durationMs: 180_000,
     haste: 0.22,
+    range: 12,
+    allyTarget: true,
   },
   bm_refresh: {
     id: "bm_refresh",
@@ -322,6 +341,8 @@ export const BATTLEMAGE_ABILITIES: Record<BattleMageAbilityId, BattleMageAbility
     category: "enhance",
     durationMs: 180_000,
     refreshMp: 4,
+    range: 12,
+    allyTarget: true,
   },
   bm_refresh_ii: {
     id: "bm_refresh_ii",
@@ -333,6 +354,8 @@ export const BATTLEMAGE_ABILITIES: Record<BattleMageAbilityId, BattleMageAbility
     category: "enhance",
     durationMs: 210_000,
     refreshMp: 8,
+    range: 12,
+    allyTarget: true,
   },
   bm_refreshga: {
     id: "bm_refreshga",
@@ -730,7 +753,8 @@ export function battleMageAbilityTooltip(id: BattleMageAbilityId): {
   if (def.magDt != null && def.magDt < 1) {
     bits.push(`Magic DT −${Math.round((1 - def.magDt) * 100)}%`);
   }
-  if (def.needsTarget) bits.push("Target");
+  if (def.needsTarget) bits.push("Enemy target");
+  if (def.allyTarget) bits.push("Ally target");
   if (def.weaponRequired) bits.push("Sword (main)");
   if (def.toggle) bits.push("Toggle");
   return { title: def.label, body: blurb, meta: bits.join(" · ") };
