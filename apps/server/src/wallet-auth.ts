@@ -52,6 +52,11 @@ const pendingNonces = new Map<string, PendingNonce>();
 const remoteHellos = new Map<string, HelloRow>();
 const loopbackHellos = new Map<string, number[]>();
 
+/** How long a signed-in page may reconnect without another wallet prompt. */
+const RESUME_TTL_MS = 12 * 60 * 60_000;
+const resumes = new Map<string, { wallet: string; expiresAt: number }>();
+const resumeByWallet = new Map<string, string>();
+
 /**
  * Canonicalize an IP address to prevent rate-limit bypass via non-canonical forms.
  * IPv4: removes leading zeros (192.168.001.001 → 192.168.1.1)
@@ -532,6 +537,43 @@ export async function verifyAuthLogin(args: {
   return { ok: true, wallet };
 }
 
+/**
+ * The same token is reused until it expires, so a socket blip does not pop the wallet.
+ */
+export function issueAuthResume(wallet: string, now = Date.now()): string {
+  const id = wallet.toLowerCase();
+  const existing = resumeByWallet.get(id);
+  if (existing) {
+    const row = resumes.get(existing);
+    if (row && row.expiresAt > now) return existing;
+    resumes.delete(existing);
+  }
+  const token = randomBytes(32).toString("hex");
+  resumes.set(token, { wallet: id, expiresAt: now + RESUME_TTL_MS });
+  resumeByWallet.set(id, token);
+  return token;
+}
+
+/** True only for the wallet that signed, and only before the token expires. */
+export function acceptAuthResume(
+  token: string,
+  wallet: string,
+  now = Date.now(),
+): { ok: true; wallet: string } | { ok: false; error: string } {
+  const row = resumes.get(token);
+  if (!row || row.expiresAt <= now || row.wallet !== wallet.toLowerCase()) {
+    return { ok: false, error: "Sign in again." };
+  }
+  return { ok: true, wallet: row.wallet };
+}
+
+export function dropAuthResume(wallet: string) {
+  const id = wallet.toLowerCase();
+  const token = resumeByWallet.get(id);
+  if (token) resumes.delete(token);
+  resumeByWallet.delete(id);
+}
+
 /** Drop challenges and hello budget when a websocket closes. */
 export function dropAuthConnection(connectionId: string) {
   if (!connectionId) return;
@@ -548,6 +590,8 @@ export function __resetAuthNoncesForTests() {
   pendingNonces.clear();
   remoteHellos.clear();
   loopbackHellos.clear();
+  resumes.clear();
+  resumeByWallet.clear();
 }
 
 /** Test helper: drop pending rows but keep the hello rate window. */

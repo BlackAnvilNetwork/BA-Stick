@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { PH_SNOW_ACCUM_SEC, PH_SNOW_MELT_SEC, PH_WEATHER_CYCLE_MS } from "@bellgrave/config";
-import { paleHollowWeatherSnapshotAt } from "./pale-hollow-weather.ts";
+import { paleHollowWeatherSnapshotAt } from "./pale-hollow-weather";
 
 describe("pale hollow weather snapshot", () => {
   it("snow cover grows from zero at spell start", () => {

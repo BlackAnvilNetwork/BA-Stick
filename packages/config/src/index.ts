@@ -173,6 +173,7 @@ export {
   type PaleHollowMobDef,
   type PaleHollowMobJob,
   type PaleHollowRareDrop,
+  type PaleHollowFixedDrop,
   type PaleHollowArchetype,
   type PaleHollowAggro,
   PH_ARCHETYPE_DEFAULT_JOB,
