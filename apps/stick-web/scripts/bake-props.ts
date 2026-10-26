@@ -45,6 +45,7 @@ import {
   paleHollowWalkable,
   paleHollowWaterSurfaceY,
   type PaleHollowRiverKind,
+  coldhearthProps,
 } from "@bellgrave/config";
 
 /** Must match `PropKind` in engine/ba-stick-render/src/props.rs. */
@@ -54,6 +55,7 @@ export const K = {
   wallBlock: 30, moss: 31, firePit: 32, tent: 33, bedroll: 34, crate: 35, chest: 36, leanTo: 37, trainer: 38, stall: 39,
   weaponRack: 40, firewood: 41, barrel: 42, banner: 43, stone: 44, pebble: 45, peak: 46, riverWall: 47, bridge: 48,
   shack: 49, cairn: 50,
+  lantern: 51, anvil: 52, trough: 53, dummy: 54, butt: 55, wheel: 56, channel: 57,
 } as const;
 
 export type Prop = { kind: number; v: number; x: number; z: number; y: number; yaw: number; s: number; w: number; h: number; d: number };
@@ -202,18 +204,12 @@ function hub(out: Prop[]): void {
   p(K.bedroll, -5.6 + 0.15, 4.2 - 0.15, 0.65);
   p(K.tent, -5.8, -1.6, -0.25, 1, 0, 0, 0, 1);
   p(K.bedroll, -5.8 + 0.15, -1.6 - 0.15, -0.15, 1, 0, 0, 0, 1);
-  p(K.leanTo, 4.6, -0.9, -0.35);
-  p(K.trainer, -4.35, 3.55, 0.4);
-  p(K.stall, -3.5, -1.35, 0.15);
-  p(K.crate, -3.5 + 0.85, -1.35 + 0.2, 0.15, 1, 0.48, 0.38, 0.4);
-  p(K.crate, -3.5 - 1.15, -1.35 + 0.35, 0.15, 1, 0.42, 0.32, 0.36);
-  p(K.weaponRack, 4.6, 2.85, -0.55);
+  p(K.weaponRack, 4.6, 2.85, -0.55); // scouts' rack
   p(K.firewood, 2.4, -2.6);
   p(K.barrel, -1.8, -3.2);
   p(K.stone, 1.6, 3.8, 0.3, 0.8);
   p(K.banner, 1.05, 5.45);
   p(K.stone, -1.2, -4.2, 0.3, 1.1);
-  p(K.chest, 3.2, -1.5, -0.35);
   for (const [x, z, yaw] of [[5.2, 2.0, 0.3], [-0.8, 4.2, 0.7], [2.6, -3.6, 1.2], [-2.6, 2.4, 2.0]] as const) p(K.pebble, x, z, yaw, 0.5);
 }
 
@@ -362,6 +358,7 @@ export function paleHollowProps(): Prop[] {
   const out: Prop[] = [];
   riverBanks(out);
   hub(out);
+  coldhearth(out);
   yards(out);
   peaks(out);
   trees(out);
@@ -450,4 +447,16 @@ export function bridgeProfileSamples() {
     });
     return { id: site.id, prop: { v: prop.v, y: prop.y, s: prop.s, w: prop.w, h: prop.h, d: prop.d }, samples };
   });
+}
+
+/** Coldhearth town props (data in config pale-hollow-town.ts; client-visual only). */
+function coldhearth(out: Prop[]): void {
+  for (const p of coldhearthProps()) {
+    const kind = (K as Record<string, number>)[p.kind];
+    if (kind === undefined) throw new Error("unknown Coldhearth prop kind " + p.kind);
+    out.push({
+      kind, v: p.v ?? 0, x: p.x, z: p.z, y: paleHollowStandHeight(p.x, p.z) + (p.dy ?? 0),
+      yaw: p.yaw ?? 0, s: p.s ?? 1, w: p.w ?? 0, h: p.h ?? 0, d: p.d ?? 0,
+    });
+  }
 }

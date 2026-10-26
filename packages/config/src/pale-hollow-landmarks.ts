@@ -42,6 +42,8 @@ function round1(n: number): number {
   return Math.round(n * 10) / 10;
 }
 
+const BRIDGE_NAMES: Record<string, string> = { "hub-north": "Timber Bridge", "chalkworks-corridor": "Quarry Cut" };
+
 /** Readable labels for known sites. Unknown ids still appear — see PH_BRIDGE_SITES. */
 const BRIDGE_NOTES: Record<string, string> = {
   "hub-north": "Timber Bridge — out of the dwellings onto the west bank",
@@ -52,7 +54,7 @@ function bridgeLandmark(site: PaleHollowBridgeSite): PaleHollowLandmark {
   const g = paleHollowBridgeGeom(site);
   return {
     id: site.id,
-    name: site.id,
+    name: BRIDGE_NAMES[site.id] ?? "Stone Bridge",
     x: round1(g.x),
     z: round1(g.zWorld),
     note: BRIDGE_NOTES[site.id] ?? `${site.river} crossing — see PH_BRIDGE_SITES`,
@@ -73,7 +75,7 @@ function staticLandmarks(): PaleHollowLandmark[] {
   return [
     {
       id: "ph-hub",
-      name: "Encampment",
+      name: "Coldhearth (the Scout Gate)",
       x: hub.x,
       z: hub.z,
       note: `PH_HUB pad center (scout encampment). floorY ${PH_HUB.floorY}`,

@@ -5,7 +5,7 @@
 import {
   ASH_PIT, PALE_HOLLOW_BOUNDS, PH_ALL_MOBS, PH_ALL_NODES, PH_ASH_ROAD, PH_BRIDGE_SITES, PH_FIELD_NPCS,
   PH_HUB, PH_HUB_NPCS, PH_HUB_SPAWN, PH_OUTDOOR_SPAWN, PH_QUARRY_CUT, PH_SEAM_TUNNEL,
-  PH_STORAGE_CHEST, PH_TIMBER_BRIDGE, PH_YARDS, ZONE_LINKS, paleHollowBridgeGeom, paleHollowHubApronRect,
+  PH_STORAGE_CHEST, PH_TIMBER_BRIDGE, PH_TRAINER, PH_YARDS, ZONE_LINKS, paleHollowBridgeGeom, paleHollowHubApronRect,
 } from "@bellgrave/config";
 // PH_LAKE is not re-exported by the package index; read it from source (read-only).
 import { PH_LAKE } from "../../../../packages/config/src/pale-hollow";
@@ -19,6 +19,7 @@ export function paleHollowAnchors() {
   points.push({ id: "spawn-outdoor", kind: "spawn", x: PH_OUTDOOR_SPAWN.x, z: PH_OUTDOOR_SPAWN.z });
   for (const n of PH_HUB_NPCS) points.push({ id: n.id, kind: "npc", x: n.x, z: n.z });
   points.push({ id: PH_STORAGE_CHEST.id, kind: "npc", x: PH_STORAGE_CHEST.x, z: PH_STORAGE_CHEST.z });
+  points.push({ id: PH_TRAINER.id, kind: "npc", x: PH_TRAINER.x, z: PH_TRAINER.z });
   for (const n of PH_FIELD_NPCS) points.push({ id: n.id, kind: "npc", x: n.x, z: n.z });
   for (const n of PH_ALL_NODES) points.push({ id: n.id, kind: n.kind === "fish" ? "fish" : "node", x: n.x, z: n.z });
   for (const m of PH_ALL_MOBS) points.push({ id: m.id, kind: "mob", x: m.x, z: m.z });

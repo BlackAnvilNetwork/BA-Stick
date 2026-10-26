@@ -73,6 +73,7 @@ import {
   PH_HUB_NPCS,
   PH_FIELD_NPCS,
   PH_STORAGE_CHEST,
+  PH_TRAINER,
   PH_HUB_SPAWN,
   PH_START_SPAWN,
   reachWarp,
@@ -2019,22 +2020,13 @@ function handleLokSettle(p: Player, listingId: string) {
 }
 
 
-const JOB_MASTER = {
-  id: "npc-ph-job-master",
-  name: "Job Master",
-  x: 3.5,
-  z: 2.5,
-  facing: -Math.PI / 2,
-} as const;
+const JOB_MASTER = (() => {
+  const n = PH_HUB_NPCS.find((q) => q.role === "job_master")!;
+  return { id: n.id, name: n.name, x: n.x, z: n.z, facing: n.facing } as const;
+})();
 
-/** Pale Hollow Trainer (stable id npc-ph-chronomancer — rename is player-facing). */
-const TRAINER = {
-  id: "npc-ph-chronomancer",
-  name: "Trainer",
-  x: -3.2,
-  z: 4.8,
-  facing: Math.PI,
-} as const;
+/** Pale Hollow Trainer (stable id npc-ph-chronomancer), in Coldhearth's Turning Yard. */
+const TRAINER = PH_TRAINER;
 
 const NPC_INTERACT_RANGE = 3.5;
 
@@ -4698,7 +4690,7 @@ function handleNpcInteract(p: Player, npcId: string) {
   // Party storage chest — stub until bank/storage inventory ships.
   if (npcId === PH_STORAGE_CHEST.id) {
     if (!canReachTownNpc(p.x, p.z, PH_STORAGE_CHEST.x, PH_STORAGE_CHEST.z)) {
-      pushLog(p, "Enter the camp to use the storage chest.");
+      pushLog(p, `Find ${PH_STORAGE_CHEST.name} in the Strongroom to use your storage.`);
       return;
     }
     p.facing = facingTo(p.x, p.z, PH_STORAGE_CHEST.x, PH_STORAGE_CHEST.z);
@@ -4708,7 +4700,7 @@ function handleNpcInteract(p: Player, npcId: string) {
 
   if (npcId === JOB_MASTER.id) {
     if (!canReachTownNpc(p.x, p.z, JOB_MASTER.x, JOB_MASTER.z)) {
-      pushLog(p, "Enter the camp to speak with the Job Master.");
+      pushLog(p, `Find ${JOB_MASTER.name} at the Jobhouse.`);
       return;
     }
     p.facing = facingTo(p.x, p.z, JOB_MASTER.x, JOB_MASTER.z);
@@ -4717,7 +4709,7 @@ function handleNpcInteract(p: Player, npcId: string) {
     send(p.ws, {
       type: "npc/dialog",
       npcId: JOB_MASTER.id,
-      title: canSub ? "Job Master — Support Job" : "Job Master",
+      title: canSub ? `${JOB_MASTER.name}, Job Master — Support Job` : `${JOB_MASTER.name}, Job Master`,
       body: canSub
         ? `Main: ${JOBS[p.job].name} L${p.level}. Pick a support job (effective L${subjobLevel(p.level)}), or change your main below. Sprite stays your main.`
         : `Change your main job. Support jobs unlock at level ${SUBJOB_UNLOCK_LEVEL} and stay available through max level.`,
@@ -4730,7 +4722,7 @@ function handleNpcInteract(p: Player, npcId: string) {
 
   if (npcId === TRAINER.id) {
     if (!canReachTownNpc(p.x, p.z, TRAINER.x, TRAINER.z)) {
-      pushLog(p, "Enter the camp to speak with the Trainer.");
+      pushLog(p, `Find ${TRAINER.name} in the Turning Yard.`);
       return;
     }
     p.facing = facingTo(p.x, p.z, TRAINER.x, TRAINER.z);
@@ -4743,7 +4735,7 @@ function handleNpcInteract(p: Player, npcId: string) {
     send(p.ws, {
       type: "npc/dialog",
       npcId: TRAINER.id,
-      title: "Trainer",
+      title: `${TRAINER.name}, Trainer`,
       body: `Buy job abilities with gold (${jobNote}). Main: up to your level; support: up to floor(level/2). Costs scale 500-10000 by unlock level. Starter kit (Rest + L1 signature) is free.`,
       spells: offers,
     });
@@ -4753,7 +4745,7 @@ function handleNpcInteract(p: Player, npcId: string) {
   const hub = PH_HUB_NPCS.find((n) => n.id === npcId);
   if (hub) {
     if (!canReachTownNpc(p.x, p.z, hub.x, hub.z)) {
-      pushLog(p, `Enter the camp to speak with ${hub.name}.`);
+      pushLog(p, `Walk over to ${hub.name} to speak with them.`);
       return;
     }
     p.facing = facingTo(p.x, p.z, hub.x, hub.z);
@@ -4795,7 +4787,7 @@ function handleNpcInteract(p: Player, npcId: string) {
 
 async function handleSpellBuy(p: Player, id: AbilityId) {
   if (!canReachTownNpc(p.x, p.z, TRAINER.x, TRAINER.z)) {
-    pushLog(p, "You must speak with the Trainer to buy abilities.");
+    pushLog(p, `You must speak with ${TRAINER.name} to buy abilities.`);
     return;
   }
   if (isTrainerFreeAbility(id)) {
@@ -6450,7 +6442,7 @@ function tickGathering(p: Player, now: number) {
 async function handleCraft(p: Player, itemId: number) {
   const crafter = PH_HUB_NPCS.find((n) => n.role === "crafter");
   if (!crafter || !canReachTownNpc(p.x, p.z, crafter.x, crafter.z)) {
-    pushLog(p, "You must be near the Craft Master to craft.");
+    pushLog(p, "You must be near Brann Coldiron in the Eightfold to craft.");
     return;
   }
   const def = getCraftableItem(itemId);

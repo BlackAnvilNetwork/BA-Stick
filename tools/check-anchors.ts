@@ -47,6 +47,7 @@ function buildZones(): Zone[] {
       { id: "PH_OUTDOOR_SPAWN", kind: "spawn", ...C.PH_OUTDOOR_SPAWN, src: ph },
       ...C.PH_HUB_NPCS.map((n) => ({ id: n.id, kind: "npc:" + n.role, x: n.x, z: n.z, src: ph })),
       { id: C.PH_STORAGE_CHEST.id, kind: "npc:storage", x: C.PH_STORAGE_CHEST.x, z: C.PH_STORAGE_CHEST.z, src: ph },
+      { id: C.PH_TRAINER.id, kind: "npc:spell_trainer", x: C.PH_TRAINER.x, z: C.PH_TRAINER.z, src: ph },
       ...C.PH_FIELD_NPCS.map((n) => ({ id: n.id, kind: "npc:quest_giver", x: n.x, z: n.z, src: phf })),
       ...C.PH_ALL_NODES.map((n) => ({ id: n.id, kind: "node:" + n.kind, x: n.x, z: n.z, src: ph })),
       ...C.PH_ALL_MOBS.map((m) => ({ id: m.id, kind: "mob", x: m.x, z: m.z, src: phf })),

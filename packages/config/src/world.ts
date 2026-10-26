@@ -526,16 +526,25 @@ function hubNpcs(cityId: CityId, prefix: string): CityNpcDef[] {
   ];
 }
 
+/** Coldhearth's keepers (lore-bible §7.6), by role. */
+const COLDHEARTH_NPC_NAMES: Partial<Record<string, string>> = {
+  quest_giver: "Wenna Gatesmoke",
+  job_master: "Teodric Vane",
+  spell_trainer: "Ilse Morrowglass",
+  crafter: "Brann Coldiron",
+  vendor: "Maudry Saltpenny",
+};
+
 export const CITIES: Record<CityId, CityDef> = {
   shard_dwellings: {
     id: "shard_dwellings",
-    name: "The Shard Dwellings",
+    name: "Coldhearth",
     areaId: "pale_hollow",
     npcs: [
-      ...hubNpcs("shard_dwellings", "sd"),
+      ...hubNpcs("shard_dwellings", "sd").map((n) => ({ ...n, name: COLDHEARTH_NPC_NAMES[n.role] ?? n.name })),
       {
         id: "sd-guide",
-        name: "Shard Elder",
+        name: "Orrin Haltmark",
         role: "guide",
         blurb: "Tutorial guide — gathering, combat, and the road to Obsidia.",
       },

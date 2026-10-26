@@ -5,6 +5,7 @@
  */
 
 import { nearTrailCorridor } from "./trail-geom";
+import { COLDHEARTH_STATIONS as ST, COLDHEARTH_SPUR, coldhearthFieldWeight, coldhearthInTown, coldhearthSample } from "./pale-hollow-town";
 
 /**
  * The basin is a region, not a valley you can see in one glance.
@@ -100,9 +101,18 @@ export function paleHollowInHubApron(x: number, z: number): boolean {
  */
 export const PH_STORAGE_CHEST = {
   id: "npc-ph-storage",
-  name: "Storage Chest",
-  x: 3.2 + PH_CAMP_SHIFT_X,
-  z: -1.5 + PH_CAMP_SHIFT_Z,
+  name: "Gaunt Hobb",
+  x: ST["npc-ph-storage"].x,
+  z: ST["npc-ph-storage"].z,
+} as const;
+
+/** Pale Hollow Trainer (stable id npc-ph-chronomancer), in Coldhearth's Turning Yard. Server-owned dialog. */
+export const PH_TRAINER = {
+  id: "npc-ph-chronomancer",
+  name: "Ilse Morrowglass",
+  x: ST["npc-ph-chronomancer"].x,
+  z: ST["npc-ph-chronomancer"].z,
+  facing: Math.PI,
 } as const;
 
 /** Soft level bands â€” content focus, not hard walls. Stretched with the basin. */
@@ -1247,6 +1257,10 @@ export function paleHollowInLakeShallows(x: number, z: number): boolean {
 
 export function paleHollowWalkable(x: number, z: number): boolean {
   if (paleHollowInHubRearWall(x, z)) return false;
+  if (coldhearthInTown(x, z)) {
+    const t = paleHollowTownSample(x, z);
+    if (t && !t.walk) return false;
+  }
   if (paleHollowOnBridge(x, z)) return true;
   if (paleHollowInLakeShallows(x, z)) return true;
   if (paleHollowInOpenWater(x, z)) return false;
@@ -1316,6 +1330,18 @@ function paleHollowHeightField(x: number, z: number): number {
 }
 
 function paleHollowHeightFieldRaw(x: number, z: number): number {
+  const base = paleHollowHeightFieldBase(x, z);
+  const town = coldhearthSample(x, z, () => base, paleHollowHeightFieldBase);
+  return town ? town.y : base;
+}
+
+/** Coldhearth town shaping at (x,z), or null outside the town (see pale-hollow-town.ts). */
+export function paleHollowTownSample(x: number, z: number) {
+  return coldhearthSample(x, z, () => paleHollowHeightFieldBase(x, z), paleHollowHeightFieldBase);
+}
+
+/** Natural ground (no town terracing). */
+function paleHollowHeightFieldBase(x: number, z: number): number {
   const biome = paleHollowBiomeCore(x, z);
   if (biome === "hub_indoor") return PH_HUB.floorY;
 
@@ -1357,6 +1383,16 @@ function paleHollowHeightFieldRaw(x: number, z: number): number {
         const t = 1 - d / R;
         y += smooth01(t) * smooth01(t) * m.h * 0.82 * mountainScale;
       }
+    }
+  }
+
+  // Coldhearth spur: the Shard's eastern fragments lift the spur north-east of the
+  // scout encampment, so the exiles' town steps up a real slope (see pale-hollow-town.ts).
+  {
+    const d = Math.hypot(x - COLDHEARTH_SPUR.x, z - COLDHEARTH_SPUR.z);
+    if (d < COLDHEARTH_SPUR.r) {
+      const t = smooth01(1 - d / COLDHEARTH_SPUR.r);
+      y += t * COLDHEARTH_SPUR.h;
     }
   }
 
@@ -1469,10 +1505,13 @@ export function paleHollowTerrainMeshY(x: number, z: number): number {
   const h01 = paleHollowGroundHeight(x0, z0 + dz);
   const h11 = paleHollowGroundHeight(x0 + dx, z0 + dz);
   // PlaneGeometry triangles: (ix,iy)-(ix,iy+1)-(ix+1,iy) and the opposite corner.
-  if (fu + fv <= 1) {
-    return h00 * (1 - fu - fv) + h10 * fu + h01 * fv;
-  }
-  return h11 * (fu + fv - 1) + h10 * (1 - fv) + h01 * (1 - fu);
+  const mesh =
+    fu + fv <= 1
+      ? h00 * (1 - fu - fv) + h10 * fu + h01 * fv
+      : h11 * (fu + fv - 1) + h10 * (1 - fv) + h01 * (1 - fu);
+  // Coldhearth: terraces and streets need the fine field, not 6 m mesh chords.
+  const w = coldhearthFieldWeight(x, z);
+  return w > 0 ? mesh + (paleHollowGroundHeight(x, z) - mesh) * w : mesh;
 }
 
 /**
@@ -1684,6 +1723,7 @@ export const PH_BUILDING_CLEARINGS: readonly { x: number; z: number; r: number }
 /** True if (x,z) is inside a building / landmark clearing. */
 export function paleHollowInBuildingClearing(x: number, z: number): boolean {
   if (paleHollowInHubApron(x, z)) return true;
+  if (coldhearthInTown(x, z)) return true;
   for (const c of PH_BUILDING_CLEARINGS) {
     if (Math.hypot(x - c.x, z - c.z) < c.r) return true;
   }
@@ -1894,11 +1934,12 @@ export function paleHollowMobJob(
 // They are five times the old corridor list, seated on the enlarged basin.
 
 export const PH_HUB_NPCS = [
-  { id: "npc-shard-elder", name: "Shard Elder", x: -2.2 + PH_CAMP_SHIFT_X, z: 2.8 + PH_CAMP_SHIFT_Z, facing: Math.PI / 2, role: "guide" as const },
-  { id: "npc-ph-herald", name: "Campaign Herald", x: -50.5, z: 301.5, facing: Math.PI, role: "quest_giver" as const },
-  { id: "npc-ph-job-master", name: "Job Master", x: 3.5 + PH_CAMP_SHIFT_X, z: 2.5 + PH_CAMP_SHIFT_Z, facing: -Math.PI / 2, role: "job_master" as const },
-  { id: "npc-ph-crafter", name: "Craft Master", x: 3.8 + PH_CAMP_SHIFT_X, z: -0.2 + PH_CAMP_SHIFT_Z, facing: -Math.PI / 2, role: "crafter" as const },
-  { id: "npc-ph-vendor", name: "Provisioner", x: -3.8 + PH_CAMP_SHIFT_X, z: -0.2 + PH_CAMP_SHIFT_Z, facing: Math.PI / 2, role: "vendor" as const },
+  // Coldhearth districts (pale-hollow-town.ts). Herald stays at the Scout Gate (the hub pad).
+  { id: "npc-shard-elder", name: "Orrin Haltmark", x: ST["npc-shard-elder"].x, z: ST["npc-shard-elder"].z, facing: Math.PI, role: "guide" as const },
+  { id: "npc-ph-herald", name: "Wenna Gatesmoke", x: ST["npc-ph-herald"].x, z: ST["npc-ph-herald"].z, facing: Math.PI, role: "quest_giver" as const },
+  { id: "npc-ph-job-master", name: "Teodric Vane", x: ST["npc-ph-job-master"].x, z: ST["npc-ph-job-master"].z, facing: -Math.PI / 2, role: "job_master" as const },
+  { id: "npc-ph-crafter", name: "Brann Coldiron", x: ST["npc-ph-crafter"].x, z: ST["npc-ph-crafter"].z, facing: Math.PI / 2, role: "crafter" as const },
+  { id: "npc-ph-vendor", name: "Maudry Saltpenny", x: ST["npc-ph-vendor"].x, z: ST["npc-ph-vendor"].z, facing: Math.PI / 2, role: "vendor" as const },
 ] as const;
 
 /**
@@ -1923,7 +1964,14 @@ export type PaleHollowMapLabelKind = "area" | "camp" | "landmark" | "water";
  * docs/pale-hollow-area.md, placed at the geometry they name above.
  */
 export const PH_MAP_LABELS: readonly { text: string; x: number; z: number; kind: PaleHollowMapLabelKind }[] = [
-  { text: "The Shard Dwellings", x: PH_CAMP_SHIFT_X, z: 2 + PH_CAMP_SHIFT_Z, kind: "camp" },
+  { text: "The Scout Gate", x: PH_CAMP_SHIFT_X, z: 2 + PH_CAMP_SHIFT_Z, kind: "camp" },
+  { text: "Coldhearth", x: 214, z: 200, kind: "camp" },
+  { text: "Tally Row", x: 196, z: 178, kind: "landmark" },
+  { text: "The Turning Yard", x: 192, z: 150, kind: "landmark" },
+  { text: "The Strongroom", x: 214, z: 191, kind: "landmark" },
+  { text: "The Jobhouse", x: 206, z: 214, kind: "landmark" },
+  { text: "The Eightfold", x: 238, z: 214, kind: "landmark" },
+  { text: "Elder's Stair", x: 232, z: 246, kind: "landmark" },
   { text: "Scavenger Camp", x: -57, z: 167, kind: "camp" },
   { text: "Hollow Steps", x: -82, z: 123, kind: "area" },
   { text: "Ashbeam Reach", x: -120, z: 200, kind: "area" },

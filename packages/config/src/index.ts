@@ -337,6 +337,8 @@ export {
   bootForgeMenuWaterSurfaceY,
 } from "./boot-forge-menu";
 
+export * from "./pale-hollow-town";
+export { PH_TRAINER, paleHollowTownSample } from "./pale-hollow";
 export { paleHollowLandmarks, type PaleHollowLandmark } from "./pale-hollow-landmarks";
 
 export {
@@ -426,57 +428,57 @@ export const ZONES: Record<ZoneId, ZoneDef> = {
   },
   hollow_road: {
     id: "hollow_road",
-    name: "Hollow Road",
+    name: "The Hollow Road",
     kind: "field",
     areaId: "pale_hollow",
     music: PALE_HOLLOW_MUSIC,
   },
   forest_basin: {
     id: "forest_basin",
-    name: "Forest Basin",
+    name: "The Counting Wood",
     kind: "field",
     areaId: "pale_hollow",
     music: PALE_HOLLOW_MUSIC,
   },
   spur_road: {
     id: "spur_road",
-    name: "Spur Road",
+    name: "The East Spur",
     kind: "field",
     areaId: "pale_hollow",
   },
   ring_ward: {
     id: "ring_ward",
-    name: "Ring Ward",
+    name: "The Ring Ward",
     kind: "field",
     areaId: "pale_hollow",
   },
   islet_fords: {
     id: "islet_fords",
-    name: "Islet Fords",
+    name: "The Seam Fords",
     kind: "field",
     areaId: "pale_hollow",
   },
   green_reach: {
     id: "green_reach",
-    name: "Green Reach",
+    name: "The Green Reach",
     kind: "field",
     areaId: "pale_hollow",
   },
   coil_pass: {
     id: "coil_pass",
-    name: "Coil Pass",
+    name: "The Coil Pass",
     kind: "field",
     areaId: "pale_hollow",
   },
   coil_ridge: {
     id: "coil_ridge",
-    name: "Coil Ridge",
+    name: "The Broken Stair",
     kind: "field",
     areaId: "pale_hollow",
   },
   shard_dwellings: {
     id: "shard_dwellings",
-    name: "The Shard Dwellings",
+    name: "Coldhearth",
     kind: "city",
     areaId: "pale_hollow",
     cityId: "shard_dwellings",
