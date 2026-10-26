@@ -11,7 +11,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   PALE_HOLLOW_BOUNDS, paleHollowBridgeDeckY, paleHollowGroundHeight, paleHollowInOpenWater,
-  paleHollowOnBridge, paleHollowStandHeight, paleHollowRiverCenterX, paleHollowTributaryCenterX, paleHollowWalkable, paleHollowWaterSurfaceY,
+  paleHollowOnBridge, paleHollowStandHeight, paleHollowLakeDist, paleHollowRiverCenterX, paleHollowTributaryCenterX, paleHollowWalkable, paleHollowWaterSurfaceY,
 } from "@bellgrave/config";
 // PH_LAKE is not re-exported by the package index; read it from source (read-only).
 import { PH_LAKE } from "../../../../packages/config/src/pale-hollow";
@@ -258,7 +258,7 @@ export function generatePaleHollow() {
   const pmm = (k: number) => 180 + 900 * ((precip[k]! - pMin) / (pMax - pMin + 1e-9)) + 260 * Math.exp(-(dWet[k]! * cell) / 25) + Math.min(250, acc[k]! * cell * cell / 40);
   const whitt: string[] = new Array(N);
   const biome = new Uint8Array(N); const eco = new Uint8Array(N); // eco: 0 none 1 conifer 2 woodland 3 riparian 4 grass 5 steppe/scrub 6 rock 7 playa 8 wetland
-  const lakeD = (k: number) => Math.hypot(X(k) - PH_LAKE.x, Z(k) - PH_LAKE.z) - PH_LAKE.r;
+  const lakeD = (k: number) => paleHollowLakeDist(X(k) + ne.n(X(k) / 11, Z(k) / 11) * 4, Z(k) + ne.n(X(k) / 11 + 7, Z(k) / 11) * 4) - PH_LAKE.r; // irregular playa ring, follows the shoreline
   const ne = new Noise2(hashSeed(seed, "ecotone"));
   for (let k = 0; k < N; k++) {
     if (water[k]) { biome[k] = B("river"); continue; }

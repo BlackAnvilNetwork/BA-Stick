@@ -1,3 +1,4 @@
+import { naturalSample } from "./natural-edges";
 /**
  * Pale Hollow static props for ba-stick-render, placed exactly like the old
  * client (the retired apps/web/src/PaleHollowMap.tsx): hub encampment coordinates, the
@@ -86,7 +87,7 @@ function treeInsidePeakRock(x: number, z: number): boolean {
 
 function trees(out: Prop[]): void {
   const blocked = (x: number, z: number) => {
-    const b = paleHollowBiome(x, z);
+    const b = naturalSample(paleHollowBiome, x, z);
     if (b === "river" || b === "hub_indoor" || b === "bridge" || b === "ash_road") return true;
     if (paleHollowOnTrail(x, z)) return true;
     return paleHollowInOpenWater(x, z) || paleHollowInBuildingClearing(x, z) || treeInsidePeakRock(x, z);
@@ -100,7 +101,7 @@ function trees(out: Prop[]): void {
       const jx = ix + (hash2(ix, iz) - 0.5) * 5.5;
       const jz = iz + (hash2(iz, ix) - 0.5) * 5.5;
       if (blocked(jx, jz)) continue;
-      const b = paleHollowBiome(jx, jz);
+      const b = naturalSample(paleHollowBiome, jx, jz);
       const h = hash2(Math.floor(jx * 2), Math.floor(jz * 2));
       const h2 = hash2(Math.floor(jz * 3), Math.floor(jx * 3));
       if (b === "riverbank" && h > 0.35) {
@@ -144,7 +145,7 @@ function clutter(out: Prop[]): void {
     for (let ix = CLUTTER_IX0; ix <= CLUTTER_IX_MAX; ix += CLUTTER_IX_STEP) {
       const jx = ix + (hash2(ix, iz) - 0.5) * 3.2;
       const jz = iz + (hash2(iz, ix) - 0.5) * 3.2;
-      const b = paleHollowBiome(jx, jz);
+      const b = naturalSample(paleHollowBiome, jx, jz);
       if (b === "hub_indoor" || b === "river" || b === "bridge" || b === "ash_road") continue;
       if (paleHollowOnTrail(jx, jz)) continue;
       if (paleHollowInOpenWater(jx, jz) || paleHollowInBuildingClearing(jx, jz)) continue;
@@ -339,7 +340,7 @@ export function forestBasinProps(): Prop[] {
       const jz = iz + (hash2(iz, ix) - 0.5) * 4;
       if (!forestBasinWalkable(jx, jz)) continue;
       if (forestBasinOnTrail(jx, jz)) continue;
-      const b = forestBasinBiome(jx, jz);
+      const b = naturalSample(forestBasinBiome, jx, jz);
       if (b === "hub_indoor" || b === "river" || b === "bridge" || b === "mountain") continue;
       const h = hash2(Math.floor(jx * 2), Math.floor(jz * 2));
       if (h < 0.45) continue;

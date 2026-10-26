@@ -39,7 +39,7 @@ test("green reach spawn is dry and both pools hold water", () => {
     assert.equal(greenReachBiome(p.x, p.z), "river");
     assert.equal(greenReachWaterSurfaceY(p.x, p.z), GR_SURFACE);
     const bed = greenReachStandHeight(p.x, p.z);
-    assert.ok(Math.abs(bed - GR_BED) < 0.05, `bed ${bed}`);
+    assert.ok(GR_SURFACE - bed > 1.3, `bed ${bed}`); // deep core (natural-shore tiers: wadeable fringe, deep, deeper core)
     for (const [dx, dz] of [[2, 0], [-2, 0], [0, 2], [0, -2]] as const) {
       assert.equal(greenReachInOpenWater(p.x + dx, p.z + dz), true, `${p.x + dx},${p.z + dz}`);
     }

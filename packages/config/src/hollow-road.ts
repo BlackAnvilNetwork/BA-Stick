@@ -1,3 +1,4 @@
+import { naturalMaskDist } from "./natural-shore";
 /**
  * Hollow Road — the scrub track from Pale Hollow's north lip to Forest Basin.
  *
@@ -74,6 +75,11 @@ function smooth(t: number): number {
 
 /** Signed distance to the road mask. Negative is inside. */
 export function hollowRoadMaskDist(x: number, z: number): number {
+  return naturalMaskDist(hollowRoadMaskDistRaw, x, z, 901, 8);
+}
+
+/** Geometric mask before the natural edge. */
+export function hollowRoadMaskDistRaw(x: number, z: number): number {
   const road = Math.abs(x) - HR_ROAD_HALF;
   const pad = Math.hypot(x - HR_PAD.x, z - HR_PAD.z) - HR_PAD.r;
   return Math.min(road, pad);

@@ -18,6 +18,7 @@ import { hollowRoadProps } from "./zone-props/hollow-road";
 import { spurRoadProps } from "./zone-props/spur-road";
 import { bootForgeMenuProps } from "./zone-props/boot-forge-menu";
 import { dirname, resolve } from "node:path";
+import { naturalBiome, trailVerge } from "./natural-edges";
 import { fileURLToPath } from "node:url";
 import {
   BOOT_FORGE_MENU_BOUNDS,
@@ -96,11 +97,12 @@ export function bakeZoneGrid(spec: BakeFns, cell = 0.5): Buffer {
   buf.writeUInt32LE(w, 16);
   buf.writeUInt32LE(h, 20);
   const bio = header, flg = header + w * h, hgt = header + w * h * 2;
+  const natBiome = naturalBiome(spec.biome, (x, z) => spec.water(x, z) != null && (spec.openWater(x, z) || spec.onBridge(x, z)));
   for (let j = 0; j < h; j++) {
     for (let i = 0; i < w; i++) {
       const x = minX + i * cell, z = minZ + j * cell;
       const k = j * w + i;
-      const biome = spec.biome(x, z);
+      const biome = natBiome(x, z);
       let flags = 0;
       let y = spec.stand(x, z);
       const water = spec.water(x, z);
@@ -121,7 +123,7 @@ export function bakeZoneGrid(spec: BakeFns, cell = 0.5): Buffer {
       if (!spec.walkable(x, z)) flags |= 8;
       if (!(flags & 5)) {
         for (const s of segs) {
-          if (segDist(x, z, s) <= half) {
+          if (segDist(x, z, s) <= trailVerge(x, z, half)) {
             flags |= 2 | (s.stone ? 16 : 0);
             break;
           }

@@ -4,7 +4,7 @@
  * Tiers by rho = shoreDist / r:  rho >= SHALLOW_RHO is the wadeable fringe (walkable, bed <= WADE_MAX below the
  * surface); below it the bed drops to deep (~1.35 m), and the inner core (rho < CORE_RHO) is deeper (~2.6 m).
  */
-export type NaturalLake = { x: number; z: number; r: number; surface: number; seed: number };
+export type NaturalLake = { x: number; z: number; r: number; surface: number; seed: number; cap?: (a: number) => number };
 
 export const SHORE_SHALLOW_RHO = 0.8;
 export const SHORE_CORE_RHO = 0.45;
@@ -20,8 +20,10 @@ export function shoreRadiusScale(seed: number, a: number, amp = 1): number {
 }
 
 export function shoreDist(l: NaturalLake, x: number, z: number, amp = 1): number {
-  const dx = x - l.x, dz = z - l.z;
-  return Math.hypot(dx, dz) / shoreRadiusScale(l.seed, Math.atan2(dz, dx), amp);
+  const dx = x - l.x, dz = z - l.z, a = Math.atan2(dz, dx);
+  let R = l.r * shoreRadiusScale(l.seed, a, amp);
+  if (l.cap) R = Math.min(R, l.cap(a)); // keeps the shore inside its land basin, so the basin never clips it straight
+  return (Math.hypot(dx, dz) * l.r) / R;
 }
 
 function smooth(t: number): number {
@@ -54,4 +56,31 @@ export function inShoreWater(l: NaturalLake, x: number, z: number, amp = 1): boo
 export function inShoreShallows(l: NaturalLake, x: number, z: number, amp = 1): boolean {
   const rho = shoreDist(l, x, z, amp) / l.r;
   return rho < 1 && rho >= SHORE_SHALLOW_RHO;
+}
+
+// ---------- natural land masks ----------
+function latt(i: number, j: number, s: number): number {
+  let h = Math.imul(i | 0, 0x27d4eb2d) ^ Math.imul(j | 0, 0x165667b1) ^ Math.imul(s | 0, 0x9e3779b1);
+  h = Math.imul(h ^ (h >>> 15), 0x85ebca6b); h ^= h >>> 13;
+  return ((h >>> 0) / 4294967296) * 2 - 1;
+}
+/** Smooth value noise in [-1, 1]. */
+export function valueNoise(x: number, z: number, seed: number): number {
+  const i = Math.floor(x), j = Math.floor(z), fx = x - i, fz = z - j;
+  const u = fx * fx * (3 - 2 * fx), v = fz * fz * (3 - 2 * fz);
+  const a = latt(i, j, seed), b = latt(i + 1, j, seed), c = latt(i, j + 1, seed), d = latt(i + 1, j + 1, seed);
+  return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+}
+
+/**
+ * Natural land edge: the signed mask distance sampled through a two-scale domain warp, then unioned with the
+ * raw mask (min). Edges only ever bulge outward (0..~amp m), so every cell that was walkable stays walkable,
+ * while circles and straight corridor sides become lobed, interfingered rims.
+ */
+export function naturalMaskDist(raw: (x: number, z: number) => number, x: number, z: number, seed: number, amp = 5): number {
+  const wx = valueNoise(x / 24, z / 24, seed) * amp * 0.75 + valueNoise(x / 7, z / 7, seed + 1) * amp * 0.3;
+  const wz = valueNoise(x / 24 + 13, z / 24, seed + 2) * amp * 0.75 + valueNoise(x / 7 + 5, z / 7, seed + 3) * amp * 0.3;
+  const r = raw(x, z);
+  if (r > amp * 1.2) return r; // far from any rim: unchanged (cheap)
+  return Math.min(r, raw(x + wx, z + wz) + 0.6 * valueNoise(x / 11, z / 11, seed + 4) - 0.6);
 }

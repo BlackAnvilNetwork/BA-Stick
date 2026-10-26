@@ -1,3 +1,4 @@
+import { naturalMaskDist } from "./natural-shore";
 import { inShoreShallows, inShoreWater, shoreDist, shoreTerrainY } from "./natural-shore";
 /**
  * Green Reach — one island between islet_fords and coil_pass.
@@ -87,6 +88,11 @@ function smooth(t: number): number {
 
 /** Signed distance to the island mask. Negative is inside. */
 export function greenReachMaskDist(x: number, z: number): number {
+  return naturalMaskDist(greenReachMaskDistRaw, x, z, 904);
+}
+
+/** Geometric mask before the natural edge. */
+export function greenReachMaskDistRaw(x: number, z: number): number {
   let d = Infinity;
   for (const c of GR_DISCS) d = Math.min(d, Math.hypot(x - c.x, z - c.z) - c.r);
   return d;

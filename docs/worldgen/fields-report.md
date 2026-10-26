@@ -122,3 +122,11 @@ east fringe, tributary/main-stem confluence opened near (-4,198). islet_fords: i
 Pale Hollow golems were pinned to their old positions so the lake change does not reshuffle `ph-golem-*` ids (golem-1 now reads riverbank, still dry).
 Guard run-2 fixes: the Seam Tunnel gate (-6,412) stays dry (shore capped in that sector). pale_hollow_gen now writes the server stand height on every dry walkable cell, so it matches the config contract.
 Warp circles: pale_hollow (84,216); coil_ridge (-3,-40).
+
+## Natural edges (all surfaces)
+
+- `apps/stick-web/scripts/natural-edges.ts`: domain-warped (12 m/90 m + 5 m/30 m + 1.8 m/7 m) and dithered biome borders with outlier tufts. This is applied to the BAZ biome in the legacy bake, generate-field and prop scatter (PH, FB, ring_ward). It is visual only: the server still uses the config biome. Exact biomes (hub_indoor, bridge, river) and wet cells never move.
+- Trail flag verge is dithered (`trailVerge`, ±0.35 m around the half-width).
+- Land masks in hollow_road, spur_road (amp 8), islet_fords, green_reach, forest_basin and coil_pass (amp 4) are wrapped by `naturalMaskDist`. It only bulges outward, so every previously walkable cell stays walkable. `*Raw` exports keep the geometric versions.
+- The forest_basin lake gets a per-angle `cap` (no more straight clip). The PH gen terrace ring around the lake uses a warped lake distance.
+- Left built/straight on purpose: ring_ward city, bridges, hub interiors, zone bounds.

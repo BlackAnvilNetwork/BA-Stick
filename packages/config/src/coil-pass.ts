@@ -1,3 +1,4 @@
+import { naturalMaskDist } from "./natural-shore";
 /**
  * Coil Pass — a climbing switchback between the green reach and the ridge.
  *
@@ -95,6 +96,11 @@ function segDist(x: number, z: number, ax: number, az: number, bx: number, bz: n
 
 /** Metres to the switchback centreline. */
 export function coilPassPathDist(x: number, z: number): number {
+  return naturalMaskDist((px, pz) => coilPassPathDistRaw(px, pz) - ROAD_HALF, x, z, 906, 4) + ROAD_HALF;
+}
+
+/** Geometric switchback distance before the natural edge. */
+export function coilPassPathDistRaw(x: number, z: number): number {
   let d = Infinity;
   for (let i = 1; i < CP_POLYLINE.length; i++) {
     const a = CP_POLYLINE[i - 1]!;

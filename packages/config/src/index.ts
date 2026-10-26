@@ -138,6 +138,7 @@ export {
   paleHollowRiverJunctionOpen,
   paleHollowInLakeShallows,
   paleHollowLakeShoreR,
+  paleHollowLakeDist,
   paleHollowInRiverWall,
   paleHollowOnBridge,
   paleHollowBakedOnBridge,

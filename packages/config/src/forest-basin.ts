@@ -1,3 +1,4 @@
+import { naturalMaskDist } from "./natural-shore";
 import { inShoreShallows, inShoreWater, shoreDist, shoreTerrainY } from "./natural-shore";
 /**
  * Forest Basin — a branching field north of the hollow's scale.
@@ -38,7 +39,23 @@ export const FB_TRAIL_WIDTH = 3.3;
 export const FB_BRIDGE_DECK_W = 3.9;
 
 /** Northern mere. The river leaves the south shore. */
-export const FB_LAKE = { x: 0, z: 115, r: 22, surface: 1.55, seed: 611 } as const;
+let lakeCap: Float32Array | null = null;
+/** Per-angle room inside the basin mask (5 m clear of its rim), smoothed so the capped shore still curves. */
+function fbLakeCap(a: number): number {
+  if (!lakeCap) {
+    const raw = new Float32Array(180);
+    for (let i = 0; i < 180; i++) {
+      const t = (i / 180) * Math.PI * 2; let r = 0;
+      while (r < 60 && forestBasinMaskDist(0 + Math.cos(t) * r, 115 + Math.sin(t) * r) < -5) r += 0.5;
+      raw[i] = r;
+    }
+    lakeCap = new Float32Array(180);
+    for (let i = 0; i < 180; i++) { let m = Infinity; for (let k = -6; k <= 6; k++) m = Math.min(m, raw[(i + k + 180) % 180]! + Math.abs(k) * 0.6); lakeCap[i] = m * (0.92 + 0.06 * Math.sin(i * 0.7)); }
+  }
+  const u = (((a / (Math.PI * 2)) % 1) + 1) % 1 * 180, i0 = Math.floor(u) % 180, f = u - Math.floor(u);
+  return lakeCap[i0]! * (1 - f) + lakeCap[(i0 + 1) % 180]! * f;
+}
+export const FB_LAKE = { x: 0, z: 115, r: 22, surface: 1.55, seed: 611, cap: fbLakeCap } as const;
 
 /** Eastern spur camp. Local pad is flat. */
 export const FB_CAMP = { x: 128, z: 28, r: 16, floorY: 2.35 } as const;
@@ -139,6 +156,11 @@ function segDist(x: number, z: number, ax: number, az: number, bx: number, bz: n
 
 /** Signed distance to the land mask. Negative is inside. */
 export function forestBasinMaskDist(x: number, z: number): number {
+  return naturalMaskDist(forestBasinMaskDistRaw, x, z, 905);
+}
+
+/** Geometric mask before the natural edge. */
+export function forestBasinMaskDistRaw(x: number, z: number): number {
   let d = Infinity;
   for (const c of DISCS) d = Math.min(d, Math.hypot(x - c.x, z - c.z) - c.r);
   for (const c of CAPS) d = Math.min(d, segDist(x, z, c.ax, c.az, c.bx, c.bz) - c.r);

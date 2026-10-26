@@ -5,6 +5,7 @@
  * Continent coords = the game's own ZONE_ORIGINS (zone-layout.ts), so adjacent bands share one continuous relief field.
  * Usage: tsx scripts/worldgen/generate-field.ts <field_id>   (writes public/zones/<id>_gen.{baz,bap}; legacy files untouched)
  */
+import { naturalBiome } from "../natural-edges";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -65,8 +66,9 @@ export function generateField(id: string, cell = 0.5) {
   const { minX, maxX, minZ, maxZ } = f.bounds; const W = Math.ceil((maxX - minX) / cell) + 1, H = Math.ceil((maxZ - minZ) / cell) + 1, N = W * H;
   const X = (k: number) => minX + (k % W) * cell, Z = (k: number) => minZ + ((k / W) | 0) * cell;
   const walk = new Uint8Array(N), wet = new Uint8Array(N), br = new Uint8Array(N), legacyY = new Float32Array(N), wy = new Float32Array(N), lbio = new Uint8Array(N);
+  const natB = naturalBiome(f.biome, (x, z) => { const w = f.water(x, z); return w != null && (f.openWater(x, z) || f.onBridge(x, z)); });
   for (let k = 0; k < N; k++) { const x = X(k), z = Z(k); walk[k] = f.walkable(x, z) ? 1 : 0; const w = f.water(x, z); const ob = f.onBridge(x, z); br[k] = ob ? 1 : 0;
-    legacyY[k] = f.stand(x, z); if (w != null && (f.openWater(x, z) || ob)) { wet[k] = 1; wy[k] = w; } lbio[k] = Math.max(0, BIOMES.indexOf(f.biome(x, z) as any)); }
+    legacyY[k] = f.stand(x, z); if (w != null && (f.openWater(x, z) || ob)) { wet[k] = 1; wy[k] = w; } lbio[k] = Math.max(0, BIOMES.indexOf(natB(x, z) as any)); }
   // ---- scenery relief on blocked dry cells ----
   const nr = new Noise2(hashSeed(seed, "ridge")), nf = new Noise2(hashSeed(seed, "fine")), nd = new Noise2(hashSeed(seed, "dissect"));
   const fixedMask = new Uint8Array(N); for (let k = 0; k < N; k++) if (walk[k] || wet[k]) fixedMask[k] = 1;
