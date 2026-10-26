@@ -1,0 +1,200 @@
+{
+  "generatorVersion": "wg-0.1.0",
+  "continent": {
+    "name": "The Anvil Reach (working name)",
+    "prevailingWind": {
+      "x": 1,
+      "z": 0.25
+    },
+    "seaLevel": -4,
+    "notes": "One continent. Westerlies off a western ocean hit the Spine (N-S range). Pale Hollow sits in the Spine's rain shadow; campaign climbs north/east into volcanic and marsh country."
+  },
+  "regions": {
+    "pale_hollow": {
+      "seed": 918273,
+      "continentOrigin": {
+        "x": 0,
+        "z": 0
+      },
+      "latitude": 38,
+      "cell": 1,
+      "identity": "endorheic evaporite basin in the lee of the Spine",
+      "ranges": [
+        {
+          "name": "Spine foothills (west wall)",
+          "pts": [
+            [
+              -235,
+              -80
+            ],
+            [
+              -215,
+              60
+            ],
+            [
+              -225,
+              200
+            ],
+            [
+              -205,
+              330
+            ],
+            [
+              -220,
+              520
+            ]
+          ],
+          "width": 50,
+          "height": 24,
+          "asym": 0.35
+        },
+        {
+          "name": "Southern Scarp",
+          "pts": [
+            [
+              -200,
+              -75
+            ],
+            [
+              -80,
+              -60
+            ],
+            [
+              60,
+              -72
+            ],
+            [
+              200,
+              -55
+            ],
+            [
+              275,
+              -40
+            ]
+          ],
+          "width": 34,
+          "height": 13,
+          "asym": -0.2
+        },
+        {
+          "name": "East Spur",
+          "pts": [
+            [
+              275,
+              60
+            ],
+            [
+              225,
+              140
+            ],
+            [
+              200,
+              195
+            ],
+            [
+              230,
+              300
+            ],
+            [
+              275,
+              420
+            ]
+          ],
+          "width": 40,
+          "height": 13,
+          "asym": 0.0
+        },
+        {
+          "name": "Seam Ridge",
+          "pts": [
+            [
+              -200,
+              430
+            ],
+            [
+              -110,
+              445
+            ],
+            [
+              -40,
+              470
+            ],
+            [
+              60,
+              465
+            ],
+            [
+              150,
+              430
+            ],
+            [
+              270,
+              440
+            ]
+          ],
+          "width": 30,
+          "height": 11,
+          "asym": 0.3,
+          "passes": [
+            [
+              0,
+              468,
+              45,
+              0.95
+            ]
+          ]
+        }
+      ],
+      "basin": {
+        "x": -10,
+        "z": 360,
+        "rx": 150,
+        "rz": 120,
+        "depth": 3.5
+      },
+      "valleyPrior": {
+        "width": 34,
+        "depth": 3.0
+      },
+      "regional": {
+        "fbmAmp": 2.2,
+        "fbmScale": 140,
+        "warp": 45,
+        "ridgedAmp": 1.4
+      },
+      "erosion": {
+        "iterations": 30,
+        "k": 0.0018,
+        "m": 0.5,
+        "talus": 0.75,
+        "deposit": 0.35
+      },
+      "climate": {
+        "baseTempC": 17,
+        "lapsePerM": 0.0065,
+        "oceanMoisture": 1.0,
+        "orographicRate": 0.012,
+        "evapRecovery": 0.0006
+      },
+      "anchorPad": {
+        "softRadius": 14,
+        "offsetRadius": 70
+      },
+      "creekThreshold": 900,
+      "access": [
+        [
+          0,
+          470,
+          45,
+          0.45
+        ],
+        [
+          -16,
+          450,
+          20,
+          0.45
+        ]
+      ]
+    }
+  }
+}
