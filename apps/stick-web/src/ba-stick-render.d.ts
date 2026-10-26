@@ -62,6 +62,11 @@ declare module "ba-stick-render" {
     worldToScreen(x: number, y: number, z: number): Float32Array;
     unitCount(): number;
     pickWorld(sx: number, sy: number): Float32Array;
+    /** Ground `[x, z]` under a pixel, or empty when a 3D pick misses (sky / past far). Iso always hits. */
+    pickGround(sx: number, sy: number): Float32Array;
+    /** Client WASD heading (radians) for third/first person; `undefined` clears it. */
+    setHeading(heading?: number): void;
+    camYaw(): number;
     pickUnit(sx: number, sy: number, skip?: string): string | undefined;
     tick(dt: number): void;
     draw(): void;
