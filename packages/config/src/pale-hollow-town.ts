@@ -1,5 +1,5 @@
 /**
- * Coldhearth: the exiles' town on Pale Hollow's eastern spur (lore-bible §7.6).
+ * Mayflower: the exiles' town on Pale Hollow's eastern spur (lore-bible §7.6).
  *
  * The scout encampment (`PH_HUB`, the Scout Gate) is the front door. Behind it, the
  * town steps up the spur in organic terraces joined by curved, ramped streets. Each
@@ -11,21 +11,21 @@
  *   - where a terrace or street sits more than `WALL_DROP` off the natural ground, its
  *     edge band is a retaining wall (not walkable): the town is entered by its streets;
  *   - building footprints (the only straight lines: real masonry) are not walkable.
- * Props (`COLDHEARTH_PROPS`) are client-visual data only.
+ * Props (`MAYFLOWER_PROPS`) are client-visual data only.
  *
  * This module must not import pale-hollow.ts (pale-hollow imports it).
  */
 
-export const COLDHEARTH_NAME = "Coldhearth";
+export const MAYFLOWER_NAME = "Mayflower";
 
 /** Natural lift of the spur under the town (added to the basin height field). */
-export const COLDHEARTH_SPUR = { x: 238, z: 226, r: 78, h: 6.5 } as const;
+export const MAYFLOWER_SPUR = { x: 238, z: 226, r: 78, h: 6.5 } as const;
 
-export type ColdhearthDistrictId =
+export type MayflowerDistrictId =
   | "scout_gate" | "tally_row" | "turning_yard" | "strongroom" | "jobhouse" | "eightfold" | "elders_stair";
 
-export type ColdhearthDistrict = {
-  id: ColdhearthDistrictId;
+export type MayflowerDistrict = {
+  id: MayflowerDistrictId;
   name: string;
   /** NPC ids whose station is here (code is authoritative on who exists). */
   npcs: readonly string[];
@@ -41,7 +41,7 @@ export type ColdhearthDistrict = {
 };
 
 /** Scout Gate is the existing PH_HUB pad (168,190, floor 3.0); it is listed for labels only. */
-export const COLDHEARTH_DISTRICTS: readonly ColdhearthDistrict[] = [
+export const MAYFLOWER_DISTRICTS: readonly MayflowerDistrict[] = [
   { id: "scout_gate", keeper: "Wenna Gatesmoke", name: "The Scout Gate", npcs: ["npc-ph-herald"], x: 168, z: 190, r: 0, level: 3.0, seed: 0,
     blurb: "The old encampment: watch-fires, lookout post toward the Ash Road, the Herald's lectern." },
   { id: "tally_row", keeper: "Maudry Saltpenny", name: "Tally Row", npcs: ["npc-ph-vendor"], x: 196, z: 178, r: 10, level: 3.2, seed: 1.3,
@@ -59,13 +59,13 @@ export const COLDHEARTH_DISTRICTS: readonly ColdhearthDistrict[] = [
 ];
 
 type Node = { x: number; z: number; level: number | null };
-const D = (id: ColdhearthDistrictId): Node => {
-  const d = COLDHEARTH_DISTRICTS.find((q) => q.id === id)!;
+const D = (id: MayflowerDistrictId): Node => {
+  const d = MAYFLOWER_DISTRICTS.find((q) => q.id === id)!;
   return { x: d.x, z: d.z, level: d.level };
 };
 
 /** Curved streets: [from, to, perpendicular bow (m), half width]. level null = natural ground there. */
-export const COLDHEARTH_STREETS: readonly { id: string; a: Node; b: Node; bow: number; halfW: number }[] = [
+export const MAYFLOWER_STREETS: readonly { id: string; a: Node; b: Node; bow: number; halfW: number }[] = [
   { id: "gate-street", a: { x: 181, z: 190, level: 3.0 }, b: D("tally_row"), bow: 2.0, halfW: 2.2 },
   { id: "yard-stair", a: D("tally_row"), b: D("turning_yard"), bow: -2.5, halfW: 1.9 },
   { id: "yard-lane", a: D("turning_yard"), b: { x: 186, z: 126, level: null }, bow: 3.0, halfW: 1.9 },
@@ -77,8 +77,8 @@ export const COLDHEARTH_STREETS: readonly { id: string; a: Node; b: Node; bow: n
 ];
 
 /** Masonry footprints (not walkable). x/z world centre, w along yaw, d across. */
-export type ColdhearthBuilding = {
-  id: string; district: ColdhearthDistrictId; name: string;
+export type MayflowerBuilding = {
+  id: string; district: MayflowerDistrictId; name: string;
   x: number; z: number; w: number; d: number; yaw: number; h: number;
 };
 
@@ -93,11 +93,11 @@ export const EIGHTFOLD_HALLS = [
   "Smithing", "Woodworking", "Leathercraft", "Clothcraft", "Bonecraft", "Goldsmithing", "Alchemy", "Cooking",
 ] as const;
 
-const EF = COLDHEARTH_DISTRICTS.find((d) => d.id === "eightfold")!;
+const EF = MAYFLOWER_DISTRICTS.find((d) => d.id === "eightfold")!;
 // Halls sit on the inner rim; the arcs facing the streets (west, south-west, north) are left open.
 const HALL_ANGLES = [-1.25, -0.65, -0.05, 0.55, 1.1, 2.45, 3.0, 3.55].map((a) => a);
 
-export const COLDHEARTH_BUILDINGS: readonly ColdhearthBuilding[] = [
+export const MAYFLOWER_BUILDINGS: readonly MayflowerBuilding[] = [
   { id: "great-forge-hall", district: "eightfold", name: "Great Forge Hall", x: EF.x + 4.5, z: EF.z + 0.5, w: 7, d: 5, yaw: 0.35, h: 4.2 },
   { id: "chimney-stack", district: "eightfold", name: "Chimney Stack", x: EF.x + 8.6, z: EF.z + 2.3, w: 1.8, d: 1.8, yaw: 0.35, h: 13 },
   ...HALL_ANGLES.map((a, i) => ({
@@ -114,18 +114,18 @@ export const COLDHEARTH_BUILDINGS: readonly ColdhearthBuilding[] = [
 ];
 
 /** Aqueduct: spring house (Elder's Stair) down to the Eightfold water-wheel. Piers are masonry footprints. */
-export const COLDHEARTH_AQUEDUCT = [
+export const MAYFLOWER_AQUEDUCT = [
   { x: 226.5, z: 246.5 }, { x: 228.5, z: 238 }, { x: 231.5, z: 230 }, { x: 234.5, z: 224.5 },
 ] as const;
 
 /** Rundown stream (visual runnel) from the wheel down the streets to the yard lane: wheel, ford stones where streets cross. */
-export const COLDHEARTH_RUNNEL = [
+export const MAYFLOWER_RUNNEL = [
   { x: 234.5, z: 224.5 }, { x: 228, z: 214 }, { x: 222, z: 204 }, { x: 214, z: 188 },
   { x: 206, z: 180 }, { x: 198, z: 168 }, { x: 196, z: 161 }, { x: 188, z: 140 }, { x: 186, z: 128 },
 ] as const;
 
 /** NPC stations inside their districts (world coords; walkable, clear of buildings). */
-export const COLDHEARTH_STATIONS = {
+export const MAYFLOWER_STATIONS = {
   "npc-ph-herald": { x: 168.4, z: 193.0 },
   "npc-shard-elder": { x: 229.5, z: 243.0 },
   "npc-ph-crafter": { x: 236.0, z: 211.0 },
@@ -143,18 +143,18 @@ function smooth01(t: number): number {
   return u * u * (3 - 2 * u);
 }
 
-function wobble(d: ColdhearthDistrict, x: number, z: number): number {
+function wobble(d: MayflowerDistrict, x: number, z: number): number {
   const a = Math.atan2(z - d.z, x - d.x);
   return d.r * (1 + 0.1 * Math.sin(3 * a + d.seed) + 0.05 * Math.sin(5 * a + 2 * d.seed));
 }
 
-const TERRACES = COLDHEARTH_DISTRICTS.filter((d) => d.r > 0);
+const TERRACES = MAYFLOWER_DISTRICTS.filter((d) => d.r > 0);
 
 type Seg = { ax: number; az: number; bx: number; bz: number; la: number; lb: number; t0: number; t1: number };
 let streetSegs: { halfW: number; a: Node; b: Node; segs: Seg[] }[] | null = null;
 function streets() {
   if (streetSegs) return streetSegs;
-  streetSegs = COLDHEARTH_STREETS.map((s) => {
+  streetSegs = MAYFLOWER_STREETS.map((s) => {
     const dx = s.b.x - s.a.x, dz = s.b.z - s.a.z, L = Math.hypot(dx, dz);
     const mx = (s.a.x + s.b.x) / 2 - (dz / L) * s.bow, mz = (s.a.z + s.b.z) / 2 + (dx / L) * s.bow;
     const N = 12, pts: { x: number; z: number; t: number }[] = [];
@@ -169,35 +169,35 @@ function streets() {
   return streetSegs;
 }
 
-export const COLDHEARTH_BBOX = { minX: 172, maxX: 254, minZ: 120, maxZ: 260 } as const;
+export const MAYFLOWER_BBOX = { minX: 172, maxX: 254, minZ: 120, maxZ: 260 } as const;
 
 /** 0..1 weight: how much the fine height field (not the coarse terrain mesh) applies. */
-export function coldhearthFieldWeight(x: number, z: number): number {
-  const b = COLDHEARTH_BBOX;
+export function mayflowerFieldWeight(x: number, z: number): number {
+  const b = MAYFLOWER_BBOX;
   const e = Math.max(b.minX - x, x - b.maxX, b.minZ - z, z - b.maxZ);
   return 1 - smooth01(e / 8 + 1); // 1 inside (e<=-8), fades to 0 at the bbox edge
 }
 
-function inBuilding(x: number, z: number, pad = 0): ColdhearthBuilding | null {
-  for (const b of COLDHEARTH_BUILDINGS) {
+function inBuilding(x: number, z: number, pad = 0): MayflowerBuilding | null {
+  for (const b of MAYFLOWER_BUILDINGS) {
     const c = Math.cos(b.yaw), s = Math.sin(b.yaw);
     const lx = (x - b.x) * c - (z - b.z) * s, lz = (x - b.x) * s + (z - b.z) * c;
     if (Math.abs(lx) <= b.w / 2 + pad && Math.abs(lz) <= b.d / 2 + pad) return b;
   }
-  for (const p of COLDHEARTH_AQUEDUCT) if (Math.hypot(x - p.x, z - p.z) < 0.9 + pad) return COLDHEARTH_BUILDINGS[0];
+  for (const p of MAYFLOWER_AQUEDUCT) if (Math.hypot(x - p.x, z - p.z) < 0.9 + pad) return MAYFLOWER_BUILDINGS[0];
   return null;
 }
 
-export type ColdhearthSample = { y: number; walk: boolean; district: ColdhearthDistrictId | null; onStreet: boolean };
+export type MayflowerSample = { y: number; walk: boolean; district: MayflowerDistrictId | null; onStreet: boolean };
 
 /**
  * Town shaping at (x,z) given the natural ground height there (lazy). Null = outside town.
  * `groundAt` gives natural ground at street ends with level null.
  */
-export function coldhearthSample(
+export function mayflowerSample(
   x: number, z: number, ground: () => number, groundAt: (x: number, z: number) => number,
-): ColdhearthSample | null {
-  const b = COLDHEARTH_BBOX;
+): MayflowerSample | null {
+  const b = MAYFLOWER_BBOX;
   if (x < b.minX - 4 || x > b.maxX + 4 || z < b.minZ - 4 || z > b.maxZ + 4) return null;
   // Terraces
   let edge = Infinity, edgeLevel = 0;
@@ -234,20 +234,20 @@ export function coldhearthSample(
 }
 
 /** Client-visual prop placements (kind names map to renderer PropKind in bake-props). */
-export type ColdhearthProp = { kind: string; x: number; z: number; yaw?: number; s?: number; w?: number; h?: number; d?: number; v?: number; dy?: number };
+export type MayflowerProp = { kind: string; x: number; z: number; yaw?: number; s?: number; w?: number; h?: number; d?: number; v?: number; dy?: number };
 
-function districtProps(): ColdhearthProp[] {
-  const P: ColdhearthProp[] = [];
-  const dist = (id: ColdhearthDistrictId) => COLDHEARTH_DISTRICTS.find((d) => d.id === id)!;
+function districtProps(): MayflowerProp[] {
+  const P: MayflowerProp[] = [];
+  const dist = (id: MayflowerDistrictId) => MAYFLOWER_DISTRICTS.find((d) => d.id === id)!;
   // Buildings as masonry boxes (+ banners on the big ones).
-  for (const b of COLDHEARTH_BUILDINGS) {
+  for (const b of MAYFLOWER_BUILDINGS) {
     P.push({ kind: "wallBlock", x: b.x, z: b.z, yaw: b.yaw, w: b.w, h: b.h, d: b.d, v: b.id.startsWith("hall-") || b.id === "elders-house" ? 1 : 0 });
   }
   // Eightfold: anvil-stone centre, anvils & quench troughs before each hall, racks, bellows lean-to, wheel.
   const ef = dist("eightfold");
   P.push({ kind: "anvil", x: ef.x - 1.5, z: ef.z - 1.0, yaw: 0.3, s: 1.6 });
   P.push({ kind: "stone", x: ef.x - 1.5, z: ef.z - 1.0, s: 1.6 });
-  for (const b of COLDHEARTH_BUILDINGS.filter((q) => q.id.startsWith("hall-"))) {
+  for (const b of MAYFLOWER_BUILDINGS.filter((q) => q.id.startsWith("hall-"))) {
     const a = Math.atan2(b.z - ef.z, b.x - ef.x), r = Math.hypot(b.x - ef.x, b.z - ef.z) - 2.6;
     P.push({ kind: "anvil", x: ef.x + Math.cos(a) * r, z: ef.z + Math.sin(a) * r, yaw: a });
     P.push({ kind: "trough", x: ef.x + Math.cos(a + 0.12) * r, z: ef.z + Math.sin(a + 0.12) * r, yaw: a + Math.PI / 2, w: 1.2, d: 0.5 });
@@ -261,14 +261,14 @@ function districtProps(): ColdhearthProp[] {
   P.push({ kind: "wheel", x: 234.5, z: 224.5, yaw: 0.9, s: 2.2 });
   P.push({ kind: "banner", x: ef.x + 1.0, z: ef.z + 3.4 });
   // Aqueduct piers and channel.
-  const aq = COLDHEARTH_AQUEDUCT;
+  const aq = MAYFLOWER_AQUEDUCT;
   for (let i = 0; i < aq.length; i++) P.push({ kind: "wallBlock", x: aq[i].x, z: aq[i].z, w: 1.4, h: 2.4, d: 1.4, v: 1 });
   for (let i = 0; i + 1 < aq.length; i++) {
     const a = aq[i], b = aq[i + 1];
     P.push({ kind: "channel", x: (a.x + b.x) / 2, z: (a.z + b.z) / 2, yaw: Math.atan2(b.x - a.x, b.z - a.z), s: Math.hypot(b.x - a.x, b.z - a.z), w: 0.7, dy: 2.2 });
   }
   // Runnel down the town (visual water at ground level).
-  const rn = COLDHEARTH_RUNNEL;
+  const rn = MAYFLOWER_RUNNEL;
   for (let i = 0; i + 1 < rn.length; i++) {
     const a = rn[i], b = rn[i + 1];
     P.push({ kind: "channel", x: (a.x + b.x) / 2, z: (a.z + b.z) / 2, yaw: Math.atan2(b.x - a.x, b.z - a.z), s: Math.hypot(b.x - a.x, b.z - a.z), w: 0.45, dy: 0.02 });
@@ -314,8 +314,8 @@ function districtProps(): ColdhearthProp[] {
 }
 
 /** Lanterns along every street, alternating sides every ~7 m. */
-function streetLanterns(): ColdhearthProp[] {
-  const P: ColdhearthProp[] = [];
+function streetLanterns(): MayflowerProp[] {
+  const P: MayflowerProp[] = [];
   for (const s of streets()) {
     let acc = 0, side = 1;
     for (const g of s.segs) {
@@ -330,16 +330,57 @@ function streetLanterns(): ColdhearthProp[] {
   return P;
 }
 
-export function coldhearthProps(): ColdhearthProp[] {
+function fh(x: number, z: number, k: number): number {
+  const v = Math.sin(x * 127.1 + z * 311.7 + k * 74.7) * 43758.5453;
+  return v - Math.floor(v);
+}
+
+/**
+ * Mayflower's wildflowers (visual only, no footprint): flowering verges along every lane,
+ * blossom drifts in the yards, and meadows on the slopes around the town. v picks the colour.
+ */
+export function mayflowerFlowers(): MayflowerProp[] {
+  const P: MayflowerProp[] = [];
+  for (const s of streets()) {
+    for (const g of s.segs) {
+      const L = Math.hypot(g.bx - g.ax, g.bz - g.az), nx = -(g.bz - g.az) / L, nz = (g.bx - g.ax) / L;
+      for (let t = 0; t < L; t += 0.9) {
+        const cx = g.ax + ((g.bx - g.ax) * t) / L, cz = g.az + ((g.bz - g.az) * t) / L;
+        for (const side of [-1, 1]) {
+          const off = s.halfW + 0.35 + fh(cx, cz, side) * 0.9;
+          const x = cx + nx * off * side, z = cz + nz * off * side;
+          if (inBuilding(x, z, 0.3) == null) P.push({ kind: "bloom", x, z, s: 0.8 + fh(x, z, 2) * 0.6, v: Math.floor(fh(x, z, 3) * 4) });
+        }
+      }
+    }
+  }
+  const pad = 26;
+  for (let x = MAYFLOWER_BBOX.minX - pad; x <= MAYFLOWER_BBOX.maxX + pad; x += 1.6) {
+    for (let z = MAYFLOWER_BBOX.minZ - pad; z <= MAYFLOWER_BBOX.maxZ + pad; z += 1.6) {
+      const jx = x + (fh(x, z, 4) - 0.5) * 1.4, jz = z + (fh(x, z, 5) - 0.5) * 1.4;
+      if (inBuilding(jx, jz, 0.4) != null) continue;
+      const smp = mayflowerSample(jx, jz, () => 0, () => 0);
+      // meadows: patchy drifts (low-frequency mask); yards: sparser blossom off the streets
+      const drift = 0.5 + 0.5 * Math.sin(jx * 0.11 + Math.sin(jz * 0.07) * 2.1) * Math.cos(jz * 0.09 - jx * 0.03);
+      const keep = smp == null ? drift > 0.45 && fh(jx, jz, 6) < 0.55 : !smp.onStreet && fh(jx, jz, 6) < 0.18;
+      if (!keep) continue;
+      const v = drift > 0.8 ? 1 : Math.floor(fh(jx, jz, 7) * 4);
+      P.push({ kind: "bloom", x: jx, z: jz, s: 0.8 + fh(jx, jz, 8) * 0.7, v });
+    }
+  }
+  return P;
+}
+
+export function mayflowerProps(): MayflowerProp[] {
   return [...districtProps(), ...streetLanterns()];
 }
 
 /** Building footprint test (exported for props/clearings). */
-export function coldhearthInBuilding(x: number, z: number, pad = 0): boolean {
+export function mayflowerInBuilding(x: number, z: number, pad = 0): boolean {
   return inBuilding(x, z, pad) != null;
 }
 
 /** True inside the town's influence (terraces, streets, wall bands). */
-export function coldhearthInTown(x: number, z: number): boolean {
-  return coldhearthSample(x, z, () => 0, () => 0) != null;
+export function mayflowerInTown(x: number, z: number): boolean {
+  return mayflowerSample(x, z, () => 0, () => 0) != null;
 }

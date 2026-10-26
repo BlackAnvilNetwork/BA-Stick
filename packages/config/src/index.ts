@@ -478,7 +478,7 @@ export const ZONES: Record<ZoneId, ZoneDef> = {
   },
   shard_dwellings: {
     id: "shard_dwellings",
-    name: "Coldhearth",
+    name: "Mayflower",
     kind: "city",
     areaId: "pale_hollow",
     cityId: "shard_dwellings",

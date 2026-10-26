@@ -2025,7 +2025,7 @@ const JOB_MASTER = (() => {
   return { id: n.id, name: n.name, x: n.x, z: n.z, facing: n.facing } as const;
 })();
 
-/** Pale Hollow Trainer (stable id npc-ph-chronomancer), in Coldhearth's Turning Yard. */
+/** Pale Hollow Trainer (stable id npc-ph-chronomancer), in Mayflower's Turning Yard. */
 const TRAINER = PH_TRAINER;
 
 const NPC_INTERACT_RANGE = 3.5;

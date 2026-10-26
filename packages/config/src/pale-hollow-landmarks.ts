@@ -75,7 +75,7 @@ function staticLandmarks(): PaleHollowLandmark[] {
   return [
     {
       id: "ph-hub",
-      name: "Coldhearth (the Scout Gate)",
+      name: "Mayflower (the Scout Gate)",
       x: hub.x,
       z: hub.z,
       note: `PH_HUB pad center (scout encampment). floorY ${PH_HUB.floorY}`,

@@ -526,8 +526,8 @@ function hubNpcs(cityId: CityId, prefix: string): CityNpcDef[] {
   ];
 }
 
-/** Coldhearth's keepers (lore-bible §7.6), by role. */
-const COLDHEARTH_NPC_NAMES: Partial<Record<string, string>> = {
+/** Mayflower's keepers (lore-bible §7.6), by role. */
+const MAYFLOWER_NPC_NAMES: Partial<Record<string, string>> = {
   quest_giver: "Wenna Gatesmoke",
   job_master: "Teodric Vane",
   spell_trainer: "Ilse Morrowglass",
@@ -538,10 +538,10 @@ const COLDHEARTH_NPC_NAMES: Partial<Record<string, string>> = {
 export const CITIES: Record<CityId, CityDef> = {
   shard_dwellings: {
     id: "shard_dwellings",
-    name: "Coldhearth",
+    name: "Mayflower",
     areaId: "pale_hollow",
     npcs: [
-      ...hubNpcs("shard_dwellings", "sd").map((n) => ({ ...n, name: COLDHEARTH_NPC_NAMES[n.role] ?? n.name })),
+      ...hubNpcs("shard_dwellings", "sd").map((n) => ({ ...n, name: MAYFLOWER_NPC_NAMES[n.role] ?? n.name })),
       {
         id: "sd-guide",
         name: "Orrin Haltmark",

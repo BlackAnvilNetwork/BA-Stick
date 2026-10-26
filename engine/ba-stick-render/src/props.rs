@@ -1343,7 +1343,9 @@ fn draw_one(c: &mut Ctx, p: &Prop, time: f32) {
             for i in 0..3 {
                 let q = c.p((i as f32 - 1.0) * 0.12 * s, 0.12 * s + i as f32 * 0.02, 0.0);
                 c.fb.line(c.p((i as f32 - 1.0) * 0.1 * s, 0.0, 0.0), q, GRASS);
-                c.fb.disc(q, 1.3, BLOOM_C, None);
+                // v: 0 pink (default), 1 gold, 2 white, 3 red. Mayflower's meadows mix all four.
+                let col = match (p.var as u32 + i as u32) % 4 { 1 => C_GOLD, 2 => BEIGE, 3 => FX_HP, _ => BLOOM_C };
+                c.fb.disc(q, 1.3, if p.var == 0 { BLOOM_C } else { col }, None);
             }
         }
         kind::BUSH => {

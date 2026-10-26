@@ -5,7 +5,7 @@
  */
 
 import { nearTrailCorridor } from "./trail-geom";
-import { COLDHEARTH_STATIONS as ST, COLDHEARTH_SPUR, coldhearthFieldWeight, coldhearthInTown, coldhearthSample } from "./pale-hollow-town";
+import { MAYFLOWER_STATIONS as ST, MAYFLOWER_SPUR, mayflowerFieldWeight, mayflowerInTown, mayflowerSample } from "./pale-hollow-town";
 
 /**
  * The basin is a region, not a valley you can see in one glance.
@@ -106,7 +106,7 @@ export const PH_STORAGE_CHEST = {
   z: ST["npc-ph-storage"].z,
 } as const;
 
-/** Pale Hollow Trainer (stable id npc-ph-chronomancer), in Coldhearth's Turning Yard. Server-owned dialog. */
+/** Pale Hollow Trainer (stable id npc-ph-chronomancer), in Mayflower's Turning Yard. Server-owned dialog. */
 export const PH_TRAINER = {
   id: "npc-ph-chronomancer",
   name: "Ilse Morrowglass",
@@ -1257,7 +1257,7 @@ export function paleHollowInLakeShallows(x: number, z: number): boolean {
 
 export function paleHollowWalkable(x: number, z: number): boolean {
   if (paleHollowInHubRearWall(x, z)) return false;
-  if (coldhearthInTown(x, z)) {
+  if (mayflowerInTown(x, z)) {
     const t = paleHollowTownSample(x, z);
     if (t && !t.walk) return false;
   }
@@ -1331,13 +1331,13 @@ function paleHollowHeightField(x: number, z: number): number {
 
 function paleHollowHeightFieldRaw(x: number, z: number): number {
   const base = paleHollowHeightFieldBase(x, z);
-  const town = coldhearthSample(x, z, () => base, paleHollowHeightFieldBase);
+  const town = mayflowerSample(x, z, () => base, paleHollowHeightFieldBase);
   return town ? town.y : base;
 }
 
-/** Coldhearth town shaping at (x,z), or null outside the town (see pale-hollow-town.ts). */
+/** Mayflower town shaping at (x,z), or null outside the town (see pale-hollow-town.ts). */
 export function paleHollowTownSample(x: number, z: number) {
-  return coldhearthSample(x, z, () => paleHollowHeightFieldBase(x, z), paleHollowHeightFieldBase);
+  return mayflowerSample(x, z, () => paleHollowHeightFieldBase(x, z), paleHollowHeightFieldBase);
 }
 
 /** Natural ground (no town terracing). */
@@ -1386,13 +1386,13 @@ function paleHollowHeightFieldBase(x: number, z: number): number {
     }
   }
 
-  // Coldhearth spur: the Shard's eastern fragments lift the spur north-east of the
+  // Mayflower spur: the Shard's eastern fragments lift the spur north-east of the
   // scout encampment, so the exiles' town steps up a real slope (see pale-hollow-town.ts).
   {
-    const d = Math.hypot(x - COLDHEARTH_SPUR.x, z - COLDHEARTH_SPUR.z);
-    if (d < COLDHEARTH_SPUR.r) {
-      const t = smooth01(1 - d / COLDHEARTH_SPUR.r);
-      y += t * COLDHEARTH_SPUR.h;
+    const d = Math.hypot(x - MAYFLOWER_SPUR.x, z - MAYFLOWER_SPUR.z);
+    if (d < MAYFLOWER_SPUR.r) {
+      const t = smooth01(1 - d / MAYFLOWER_SPUR.r);
+      y += t * MAYFLOWER_SPUR.h;
     }
   }
 
@@ -1509,8 +1509,8 @@ export function paleHollowTerrainMeshY(x: number, z: number): number {
     fu + fv <= 1
       ? h00 * (1 - fu - fv) + h10 * fu + h01 * fv
       : h11 * (fu + fv - 1) + h10 * (1 - fv) + h01 * (1 - fu);
-  // Coldhearth: terraces and streets need the fine field, not 6 m mesh chords.
-  const w = coldhearthFieldWeight(x, z);
+  // Mayflower: terraces and streets need the fine field, not 6 m mesh chords.
+  const w = mayflowerFieldWeight(x, z);
   return w > 0 ? mesh + (paleHollowGroundHeight(x, z) - mesh) * w : mesh;
 }
 
@@ -1723,7 +1723,7 @@ export const PH_BUILDING_CLEARINGS: readonly { x: number; z: number; r: number }
 /** True if (x,z) is inside a building / landmark clearing. */
 export function paleHollowInBuildingClearing(x: number, z: number): boolean {
   if (paleHollowInHubApron(x, z)) return true;
-  if (coldhearthInTown(x, z)) return true;
+  if (mayflowerInTown(x, z)) return true;
   for (const c of PH_BUILDING_CLEARINGS) {
     if (Math.hypot(x - c.x, z - c.z) < c.r) return true;
   }
@@ -1934,7 +1934,7 @@ export function paleHollowMobJob(
 // They are five times the old corridor list, seated on the enlarged basin.
 
 export const PH_HUB_NPCS = [
-  // Coldhearth districts (pale-hollow-town.ts). Herald stays at the Scout Gate (the hub pad).
+  // Mayflower districts (pale-hollow-town.ts). Herald stays at the Scout Gate (the hub pad).
   { id: "npc-shard-elder", name: "Orrin Haltmark", x: ST["npc-shard-elder"].x, z: ST["npc-shard-elder"].z, facing: Math.PI, role: "guide" as const },
   { id: "npc-ph-herald", name: "Wenna Gatesmoke", x: ST["npc-ph-herald"].x, z: ST["npc-ph-herald"].z, facing: Math.PI, role: "quest_giver" as const },
   { id: "npc-ph-job-master", name: "Teodric Vane", x: ST["npc-ph-job-master"].x, z: ST["npc-ph-job-master"].z, facing: -Math.PI / 2, role: "job_master" as const },
@@ -1965,7 +1965,7 @@ export type PaleHollowMapLabelKind = "area" | "camp" | "landmark" | "water";
  */
 export const PH_MAP_LABELS: readonly { text: string; x: number; z: number; kind: PaleHollowMapLabelKind }[] = [
   { text: "The Scout Gate", x: PH_CAMP_SHIFT_X, z: 2 + PH_CAMP_SHIFT_Z, kind: "camp" },
-  { text: "Coldhearth", x: 214, z: 200, kind: "camp" },
+  { text: "Mayflower", x: 214, z: 200, kind: "camp" },
   { text: "Tally Row", x: 196, z: 178, kind: "landmark" },
   { text: "The Turning Yard", x: 192, z: 150, kind: "landmark" },
   { text: "The Strongroom", x: 214, z: 191, kind: "landmark" },

@@ -45,7 +45,7 @@ import {
   paleHollowWalkable,
   paleHollowWaterSurfaceY,
   type PaleHollowRiverKind,
-  coldhearthProps,
+  mayflowerProps, mayflowerFlowers,
 } from "@bellgrave/config";
 
 /** Must match `PropKind` in engine/ba-stick-render/src/props.rs. */
@@ -358,7 +358,7 @@ export function paleHollowProps(): Prop[] {
   const out: Prop[] = [];
   riverBanks(out);
   hub(out);
-  coldhearth(out);
+  mayflower(out);
   yards(out);
   peaks(out);
   trees(out);
@@ -449,11 +449,15 @@ export function bridgeProfileSamples() {
   });
 }
 
-/** Coldhearth town props (data in config pale-hollow-town.ts; client-visual only). */
-function coldhearth(out: Prop[]): void {
-  for (const p of coldhearthProps()) {
+/** Mayflower town props (data in config pale-hollow-town.ts; client-visual only). */
+function mayflower(out: Prop[]): void {
+  for (const f of mayflowerFlowers()) {
+    if (!paleHollowWalkable(f.x, f.z)) continue; // no flowers in water, walls or buildings
+    out.push({ kind: K.bloom, v: f.v ?? 0, x: f.x, z: f.z, y: paleHollowStandHeight(f.x, f.z), yaw: 0, s: f.s ?? 1, w: 0, h: 0, d: 0 });
+  }
+  for (const p of mayflowerProps()) {
     const kind = (K as Record<string, number>)[p.kind];
-    if (kind === undefined) throw new Error("unknown Coldhearth prop kind " + p.kind);
+    if (kind === undefined) throw new Error("unknown Mayflower prop kind " + p.kind);
     out.push({
       kind, v: p.v ?? 0, x: p.x, z: p.z, y: paleHollowStandHeight(p.x, p.z) + (p.dy ?? 0),
       yaw: p.yaw ?? 0, s: p.s ?? 1, w: p.w ?? 0, h: p.h ?? 0, d: p.d ?? 0,
