@@ -1,4 +1,4 @@
-//! Auto-generated from packages/items/src/catalog.json — do not edit by hand.
+//! Auto-generated from packages/items/src/catalog.json â€” do not edit by hand.
 //! Regenerate: python3 scripts/gen-craft-recipes.py
 
 /// skill_id index: 1=smithing … 8=cooking (see skill_label).

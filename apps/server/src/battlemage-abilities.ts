@@ -15,6 +15,7 @@ import { rollUnit } from "./game-roll";
 import { activeMobEnhances, stripMobEnhances, takeMobHit } from "./mob-enhances";
 
 export type BattleMagePlayer = {
+  wallet: string;
   level: number;
   job: string;
   mp: number;
