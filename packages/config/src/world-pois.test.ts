@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import * as C from "./index";
-import { WORLD_POIS, LORE_FRAGMENTS, type PoiZone } from "./world-pois";
+import { WORLD_POIS, LORE_FRAGMENTS, TRAIL_ENDPOINT, type PoiZone } from "./world-pois";
 
 const CELL = 0.5;
 const CLEAR = 4; // metres from any spawn / NPC / gather node / arrival / mob spawn
@@ -55,6 +55,7 @@ test("POI ids unique, fragments complete and ordered", () => {
   const ids = new Set(WORLD_POIS.map((p) => p.id)); assert.equal(ids.size, WORLD_POIS.length);
   const frag = WORLD_POIS.filter((p) => p.fragmentId).map((p) => p.fragmentId);
   assert.deepEqual(frag, [...LORE_FRAGMENTS]);
+  assert.deepEqual([...TRAIL_ENDPOINT.requires], [LORE_FRAGMENTS.at(-1)]);
   for (const p of WORLD_POIS) for (const r of p.requires ?? []) assert.ok((LORE_FRAGMENTS as readonly string[]).includes(r), p.id + " requires unknown " + r);
 });
 
