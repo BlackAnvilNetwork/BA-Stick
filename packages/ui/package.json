@@ -15,11 +15,13 @@
     "./combatSfx": "./src/combatSfx.ts",
     "./zoneMusic": "./src/zoneMusic.ts",
     "./moveInput": "./src/moveInput.ts",
-    "./chroma-icons": "./src/chroma-icons.ts"
+    "./chroma-icons": "./src/chroma-icons.ts",
+    "./catalog-tree": "./src/catalog-tree.ts",
+    "./catalog-sort": "./src/catalog-sort.tsx"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test src/uiSettings.test.ts src/MobileArcadeControls.test.ts"
+    "test": "tsx --test src/uiSettings.test.ts src/MobileArcadeControls.test.ts src/catalog-tree.test.ts"
   },
   "dependencies": {
     "@bellgrave/client-core": "workspace:*",

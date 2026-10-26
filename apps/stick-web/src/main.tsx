@@ -17,6 +17,8 @@ document.documentElement.dataset.renderer = "stick";
   applyUiSettings(initial);
 }
 
-// `?demo` keeps the offline renderer demo (no server) used for M0 screenshots.
-const demo = new URLSearchParams(location.search).has("demo");
+// `?demo` keeps the offline renderer. A playable zone on the same URL enters the live client.
+const params = new URLSearchParams(location.search);
+const playZone = params.get("zone");
+const demo = params.has("demo") && playZone !== "forest_basin" && playZone !== "pale_hollow" && playZone !== "hollow_road";
 createRoot(document.getElementById("root")!).render(<StrictMode>{demo ? <DemoApp /> : <App />}</StrictMode>);

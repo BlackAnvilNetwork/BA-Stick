@@ -1,0 +1,18 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Jeweler's bench + horn stake for goldsmithing. Origin base center; +y up, +z toward smith.
+(
+    id: "ba_goldsmith_stake",
+    slot: Feet,
+    material: Some("void"),
+    shapes: [
+        Capsule(from: (-0.20, 0.01, -0.10), to: (0.20, 0.04, 0.10), ramp: Glow, thick: 3.4),
+        Capsule(from: (-0.14, 0.03, -0.08), to: (0.14, 0.05, 0.08), ramp: Glow, thick: 2.6),
+        Capsule(from: (0.0, 0.05, 0.0), to: (0.0, 0.11, 0.0), ramp: Material, thick: 4.6),
+        Capsule(from: (0.0, 0.11, 0.0), to: (0.10, 0.15, 0.04), ramp: Material, thick: 3.2),
+        Line(from: (0.04, 0.12, 0.02), to: (0.09, 0.15, 0.035), ramp: Trim, thick: 1.4),
+        Line(from: (0.06, 0.11, 0.01), to: (0.08, 0.14, 0.03), ramp: Trim, thick: 1.0),
+        Capsule(from: (-0.16, 0.06, -0.06), to: (-0.20, 0.08, -0.06), ramp: Material, thick: 2.2),
+        Capsule(from: (0.14, 0.06, 0.06), to: (0.18, 0.07, 0.06), ramp: Material, thick: 2.0),
+    ],
+)

@@ -70,7 +70,7 @@ type Pending = { id: string; target?: string | null; at: number; started: boolea
 
 export class VfxDirector {
   private pending: Pending | null = null;
-  private lastAnim = new Map<string, { anim: string; until: number; target: string | null }>();
+  private lastAnim = new Map<string, { anim: string; until: number; target: string | null; gatherTool?: "shovel" | "pick" }>();
 
   /** Our own ability message went out. Returns steps to play now (instant). */
   request(abilityId: string, target: string | null | undefined, now: number): VfxStep[] | null {
@@ -91,7 +91,7 @@ export class VfxDirector {
       const mine = u.id === myId;
       if (mine && this.pending) {
         const p = this.pending;
-        if (u.anim === "cast") p.started = true;
+        if (u.anim === "cast" && !u.gatherTool) p.started = true;
         if (p.started && u.anim !== "cast") {
           if (u.anim !== "dead") out.push({ steps: stepsFor(p.id), from: u.id, to: p.target ?? u.targetId });
           this.pending = null;
@@ -100,21 +100,21 @@ export class VfxDirector {
         }
       }
       if (prev && !mine) {
-        const castEnded = prev.anim === "cast" && u.anim !== "cast" && u.anim !== "dead";
+        const castEnded = prev.anim === "cast" && !prev.gatherTool && u.anim !== "cast" && u.anim !== "dead";
         if (castEnded) {
           const color = u.kind === "mob" ? "enfeeble" : JOB_SPELL[u.job ?? ""] ?? "physical";
           out.push({ steps: [{ prim: "projectile", at: "target", color, count: 18 }], from: u.id, to: prev.target });
         }
       }
       // Cast burst on the caster at each cast start, players and enemies (old castBurst, F36).
-      if (u.anim === "cast" && (!prev || prev.anim !== "cast" || u.animUntil > prev.until + 1)) {
+      if (u.anim === "cast" && !u.gatherTool && (!prev || prev.anim !== "cast" || prev.gatherTool || u.animUntil > prev.until + 1)) {
         const color = u.kind === "mob" ? "enfeeble" : JOB_SPELL[u.job ?? ""] ?? "physical";
         out.push({ steps: [{ ...CAST_BURST, color }], from: u.id, to: null });
       }
       if (u.anim === "melee" && (!prev || prev.anim !== "melee" || u.animUntil > prev.until) && u.targetId) {
         out.push({ steps: VFX.melee, from: u.id, to: u.targetId });
       }
-      this.lastAnim.set(u.id, { anim: u.anim, until: u.animUntil, target: u.targetId });
+      this.lastAnim.set(u.id, { anim: u.anim, until: u.animUntil, target: u.targetId, gatherTool: u.gatherTool });
     }
     for (const id of this.lastAnim.keys()) if (!seen.has(id)) this.lastAnim.delete(id);
     return out;

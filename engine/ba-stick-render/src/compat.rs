@@ -50,11 +50,17 @@ pub struct Look {
     pub body: u8,
     pub far: u8,
     pub accent: u8,
+    pub hair: u8,
 }
 
 impl Default for Look {
     fn default() -> Self {
-        Look { body: C_BODY, far: C_BODY_FAR, accent: C_ACCENT }
+        Look {
+            body: C_BODY,
+            far: C_BODY_FAR,
+            accent: C_ACCENT,
+            hair: C_BODY,
+        }
     }
 }
 
@@ -78,9 +84,17 @@ pub struct Proportions {
 impl Default for Proportions {
     fn default() -> Self {
         Proportions {
-            thigh: 0.46, shin: 0.46, spine: 0.52, neck: 0.08, head_r: 0.14,
-            upper_arm: 0.3, forearm: 0.28, shoulder_w: 0.19, hip_w: 0.1,
-            sword: 0.9, limb_px: 2.2,
+            thigh: 0.46,
+            shin: 0.46,
+            spine: 0.52,
+            neck: 0.08,
+            head_r: 0.14,
+            upper_arm: 0.3,
+            forearm: 0.28,
+            shoulder_w: 0.19,
+            hip_w: 0.1,
+            sword: 0.9,
+            limb_px: 2.2,
         }
     }
 }
@@ -119,6 +133,8 @@ pub struct Fig {
     pub hand: [Vec3; 2],
     pub sword_tip: Vec3,
     pub sword_dir: Vec3,
+    /// Left-hand weapon direction. The shield face is built in that frame.
+    pub wpn_l: Vec3,
 }
 
 impl Fig {
@@ -139,6 +155,7 @@ impl Fig {
             hand: [g(LHand), g(RHand)],
             sword_tip: j.weapon_point(1, sword),
             sword_dir: j.wpn_dir[1],
+            wpn_l: j.wpn_dir[0],
         }
     }
 }

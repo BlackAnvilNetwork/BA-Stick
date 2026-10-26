@@ -45,6 +45,7 @@ export const SHINY_LOOT_BY_ARCHETYPE: Record<PaleHollowArchetype, readonly strin
   dust_hare: ["desiccated-hide", "horn", "giant-femur", "shade-cotton", "ash-dust"],
   // Slimes / alchemy → venom & zone dusts used in higher potions
   pale_slime: ["poison-sac", "slime-oil", "ash-dust", "slag-dust", "sulfur-bit"],
+  clay_crab: ["river-sand", "potters-clay", "limestone", "pale-dust", "rock-salt"],
   // Scavengers / cloth scraps → next fiber tier + scrap
   hollow_scavenger: ["shade-cotton", "silk-thread", "velvet-fiber", "parchment", "metal-scrap"],
   // Boars / large beasts → heavy hides, bone, ash timber precursors

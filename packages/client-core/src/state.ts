@@ -9,7 +9,7 @@ import type {
   UnitSnapshot,
 } from "@bellgrave/protocol";
 import { create } from "zustand";
-import { checkWebLightClient, lightClientFromSnapshot, type WebLightResult } from "./light-client";
+import { allowlistGeneration, checkWebLightClient, lightClientFromSnapshot, type WebLightResult } from "./light-client";
 
 type Phase = "boot" | "auth" | "create" | "select" | "play";
 
@@ -34,6 +34,46 @@ export type NpcDialog = {
   craftOpen?: boolean;
   lokOpen?: boolean;
 };
+
+let lightMemoKey = "";
+let lightMemo: WebLightResult | null = null;
+
+/**
+ * Ed25519 on an unchanged walk proof is the client half of the 50 ms jolt.
+ * A new certificate, root, proof, leaf, or allowlist still runs the check.
+ */
+function lightWireKey(value: unknown): string {
+  if (value == null) return "";
+  if (typeof value === "bigint") return "n" + value.toString();
+  if (value instanceof Uint8Array) {
+    let hex = "b";
+    for (const byte of value) hex += byte.toString(16).padStart(2, "0");
+    return hex;
+  }
+  if (Array.isArray(value)) return "[" + value.map(lightWireKey).join(",") + "]";
+  if (typeof value === "object") {
+    const row = value as Record<string, unknown>;
+    return (
+      "{" +
+      Object.keys(row)
+        .sort()
+        .map((key) => key + ":" + lightWireKey(row[key]))
+        .join(",") +
+      "}"
+    );
+  }
+  return String(value);
+}
+
+function memoLightVerdict(snapshot: SnapshotMessage): WebLightResult {
+  const wire = snapshot.lightClient;
+  const key = lightWireKey(wire) + "\n" + allowlistGeneration();
+  if (key === lightMemoKey && lightMemo) return lightMemo;
+  const verdict = checkWebLightClient(lightClientFromSnapshot(snapshot));
+  lightMemoKey = key;
+  lightMemo = verdict;
+  return verdict;
+}
 
 type GameState = {
   phase: Phase;
@@ -134,7 +174,13 @@ export const useGame = create<GameState>((set, get) => ({
   setSnapshot: (snapshot) => {
     const prev = get().snapshot;
     // Skip identical-tick no-ops (reconnect / duplicate floods).
-    if (prev && prev.tick === snapshot.tick) return;
+    if (prev && prev.tick === snapshot.tick) {
+      const sheetChanged =
+        JSON.stringify(prev.you.equip) !== JSON.stringify(snapshot.you.equip) ||
+        JSON.stringify(prev.you.equipHq ?? {}) !== JSON.stringify(snapshot.you.equipHq ?? {}) ||
+        JSON.stringify(prev.you.inventory) !== JSON.stringify(snapshot.you.inventory);
+      if (!sheetChanged) return;
+    }
     const w = get().wallet?.toLowerCase();
     const me = w
       ? snapshot.units.find((u) => u.id.toLowerCase() === w && u.kind === "player")
@@ -160,7 +206,7 @@ export const useGame = create<GameState>((set, get) => ({
       selectedTarget = serverTarget;
     }
     const mint = snapshot.you?.lok?.characterMint;
-    const verdict = checkWebLightClient(lightClientFromSnapshot(snapshot));
+    const verdict = memoLightVerdict(snapshot);
     // A failed certificate, character root, or leaf does not stay committed.
     const light = {
       leaderView: "provisional" as const,

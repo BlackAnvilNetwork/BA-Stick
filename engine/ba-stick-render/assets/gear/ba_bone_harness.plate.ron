@@ -1,0 +1,38 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Desiccated hide under the bone harness. Every cell is a pixel:
+// 'h' hide, 's' dark hide, 'k' seam. No empty cells.
+// `wrap` is the skeleton v where the hem stops, short of the hips.
+(
+    id: "ba_bone_harness",
+    x0: -0.18,
+    y0: -0.36,
+    x1: 0.18,
+    y1: 0.0,
+    z: 0.07,
+    flow: 0.0,
+    sleeve_drop: 0.0,
+    wrap: 0.32,
+    arm_from: 0.0,
+    arm_to: 0.0,
+    arm_thick: 0.0,
+    cuff_from: 0.0,
+    cuff_to: 0.0,
+    cuff_thick: 0.0,
+    rows: [
+        "hhhhhhhhhhhhhhh",
+        "hkkkkkkkkkkkkkh",
+        "hsssssssssssssh",
+        "hsshhhhhhhhhssh",
+        "hsshhhhkhhhhssh",
+        "hsshhhhhhhhhssh",
+        "hsshhhhkhhhhssh",
+        "hsshhhhhhhhhssh",
+        "hsssssssssssssh",
+        "hkkkkkkkkkkkkkh",
+        "hsshhhhhhhhhssh",
+        "hhhhhhhhhhhhhhh",
+    ],
+)

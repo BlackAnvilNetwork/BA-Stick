@@ -1,0 +1,13 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Cloth hat. A pointed stack of invisible disks from the tip down to a brim.
+// The disks are not drawn. Pixel strips connect them. The face stays open.
+(
+    id: "ba_cloth_hat",
+    slot: Head,
+    attach: Some("head"),
+    material: Some("dust"),
+    shapes: [],
+)

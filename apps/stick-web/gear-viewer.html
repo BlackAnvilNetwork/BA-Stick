@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Gear RON</title>
+    <style>
+      :root { color-scheme: dark; }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        height: 100vh;
+        display: grid;
+        grid-template-columns: 240px 1fr 300px;
+        grid-template-rows: auto 1fr auto;
+        background: #18161f;
+        color: #e8e2d0;
+        font: 13px/1.45 ui-monospace, Consolas, monospace;
+      }
+      header, footer {
+        grid-column: 1 / -1;
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        padding: 10px 14px;
+        background: #14121a;
+        border-bottom: 1px solid #34303f;
+      }
+      footer { border-bottom: 0; border-top: 1px solid #34303f; }
+      h1 { margin: 0; font-size: 14px; font-weight: 600; letter-spacing: 0.04em; }
+      header p { margin: 0; color: #7d7486; }
+      #drop {
+        padding: 10px;
+        border-bottom: 1px solid #34303f;
+      }
+      #drop.hot { background: #2a2633; }
+      #list { list-style: none; margin: 0; padding: 8px; overflow: auto; }
+      #list button, #meta button, footer button {
+        width: 100%;
+        text-align: left;
+        color: inherit;
+        background: transparent;
+        border: 1px solid transparent;
+        font: inherit;
+        padding: 6px 8px;
+        cursor: pointer;
+      }
+      #list button small { display: block; color: #7d7486; }
+      button.on { border-color: #d9a441; color: #f4f7ff; }
+      footer button { width: auto; border-color: #34303f; }
+      #stage { display: grid; place-items: center; min-height: 0; }
+      canvas {
+        width: min(100%, 960px);
+        height: auto;
+        background: #221f2a;
+        image-rendering: pixelated;
+        cursor: grab;
+        touch-action: none;
+      }
+      canvas.dragging { cursor: grabbing; }
+      #meta { overflow: auto; padding: 12px 14px; border-left: 1px solid #34303f; }
+      #meta h2 { margin: 0 0 6px; font-size: 15px; }
+      #meta p { margin: 0 0 10px; color: #c9b98f; }
+      #meta ol { list-style: none; margin: 0; padding: 0; }
+      .err { color: #b33939; }
+      label input { vertical-align: middle; }
+      input[type="file"] { color: #7d7486; }
+      html.embed body {
+        grid-template-columns: 1fr;
+        grid-template-rows: 1fr;
+        height: 100%;
+        min-height: 0;
+      }
+      html.embed header,
+      html.embed footer,
+      html.embed aside { display: none; }
+      html.embed #stage { min-height: 0; height: 100%; }
+      html.embed canvas { width: 100%; height: 100%; max-height: 100%; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>GEAR RON</h1>
+      <p>Drag the figure to turn it. Drop .ron and .plate.ron files to preview them before they are saved.</p>
+      <a href="./gear-editor.html" target="gear-editor" style="color: #d9a441">Gear editor</a>
+    </header>
+    <aside>
+      <div id="drop">
+        <input id="file" type="file" accept=".ron" multiple />
+      </div>
+      <ul id="list"></ul>
+    </aside>
+    <div id="stage"><canvas id="view" width="960" height="640"></canvas></div>
+    <aside id="meta"></aside>
+    <footer>
+      <button type="button" data-mode="figure">On figure</button>
+      <button type="button" data-mode="front">Front</button>
+      <button type="button" data-mode="side">Side</button>
+      <button type="button" id="walk">Walk</button>
+      <label>Facing <input id="yaw" type="range" min="0" max="360" value="34" /> <span id="yaw-read">34°</span></label>
+    </footer>
+    <script type="module" src="/src/gear-viewer.ts"></script>
+  </body>
+</html>

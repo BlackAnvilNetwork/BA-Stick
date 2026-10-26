@@ -26,7 +26,9 @@ export function DemoApp() {
       if (bytes) applyMapData(r, zone);
       if (q.has("nomap")) r.setMinimap(false);
       r.setCamera(ox, oz);
-      if (q.get("view") === "3d") r.setView3d(true);
+      const view = q.get("view");
+      if (view === "3d" || view === "tp" || view === "third") r.setCamMode("tp");
+      else if (view === "fp" || view === "first") r.setCamMode("fp");
       r.setKeylight(keylightFor(isCoarsePointer(), location.search));
       const crowd = crowdUnits(Math.max(0, Math.min(1000, Number(q.get("crowd") ?? "0") || 0)));
       const t0 = Number(q.get("t") ?? "0") || 0;
@@ -39,11 +41,11 @@ export function DemoApp() {
           // Effect showcase: Cinder Burst telegraph (server MOB_CINDER_RADIUS = 5.2),
           // a selected hostile, HP bars, a level-up column and a shiny.
           const cyc = (t % 2.4) / 2.4;
-          r.setFx("mob:shard_wight", 0.7, cyc, 5.2, 8, 1, -1);
-          r.setFx("mob:seam_golem", 0.35, -1, 0, 1 | 8, 1, -1);
-          r.setFx("mob:ashbeam_boar", 1, -1, 0, 4 | 8, 1, -1);
-          r.setFx("mob:dust_hare", 0.9, -1, 0, 2 | 8, 1, -1);
-          r.setFx("npc:guide", -1, -1, 0, 0, 1, (t % 2.4) / 2.4);
+          r.setFx("mob:shard_wight", 0.7, cyc, 5.2, 8, 1, -1, 0);
+          r.setFx("mob:seam_golem", 0.35, -1, 0, 1 | 8, 1, -1, 0);
+          r.setFx("mob:ashbeam_boar", 1, -1, 0, 4 | 8, 1, -1, 0);
+          r.setFx("mob:dust_hare", 0.9, -1, 0, 2 | 8, 1, -1, 0);
+          r.setFx("npc:guide", -1, -1, 0, 0, 1, (t % 2.4) / 2.4, 0);
           // Floating numbers (#45): damage, crit, heal, miss, damage to self.
           const ft = Math.floor(t / 0.6), pt = Math.floor((t - dt) / 0.6);
           if (ft !== pt) {
@@ -51,7 +53,7 @@ export function DemoApp() {
             const who = ["mob:dust_hare", "mob:ashbeam_boar", "npc:guide", "mob:pale_slime", "mob:seam_golem"][k]!;
             r.addFloater(who, [0, 3, 2, 4, 1][k]!, [7, 42, 15, 0, 12][k]!);
           }
-          r.setFx("mob:pale_slime", -1, -1, 0, 8, Math.max(0, 1 - (t % 3) / 2.5), -1);
+          r.setFx("mob:pale_slime", -1, -1, 0, 8, Math.max(0, 1 - (t % 3) / 2.5), -1, 0);
         }
         r.tick(dt);
       };

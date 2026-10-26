@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  PH_HUB,
   PH_HUB_REAR_WALL,
   PH_HUB_SPAWN,
   paleHollowClampMove,
@@ -9,6 +10,10 @@ import {
 } from "@bellgrave/config";
 import { steerMobStep } from "./mob-steer";
 import { paleHollowFindPath } from "./nav-grid";
+
+/** Camp props are authored at the origin and shifted with the hub pad. */
+const OX = PH_HUB.minX + 14;
+const OZ = PH_HUB.minZ + 6;
 
 /** Visual HubRearRockWall block centers in PaleHollowMap (x, z). */
 const WALL_CENTERS: readonly (readonly [number, number])[] = [
@@ -34,28 +39,30 @@ function segmentClear(ax: number, az: number, bx: number, bz: number): boolean {
 
 test("rear rock wall blocks its mesh and leaves side gaps (#121)", () => {
   for (const [x, z] of WALL_CENTERS) {
-    assert.equal(paleHollowWalkable(x, z), false, `wall center ${x},${z} should block`);
-    assert.equal(paleHollowInHubRearWall(x, z), true);
+    const wx = x + OX;
+    const wz = z + OZ;
+    assert.equal(paleHollowWalkable(wx, wz), false, `wall center ${wx},${wz} should block`);
+    assert.equal(paleHollowInHubRearWall(wx, wz), true);
   }
   assert.equal(paleHollowWalkable(PH_HUB_SPAWN.x, PH_HUB_SPAWN.z), true, "camp spawn");
-  assert.equal(paleHollowWalkable(0, 14), true, "north of the cliff");
+  assert.equal(paleHollowWalkable(OX, 14 + OZ), true, "north of the cliff");
   // West and east of the cliff, still inside the hub pad.
-  assert.equal(paleHollowWalkable(-12, 8.5), true, "west gap");
-  assert.equal(paleHollowWalkable(12, 8.5), true, "east gap");
-  assert.equal(paleHollowWalkable(0, 6), true, "camp interior in front of the cliff");
+  assert.equal(paleHollowWalkable(-12 + OX, 8.5 + OZ), true, "west gap");
+  assert.equal(paleHollowWalkable(12 + OX, 8.5 + OZ), true, "east gap");
+  assert.equal(paleHollowWalkable(OX, 6 + OZ), true, "camp interior in front of the cliff");
 });
 
 test("a straight-line slide cannot cross the rear wall (#120)", () => {
-  const blocked = paleHollowClampMove(0, 2, 0, 20);
+  const blocked = paleHollowClampMove(OX, 2 + OZ, OX, 20 + OZ);
   assert.ok(paleHollowWalkable(blocked.x, blocked.z));
   assert.ok(blocked.z < PH_HUB_REAR_WALL.minZ + 0.05, `slid to z=${blocked.z}`);
   assert.ok(!paleHollowInHubRearWall(blocked.x, blocked.z));
 
-  let x = 0;
-  let z = 2;
+  let x = OX;
+  let z = 2 + OZ;
   for (let i = 0; i < 100; i++) {
-    const dx = 0 - x;
-    const dz = 20 - z;
+    const dx = OX - x;
+    const dz = 20 + OZ - z;
     const d = Math.hypot(dx, dz) || 1;
     const n = paleHollowClampMove(x, z, x + (dx / d) * 0.25, z + (dz / d) * 0.25);
     assert.ok(!paleHollowInHubRearWall(n.x, n.z));
@@ -68,17 +75,17 @@ test("a straight-line slide cannot cross the rear wall (#120)", () => {
 });
 
 test("click path goes around the rear wall (#120)", () => {
-  const path = paleHollowFindPath(0, 2, 0, 16);
+  const path = paleHollowFindPath(OX, 2 + OZ, OX, 16 + OZ);
   assert.ok(path.length >= 2, "expected a detour, not a single blocked slide");
   const end = path[path.length - 1]!;
-  assert.ok(Math.hypot(end.x - 0, end.z - 16) < 1.25, `ended at ${end.x},${end.z}`);
+  assert.ok(Math.hypot(end.x - OX, end.z - (16 + OZ)) < 1.25, `ended at ${end.x},${end.z}`);
   assert.ok(
     path.some((p) => p.x < PH_HUB_REAR_WALL.minX + 0.05 || p.x > PH_HUB_REAR_WALL.maxX - 0.05),
     "path should use a side gap",
   );
 
-  let x = 0;
-  let z = 2;
+  let x = OX;
+  let z = 2 + OZ;
   for (let i = 0; i < path.length; i++) {
     const g = path[i]!;
     assert.ok(segmentClear(x, z, g.x, g.z), `segment ${i} clips collision`);
@@ -98,25 +105,25 @@ test("click path goes around the rear wall (#120)", () => {
 
 test("unreachable click stops at the closest reachable cell (#120)", () => {
   // Inside the cliff. The pathfinder must not append this point or walk through.
-  const path = paleHollowFindPath(0, 2, 0, 9);
+  const path = paleHollowFindPath(OX, 2 + OZ, OX, 9 + OZ);
   assert.ok(path.length >= 1);
   const end = path[path.length - 1]!;
   assert.ok(paleHollowWalkable(end.x, end.z));
   assert.ok(!paleHollowInHubRearWall(end.x, end.z));
   assert.ok(end.z < PH_HUB_REAR_WALL.minZ, `went past the wall to z=${end.z}`);
-  const dist = Math.hypot(end.x - 0, end.z - 9);
+  const dist = Math.hypot(end.x - OX, end.z - (9 + OZ));
   assert.ok(dist < 2.6, `not the near face (dist ${dist})`);
   assert.ok(dist < Math.hypot(12, 0), "side gap is farther than the near face");
   for (const p of path) assert.ok(!paleHollowInHubRearWall(p.x, p.z));
 });
 
 test("the camp stays enterable around the cliff (#121)", () => {
-  const into = paleHollowFindPath(0, 16, PH_HUB_SPAWN.x, PH_HUB_SPAWN.z);
+  const into = paleHollowFindPath(OX, 16 + OZ, PH_HUB_SPAWN.x, PH_HUB_SPAWN.z);
   const end = into[into.length - 1];
   assert.ok(end, "no path back into camp");
   assert.ok(Math.hypot(end.x - PH_HUB_SPAWN.x, end.z - PH_HUB_SPAWN.z) < 1.25);
-  let x = 0;
-  let z = 16;
+  let x = OX;
+  let z = 16 + OZ;
   for (const g of into) {
     assert.ok(segmentClear(x, z, g.x, g.z));
     x = g.x;
@@ -125,10 +132,10 @@ test("the camp stays enterable around the cliff (#121)", () => {
 });
 
 test("mob chase steps do not tunnel the rear wall (#120)", () => {
-  let x = 0;
-  let z = 5;
+  let x = OX;
+  let z = 5 + OZ;
   for (let i = 0; i < 250; i++) {
-    const s = steerMobStep(x, z, 0, 18, 0.2);
+    const s = steerMobStep(x, z, OX, 18 + OZ, 0.2);
     if (s.moved) {
       assert.ok(paleHollowWalkable(s.x, s.z), `mob entered ${s.x},${s.z}`);
       assert.ok(!paleHollowInHubRearWall(s.x, s.z));
@@ -136,6 +143,6 @@ test("mob chase steps do not tunnel the rear wall (#120)", () => {
       z = s.z;
     }
   }
-  const tunneled = z > PH_HUB_REAR_WALL.maxZ && Math.abs(x) <= PH_HUB_REAR_WALL.maxX;
+  const tunneled = z > PH_HUB_REAR_WALL.maxZ && x >= PH_HUB_REAR_WALL.minX && x <= PH_HUB_REAR_WALL.maxX;
   assert.equal(tunneled, false, `mob crossed the cliff center to ${x},${z}`);
 });

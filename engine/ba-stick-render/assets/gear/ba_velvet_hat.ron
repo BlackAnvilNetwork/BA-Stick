@@ -1,0 +1,12 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Velvet hat. Same pointed stack as ba_cloth_hat; velvet plate.
+(
+    id: "ba_velvet_hat",
+    slot: Head,
+    attach: Some("head"),
+    material: Some("dust"),
+    shapes: [],
+)

@@ -1,0 +1,17 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Pine. Three overlapping cones on a short trunk. Radii are fractions of height.
+(
+    id: "ba_pine",
+    trunk_y: 0.42,
+    trunk_r: 0.072,
+    droop: 0.55,
+    lump: 0.34,
+    tiers: [
+        (y0: 0.34, y1: 0.68, r: 0.42),
+        (y0: 0.50, y1: 0.88, r: 0.30),
+        (y0: 0.68, y1: 1.02, r: 0.16),
+    ],
+)

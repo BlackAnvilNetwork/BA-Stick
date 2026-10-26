@@ -1,0 +1,15 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Flat leather blank on the off hand — struck during leathercraft channels.
+(
+    id: "ba_leather_workpiece",
+    slot: OffHand,
+    attach: Some("l_hand"),
+    stance: Some("1h"),
+    material: Some("leather"),
+    shapes: [
+        Disc(at: None, center: (0.0, 0.14, 0.03), r: 0.12, ramp: Material),
+        Capsule(from: (-0.12, 0.14, 0.0), to: (0.12, 0.14, 0.0), ramp: Trim, thick: 1.1),
+        Capsule(from: (0.0, 0.02, 0.0), to: (0.0, 0.26, 0.0), ramp: Accent, thick: 0.9),
+    ],
+)

@@ -1,22 +1,32 @@
-/**
- * Pale Hollow — open basin with northbound segment bands.
+﻿/**
+ * Pale Hollow â€” open basin with northbound segment bands.
  * Wider playable field (Reisenjima-style room to roam); soft mountains on the fringe.
  * Server + client share `paleHollowHeight`.
  */
 
+import { nearTrailCorridor } from "./trail-geom";
+
+/**
+ * The basin is a region, not a valley you can see in one glance.
+ * East is a spur (the camp). North-center is the Ash Pit. The river
+ * runs the length of the land and forks in the south.
+ */
 export const PALE_HOLLOW_BOUNDS = {
-  minX: -88,
-  maxX: 88,
-  minZ: -24,
-  maxZ: 268,
+  minX: -220,
+  maxX: 260,
+  minZ: -70,
+  maxZ: 500,
 } as const;
 
-/** Scout encampment pad — flat packed ground (south-central). Playable bounds unchanged. */
+/** Scout encampment, on the eastern spur. Local camp props are authored near the origin. */
+export const PH_CAMP_SHIFT_X = 168;
+export const PH_CAMP_SHIFT_Z = 188;
+
 export const PH_HUB = {
-  minX: -14,
-  maxX: 14,
-  minZ: -6,
-  maxZ: 10,
+  minX: -14 + PH_CAMP_SHIFT_X,
+  maxX: 14 + PH_CAMP_SHIFT_X,
+  minZ: -6 + PH_CAMP_SHIFT_Z,
+  maxZ: 10 + PH_CAMP_SHIFT_Z,
   floorY: 3.0,
 } as const;
 
@@ -33,10 +43,10 @@ export const PH_HUB = {
  * North of the cliff (outdoor spawn at z 14) connects through those side gaps.
  */
 export const PH_HUB_REAR_WALL = {
-  minX: -9.4,
-  maxX: 9.4,
-  minZ: 7.15,
-  maxZ: 10.85,
+  minX: -9.4 + PH_CAMP_SHIFT_X,
+  maxX: 9.4 + PH_CAMP_SHIFT_X,
+  minZ: 7.15 + PH_CAMP_SHIFT_Z,
+  maxZ: 10.85 + PH_CAMP_SHIFT_Z,
 } as const;
 
 export function paleHollowInHubRearWall(x: number, z: number): boolean {
@@ -49,7 +59,7 @@ export function paleHollowInHubRearWall(x: number, z: number): boolean {
 }
 
 /**
- * Shared hub apron beyond `PH_HUB` — single source for height ramp, tree/prop
+ * Shared hub apron beyond `PH_HUB` â€” single source for height ramp, tree/prop
  * clearings, and placement. Rect SDF (not a circle) so diagonals don't seam.
  */
 export const PH_HUB_APRON = {
@@ -85,78 +95,84 @@ export function paleHollowInHubApron(x: number, z: number): boolean {
 }
 
 /**
- * Party storage chest (hub) — interact stub only; full storage inventory later.
+ * Party storage chest (hub) â€” interact stub only; full storage inventory later.
  * Visual prop lives in PaleHollowMap HubEncampment.
  */
 export const PH_STORAGE_CHEST = {
   id: "npc-ph-storage",
   name: "Storage Chest",
-  x: 3.2,
-  z: -1.5,
+  x: 3.2 + PH_CAMP_SHIFT_X,
+  z: -1.5 + PH_CAMP_SHIFT_Z,
 } as const;
 
-/** Soft level bands — content focus, not hard walls. */
-export const PH_SEGMENT_A = { minX: -70, maxX: 70, minZ: 10, maxZ: 58 } as const;
-export const PH_SEGMENT_B = { minX: -74, maxX: 74, minZ: 52, maxZ: 118 } as const;
-export const PH_SEGMENT_C = { minX: -78, maxX: 78, minZ: 112, maxZ: 182 } as const;
-export const PH_SEGMENT_D = { minX: -82, maxX: 82, minZ: 176, maxZ: 255 } as const;
+/** Soft level bands â€” content focus, not hard walls. Stretched with the basin. */
+export const PH_SEGMENT_A = { minX: -180, maxX: 220, minZ: 0, maxZ: 140 } as const;
+export const PH_SEGMENT_B = { minX: -190, maxX: 230, minZ: 130, maxZ: 250 } as const;
+export const PH_SEGMENT_C = { minX: -200, maxX: 240, minZ: 240, maxZ: 360 } as const;
+export const PH_SEGMENT_D = { minX: -210, maxX: 250, minZ: 350, maxZ: 490 } as const;
 
-/** Soft gates — wider crossings, recommend level, still crossable. */
+/** Soft gates â€” wider crossings, recommend level, still crossable. */
 export const PH_TIMBER_BRIDGE = {
-  minX: -8,
-  maxX: 8,
-  minZ: 48,
-  maxZ: 58,
+  minX: -24,
+  maxX: 20,
+  minZ: 218,
+  maxZ: 244,
   softLevel: 5,
   blocked: false,
 } as const;
 
 export const PH_QUARRY_CUT = {
-  minX: -10,
-  maxX: 10,
+  minX: 24,
+  maxX: 72,
   minZ: 108,
-  maxZ: 120,
+  maxZ: 134,
   softLevel: 10,
   blocked: false,
 } as const;
 
 export const PH_SEAM_TUNNEL = {
-  minX: -8,
-  maxX: 8,
-  minZ: 170,
-  maxZ: 182,
+  minX: -28,
+  maxX: 16,
+  minZ: 400,
+  maxZ: 424,
   softLevel: 15,
   blocked: false,
 } as const;
 
+/** North lip of the hollow. Walking onto it enters Hollow Road. */
 export const PH_ASH_ROAD = {
-  minX: -10,
-  maxX: 10,
-  minZ: 252,
-  maxZ: 268,
+  id: "ash-road",
+  minX: -14,
+  maxX: 14,
+  minZ: 468,
+  maxZ: 500,
   softLevel: 18,
-  blocked: true,
+  blocked: false,
 } as const;
 
-/** River channel / bank-wall metrics — shared by water ribbon, walls, bridges, walkability. */
+/** River channel / bank-wall metrics â€” shared by water ribbon, walls, bridges, walkability. */
 export const PH_RIVER_MAIN = {
-  bankDist: 4.55,
-  /** Reaches the inner wall face so the ribbon fills the channel, not a center thread. */
-  waterHalf: 4.48,
-  bridgeHalfSpan: 5.8,
-  z0: 14,
-  z1: 238,
+  bankDist: 5.2,
+  /** A thread through the basin. The lake is the wide water. */
+  waterHalf: 5.0,
+  bridgeHalfSpan: 6.4,
+  z0: 40,
+  z1: 308,
 } as const;
 
+/** Southeast fork. Splits off the main stem in the lower basin. */
 export const PH_RIVER_TRIB = {
-  bankDist: 2.85,
-  waterHalf: 2.78,
-  bridgeHalfSpan: 4.0,
-  z0: 42,
-  z1: 152,
+  bankDist: 4.2,
+  waterHalf: 4.0,
+  bridgeHalfSpan: 5.2,
+  z0: 40,
+  z1: 200,
 } as const;
 
-/** Modular bank-wall body — keep in sync with PaleHollowRiverBanks visuals. */
+/** The Ash Pit. North-center of the basin; the river leaves its south shore. */
+export const PH_LAKE = { x: -10, z: 360, r: 52 } as const;
+
+/** Modular bank-wall body â€” keep in sync with PaleHollowRiverBanks visuals. */
 export const PH_RIVER_WALL = {
   thick: 0.48,
   h: 1.05,
@@ -184,11 +200,11 @@ export const PH_BRIDGE_DECK_CLEARANCE = 1.05;
 /** Extra centerline height above wall coping where the span crosses a bank wall. */
 export const PH_BRIDGE_WALL_CLEAR = 0.65;
 
-/** Half thickness of the visual deck slab (underside = curve − this). */
+/** Half thickness of the visual deck slab (underside = curve âˆ’ this). */
 export const PH_BRIDGE_DECK_HALF_T = 0.11;
 
 /**
- * Mid-span deck Y — at least water + clearance. Ends use bank stand heights.
+ * Mid-span deck Y â€” at least water + clearance. Ends use bank stand heights.
  */
 export function paleHollowComputeBridgeDeckY(bankStandAvg: number, waterY: number): number {
   return Math.max(bankStandAvg, waterY + PH_BRIDGE_DECK_CLEARANCE);
@@ -232,29 +248,19 @@ export type PaleHollowRiverKind = "main" | "tributary";
 export type PaleHollowBridgeSite = {
   id: string;
   river: PaleHollowRiverKind;
-  /** Channel sample Z — bank→bank span is built here. */
+  /** Channel sample Z â€” bankâ†’bank span is built here. */
   z: number;
 };
 
 /**
- * Stone masonry crossings at natural outbound routes from the hub encampment
- * and along the north corridor — few good spans, not mid-channel clutter.
+ * Spans only where the road changes banks. Clay Bank stays on the spring's
+ * west side, and the marches road stays on the quarry's east rim.
  */
 export const PH_BRIDGE_SITES: readonly PaleHollowBridgeSite[] = [
-  // West farm / clay exit — chalk run west of the pad (outbound NW)
-  { id: "hub-west-farm", river: "main", z: 22 },
-  // North corridor — primary outbound across the chalk run into Hollow Steps
-  { id: "hub-north", river: "main", z: 34 },
-  // Ashbeam Reach — north corridor where the chalk run crosses center again
-  { id: "ashbeam-corridor", river: "main", z: 81 },
-  // Chalkworks approach — corridor crossing mid-basin
-  { id: "chalkworks-corridor", river: "main", z: 150 },
-  // Pale Marches — north corridor toward Ash Road
-  { id: "marches-corridor", river: "main", z: 195 },
-  // Hub-side east tributary — outbound toward east ashbeam / meadows
-  { id: "hub-east-trib", river: "tributary", z: 72 },
-  // East ashbeam tributary crossing
-  { id: "ashbeam-east-trib", river: "tributary", z: 110 },
+  // The neck road from the eastern spur crosses the main stem here.
+  { id: "hub-north", river: "main", z: 230 },
+  // Across the southeast fork, where the fork runs mostly north-south.
+  { id: "chalkworks-corridor", river: "tributary", z: 120 },
 ] as const;
 
 export function paleHollowBridgeCrossings(river: PaleHollowRiverKind): number[] {
@@ -282,7 +288,7 @@ export type PaleHollowBiome =
 export type PaleHollowSegmentId = "hub" | "a" | "b" | "c" | "d";
 
 export function paleHollowSegment(x: number, z: number): PaleHollowSegmentId {
-  if (z <= PH_HUB.maxZ && x >= PH_HUB.minX && x <= PH_HUB.maxX) return "hub";
+  if (x >= PH_HUB.minX && x <= PH_HUB.maxX && z >= PH_HUB.minZ && z <= PH_HUB.maxZ) return "hub";
   if (z < 55) return "a";
   if (z < 115) return "b";
   if (z < 178) return "c";
@@ -303,31 +309,74 @@ function smooth01(t: number): number {
 }
 
 /** Mountain / ridge peaks for open-world silhouette (ring around the basin). */
+/** Highland rim, plus a few interior ridges so the basin has depth. Kept off the lake, the river, and the camp spur. */
 export const PH_MOUNTAINS: { x: number; z: number; r: number; h: number }[] = [
-  { x: -62, z: 30, r: 18, h: 7.5 },
-  { x: 58, z: 42, r: 16, h: 6.8 },
-  { x: -78, z: 70, r: 15, h: 6.2 },
-  { x: 74, z: 65, r: 14, h: 5.8 },
-  { x: -70, z: 95, r: 20, h: 8.2 },
-  { x: 68, z: 88, r: 18, h: 7.0 },
-  { x: -75, z: 130, r: 16, h: 7.4 },
-  { x: 72, z: 125, r: 15, h: 6.9 },
-  { x: -55, z: 155, r: 22, h: 9.0 },
-  { x: 60, z: 160, r: 20, h: 8.5 },
-  { x: -48, z: 220, r: 18, h: 7.2 },
-  { x: 52, z: 230, r: 16, h: 6.5 },
-  { x: 0, z: -14, r: 22, h: 5.5 },
-  { x: -40, z: 250, r: 14, h: 6.0 },
-  { x: 38, z: 255, r: 14, h: 5.8 },
+  { x: -150, z: 0, r: 40, h: 9.5 },
+  { x: -40, z: -30, r: 36, h: 8 },
+  { x: 90, z: -20, r: 38, h: 8.5 },
+  { x: 200, z: 10, r: 34, h: 7.5 },
+  { x: -200, z: 90, r: 42, h: 11 },
+  { x: -205, z: 200, r: 40, h: 10 },
+  { x: -190, z: 310, r: 38, h: 10 },
+  { x: -160, z: 420, r: 36, h: 9 },
+  { x: 240, z: 70, r: 36, h: 8.5 },
+  { x: 245, z: 300, r: 40, h: 9.5 },
+  { x: 220, z: 430, r: 36, h: 8.5 },
+  { x: -90, z: 480, r: 38, h: 9 },
+  { x: 30, z: 490, r: 32, h: 7.5 },
+  { x: 150, z: 460, r: 34, h: 8 },
+  { x: -130, z: 150, r: 30, h: 7 },
+  { x: -110, z: 270, r: 28, h: 6.5 },
+  { x: 70, z: 250, r: 26, h: 6 },
+  { x: 100, z: 130, r: 24, h: 5.5 },
 ];
 
-function riverCenterX(z: number): number {
-  return -22 + Math.sin((z - 20) * 0.11) * 28 + Math.sin((z - 40) * 0.05) * 12;
+/**
+ * The river leaves the Ash Pit and runs south. This stem is the southwest
+ * branch. The southeast branch is the tributary. z increases along the list.
+ */
+const CHALK_RUN: readonly (readonly [number, number])[] = [
+  [40, -90],
+  [90, -60],
+  [150, -30],
+  [210, -8],
+  [260, 8],
+  [308, -10],
+];
+
+const CHALK_FORK: readonly (readonly [number, number])[] = [
+  [40, 75],
+  [90, 52],
+  [150, 44],
+  [185, 8],
+  [200, -12],
+];
+
+function sampleRun(pts: readonly (readonly [number, number])[], z: number): number {
+  const first = pts[0]!;
+  if (z <= first[0]) return first[1];
+  const last = pts[pts.length - 1]!;
+  if (z >= last[0]) return last[1];
+  let i = 1;
+  while (pts[i]![0] < z) i++;
+  const a = pts[i - 1]!;
+  const b = pts[i]!;
+  const t = (z - a[0]) / (b[0] - a[0]);
+  const s = t * t * (3 - 2 * t);
+  return a[1] + (b[1] - a[1]) * s;
 }
 
-/** East tributary — thinner stream that joins the chalk run mid-basin. */
+function riverCenterX(z: number): number {
+  return sampleRun(CHALK_RUN, z);
+}
+
+/** Southeast fork of the chalk run. */
 function tributaryCenterX(z: number): number {
-  return 34 + Math.sin((z - 60) * 0.09) * 10;
+  return sampleRun(CHALK_FORK, z);
+}
+
+export function paleHollowLakeDist(x: number, z: number): number {
+  return Math.hypot(x - PH_LAKE.x, z - PH_LAKE.z);
 }
 
 /** Shared with client water ribbon / shore foam. */
@@ -339,7 +388,7 @@ export function paleHollowTributaryCenterX(z: number): number {
   return tributaryCenterX(z);
 }
 
-/** Soft-gate / terrain biomes — excludes river stone-bridge footprints. */
+/** Soft-gate / terrain biomes â€” excludes river stone-bridge footprints. */
 function paleHollowBiomeCore(x: number, z: number): PaleHollowBiome {
   if (x >= PH_HUB.minX && x <= PH_HUB.maxX && z >= PH_HUB.minZ && z <= PH_HUB.maxZ) {
     return "hub_indoor";
@@ -349,56 +398,40 @@ function paleHollowBiomeCore(x: number, z: number): PaleHollowBiome {
   }
   if (inRect(x, z, PH_ASH_ROAD)) return "ash_road";
 
+  {
+    const lake = paleHollowLakeDist(x, z);
+    if (lake < PH_LAKE.r) return "river";
+    if (lake < PH_LAKE.r + 5) return "riverbank";
+  }
+
   for (const m of PH_MOUNTAINS) {
     if (Math.hypot(x - m.x, z - m.z) < m.r * 0.55) return "mountain";
   }
 
-  // Main chalk run — wide meander with soft banks
+  // Southwest stem.
   {
     const dx = Math.abs(x - riverCenterX(z));
-    if (z > 12 && z < 242 && dx < 6.8) return "river";
-    if (z > 12 && z < 242 && dx < 14.5) return "riverbank";
+    if (z > PH_RIVER_MAIN.z0 - 2 && z < PH_RIVER_MAIN.z1 + 2 && dx < 7.2) return "river";
+    if (z > PH_RIVER_MAIN.z0 - 2 && z < PH_RIVER_MAIN.z1 + 2 && dx < 16) return "riverbank";
   }
-  // East tributary
+  // Southeast fork.
   {
     const dx = Math.abs(x - tributaryCenterX(z));
-    if (z > 55 && z < 150 && dx < 4.2) return "river";
-    if (z > 55 && z < 150 && dx < 9.5) return "riverbank";
+    if (z > PH_RIVER_TRIB.z0 - 2 && z < PH_RIVER_TRIB.z1 + 2 && dx < 5.6) return "river";
+    if (z > PH_RIVER_TRIB.z0 - 2 && z < PH_RIVER_TRIB.z1 + 2 && dx < 12) return "riverbank";
   }
 
-  // Segment A — wide farm terraces + meadow flanks (room to roam east/west)
-  if (z > 10 && z < 50) {
-    if (Math.abs(x) < 32) return "farm";
-    if (Math.abs(x) < 58) return "meadow";
-    return "grass";
-  }
-
-  // Segment B — scattered ashbeam groves in open grassland
-  if (z >= 50 && z < 112) {
-    const groveA = Math.hypot(x + 6, z - 82);
-    const groveB = Math.hypot(x - 38, z - 70);
-    const groveC = Math.hypot(x + 42, z - 98);
-    if (groveA < 28 || groveB < 18 || groveC < 16) return "ashbeam";
-    if (Math.abs(x) > 62) return "scrub";
-    return "grass";
-  }
-
-  // Segment C — quarry bowl is a landmark; meadows fill the rest
-  if (z >= 112 && z < 178) {
-    const qd = Math.hypot(x, z - 145);
-    if (qd < 26) return "quarry";
-    if (Math.abs(x) > 60) return "vine_cliff";
-    if (qd < 38) return "scrub";
-    if (Math.hypot(x - 36, z - 130) < 14) return "ashbeam";
-    return "grass";
-  }
-
-  // Segment D — ore pockets in scrub/grass marches
-  if (Math.hypot(x + 18, z - 210) < 14) return "crypt";
-  if (z > 240) return "ash_road";
-  if (Math.abs(x) < 38 && z > 185) return "ore_seam";
-  if (Math.abs(x) < 55) return "grass";
-  return "scrub";
+  // Large regions, so the land reads as country between the water and the camp.
+  if (Math.hypot(x - 40, z - 90) < 48) return "quarry";
+  if (Math.hypot(x + 120, z - 200) < 55 || Math.hypot(x - 40, z - 170) < 36) return "ashbeam";
+  if (Math.hypot(x - 120, z - 280) < 40) return "ashbeam";
+  if (z < 110 && x > -140 && x < 40) return "farm";
+  if (z < 130 && x > 40 && x < 140) return "meadow";
+  if (Math.hypot(x + 20, z - 430) < 22) return "crypt";
+  if (Math.hypot(x - 20, z - 410) < 28) return "ore_seam";
+  if (z > 400 && Math.abs(x) < 40) return "scrub";
+  if (Math.abs(x) > 170 || z > 440 || z < 20) return "scrub";
+  return "grass";
 }
 
 export function paleHollowBiome(x: number, z: number): PaleHollowBiome {
@@ -421,11 +454,11 @@ type BridgeFrame = {
   leftY: number;
   rightY: number;
   waterY: number;
-  /** Extra mid-span height above the left→right lerp. */
+  /** Extra mid-span height above the leftâ†’right lerp. */
   arch: number;
   /** Ramp fraction of the span at each end (trapezoid profile). */
   ramp: number;
-  /** Mid curve sample — not the stand height along the span. */
+  /** Mid curve sample â€” not the stand height along the span. */
   deckY: number;
 };
 
@@ -437,7 +470,7 @@ function riverCenterFn(river: PaleHollowRiverKind): (z: number) => number {
   return river === "main" ? riverCenterX : tributaryCenterX;
 }
 
-/** Bank midline sample — same geometry as PaleHollowRiverBanks.bankPoint. */
+/** Bank midline sample â€” same geometry as PaleHollowRiverBanks.bankPoint. */
 export function paleHollowBankPoint(
   river: PaleHollowRiverKind,
   z: number,
@@ -459,7 +492,7 @@ export function paleHollowBankPoint(
   };
 }
 
-/** Shared bridge layout — visuals and walk/stand must agree. */
+/** Shared bridge layout â€” visuals and walk/stand must agree. */
 export type PaleHollowBridgeGeom = {
   id: string;
   river: PaleHollowRiverKind;
@@ -469,7 +502,7 @@ export type PaleHollowBridgeGeom = {
   span: number;
   spanHalf: number;
   deckHalfW: number;
-  /** Mid-span curve height (arch / legacy). Stand height varies — see `paleHollowBridgeCurveY`. */
+  /** Mid-span curve height (arch / legacy). Stand height varies â€” see `paleHollowBridgeCurveY`. */
   deckY: number;
   /** Left grass stand height (t=0). */
   leftY: number;
@@ -554,7 +587,7 @@ function bridgeArchLift(
 }
 
 /**
- * Authoritative bridge geometry for a site (deck Y, footprint, bank→bank axes).
+ * Authoritative bridge geometry for a site (deck Y, footprint, bankâ†’bank axes).
  * RiverBanks meshes and walk frames both derive from this.
  */
 export function paleHollowBridgeGeom(site: PaleHollowBridgeSite): PaleHollowBridgeGeom {
@@ -576,7 +609,7 @@ export function paleHollowBridgeGeom(site: PaleHollowBridgeSite): PaleHollowBrid
   let landL = findBankLanding(site.river, site.z, -1, -sx, -sz);
   let landR = findBankLanding(site.river, site.z, 1, sx, sz);
 
-  // Ends ARE the landings — never overshoot past dry grass into wall/channel
+  // Ends ARE the landings â€” never overshoot past dry grass into wall/channel
   let lsx = landR.x - landL.x;
   let lsz = landR.z - landL.z;
   let span = Math.hypot(lsx, lsz) || bankSep;
@@ -851,99 +884,95 @@ function stoneApproach(id: string, end: "L" | "R", g: PaleHollowBridgeGeom): Pal
  * then onward along the north and east corridors. Stone stubs meet the decks.
  */
 export function paleHollowTrails(): PaleHollowTrail[] {
-  const west = trailBridge("hub-west-farm");
   const north = trailBridge("hub-north");
-  const ash = trailBridge("ashbeam-corridor");
   const chalk = trailBridge("chalkworks-corridor");
-  const marches = trailBridge("marches-corridor");
-  const east = trailBridge("hub-east-trib");
-  const eastAsh = trailBridge("ashbeam-east-trib");
 
   const near = (g: PaleHollowBridgeGeom, end: "L" | "R") =>
     trailApproach(end === "L" ? g.postL : g.postR, { x: g.x, z: g.zWorld });
 
+  // postL is the +x bank; postR is the -x bank.
   const raw: PaleHollowTrail[] = [
     {
       id: "camp-to-north",
       surface: "dirt",
       points: [
-        { x: 0, z: 8 },
-        { x: 3, z: 16 },
-        { x: 8, z: 24 },
+        { x: PH_HUB.maxX - 2, z: 2 + PH_CAMP_SHIFT_Z },
+        { x: 110, z: 200 },
+        { x: 50, z: 220 },
         near(north, "L"),
+      ],
+    },
+    {
+      id: "north-to-ashbeam",
+      surface: "dirt",
+      points: [
+        near(north, "R"),
+        { x: -40, z: 270 },
+        { x: -55, z: 320 },
       ],
     },
     {
       id: "camp-to-west-farm",
       surface: "dirt",
       points: [
-        { x: -4, z: 8 },
-        { x: -14, z: 11 },
-        { x: -20, z: 13 },
-        near(west, "L"),
+        near(north, "R"),
+        { x: -55, z: 170 },
+        { x: -95, z: 100 },
+        { x: -125, z: 55 },
       ],
-    },
-    {
-      id: "west-farm-onward",
-      surface: "dirt",
-      points: [near(west, "R"), { x: -34, z: 38 }, { x: -46, z: 44 }],
-    },
-    {
-      id: "north-to-ashbeam",
-      surface: "dirt",
-      points: [near(north, "R"), { x: -16, z: 58 }, { x: -18, z: 78 }, near(ash, "R")],
     },
     {
       id: "ashbeam-to-chalkworks",
       surface: "dirt",
-      points: [near(ash, "L"), { x: 16, z: 108 }, { x: 18, z: 132 }, near(chalk, "L")],
+      points: [
+        { x: 70, z: 180 },
+        { x: 55, z: 150 },
+        near(chalk, "R"),
+      ],
+    },
+    {
+      id: "east-grove",
+      surface: "dirt",
+      points: [
+        near(chalk, "L"),
+        { x: 90, z: 100 },
+        { x: 130, z: 80 },
+      ],
     },
     {
       id: "chalkworks-to-marches",
-      surface: "dirt",
-      points: [near(chalk, "R"), { x: -24, z: 168 }, { x: -20, z: 188 }, near(marches, "R")],
+      surface: "stone",
+      points: [
+        { x: -55, z: 320 },
+        { x: -58, z: 335 },
+        { x: -52, z: 358 },
+        { x: -30, z: 390 },
+        { x: -8, z: 410 },
+      ],
     },
     {
       id: "marches-to-ash-road",
       surface: "dirt",
-      points: [near(marches, "L"), { x: 14, z: 214 }, { x: 10, z: 232 }, { x: 6, z: 246 }],
-    },
-    {
-      id: "camp-to-east-trib",
-      surface: "dirt",
       points: [
-        { x: 10, z: 6 },
-        { x: 20, z: 24 },
-        { x: 24, z: 44 },
-        near(east, "R"),
+        { x: -8, z: 424 },
+        { x: 0, z: 450 },
+        { x: 0, z: 468 },
+        { x: 0, z: 492 },
       ],
-    },
-    {
-      id: "east-trib-to-ashbeam",
-      surface: "dirt",
-      points: [near(east, "L"), { x: 46, z: 90 }, near(eastAsh, "L")],
-    },
-    {
-      id: "east-ashbeam-grove",
-      surface: "dirt",
-      points: [near(eastAsh, "R"), { x: 10, z: 116 }],
     },
     stoneApproach("hub-north", "L", north),
     stoneApproach("hub-north", "R", north),
-    stoneApproach("hub-west-farm", "L", west),
-    stoneApproach("hub-west-farm", "R", west),
-    stoneApproach("ashbeam-corridor", "L", ash),
-    stoneApproach("ashbeam-corridor", "R", ash),
     stoneApproach("chalkworks-corridor", "L", chalk),
     stoneApproach("chalkworks-corridor", "R", chalk),
-    stoneApproach("marches-corridor", "L", marches),
-    stoneApproach("marches-corridor", "R", marches),
-    stoneApproach("hub-east-trib", "L", east),
-    stoneApproach("hub-east-trib", "R", east),
-    stoneApproach("ashbeam-east-trib", "L", eastAsh),
-    stoneApproach("ashbeam-east-trib", "R", eastAsh),
   ];
-  return raw.map((t) => (t.surface === "dirt" ? { ...t, points: dryTrail(t.points) } : t));
+  return raw.map((t) => (t.bridgeId ? t : { ...t, points: dryTrail(t.points) }));
+}
+
+/** Packed-dirt / stone travel corridors (matches BAZ1 trail stamping). */
+export function paleHollowOnTrail(x: number, z: number): boolean {
+  return nearTrailCorridor(x, z, paleHollowTrails(), PH_TRAIL_WIDTH, (t) =>
+    t.surface === "stone" ? PH_TRAIL_STONE_WIDTH : PH_TRAIL_WIDTH,
+  );
 }
 
 function buildBridgeFrame(site: PaleHollowBridgeSite): BridgeFrame {
@@ -993,7 +1022,7 @@ function bridgeLocal(f: BridgeFrame, x: number, z: number): { along: number; acr
   };
 }
 
-/** True when standing on a stone bridge deck (bank→bank footprint). */
+/** True when standing on a stone bridge deck (bankâ†’bank footprint). */
 export function paleHollowOnBridge(x: number, z: number): boolean {
   for (const f of bridgeFrames()) {
     const { along, across } = bridgeLocal(f, x, z);
@@ -1010,13 +1039,31 @@ export function paleHollowInBridgeWaterGap(
   x: number,
   z: number,
   river?: PaleHollowRiverKind,
+  pad?: { along: number; across: number },
 ): boolean {
-  const padAlong = 0.5;
-  const padAcross = 0.6;
+  const padAlong = pad?.along ?? 0.5;
+  const padAcross = pad?.across ?? 0.6;
   for (const f of bridgeFrames()) {
     if (river && f.river !== river) continue;
     const { along, across } = bridgeLocal(f, x, z);
     if (Math.abs(along) <= f.spanHalf + padAlong && Math.abs(across) <= f.deckHalfW + padAcross) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Zone bake: walk deck + ramp abutments only — keep open water under the arch.
+ * (Full-span masks turned the channel to stone and hid water under the bridge.)
+ */
+export function paleHollowBakedOnBridge(x: number, z: number): boolean {
+  if (paleHollowOnBridge(x, z)) return true;
+  for (const f of bridgeFrames()) {
+    const { along, across } = bridgeLocal(f, x, z);
+    const alongPad = 0.55;
+    if (Math.abs(along) < f.spanHalf - alongPad) continue;
+    if (Math.abs(along) <= f.spanHalf + 0.2 && Math.abs(across) <= f.deckHalfW + 1.25) {
       return true;
     }
   }
@@ -1047,7 +1094,7 @@ export function paleHollowInBridgeWallVisualGap(
   return false;
 }
 
-/** Deck world Y if on a bridge, else null. Varies along the span (bank → arch → bank). */
+/** Deck world Y if on a bridge, else null. Varies along the span (bank â†’ arch â†’ bank). */
 export function paleHollowBridgeDeckY(x: number, z: number): number | null {
   for (const f of bridgeFrames()) {
     const { along, across } = bridgeLocal(f, x, z);
@@ -1168,7 +1215,7 @@ export function paleHollowClampMove(
 }
 
 /**
- * Open height field — continuous soft hills; no hard canyon clamps.
+ * Open height field â€” continuous soft hills; no hard canyon clamps.
  * (Hard Math.min river floors caused the canal cliffs in-game.)
  * Does not apply stone-bridge deck elevation (see `paleHollowHeight`).
  */
@@ -1182,16 +1229,17 @@ function paleHollowHeightField(x: number, z: number): number {
   const leaveHub = Math.max(fromHubZ, fromHubPad);
   let y = PH_HUB.floorY * (1 - leaveHub) + 1.05 * leaveHub;
 
-  // Multi-octave rolling basin — readable hills without stair walls
+  // Multi-octave rolling basin â€” readable hills without stair walls
   y += Math.sin(x * 0.026) * 0.62 + Math.cos(z * 0.021) * 0.48;
   y += Math.sin(x * 0.062 + z * 0.048) * 0.28;
   y += Math.sin(x * 0.14 - z * 0.11) * 0.1;
   y += Math.sin(x * 0.31 + z * 0.27) * 0.035;
 
   // Channel distances before hills, so a lobe cannot lift the bed the water sits on.
-  // `|x - centerX(z)|` misses the north meander (flow runs east-west around z 224–236).
+  // `|x - centerX(z)|` misses the north meander (flow runs east-west around z 224â€“236).
   const mainNear = nearestOnCenterline(riverCenterX, PH_RIVER_MAIN.z0, PH_RIVER_MAIN.z1, x, z);
   const tribNear = nearestOnCenterline(tributaryCenterX, PH_RIVER_TRIB.z0, PH_RIVER_TRIB.z1, x, z);
+  const lakeDist = paleHollowLakeDist(x, z);
   const mountainKeep = (dist: number, bankDist: number) => {
     const inner = bankDist + 0.6;
     const outer = inner + 8;
@@ -1202,8 +1250,9 @@ function paleHollowHeightField(x: number, z: number): number {
   let mountainScale = 1;
   if (mainNear) mountainScale = Math.min(mountainScale, mountainKeep(mainNear.dist, PH_RIVER_MAIN.bankDist));
   if (tribNear) mountainScale = Math.min(mountainScale, mountainKeep(tribNear.dist, PH_RIVER_TRIB.bankDist));
+  if (lakeDist < PH_LAKE.r + 8) mountainScale = Math.min(mountainScale, mountainKeep(lakeDist, PH_LAKE.r));
 
-  // Soft mountain lobes — faded inside the channel so water does not ride the hillside.
+  // Soft mountain lobes â€” faded inside the channel so water does not ride the hillside.
   if (mountainScale > 0) {
     for (const m of PH_MOUNTAINS) {
       const d = Math.hypot(x - m.x, z - m.z);
@@ -1234,6 +1283,7 @@ function paleHollowHeightField(x: number, z: number): number {
     const s = smooth01(1 - rd / lip);
     return s * s * depth;
   };
+  if (lakeDist < PH_LAKE.r) y -= channelTrough(lakeDist, PH_LAKE.r, 1.6);
   if (mainNear) {
     y -= channelTrough(mainNear.dist, PH_RIVER_MAIN.bankDist, 1.35);
     const bank = 1 - Math.min(1, mainNear.dist / 14);
@@ -1245,7 +1295,7 @@ function paleHollowHeightField(x: number, z: number): number {
     y -= smooth01(bank) * 0.08;
   }
 
-  // Micro-detail — continuous weights only (hard biome branches made thin border creases)
+  // Micro-detail â€” continuous weights only (hard biome branches made thin border creases)
   {
     const tw = paleHollowTerrainWeights(x, z);
     y +=
@@ -1272,7 +1322,7 @@ function paleHollowHeightField(x: number, z: number): number {
     y = Math.max(y, 0.85);
   }
 
-  // Copper outcrop — soft bump
+  // Copper outcrop â€” soft bump
   {
     const d = Math.hypot(x - 18, z - 26);
     if (d < 7) y += smooth01(1 - d / 7) ** 1.5 * 0.7;
@@ -1281,12 +1331,12 @@ function paleHollowHeightField(x: number, z: number): number {
   return y;
 }
 
-/** Terrain and bank footings. Never the stone deck — the deck is a span over this bed. */
+/** Terrain and bank footings. Never the stone deck â€” the deck is a span over this bed. */
 export function paleHollowGroundHeight(x: number, z: number): number {
   return paleHollowHeightField(x, z);
 }
 
-/** Stand height — stone bridge decks sit at bank wall-tops; elsewhere the terrain field. */
+/** Stand height â€” stone bridge decks sit at bank wall-tops; elsewhere the terrain field. */
 export function paleHollowHeight(x: number, z: number): number {
   const deck = paleHollowBridgeDeckY(x, z);
   if (deck != null) return deck;
@@ -1349,15 +1399,15 @@ export function clampPaleHollow(x: number, z: number): { x: number; z: number } 
 }
 
 /**
- * Shared with the client water ribbon — height above the centerline bed.
+ * Shared with the client water ribbon â€” height above the centerline bed.
  * Bed carve is ~1.35, so this keeps the table above the old shallow sheet
  * and still under the arch (deck center is water + PH_BRIDGE_DECK_CLEARANCE).
  */
 export const PALE_HOLLOW_WATER_CLEARANCE = 2.55;
 
 /**
- * Continuous 0–1 bank/mud weight from river distance (not discrete biome).
- * Used to soft-blend grass → dirt → mud without sawtooth ID edges.
+ * Continuous 0â€“1 bank/mud weight from river distance (not discrete biome).
+ * Used to soft-blend grass â†’ dirt â†’ mud without sawtooth ID edges.
  */
 export function paleHollowBankBlend(x: number, z: number): number {
   let w = 0;
@@ -1373,7 +1423,7 @@ export function paleHollowBankBlend(x: number, z: number): number {
 }
 
 /**
- * Soft visual blend weights (0–1) for terrain shading — independent of discrete biomes.
+ * Soft visual blend weights (0â€“1) for terrain shading â€” independent of discrete biomes.
  * Spans hard grove circles, scrub rims, farm bands, quarry, etc.
  */
 export function paleHollowTerrainWeights(x: number, z: number): {
@@ -1388,7 +1438,7 @@ export function paleHollowTerrainWeights(x: number, z: number): {
 } {
   const bank = paleHollowBankBlend(x, z);
 
-  // Ashbeam groves — soft disks past the hard gameplay radii
+  // Ashbeam groves â€” soft disks past the hard gameplay radii
   let ash = 0;
   ash = Math.max(ash, 1 - smooth01(Math.hypot(x + 6, z - 82) / 36));
   ash = Math.max(ash, 1 - smooth01(Math.hypot(x - 38, z - 70) / 26));
@@ -1405,7 +1455,7 @@ export function paleHollowTerrainWeights(x: number, z: number): {
     scrub = Math.max(scrub, smooth01((Math.abs(x) - 48) / 14));
   }
 
-  // Farm / meadow — soft rect + bleed across segment A→B seam (z≈50)
+  // Farm / meadow â€” soft rect + bleed across segment Aâ†’B seam (zâ‰ˆ50)
   let farm = 0;
   let meadow = 0;
   if (z > 4 && z < 62) {
@@ -1437,7 +1487,7 @@ export function paleHollowTerrainWeights(x: number, z: number): {
 
 /**
  * Distance from (x,z) to the nearest point on a channel centerline.
- * An east-west meander is not `|x - centerX(z)|` — that test misses the
+ * An east-west meander is not `|x - centerX(z)|` â€” that test misses the
  * north bend and leaves a dry gap between the banks.
  */
 function nearestOnCenterline(
@@ -1480,6 +1530,9 @@ function nearestOnCenterline(
  * Used to clip billboards: legs under water, torso above.
  */
 export function paleHollowWaterSurfaceY(x: number, z: number): number | null {
+  if (paleHollowLakeDist(x, z) <= PH_LAKE.r) {
+    return paleHollowHeightField(PH_LAKE.x, PH_LAKE.z) + PALE_HOLLOW_WATER_CLEARANCE;
+  }
   const main = nearestOnCenterline(riverCenterX, PH_RIVER_MAIN.z0, PH_RIVER_MAIN.z1, x, z);
   if (main && main.dist <= PH_RIVER_MAIN.waterHalf) {
     return paleHollowHeightField(main.cx, main.cz) + PALE_HOLLOW_WATER_CLEARANCE;
@@ -1497,30 +1550,40 @@ export function paleHollowWaterSurfaceY(x: number, z: number): number | null {
  */
 export function paleHollowInOpenWater(x: number, z: number): boolean {
   if (paleHollowOnBridge(x, z)) return false;
-  if (paleHollowBiomeCore(x, z) === "bridge") return false;
-  return paleHollowWaterSurfaceY(x, z) != null || paleHollowBiomeCore(x, z) === "river";
+  if (paleHollowInRiverWall(x, z)) return false;
+  return paleHollowWaterSurfaceY(x, z) != null;
 }
 
 /**
  * Landmark / building footprints where trees & large props should not spawn.
- * Hub apron is handled by `paleHollowInHubApron` — do not duplicate a hub circle here.
+ * Hub apron is handled by `paleHollowInHubApron` â€” do not duplicate a hub circle here.
  */
-export const PH_BUILDING_CLEARINGS: readonly { x: number; z: number; r: number }[] = [
-  // Dustgrain silos
-  { x: -16, z: 20, r: 4 },
-  { x: -26, z: -6, r: 4 },
-  { x: -13, z: 38, r: 4 },
-  { x: 36, z: 40, r: 4 },
-  { x: -44, z: 36, r: 4 },
-  // Ashbeam stump / quarry / crypt / ore / north gate set pieces
-  { x: 0, z: 92, r: 5 },
-  { x: 0, z: 114, r: 7 },
-  { x: -8, z: 137, r: 5 },
-  { x: 0, z: 177, r: 7 },
-  { x: -12, z: 210, r: 7 },
-  { x: 0, z: 236, r: 5 },
-  { x: 0, z: 244, r: 7 },
+/**
+ * Roofs on the live roads. `lean_to` and `shack` and `cairn` are RON volumes.
+ * The 8 m pad stays clear of trees and of field spawns.
+ */
+export const PH_YARDS: readonly {
+  id: string;
+  x: number;
+  z: number;
+  kind: "lean_to" | "shack" | "cairn";
+  yaw: number;
+}[] = [
+  { id: "span", x: 28, z: 222, kind: "lean_to", yaw: -Math.PI / 2 },
+  { id: "terrace", x: -82, z: 123, kind: "lean_to", yaw: Math.PI },
+  { id: "clay", x: -35, z: 207, kind: "shack", yaw: Math.PI / 2 },
+  { id: "grove", x: -57, z: 167, kind: "shack", yaw: -1.1 },
+  { id: "hunter", x: 70, z: 180, kind: "lean_to", yaw: Math.atan2(-15, -30) },
+  { id: "cut", x: 53, z: 136, kind: "shack", yaw: Math.PI },
+  { id: "rim", x: 105, z: 93, kind: "lean_to", yaw: -Math.PI / 2 },
+  { id: "seam", x: 18, z: 412, kind: "shack", yaw: Math.PI / 2 },
+  { id: "watch", x: 8, z: 434, kind: "lean_to", yaw: -Math.PI / 2 },
+  { id: "cairn", x: 0, z: 450, kind: "cairn", yaw: 0 },
 ];
+
+export const PH_BUILDING_CLEARINGS: readonly { x: number; z: number; r: number }[] = PH_YARDS.map(
+  (y) => ({ x: y.x, z: y.z, r: 8 }),
+);
 
 /** True if (x,z) is inside a building / landmark clearing. */
 export function paleHollowInBuildingClearing(x: number, z: number): boolean {
@@ -1556,7 +1619,7 @@ export function paleHollowPlaceOnDryLand(
   return { x, z };
 }
 
-/** Terrain move modifiers — rivers slow; banks soft slow. */
+/** Terrain move modifiers â€” rivers slow; banks soft slow. */
 export function paleHollowMoveMul(x: number, z: number): number {
   const b = paleHollowBiome(x, z);
   if (b === "river") return 0.55;
@@ -1573,8 +1636,8 @@ export function paleHollowGateSoftLevel(z: number): number | null {
   return null;
 }
 
-export const PH_HUB_SPAWN = { x: 0, z: 2, facing: 0 } as const;
-export const PH_OUTDOOR_SPAWN = { x: 0, z: 14, facing: 0 } as const;
+export const PH_HUB_SPAWN = { x: PH_CAMP_SHIFT_X, z: 2 + PH_CAMP_SHIFT_Z, facing: 0 } as const;
+export const PH_OUTDOOR_SPAWN = { x: PH_CAMP_SHIFT_X, z: 14 + PH_CAMP_SHIFT_Z, facing: 0 } as const;
 
 export type GatherNodeKind = "harvest" | "mine" | "fish";
 
@@ -1590,46 +1653,46 @@ export type PaleHollowNodeDef = {
 };
 
 export const PH_SEGMENT_A_NODES: PaleHollowNodeDef[] = [
-  { id: "ph-farm-a", name: "Dustgrain Patch", x: -10, z: 20, kind: "harvest", yields: ["dustgrain", "pale-dust"], interactMs: 2500, respawnMs: 55_000 },
-  { id: "ph-farm-b", name: "Dustgrain Patch", x: 8, z: 22, kind: "harvest", yields: ["dustgrain", "pale-dust"], interactMs: 2500, respawnMs: 55_000 },
-  { id: "ph-farm-c", name: "Dustgrain Patch", x: 22, z: 28, kind: "harvest", yields: ["dustgrain"], interactMs: 2500, respawnMs: 50_000 },
-  { id: "ph-farm-d", name: "Dustgrain Patch", x: -28, z: 32, kind: "harvest", yields: ["dustgrain", "pale-dust"], interactMs: 2500, respawnMs: 55_000 },
-  { id: "ph-farm-e", name: "Dustgrain Patch", x: 48, z: 38, kind: "harvest", yields: ["dustgrain", "pale-dust"], interactMs: 2500, respawnMs: 55_000 },
-  { id: "ph-farm-f", name: "Dustgrain Patch", x: -52, z: 42, kind: "harvest", yields: ["dustgrain"], interactMs: 2500, respawnMs: 55_000 },
-  { id: "ph-flax-a", name: "Pale Flax Stand", x: -14, z: 26, kind: "harvest", yields: ["pale-flax", "dead-fiber"], interactMs: 2800, respawnMs: 60_000 },
-  { id: "ph-flax-b", name: "Pale Flax Stand", x: 18, z: 34, kind: "harvest", yields: ["pale-flax", "pale-dust"], interactMs: 2800, respawnMs: 60_000 },
-  { id: "ph-sand-a", name: "River Sand Bar", x: -22, z: 38, kind: "harvest", yields: ["river-sand", "pale-dust"], interactMs: 2500, respawnMs: 65_000 },
-  { id: "ph-clay-a", name: "Clay Bank", x: -20, z: 34, kind: "harvest", yields: ["potters-clay", "clay-crab", "river-sand"], interactMs: 2500, respawnMs: 65_000 },
-  { id: "ph-fish-a", name: "Chalk Pool", x: -18, z: 36, kind: "fish", yields: ["fossil-minnow"], interactMs: 4000, respawnMs: 75_000 },
-  { id: "ph-fish-b", name: "Chalk Pool", x: 36, z: 72, kind: "fish", yields: ["fossil-minnow"], interactMs: 4000, respawnMs: 75_000 },
-  { id: "ph-copper-nugget", name: "Copper Nugget Vein", x: 18, z: 26, kind: "mine", yields: ["copper-ore"], interactMs: 4000, respawnMs: 120_000 },
+  { id: "ph-farm-a", name: "Dustgrain Patch", x: -85, z: 121, kind: "harvest", yields: ["dustgrain", "pale-dust"], interactMs: 2500, respawnMs: 55_000 },
+  { id: "ph-farm-b", name: "Dustgrain Patch", x: -79, z: 121, kind: "harvest", yields: ["dustgrain", "pale-dust"], interactMs: 2500, respawnMs: 55_000 },
+  { id: "ph-farm-c", name: "Dustgrain Patch", x: -85, z: 125, kind: "harvest", yields: ["dustgrain"], interactMs: 2500, respawnMs: 50_000 },
+  { id: "ph-farm-d", name: "Dustgrain Patch", x: -79, z: 125, kind: "harvest", yields: ["dustgrain", "pale-dust"], interactMs: 2500, respawnMs: 55_000 },
+  { id: "ph-farm-e", name: "Dustgrain Patch", x: -82, z: 126, kind: "harvest", yields: ["dustgrain", "pale-dust"], interactMs: 2500, respawnMs: 55_000 },
+  { id: "ph-farm-f", name: "Dustgrain Patch", x: -82, z: 120, kind: "harvest", yields: ["dustgrain"], interactMs: 2500, respawnMs: 55_000 },
+  { id: "ph-flax-a", name: "Pale Flax Stand", x: -86, z: 123, kind: "harvest", yields: ["pale-flax", "dead-fiber"], interactMs: 2800, respawnMs: 60_000 },
+  { id: "ph-flax-b", name: "Pale Flax Stand", x: -78, z: 123, kind: "harvest", yields: ["pale-flax", "pale-dust"], interactMs: 2800, respawnMs: 60_000 },
+  { id: "ph-sand-a", name: "River Sand Bar", x: -33, z: 205, kind: "harvest", yields: ["river-sand", "pale-dust"], interactMs: 2500, respawnMs: 65_000 },
+  { id: "ph-clay-a", name: "Clay Bank", x: -37, z: 205, kind: "harvest", yields: ["potters-clay", "clay-crab", "river-sand"], interactMs: 2500, respawnMs: 65_000 },
+  { id: "ph-fish-a", name: "Chalk Pool", x: -33, z: 209, kind: "fish", yields: ["fossil-minnow"], interactMs: 4000, respawnMs: 75_000 },
+  { id: "ph-fish-b", name: "Chalk Pool", x: -37, z: 209, kind: "fish", yields: ["fossil-minnow"], interactMs: 4000, respawnMs: 75_000 },
+  { id: "ph-copper-nugget", name: "Copper Nugget Vein", x: 20, z: 410, kind: "mine", yields: ["copper-ore"], interactMs: 4000, respawnMs: 120_000 },
 ];
 
 export const PH_SEGMENT_B_NODES: PaleHollowNodeDef[] = [
-  { id: "ph-ash-a", name: "Ashbeam Log", x: -8, z: 78, kind: "harvest", yields: ["ashbeam-log", "bark-strip"], interactMs: 3000, respawnMs: 70_000 },
-  { id: "ph-ash-b", name: "Ashbeam Log", x: 10, z: 88, kind: "harvest", yields: ["ashbeam-log"], interactMs: 3000, respawnMs: 70_000 },
-  { id: "ph-ash-c", name: "Ashbeam Log", x: -24, z: 96, kind: "harvest", yields: ["ashbeam-log", "bark-strip"], interactMs: 3000, respawnMs: 70_000 },
-  { id: "ph-ash-d", name: "Ashbeam Log", x: 40, z: 96, kind: "harvest", yields: ["ashbeam-log"], interactMs: 3000, respawnMs: 70_000 },
-  { id: "ph-ash-e", name: "Ashbeam Log", x: -40, z: 68, kind: "harvest", yields: ["ashbeam-log", "bark-strip"], interactMs: 3000, respawnMs: 70_000 },
-  { id: "ph-fiber-a", name: "Dead Fiber Thicket", x: -36, z: 92, kind: "harvest", yields: ["dead-fiber", "pale-flax", "pale-dust"], interactMs: 2800, respawnMs: 60_000 },
-  { id: "ph-fiber-b", name: "Dead Fiber Thicket", x: 50, z: 84, kind: "harvest", yields: ["dead-fiber", "pale-flax"], interactMs: 2800, respawnMs: 60_000 },
-  { id: "ph-root-a", name: "Antidote Root", x: 32, z: 100, kind: "harvest", yields: ["antidote-root", "pale-dust"], interactMs: 3200, respawnMs: 90_000 },
+  { id: "ph-ash-a", name: "Ashbeam Log", x: -60, z: 165, kind: "harvest", yields: ["ashbeam-log", "bark-strip"], interactMs: 3000, respawnMs: 70_000 },
+  { id: "ph-ash-b", name: "Ashbeam Log", x: -54, z: 165, kind: "harvest", yields: ["ashbeam-log"], interactMs: 3000, respawnMs: 70_000 },
+  { id: "ph-ash-c", name: "Ashbeam Log", x: -60, z: 169, kind: "harvest", yields: ["ashbeam-log", "bark-strip"], interactMs: 3000, respawnMs: 70_000 },
+  { id: "ph-ash-d", name: "Ashbeam Log", x: -54, z: 169, kind: "harvest", yields: ["ashbeam-log"], interactMs: 3000, respawnMs: 70_000 },
+  { id: "ph-ash-e", name: "Ashbeam Log", x: -57, z: 164, kind: "harvest", yields: ["ashbeam-log", "bark-strip"], interactMs: 3000, respawnMs: 70_000 },
+  { id: "ph-fiber-a", name: "Dead Fiber Thicket", x: -63, z: 167, kind: "harvest", yields: ["dead-fiber", "pale-flax", "pale-dust"], interactMs: 2800, respawnMs: 60_000 },
+  { id: "ph-fiber-b", name: "Dead Fiber Thicket", x: -51, z: 167, kind: "harvest", yields: ["dead-fiber", "pale-flax"], interactMs: 2800, respawnMs: 60_000 },
+  { id: "ph-root-a", name: "Antidote Root", x: -57, z: 170, kind: "harvest", yields: ["antidote-root", "pale-dust"], interactMs: 3200, respawnMs: 90_000 },
 ];
 
 export const PH_SEGMENT_C_NODES: PaleHollowNodeDef[] = [
-  { id: "ph-cobble-a", name: "Cobble Heap", x: -6, z: 140, kind: "mine", yields: ["cobble", "pale-dust"], interactMs: 3500, respawnMs: 80_000 },
-  { id: "ph-lime-a", name: "Limestone Face", x: 16, z: 150, kind: "mine", yields: ["limestone", "rock-salt"], interactMs: 4000, respawnMs: 100_000 },
-  { id: "ph-lime-b", name: "Limestone Face", x: -18, z: 158, kind: "mine", yields: ["limestone", "cobble", "rock-salt"], interactMs: 4000, respawnMs: 100_000 },
-  { id: "ph-cord-a", name: "Climbing Cord", x: 48, z: 148, kind: "harvest", yields: ["climbing-cord"], interactMs: 3500, respawnMs: 110_000 },
-  { id: "ph-cord-b", name: "Climbing Cord", x: -50, z: 155, kind: "harvest", yields: ["climbing-cord"], interactMs: 3500, respawnMs: 110_000 },
+  { id: "ph-cobble-a", name: "Cobble Heap", x: 51, z: 134, kind: "mine", yields: ["cobble", "pale-dust"], interactMs: 3500, respawnMs: 80_000 },
+  { id: "ph-lime-a", name: "Limestone Face", x: 55, z: 134, kind: "mine", yields: ["limestone", "rock-salt"], interactMs: 4000, respawnMs: 100_000 },
+  { id: "ph-lime-b", name: "Limestone Face", x: 53, z: 138, kind: "mine", yields: ["limestone", "cobble", "rock-salt"], interactMs: 4000, respawnMs: 100_000 },
+  { id: "ph-cord-a", name: "Climbing Cord", x: 103, z: 91, kind: "harvest", yields: ["climbing-cord"], interactMs: 3500, respawnMs: 110_000 },
+  { id: "ph-cord-b", name: "Climbing Cord", x: 107, z: 95, kind: "harvest", yields: ["climbing-cord"], interactMs: 3500, respawnMs: 110_000 },
 ];
 
 export const PH_SEGMENT_D_NODES: PaleHollowNodeDef[] = [
-  { id: "ph-cu-a", name: "Copper Seam", x: 14, z: 200, kind: "mine", yields: ["copper-ore"], interactMs: 4500, respawnMs: 130_000 },
-  { id: "ph-sn-a", name: "Tin Seam", x: -10, z: 205, kind: "mine", yields: ["tin-ore"], interactMs: 4500, respawnMs: 130_000 },
-  { id: "ph-cu-b", name: "Copper Seam", x: 8, z: 220, kind: "mine", yields: ["copper-ore", "pale-dust"], interactMs: 4500, respawnMs: 140_000 },
-  { id: "ph-crystal-a", name: "Pale Dust Crystal", x: -28, z: 215, kind: "harvest", yields: ["pale-dust"], interactMs: 5000, respawnMs: 160_000 },
-  { id: "ph-crystal-b", name: "Pale Dust Crystal", x: 30, z: 228, kind: "harvest", yields: ["pale-dust"], interactMs: 5000, respawnMs: 160_000 },
+  { id: "ph-cu-a", name: "Copper Seam", x: 20, z: 414, kind: "mine", yields: ["copper-ore"], interactMs: 4500, respawnMs: 130_000 },
+  { id: "ph-sn-a", name: "Tin Seam", x: 22, z: 412, kind: "mine", yields: ["tin-ore"], interactMs: 4500, respawnMs: 130_000 },
+  { id: "ph-cu-b", name: "Copper Seam", x: 20, z: 416, kind: "mine", yields: ["copper-ore", "pale-dust"], interactMs: 4500, respawnMs: 140_000 },
+  { id: "ph-crystal-a", name: "Pale Dust Crystal", x: 10, z: 432, kind: "harvest", yields: ["pale-dust"], interactMs: 5000, respawnMs: 160_000 },
+  { id: "ph-crystal-b", name: "Pale Dust Crystal", x: 10, z: 436, kind: "harvest", yields: ["pale-dust"], interactMs: 5000, respawnMs: 160_000 },
 ];
 
 export const PH_ALL_NODES: PaleHollowNodeDef[] = [
@@ -1645,7 +1708,7 @@ export const PH_ACTIVE_GATHER_COUNT = 20;
 /** Chance a node relocates to another free spawn point when gathered / refreshing. */
 export const PH_GATHER_RELOCATE_CHANCE = 0.6;
 
-/** All authored gather coordinates — spawn pool for live nodes. */
+/** All authored gather coordinates â€” spawn pool for live nodes. */
 export function paleHollowNodeSpawnPoints(): { id: string; name: string; x: number; z: number; kind: GatherNodeKind }[] {
   return PH_ALL_NODES.map((n) => ({ id: n.id, name: n.name, x: n.x, z: n.z, kind: n.kind }));
 }
@@ -1653,6 +1716,7 @@ export function paleHollowNodeSpawnPoints(): { id: string; name: string; x: numb
 export type PaleHollowArchetype =
   | "dust_hare"
   | "pale_slime"
+  | "clay_crab"
   | "hollow_scavenger"
   | "ashbeam_boar"
   | "ruin_dweller"
@@ -1668,8 +1732,11 @@ export type PaleHollowRareDrop = {
   chance: number;
 };
 
+/** Always granted on kill (no 65% mat roll). */
+export type PaleHollowFixedDrop = { slug: string; qty: number };
+
 /**
- * Same ids as player `JobId` — kept local so `@bellgrave/config` stays free of a combat dep.
+ * Same ids as player `JobId` â€” kept local so `@bellgrave/config` stays free of a combat dep.
  * Job drives mob AI ability choice, engage range, and attack stat curves.
  */
 export type PaleHollowMobJob =
@@ -1691,6 +1758,7 @@ export type PaleHollowMobJob =
 export const PH_ARCHETYPE_DEFAULT_JOB: Record<PaleHollowArchetype, PaleHollowMobJob> = {
   dust_hare: "fighter",
   pale_slime: "battle_mage",
+  clay_crab: "fighter",
   hollow_scavenger: "rogue",
   ashbeam_boar: "fighter",
   ruin_dweller: "sorcerer",
@@ -1706,15 +1774,17 @@ export type PaleHollowMobDef = {
   z: number;
   level: number;
   archetype: PaleHollowArchetype;
-  /** Optional job override — defaults via `PH_ARCHETYPE_DEFAULT_JOB`. */
+  /** Optional job override â€” defaults via `PH_ARCHETYPE_DEFAULT_JOB`. */
   job?: PaleHollowMobJob;
   aggro: PaleHollowAggro;
   aggroRange: number;
   linkRange?: number;
   hp: number;
   drops: string[];
-  /** Optional rare gear — rolled once per kill at the given chance. */
+  /** Optional rare gear â€” rolled once per kill at the given chance. */
   rareDrops?: PaleHollowRareDrop[];
+  /** Optional guaranteed mats (no 65% mat roll). */
+  fixedDrops?: PaleHollowFixedDrop[];
 };
 
 export function paleHollowMobJob(
@@ -1724,78 +1794,15 @@ export function paleHollowMobJob(
 }
 
 
-export const PH_SEGMENT_A_MOBS: PaleHollowMobDef[] = [
-  // Extra level-1 cluster flanking the encampment (west/east sides, outside hub apron so roam/flee can walk).
-  { id: "ph-hare-hub-1", name: "Dust Hare", x: -24, z: 0, level: 1, archetype: "dust_hare", aggro: "safe", aggroRange: 0, hp: 45, drops: ["soft-pelt", "pale-dust", "desiccated-hide"] },
-  { id: "ph-hare-hub-2", name: "Dust Hare", x: -27, z: 4, level: 1, archetype: "dust_hare", aggro: "safe", aggroRange: 0, hp: 45, drops: ["soft-pelt", "pale-dust", "desiccated-hide"] },
-  { id: "ph-hare-hub-3", name: "Dust Hare", x: -23, z: 8, level: 1, archetype: "dust_hare", aggro: "safe", aggroRange: 0, hp: 45, drops: ["soft-pelt", "pale-dust", "desiccated-hide"] },
-  { id: "ph-hare-hub-4", name: "Dust Hare", x: -26, z: 12, level: 1, archetype: "dust_hare", aggro: "safe", aggroRange: 0, hp: 45, drops: ["soft-pelt", "pale-dust", "desiccated-hide"] },
-  { id: "ph-hare-hub-5", name: "Dust Hare", x: 24, z: 0, level: 1, archetype: "dust_hare", aggro: "safe", aggroRange: 0, hp: 45, drops: ["soft-pelt", "pale-dust", "desiccated-hide"] },
-  { id: "ph-hare-hub-6", name: "Dust Hare", x: 27, z: 4, level: 1, archetype: "dust_hare", aggro: "safe", aggroRange: 0, hp: 45, drops: ["soft-pelt", "pale-dust", "desiccated-hide"] },
-  { id: "ph-hare-hub-7", name: "Dust Hare", x: 23, z: 8, level: 1, archetype: "dust_hare", aggro: "safe", aggroRange: 0, hp: 45, drops: ["soft-pelt", "pale-dust", "desiccated-hide"] },
-  { id: "ph-hare-hub-8", name: "Dust Hare", x: 26, z: 12, level: 1, archetype: "dust_hare", aggro: "safe", aggroRange: 0, hp: 45, drops: ["soft-pelt", "pale-dust", "desiccated-hide"] },
-  { id: "ph-hare-1", name: "Dust Hare", x: -8, z: 18, level: 1, archetype: "dust_hare", aggro: "safe", aggroRange: 0, hp: 45, drops: ["soft-pelt", "pale-dust", "desiccated-hide"] },
-  { id: "ph-hare-2", name: "Dust Hare", x: 6, z: 20, level: 1, archetype: "dust_hare", aggro: "safe", aggroRange: 0, hp: 45, drops: ["soft-pelt", "pale-dust", "desiccated-hide"] },
-  { id: "ph-hare-3", name: "Dust Hare", x: 24, z: 30, level: 2, archetype: "dust_hare", aggro: "safe", aggroRange: 0, hp: 55, drops: ["soft-pelt", "pale-dust", "desiccated-hide"] },
-  { id: "ph-hare-4", name: "Dust Hare", x: -30, z: 36, level: 2, archetype: "dust_hare", job: "rogue", aggro: "safe", aggroRange: 0, hp: 55, drops: ["soft-pelt", "horn", "pale-dust", "desiccated-hide"] },
-  { id: "ph-hare-5", name: "Dust Hare", x: 40, z: 44, level: 2, archetype: "dust_hare", aggro: "safe", aggroRange: 0, hp: 50, drops: ["soft-pelt", "desiccated-hide"] },
-  { id: "ph-hare-6", name: "Dust Hare", x: -50, z: 28, level: 2, archetype: "dust_hare", aggro: "safe", aggroRange: 0, hp: 50, drops: ["soft-pelt", "pale-dust", "desiccated-hide"] },
-  { id: "ph-hare-7", name: "Dust Hare", x: 54, z: 34, level: 2, archetype: "dust_hare", aggro: "safe", aggroRange: 0, hp: 52, drops: ["soft-pelt", "desiccated-hide"] },
-  { id: "ph-slime-1", name: "Pale Slime", x: -18, z: 35, level: 3, archetype: "pale_slime", aggro: "proximity", aggroRange: 4, hp: 80, drops: ["slime-oil", "pale-dust"] },
-  { id: "ph-slime-2", name: "Pale Slime", x: -16, z: 42, level: 4, archetype: "pale_slime", job: "sorcerer", aggro: "proximity", aggroRange: 4, hp: 95, drops: ["slime-oil", "pale-dust"] },
-  { id: "ph-slime-3", name: "Pale Slime", x: -36, z: 48, level: 3, archetype: "pale_slime", aggro: "proximity", aggroRange: 3.5, hp: 80, drops: ["slime-oil", "pale-dust"] },
-  { id: "ph-slime-4", name: "Pale Slime", x: 34, z: 70, level: 4, archetype: "pale_slime", aggro: "proximity", aggroRange: 3.5, hp: 90, drops: ["slime-oil"] },
-];
+// Field packs, yards' NPCs and kill quests live in pale-hollow-field.ts.
+// They are five times the old corridor list, seated on the enlarged basin.
 
-export const PH_SEGMENT_B_MOBS: PaleHollowMobDef[] = [
-  { id: "ph-hare-b1", name: "Dust Hare", x: -40, z: 68, level: 5, archetype: "dust_hare", aggro: "safe", aggroRange: 0, hp: 70, drops: ["soft-pelt", "pale-dust", "desiccated-hide"] },
-  { id: "ph-hare-b2", name: "Dust Hare", x: 42, z: 74, level: 5, archetype: "dust_hare", aggro: "safe", aggroRange: 0, hp: 70, drops: ["soft-pelt", "desiccated-hide"] },
-  { id: "ph-hare-b3", name: "Dust Hare", x: -55, z: 88, level: 5, archetype: "dust_hare", aggro: "safe", aggroRange: 0, hp: 68, drops: ["soft-pelt", "desiccated-hide"] },
-  { id: "ph-hare-b4", name: "Dust Hare", x: 58, z: 102, level: 6, archetype: "dust_hare", aggro: "safe", aggroRange: 0, hp: 75, drops: ["soft-pelt", "pale-dust", "desiccated-hide"] },
-  { id: "ph-scav-1", name: "Hollow Scavenger", x: -6, z: 82, level: 6, archetype: "hollow_scavenger", aggro: "sight", aggroRange: 9, linkRange: 7, hp: 140, drops: ["linen-scrap", "pale-dust"] },
-  { id: "ph-scav-2", name: "Hollow Scavenger", x: 8, z: 90, level: 6, archetype: "hollow_scavenger", aggro: "sight", aggroRange: 9, linkRange: 7, hp: 140, drops: ["linen-scrap", "bone-chip"] },
-  { id: "ph-scav-3", name: "Hollow Scavenger", x: -20, z: 100, level: 7, archetype: "hollow_scavenger", aggro: "sight", aggroRange: 9, linkRange: 7, hp: 160, drops: ["linen-scrap", "pale-dust"] },
-  { id: "ph-scav-4", name: "Hollow Scavenger", x: 28, z: 104, level: 7, archetype: "hollow_scavenger", aggro: "sight", aggroRange: 9, linkRange: 7, hp: 160, drops: ["linen-scrap"] },
-  { id: "ph-boar-1", name: "Ashbeam Boar", x: 18, z: 88, level: 8, archetype: "ashbeam_boar", aggro: "sound", aggroRange: 7, hp: 200, drops: ["soft-pelt", "horn", "desiccated-hide"] },
-  { id: "ph-boar-2", name: "Ashbeam Boar", x: -28, z: 108, level: 9, archetype: "ashbeam_boar", aggro: "sound", aggroRange: 7, hp: 220, drops: ["soft-pelt", "horn", "pale-dust", "desiccated-hide"] },
-  { id: "ph-boar-3", name: "Ashbeam Boar", x: 40, z: 96, level: 8, archetype: "ashbeam_boar", aggro: "sound", aggroRange: 7, hp: 210, drops: ["soft-pelt", "horn", "desiccated-hide"] },
-];
-
-export const PH_SEGMENT_C_MOBS: PaleHollowMobDef[] = [
-  { id: "ph-dwell-1", name: "Ruin Dweller", x: -4, z: 132, level: 11, archetype: "ruin_dweller", aggro: "sight", aggroRange: 10, linkRange: 8, hp: 260, drops: ["cracked-brick", "pale-dust"], rareDrops: [{ slug: "chainmail", chance: 0.01 }] },
-  { id: "ph-dwell-2", name: "Ruin Dweller", x: 12, z: 142, level: 11, archetype: "ruin_dweller", aggro: "sight", aggroRange: 10, linkRange: 8, hp: 260, drops: ["cracked-brick"], rareDrops: [{ slug: "chainmail", chance: 0.01 }] },
-  { id: "ph-dwell-3", name: "Ruin Dweller", x: -16, z: 156, level: 12, archetype: "ruin_dweller", aggro: "sight", aggroRange: 10, linkRange: 8, hp: 290, drops: ["cracked-brick", "bone-chip"], rareDrops: [{ slug: "chainmail", chance: 0.01 }] },
-  { id: "ph-dwell-4", name: "Ruin Dweller", x: 22, z: 164, level: 13, archetype: "ruin_dweller", aggro: "sight", aggroRange: 11, linkRange: 8, hp: 310, drops: ["cracked-brick", "pale-dust"], rareDrops: [{ slug: "chainmail", chance: 0.01 }] },
-  { id: "ph-adder-1", name: "Cliff Adder", x: 54, z: 142, level: 12, archetype: "cliff_adder", aggro: "proximity", aggroRange: 3.2, hp: 180, drops: ["soft-pelt", "pale-dust", "desiccated-hide"] },
-  { id: "ph-adder-2", name: "Cliff Adder", x: -56, z: 155, level: 13, archetype: "cliff_adder", aggro: "proximity", aggroRange: 3.2, hp: 190, drops: ["soft-pelt", "desiccated-hide"] },
-  { id: "ph-adder-3", name: "Cliff Adder", x: 50, z: 170, level: 14, archetype: "cliff_adder", aggro: "proximity", aggroRange: 3.5, hp: 210, drops: ["soft-pelt", "bone-chip", "desiccated-hide"] },
-  { id: "ph-scav-c1", name: "Hollow Scavenger", x: 0, z: 148, level: 12, archetype: "hollow_scavenger", job: "fighter", aggro: "sight", aggroRange: 9, linkRange: 6, hp: 240, drops: ["linen-scrap"] },
-];
-
-export const PH_SEGMENT_D_MOBS: PaleHollowMobDef[] = [
-  { id: "ph-golem-1", name: "Seam Golem", x: 12, z: 198, level: 16, archetype: "seam_golem", aggro: "sight", aggroRange: 8, hp: 420, drops: ["copper-ore", "cracked-brick"] },
-  { id: "ph-golem-2", name: "Seam Golem", x: -8, z: 218, level: 17, archetype: "seam_golem", aggro: "sight", aggroRange: 8, hp: 460, drops: ["tin-ore", "cracked-brick"] },
-  { id: "ph-wight-1", name: "Shard Wight", x: -18, z: 208, level: 16, archetype: "shard_wight", aggro: "sight", aggroRange: 9, linkRange: 6, hp: 340, drops: ["bone-chip", "pale-dust"] },
-  { id: "ph-wight-2", name: "Shard Wight", x: -14, z: 216, level: 17, archetype: "shard_wight", aggro: "sight", aggroRange: 9, linkRange: 6, hp: 360, drops: ["bone-chip"] },
-  { id: "ph-wight-3", name: "Shard Wight", x: -24, z: 212, level: 18, archetype: "shard_wight", job: "sorcerer", aggro: "sight", aggroRange: 9, linkRange: 6, hp: 380, drops: ["bone-chip", "pale-dust"] },
-  { id: "ph-dwell-d1", name: "Ruin Dweller", x: 6, z: 206, level: 15, archetype: "ruin_dweller", aggro: "sight", aggroRange: 10, linkRange: 7, hp: 320, drops: ["cracked-brick"], rareDrops: [{ slug: "chainmail", chance: 0.01 }] },
-  { id: "ph-dwell-d2", name: "Ruin Dweller", x: 28, z: 228, level: 16, archetype: "ruin_dweller", job: "knight", aggro: "sight", aggroRange: 10, hp: 340, drops: ["cracked-brick", "linen-scrap"], rareDrops: [{ slug: "chainmail", chance: 0.01 }] },
-];
-
-export const PH_ALL_MOBS: PaleHollowMobDef[] = [
-  ...PH_SEGMENT_A_MOBS,
-  ...PH_SEGMENT_B_MOBS,
-  ...PH_SEGMENT_C_MOBS,
-  ...PH_SEGMENT_D_MOBS,
-];
-
-/** Hub NPCs — clustered around the small camp core (fire at ~0, 0.5). */
 export const PH_HUB_NPCS = [
-  { id: "npc-shard-elder", name: "Shard Elder", x: -2.2, z: 2.8, facing: Math.PI / 2, role: "guide" as const },
-  { id: "npc-ph-herald", name: "Campaign Herald", x: 0.4, z: 5.0, facing: Math.PI, role: "quest_giver" as const },
-  { id: "npc-ph-job-master", name: "Job Master", x: 3.5, z: 2.5, facing: -Math.PI / 2, role: "job_master" as const },
-  { id: "npc-ph-crafter", name: "Craft Master", x: 3.8, z: -0.2, facing: -Math.PI / 2, role: "crafter" as const },
-  { id: "npc-ph-vendor", name: "Provisioner", x: -3.8, z: -0.2, facing: Math.PI / 2, role: "vendor" as const },
+  { id: "npc-shard-elder", name: "Shard Elder", x: -2.2 + PH_CAMP_SHIFT_X, z: 2.8 + PH_CAMP_SHIFT_Z, facing: Math.PI / 2, role: "guide" as const },
+  { id: "npc-ph-herald", name: "Campaign Herald", x: 0.4 + PH_CAMP_SHIFT_X, z: 5.0 + PH_CAMP_SHIFT_Z, facing: Math.PI, role: "quest_giver" as const },
+  { id: "npc-ph-job-master", name: "Job Master", x: 3.5 + PH_CAMP_SHIFT_X, z: 2.5 + PH_CAMP_SHIFT_Z, facing: -Math.PI / 2, role: "job_master" as const },
+  { id: "npc-ph-crafter", name: "Craft Master", x: 3.8 + PH_CAMP_SHIFT_X, z: -0.2 + PH_CAMP_SHIFT_Z, facing: -Math.PI / 2, role: "crafter" as const },
+  { id: "npc-ph-vendor", name: "Provisioner", x: -3.8 + PH_CAMP_SHIFT_X, z: -0.2 + PH_CAMP_SHIFT_Z, facing: Math.PI / 2, role: "vendor" as const },
 ] as const;
 
 /**
@@ -1805,14 +1812,11 @@ export const PH_HUB_NPCS = [
 export const PH_ROAD_NAMES: Readonly<Record<string, string>> = {
   "camp-to-north": "Terrace Way",
   "camp-to-west-farm": "Clay Bank Path",
-  "west-farm-onward": "Meadow Path",
   "north-to-ashbeam": "Hollow Steps Road",
   "ashbeam-to-chalkworks": "Quarry Road",
   "chalkworks-to-marches": "Seam Road",
   "marches-to-ash-road": "Ash Road",
-  "camp-to-east-trib": "Tributary Path",
-  "east-trib-to-ashbeam": "East Grove Path",
-  "east-ashbeam-grove": "Grove Spur",
+  "east-grove": "East Grove Path",
 };
 
 export type PaleHollowMapLabelKind = "area" | "camp" | "landmark" | "water";
@@ -1822,19 +1826,19 @@ export type PaleHollowMapLabelKind = "area" | "camp" | "landmark" | "water";
  * docs/pale-hollow-area.md, placed at the geometry they name above.
  */
 export const PH_MAP_LABELS: readonly { text: string; x: number; z: number; kind: PaleHollowMapLabelKind }[] = [
-  { text: "The Shard Dwellings", x: 0, z: 2, kind: "camp" },
-  // Scavenger camp: between the paired scavenger spawns ph-scav-1 / ph-scav-2.
-  { text: "Scavenger Camp", x: 1, z: 86, kind: "camp" },
-  { text: "Hollow Steps", x: 34, z: 34, kind: "area" },
-  { text: "Ashbeam Reach", x: -38, z: 82, kind: "area" },
-  { text: "Chalkworks", x: -36, z: 136, kind: "area" },
-  { text: "Pale Marches", x: 34, z: 214, kind: "area" },
-  { text: "Clay Bank", x: -20, z: 34, kind: "landmark" },
+  { text: "The Shard Dwellings", x: PH_CAMP_SHIFT_X, z: 2 + PH_CAMP_SHIFT_Z, kind: "camp" },
+  { text: "Scavenger Camp", x: -57, z: 167, kind: "camp" },
+  { text: "Hollow Steps", x: -82, z: 123, kind: "area" },
+  { text: "Ashbeam Reach", x: -120, z: 200, kind: "area" },
+  { text: "Chalkworks", x: 40, z: 90, kind: "area" },
+  { text: "Pale Marches", x: 0, z: 450, kind: "area" },
+  { text: "Clay Bank", x: -125, z: 55, kind: "landmark" },
   { text: "Timber Bridge", x: (PH_TIMBER_BRIDGE.minX + PH_TIMBER_BRIDGE.maxX) / 2, z: (PH_TIMBER_BRIDGE.minZ + PH_TIMBER_BRIDGE.maxZ) / 2, kind: "landmark" },
   { text: "Quarry Cut", x: (PH_QUARRY_CUT.minX + PH_QUARRY_CUT.maxX) / 2, z: (PH_QUARRY_CUT.minZ + PH_QUARRY_CUT.maxZ) / 2, kind: "landmark" },
-  { text: "Hollow Quarry", x: 0, z: 145, kind: "landmark" },
+  { text: "Hollow Quarry", x: 53, z: 136, kind: "landmark" },
   { text: "Seam Tunnel", x: (PH_SEAM_TUNNEL.minX + PH_SEAM_TUNNEL.maxX) / 2, z: (PH_SEAM_TUNNEL.minZ + PH_SEAM_TUNNEL.maxZ) / 2, kind: "landmark" },
-  { text: "Copper Seams", x: 11, z: 210, kind: "landmark" },
-  { text: "Shard Crypt", x: -18, z: 210, kind: "landmark" },
-  { text: "Chalk Run", x: riverCenterX(118), z: 118, kind: "water" },
+  { text: "Copper Seams", x: 20, z: 410, kind: "landmark" },
+  { text: "Shard Crypt", x: -20, z: 430, kind: "landmark" },
+  { text: "Ash Pit", x: PH_LAKE.x, z: PH_LAKE.z, kind: "water" },
+  { text: "Hollow Road", x: 0, z: 484, kind: "landmark" },
 ];

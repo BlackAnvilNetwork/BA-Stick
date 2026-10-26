@@ -1,0 +1,32 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Darksteel helm strips. Dark steel (k) with iron trim (i).
+(
+    id: "ba_darksteel_helm",
+    x0: -0.17,
+    y0: -0.04,
+    x1: 0.17,
+    y1: 0.17,
+    z: 0.0,
+    flow: 0.0,
+    sleeve_drop: 0.0,
+    wrap: 0.0,
+    arm_from: 0.0,
+    arm_to: 0.0,
+    arm_thick: 0.0,
+    cuff_from: 0.0,
+    cuff_to: 0.0,
+    cuff_thick: 0.0,
+    rows: [
+        "iiiiiiiiiiii",
+        "kkkkkkkkkkkk",
+        "kkkkkkkkkkkk",
+        "kkkkkkkkkkkk",
+        "kkkkkkkkkkkk",
+        "kkkkkkkkkkkk",
+        "kkkkkkkkkkkk",
+        "iiiiiiiiiiii",
+    ],
+)

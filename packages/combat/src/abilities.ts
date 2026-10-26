@@ -474,9 +474,8 @@ export function abilityNeedsTarget(id: AbilityId): boolean {
   }
 
   if (isKnightAbilityId(id)) {
-
-    return !!KNIGHT_ABILITIES[id].needsTarget;
-
+    const def = KNIGHT_ABILITIES[id];
+    return !!(def.needsTarget || def.allyTarget);
   }
 
   if (isRogueAbilityId(id)) {
@@ -503,8 +502,12 @@ export function abilityNeedsTarget(id: AbilityId): boolean {
   }
   if (isBattleMageAbilityId(id)) {
     const def = BATTLEMAGE_ABILITIES[id];
+    if (def.category === "enspell") return false;
     return !!(
       def.needsTarget ||
+      def.allyTarget ||
+      def.category === "heal" ||
+      def.category === "enhance" ||
       def.category === "enfeeble" ||
       def.category === "nuke" ||
       id === "full_circle"
@@ -512,6 +515,52 @@ export function abilityNeedsTarget(id: AbilityId): boolean {
   }
   return false;
 
+}
+
+/** Who the player should tab-select / send as `targetId` for this ability. */
+export function abilityTargetFaction(id: AbilityId): "enemy" | "ally" | null {
+  if (!abilityNeedsTarget(id)) return null;
+  if (isWeaponTpAbilityId(id)) return "enemy";
+
+  if (isClericAbilityId(id)) {
+    const def = CLERIC_ABILITIES[id];
+    if (def.allyTarget) return "ally";
+    if (def.needsTarget) return "enemy";
+    return null;
+  }
+
+  if (isKnightAbilityId(id)) {
+    const def = KNIGHT_ABILITIES[id];
+    if (def.allyTarget) return "ally";
+    if (def.needsTarget) return "enemy";
+    return null;
+  }
+
+  if (isBattleMageAbilityId(id)) {
+    const def = BATTLEMAGE_ABILITIES[id];
+    if (def.category === "enspell") return null;
+    if (def.allyTarget || def.category === "heal" || def.category === "enhance") return "ally";
+    return "enemy";
+  }
+
+  if (isTimAbilityId(id)) {
+    const def = TIM_ABILITIES[id];
+    if (def.category === "heal") return null;
+    if (
+      def.needsTarget ||
+      def.category === "enfeeble" ||
+      id === "temporal_distortion" ||
+      id === "split_second"
+    ) {
+      return "enemy";
+    }
+    return null;
+  }
+
+  if (isRogueAbilityId(id) && ROGUE_ABILITIES[id].needsTarget) return "enemy";
+  if (isSorcererAbilityId(id) && SORCERER_ABILITIES[id].needsTarget) return "enemy";
+  if (isFighterAbilityId(id) && FIGHTER_ABILITIES[id].needsTarget) return "enemy";
+  return null;
 }
 
 

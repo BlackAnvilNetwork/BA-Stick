@@ -1,0 +1,17 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Leatherworking bench hammer — wood handle (+y), steel head at the top.
+(
+    id: "ba_craft_hammer",
+    slot: MainHand,
+    attach: Some("r_hand"),
+    stance: Some("1h"),
+    reach: 0.44,
+    swing_weight: 1.35,
+    material: Some("steel"),
+    shapes: [
+        Capsule(from: (0.0, -0.10, 0.0), to: (0.0, 0.30, 0.0), ramp: Trim, thick: 1.5),
+        Capsule(from: (-0.07, 0.30, 0.0), to: (0.07, 0.30, 0.0), ramp: Material, thick: 2.4),
+        Disc(at: None, center: (0.0, 0.36, 0.0), r: 0.045, ramp: Material),
+    ],
+)

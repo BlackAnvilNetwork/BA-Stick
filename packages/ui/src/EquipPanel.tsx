@@ -18,6 +18,8 @@ import {
   hqStats,
   itemIcon,
   itemName,
+  RING_EQUIP_SLOTS,
+  canEquipAnotherCopy,
   scaleGearStat,
   type EquipSlot,
   type ItemStats,
@@ -52,6 +54,7 @@ const SLOTS: SlotDef[] = [
   { id: "body", label: "Body" },
   { id: "hands", label: "Hands" },
   { id: "ring", label: "Ring" },
+  { id: "ring2", label: "Ring 2" },
   { id: "legs", label: "Legs" },
   { id: "feet", label: "Feet" },
 ];
@@ -330,8 +333,7 @@ function bagItemActions(item: BagRow, you: SnapshotMessage["you"]) {
   const btns: { key: string; label: string; onClick: () => void; disabled?: boolean; title?: string }[] = [];
 
   if (def?.kind === "equipment" && def.slot) {
-    const slot = def.slot;
-    const equipped = you.equip[slot] === tokenId && !!you.equipHq?.[slot] === !!item.hq;
+    const equipSlots: EquipSlot[] = def.slot === "ring" ? [...RING_EQUIP_SLOTS] : [def.slot];
     const jobs = def.jobRestrict;
     const jobAllowed =
       !jobs ||
@@ -339,21 +341,31 @@ function bagItemActions(item: BagRow, you: SnapshotMessage["you"]) {
       jobs.includes(itemJobKey(you.job) as never) ||
       (!!you.subjob && jobs.includes(itemJobKey(you.subjob) as never));
     const main = you.equip.main ? getItem(you.equip.main) : undefined;
-    const handBlocked = (slot === "sub" && main?.twoHand) || (slot === "grip" && !main?.twoHand);
-    const reason = !jobAllowed
-      ? "Your main/support job cannot equip this item"
-      : handBlocked
-        ? slot === "sub"
-          ? "Unequip the two-handed weapon first"
-          : "A grip requires a two-handed weapon"
-        : undefined;
-    btns.push({
-      key: `equip-${slot}`,
-      label: equipped ? "Unequip" : `Equip ${slot}`,
-      disabled: !equipped && !!reason,
-      title: reason,
-      onClick: () => send({ type: "equip", slot, tokenId: equipped ? null : tokenId, hq: item.hq === true }),
-    });
+    for (const slot of equipSlots) {
+      const equipped = you.equip[slot] === tokenId && !!you.equipHq?.[slot] === !!item.hq;
+      const handBlocked = (slot === "sub" && main?.twoHand) || (slot === "grip" && !main?.twoHand);
+      const ringBlocked =
+        def.slot === "ring" &&
+        !equipped &&
+        !canEquipAnotherCopy(item.amount, you.equip, you.equipHq, tokenId, !!item.hq, RING_EQUIP_SLOTS, slot);
+      const reason = !jobAllowed
+        ? "Your main/support job cannot equip this item"
+        : handBlocked
+          ? slot === "sub"
+            ? "Unequip the two-handed weapon first"
+            : "A grip requires a two-handed weapon"
+          : ringBlocked
+            ? "You need another copy in your bag for a second ring slot"
+            : undefined;
+      const slotLabel = slot === "ring2" ? "ring 2" : slot;
+      btns.push({
+        key: `equip-${slot}`,
+        label: equipped ? `Unequip ${slotLabel}` : `Equip ${slotLabel}`,
+        disabled: !equipped && !!reason,
+        title: reason,
+        onClick: () => send({ type: "equip", slot, tokenId: equipped ? null : tokenId, hq: item.hq === true }),
+      });
+    }
   }
   if (def?.kind === "consumable" && def.consume) {
     btns.push({

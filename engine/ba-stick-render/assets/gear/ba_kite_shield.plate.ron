@@ -1,0 +1,31 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Kite field. One opaque steel. The gold rim and the gold cross are fills
+// in the shield plane, so the border stays thick at the point.
+(
+    id: "ba_kite_shield",
+    x0: -0.30,
+    y0: -0.56,
+    x1: 0.30,
+    y1: 0.50,
+    z: 0.04,
+    flow: 0.0,
+    sleeve_drop: 0.0,
+    wrap: 0.0,
+    arm_from: 0.0,
+    arm_to: 0.0,
+    arm_thick: 0.0,
+    cuff_from: 0.0,
+    cuff_to: 0.0,
+    cuff_thick: 0.0,
+    rows: [
+        "eeeeeeeeeeee",
+        "eeeeeeeeeeee",
+        "eeeeeeeeeeee",
+        "eeeeeeeeeeee",
+        "eeeeeeeeeeee",
+        "eeeeeeeeeeee",
+    ],
+)

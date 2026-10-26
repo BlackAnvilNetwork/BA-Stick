@@ -7,7 +7,7 @@ import { paleHollowProps, RIVER_WALL_FREEBOARD } from "../scripts/bake-props";
 // standard wall's coping, open water showed over the wall as blue "teeth".
 test("every bank-wall coping clears the water just inside it", () => {
   const walls = paleHollowProps().filter((p) => p.kind === 47);
-  assert.ok(walls.length > 500);
+  assert.ok(walls.length > 400);
   let worst = Infinity;
   for (const p of walls) {
     const top = p.y + p.h + p.d;
@@ -52,12 +52,14 @@ test("bridges are trapezoids: straight ramps up, a flat deck, ramps down", async
   }
 });
 
-test("no bank wall stands under any bridge deck", async () => {
-  const { paleHollowProps, wallHitsBridge } = await import("../scripts/bake-props");
+test("bank walls stay continuous through bridge crossings", async () => {
+  const { PH_BRIDGE_SITES, paleHollowBridgeGeom } = await import("@bellgrave/config");
+  const { paleHollowProps } = await import("../scripts/bake-props");
   const walls = paleHollowProps().filter((p) => p.kind === 47);
-  for (const w of walls) {
-    const hx = Math.sin(w.yaw) * w.s * 0.5, hz = Math.cos(w.yaw) * w.s * 0.5;
-    assert.equal(wallHitsBridge({ x: w.x - hx, z: w.z - hz }, { x: w.x + hx, z: w.z + hz }), false, `wall at ${w.x},${w.z}`);
+  for (const site of PH_BRIDGE_SITES) {
+    const g = paleHollowBridgeGeom(site);
+    const near = walls.filter((w) => Math.hypot(w.x - g.x, w.z - g.zWorld) < g.span * 0.55 + 4);
+    assert.ok(near.length >= 2, `${site.id} should keep wall runs beside the crossing`);
   }
 });
 

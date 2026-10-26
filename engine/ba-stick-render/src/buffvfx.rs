@@ -7,7 +7,7 @@
 //! each frame; this module only draws them. Five bespoke effects mirror the
 //! old client (Quicken orbs, Flux aura, Temporal Distortion impact, petrify
 //! shell, resonance ring); everything else uses a generic category treatment.
-use stick_engine::camera::{Camera, P2, HEIGHT_PX};
+use stick_engine::camera::{Camera, HEIGHT_PX, P2};
 use stick_engine::math::{v3, Vec3};
 use stick_engine::raster::Framebuffer;
 
@@ -38,8 +38,27 @@ pub const FLASH: u32 = 1 << 20;
 
 /// Visual kind names, index = bit. Must match `VFX_BITS` in apps/stick-web/src/buffs.ts.
 pub const NAMES: [&str; 21] = [
-    "quicken", "flux", "td", "petrify", "resonance", "haste", "slow", "bind", "stun", "sleep", "silence",
-    "para", "blind", "protect", "shell", "berserk", "regen", "dot", "ward", "enfeeble", "flash",
+    "quicken",
+    "flux",
+    "td",
+    "petrify",
+    "resonance",
+    "haste",
+    "slow",
+    "bind",
+    "stun",
+    "sleep",
+    "silence",
+    "para",
+    "blind",
+    "protect",
+    "shell",
+    "berserk",
+    "regen",
+    "dot",
+    "ward",
+    "enfeeble",
+    "flash",
 ];
 
 /// Per-unit buff visual state set by the host each frame.
@@ -53,7 +72,13 @@ pub struct BuffFx {
 }
 
 impl Default for BuffFx {
-    fn default() -> Self { BuffFx { mask: 0, td: -1.0, burst: -1.0 } }
+    fn default() -> Self {
+        BuffFx {
+            mask: 0,
+            td: -1.0,
+            burst: -1.0,
+        }
+    }
 }
 
 fn put(fb: &mut Framebuffer, x: i32, y: i32, c: u8) {
@@ -74,7 +99,11 @@ fn put_d(fb: &mut Framebuffer, x: i32, y: i32, d: f32, c: u8) {
 
 /// True where something (unit/prop) already wrote depth: lets overlays stay on the body.
 fn solid(fb: &Framebuffer, x: i32, y: i32) -> bool {
-    x >= 0 && y >= 0 && (x as usize) < fb.w && (y as usize) < fb.h && fb.depth[y as usize * fb.w + x as usize].is_finite()
+    x >= 0
+        && y >= 0
+        && (x as usize) < fb.w
+        && (y as usize) < fb.h
+        && fb.depth[y as usize * fb.w + x as usize].is_finite()
 }
 
 fn h01(n: u32) -> f32 {
@@ -94,7 +123,12 @@ fn ellipse(fb: &mut Framebuffer, cx: f32, cy: f32, rx: f32, ry: f32, c: u8, dash
             }
         }
         let a = i as f32 / n as f32 * std::f32::consts::TAU;
-        put(fb, (cx + a.cos() * rx).round() as i32, (cy + a.sin() * ry).round() as i32, c);
+        put(
+            fb,
+            (cx + a.cos() * rx).round() as i32,
+            (cy + a.sin() * ry).round() as i32,
+            c,
+        );
     }
 }
 
@@ -125,7 +159,14 @@ pub fn draw_ground(fb: &mut Framebuffer, cam: &Camera, a: &Anchor, fx: &BuffFx, 
     if fx.mask & TD != 0 && fx.td >= 0.0 {
         let life = fx.td.clamp(0.0, 1.0);
         // Earth + chrona ring expanding from the target.
-        ground_ring(fb, cam, a.base, 0.3 + life * 1.6, if life < 0.5 { FX_CAST } else { ROCK_L }, None);
+        ground_ring(
+            fb,
+            cam,
+            a.base,
+            0.3 + life * 1.6,
+            if life < 0.5 { FX_CAST } else { ROCK_L },
+            None,
+        );
         ground_ring(fb, cam, a.base, 0.2 + life * 1.1, ROCK, Some(t * 6.0));
         // Radial ground cracks.
         for k in 0..7u32 {
@@ -178,7 +219,10 @@ pub fn draw_body(fb: &mut Framebuffer, cam: &Camera, a: &Anchor, fx: &BuffFx, t:
                 let ny = y + 2.0 + h01(k * 3 + s) * 3.0;
                 let steps = 4;
                 for i in 0..=steps {
-                    let (px, py) = ((x + (nx - x) * i as f32 / steps as f32) as i32, (y + (ny - y) * i as f32 / steps as f32) as i32);
+                    let (px, py) = (
+                        (x + (nx - x) * i as f32 / steps as f32) as i32,
+                        (y + (ny - y) * i as f32 / steps as f32) as i32,
+                    );
                     if solid(fb, px, py) {
                         put(fb, px, py, C_OUTLINE);
                     }
@@ -193,9 +237,33 @@ pub fn draw_body(fb: &mut Framebuffer, cam: &Camera, a: &Anchor, fx: &BuffFx, t:
         let wob = (tt * 4.0).sin();
         let pulse = 0.5 + 0.5 * (tt * 2.2).sin();
         let (cx, cy) = (fx_, fy - a.h * 0.5);
-        ellipse(fb, cx, cy, 11.0 + wob + pulse, a.h * 0.58 + pulse, CR_WIGHT, None);
-        ellipse(fb, cx, cy, 12.0 + wob + pulse, a.h * 0.6 + pulse, WATER + 3, Some(tt * 3.0));
-        ellipse(fb, cx, cy, 9.5 - wob * 0.5, a.h * 0.54, CR_WIGHT, Some(-tt * 2.0));
+        ellipse(
+            fb,
+            cx,
+            cy,
+            11.0 + wob + pulse,
+            a.h * 0.58 + pulse,
+            CR_WIGHT,
+            None,
+        );
+        ellipse(
+            fb,
+            cx,
+            cy,
+            12.0 + wob + pulse,
+            a.h * 0.6 + pulse,
+            WATER + 3,
+            Some(tt * 3.0),
+        );
+        ellipse(
+            fb,
+            cx,
+            cy,
+            9.5 - wob * 0.5,
+            a.h * 0.54,
+            CR_WIGHT,
+            Some(-tt * 2.0),
+        );
         for k in 0..10u32 {
             let life = (tt * 0.6 + h01(k + 5)) % 1.0;
             let x = fx_ + (h01(k * 9 + 1) - 0.5) * 20.0;
@@ -214,9 +282,16 @@ pub fn draw_body(fb: &mut Framebuffer, cam: &Camera, a: &Anchor, fx: &BuffFx, t:
             let tilt = if belt == 0 { 0.16 } else { -0.16 };
             for j in 0..4 {
                 for trail in 0..3 {
-                    let ang = tt * 2.7 * dir + j as f32 * std::f32::consts::FRAC_PI_2 + belt as f32 * 0.78 - dir * trail as f32 * 0.18;
+                    let ang = tt * 2.7 * dir
+                        + j as f32 * std::f32::consts::FRAC_PI_2
+                        + belt as f32 * 0.78
+                        - dir * trail as f32 * 0.18;
                     let r = 0.7;
-                    let off = v3(ang.cos() * r, chest_y + ang.sin() * r * tilt * 2.0, ang.sin() * r);
+                    let off = v3(
+                        ang.cos() * r,
+                        chest_y + ang.sin() * r * tilt * 2.0,
+                        ang.sin() * r,
+                    );
                     let p = cam.project(a.base + off);
                     let d = p.d;
                     let (x, y) = (p.x as i32, p.y as i32);
@@ -227,12 +302,24 @@ pub fn draw_body(fb: &mut Framebuffer, cam: &Camera, a: &Anchor, fx: &BuffFx, t:
                                 if r2 > 5 {
                                     continue;
                                 }
-                                let c = if r2 == 0 { FX_HOVER } else if r2 <= 2 { FX_LEVEL } else { FX_RING_SELF };
+                                let c = if r2 == 0 {
+                                    FX_HOVER
+                                } else if r2 <= 2 {
+                                    FX_LEVEL
+                                } else {
+                                    FX_RING_SELF
+                                };
                                 put_d(fb, x + dx, y + dy, d - 0.01, c);
                             }
                         }
                     } else {
-                        put_d(fb, x, y, d - 0.01, if trail == 1 { FX_LEVEL } else { FX_RING_SELF });
+                        put_d(
+                            fb,
+                            x,
+                            y,
+                            d - 0.01,
+                            if trail == 1 { FX_LEVEL } else { FX_RING_SELF },
+                        );
                     }
                 }
             }
@@ -240,11 +327,31 @@ pub fn draw_body(fb: &mut Framebuffer, cam: &Camera, a: &Anchor, fx: &BuffFx, t:
     }
     if m & RESONANCE != 0 || (m & QUICKEN != 0 && fx.burst >= 0.0) {
         // Resonance: soft rings bursting outward from the chest.
-        let life = if fx.burst >= 0.0 { fx.burst.clamp(0.0, 1.0) } else { (tt * 0.9) % 1.0 };
+        let life = if fx.burst >= 0.0 {
+            fx.burst.clamp(0.0, 1.0)
+        } else {
+            (tt * 0.9) % 1.0
+        };
         let r = 6.0 + life * 26.0;
         let col = if life < 0.5 { FX_LEVEL } else { FX_RING_SELF };
-        ellipse(fb, fx_, chest, r, r * 0.55, col, if life > 0.7 { Some(tt * 4.0) } else { None });
-        ellipse(fb, fx_, chest, r + 1.0, r * 0.55 + 1.0, CR_WIGHT, if life > 0.5 { Some(tt * 4.0) } else { None });
+        ellipse(
+            fb,
+            fx_,
+            chest,
+            r,
+            r * 0.55,
+            col,
+            if life > 0.7 { Some(tt * 4.0) } else { None },
+        );
+        ellipse(
+            fb,
+            fx_,
+            chest,
+            r + 1.0,
+            r * 0.55 + 1.0,
+            CR_WIGHT,
+            if life > 0.5 { Some(tt * 4.0) } else { None },
+        );
         if life < 0.6 {
             ellipse(fb, fx_, chest, r * 0.6, r * 0.33, FX_LEVEL, None);
         }
@@ -260,7 +367,21 @@ pub fn draw_body(fb: &mut Framebuffer, cam: &Camera, a: &Anchor, fx: &BuffFx, t:
                 for s in 0..5u32 {
                     let nx = x + (h01(k * 17 + s) - 0.5) * 6.0;
                     let ny = y + 3.0;
-                    fb.line(P2 { x, y, d: f32::MAX, s: 1.0 }, P2 { s: 1.0, x: nx, y: ny, d: f32::MAX }, FX_CAST);
+                    fb.line(
+                        P2 {
+                            x,
+                            y,
+                            d: f32::MAX,
+                            s: 1.0,
+                        },
+                        P2 {
+                            s: 1.0,
+                            x: nx,
+                            y: ny,
+                            d: f32::MAX,
+                        },
+                        FX_CAST,
+                    );
                     x = nx;
                     y = ny;
                 }
@@ -270,7 +391,8 @@ pub fn draw_body(fb: &mut Framebuffer, cam: &Camera, a: &Anchor, fx: &BuffFx, t:
             let ang = h01(k * 23 + a.seed) * std::f32::consts::TAU;
             let sp = 0.6 + h01(k * 5) * 0.9;
             let h = (life * 4.0 - life * life * 4.0) * (0.8 + h01(k * 7) * 0.8);
-            let p = cam.project(a.base + v3(ang.cos() * sp * life * 1.4, h, ang.sin() * sp * life * 1.4));
+            let p = cam
+                .project(a.base + v3(ang.cos() * sp * life * 1.4, h, ang.sin() * sp * life * 1.4));
             let c = if k % 3 == 0 { FX_CAST } else { ROCK };
             for (dx, dy) in [(0, 0), (1, 0), (0, 1), (1, 1)] {
                 put(fb, p.x as i32 + dx, p.y as i32 + dy, c);
@@ -312,14 +434,22 @@ pub fn draw_body(fb: &mut Framebuffer, cam: &Camera, a: &Anchor, fx: &BuffFx, t:
     if m & STUN != 0 {
         for k in 0..3 {
             let ang = tt * 4.0 + k as f32 * std::f32::consts::TAU / 3.0;
-            plus(fb, fx_ + ang.cos() * 7.0, top - 2.0 + ang.sin() * 2.0, FX_LEVEL);
+            plus(
+                fb,
+                fx_ + ang.cos() * 7.0,
+                top - 2.0 + ang.sin() * 2.0,
+                FX_LEVEL,
+            );
         }
     }
     if m & SLEEP != 0 {
         // Little z's rising off the head.
         for k in 0..2 {
             let life = (tt * 0.6 + k as f32 * 0.5) % 1.0;
-            let (x, y) = ((fx_ + 4.0 + life * 6.0) as i32, (top - 2.0 - life * 10.0) as i32);
+            let (x, y) = (
+                (fx_ + 4.0 + life * 6.0) as i32,
+                (top - 2.0 - life * 10.0) as i32,
+            );
             let s = if life > 0.5 { 2 } else { 1 };
             for i in 0..=s {
                 put(fb, x + i, y - s, FX_HOVER);
@@ -355,7 +485,21 @@ pub fn draw_body(fb: &mut Framebuffer, cam: &Camera, a: &Anchor, fx: &BuffFx, t:
             for s in 0..4u32 {
                 let nx = x + if s & 1 == 0 { 3.0 } else { -3.0 };
                 let ny = y + 2.5;
-                fb.line(P2 { x, y, d: f32::MAX, s: 1.0 }, P2 { s: 1.0, x: nx, y: ny, d: f32::MAX }, FN_CRIT);
+                fb.line(
+                    P2 {
+                        x,
+                        y,
+                        d: f32::MAX,
+                        s: 1.0,
+                    },
+                    P2 {
+                        s: 1.0,
+                        x: nx,
+                        y: ny,
+                        d: f32::MAX,
+                    },
+                    FN_CRIT,
+                );
                 x = nx;
                 y = ny;
             }
@@ -367,30 +511,61 @@ pub fn draw_body(fb: &mut Framebuffer, cam: &Camera, a: &Anchor, fx: &BuffFx, t:
         for dy in 0..3 {
             for dx in -5..=5 {
                 if (dx + dy) & 1 == 0 || dy == 1 {
-                    put(fb, (fx_ + dx as f32) as i32, (y + dy as f32) as i32, C_OUTLINE);
+                    put(
+                        fb,
+                        (fx_ + dx as f32) as i32,
+                        (y + dy as f32) as i32,
+                        C_OUTLINE,
+                    );
                 }
             }
         }
     }
     if m & PROTECT != 0 {
-        ellipse(fb, fx_, fy - a.h * 0.5, 12.0, a.h * 0.6, FX_RING_SELF, Some(tt * 1.5));
+        ellipse(
+            fb,
+            fx_,
+            fy - a.h * 0.5,
+            12.0,
+            a.h * 0.6,
+            FX_RING_SELF,
+            Some(tt * 1.5),
+        );
     }
     if m & SHELL != 0 {
-        ellipse(fb, fx_, fy - a.h * 0.5, 13.5, a.h * 0.64, CR_WIGHT, Some(-tt * 1.5 + 0.5));
+        ellipse(
+            fb,
+            fx_,
+            fy - a.h * 0.5,
+            13.5,
+            a.h * 0.64,
+            CR_WIGHT,
+            Some(-tt * 1.5 + 0.5),
+        );
     }
     if m & BERSERK != 0 {
         for k in 0..6u32 {
             let life = (tt * 1.2 + h01(k + 40)) % 1.0;
             let x = fx_ + (h01(k * 19 + 3) - 0.5) * 14.0 + (tt * 6.0 + k as f32).sin();
             let y = fy - life * a.h * 1.1;
-            put(fb, x as i32, y as i32, if life < 0.5 { FX_TELL } else { EMBER });
+            put(
+                fb,
+                x as i32,
+                y as i32,
+                if life < 0.5 { FX_TELL } else { EMBER },
+            );
         }
     }
     if m & REGEN != 0 {
         for k in 0..3u32 {
             let life = (tt * 0.7 + k as f32 / 3.0) % 1.0;
             let x = fx_ + (h01(k * 29 + 2) - 0.5) * 14.0;
-            plus(fb, x, fy - 4.0 - life * a.h, if life < 0.7 { FN_HEAL } else { FX_HP });
+            plus(
+                fb,
+                x,
+                fy - 4.0 - life * a.h,
+                if life < 0.7 { FN_HEAL } else { FX_HP },
+            );
         }
     }
     if m & DOT != 0 {
@@ -409,7 +584,12 @@ pub fn draw_body(fb: &mut Framebuffer, cam: &Camera, a: &Anchor, fx: &BuffFx, t:
         for k in 0..3 {
             let ang = tt * 1.4 + k as f32 * std::f32::consts::TAU / 3.0;
             let y = fy - a.h * (0.3 + 0.3 * ((tt + k as f32) * 0.8).sin().abs());
-            put(fb, (fx_ + ang.cos() * 10.0) as i32, (y + ang.sin() * 2.0) as i32, FX_RING_SELF);
+            put(
+                fb,
+                (fx_ + ang.cos() * 10.0) as i32,
+                (y + ang.sin() * 2.0) as i32,
+                FX_RING_SELF,
+            );
         }
     }
     if m & ENFEEBLE != 0 {
@@ -434,7 +614,17 @@ mod tests {
 
     fn scene() -> Scene {
         let mut s = Scene::new(320, 240);
-        s.upsert_unit("p", UnitInput { x: 0.0, y: 0.0, z: 0.0, facing: 0.0, anim: AnimState::Idle, preset: "knight".into() });
+        s.upsert_unit(
+            "p",
+            UnitInput {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+                facing: 0.0,
+                anim: AnimState::Idle,
+                preset: "knight".into(),
+            },
+        );
         s.set_camera(0.0, 0.0);
         s.tick(0.3);
         s
@@ -447,9 +637,21 @@ mod tests {
         let ref_px = base.fb.color.clone();
         for (bit, name) in NAMES.iter().enumerate() {
             let mut s = scene();
-            assert!(s.set_buffs("p", BuffFx { mask: 1 << bit, td: 0.3, burst: 0.3 }));
+            assert!(s.set_buffs(
+                "p",
+                BuffFx {
+                    mask: 1 << bit,
+                    td: 0.3,
+                    burst: 0.3
+                }
+            ));
             s.draw();
-            let diff = s.fb.color.iter().zip(&ref_px).filter(|(a, b)| a != b).count();
+            let diff =
+                s.fb.color
+                    .iter()
+                    .zip(&ref_px)
+                    .filter(|(a, b)| a != b)
+                    .count();
             assert!(diff > 0, "{name} drew nothing");
         }
     }
@@ -457,12 +659,30 @@ mod tests {
     #[test]
     fn unknown_unit_and_clear() {
         let mut s = scene();
-        assert!(!s.set_buffs("nobody", BuffFx { mask: QUICKEN, ..Default::default() }));
-        s.set_buffs("p", BuffFx { mask: QUICKEN, ..Default::default() });
+        assert!(!s.set_buffs(
+            "nobody",
+            BuffFx {
+                mask: QUICKEN,
+                ..Default::default()
+            }
+        ));
+        s.set_buffs(
+            "p",
+            BuffFx {
+                mask: QUICKEN,
+                ..Default::default()
+            },
+        );
         assert!(s.buffs("p").is_some());
         s.set_buffs("p", BuffFx::default());
         assert!(s.buffs("p").is_none());
-        s.set_buffs("p", BuffFx { mask: FLUX, ..Default::default() });
+        s.set_buffs(
+            "p",
+            BuffFx {
+                mask: FLUX,
+                ..Default::default()
+            },
+        );
         s.remove_unit("p");
         assert!(s.buffs("p").is_none());
     }

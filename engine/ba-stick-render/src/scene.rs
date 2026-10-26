@@ -10,7 +10,8 @@ use stick_engine::anim::{AnimLibrary, Animator, Pose};
 use stick_engine::body::{Personality, Sex};
 use stick_engine::gait::Gait;
 use stick_engine::camera::{Camera, P2};
-use stick_engine::math::{angle_diff, v3, Vec3};
+use stick_engine::camrig::{CamConfig, CamMode, CamRig, Subject, FP_HIDE_RADIUS};
+use stick_engine::math::{angle_diff, v3, wrap_angle, Vec3};
 use stick_engine::raster::Framebuffer;
 use crate::compat::*;
 use stick_engine::rig;
@@ -49,11 +50,21 @@ pub struct UnitFx {
     pub fade: f32,
     /// Level-up column progress 0..1, or < 0 when inactive.
     pub level_up: f32,
+    /// Battle Mage en-spell on blade: 0 none, 1 fire, 2 ice, 3 thunder.
+    pub weapon_edge: u8,
 }
 
 impl Default for UnitFx {
     fn default() -> Self {
-        UnitFx { hp: -1.0, cast: -1.0, aoe: 0.0, flags: 0, fade: 1.0, level_up: -1.0 }
+        UnitFx {
+            hp: -1.0,
+            cast: -1.0,
+            aoe: 0.0,
+            flags: 0,
+            fade: 1.0,
+            level_up: -1.0,
+            weapon_edge: 0,
+        }
     }
 }
 
@@ -67,8 +78,15 @@ pub const FX_PLAYER_CAST: u32 = 32;
 pub const FX_PETRIFIED: u32 = 64;
 /// Gather node already harvested (greyed, no glow).
 pub const FX_DEPLETED: u32 = 128;
+pub const FX_MOB: u32 = 256;
 /// Background index in preview mode (keyed to transparent).
 const BACKDROP: u8 = crate::atmosphere::SKY;
+
+#[inline]
+fn smoothstep(t: f32) -> f32 {
+    let t = t.clamp(0.0, 1.0);
+    t * t * (3.0 - 2.0 * t)
+}
 
 struct Unit {
     pos: Vec3,
@@ -87,17 +105,30 @@ struct Unit {
     animator: Animator,
     /// Procedural walk/run base layer (engine gait).
     walk: Gait,
+    /// Stride speed, eased so a 20 Hz snapshot does not pulse the step.
+    leg_speed: f32,
     idle_t: f32,
     /// Seconds since the current anim state started (creature lunges).
     act_t: f32,
+    /// Rising embers off en-spelled weapons (forge menu cadence).
+    weapon_edge_emit: f32,
     snap: bool,
 }
+
+/// Head centre above the feet, matching the reference biped (`thigh+shin+torso+neck+head_r`).
+const HEAD_Y: f32 = 1.63;
 
 pub struct Scene {
     pub fb: Framebuffer,
     pub cam: Camera,
-    /// Requested view: false = iso, true = 3D perspective.
-    pub view3d: bool,
+    /// Iso (default), third-person, or first-person. Gameplay stays on the ground.
+    rig: CamRig,
+    /// Held look, −1..1. Yaw is a camera bias on top of the character's facing
+    /// (positive = turn right). Pitch is passed to the rig (positive = look down).
+    look_yaw: f32,
+    look_pitch: f32,
+    /// Extra yaw so numpad / mouse look orbits without a server facing message.
+    yaw_bias: f32,
     lib: AnimLibrary,
     units: BTreeMap<String, Unit>,
     follow: Option<String>,
@@ -106,6 +137,13 @@ pub struct Scene {
     pub smoothing: f32,
     zone: Option<Zone>,
     props: Vec<props::Prop>,
+    /// Every zone drawn together, already shifted into world coordinates.
+    /// The minimap zone above stays in that zone's local coordinates.
+    world: Vec<Zone>,
+    world_props: Vec<props::Prop>,
+    /// Subtracted from unit positions for the local-space minimap.
+    map_ox: f32,
+    map_oz: f32,
     floaters: Vec<floaters::Floater>,
     pub vfx: crate::vfx::Vfx,
     /// Preview mode (#37): no ground, transparent background.
@@ -119,26 +157,54 @@ pub struct Scene {
     lights: Vec<crate::atmosphere::Light>,
     /// Lighting, haze, skyline and vignette (#26).
     pub atmosphere: bool,
+    /// Extra third-person boom pitch that keeps the eye out of the terrain.
+    boom_lift: f32,
+    /// `cam.persp` was last written by the CamRig (3D rail), not a caller.
+    rig_persp: bool,
     /// L2 directional key light (round 1 polish). Off by default; `?keylight`.
     pub keylight: bool,
     /// Buff / ailment visuals per unit (#34).
     buffs: BTreeMap<String, crate::buffvfx::BuffFx>,
     /// Engine-drawn minimap (baked once per zone, blitted each frame).
     pub minimap: crate::minimap::Minimap,
+    /// Boot menu: transparent canvas + forge embers over a still backdrop.
+    pub boot_menu: bool,
+    boot_menu_emit: f32,
+    /// Pale Hollow weather spell being blended toward (0 clear, 1 rain, 2 fog, 3 snow).
+    weather_kind_from: u8,
+    weather_kind_to: u8,
+    weather_blend: f32,
+    /// Snow depth on ground and trees (0..1), eased toward server target.
+    pub weather_snow: f32,
+    weather_snow_target: f32,
+    /// Frame clock for precipitation (f64 avoids long-session banding).
+    weather_time: f64,
+    /// Local player hair style and colours (Stick Engine cosmetics).
+    player_appearance: crate::appearance::Appearance,
+    player_hair_spring: [stick_engine::character::HairSpring; 3],
 }
 
 impl Scene {
     pub fn new(w: usize, h: usize) -> Scene {
+        let mut lib = AnimLibrary::builtin();
+        lib.register_ron(include_str!("../assets/clips/rest.ron")).expect("rest clip");
         Scene {
             fb: Framebuffer::new(w, h),
             cam: Camera::new(w, h),
-            view3d: false,
-            lib: AnimLibrary::builtin(),
+            rig: CamRig::new(CamConfig::default()),
+            look_yaw: 0.0,
+            look_pitch: 0.0,
+            yaw_bias: 0.0,
+            lib,
             units: BTreeMap::new(),
             follow: None,
             smoothing: 15.0,
             zone: None,
             props: Vec::new(),
+            world: Vec::new(),
+            world_props: Vec::new(),
+            map_ox: 0.0,
+            map_oz: 0.0,
             floaters: Vec::new(),
             vfx: crate::vfx::Vfx::default(),
             backdrop: false,
@@ -148,9 +214,97 @@ impl Scene {
             pal: palette::palette(),
             lights: Vec::new(),
             atmosphere: true,
+            boom_lift: 0.0,
+            rig_persp: false,
             keylight: false,
             buffs: BTreeMap::new(),
             minimap: crate::minimap::Minimap::new(),
+            boot_menu: false,
+            boot_menu_emit: 0.0,
+            weather_kind_from: 0,
+            weather_kind_to: 0,
+            weather_blend: 1.0,
+            weather_snow: 0.0,
+            weather_snow_target: 0.0,
+            weather_time: 0.0,
+            player_appearance: crate::appearance::Appearance::default(),
+            player_hair_spring: [stick_engine::character::HairSpring::default(); 3],
+        }
+    }
+
+    /// Live pixel forge menu: procedural cavern, hero idle, embers.
+    pub fn set_boot_menu(&mut self, on: bool) {
+        self.boot_menu = on;
+        self.boot_menu_emit = 0.0;
+        if !on {
+            return;
+        }
+        self.backdrop = false;
+        self.atmosphere = false;
+        self.keylight = false;
+        self.minimap.on = false;
+        self.minimap.full = false;
+        self.follow = None;
+        self.buffs.clear();
+        self.world.clear();
+        self.world_props.clear();
+        self.set_cam_mode("iso");
+        self.look_yaw = 0.0;
+        self.look_pitch = 0.0;
+        self.units.clear();
+        self.follow_lift_px = 56.0;
+        self.cam.cx = 0.0;
+        self.cam.cz = 4.0;
+        self.cam_y = 0.55;
+        self.yaw_bias = -0.12;
+    }
+
+    fn tick_boot_menu_vfx(&mut self, dt: f32) {
+        self.boot_menu_emit += dt;
+        while self.boot_menu_emit >= 0.07 {
+            self.boot_menu_emit -= 0.07;
+            let n = (self.time * 24.0) as i32;
+            let sources = crate::boot_forge::particle_sources();
+            if n.rem_euclid(4) == 0 {
+                self.vfx.menu_forge_haze(crate::boot_forge::mid_chamber_vfx_origin(
+                    n + 41,
+                    self.time + 0.15,
+                ));
+            }
+            if n % 8 == 0 {
+                self.vfx.menu_forge_ember(sources[(n.rem_euclid(6)) as usize]);
+            }
+            if n % 17 == 0 {
+                self.vfx
+                    .menu_forge_twinkle(crate::boot_forge::distant_twinkle_origin(n + 53, self.time));
+            }
+        }
+    }
+
+    fn tick_boot_menu_units(&mut self, dt: f32) {
+        let k = 1.0 - (-9.0 * dt).exp();
+        for u in self.units.values_mut() {
+            u.idle_t += dt;
+            u.act_t += dt;
+            u.pos = u.pos.lerp(u.target, k);
+            u.yaw += angle_diff(u.yaw, u.target_yaw) * k;
+
+            let body = u.preset.props.body();
+            if u.anim == AnimState::Walk {
+                let gait_pose = u.walk.update(dt, 1.05, &body, &Personality::default(), &Sex::Male.gait());
+                u.animator.update(&self.lib, dt, &gait_pose);
+                let dx = u.target.x - u.pos.x;
+                let dz = u.target.z - u.pos.z;
+                if dx * dx + dz * dz < 0.025 {
+                    u.anim = AnimState::Idle;
+                    u.animator.play(AnimState::Idle.action_clip(), 0.18, 1.0, true);
+                }
+                continue;
+            }
+            let gait_pose = u.walk.update(dt, 0.0, &body, &Personality::default(), &Sex::Male.gait());
+            let idle_pose = self.lib.get("idle").map(|c| c.sample(u.idle_t)).unwrap_or_default();
+            let base: Pose = idle_pose.blend(&gait_pose, 0.0);
+            u.animator.update(&self.lib, dt, &base);
         }
     }
 
@@ -188,18 +342,54 @@ impl Scene {
     }
 
     pub fn prop_count(&self) -> usize { self.props.len() }
+    pub fn has_zone(&self) -> bool { self.zone.is_some() || !self.world.is_empty() }
+
+    /// Add a zone to the concurrent world. `ox`/`oz` shift its grid into world space.
+    /// Does not replace zones already placed, and does not change the minimap zone.
+    pub fn place_zone(&mut self, bytes: &[u8], ox: f32, oz: f32) -> Result<(), String> {
+        let mut zone = Zone::parse(bytes)?;
+        zone.min_x += ox;
+        zone.min_z += oz;
+        self.world.push(zone);
+        Ok(())
+    }
+
+    /// Props for a placed zone. Positions are shifted by the same origin as `place_zone`.
+    pub fn place_props(&mut self, bytes: &[u8], ox: f32, oz: f32) -> Result<usize, String> {
+        let mut placed = props::parse(bytes)?;
+        for p in &mut placed {
+            p.x += ox;
+            p.z += oz;
+        }
+        let n = placed.len();
+        self.world_props.extend(placed);
+        Ok(n)
+    }
+
+    /// Local-space origin of the zone the minimap is showing.
+    pub fn set_map_origin(&mut self, ox: f32, oz: f32) {
+        self.map_ox = ox;
+        self.map_oz = oz;
+    }
+
+    /// Zone grid that contains a world point. Placed zones win over the minimap copy.
+    fn zone_at(&self, x: f32, z: f32) -> Option<&Zone> {
+        if !self.world.is_empty() {
+            return self.world.iter().find(|zn| zn.contains_point(x, z));
+        }
+        self.zone.as_ref()
+    }
 
     #[cfg(test)]
     pub(crate) fn set_zone_for_test(&mut self, z: Zone) { self.zone = Some(z); }
-    pub fn has_zone(&self) -> bool { self.zone.is_some() }
 
     /// Stand height from the zone (0 without a zone).
     pub fn zone_height(&self, x: f32, z: f32) -> f32 {
-        self.zone.as_ref().map_or(0.0, |zn| zn.height_at(x, z))
+        self.zone_at(x, z).map_or(0.0, |zn| zn.height_at(x, z))
     }
 
     pub fn zone_flags(&self, x: f32, z: f32) -> u8 {
-        self.zone.as_ref().map_or(0, |zn| zn.flags_at(x, z))
+        self.zone_at(x, z).map_or(0, |zn| zn.flags_at(x, z))
     }
 
     /// Keep the camera on a unit (typically the local player).
@@ -213,6 +403,12 @@ impl Scene {
         let target = v3(u.x, u.y, u.z);
         match self.units.get_mut(id) {
             Some(e) => {
+                // A zone hand-off jumps hundreds of metres. Interpolating that
+                // slides the figure across empty sky. Snap instead.
+                if (e.pos.x - target.x).abs().max((e.pos.z - target.z).abs()) > 24.0 {
+                    e.pos = target;
+                    e.yaw = u.facing;
+                }
                 e.target = target;
                 e.target_yaw = u.facing;
                 if e.preset_key != u.preset {
@@ -220,7 +416,8 @@ impl Scene {
                     e.preset_key = u.preset;
                 }
                 if e.anim != u.anim || u.anim.restarts() && e.animator.action_finished(&self.lib) {
-                    e.animator.play(u.anim.action_clip(), 0.12, 1.0, u.anim.restarts());
+                    let blend = if e.anim == AnimState::Rest || u.anim == AnimState::Rest { 0.4 } else { 0.12 };
+                    e.animator.play(u.anim.action_clip(), blend, 1.0, u.anim.restarts());
                     e.anim = u.anim;
                     e.act_t = 0.0;
                 }
@@ -241,8 +438,10 @@ impl Scene {
                     preset_key: u.preset,
                     animator,
                     walk: Gait::default(),
+                    leg_speed: 0.0,
                     idle_t: 0.0,
                     act_t: 0.0,
+                    weapon_edge_emit: 0.0,
                     snap: true,
                     fx: UnitFx::default(),
                     gait: 0.0,
@@ -313,21 +512,197 @@ impl Scene {
 
     pub fn vfx_count(&self) -> usize { self.vfx.count() }
 
+    /// `iso`, `tp`/`third`/`3d`, or `fp`/`first`. Unknown values are ignored.
+    pub fn set_cam_mode(&mut self, mode: &str) {
+        let Some(mode) = CamMode::parse(mode).or(match mode {
+            "3d" => Some(CamMode::ThirdPerson),
+            _ => None,
+        }) else {
+            return;
+        };
+        let s = self.subject();
+        let cur = self.cam.effective_view();
+        self.rig.set_mode(mode, &s, cur);
+    }
+
+    pub fn cam_mode(&self) -> &'static str {
+        match self.rig.mode {
+            CamMode::Iso => "iso",
+            CamMode::ThirdPerson => "tp",
+            CamMode::FirstPerson => "fp",
+        }
+    }
+
+    /// Camera yaw currently in effect (character facing plus look bias, smoothed).
+    pub fn cam_yaw(&self) -> f32 { self.rig.yaw }
+
+    /// Held numpad look. Ignored while isometric. `yaw`/`pitch` are −1..1.
+    pub fn set_look(&mut self, yaw: f32, pitch: f32) {
+        self.look_yaw = yaw.clamp(-1.0, 1.0);
+        self.look_pitch = pitch.clamp(-1.0, 1.0);
+    }
+
+    /// Right-drag look in framebuffer pixels. Ignored while isometric.
+    pub fn add_look(&mut self, dx: f32, dy: f32) {
+        if self.rig.mode == CamMode::Iso {
+            return;
+        }
+        self.yaw_bias = wrap_angle(self.yaw_bias - dx * stick_engine::game::MOUSE_TURN);
+        let lim = self.rig.cfg.fp_pitch_limit_deg.to_radians();
+        self.rig.fp_pitch = (self.rig.fp_pitch + dy * stick_engine::game::MOUSE_PITCH).clamp(-lim, lim);
+    }
+
+    /// True once the eye is inside the followed head (body should not be drawn).
+    pub fn first_person(&self) -> bool {
+        let Some(eye) = self.cam.view.and_then(|v| v.eye()) else { return false };
+        (eye - self.subject().head).len() < FP_HIDE_RADIUS
+    }
+
+    fn subject(&self) -> Subject {
+        let (x, y, z, yaw) = match self.follow.as_deref().and_then(|id| self.units.get(id)) {
+            Some(u) => (u.pos.x, u.pos.y - self.cam_y, u.pos.z, u.yaw),
+            None => (self.cam.cx, 0.0, self.cam.cz, 0.0),
+        };
+        Subject {
+            pos: v3(x, y, z),
+            yaw: wrap_angle(yaw + self.yaw_bias),
+            head: v3(x, y + HEAD_Y, z),
+        }
+    }
+
+    fn step_camera(&mut self, dt: f32) {
+        if self.rig.mode != CamMode::Iso {
+            self.yaw_bias = wrap_angle(self.yaw_bias - self.look_yaw * self.rig.cfg.look_speed * dt);
+        }
+        let s = self.subject();
+        let (w, h) = (self.cam.w, self.cam.h);
+        self.rig.update(dt, self.look_pitch, &s, self.cam.cx, self.cam.cz, w, h);
+        self.cam.view = match self.rig.view {
+            Some(v) => {
+                let (lift, _) = self.boom_clear_of_ground(v, 0.0);
+                // Rise at once (no frame inside a hill), settle back smoothly.
+                self.boom_lift = lift.max(self.boom_lift * (-dt * 3.0).exp());
+                Some(self.boom_clear_of_ground(v, self.boom_lift).1)
+            }
+            None => {
+                self.boom_lift = 0.0;
+                None
+            }
+        };
+        // Legacy iso follow lift uses `cam.persp`; keep it in sync with the 3D rail.
+        // Only undo a persp the rig set, so a caller-set legacy blend survives in iso.
+        if self.cam.view.is_some() {
+            self.cam.persp = self.rig.r.min(1.0);
+            self.rig_persp = true;
+        } else if self.rig_persp {
+            self.cam.persp = 0.0;
+            self.rig_persp = false;
+        }
+    }
+
+    /// Third-person boom collision: pull the eye in toward the target until
+    /// the boom clears the terrain. Without it the eye sinks into hills and
+    /// slopes and the frame shows sky (the inside of the heightfield) where
+    /// the ground should be. Iso (`view == None`) never gets here.
+    /// Returns the extra pitch the boom needs and the view with `lift` (at
+    /// least) applied, pulled in if it is still blocked.
+    fn boom_clear_of_ground(&self, v: stick_engine::camera::View, lift: f32) -> (f32, stick_engine::camera::View) {
+        if v.inv_d <= 0.0 || (self.zone.is_none() && self.world.is_empty()) {
+            return (0.0, v);
+        }
+        let d = 1.0 / v.inv_d;
+        if !(0.5..=20.0).contains(&d) {
+            // Past 20 m: iso -> tp dolly, the eye is still far above the scene.
+            // Under 0.5 m: first person, the eye is the head.
+            return (0.0, v);
+        }
+        const CLEAR: f32 = 0.35;
+        const PAD: f32 = 0.4;
+        // `pad` widens the probe at the eye so the near plane does not graze a wall.
+        let ground = |x: f32, z: f32, pad: f32| {
+            let mut m = self.zone_height(x, z);
+            if pad > 0.0 {
+                for (dx, dz) in [(pad, 0.0), (-pad, 0.0), (0.0, pad), (0.0, -pad)] {
+                    m = m.max(self.zone_height(x + dx, z + dz));
+                }
+            }
+            m - self.cam_y
+        };
+        // Longest clear boom length for a view direction.
+        let clear_len = |v: &stick_engine::camera::View| {
+            let f = v.fwd();
+            let step = 0.1;
+            let mut t = 0.3f32.min(d);
+            while t < d + 1e-4 {
+                let p = v.target - f * t.min(d);
+                let pad = if t >= d - 1.0 { PAD } else { 0.0 };
+                if p.y < ground(p.x, p.z, pad) + CLEAR {
+                    return (t - step).max(0.3f32.min(d));
+                }
+                t += step;
+            }
+            d
+        };
+        let max_pitch = 80f32.to_radians();
+        let lifted = |l: f32| {
+            let mut w = v;
+            w.pitch = (v.pitch + l).min(max_pitch.max(v.pitch));
+            w
+        };
+        // First swing the boom up over the obstacle (keeps the framing
+        // distance), then, under an overhang or in a cleft, pull it in.
+        let mut need = 0.0;
+        let mut best = (clear_len(&lifted(lift)), lift);
+        if best.0 < d - 1e-4 {
+            for k in 1..=16 {
+                let l = lift.max(k as f32 * 5f32.to_radians());
+                let len = clear_len(&lifted(l));
+                if len > best.0 + 1e-4 {
+                    best = (len, l);
+                }
+                if len >= d - 1e-4 {
+                    break;
+                }
+            }
+        }
+        if best.1 > lift {
+            need = best.1;
+        } else if lift == 0.0 {
+            need = 0.0;
+        }
+        let mut w = lifted(best.1);
+        if best.0 < d - 1e-4 {
+            w.scale *= d / best.0;
+            w.inv_d = 1.0 / best.0;
+        }
+        (need, w)
+    }
+
     pub fn tick(&mut self, dt: f32) {
         self.time += dt;
-        // Iso ↔ 3D camera blend (#19), ~0.4 s ease.
-        let target = if self.view3d { 1.0 } else { 0.0 };
-        self.cam.persp += (target - self.cam.persp) * (1.0 - (-8.0 * dt).exp());
-        if (target - self.cam.persp).abs() < 1e-3 {
-            self.cam.persp = target;
-        }
+        self.weather_time += dt as f64;
+        self.tick_weather(dt);
         self.vfx.tick(dt);
+        if self.boot_menu {
+            self.tick_boot_menu_vfx(dt);
+            self.tick_boot_menu_units(dt);
+            if let Some(u) = self.units.get("menu_hero") {
+                let k = self.follow_lift_px / (2.0 * stick_engine::camera::ISO_Y);
+                self.cam.cx = u.pos.x + k;
+                self.cam.cz = u.pos.z + k;
+                self.cam_y += (u.pos.y - self.cam_y) * (1.0 - (-6.0 * dt).exp());
+            }
+            self.step_camera(dt);
+            return;
+        }
         for f in &mut self.floaters {
             f.age += dt;
         }
         self.floaters.retain(|f| f.age < floaters::LIFE);
         let k = 1.0 - (-self.smoothing * dt).exp();
-        for u in self.units.values_mut() {
+        let follow_id = self.follow.clone();
+        let cam_y = self.cam_y;
+        for (id, u) in self.units.iter_mut() {
             let before = u.pos;
             if u.snap {
                 u.snap = false;
@@ -336,18 +711,20 @@ impl Scene {
                 u.yaw += angle_diff(u.yaw, u.target_yaw) * k;
             }
             let moved = ((u.pos.x - before.x).powi(2) + (u.pos.z - before.z).powi(2)).sqrt();
-            let speed = if dt > 0.0 { moved / dt } else { 0.0 };
-            let want = (speed / 2.5).min(1.0);
+            let measured = if dt > 0.0 { moved / dt } else { 0.0 };
+            let want = (measured / 2.5).min(1.0);
             u.moving += (want - u.moving) * (1.0 - (-10.0 * dt).exp());
             u.gait += moved * 6.0 + dt * 1.5 * u.moving;
             if u.anim == AnimState::Dead { u.dead_t += dt / 0.45 } else { u.dead_t = 0.0 }
             // Base layer: idle clip blended into the engine's procedural gait.
-            // Server walk/run states keep the legs moving even when the
-            // interpolated speed is tiny (e.g. pushing against a wall).
+            // The legs follow an eased speed. The raw frame delta surges every
+            // snapshot and would make the stride speed up and slow down.
+            u.leg_speed += (measured - u.leg_speed) * (1.0 - (-8.0 * dt).exp());
             let gait_speed = match u.anim {
-                AnimState::Walk => speed.max(1.6),
-                AnimState::Run => speed.max(4.5),
-                _ => speed,
+                AnimState::Walk => u.leg_speed.max(1.6),
+                AnimState::Run => u.leg_speed.max(4.5),
+                AnimState::Harvest | AnimState::Mine | AnimState::Leathercraft | AnimState::Smithing | AnimState::Cooking | AnimState::Goldsmithing => 0.0,
+                _ => u.leg_speed,
             };
             let body = u.preset.props.body();
             let sx = Sex::Male.gait();
@@ -358,6 +735,92 @@ impl Scene {
             let m = (gait_speed / 0.8).clamp(0.0, 1.0);
             let base: Pose = idle_pose.blend(&gait_pose, m * m * (3.0 - 2.0 * m));
             u.animator.update(&self.lib, dt, &base);
+            if u.anim == AnimState::Leathercraft {
+                figure::leathercraft_arm(&mut u.animator.pose, u.act_t);
+            } else if u.anim == AnimState::Smithing {
+                let prev_act = u.act_t - dt;
+                figure::smithing_arm(&mut u.animator.pose, u.act_t);
+                if figure::smithing_strike_impact(u.act_t, prev_act) {
+                    let fk = rig::solve(&u.animator.pose, &body, u.pos, u.yaw, u.walk.sway);
+                    let j = crate::compat::Fig::from_joints(&fk, u.preset.props.sword);
+                    let at = figure::smithing_anvil_strike_world(&j, u.pos.y);
+                    self.vfx.smithing_rod_burst(at);
+                }
+            } else if u.anim == AnimState::Cooking {
+                let prev_act = u.act_t - dt;
+                figure::cooking_arm(&mut u.animator.pose, u.act_t);
+                let fk = rig::solve(&u.animator.pose, &body, u.pos, u.yaw, u.walk.sway);
+                let j = crate::compat::Fig::from_joints(&fk, u.preset.props.sword);
+                if (u.act_t * 8.0) as i32 != ((u.act_t - dt) * 8.0) as i32 {
+                    self.vfx
+                        .cooking_fire_flicker(figure::cooking_fire_world(&j, u.pos.y));
+                }
+                if figure::cooking_strike_impact(u.act_t, prev_act) {
+                    let at = figure::cooking_pot_strike_world(&j, u.pos.y);
+                    self.vfx.cooking_ember_burst(at);
+                }
+            } else if u.anim == AnimState::Goldsmithing {
+                let prev_act = u.act_t - dt;
+                figure::goldsmith_arm(&mut u.animator.pose, u.act_t);
+                if figure::goldsmith_strike_impact(u.act_t, prev_act) {
+                    let fk = rig::solve(&u.animator.pose, &body, u.pos, u.yaw, u.walk.sway);
+                    let j = crate::compat::Fig::from_joints(&fk, u.preset.props.sword);
+                    let at = figure::goldsmith_stake_strike_world(&j, u.pos.y);
+                    self.vfx.goldsmith_spark_burst(at);
+                }
+            } else if matches!(u.anim, AnimState::Harvest | AnimState::Mine) {
+                figure::dig_arm(&mut u.animator.pose, u.act_t, u.anim == AnimState::Mine);
+            }
+            if u.fx.weapon_edge == 1 {
+                u.weapon_edge_emit += dt;
+                const EDGE_EMIT: f32 = 0.07;
+                while u.weapon_edge_emit >= EDGE_EMIT {
+                    u.weapon_edge_emit -= EDGE_EMIT;
+                    let draw_base = v3(u.pos.x, u.pos.y - cam_y, u.pos.z);
+                    let fk = rig::solve(&u.animator.pose, &body, draw_base, u.yaw, u.walk.sway);
+                    let j = crate::compat::Fig::from_joints(&fk, u.preset.props.sword);
+                    let planted = u.anim == AnimState::Rest;
+                    let swinging = matches!(u.anim, AnimState::Melee | AnimState::Cast);
+                    let w = u
+                        .garb
+                        .weapon
+                        .unwrap_or(crate::gear::WeaponLook::plain(u.preset.weapon));
+                    let lay = figure::pixel_sword_layout(&w);
+                    let pixel_sword = lay.is_some();
+                    let frame = figure::sword_blade_frame(
+                        &j,
+                        draw_base.y,
+                        planted,
+                        swinging,
+                        pixel_sword,
+                        lay.as_ref(),
+                    );
+                    let to_world = |p: Vec3| v3(p.x, p.y + cam_y, p.z);
+                    let (bh, bs) = lay
+                        .map(|l| (l.blade_half, l.blade.0))
+                        .unwrap_or((figure::SWORD_BLADE_HALF, figure::SWORD_BLADE.0));
+                    let sources = figure::sword_forge_particle_sources(&frame, bh, bs);
+                    for at in sources {
+                        self.vfx.sword_edge_ember(to_world(at), frame.dir);
+                    }
+                    if (self.time * 11.0) as i32 % 3 == 0 {
+                        let tip = sources[0];
+                        self.vfx.sword_edge_spark(to_world(tip), frame.dir);
+                    }
+                }
+            } else {
+                u.weapon_edge_emit = 0.0;
+            }
+            if follow_id.as_deref() == Some(id.as_str()) {
+                let fk = rig::solve(&u.animator.pose, &body, u.pos, u.yaw, u.walk.sway);
+                let head = fk.get(stick_engine::rig::Joint::Head);
+                crate::appearance::update_hair_spring(
+                    self.player_appearance.style,
+                    &mut self.player_hair_spring,
+                    head,
+                    dt,
+                );
+            }
         }
         if let Some(f) = self.follow.as_ref().and_then(|id| self.units.get(id)) {
             // Lift the followed unit above the engine's 55% line so the HUD
@@ -368,6 +831,7 @@ impl Scene {
             let ty = f.pos.y;
             self.cam_y += (ty - self.cam_y) * (1.0 - (-6.0 * dt).exp());
         }
+        self.step_camera(dt);
     }
 
     /// Screen pixel (framebuffer space) → ground point (x, z).
@@ -389,6 +853,32 @@ impl Scene {
 
     fn rel(&self, p: Vec3) -> Vec3 {
         v3(p.x, p.y - self.cam_y, p.z)
+    }
+
+    /// Screen position for fog thinning around the followed unit (~2 m).
+    fn fog_clear_center(&self) -> Option<(f32, f32)> {
+        let id = self.follow.as_deref()?;
+        let u = self.units.get(id)?;
+        let feet = self.cam.project(self.rel(u.pos));
+        if feet.culled() {
+            return None;
+        }
+        Some((feet.x, feet.y))
+    }
+
+    fn fog_clear_radius_px(&self) -> f32 {
+        let Some(id) = self.follow.as_deref() else {
+            return 0.0;
+        };
+        let Some(u) = self.units.get(id) else {
+            return 0.0;
+        };
+        let p0 = self.cam.project(self.rel(u.pos));
+        if p0.culled() {
+            return 40.0;
+        }
+        let p1 = self.cam.project(self.rel(v3(u.pos.x + 2.0, u.pos.y, u.pos.z)));
+        ((p1.x - p0.x).abs() * 1.15).max(28.0)
     }
 
     /// Topmost unit whose body box contains the screen pixel.
@@ -439,7 +929,7 @@ impl Scene {
         if matches!(u.preset.body, Body::Node { .. }) {
             return false;
         }
-        let Some(z) = &self.zone else { return false };
+        let Some(z) = self.zone_at(u.pos.x, u.pos.z) else { return false };
         z.deep_water_at(u.pos.x, u.pos.z) && u.pos.y < z.height_at(u.pos.x, u.pos.z) + 0.4
     }
 
@@ -485,26 +975,112 @@ impl Scene {
     /// Draw the ground and all units into the framebuffer.
     pub fn draw(&mut self) {
         if let Some(z) = &self.zone {
-            if self.minimap.needs_bake() && !self.backdrop {
+            if self.minimap.needs_bake() && !self.backdrop && !self.boot_menu {
                 self.minimap.bake(z, &self.props);
             }
         }
-        match &self.zone {
-            _ if self.backdrop => self.fb.color.fill(BACKDROP),
-            Some(z) => ground::draw_zone(&mut self.fb, &self.cam, z, self.cam_y, self.time),
-            None => draw_ground(&mut self.fb, &self.cam),
+        if !self.boot_menu {
+            if self.backdrop {
+                self.fb.color.fill(BACKDROP);
+            } else if self.world.is_empty() {
+                match &self.zone {
+                    Some(z) => ground::draw_zone(&mut self.fb, &self.cam, z, self.cam_y, self.time),
+                    None => draw_ground(&mut self.fb, &self.cam),
+                }
+            } else {
+                self.fb.color.fill(crate::atmosphere::SKY);
+                let foot = ground::view_world_rect(&self.fb, &self.cam);
+                // North first, so a nearer southern zone paints over it.
+                for z in self.world.iter().rev() {
+                    if !ground::zone_overlaps_world_rect(z, foot.0, foot.1, foot.2, foot.3) {
+                        continue;
+                    }
+                    ground::draw_zone_in(&mut self.fb, &self.cam, z, self.cam_y, self.time, false);
+                }
+            }
         }
-        self.fb.clear_depth();
+        // Terrain is colour-only; reset depth before grass/props/units so nothing stale blocks draws.
+        if self.boot_menu {
+            self.lights.clear();
+            self.fb.color.fill(BACKDROP);
+            self.fb.clear_depth();
+        } else if !self.backdrop {
+            self.fb.clear_depth();
+            let melting = crate::weather::snow_melting(
+                self.weather_snow,
+                self.weather_snow_target,
+                self.weather_kind_to,
+            );
+            let snow = crate::weather::snow_cover_display(self.weather_snow, melting);
+            let grass_breeze = self.grass_breeze();
+            if self.world.is_empty() {
+                if let Some(z) = &self.zone {
+                    ground::draw_meadow_grass(
+                        &mut self.fb,
+                        &self.cam,
+                        z,
+                        self.cam_y,
+                        self.time,
+                        grass_breeze,
+                    );
+                    if snow > 0.0 {
+                        crate::weather::draw_snow_ground(&mut self.fb, &self.cam, z, self.cam_y, snow, melting);
+                    }
+                }
+            } else {
+                let foot = ground::view_world_rect(&self.fb, &self.cam);
+                for z in self.world.iter().rev() {
+                    if !ground::zone_overlaps_world_rect(z, foot.0, foot.1, foot.2, foot.3) {
+                        continue;
+                    }
+                    ground::draw_meadow_grass(
+                        &mut self.fb,
+                        &self.cam,
+                        z,
+                        self.cam_y,
+                        self.time,
+                        grass_breeze,
+                    );
+                    if snow > 0.0 {
+                        crate::weather::draw_snow_ground(&mut self.fb, &self.cam, z, self.cam_y, snow, melting);
+                    }
+                }
+            }
+        }
         let cam = self.cam;
         let t = self.time;
-        props::draw(&mut self.fb, &cam, &self.props, self.cam_y, t);
-        // Contact shadows under props (S2/S3): ground-only, so after props is fine.
-        if self.zone.is_some() {
-            props::draw_shadows(&mut self.fb, &cam, &self.props, self.cam_y);
+        let placed = !self.world.is_empty();
+        let props = if placed { &self.world_props } else { &self.props };
+        if !self.boot_menu && (self.zone.is_some() || placed) {
+            let melting = crate::weather::snow_melting(
+                self.weather_snow,
+                self.weather_snow_target,
+                self.weather_kind_to,
+            );
+            let snow = crate::weather::snow_cover_display(self.weather_snow, melting);
+            let snow_w = Self::precip_kind_blend(
+                crate::weather::Kind::from_u8(self.weather_kind_from),
+                crate::weather::Kind::from_u8(self.weather_kind_to),
+                self.weather_blend,
+                crate::weather::Kind::Snow,
+            );
+            props::draw(
+                &mut self.fb,
+                &cam,
+                props,
+                self.cam_y,
+                t,
+                snow,
+                snow_w,
+                melting,
+            );
+            props::draw_shadows(&mut self.fb, &cam, props, self.cam_y);
         }
-        self.lights.clear();
-        if self.zone.is_some() {
-            for p in self.props.iter().filter(|p| p.kind == props::kind::FIRE_PIT) {
+        if !self.boot_menu {
+            self.lights.clear();
+        }
+        if !self.boot_menu && (self.zone.is_some() || placed) {
+            for p in props.iter().filter(|p| p.kind == props::kind::FIRE_PIT) {
                 let q = cam.project(v3(p.x, p.y - self.cam_y, p.z));
                 let flick = 1.0 + 0.07 * (t * 13.0).sin() + 0.05 * (t * 7.3 + 1.0).sin();
                 if q.x > -200.0 && q.x < self.fb.w as f32 + 200.0 && q.y > -200.0 && q.y < self.fb.h as f32 + 200.0 {
@@ -539,29 +1115,60 @@ impl Scene {
             }
             let size = body_radius(&u.preset.body);
             if fx.flags & FX_SELECTED != 0 {
-                let col = if fx.flags & FX_HOSTILE != 0 { FX_RING_HOSTILE } else if fx.flags & FX_SELF != 0 { FX_RING_SELF } else { FX_RING_FRIEND };
-                ring(&mut self.fb, &cam, c, size, col, None);
-                ring(&mut self.fb, &cam, c, size + 0.08, col, None);
+                if fx.flags & FX_HOSTILE != 0 {
+                    ring(&mut self.fb, &cam, c, size, FX_RING_HOSTILE, None);
+                    ring(&mut self.fb, &cam, c, size + 0.08, FX_RING_HOSTILE, None);
+                } else if fx.flags & FX_SELF != 0 {
+                    ring(&mut self.fb, &cam, c, size, FX_RING_SELF, None);
+                    ring(&mut self.fb, &cam, c, size + 0.08, FX_RING_SELF, None);
+                } else if fx.flags & FX_MOB != 0 {
+                    ring(&mut self.fb, &cam, c, size, FX_HOVER, Some(t * 1.5));
+                } else {
+                    ring(&mut self.fb, &cam, c, size, FX_RING_FRIEND, None);
+                    ring(&mut self.fb, &cam, c, size + 0.08, FX_RING_FRIEND, None);
+                }
             } else if fx.flags & FX_HOVERED != 0 {
                 ring(&mut self.fb, &cam, c, size, FX_HOVER, Some(t * 1.5));
             }
             let p = cam.project(c);
-            if fx.fade > 0.35 && !self.wading(u) && !matches!(u.preset.body, Body::Node { .. }) {
+            if !self.boot_menu
+                && fx.fade > 0.35
+                && !self.wading(u)
+                && !matches!(u.preset.body, Body::Node { .. })
+            {
                 crate::dither::soft_shadow_on(&mut self.fb, p.x, p.y, 13.0 * size / 0.5, 6.0 * size / 0.5, 1.0, crate::dither::UNIT_CORE, Some(p.d));
             }
         }
         // Units back to front (depth buffer also resolves overlaps).
-        let mut order: Vec<&Unit> = self.units.values().collect();
-        order.sort_by(|a, b| (b.pos.x + b.pos.z).partial_cmp(&(a.pos.x + a.pos.z)).unwrap_or(std::cmp::Ordering::Equal).reverse());
-        for u in order {
+        // Iso depth is -(x+z); a perspective view sorts by view z instead.
+        let follow = self.follow.clone();
+        let mut order: Vec<(&String, &Unit)> = self.units.iter().collect();
+        order.sort_by(|a, b| {
+            let key = |u: &Unit| if cam.view.is_some() { -cam.project(rel(u.pos)).d } else { u.pos.x + u.pos.z };
+            key(b.1).partial_cmp(&key(a.1)).unwrap_or(std::cmp::Ordering::Equal).reverse()
+        });
+        for (id, u) in order {
             let base = rel(u.pos);
             let feet = cam.project(base);
             let bb = BBox::around(&self.fb, feet.x, feet.y, unit_height_px(u) + 24.0, 48.0);
             let saved = bb.save(&self.fb);
             match u.preset.body {
                 Body::Biped => {
-                    let mut look = u.preset.look;
-                    let fk = rig::solve(&u.animator.pose, &u.preset.props.body(), base, u.yaw, u.walk.sway);
+                    let is_me = follow.as_deref() == Some(id.as_str());
+                    let mut look = if is_me {
+                        self.player_appearance.look()
+                    } else {
+                        u.preset.look
+                    };
+                    let mut body = u.preset.props.body();
+                    if is_me {
+                        body.hair = self.player_appearance.style;
+                    }
+                    let mut fk = rig::solve(&u.animator.pose, &body, base, u.yaw, u.walk.sway);
+                    if is_me {
+                        fk.hair_sway = crate::appearance::hair_sway(&self.player_hair_spring);
+                    }
+                    let hair_rig = is_me.then_some((&fk, &body));
                     let mut j = crate::compat::Fig::from_joints(&fk, u.preset.props.sword);
                     if u.anim == AnimState::Dead {
                         figure::collapse(&mut j, base, u.yaw, u.dead_t);
@@ -571,7 +1178,35 @@ impl Scene {
                     if garb.weapon.is_none() {
                         garb.weapon = Some(crate::gear::WeaponLook::plain(u.preset.weapon));
                     }
-                    figure::draw_garbed(&mut self.fb, &cam, &j, &u.preset.props, &look, &garb);
+                    let fp = follow.as_deref() == Some(id.as_str())
+                        && cam.view.and_then(|v| v.eye()).is_some_and(|e| (e - j.head).len() < FP_HIDE_RADIUS);
+                    let swinging = matches!(u.anim, AnimState::Melee | AnimState::Cast);
+                    let tool = match u.anim {
+                        AnimState::Harvest => figure::GatherTool::Shovel,
+                        AnimState::Mine => figure::GatherTool::Pick,
+                        AnimState::Leathercraft => figure::GatherTool::Leathercraft,
+                        AnimState::Smithing => figure::GatherTool::Smithing,
+                        AnimState::Cooking => figure::GatherTool::Cooking,
+                        AnimState::Goldsmithing => figure::GatherTool::Goldsmithing,
+                        _ => figure::GatherTool::None,
+                    };
+                    let planted = u.anim == AnimState::Rest;
+                    figure::draw_garbed(
+                        &mut self.fb,
+                        &cam,
+                        &j,
+                        &u.preset.props,
+                        &look,
+                        &garb,
+                        fp,
+                        swinging,
+                        tool,
+                        planted,
+                        base.y,
+                        hair_rig,
+                        u.fx.weapon_edge,
+                        t,
+                    );
                 }
                 ref body => {
                     // Old-client melee punch (F27): non-canine mobs lunge toward their facing,
@@ -635,6 +1270,9 @@ impl Scene {
         }
         // Overlays without depth: level-up columns, HP and cast bars.
         for u in self.units.values() {
+            if self.boot_menu {
+                continue;
+            }
             let feet = cam.project(rel(u.pos));
             let top = feet.y - unit_height_px(u);
             if u.fx.level_up >= 0.0 {
@@ -664,6 +1302,114 @@ impl Scene {
             }
         }
         self.floaters = fl;
+        if !self.boot_menu && !self.backdrop && (self.zone.is_some() || placed) {
+            let t = if self.weather_kind_from == self.weather_kind_to {
+                1.0
+            } else {
+                smoothstep(self.weather_blend)
+            };
+            let from = crate::weather::Kind::from_u8(self.weather_kind_from);
+            let to = crate::weather::Kind::from_u8(self.weather_kind_to);
+            let rain = Self::precip_kind_blend(from, to, t, crate::weather::Kind::Rain);
+            let snow = Self::precip_kind_blend(from, to, t, crate::weather::Kind::Snow);
+            crate::weather::draw_precip(
+                &mut self.fb,
+                self.weather_time,
+                self.weather_snow,
+                rain,
+                snow,
+            );
+        }
+    }
+
+    /// Wind in grass — still during rain (blends with weather transitions).
+    fn grass_breeze(&self) -> f32 {
+        let t = if self.weather_kind_from == self.weather_kind_to {
+            1.0
+        } else {
+            smoothstep(self.weather_blend)
+        };
+        let from = crate::weather::Kind::from_u8(self.weather_kind_from);
+        let to = crate::weather::Kind::from_u8(self.weather_kind_to);
+        1.0 - Self::precip_kind_blend(from, to, t, crate::weather::Kind::Rain)
+    }
+
+    fn precip_kind_blend(
+        from: crate::weather::Kind,
+        to: crate::weather::Kind,
+        t: f32,
+        k: crate::weather::Kind,
+    ) -> f32 {
+        let f = from == k;
+        let o = to == k;
+        match (f, o) {
+            (true, true) => 1.0,
+            (false, true) => t,
+            (true, false) => 1.0 - t,
+            _ => 0.0,
+        }
+    }
+
+    fn tick_weather(&mut self, dt: f32) {
+        const BLEND_SECS: f32 = 4.0;
+        if self.weather_blend < 1.0 {
+            self.weather_blend = (self.weather_blend + dt / BLEND_SECS).min(1.0);
+        }
+        let melting = crate::weather::snow_melting(
+            self.weather_snow,
+            self.weather_snow_target,
+            self.weather_kind_to,
+        );
+        let rate = if melting { 16.0 } else { 11.0 };
+        let k = 1.0 - (-rate * dt).exp();
+        self.weather_snow += (self.weather_snow_target - self.weather_snow) * k;
+        // Snap to full cover so the blanket does not shimmer on the last step.
+        if !melting && self.weather_snow_target >= 0.99 && self.weather_snow > 0.94 {
+            self.weather_snow = self.weather_snow.max(self.weather_snow_target);
+        }
+        // Hold displayed melt steps steady (lerp between quant steps flickers tiles).
+        if melting {
+            let shown = crate::weather::snow_cover_display(self.weather_snow, true);
+            if self.weather_snow > shown + 0.5 / 40.0 {
+                // still falling toward the next dissolve step
+            } else if self.weather_snow > self.weather_snow_target {
+                self.weather_snow = shown.max(self.weather_snow_target);
+            }
+        }
+    }
+
+    /// Cycle local player hair style (`;` in the client).
+    pub fn cycle_hair_style(&mut self, d: i32) {
+        self.player_appearance.cycle_style(d);
+    }
+
+    /// Cycle local player hair colour (`'`).
+    pub fn cycle_hair_color(&mut self, d: i32) {
+        self.player_appearance.cycle_hair_color(d);
+    }
+
+    /// Cycle local player body colour (`L`) — same ramps as hair.
+    pub fn cycle_body_color(&mut self, d: i32) {
+        self.player_appearance.cycle_body_color(d);
+    }
+
+    /// Zone weather for Pale Hollow (kind 0..3, snow cover 0..1 from server).
+    pub fn set_weather(&mut self, kind: u8, snow_cover: f32) {
+        let kind = kind.min(3);
+        let snow_cover = snow_cover.clamp(0.0, 1.0);
+        if kind != self.weather_kind_to {
+            self.weather_kind_from = if self.weather_blend >= 1.0 {
+                self.weather_kind_to
+            } else {
+                self.weather_kind_from
+            };
+            self.weather_kind_to = kind;
+            self.weather_blend = 0.0;
+        }
+        if (snow_cover - self.weather_snow_target).abs() > 0.2 {
+            self.weather_snow = snow_cover;
+        }
+        self.weather_snow_target = snow_cover;
     }
 
     /// Minimap data from the host (names from @bellgrave/config). Re-bakes on next draw.
@@ -701,26 +1447,67 @@ impl Scene {
             if (u.pos.x - cx).abs() > 70.0 || (u.pos.z - cz).abs() > 70.0 {
                 continue;
             }
-            let kind = if u.fx.flags & FX_HOSTILE != 0 { 1 } else if u.preset.npc_mark.is_some() { 2 } else { 3 };
-            marks.push(Marker { x: u.pos.x, z: u.pos.z, kind });
+            let kind = if u.fx.flags & (FX_HOSTILE | FX_MOB) != 0 {
+                1
+            } else if u.preset.npc_mark.is_some() {
+                2
+            } else {
+                3
+            };
+            marks.push(Marker { x: u.pos.x - self.map_ox, z: u.pos.z - self.map_oz, kind });
         }
-        (cx, cz, yaw, marks)
+        (cx - self.map_ox, cz - self.map_oz, yaw, marks)
     }
 
     /// Framebuffer as RGBA8 (ImageData layout).
     pub fn write_rgba(&self, out: &mut [u8]) {
-        if self.atmosphere && self.zone.is_some() {
-            let scroll = (self.cam.cx - self.cam.cz) * stick_engine::camera::ISO_X;
-            crate::atmosphere::write_rgba_key(&self.pal, &self.fb.color, self.fb.w, self.fb.h, &self.lights, &crate::atmosphere::PALE_HOLLOW, scroll, self.keylight, out);
+        if self.atmosphere && (self.has_zone() || self.boot_menu) {
+            let scroll = if self.boot_menu {
+                0.0
+            } else {
+                (self.cam.cx - self.cam.cz) * stick_engine::camera::ISO_X
+            };
+            let params = if self.boot_menu {
+                crate::atmosphere::FORGE_MENU
+            } else {
+                let base = crate::atmosphere::PALE_HOLLOW;
+                let a = crate::atmosphere::pale_hollow_weather(
+                    &base,
+                    crate::weather::Kind::from_u8(self.weather_kind_from),
+                );
+                let b = crate::atmosphere::pale_hollow_weather(
+                    &base,
+                    crate::weather::Kind::from_u8(self.weather_kind_to),
+                );
+                crate::atmosphere::lerp_params(a, b, smoothstep(self.weather_blend))
+            };
+            let ex = crate::atmosphere::Extra {
+                time: self.time,
+                depth: Some(&self.fb.depth),
+                clear_center: self.fog_clear_center(),
+                clear_radius_px: self.fog_clear_radius_px(),
+            };
+            crate::atmosphere::write_rgba_key(
+                &self.pal,
+                &self.fb.color,
+                self.fb.w,
+                self.fb.h,
+                &self.lights,
+                &params,
+                scroll,
+                self.keylight,
+                ex,
+                out,
+            );
         } else {
             palette::write_rgba(&self.pal, &self.fb.color, out);
         }
         crate::vfx::blend(&self.vfx.sparks, self.fb.w, self.fb.h, out);
-        if !self.backdrop && self.zone.is_some() && self.minimap.on {
+        if !self.backdrop && !self.boot_menu && self.zone.is_some() && self.minimap.on {
             let (cx, cz, yaw, marks) = self.map_view();
             self.minimap.composite(out, self.fb.w, self.fb.h, cx, cz, yaw, &marks);
         }
-        if self.backdrop {
+        if self.backdrop || self.boot_menu {
             for (i, &c) in self.fb.color.iter().enumerate() {
                 if c == BACKDROP {
                     out[i * 4 + 3] = 0;

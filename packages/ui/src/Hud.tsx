@@ -7,7 +7,9 @@ import {
   abilityIconUrl,
   abilityLabel,
   abilityMp,
-  abilityNeedsTarget,
+  resolveAbilityTargetId,
+  isHostileTabUnit,
+  enemyTargetLabel,
   abilityRecastMs,
   abilityTooltip,
   categoryTabsDual,
@@ -21,13 +23,14 @@ import { clearPendingMint, mintCharacterWithWallet } from "@bellgrave/client-cor
 import { ITEM, normalizeCharacterName, characterNameKey, explorerTxUrl } from "@bellgrave/config";
 import { getItem } from "@bellgrave/items";
 import type { AbilityId, UnitSnapshot } from "@bellgrave/protocol";
-import { useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent } from "react";
 import { AbilityIcon } from "./AbilityIcon";
 import { chromaKeyIconUrl } from "./chroma-icons";
 import { CraftingPanel } from "./CraftingPanel";
 import { ExplorerPanel } from "./ExplorerPanel";
 import { LokPanel } from "./LokPanel";
 import { PartyPanel } from "./PartyPanel";
+import { QuestLogPanel } from "./QuestLogPanel";
 import { EquipPanel } from "./EquipPanel";
 import { SkillTreePanel } from "./SkillTreePanel";
 import {
@@ -37,6 +40,7 @@ import {
   UI_LAYOUT_OPTIONS,
   UI_SETTINGS_KEY,
   UI_PIXEL_OPTIONS,
+  UI_CAM_OPTIONS,
   UI_VIEW_OPTIONS,
   UI_SETTINGS_EVENT,
   layoutUsesArcadeControls,
@@ -68,12 +72,13 @@ import {
   checkCharacterNameAvailable,
   isServerAuthed,
   loginWithWalletConnect,
+  characterEnterMessage,
   logoutToMenu,
   send,
   walletConnectLoginAvailable,
 } from "@bellgrave/client-core/net";
-import { stopZoneMusic } from "./zoneMusic";
-import { checkWebLightClient, lightClientFromSnapshot } from "@bellgrave/client-core/light-client";
+import { enterZoneMusic } from "./zoneMusic";
+import { MENU_MUSIC } from "@bellgrave/config";
 import { useGame } from "@bellgrave/client-core/state";
 // NpcInteractMenu mounts world-anchored under the NPC in WorldScene.
 
@@ -93,8 +98,13 @@ export function hotbarIndexFromCode(code: string): number | null {
 
 function abilityTargetId(id: AbilityId, selected: string | null): string | undefined {
   if (!isAbilityId(id)) return undefined;
-  if (abilityNeedsTarget(id)) return selected ?? "mob-guard-1";
-  return undefined;
+  const g = useGame.getState();
+  const snap = g.snapshot;
+  const wallet = g.wallet;
+  if (!snap || !wallet) return undefined;
+  const me = snap.units.find((u) => u.id.toLowerCase() === wallet.toLowerCase() && u.kind === "player");
+  const combatTargetId = me?.targetId ?? null;
+  return resolveAbilityTargetId(id, selected, wallet, combatTargetId, snap.units);
 }
 
 function hudAbilityTip(id: CombatAbilityId): { title: string; body: string; meta: string } {
@@ -589,6 +599,9 @@ export function Hud() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [partyOpen, setPartyOpen] = useState(false);
   const [explorerOpen, setExplorerOpen] = useState(false);
+  const [questOpen, setQuestOpen] = useState(false);
+  const closeQuestLog = useCallback(() => setQuestOpen(false), []);
+  const closeCraftPanel = useCallback(() => setCraftOpen(false), []);
   const [ashPitOpen, setAshPitOpen] = useState(false);
   const [uiSettings, setUiSettings] = useState<UiSettings>(() => loadUiSettings());
   useEffect(() => {
@@ -609,15 +622,18 @@ export function Hud() {
     const onBook = () => setBookOpen((v) => !v);
     const onCraft = () => setCraftOpen((v) => !v);
     const onLok = () => setLokOpen((v) => !v);
+    const onQuest = () => setQuestOpen((v) => !v);
     window.addEventListener("bellgrave:toggle-bag", onToggle);
     window.addEventListener("bellgrave:toggle-spellbook", onBook);
     window.addEventListener("bellgrave:toggle-craft", onCraft);
     window.addEventListener("bellgrave:toggle-lok", onLok);
+    window.addEventListener("bellgrave:toggle-questlog", onQuest);
     return () => {
       window.removeEventListener("bellgrave:toggle-bag", onToggle);
       window.removeEventListener("bellgrave:toggle-spellbook", onBook);
       window.removeEventListener("bellgrave:toggle-craft", onCraft);
       window.removeEventListener("bellgrave:toggle-lok", onLok);
+      window.removeEventListener("bellgrave:toggle-questlog", onQuest);
     };
   }, []);
 
@@ -642,6 +658,18 @@ export function Hud() {
   useEffect(() => {
     if (!layoutUsesArcadeControls(uiSettings.layout)) clearVirtualStick();
   }, [uiSettings.layout]);
+
+  useEffect(() => {
+    if (!settingsOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      e.stopPropagation();
+      setSettingsOpen(false);
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [settingsOpen]);
 
   // Re-sync from localStorage when entering play / when another tab changes settings.
   // Keeps Mobile sticks visible after remounts and across refresh.
@@ -745,8 +773,19 @@ export function Hud() {
     bookTabs.find((t) => t.id === bookTab)?.id ?? bookTabs[0]?.id ?? "time";
   const tabIds = bookByCategory.get(activeBookTab) ?? [];
 
+  const questLogEntries = useMemo(() => {
+    const raw = snapshot?.you.questLog;
+    return Array.isArray(raw) ? raw : [];
+  }, [snapshot?.tick, snapshot?.you.questLog]);
+
+  const focusEnemy = useMemo(() => {
+    if (!snapshot || !selectedTarget || !wallet) return null;
+    const u = snapshot.units.find((x) => x.id === selectedTarget);
+    if (!u || !isHostileTabUnit(u, wallet)) return null;
+    return u;
+  }, [snapshot, selectedTarget, wallet]);
+
   if (phase !== "play" || !snapshot || !me) return null;
-  const lightVerdict = checkWebLightClient(lightClientFromSnapshot(snapshot));
   const you = snapshot.you;
   const potions = you.inventory.reduce((n, i) => n + (i.tokenId === ITEM.POTION ? i.amount : 0), 0);
   const shortWallet = wallet ? `${wallet.slice(0, 6)}…${wallet.slice(-4)}` : "";
@@ -766,11 +805,27 @@ export function Hud() {
 
   const mobileLayout = layoutUsesArcadeControls(uiSettings.layout);
 
+  const focusHpPct =
+    focusEnemy && focusEnemy.maxHp > 0
+      ? Math.max(0, Math.min(100, (focusEnemy.hp / focusEnemy.maxHp) * 100))
+      : 0;
+
   return (
     <div
       className={`hud-root${mobileLayout ? " hud-layout-mobile" : ""}`}
       data-ui-layout={uiSettings.layout}
     >
+      {focusEnemy && (
+        <div className="target-focus-plate" role="status" aria-live="polite">
+          <div className="target-focus-name">{enemyTargetLabel(focusEnemy)}</div>
+          <div className="target-focus-bar">
+            <i style={{ width: `${focusHpPct}%` }} />
+          </div>
+          <div className="target-focus-num">
+            {focusEnemy.hp}/{focusEnemy.maxHp}
+          </div>
+        </div>
+      )}
       <div className="hud-chrome">
         <div className="hud-corner-left">
           <div className="hud-vitals-dock">
@@ -780,7 +835,7 @@ export function Hud() {
               {" "}
               · provisional
             </span>
-            {storedLight.committed && lightVerdict.ok ? (
+            {storedLight.committed ? (
               <span className="committed" data-committed-view="committed">
                 {" "}
                 · committed
@@ -822,13 +877,19 @@ export function Hud() {
           </div>
         </div>
 
-        <div className="hud-menu-dock" role="menu" aria-label="Commands">
+        <div className="hud-menu-dock" role="menu" aria-label="Commands" onKeyDownCapture={(e) => {
+          if (e.key === "Tab") {
+            e.preventDefault();
+            e.stopPropagation();
+          }
+        }}>
           <div className="hud-commands-kicker">Black Anvil</div>
           <div className="hud-commands-header">Commands</div>
           {dualHasSpellbook(you.job, you.subjob) && (
             <button
               type="button"
               role="menuitem"
+              tabIndex={-1}
               className={`hud-cmd-btn${menuFocus === "spellbook" ? " selected" : ""}`}
               onMouseEnter={() => setMenuFocus("spellbook")}
               onFocus={() => setMenuFocus("spellbook")}
@@ -843,6 +904,7 @@ export function Hud() {
           <button
             type="button"
             role="menuitem"
+            tabIndex={-1}
             className={`hud-cmd-btn${menuFocus === "character" ? " selected" : ""}`}
             onMouseEnter={() => setMenuFocus("character")}
             onFocus={() => setMenuFocus("character")}
@@ -856,6 +918,7 @@ export function Hud() {
           <button
             type="button"
             role="menuitem"
+            tabIndex={-1}
             className={`hud-cmd-btn${menuFocus === "crafting" ? " selected" : ""}`}
             onMouseEnter={() => setMenuFocus("crafting")}
             onFocus={() => setMenuFocus("crafting")}
@@ -869,6 +932,21 @@ export function Hud() {
           <button
             type="button"
             role="menuitem"
+            tabIndex={-1}
+            className={`hud-cmd-btn${menuFocus === "questlog" ? " selected" : ""}`}
+            onMouseEnter={() => setMenuFocus("questlog")}
+            onFocus={() => setMenuFocus("questlog")}
+            onClick={() => {
+              setMenuFocus("questlog");
+              setQuestOpen((v) => !v);
+            }}
+          >
+            Quest log
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            tabIndex={-1}
             className={`hud-cmd-btn${menuFocus === "skills" ? " selected" : ""}`}
             title="Master skill tree — 1 point per level + 100 from post-max EXP"
             onMouseEnter={() => setMenuFocus("skills")}
@@ -883,6 +961,7 @@ export function Hud() {
           <button
             type="button"
             role="menuitem"
+            tabIndex={-1}
             className={`hud-cmd-btn${menuFocus === "party" ? " selected" : ""}`}
             onMouseEnter={() => setMenuFocus("party")}
             onFocus={() => setMenuFocus("party")}
@@ -896,6 +975,7 @@ export function Hud() {
           <button
             type="button"
             role="menuitem"
+            tabIndex={-1}
             className={`hud-cmd-btn${menuFocus === "ashpit" ? " selected" : ""}${
               you.pvp?.bountyOpen ? " ash-pit-marked" : ""
             }`}
@@ -912,6 +992,7 @@ export function Hud() {
           <button
             type="button"
             role="menuitem"
+            tabIndex={-1}
             className={`hud-cmd-btn${menuFocus === "explorer" ? " selected" : ""}`}
             onMouseEnter={() => setMenuFocus("explorer")}
             onFocus={() => setMenuFocus("explorer")}
@@ -925,6 +1006,7 @@ export function Hud() {
           <button
             type="button"
             role="menuitem"
+            tabIndex={-1}
             className={`hud-cmd-btn${menuFocus === "settings" ? " selected" : ""}`}
             onMouseEnter={() => setMenuFocus("settings")}
             onFocus={() => setMenuFocus("settings")}
@@ -939,6 +1021,7 @@ export function Hud() {
           <button
             type="button"
             role="menuitem"
+            tabIndex={-1}
             className={`hud-cmd-btn hud-cmd-status${menuFocus === "maxlv" ? " selected" : ""}`}
             title="Dev: set level 75 and learn all Time Mage spells"
             onMouseEnter={() => setMenuFocus("maxlv")}
@@ -955,7 +1038,7 @@ export function Hud() {
       </div>
 
       {bagOpen && <EquipPanel you={you} me={me} onClose={() => setBagOpen(false)} />}
-      {craftOpen && <CraftingPanel you={you} onClose={() => setCraftOpen(false)} />}
+      {craftOpen && <CraftingPanel onClose={closeCraftPanel} />}
       {lokOpen && <LokPanel you={you} onClose={() => setLokOpen(false)} />}
       {treeOpen && <SkillTreePanel onClose={() => setTreeOpen(false)} />}
       {!partyOpen && snapshot?.partyInvite && (
@@ -1060,6 +1143,33 @@ export function Hud() {
                 >
                   Minimap (M)
                 </button>
+              </div>
+              <div className="settings-section-label" style={{ marginTop: 10 }}>Camera look</div>
+              <div className="settings-panel-sub" style={{ marginBottom: 8 }}>
+                Numpad 4/6 turn and 8/2 pitch. Mouse uses right-drag. V or numpad 5 cycles the view. M is the minimap.
+              </div>
+              <div className="cmd-seg" role="listbox" aria-label="Camera control">
+                {UI_CAM_OPTIONS.map((opt) => {
+                  const active = uiSettings.cam === opt.id;
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      role="option"
+                      aria-selected={active}
+                      className={active ? "on" : undefined}
+                      onClick={() => {
+                        const next = { ...uiSettings, cam: opt.id };
+                        setUiSettings(next);
+                        persistAndApplyUiSettings(next);
+                      }}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="settings-option-grid" role="listbox" aria-label="Pixel scaling">
                 {UI_PIXEL_OPTIONS.map((opt) => (
                   <button
                     key={opt.id}
@@ -1139,8 +1249,8 @@ export function Hud() {
               type="button"
               className="settings-logout"
               onClick={() => {
-                stopZoneMusic();
                 logoutToMenu();
+                enterZoneMusic(MENU_MUSIC);
               }}
             >
               Logout to menu
@@ -1200,6 +1310,8 @@ export function Hud() {
           </div>
         </div>
       )}
+
+      {questOpen && <QuestLogPanel entries={questLogEntries} onClose={closeQuestLog} />}
 
       <div style={{ flex: 1 }} />
 
@@ -1541,13 +1653,7 @@ function SelectPanel({
                   useGame.getState().setCharacterPreview(c);
                 }}
               >
-                <FigurePreview
-                  job={c.job}
-                  gender={g}
-                  size={72}
-                  className="boot-char-portrait"
-                  fallback={<img className="boot-char-portrait" src={appearancePortrait(g)} alt="" width={72} height={72} />}
-                />
+                <img className="boot-char-portrait" src={appearancePortrait(g)} alt="" width={72} height={72} />
                 <div className="boot-char-meta">
                   <div className="boot-char-name">{c.name}</div>
                   <div className="boot-char-detail">
@@ -1568,7 +1674,7 @@ function SelectPanel({
         onClick={() => {
           useGame.getState().setPendingCreateEnter(false);
           useGame.getState().setPhase("play");
-          send({ type: "char/enter", characterId: selected?.id });
+          send(characterEnterMessage(selected?.id));
         }}
       >
         Enter Black Anvil

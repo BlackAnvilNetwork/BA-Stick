@@ -11,6 +11,30 @@ html, body, #root { margin: 0; width: 100%; height: 100%; background: #0d0b14; o
 .stick-label.shiny { color: #ffe27a; }
 .stick-label.bounty { color: #f0b429; }
 .stick-npc-menu { position: absolute; left: 0; top: 0; z-index: 120; pointer-events: auto; }
+.stick-map-full {
+  position: absolute; left: 0; top: 0; z-index: 15; visibility: hidden;
+  display: grid; place-items: center; padding: 0; margin: 0; cursor: pointer;
+  border: 1px solid #9a7d45; background: rgba(13, 11, 20, 0.55); pointer-events: auto;
+}
+.stick-map-full[data-full="1"] { z-index: 25; background: rgba(13, 11, 20, 0.88); }
+.map-full-mark {
+  width: 12px; height: 12px; display: block;
+  background:
+    linear-gradient(#f6c95a, #f6c95a) 0 0 / 7px 2px no-repeat,
+    linear-gradient(#f6c95a, #f6c95a) 0 0 / 2px 7px no-repeat,
+    linear-gradient(#f6c95a, #f6c95a) 100% 0 / 7px 2px no-repeat,
+    linear-gradient(#f6c95a, #f6c95a) 100% 0 / 2px 7px no-repeat,
+    linear-gradient(#f6c95a, #f6c95a) 0 100% / 7px 2px no-repeat,
+    linear-gradient(#f6c95a, #f6c95a) 0 100% / 2px 7px no-repeat,
+    linear-gradient(#f6c95a, #f6c95a) 100% 100% / 7px 2px no-repeat,
+    linear-gradient(#f6c95a, #f6c95a) 100% 100% / 2px 7px no-repeat;
+}
+.stick-map-full[data-full="1"] .map-full-mark {
+  background:
+    linear-gradient(#f6c95a, #f6c95a) center / 100% 2px no-repeat,
+    linear-gradient(#f6c95a, #f6c95a) center / 2px 100% no-repeat;
+  transform: rotate(45deg);
+}
 .stick-fade { position: absolute; inset: 0; background: #0d0b14; opacity: 0; pointer-events: none; z-index: 4; }
 .stick-gather-icon { position: absolute; left: 0; top: 0; image-rendering: pixelated; background-repeat: no-repeat; pointer-events: none; }
 .stick-preview { image-rendering: pixelated; display: block; margin: 0 auto; }
@@ -23,6 +47,173 @@ html, body, #root { margin: 0; width: 100%; height: 100%; background: #0d0b14; o
 .stick-status-col { position: absolute; left: 0; top: 0; display: flex; flex-direction: column; gap: 1px; pointer-events: none; }
 .stick-status-icon { width: var(--icon); height: var(--icon); image-rendering: pixelated; border-radius: 2px; box-shadow: 0 0 0 1px #0d0b14; background: #0d0b14aa; }
 .stick-status-icon.debuff { box-shadow: 0 0 0 1px #7a2224; }
+
+.boot-wiki-corner {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  z-index: 24;
+  padding: 8px 14px;
+  font: 600 13px/1 "Cinzel", Georgia, serif;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #f2d48a;
+  background: rgba(8, 6, 12, 0.72);
+  border: 1px solid #9a7d45;
+  border-radius: 3px;
+  cursor: pointer;
+  pointer-events: auto;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.45);
+}
+.boot-wiki-corner:hover {
+  background: rgba(20, 14, 8, 0.88);
+  border-color: #c9a24a;
+}
+
+.wiki-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 12px;
+  background: rgba(4, 3, 6, 0.82);
+  pointer-events: auto;
+}
+.wiki-panel {
+  width: min(1100px, 100%);
+  max-height: min(92vh, 900px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 18px;
+  border: 1px solid var(--ba-bronze-dim, #9a7d45);
+  border-radius: 4px;
+  background: rgba(13, 11, 20, 0.96);
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.55);
+}
+.wiki-panel-stack {
+  overflow-y: auto;
+  min-height: 0;
+}
+.wiki-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+.wiki-section + .wiki-section {
+  margin-top: 8px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(154, 125, 69, 0.35);
+}
+.wiki-section-title {
+  margin: 0;
+  font: 600 15px/1.2 "Cinzel", Georgia, serif;
+  letter-spacing: 0.04em;
+  color: #d4c4a0;
+  text-transform: uppercase;
+}
+.wiki-craft-intro { margin: 0 0 4px; }
+.wiki-craft-split .wiki-craft-list { max-height: min(42vh, 420px); }
+.wiki-craft-skills { max-height: min(42vh, 420px); }
+.wiki-craft-level-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 6px 8px 4px;
+  font: 600 11px/1 "Cinzel", Georgia, serif;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #9a8a70;
+  background: rgba(13, 11, 20, 0.92);
+  border-bottom: 1px solid rgba(154, 125, 69, 0.25);
+}
+.wiki-craft-level + .wiki-craft-level { margin-top: 4px; }
+.wiki-craft-focus-title {
+  margin: 4px 0 8px;
+  font-weight: 600;
+  color: #efe6cf;
+}
+.wiki-craft-jump {
+  display: inline-block;
+  margin-top: 10px;
+}
+.wiki-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+.wiki-title {
+  margin: 4px 0 0;
+  font: 700 20px/1.2 "Cinzel", Georgia, serif;
+  color: #efe6cf;
+}
+.wiki-search { margin: 0; }
+.wiki-split {
+  flex: 1;
+  min-height: 0;
+  grid-template-columns: minmax(140px, 200px) minmax(160px, 1fr) minmax(200px, 280px);
+}
+.wiki-tree { max-height: min(60vh, 520px); overflow: auto; }
+.wiki-list { max-height: min(60vh, 520px); overflow: auto; }
+.wiki-detail {
+  max-height: min(60vh, 520px);
+  overflow: auto;
+  padding: 8px 10px;
+  border-left: 1px solid rgba(154, 125, 69, 0.35);
+  font-size: 13px;
+}
+.wiki-desc { color: var(--cmd-text-muted, #a89a80); margin: 8px 0; line-height: 1.45; }
+.wiki-recipe { margin-top: 10px; }
+.wiki-mats { font-family: ui-monospace, monospace; font-size: 12px; color: #e8dcc4; }
+.wiki-used-in ul { margin: 6px 0 0; padding-left: 18px; }
+.wiki-link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #f2d48a;
+  cursor: pointer;
+  text-decoration: underline;
+  font: inherit;
+}
+.wiki-gear a { color: #7ec8ff; }
+.wiki-gear-preview {
+  margin-top: 12px;
+  border: 1px solid var(--cmd-card-border, #34303f);
+  border-radius: 6px;
+  overflow: hidden;
+  background: #221f2a;
+  min-height: 200px;
+}
+.wiki-gear-preview iframe {
+  display: block;
+  width: 100%;
+  height: 220px;
+  border: 0;
+}
+.wiki-row-icon { image-rendering: pixelated; }
+.prov-commodity.on { outline: 1px solid #c9a24a; }
+.wiki-list .wiki-item-row {
+  grid-template-columns: 24px minmax(0, 1fr) 3.25rem minmax(52px, 1fr);
+  gap: 6px 8px;
+  align-items: center;
+}
+.wiki-list .wiki-item-row .wiki-row-icon {
+  margin: 0;
+}
+.wiki-item-ilvl,
+.wiki-item-jobs {
+  font-size: 11px;
+  color: var(--cmd-text-muted, #a89a80);
+  white-space: nowrap;
+}
+.wiki-item-jobs {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: right;
+}
 
 /* Portrait phones: fill the screen (crop the sides) instead of a thin letterbox strip. */
 @media (orientation: portrait) and (pointer: coarse) {

@@ -12,6 +12,7 @@ import {
   type PaleHollowMobDef,
   type PaleHollowMobJob,
   type PaleHollowNodeDef,
+  type PaleHollowFixedDrop,
   type PaleHollowRareDrop,
 } from "@bellgrave/config";
 
@@ -34,6 +35,7 @@ export type FieldMob = {
   linkRange: number;
   drops: string[];
   rareDrops: PaleHollowRareDrop[];
+  fixedDrops: PaleHollowFixedDrop[];
   targetId: string | null;
   alive: boolean;
   respawnAt: number;
@@ -66,6 +68,7 @@ function fromDef(d: PaleHollowMobDef): FieldMob {
     linkRange: d.linkRange ?? 0,
     drops: [...d.drops],
     rareDrops: [...(d.rareDrops ?? [])],
+    fixedDrops: [...(d.fixedDrops ?? [])],
     targetId: null,
     alive: true,
     respawnAt: 0,

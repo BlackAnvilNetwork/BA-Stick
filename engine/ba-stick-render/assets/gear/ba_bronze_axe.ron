@@ -1,0 +1,18 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Bronze labrys — copper haft in the hand frame (+y toward the head).
+// The horizontal double-bit head is drawn on that plane (see pixel-axe.ts).
+(
+    id: "ba_bronze_axe",
+    slot: MainHand,
+    attach: Some("r_hand"),
+    stance: Some("1h"),
+    reach: 0.72,
+    swing_weight: 1.2,
+    material: Some("steel"),
+    shapes: [
+        Capsule(from: (0.0, -0.22, 0.0), to: (0.0, 0.11, 0.0), ramp: Trim, thick: 1.5),
+    ],
+)

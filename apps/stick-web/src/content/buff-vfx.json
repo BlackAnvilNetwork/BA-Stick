@@ -205,7 +205,10 @@
    "vfx": "ward"
   },
   "enSpellUntil": {
-   "vfx": "ward"
+   "vfx": "none"
+  },
+  "enSpellElement": {
+   "vfx": "none"
   },
   "phalanxUntil": {
    "vfx": "protect"

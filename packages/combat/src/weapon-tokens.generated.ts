@@ -13,12 +13,11 @@ export const WEAPON_TOKEN_TYPES: Record<number, WeaponType> = {
   34: "staff", // bloodbeam-earth-wand
   35: "staff", // bellwood-ice-staff
   36: "staff", // bellwood-wind-staff
-  39: "staff", // ashbeam-fishing-rod
-  40: "staff", // bloodbeam-fishing-rod
-  41: "staff", // bellwood-fishing-rod
   42: "staff", // sovereigns-staff
-  86: "dagger", // bone-parrying-dagger
-  87: "dagger", // fang-parrying-dagger
+  59: "staff", // spellbound-tome
+  60: "staff", // grimoire-of-throne
+  86: "dagger", // neolithic-dagger
+  87: "dagger", // fang-dagger
   102: "sword", // bronze-sword
   103: "axe", // bronze-axe
   113: "axe", // iron-great-axe
@@ -35,4 +34,6 @@ export const WEAPON_TOKEN_TYPES: Record<number, WeaponType> = {
   206: "staff", // chrono-staff
   207: "staff", // mana-staff
   317: "dagger", // bone-dagger
+  1064: "sword", // decayed-sword
+  1065: "axe", // decayed-axe
 } as const;

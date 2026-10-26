@@ -11,25 +11,31 @@
 //! world position (x, y, z), a facing, a server `anim` state and a rig preset
 //! (job / mob archetype / NPC role).
 
+pub mod appearance;
+pub mod weather;
 pub mod atmosphere;
-pub mod vfx;
+pub mod boot_forge;
+pub mod boot_forge_blots;
 pub mod buffvfx;
 pub mod compat;
 pub mod creature;
 pub mod dither;
 pub mod figure;
+pub mod floaters;
 pub mod gear;
+pub mod ground;
 pub mod mapfont;
 pub mod minimap;
-pub mod floaters;
-pub mod ground;
 pub mod palette;
 pub mod preset;
 pub mod props;
 pub mod scene;
-pub mod zone;
+pub mod structure;
+pub mod tree;
+pub mod vfx;
 #[cfg(target_arch = "wasm32")]
 mod web;
+pub mod zone;
 
 pub use preset::{AnimState, RigPreset};
 pub use scene::{Scene, UnitFx, UnitInput};

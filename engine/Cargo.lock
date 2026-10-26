@@ -6,6 +6,8 @@ version = 4
 name = "ba_stick_render"
 version = "0.1.0"
 dependencies = [
+ "ron",
+ "serde",
  "stick_engine",
  "wasm-bindgen",
  "web-sys",

@@ -48,7 +48,7 @@ test("loadUiSettings defaults layout to regular", () => {
 });
 
 test("loadUiSettings accepts mobile layout and rejects junk", () => {
-  saveUiSettings({ color: "gold", font: "cinzel", layout: "mobile", view: "iso", pixel: "crisp", minimap: true });
+  saveUiSettings({ color: "gold", font: "cinzel", layout: "mobile", view: "iso", cam: "numpad", pixel: "crisp", minimap: true });
   assert.equal(loadUiSettings().layout, "mobile");
   localStorage.setItem(UI_SETTINGS_KEY, JSON.stringify({ layout: "tablet", color: "gold" }));
   const s = loadUiSettings();
@@ -57,20 +57,20 @@ test("loadUiSettings accepts mobile layout and rejects junk", () => {
 });
 
 test("applyUiSettings sets data-ui-layout", () => {
-  const next: UiSettings = { color: "ember", font: "verdana", layout: "mobile", view: "iso", pixel: "crisp", minimap: true };
+  const next: UiSettings = { color: "ember", font: "verdana", layout: "mobile", view: "iso", cam: "numpad", pixel: "crisp", minimap: true };
   applyUiSettings(next);
   assert.equal(document.documentElement.dataset.uiLayout, "mobile");
   assert.equal(document.documentElement.dataset.uiColor, "ember");
 });
 
 test("persistAndApply keeps Mobile layout for non-touch / remount", () => {
-  persistAndApplyUiSettings({ color: "cyan", font: "source", layout: "mobile", view: "iso", pixel: "crisp", minimap: true });
+  persistAndApplyUiSettings({ color: "cyan", font: "source", layout: "mobile", view: "iso", cam: "numpad", pixel: "crisp", minimap: true });
   assert.equal(layoutUsesArcadeControls(loadUiSettings().layout), true);
   assert.equal(readAppliedUiLayout(), "mobile");
   // Switching away then back must not drop persistence.
-  persistAndApplyUiSettings({ color: "cyan", font: "source", layout: "regular", view: "iso", pixel: "crisp", minimap: true });
+  persistAndApplyUiSettings({ color: "cyan", font: "source", layout: "regular", view: "iso", cam: "numpad", pixel: "crisp", minimap: true });
   assert.equal(readAppliedUiLayout(), "regular");
-  persistAndApplyUiSettings({ color: "cyan", font: "source", layout: "mobile", view: "iso", pixel: "crisp", minimap: true });
+  persistAndApplyUiSettings({ color: "cyan", font: "source", layout: "mobile", view: "iso", cam: "numpad", pixel: "crisp", minimap: true });
   assert.equal(loadUiSettings().layout, "mobile");
   assert.equal(readAppliedUiLayout(), "mobile");
 });
@@ -79,10 +79,25 @@ test("view and pixel default and persist", () => {
   localStorage.removeItem(UI_SETTINGS_KEY);
   assert.equal(loadUiSettings().view, "iso");
   assert.equal(loadUiSettings().pixel, "crisp");
-  persistAndApplyUiSettings({ ...loadUiSettings(), view: "3d", pixel: "smooth" });
-  assert.equal(loadUiSettings().view, "3d");
-  assert.equal(document.documentElement.dataset.uiView, "3d");
+  persistAndApplyUiSettings({ ...loadUiSettings(), view: "tp", pixel: "smooth" });
+  assert.equal(loadUiSettings().view, "tp");
+  assert.equal(document.documentElement.dataset.uiView, "tp");
+  assert.equal(document.documentElement.dataset.uiCam, "numpad");
   assert.equal(document.documentElement.dataset.uiPixel, "smooth");
+  localStorage.setItem(UI_SETTINGS_KEY, JSON.stringify({ view: "3d", cam: "mouse" }));
+  assert.equal(loadUiSettings().view, "tp");
+  assert.equal(loadUiSettings().cam, "mouse");
+});
+
+test("camera cycles iso, third, first and does not use the minimap key", async () => {
+  const { cycleView, toggleCamControl } = await import("./uiSettings");
+  assert.equal(loadUiSettings().view, "iso");
+  assert.equal(loadUiSettings().cam, "numpad");
+  assert.equal(cycleView().view, "tp");
+  assert.equal(cycleView().view, "fp");
+  assert.equal(cycleView().view, "iso");
+  assert.equal(toggleCamControl().cam, "mouse");
+  assert.equal(loadUiSettings().minimap, true);
 });
 
 test("minimap defaults on, toggles, and persists", async () => {

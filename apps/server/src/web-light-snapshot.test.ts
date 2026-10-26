@@ -15,6 +15,7 @@ import {
   lightClientFromSnapshot,
   setReplicaAllowlist,
 } from "../../../packages/client-core/src/light-client";
+import { proveCharacter, resetCharacterProofCache } from "./character-light-proof";
 import { LokWorld } from "./lok-world";
 import { encodeCommitCertificate, snapshotFor } from "./web-light-snapshot";
 
@@ -88,6 +89,31 @@ test("snapshotFor attaches a character-root proof and a state leaf that recomput
   const badLeaf = checkWebLightClient(lightClientFromSnapshot({ lightClient: flippedLeaf }));
   assert.equal(badLeaf.ok, false);
   if (!badLeaf.ok) assert.equal(badLeaf.stage, "leaf");
+
+  const characters = lok.lightCharacters();
+  resetCharacterProofCache();
+  const cached = snapshotFor({
+    commitCertificateHex: hex(certificate),
+    certifiedRootHex: hex(root),
+    tokenId: a.tokenId,
+    characters,
+    logLength: lok.length,
+  });
+  const again = snapshotFor({
+    commitCertificateHex: hex(certificate),
+    certifiedRootHex: hex(root),
+    tokenId: b.tokenId,
+    characters,
+    logLength: lok.length,
+  });
+  assert.deepEqual(cached, light);
+  const freshB = proveCharacter(characters, b.tokenId);
+  assert.equal(again.characterRoot, freshB ? hex(freshB.characterRoot) : "");
+  assert.equal(again.tag, freshB?.tag);
+  assert.deepEqual(
+    again.characterSiblings.map((row) => row.hash),
+    freshB?.characterSiblings.map((row) => hex(row.hash)),
+  );
 });
 
 function precommit(height: number, round: number, root: Uint8Array, address: Uint8Array): Uint8Array {

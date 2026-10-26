@@ -46,7 +46,7 @@ test("layoutUsesArcadeControls is true only for mobile", () => {
 });
 
 test("Mobile layout persists and stays applied after reload", () => {
-  persistAndApplyUiSettings({ color: "cyan", font: "source", layout: "mobile", view: "iso", pixel: "crisp", minimap: true });
+  persistAndApplyUiSettings({ color: "cyan", font: "source", layout: "mobile", view: "iso", cam: "numpad", pixel: "crisp", minimap: true });
   assert.equal(loadUiSettings().layout, "mobile");
   assert.equal(document.documentElement.dataset.uiLayout, "mobile");
   assert.equal(readAppliedUiLayout(), "mobile");

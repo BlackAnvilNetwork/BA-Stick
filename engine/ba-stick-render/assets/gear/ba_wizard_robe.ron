@@ -1,0 +1,110 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// BA wizard robe: a cinched cloth body, an A-line skirt to the ankles, and a
+// short train. The skirt panels sway toward the feet while walking.
+// Gold trim, the clasp, and the sash are ba_wizard_robe.plate.ron.
+// Bell sleeves are drawn from the arms. `thick` is a radius in pixels.
+(
+    id: "ba_wizard_robe",
+    slot: Chest,
+    attach: Some("chest"),
+    material: Some("dust"),
+    thickness_mul: {
+        "spine": 1.15,
+        "shoulders": 1.05,
+    },
+    shapes: [
+        // Collar yoke.
+        Capsule(
+            from: (-0.14, -0.02, 0.04),
+            to: (0.14, -0.02, 0.04),
+            ramp: Material,
+            thick: 2.8,
+        ),
+        // Chest, then a cinched waist. Negative y hangs down the torso.
+        Capsule(
+            from: (0.0, -0.02, 0.05),
+            to: (0.0, -0.46, 0.035),
+            ramp: Material,
+            thick: 3.4,
+        ),
+        Capsule(
+            from: (-0.11, -0.14, 0.05),
+            to: (0.11, -0.14, 0.05),
+            ramp: Material,
+            thick: 3.4,
+        ),
+        Capsule(
+            from: (-0.09, -0.30, 0.045),
+            to: (0.09, -0.30, 0.045),
+            ramp: Material,
+            thick: 3.1,
+        ),
+        Capsule(
+            from: (-0.035, -0.46, 0.04),
+            to: (0.035, -0.46, 0.04),
+            ramp: Material,
+            thick: 2.2,
+        ),
+        // Shoulder drapes falling off the yoke.
+        Capsule(
+            from: (-0.12, -0.04, 0.03),
+            to: (-0.16, -0.38, 0.0),
+            ramp: Material,
+            thick: 2.6,
+        ),
+        Capsule(
+            from: (0.12, -0.04, 0.03),
+            to: (0.16, -0.38, 0.0),
+            ramp: Material,
+            thick: 2.6,
+        ),
+        // Skirt panels. The lower ends flare and take the walk sway.
+        Capsule(
+            from: (-0.02, -0.44, 0.03),
+            to: (-0.18, -1.18, 0.02),
+            ramp: Material,
+            thick: 3.0,
+        ),
+        Capsule(
+            from: (0.02, -0.44, 0.03),
+            to: (0.18, -1.18, 0.02),
+            ramp: Material,
+            thick: 3.0,
+        ),
+        Capsule(
+            from: (0.0, -0.46, 0.045),
+            to: (0.0, -1.22, 0.02),
+            ramp: Material,
+            thick: 2.8,
+        ),
+        Capsule(
+            from: (-0.05, -0.50, 0.0),
+            to: (-0.30, -1.12, -0.02),
+            ramp: Material,
+            thick: 2.8,
+        ),
+        Capsule(
+            from: (0.05, -0.50, 0.0),
+            to: (0.30, -1.12, -0.02),
+            ramp: Material,
+            thick: 2.8,
+        ),
+        // Train behind the hem.
+        Capsule(
+            from: (0.0, -0.50, -0.03),
+            to: (0.0, -1.36, -0.10),
+            ramp: Material,
+            thick: 2.3,
+        ),
+        // Hem band.
+        Capsule(
+            from: (-0.28, -1.16, 0.02),
+            to: (0.28, -1.16, 0.02),
+            ramp: Material,
+            thick: 2.3,
+        ),
+    ],
+)

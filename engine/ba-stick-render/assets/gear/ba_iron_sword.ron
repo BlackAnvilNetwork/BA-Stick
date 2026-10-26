@@ -1,0 +1,19 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Iron sword. Steel grip and crossguard in the hand frame, +y along the blade.
+// The pale blade, the gold plate, and the triangle are drawn on that plane.
+(
+    id: "ba_iron_sword",
+    slot: MainHand,
+    attach: Some("r_hand"),
+    stance: Some("1h"),
+    reach: 0.86,
+    swing_weight: 1.0,
+    material: Some("steel"),
+    shapes: [
+        Capsule(from: (0.0, -0.14, 0.0), to: (0.0, 0.04, 0.0), ramp: Material, thick: 2.0),
+        Capsule(from: (-0.11, 0.08, 0.0), to: (0.11, 0.08, 0.0), ramp: Material, thick: 1.6),
+    ],
+)

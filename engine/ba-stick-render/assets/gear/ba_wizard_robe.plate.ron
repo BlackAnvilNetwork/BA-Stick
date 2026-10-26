@@ -1,0 +1,44 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Front-face paint for the wizard robe. Every cell is a pixel:
+// 'k' black, 'c' black-blue, 'b' blue, 'm' lighter blue. No empty cells.
+// `flow` is how far the hem follows a foot. `sleeve_drop` hangs the bell
+// sleeves below the hands. `arm_thick` is the upper sleeve, `cuff_thick` the bell.
+(
+    id: "ba_wizard_robe",
+    x0: -0.30,
+    y0: -1.22,
+    x1: 0.30,
+    y1: 0.0,
+    z: 0.07,
+    flow: 0.72,
+    sleeve_drop: 0.36,
+    arm_from: 0.0,
+    arm_to: 1.0,
+    arm_thick: 2.8,
+    cuff_from: 0.0,
+    cuff_to: 0.14,
+    cuff_thick: 3.2,
+    rows: [
+        "bbbbbbbbbbbbbbb",
+        "bkkkkkkkkkkkkkb",
+        "bkccccccccccckb",
+        "bkccbbbbbbbcckb",
+        "bkccbcmmmcbcckb",
+        "bkccbbbbbbbcckb",
+        "bbbbbmmmmmbbbbb",
+        "bkccccccccccckb",
+        "bkccbbbbbbbcckb",
+        "bkccbcbbbccbckb",
+        "bkccbckmkcbcckb",
+        "bkccbcbbbccbckb",
+        "bkccbccccccbckb",
+        "bkccbcbbbccbckb",
+        "bkccbbbbbbbcckb",
+        "bkccccccccccckb",
+        "bkkkkkkkkkkkkkb",
+        "bbbbbbbbbbbbbbb",
+    ],
+)

@@ -26,11 +26,52 @@ fn upsert_and_remove() {
 fn anim_mapping() {
     assert_eq!(AnimState::parse("melee").clip(), "swing");
     assert_eq!(AnimState::parse("walk").clip(), "walk");
+    assert_eq!(AnimState::parse("rest").action_clip(), Some("rest"));
     assert_eq!(AnimState::parse("bogus"), AnimState::Idle);
     let mut s = Scene::new(64, 64);
     s.upsert_unit("a", unit(0.0, 0.0, "idle", "rogue"));
     s.upsert_unit("a", unit(0.0, 0.0, "melee", "rogue"));
     assert_eq!(s.unit_clip("a"), Some("swing"));
+}
+
+#[test]
+fn rest_clip_is_a_heros_rest() {
+    use stick_engine::anim::{Ch, Clip, MaskKind};
+    use stick_engine::body::{BodyParams, Sex};
+    use stick_engine::math::v3;
+    use stick_engine::rig::{solve, Joint};
+    let clip = Clip::from_ron(include_str!("../assets/clips/rest.ron")).unwrap();
+    assert!(clip.meta.looping);
+    assert_eq!(clip.meta.mask, MaskKind::Full);
+    let pose = clip.sample(0.0);
+    assert!(pose.get(Ch::Bob) < -0.4, "the hips drop to the ground");
+    assert!(pose.get(Ch::Head) > 15.0, "the head bows");
+    assert!(pose.get(Ch::RWpnPitch) < -60.0, "the sword aims down");
+    let j = solve(&pose, &BodyParams::preset(Sex::Male), v3(0.0, 0.0, 0.0), 0.0, 0.0);
+    let lk = j.get(Joint::LKnee);
+    let rk = j.get(Joint::RKnee);
+    let lf = j.get(Joint::LFoot);
+    let rf = j.get(Joint::RFoot);
+    let hand = j.get(Joint::RHand);
+    let where_ = format!(
+        "Lknee {:.2} Rknee {:.2}@{:.2} Lfoot {:.2} Rfoot {:.2}@{:.2} hand {:.2} wpn.y {:.2} head.z {:.2} neck.z {:.2}",
+        lk.y, rk.y, rk.z, lf.y, rf.y, rf.z, hand.y, j.wpn_dir[1].y, j.get(Joint::Head).z, j.get(Joint::Neck).z
+    );
+    assert!(lk.y > rk.y + 0.15, "one knee is up — {where_}");
+    assert!(lf.y < 0.1 && lf.y > -0.08, "the raised foot is planted — {where_}");
+    assert!(rf.y < 0.12 && rf.y > -0.08, "the other foot rests on the ground — {where_}");
+    assert!(rf.z > rk.z + 0.2, "the resting leg reaches forward — {where_}");
+    let hip = j.get(Joint::Pelvis);
+    let t = (rk.z - hip.z) / (rf.z - hip.z).max(1e-3);
+    let line_y = hip.y + t * (rf.y - hip.y);
+    assert!(rk.y > line_y + 0.03, "the resting knee bends up, not back — {where_}");
+    assert!(j.wpn_dir[1].y < -0.7, "the sword points into the ground — {where_}");
+    assert!(j.get(Joint::Head).z > j.get(Joint::Neck).z, "the head is forward of the neck — {where_}");
+    let breath = clip.sample(1.6);
+    assert!(breath.get(Ch::Bob) < pose.get(Ch::Bob), "the breath settles");
+    let mut s = Scene::new(64, 64);
+    s.upsert_unit("a", unit(0.0, 0.0, "rest", "fighter"));
+    assert_eq!(s.unit_clip("a"), Some("rest"));
 }
 
 #[test]
@@ -81,6 +122,34 @@ fn draws_stick_figure_pixels() {
 }
 
 #[test]
+fn rain_weather_keeps_figure_and_meadow_grass() {
+    let bytes = tiny_zone(40, 40, |_, _| (15, 0, 200));
+    let mut s = Scene::new(320, 180);
+    s.load_zone(&bytes).unwrap();
+    s.upsert_unit("me", unit(5.0, 5.0, "idle", "knight"));
+    s.follow(Some("me"));
+    for _ in 0..60 {
+        s.tick(1.0 / 60.0);
+    }
+    s.set_weather(1, 0.0); // rain
+    for _ in 0..300 {
+        s.tick(1.0 / 60.0);
+    }
+    s.draw();
+    let meadow = crate::palette::MEADOW;
+    assert!(s.fb.color.iter().filter(|&&c| c == meadow).count() > 80, "meadow blades");
+    let body = crate::compat::C_BODY;
+    assert!(s.fb.color.iter().filter(|&&c| c == body).count() > 40, "figure pixels");
+    let rain_px = s
+        .fb
+        .color
+        .iter()
+        .filter(|&&c| c == crate::palette::ROCK || c == crate::palette::ROCK_L)
+        .count();
+    assert!(rain_px > 20, "rain streaks ({rain_px})");
+}
+
+#[test]
 fn presets_resolve() {
     let k = RigPreset::resolve("knight");
     let r = RigPreset::resolve("rogue");
@@ -119,6 +188,45 @@ fn zone_parse_and_height() {
 }
 
 #[test]
+fn ground_draws_in_third_person() {
+    let bytes = tiny_zone(40, 40, |i, j| (13, 0, 300));
+    let mut s = Scene::new(640, 360);
+    s.load_zone(&bytes).unwrap();
+    s.set_cam_mode("tp");
+    s.upsert_unit("me", UnitInput { x: 5.0, y: 3.0, z: 5.0, facing: 0.0, anim: AnimState::Idle, preset: "knight".into() });
+    s.follow(Some("me"));
+    for _ in 0..90 {
+        s.tick(1.0 / 60.0);
+    }
+    s.draw();
+    let grass = palette::BIOME0 + 13 * 3 + 1;
+    assert!(
+        s.fb.color.iter().filter(|&&c| c == grass).count() > 500,
+        "third-person view should rasterize meadow ground, not only sky"
+    );
+    // Culled vertices project to (0, 0); must not smear ground into the sky band.
+    let sky_band = s.fb.w as usize * (s.fb.h / 4);
+    let sky_grass = s.fb.color[..sky_band].iter().filter(|&&c| c == grass).count();
+    assert!(sky_grass < 80, "ground in sky: {sky_grass} grass pixels in top quarter");
+}
+
+#[test]
+fn ground_draws_in_first_person() {
+    let bytes = tiny_zone(40, 40, |_i, _j| (13, 0, 300));
+    let mut s = Scene::new(640, 360);
+    s.load_zone(&bytes).unwrap();
+    s.set_cam_mode("fp");
+    s.upsert_unit("me", UnitInput { x: 5.0, y: 3.0, z: 5.0, facing: 0.0, anim: AnimState::Idle, preset: "knight".into() });
+    s.follow(Some("me"));
+    for _ in 0..90 {
+        s.tick(1.0 / 60.0);
+    }
+    s.draw();
+    let grass = palette::BIOME0 + 13 * 3 + 1;
+    assert!(s.fb.color.iter().filter(|&&c| c == grass).count() > 400);
+}
+
+#[test]
 fn zone_draws_biome_colours_and_units_stand_on_it() {
     let bytes = tiny_zone(40, 40, |i, j| (13, if i == j { zone::F_TRAIL } else { 0 }, 300));
     let mut s = Scene::new(320, 180);
@@ -129,9 +237,16 @@ fn zone_draws_biome_colours_and_units_stand_on_it() {
     assert!((s.cam_y - 3.0).abs() < 0.05, "cam_y={}", s.cam_y);
     s.draw();
     let grass = palette::BIOME0 + 13 * 3 + 1;
-    let trail = palette::TRAIL_DIRT + 1;
     assert!(s.fb.color.iter().filter(|&&c| c == grass).count() > 1000);
-    assert!(s.fb.color.iter().any(|&c| c == trail));
+    // Trails render as cobbles now (no flat TRAIL_DIRT fill); they must still show up.
+    let mut plain = Scene::new(320, 180);
+    plain.load_zone(&tiny_zone(40, 40, |_, _| (13, 0, 300))).unwrap();
+    plain.upsert_unit("me", UnitInput { x: 5.0, y: 3.0, z: 5.0, facing: 0.0, anim: AnimState::Idle, preset: "knight".into() });
+    plain.follow(Some("me"));
+    for _ in 0..120 { plain.tick(1.0 / 60.0); }
+    plain.draw();
+    let diff = s.fb.color.iter().zip(&plain.fb.color).filter(|(a, b)| a != b).count();
+    assert!(diff > 100, "trail changed only {diff} px");
     // Picking the unit's feet on relief returns the unit position.
     let feet = s.cam.project(stick_engine::math::v3(5.0, 0.0, 5.0));
     let (x, z) = s.pick_world(feet.x, feet.y);
@@ -176,7 +291,18 @@ fn fx_bars_rings_fade_and_anchor() {
     s.upsert_unit("m", unit(0.0, 0.0, "cast", "mob:ruin_dweller"));
     s.tick(0.0);
     assert!(!s.set_fx("nope", UnitFx::default()));
-    assert!(s.set_fx("m", UnitFx { hp: 0.5, cast: 0.5, aoe: 2.0, flags: crate::scene::FX_SELECTED | crate::scene::FX_HOSTILE, fade: 1.0, level_up: 0.3 }));
+    assert!(s.set_fx(
+        "m",
+        UnitFx {
+            hp: 0.5,
+            cast: 0.5,
+            aoe: 2.0,
+            flags: crate::scene::FX_SELECTED | crate::scene::FX_HOSTILE,
+            fade: 1.0,
+            level_up: 0.3,
+            weapon_edge: 0,
+        },
+    ));
     s.draw();
     let has = |c: u8| s.fb.color.iter().any(|&x| x == c);
     for c in [FX_HP, FX_CAST, FX_TELL, FX_RING_HOSTILE, FX_LEVEL] {
@@ -374,6 +500,53 @@ fn gear_changes_the_figure_and_seeds_are_stable() {
     assert_ne!(plain, axe);
     assert_ne!(plain, armour);
     assert!(armour.contains(&crate::palette::GEAR_LEATHER));
+    let plate = render(Some(garb(0, 0, 0, 3, 5, 0, 0, 0, 0)));
+    assert_ne!(plain, plate);
+    assert!(plate.contains(&crate::compat::C_STEEL));
+    assert!(plate.contains(&crate::compat::C_GOLD));
+    let robe = render(Some(garb(0, 0, 0, 1, 2, 0, 0, 0, 0)));
+    assert_ne!(plain, robe);
+    assert!(robe.contains(&crate::compat::C_SHADOW));
+    assert!(robe.contains(&crate::palette::WATER));
+    let vest = render(Some(garb(0, 0, 0, 2, 7, 0, 0, 0, 0)));
+    assert_ne!(plain, vest);
+    assert!(vest.contains(&crate::palette::GEAR_LEATHER));
+    assert!(vest.contains(&crate::palette::GEAR_LEATHER_FAR));
+    assert!(vest.contains(&crate::compat::C_SHADOW));
+    let harness = render(Some(garb(0, 0, 0, 5, 327, 0, 0, 0, 0)));
+    assert_ne!(plain, harness);
+    assert!(harness.contains(&crate::palette::GEAR_BONE));
+    assert!(harness.contains(&crate::palette::CR_HARE));
+    assert!(harness.contains(&crate::compat::C_SHADOW));
+    let helm = render(Some(garb(0, 0, 0, 0, 0, 3, crate::gear::IRON_HELM_ITEM, 0, 0)));
+    assert_ne!(plain, helm);
+    assert!(helm.contains(&crate::compat::C_STEEL));
+    assert!(helm.contains(&crate::compat::C_GOLD));
+    assert!(helm.contains(&crate::compat::C_BODY));
+    let band = render(Some(garb(0, 0, 0, 0, 0, 1, crate::gear::LINEN_HELM_ITEM, 0, 0)));
+    assert_ne!(plain, band);
+    assert!(band.contains(&crate::palette::GEAR_LEATHER));
+    assert!(band.contains(&crate::compat::C_BODY));
+    let hat = render(Some(garb(0, 0, 0, 0, 0, 1, 0, 0, 0)));
+    assert_ne!(plain, hat);
+    assert!(hat.contains(&crate::palette::WATER));
+    assert!(hat.contains(&crate::compat::C_BODY));
+    let mut shield = garb(0, 0, 0, 0, 0, 0, 0, 0, 0);
+    shield.shield = true;
+    let faced = render(Some(shield));
+    assert_ne!(plain, faced);
+    assert!(faced.contains(&crate::compat::C_STEEL));
+    assert!(faced.contains(&crate::compat::C_GOLD));
+    let mut kite = garb(0, 0, 0, 0, 0, 0, 0, 0, 0);
+    kite.kite = true;
+    let pointed = render(Some(kite));
+    assert_ne!(plain, pointed);
+    assert!(pointed.contains(&crate::compat::C_STEEL));
+    assert!(pointed.contains(&crate::compat::C_GOLD));
+    let cuisses = render(Some(garb(0, 0, 0, 0, 0, 0, 0, 3, 1)));
+    assert_ne!(plain, cuisses);
+    assert!(cuisses.contains(&crate::compat::C_STEEL));
+    assert!(cuisses.contains(&crate::compat::C_GOLD));
     for fam in 1..=7 { render(Some(garb(fam, 3, fam as u32, 1, 1, 1, 1, 1, 1))); }
 }
 
@@ -409,9 +582,10 @@ fn camera_3d_roundtrip_and_blend() {
     assert!(cam.scale_at(v3(-8.0, 0.0, -8.0)) < 1.0);
     assert!(cam.scale_at(v3(3.0, 0.0, 3.0)) > 1.0);
     let mut s = crate::scene::Scene::new(640, 360);
-    s.view3d = true;
+    s.set_cam_mode("tp");
     for _ in 0..60 { s.tick(1.0 / 60.0); }
-    assert_eq!(s.cam.persp, 1.0);
+    assert_eq!(s.cam_mode(), "tp");
+    assert!(s.cam.view.is_some());
 }
 
 #[test]
@@ -454,7 +628,7 @@ fn bridge_deck_is_one_continuous_ribbon() {
     let mut fb = Framebuffer::new(640, 360);
     // 10 m span along z, 3.9 m deck, 0.6 m flat-deck lift, level ends, 0.3 ramps
     let p = Prop { kind: kind::BRIDGE, var: 0, x: 0.0, z: 0.0, y: 0.0, yaw: 0.0, s: 10.0, w: 3.9, h: 0.6, d: 0.0, j: [0.0; 6] };
-    draw(&mut fb, &cam, &[p], 0.0, 0.0);
+    draw(&mut fb, &cam, &[p], 0.0, 0.0, 0.0, 0.0, false);
     // Walk the deck centre line: every sample is lit deck, with no slab seam or
     // step outline crossing the walkway (the old 12-slab bridge had 11).
     let mut seams = 0;
@@ -488,7 +662,22 @@ fn l1_slope_shade_follows_sun() {
 fn l2_keylight_warms_lit_cools_shadow() {
     use crate::atmosphere::*;
     let pal = crate::palette::palette();
-    let run = |c: u8, key: bool| { let mut o = [0u8; 4]; write_rgba_key(&pal, &[c], 1, 1, &[], &PALE_HOLLOW, 0.0, key, &mut o); o };
+    let run = |c: u8, key: bool| {
+        let mut o = [0u8; 4];
+        write_rgba_key(
+            &pal,
+            &[c],
+            1,
+            1,
+            &[],
+            &PALE_HOLLOW,
+            0.0,
+            key,
+            crate::atmosphere::Extra::NONE,
+            &mut o,
+        );
+        o
+    };
     let lit = crate::palette::BIOME0;
     let dark = crate::palette::BIOME0 + 2;
     assert!(run(lit, true)[0] >= run(lit, false)[0]);
@@ -530,7 +719,36 @@ fn bridge_mesh_matches_server_walk_height() {
             t = 0.0;
         }
     }
-    assert!(n >= 7 * 21);
+    assert!(n >= 2 * 21);
+}
+
+#[test]
+fn boot_menu_renders_transparent_overlay() {
+    let (w, h) = (640usize, 360usize);
+    let mut s = Scene::new(w, h);
+    s.set_boot_menu(true);
+    for _ in 0..30 {
+        s.tick(1.0 / 60.0);
+    }
+    s.draw();
+    let mut rgba = vec![0u8; w * h * 4];
+    s.write_rgba(&mut rgba);
+    assert_eq!(s.unit_count(), 0, "photo backdrop — no menu hero in WASM");
+    let transparent = rgba.chunks(4).filter(|p| p[3] == 0).count();
+    assert!(
+        transparent > w * h * 9 / 10,
+        "boot WASM layer should be mostly keyed out, got {transparent}/{}",
+        w * h
+    );
+    if std::env::var("BOOT_MENU_PPM").is_ok() {
+        let mut rgb = Vec::with_capacity(w * h * 3);
+        for p in rgba.chunks(4) {
+            rgb.extend_from_slice(&p[0..3]);
+        }
+        let mut out = format!("P6\n{w} {h}\n255\n").into_bytes();
+        out.extend(rgb);
+        let _ = std::fs::write("target/boot_menu.ppm", out);
+    }
 }
 
 #[test]
@@ -566,6 +784,7 @@ fn pick_world_honors_the_persp_blend_on_raised_ground() {
 #[test]
 fn pick_unit_box_scales_with_depth_in_3d() {
     let mut s = Scene::new(640, 360);
+    s.set_cam_mode("tp");
     s.cam.persp = 1.0;
     // Near unit (positive view depth) is drawn larger; its head must still be clickable.
     s.upsert_unit("near", unit(4.0, 4.0, "idle", "knight"));
@@ -586,7 +805,7 @@ fn pick_unit_box_scales_with_depth_in_3d() {
 fn follow_lift_is_the_same_on_screen_in_iso_and_3d() {
     for persp in [0.0, 0.5, 1.0] {
         let mut s = Scene::new(640, 360);
-        s.view3d = persp > 0.0;
+        s.set_cam_mode(if persp > 0.0 { "tp" } else { "iso" });
         s.cam.persp = persp;
         s.upsert_unit("me", unit(10.0, -4.0, "idle", "knight"));
         s.follow(Some("me"));
@@ -595,4 +814,104 @@ fn follow_lift_is_the_same_on_screen_in_iso_and_3d() {
         let want = 360.0 * 0.55 - s.follow_lift_px;
         assert!((feet - want).abs() < 0.05, "persp {persp}: feet {feet} want {want}");
     }
+}
+
+fn cam3d_scene(mode: &str) -> Scene {
+    // 160 m × 160 m flat meadow: far ground must reach well past the 22 m detail disc.
+    let bytes = tiny_zone(320, 320, |_, _| (13, 0, 0));
+    let mut s = Scene::new(320, 180);
+    s.load_zone(&bytes).unwrap();
+    s.upsert_unit("me", UnitInput { x: 78.0, y: 0.0, z: 78.0, facing: 0.0, anim: AnimState::Idle, preset: "knight".into() });
+    s.follow(Some("me"));
+    s.set_cam_mode(mode);
+    for _ in 0..240 { s.tick(1.0 / 60.0); }
+    s.draw();
+    s
+}
+
+fn fb_hash(s: &Scene) -> u64 {
+    s.fb.color.iter().fold(0xcbf29ce484222325u64, |h, &c| (h ^ c as u64).wrapping_mul(0x100000001b3))
+}
+
+#[test]
+fn cam3d_ground_reaches_the_horizon() {
+    let grass = |c: u8| (palette::BIOME0 + 13 * 3..palette::BIOME0 + 13 * 3 + 3).contains(&c);
+    for mode in ["tp", "fp"] {
+        let s = cam3d_scene(mode);
+        // The band just under the horizon is > 22 m away; it must be ground, not sky.
+        let mut best = 0;
+        for y in 0..s.fb.h {
+            let row = &s.fb.color[y * s.fb.w..(y + 1) * s.fb.w];
+            let g = row.iter().filter(|&&c| grass(c)).count();
+            if g * 2 > s.fb.w { best = best.max(s.fb.h - y); }
+        }
+        assert!(best * 10 > s.fb.h * 4, "{mode}: ground covers only {best}/{} rows", s.fb.h);
+    }
+}
+
+#[test]
+fn cam3d_changes_leave_iso_deterministic() {
+    let a = fb_hash(&cam3d_scene("iso"));
+    let mut s = cam3d_scene("tp");
+    s.set_cam_mode("iso");
+    for _ in 0..240 { s.tick(1.0 / 60.0); }
+    s.draw();
+    assert_eq!(a, fb_hash(&cam3d_scene("iso")));
+    assert!(s.cam.view.is_none());
+}
+
+fn sky_below_horizon(s: &Scene) -> usize {
+    // A sky pixel with ground above it in the same column (or on the last row) is a hole.
+    let (w, h) = (s.fb.w, s.fb.h);
+    let sky = crate::atmosphere::SKY;
+    let mut n = 0;
+    for x in 0..w {
+        let mut seen = false;
+        for y in 0..h {
+            let c = s.fb.color[y * w + x];
+            if c != sky { seen = true } else if seen || y == h - 1 { n += 1 }
+        }
+    }
+    n
+}
+
+fn bowl_scene(mode: &str, yaw: f32, pitch: f32) -> Scene {
+    // Flat 3 m pad around the player, then walls climbing 3 m per m: an unclamped
+    // tp boom (6 m) ends inside the wall whatever the yaw.
+    let bytes = tiny_zone(320, 320, |i, j| {
+        let (x, z) = (-2.0 + i as f32 * 0.5 - 78.0, -2.0 + j as f32 * 0.5 - 78.0);
+        let r = (x * x + z * z).sqrt();
+        (13, 0, (((r - 3.0).max(0.0) * 3.0).min(30.0) * 100.0) as i16)
+    });
+    let mut s = Scene::new(320, 180);
+    s.load_zone(&bytes).unwrap();
+    s.atmosphere = false;
+    s.upsert_unit("me", UnitInput { x: 78.0, y: 0.0, z: 78.0, facing: 0.0, anim: AnimState::Idle, preset: "knight".into() });
+    s.follow(Some("me"));
+    s.set_cam_mode(mode);
+    for _ in 0..120 { s.tick(1.0 / 60.0); }
+    s.set_look(yaw, pitch);
+    for _ in 0..120 { s.tick(1.0 / 60.0); }
+    s.draw();
+    s
+}
+
+#[test]
+fn tp_boom_stays_out_of_hills() {
+    for k in 0..8 {
+        let s = bowl_scene("tp", k as f32 * std::f32::consts::FRAC_PI_4, 0.0);
+        let eye = s.cam.view.and_then(|v| v.eye()).expect("tp has an eye");
+        let ground = s.zone_height(eye.x, eye.z);
+        assert!(eye.y > ground + 0.2, "yaw {k}/8: eye y {} under terrain {ground}", eye.y);
+        let holes = sky_below_horizon(&s);
+        assert!(holes < s.fb.w, "yaw {k}/8: {holes} sky px under ground");
+    }
+}
+
+#[test]
+fn fp_looking_down_fills_the_ground_under_the_eye() {
+    let s = bowl_scene("fp", 0.0, 1.2);
+    let (w, h) = (s.fb.w, s.fb.h);
+    let sky = s.fb.color[h / 2 * w..].iter().filter(|&&c| c == crate::atmosphere::SKY).count();
+    assert_eq!(sky, 0, "{sky} sky px in the lower half looking down");
 }

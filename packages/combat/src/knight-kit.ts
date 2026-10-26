@@ -61,6 +61,7 @@ export type KnightAbilityDef = {
   range?: number;
   aoe?: number;
   needsTarget?: boolean;
+  allyTarget?: boolean;
   /** Requires sword+shield / main hand. */
   weaponRequired?: boolean;
 };
@@ -186,6 +187,8 @@ export const KNIGHT_ABILITIES: Record<KnightAbilityId, KnightAbilityDef> = {
     recastMs: 0,
     category: "heal",
     heal: 45,
+    range: 12,
+    allyTarget: true,
   },
   kn_banish: {
     id: "kn_banish",
@@ -209,6 +212,8 @@ export const KNIGHT_ABILITIES: Record<KnightAbilityId, KnightAbilityDef> = {
     category: "enhance",
     durationMs: 180_000,
     physDt: 0.9,
+    range: 12,
+    allyTarget: true,
   },
   kn_flash: {
     id: "kn_flash",
@@ -231,6 +236,8 @@ export const KNIGHT_ABILITIES: Record<KnightAbilityId, KnightAbilityDef> = {
     recastMs: 0,
     category: "heal",
     heal: 95,
+    range: 12,
+    allyTarget: true,
   },
   kn_shell: {
     id: "kn_shell",
@@ -242,6 +249,8 @@ export const KNIGHT_ABILITIES: Record<KnightAbilityId, KnightAbilityDef> = {
     category: "enhance",
     durationMs: 180_000,
     magDt: 0.9,
+    range: 12,
+    allyTarget: true,
   },
   kn_protect_ii: {
     id: "kn_protect_ii",
@@ -253,6 +262,8 @@ export const KNIGHT_ABILITIES: Record<KnightAbilityId, KnightAbilityDef> = {
     category: "enhance",
     durationMs: 180_000,
     physDt: 0.82,
+    range: 12,
+    allyTarget: true,
   },
   kn_cure_iii: {
     id: "kn_cure_iii",
@@ -263,6 +274,8 @@ export const KNIGHT_ABILITIES: Record<KnightAbilityId, KnightAbilityDef> = {
     recastMs: 0,
     category: "heal",
     heal: 180,
+    range: 12,
+    allyTarget: true,
   },
   kn_shell_ii: {
     id: "kn_shell_ii",
@@ -274,6 +287,8 @@ export const KNIGHT_ABILITIES: Record<KnightAbilityId, KnightAbilityDef> = {
     category: "enhance",
     durationMs: 180_000,
     magDt: 0.82,
+    range: 12,
+    allyTarget: true,
   },
   kn_protect_iii: {
     id: "kn_protect_iii",
@@ -285,6 +300,8 @@ export const KNIGHT_ABILITIES: Record<KnightAbilityId, KnightAbilityDef> = {
     category: "enhance",
     durationMs: 180_000,
     physDt: 0.72,
+    range: 12,
+    allyTarget: true,
   },
   kn_shell_iii: {
     id: "kn_shell_iii",
@@ -296,6 +313,8 @@ export const KNIGHT_ABILITIES: Record<KnightAbilityId, KnightAbilityDef> = {
     category: "enhance",
     durationMs: 180_000,
     magDt: 0.72,
+    range: 12,
+    allyTarget: true,
   },
   kn_cure_iv: {
     id: "kn_cure_iv",
@@ -306,6 +325,8 @@ export const KNIGHT_ABILITIES: Record<KnightAbilityId, KnightAbilityDef> = {
     recastMs: 0,
     category: "heal",
     heal: 320,
+    range: 12,
+    allyTarget: true,
   },
   kn_banish_ii: {
     id: "kn_banish_ii",
@@ -445,7 +466,8 @@ export function knightAbilityTooltip(id: KnightAbilityId): {
   if (def.magDt != null && def.magDt < 1) {
     bits.push(`Magic DT −${Math.round((1 - def.magDt) * 100)}%`);
   }
-  if (def.needsTarget) bits.push("Target");
+  if (def.needsTarget) bits.push("Enemy target");
+  if (def.allyTarget) bits.push("Ally target");
   if (def.weaponRequired) bits.push("Sword (main)");
   return { title: def.label, body: blurb, meta: bits.join(" · ") };
 }

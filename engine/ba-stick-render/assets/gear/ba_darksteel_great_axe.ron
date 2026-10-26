@@ -1,0 +1,17 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Darksteel great labrys — 3× haft, 1.5× head vs bronze (pixel-axe.ts).
+(
+    id: "ba_darksteel_great_axe",
+    slot: MainHand,
+    attach: Some("r_hand"),
+    stance: Some("2h"),
+    reach: 1.05,
+    swing_weight: 1.85,
+    material: Some("darksteel"),
+    shapes: [
+        Capsule(from: (0.0, -0.88, 0.0), to: (0.0, 0.11, 0.0), ramp: Trim, thick: 2.0),
+    ],
+)

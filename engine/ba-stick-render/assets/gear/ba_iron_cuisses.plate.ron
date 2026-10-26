@@ -1,0 +1,30 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// One cuisse face, painted on each thigh. 'e' steel, 'g' gold rim.
+// Row 0 is the hip edge. The last row stops above the knee.
+(
+    id: "ba_iron_cuisses",
+    x0: -0.10,
+    y0: 0.02,
+    x1: 0.10,
+    y1: 0.90,
+    z: 0.06,
+    flow: 0.0,
+    sleeve_drop: 0.0,
+    wrap: 0.0,
+    arm_from: 0.0,
+    arm_to: 0.0,
+    arm_thick: 0.0,
+    cuff_from: 0.0,
+    cuff_to: 0.0,
+    cuff_thick: 0.0,
+    rows: [
+        "gggggggg",
+        "geeeeeeg",
+        "geeeeeeg",
+        "geeeeeeg",
+        "gggggggg",
+    ],
+)

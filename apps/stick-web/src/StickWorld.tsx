@@ -4,16 +4,16 @@ import { VfxDirector, playSteps } from "./vfx";
 import { gearArgs } from "./gear";
 import { getItem } from "@bellgrave/items";
 import { useGame } from "@bellgrave/client-core/state";
-import { clampPaleHollow } from "@bellgrave/config";
+import { clampPaleHollow, fieldById, fieldClampMove, paleHollowClampMove, PH_WEATHER_KIND_ID, zoneOrigin } from "@bellgrave/config";
 import type { UnitSnapshot } from "@bellgrave/protocol";
 import { NpcInteractMenu } from "@bellgrave/ui/NpcInteractMenu";
-import { clearKeyboardMove, setKeyboardMoveKey, type MoveKeys } from "@bellgrave/ui/moveInput";
-import { FB_H, FB_W, bakedZoneFor, createRenderer, fetchProps, fetchZone, fbScale, fromFramebuffer, toFramebuffer } from "./renderer";
+import { clearKeyboardMove, setKeyboardMoveKey } from "@bellgrave/ui/moveInput";
+import { FB_H, FB_W, bakedZoneFor, createRenderer, fetchProps, fetchZone, fbScale, fromFramebuffer, placeAllZones, toFramebuffer } from "./renderer";
 import { staticAt } from "./statics";
 import { CombatFloaters } from "./floaters";
 import { GatherIcons, loadIconAtlas, type IconAtlas } from "./gather";
-import { syncUnits } from "./units";
-import { getMoveKeys, wasdTarget } from "./input";
+import { craftActFor, gatherActFor, presentCraft, presentGather, syncUnits, type CraftAct, type GatherAct } from "./units";
+import { getMoveKeys, moveKeyFromCode, wasdTarget } from "./input";
 import { atmosphereFor, isCoarsePointer, keylightFor } from "./mobile";
 import { CastClock, sameId, unitFx } from "./fx";
 import { routeUnitClick } from "./clicks";
@@ -23,6 +23,9 @@ import { ZONE_FADE_MS, ZoneTracker } from "./zones";
 import { ResonanceClock, buffVfx, statusIcons } from "./buffs";
 import { STATUS_ICON_FB, StatusColumns } from "./statusColumn";
 import { applyMapData } from "./minimap";
+import type { StickRenderer } from "ba-stick-render";
+import { camModeFromDataset, cameraKey, lookAxes, type LookHeld } from "./camera";
+import { cycleView, toggleCamControl } from "@bellgrave/ui/uiSettings";
 
 /** Black fade-in after a zone change (#31). */
 function fade(el: HTMLDivElement | null) {
@@ -41,6 +44,7 @@ const WASD_INTERVAL = 0.05;
  */
 export function StickWorld() {
   const ref = useRef<HTMLCanvasElement>(null);
+  const mapBtn = useRef<HTMLButtonElement>(null);
   const labelsRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const fadeRef = useRef<HTMLDivElement>(null);
@@ -50,11 +54,17 @@ export function StickWorld() {
     const canvas = ref.current!;
     let raf = 0;
     let alive = true;
+    let renderer: StickRenderer | null = null;
     const cleanups: Array<() => void> = [];
     void createRenderer(canvas).then((r) => {
-      if (!alive) return;
+      if (!alive) {
+        r.free();
+        return;
+      }
+      renderer = r;
       // Dev/test hook for headless checks (fb→client mapping lives in renderer.ts).
       if (import.meta.env.DEV) Object.assign(window, { __stick: { r, canvas, fromFramebuffer, send } });
+      void placeAllZones(r);
       // Phones: atmosphere pass costs ~1/3 of the frame; drop it to hold 30+ fps (#18).
       if (!atmosphereFor(isCoarsePointer(), location.search)) r.setAtmosphere(false);
       // L2 key light: on by default on desktop, off on touch; `?keylight=0` kills it.
@@ -62,8 +72,10 @@ export function StickWorld() {
       // Iso / 3D camera follows the View setting (#19); the engine eases the blend.
       const root = document.documentElement;
       const syncView = () => {
-        r.setView3d(root.dataset.uiView === "3d");
-        r.setMinimap(root.dataset.uiMinimap !== "off"); // M key / Settings (persisted)
+        r.setCamMode(camModeFromDataset(root.dataset.uiView));
+        const mapOn = root.dataset.uiMinimap !== "off";
+        r.setMinimap(mapOn); // M key / Settings (persisted)
+        if (!mapOn) r.setMinimapFull(false);
       };
       syncView();
       const viewObs = new MutationObserver(syncView);
@@ -87,7 +99,10 @@ export function StickWorld() {
           });
       };
       const zones = new ZoneTracker();
+      const origin = { x: 0, z: 0 };
+      let activeZone = "pale_hollow";
       let lastSnap: unknown = null;
+      let lastGearKey = "";
       let followed: string | undefined;
       let hovered: string | null = null;
       const known = new Set<string>();
@@ -118,7 +133,11 @@ export function StickWorld() {
       };
       const pick = (sx: number, sy: number): [number, number] => {
         const p = r.pickWorld(sx, sy);
-        return [p[0], p[1]];
+        return [p[0] - origin.x, p[1] - origin.z];
+      };
+      const clampHere = (x: number, z: number) => {
+        const field = fieldById(activeZone);
+        return field ? field.clamp(x, z) : clampPaleHollow(x, z);
       };
       const unitAt = (e: { clientX: number; clientY: number }): UnitSnapshot | undefined => {
         const [sx, sy] = toFramebuffer(canvas, e.clientX, e.clientY);
@@ -126,16 +145,37 @@ export function StickWorld() {
         return id ? useGame.getState().snapshot?.units.find((u) => u.id === id) : undefined;
       };
 
+      const look: LookHeld = { left: false, right: false, up: false, down: false };
+      let gatherAct: GatherAct | null = null;
+      let craftAct: CraftAct | null = null;
+      const onCraftAct = (ev: Event) => {
+        const skill = (ev as CustomEvent<{ skill?: string }>).detail?.skill;
+        craftAct = craftActFor(skill, Date.now());
+      };
+      window.addEventListener("bellgrave:craft-act", onCraftAct);
+      let drag: { x: number; y: number; turned: boolean; sx: number; sy: number } | null = null;
+      const mouseLook = () => document.documentElement.dataset.uiCam === "mouse" && document.documentElement.dataset.uiView !== "iso";
       const onPointer = (e: PointerEvent) => {
         if (e.button !== 0 && e.button !== 2) return;
         const g = useGame.getState();
         if (g.phase !== "play" || !myUnit()) return;
         const [sx, sy] = toFramebuffer(canvas, e.clientX, e.clientY);
         if (sx < 0 || sy < 0 || sx >= FB_W || sy >= FB_H) return; // FB_W/FB_H are one past the last pixel
+        if (e.button === 0 && r.minimapButton(sx, sy)) {
+          r.setMinimapFull(!r.minimapFull());
+          return;
+        }
+        if (r.minimapPanel(sx, sy)) return;
+        // Right-drag looks around in mouse mode. A click without a drag still moves.
+        if (e.button === 2 && mouseLook()) {
+          drag = { x: e.clientX, y: e.clientY, turned: false, sx, sy };
+          return;
+        }
         const hit = e.button === 0 ? unitAt(e) : undefined;
         if (hit && !sameId(hit.id, g.wallet)) {
           const res = routeUnitClick(hit, g.wallet);
           if (res.select !== undefined) g.setSelectedTarget(res.select);
+          if (res.send?.type === "gather") gatherAct = gatherActFor(hit, Date.now());
           if (res.send) send(res.send);
           return;
         }
@@ -150,44 +190,124 @@ export function StickWorld() {
           }
         }
         const [x, z] = pick(sx, sy);
-        const c = clampPaleHollow(x, z);
+        const c = clampHere(x, z);
         send({ type: "move", x: c.x, z: c.z });
       };
       const onMove = (e: PointerEvent) => {
+        if (drag && (e.buttons & 2)) {
+          const dx = e.clientX - drag.x;
+          const dy = e.clientY - drag.y;
+          if (drag.turned || Math.abs(dx) + Math.abs(dy) > 3) {
+            const scale = fbScale(canvas) || 1;
+            r.addLook(dx / scale, dy / scale);
+            drag.x = e.clientX;
+            drag.y = e.clientY;
+            drag.turned = true;
+          }
+          return;
+        }
+        const [sx, sy] = toFramebuffer(canvas, e.clientX, e.clientY);
+        if (r.minimapButton(sx, sy)) {
+          hovered = null;
+          canvas.style.cursor = "pointer";
+          return;
+        }
         const u = unitAt(e);
         hovered = u && !sameId(u.id, useGame.getState().wallet) ? u.id : null;
         canvas.style.cursor = hovered ? "pointer" : "";
       };
+      const onPointerUp = (e: PointerEvent) => {
+        if (e.button !== 2 || !drag) return;
+        const pending = drag;
+        drag = null;
+        if (pending.turned) return;
+        const [x, z] = pick(pending.sx, pending.sy);
+        const c = clampHere(x, z);
+        send({ type: "move", x: c.x, z: c.z });
+      };
       const onContext = (e: MouseEvent) => e.preventDefault();
-      const isMoveKey = (k: string): k is keyof MoveKeys => k === "w" || k === "a" || k === "s" || k === "d";
       const typing = (e: KeyboardEvent) => {
         const t = e.target as HTMLElement | null;
         return !!t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable);
       };
       const down = (e: KeyboardEvent) => {
-        const k = e.key.toLowerCase();
-        if (isMoveKey(k) && !typing(e)) {
-          setKeyboardMoveKey(k, true);
+        const move = moveKeyFromCode(e.code);
+        if (move && !typing(e)) {
+          setKeyboardMoveKey(move, true);
           e.preventDefault();
         }
+        if (typing(e) || e.repeat) return;
+        if (followed) {
+          if (e.code === "Semicolon") {
+            r.cycleHairStyle(1);
+            e.preventDefault();
+            return;
+          }
+          if (e.code === "Quote") {
+            r.cycleHairColor(1);
+            e.preventDefault();
+            return;
+          }
+          if (e.code === "KeyL") {
+            r.cycleBodyColor(1);
+            e.preventDefault();
+            return;
+          }
+        }
+        if (e.key === "Escape" && r.minimapFull()) {
+          r.setMinimapFull(false);
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          return;
+        }
+        const cam = cameraKey(e.code);
+        if (cam === "cycle") cycleView();
+        else if (cam === "toggle") toggleCamControl();
+        else if (cam === "left") look.left = true;
+        else if (cam === "right") look.right = true;
+        else if (cam === "up") look.up = true;
+        else if (cam === "down") look.down = true;
       };
       const up = (e: KeyboardEvent) => {
-        const k = e.key.toLowerCase();
-        if (isMoveKey(k)) setKeyboardMoveKey(k, false);
+        const move = moveKeyFromCode(e.code);
+        if (move) setKeyboardMoveKey(move, false);
+        const cam = cameraKey(e.code);
+        if (cam === "left") look.left = false;
+        else if (cam === "right") look.right = false;
+        else if (cam === "up") look.up = false;
+        else if (cam === "down") look.down = false;
       };
+      const onMapBtn = (e: PointerEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        r.setMinimapFull(!r.minimapFull());
+      };
+      mapBtn.current?.addEventListener("pointerdown", onMapBtn);
       canvas.addEventListener("pointerdown", onPointer);
       canvas.addEventListener("pointermove", onMove);
       canvas.addEventListener("contextmenu", onContext);
-      window.addEventListener("keydown", down);
-      window.addEventListener("keyup", up);
-      window.addEventListener("blur", clearKeyboardMove);
+      window.addEventListener("keydown", down, true);
+      window.addEventListener("keyup", up, true);
+      window.addEventListener("pointerup", onPointerUp);
+      const onBlur = () => {
+        clearKeyboardMove();
+        look.left = false;
+        look.right = false;
+        look.up = false;
+        look.down = false;
+        drag = null;
+      };
+      window.addEventListener("blur", onBlur);
       cleanups.push(() => {
+        mapBtn.current?.removeEventListener("pointerdown", onMapBtn);
         canvas.removeEventListener("pointerdown", onPointer);
         canvas.removeEventListener("pointermove", onMove);
         canvas.removeEventListener("contextmenu", onContext);
-        window.removeEventListener("keydown", down);
-        window.removeEventListener("keyup", up);
-        window.removeEventListener("blur", clearKeyboardMove);
+        window.removeEventListener("keydown", down, true);
+        window.removeEventListener("keyup", up, true);
+        window.removeEventListener("pointerup", onPointerUp);
+        window.removeEventListener("blur", onBlur);
+        window.removeEventListener("bellgrave:craft-act", onCraftAct);
         clearKeyboardMove();
         labels.clear();
         icons.clear();
@@ -200,15 +320,24 @@ export function StickWorld() {
         const g = useGame.getState();
         const snap = g.snapshot;
         const zid = snap?.you.zoneId ?? null;
+        if (zid) {
+          const o = zoneOrigin(zid);
+          origin.x = o.x;
+          origin.z = o.z;
+          activeZone = zid;
+        }
         const zc = zones.update(zid);
         if (zc.changed && zid) {
-          const first = zc.first;
-          // Zone change: drop every unit from the old zone, fade, load terrain.
+          r.setMapOrigin(origin.x, origin.z);
+          // Keep every zone's terrain. Drop figures so a hand-off snaps
+          // instead of sliding across the gap between zones.
           for (const id of known) r.removeUnit(id);
           known.clear();
           lastSnap = null;
+          lastGearKey = "";
+          followed = undefined;
           floats.reset();
-          if (!first) fade(fadeRef.current);
+          if (!zc.first) fade(fadeRef.current);
           const want = bakedZoneFor(zid);
           if (want !== zoneLoaded) {
             zoneLoaded = want;
@@ -223,9 +352,27 @@ export function StickWorld() {
         }
         if (snap && snap !== lastSnap) {
           lastSnap = snap;
-          syncUnits(r, snap.units, known, Date.now());
-          const me = myUnit();
-          if (me) r.setGear(me.id, ...gearArgs(snap.you.equip, getItem));
+          const nowMs = Date.now();
+          const wallet = g.wallet;
+          const units = snap.units.map((u) => {
+            if (!wallet || !sameId(u.id, wallet) || u.kind !== "player") return u;
+            let unit = u;
+            const gNext = presentGather(unit, gatherAct, nowMs);
+            gatherAct = gNext.act;
+            unit = gNext.unit;
+            const cNext = presentCraft(unit, craftAct, nowMs);
+            craftAct = cNext.act;
+            return cNext.unit;
+          });
+          syncUnits(
+            {
+              upsertUnit: (id, x, y, z, facing, anim, preset) => r.upsertUnit(id, x + origin.x, y, z + origin.z, facing, anim, preset),
+              removeUnit: (id) => r.removeUnit(id),
+            },
+            units,
+            known,
+            nowMs,
+          );
           casts.forget(known);
           for (const fx of vfx.scan(snap.units, myUnit()?.id, Date.now())) if (known.has(fx.from)) playSteps(r, fx.steps, fx.from, fx.to);
           resonance.forget(known);
@@ -238,25 +385,46 @@ export function StickWorld() {
           }
         }
         const me = myUnit();
+        if (me && snap?.you) {
+          const g = gearArgs(snap.you.equip, getItem);
+          const gearKey = g.join(",");
+          if (gearKey !== lastGearKey) {
+            lastGearKey = gearKey;
+            r.setGear(me.id, ...g);
+          }
+        }
         if (me?.id !== followed) {
           followed = me?.id;
           r.follow(followed);
         }
+        const axes = lookAxes(look, document.documentElement.dataset.uiCam, document.documentElement.dataset.uiView);
+        r.setLook(axes.yaw, axes.pitch);
         wasdAccum += dt;
         if (me && wasdAccum >= WASD_INTERVAL) {
           wasdAccum = 0;
-          const t = wasdTarget(getMoveKeys(), me, pick, [FB_W / 2, FB_H / 2]);
+          const t = wasdTarget(getMoveKeys(), me, pick, [FB_W / 2, FB_H / 2], (ax, az, bx, bz) => fieldClampMove(activeZone, ax, az, bx, bz) ?? paleHollowClampMove(ax, az, bx, bz));
           if (t) send({ type: "move", x: t.x, z: t.z });
+        }
+        if (activeZone === "pale_hollow" && snap?.weather) {
+          r.setWeather(PH_WEATHER_KIND_ID[snap.weather.kind], snap.weather.snowCover);
+        } else {
+          r.setWeather(0, 0);
         }
         r.tick(dt);
         // Effects + labels
         const wall = Date.now();
-        const ctxBase = { now: wall, wallet: g.wallet ?? null, selected: g.selectedTarget, hovered };
+        const ctxBase = {
+          now: wall,
+          wallet: g.wallet ?? null,
+          selected: g.selectedTarget,
+          hovered,
+          combatTargetId: me?.targetId ?? null,
+        };
         const shown = new Map<string, { text: string; cls: string; x: number; y: number }>();
         for (const u of snap?.units ?? []) {
           if (!known.has(u.id)) continue;
           const fx = unitFx(u, { ...ctxBase, cast: casts.progress(u, wall) });
-          r.setFx(u.id, fx.hp, fx.cast, fx.aoe, fx.flags, fx.fade, fx.levelUp);
+          r.setFx(u.id, fx.hp, fx.cast, fx.aoe, fx.flags, fx.fade, fx.levelUp, fx.weaponEdge);
           const bv = buffVfx(u, wall, resonance);
           r.setBuffs(u.id, bv.mask, bv.td, bv.burst);
           const label = labelFor(u, ctxBase);
@@ -304,6 +472,40 @@ export function StickWorld() {
             menu.style.visibility = "visible";
           } else menu.style.visibility = "hidden";
         }
+        const mapButton = mapBtn.current;
+        if (mapButton) {
+          const shown = document.documentElement.dataset.uiMinimap !== "off";
+          if (!shown) mapButton.style.visibility = "hidden";
+          else {
+            const full = r.minimapFull();
+            const ox = full ? 6 : FB_W - 148 - 6;
+            const oy = 6;
+            const [x0, y0] = fromFramebuffer(canvas, ox + 2, oy + 1);
+            const [x2, y2] = fromFramebuffer(canvas, ox + 12, oy + 10);
+            let x = x0;
+            let y = y0;
+            // The expanded map's corner sits under the character panel. Keep the
+            // shrink control on the map's top edge, just past that panel.
+            if (full) {
+              const dock = document.querySelector(".hud-vitals-dock");
+              if (dock) {
+                const dockR = dock.getBoundingClientRect();
+                const canvasR = canvas.getBoundingClientRect();
+                x = dockR.right - canvasR.left + 8;
+                y = dockR.top - canvasR.top;
+              }
+            }
+            mapButton.style.visibility = "visible";
+            mapButton.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
+            mapButton.style.width = `${Math.max(26, Math.round(x2 - x0))}px`;
+            mapButton.style.height = `${Math.max(26, Math.round(y2 - y0))}px`;
+            const flag = full ? "1" : "0";
+            if (mapButton.dataset.full !== flag) {
+              mapButton.dataset.full = flag;
+              mapButton.setAttribute("aria-label", full ? "Shrink map" : "Expand map");
+            }
+          }
+        }
         r.draw();
         raf = requestAnimationFrame(frame);
       };
@@ -312,6 +514,8 @@ export function StickWorld() {
     return () => {
       alive = false;
       cancelAnimationFrame(raf);
+      renderer?.free();
+      renderer = null;
       for (const c of cleanups) c();
     };
   }, []);
@@ -319,6 +523,9 @@ export function StickWorld() {
   return (
     <>
       <canvas ref={ref} className="stick-canvas" />
+      <button ref={mapBtn} type="button" className="stick-map-full" aria-label="Expand map">
+        <span className="map-full-mark" />
+      </button>
       <div ref={labelsRef} className="stick-labels" aria-hidden />
       <div ref={fadeRef} className="stick-fade" aria-hidden />
       {npcOpen && (

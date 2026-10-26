@@ -11,9 +11,13 @@
 } from "./types";
 export {
   EQUIP_SLOTS,
+  RING_EQUIP_SLOTS,
   hqAmount,
   hqCraftChance,
   hqStats,
+  itemFitsEquipSlot,
+  countEquippedCopies,
+  canEquipAnotherCopy,
   budgetPoints,
   craftGoldCost,
   craftOutputQty,
@@ -30,7 +34,10 @@ export {
   craftXpToNext,
   displayMatsForRecipe,
   emptyCraftSkills,
+  allCraftableRecipes,
+  craftablesForSkill,
   getCraftableItem,
+  maxCraftLevelForSkill,
   ownedMatQty,
   parseMaterialGroups,
   parseMaterialGroupsDetailed,
@@ -63,7 +70,18 @@ export {
 } from "./exportable-slugs";
 
 import { CATALOG_BY_ID } from "./catalog.generated";
-import { EQUIP_SLOTS, hqStats, scaleGearStat, type Equipment, type EquipSlot, type ItemDef, type ItemStats } from "./types";
+import {
+  EQUIP_SLOTS,
+  hqStats,
+  itemFitsEquipSlot,
+  countEquippedCopies,
+  canEquipAnotherCopy,
+  scaleGearStat,
+  type Equipment,
+  type EquipSlot,
+  type ItemDef,
+  type ItemStats,
+} from "./types";
 
 /** MVP legacy IDs â€” stable across catalog regen. */
 export const ITEM = {
@@ -113,7 +131,7 @@ export function aggregateEquipmentStats(
     const tokenId = equipment[slot];
     if (tokenId == null) continue;
     const def = getItem(tokenId);
-    if (!def || def.slot !== slot) continue;
+    if (!def || !itemFitsEquipSlot(def.slot, slot)) continue;
     for (const [key, value] of Object.entries(equippedStats(def, hqSlots?.[slot])) as [keyof ItemStats, number][]) {
       total[key] = (total[key] ?? 0) + value;
     }
@@ -140,7 +158,7 @@ export function aggregateEquipmentStatsScaled(
     const tokenId = equipment[slot];
     if (tokenId == null) continue;
     const def = getItem(tokenId);
-    if (!def || def.slot !== slot) continue;
+    if (!def || !itemFitsEquipSlot(def.slot, slot)) continue;
     const itemIlvl = def.craftLevel ?? 1;
     for (const [key, value] of Object.entries(equippedStats(def, hqSlots?.[slot])) as [keyof ItemStats, number][]) {
       const scaled = scaleGearStat(value, playerLevel, itemIlvl);

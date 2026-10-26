@@ -305,6 +305,56 @@ textarea {
 }
 
 /* —— Corner chrome (no full-width top bar) —— */
+.target-focus-plate {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 25;
+  pointer-events: none;
+  min-width: min(320px, 72vw);
+  max-width: 420px;
+  padding: 8px 14px 10px;
+  text-align: center;
+  border-radius: 6px;
+  background: rgba(12, 10, 8, 0.72);
+  border: 1px solid rgba(244, 240, 224, 0.35);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45);
+}
+
+.target-focus-name {
+  font-family: var(--ui-font);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: #f4f0e0;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+  margin-bottom: 6px;
+}
+
+.target-focus-bar {
+  height: 8px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(224, 84, 62, 0.45);
+  overflow: hidden;
+}
+
+.target-focus-bar > i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(180deg, #ff9b86 0%, #e0543e 100%);
+  transition: width 0.12s linear;
+}
+
+.target-focus-num {
+  margin-top: 4px;
+  font-family: var(--ui-font);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: rgba(232, 224, 208, 0.85);
+}
+
 .hud-chrome {
   pointer-events: none;
   display: flex;
@@ -719,12 +769,14 @@ textarea {
 .settings-panel {
   pointer-events: auto;
   position: absolute;
-  top: 52px;
+  top: 12px;
   right: 196px;
   width: 340px;
   max-width: calc(100vw - 220px);
+  max-height: calc(100% - 24px);
+  overflow-y: auto;
   z-index: 55;
-  padding: 16px 18px 18px;
+  padding: 0 18px 18px;
   background:
     linear-gradient(180deg, var(--cmd-dock-inner), transparent 40%),
     var(--cmd-panel-bg);
@@ -734,14 +786,20 @@ textarea {
   color: var(--cmd-pill-text);
   font-family: var(--ui-font);
   font-size: 13px;
+  scrollbar-width: thin;
 }
 .settings-panel-head {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 14px;
-  padding-bottom: 12px;
+  gap: 12px;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  margin: 0 -18px 14px;
+  padding: 16px 18px 12px;
   border-bottom: 1px solid var(--cmd-dock-edge);
+  background: var(--cmd-panel-bg);
   box-shadow: none;
 }
 .settings-panel-title {
@@ -1454,17 +1512,105 @@ textarea {
   color: var(--teal);
 }
 
-/* Boot / auth — Legend of Kek parchment tablet */
+/* Boot / auth — live forge cavern + iron/bronze tablet (one palette) */
+.boot-forge-shell {
+  --forge-ember: #ffc060;
+  --forge-coal: #d07030;
+  --forge-void: #060408;
+  --forge-haze: #5a2818;
+  --forge-vignette: rgba(4, 3, 6, 0.62);
+}
+.boot-menu-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 18;
+  overflow: hidden;
+  pointer-events: none;
+}
+.boot-menu-photo {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 42%;
+  pointer-events: none;
+  user-select: none;
+}
+.boot-menu-pixel-pass {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 42%;
+  pointer-events: none;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  mix-blend-mode: screen;
+  opacity: 0.48;
+}
+.boot-forge-shell .boot-menu-backdrop::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse 115% 90% at 50% 48%,
+    transparent 48%,
+    color-mix(in srgb, var(--forge-vignette) 75%, transparent) 100%
+  );
+  mix-blend-mode: multiply;
+  opacity: 0.65;
+}
+.boot-menu-hero {
+  position: absolute;
+  inset: 0;
+  z-index: 19;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 42%;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  pointer-events: none;
+}
+.boot-menu-vfx {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 42%;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  pointer-events: none;
+  touch-action: none;
+}
+.boot-menu-page-vfx {
+  position: absolute;
+  inset: 0;
+  z-index: 19;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  pointer-events: none;
+  opacity: 0.48;
+  mix-blend-mode: plus-lighter;
+}
 .boot-screen {
   position: absolute;
   inset: 0;
   display: grid;
   place-items: center;
   padding: 20px 14px;
-  background:
-    radial-gradient(ellipse at 50% 40%, rgba(40, 32, 22, 0.35), rgba(6, 5, 4, 0.82) 72%),
-    var(--ba-tex-bronze) center / 320px 320px repeat,
-    url("/ui/boot/boot-map-bg.png") center / cover no-repeat;
+  background: transparent;
   z-index: 20;
 }
 .boot-frame {
@@ -1480,6 +1626,22 @@ textarea {
   box-shadow:
     var(--ba-frame-shadow),
     0 28px 70px rgba(0, 0, 0, 0.85);
+}
+.boot-forge-shell .boot-frame {
+  border-color: color-mix(in srgb, var(--forge-coal) 38%, var(--ba-bronze-dim));
+  background:
+    linear-gradient(180deg, rgba(18, 14, 12, 0.68), rgba(8, 6, 5, 0.82)),
+    var(--ba-tex-iron) center / 260px 260px repeat;
+  box-shadow:
+    var(--ba-frame-shadow),
+    0 0 48px color-mix(in srgb, var(--forge-coal) 22%, transparent),
+    0 28px 70px rgba(0, 0, 0, 0.82);
+}
+.boot-forge-shell .boot-card {
+  border-color: color-mix(in srgb, var(--forge-ember) 18%, rgba(184, 146, 74, 0.35));
+  box-shadow:
+    inset 0 0 40px rgba(0, 0, 0, 0.45),
+    inset 0 -12px 32px color-mix(in srgb, var(--forge-coal) 12%, transparent);
 }
 .boot-frame::before {
   content: "";
@@ -1794,6 +1956,122 @@ textarea {
 }
 .skill-slot.aether-on .skill-glyph {
   color: #c4b8ff;
+}
+
+.quest-log-panel {
+  pointer-events: auto;
+  position: absolute;
+  top: 64px;
+  left: 16px;
+  width: min(380px, 92vw);
+  max-height: min(58vh, 480px);
+  overflow: visible;
+  padding: 14px 16px 16px;
+  background:
+    linear-gradient(180deg, var(--cmd-dock-inner), transparent 40%),
+    var(--cmd-panel-bg);
+  border: 1px solid var(--cmd-panel-edge);
+  border-radius: 12px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.58);
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  color: var(--cmd-pill-text);
+  font-family: var(--ui-font);
+}
+.quest-log-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--cmd-dock-edge);
+  font-family: var(--font-display);
+  color: #fff;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  flex-shrink: 0;
+  line-height: 1.15;
+}
+.quest-log-sub {
+  font-family: var(--ui-font);
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--cmd-pill-muted);
+  margin-top: 6px;
+  line-height: 1.35;
+}
+.quest-log-list {
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.quest-log-empty {
+  margin: 8px 0;
+  font-size: 13px;
+  color: var(--cmd-pill-muted);
+}
+.quest-log-row {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--cmd-dock-edge);
+  background: rgba(0, 0, 0, 0.22);
+}
+.quest-log-row.ready {
+  border-color: rgba(180, 150, 80, 0.55);
+  box-shadow: inset 0 0 0 1px rgba(200, 170, 90, 0.12);
+}
+.quest-log-row-title {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 600;
+  color: #f2ead8;
+  margin-bottom: 4px;
+}
+.quest-log-row-blurb {
+  margin: 0 0 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--cmd-pill-muted);
+}
+.quest-log-row-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.quest-log-bar {
+  flex: 1;
+  min-width: 80px;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+}
+.quest-log-bar i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #6a8a5a, #9cb86a);
+  border-radius: 3px;
+}
+.quest-log-row.ready .quest-log-bar i {
+  background: linear-gradient(90deg, #a08040, #d4b060);
+}
+.quest-log-count {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: #ddd6c8;
+}
+.quest-log-ready {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #e8c878;
 }
 
 .spellbook-panel {
@@ -3518,6 +3796,13 @@ button.equip-stat-label:focus-visible {
 }
 
 .prov-market { position: relative; margin-bottom: 12px; }
+.prov-sort-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 0 0 8px;
+}
 .prov-search { display: block; }
 .prov-search input,
 .prov-pop input,

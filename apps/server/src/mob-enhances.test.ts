@@ -141,6 +141,7 @@ function battleMage(): BattleMagePlayer & { wallet: string } {
     widenReady: false,
     enSpellUntil: 0,
     enSpellBonus: 0,
+    enSpellElement: 0,
     phalanxUntil: 0,
     phalanxPhysMul: 1,
     stoneskinUntil: 0,

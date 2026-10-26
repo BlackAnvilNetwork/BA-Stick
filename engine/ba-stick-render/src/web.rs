@@ -41,6 +41,24 @@ impl StickRenderer {
         self.scene.load_props(bytes).map_err(|e| JsValue::from_str(&e))
     }
 
+    /// Add a zone to the world without unloading the others. `ox`/`oz` are its world origin.
+    #[wasm_bindgen(js_name = placeZone)]
+    pub fn place_zone(&mut self, bytes: &[u8], ox: f32, oz: f32) -> Result<(), JsValue> {
+        self.scene.place_zone(bytes, ox, oz).map_err(|e| JsValue::from_str(&e))
+    }
+
+    /// Props for a placed zone, shifted by the same origin.
+    #[wasm_bindgen(js_name = placeProps)]
+    pub fn place_props(&mut self, bytes: &[u8], ox: f32, oz: f32) -> Result<usize, JsValue> {
+        self.scene.place_props(bytes, ox, oz).map_err(|e| JsValue::from_str(&e))
+    }
+
+    /// Local origin of the zone currently shown on the minimap.
+    #[wasm_bindgen(js_name = setMapOrigin)]
+    pub fn set_map_origin(&mut self, ox: f32, oz: f32) {
+        self.scene.set_map_origin(ox, oz);
+    }
+
     /// Floating combat number over a unit. kind: 0 damage, 1 damage to self,
     /// 2 heal, 3 crit, 4 miss.
     #[wasm_bindgen(js_name = addFloater)]
@@ -83,11 +101,36 @@ impl StickRenderer {
         self.scene.backdrop = on;
     }
 
+    /// Boot menu forge embers over a host-provided still image.
+    #[wasm_bindgen(js_name = setBootMenu)]
+    pub fn set_boot_menu(&mut self, on: bool) {
+        self.scene.set_boot_menu(on);
+    }
+
     /// Toggle lighting / haze / skyline / vignette (#26).
-    /// Blend the camera to 3D perspective (true) or back to iso (false).
+    /// `iso` (default), `tp` / `third` / `3d`, or `fp` / `first`.
+    #[wasm_bindgen(js_name = setCamMode)]
+    pub fn set_cam_mode(&mut self, mode: &str) { self.scene.set_cam_mode(mode); }
+
+    #[wasm_bindgen(js_name = camMode)]
+    pub fn cam_mode(&self) -> String { self.scene.cam_mode().to_owned() }
+
+    /// Held numpad look, −1..1. Positive yaw turns right; positive pitch looks down.
+    #[wasm_bindgen(js_name = setLook)]
+    pub fn set_look(&mut self, yaw: f32, pitch: f32) { self.scene.set_look(yaw, pitch); }
+
+    /// Right-drag look in framebuffer pixels.
+    #[wasm_bindgen(js_name = addLook)]
+    pub fn add_look(&mut self, dx: f32, dy: f32) { self.scene.add_look(dx, dy); }
+
+    /// True when the eye is inside the followed character's head.
+    #[wasm_bindgen(js_name = firstPerson)]
+    pub fn first_person(&self) -> bool { self.scene.first_person() }
+
+    /// Legacy toggle: true = third person, false = isometric.
     #[wasm_bindgen(js_name = setView3d)]
     pub fn set_view3d(&mut self, on: bool) {
-        self.scene.view3d = on;
+        self.scene.set_cam_mode(if on { "tp" } else { "iso" });
     }
 
     /// L2 directional key light (off by default).
@@ -99,6 +142,28 @@ impl StickRenderer {
     #[wasm_bindgen(js_name = setAtmosphere)]
     pub fn set_atmosphere(&mut self, on: bool) {
         self.scene.atmosphere = on;
+    }
+
+    /// Pale Hollow weather: kind 0 clear, 1 rain, 2 fog, 3 snow; snowCover 0..1.
+    #[wasm_bindgen(js_name = setWeather)]
+    pub fn set_weather(&mut self, kind: u8, snow_cover: f32) {
+        self.scene.set_weather(kind, snow_cover);
+    }
+
+    /// Local player cosmetics: cycle hair style (`;`), hair colour (`'`), body colour (`L`).
+    #[wasm_bindgen(js_name = cycleHairStyle)]
+    pub fn cycle_hair_style(&mut self, delta: i32) {
+        self.scene.cycle_hair_style(delta);
+    }
+
+    #[wasm_bindgen(js_name = cycleHairColor)]
+    pub fn cycle_hair_color(&mut self, delta: i32) {
+        self.scene.cycle_hair_color(delta);
+    }
+
+    #[wasm_bindgen(js_name = cycleBodyColor)]
+    pub fn cycle_body_color(&mut self, delta: i32) {
+        self.scene.cycle_body_color(delta);
     }
 
     /// Minimap (engine-drawn). Title shown on the panel strip.
@@ -118,6 +183,25 @@ impl StickRenderer {
 
     #[wasm_bindgen(js_name = setMinimap)]
     pub fn set_minimap(&mut self, on: bool) { self.scene.minimap.on = on; }
+
+    /// Expand the minimap over the framebuffer. The corner control toggles this.
+    #[wasm_bindgen(js_name = setMinimapFull)]
+    pub fn set_minimap_full(&mut self, on: bool) { self.scene.minimap.full = on; }
+
+    #[wasm_bindgen(js_name = minimapFull)]
+    pub fn minimap_full(&self) -> bool { self.scene.minimap.full }
+
+    /// True when (sx, sy) is the top-left control on the minimap.
+    #[wasm_bindgen(js_name = minimapButton)]
+    pub fn minimap_button(&self, sx: f32, sy: f32) -> bool {
+        self.scene.minimap.button_hit(self.scene.width(), self.scene.height(), sx, sy)
+    }
+
+    /// True when (sx, sy) is inside the minimap panel.
+    #[wasm_bindgen(js_name = minimapPanel)]
+    pub fn minimap_panel(&self, sx: f32, sy: f32) -> bool {
+        self.scene.minimap.panel_hit(self.scene.width(), self.scene.height(), sx, sy)
+    }
 
     /// Number of static-layer bakes so far (perf check: one per zone).
     #[wasm_bindgen(js_name = minimapBakes)]
@@ -151,8 +235,29 @@ impl StickRenderer {
     /// 32 player cast, 64 petrified); `fade` 0..1 opacity.
     #[wasm_bindgen(js_name = setFx)]
     #[allow(clippy::too_many_arguments)]
-    pub fn set_fx(&mut self, id: &str, hp: f32, cast: f32, aoe: f32, flags: u32, fade: f32, level_up: f32) -> bool {
-        self.scene.set_fx(id, UnitFx { hp, cast, aoe, flags, fade, level_up })
+    pub fn set_fx(
+        &mut self,
+        id: &str,
+        hp: f32,
+        cast: f32,
+        aoe: f32,
+        flags: u32,
+        fade: f32,
+        level_up: f32,
+        weapon_edge: u8,
+    ) -> bool {
+        self.scene.set_fx(
+            id,
+            UnitFx {
+                hp,
+                cast,
+                aoe,
+                flags,
+                fade,
+                level_up,
+                weapon_edge,
+            },
+        )
     }
 
     /// Buff / ailment visuals (#34): `mask` = `buffvfx` bits, `td` / `burst`

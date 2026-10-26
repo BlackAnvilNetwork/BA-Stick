@@ -130,6 +130,7 @@ def infer_slot(name: str, kind: str) -> str | None:
             "coronet",
             "bandana",
             "cap",
+            "helm",
             "hat",
             "hood",
             "sallet",

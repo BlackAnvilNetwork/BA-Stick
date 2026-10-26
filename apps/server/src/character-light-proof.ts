@@ -84,6 +84,65 @@ export function proveCharacter(characters: readonly LightCharacter[], tokenId: s
   };
 }
 
+type ProofTree = {
+  rows: { tokenId: bigint; characterRoot: Uint8Array; state: StateEntry[] }[];
+  layers: Uint8Array[][];
+  leaves: Map<bigint, ReturnType<typeof tokenLeaf>>;
+};
+
+let proofEpoch = Number.NaN;
+let proofTree: ProofTree | null = null;
+
+/** Drop the cached tree. Tests that reuse a log length call this. */
+export function resetCharacterProofCache(): void {
+  proofEpoch = Number.NaN;
+  proofTree = null;
+}
+
+/**
+ * Same bytes as `proveCharacter`, built once per log length.
+ * A walk does not append a log event, so the next snapshot reuses the tree.
+ */
+export function proveCharacterCached(
+  logLength: number,
+  characters: readonly LightCharacter[],
+  tokenId: string,
+): CharacterLightProof | null {
+  if (!proofTree || proofEpoch !== logLength) {
+    const rows = characters
+      .map((character) => {
+        const state = stateEntries(character);
+        return { tokenId: BigInt(character.tokenId), characterRoot: commitState(state), state };
+      })
+      .sort((a, b) => (a.tokenId < b.tokenId ? -1 : a.tokenId > b.tokenId ? 1 : 0));
+    const leaves = rows.map((row) => keccak(concatBytes([word(row.tokenId), row.characterRoot])));
+    proofTree = { rows, layers: merkle(leaves), leaves: new Map() };
+    proofEpoch = logLength;
+  }
+  const tree = proofTree;
+  const want = BigInt(tokenId);
+  const index = tree.rows.findIndex((row) => row.tokenId === want);
+  if (index < 0) return null;
+  const row = tree.rows[index]!;
+  let leaf = tree.leaves.get(want);
+  if (leaf === undefined) {
+    leaf = tokenLeaf(row.state);
+    tree.leaves.set(want, leaf);
+  }
+  if (!leaf) return null;
+  const rootLayer = tree.layers[tree.layers.length - 1];
+  return {
+    treeRoot: !rootLayer || rootLayer.length === 0 ? new Uint8Array(32) : rootLayer[0]!,
+    tokenId: row.tokenId,
+    characterRoot: row.characterRoot,
+    characterSiblings: siblingsOf(tree.layers, index),
+    tag: leaf.tag,
+    keyData: leaf.keyData,
+    value: leaf.value,
+    leafSiblings: leaf.siblings,
+  };
+}
+
 /** 32 zero bytes when there are no characters. */
 export function characterTreeRoot(characters: readonly LightCharacter[]): Uint8Array {
   if (characters.length === 0) return new Uint8Array(32);

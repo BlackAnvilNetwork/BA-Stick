@@ -50,7 +50,14 @@ pub fn darker(c: u8) -> Option<u8> {
 /// Soft contact shadow: an ellipse that darkens ground pixels one ramp step.
 /// Solid core (AO) inside ~60% radius, ordered-dither falloff outside. Only
 /// pixels with no depth (bare ground) are touched, so props and units stay clean.
-pub fn soft_shadow(fb: &mut stick_engine::raster::Framebuffer, cx: f32, cy: f32, rx: f32, ry: f32, strength: f32) {
+pub fn soft_shadow(
+    fb: &mut stick_engine::raster::Framebuffer,
+    cx: f32,
+    cy: f32,
+    rx: f32,
+    ry: f32,
+    strength: f32,
+) {
     soft_shadow_on(fb, cx, cy, rx, ry, strength, 1.0, None);
 }
 
@@ -66,7 +73,16 @@ pub const DECK_TOL: f32 = 0.6;
 /// `soft_shadow` that, with `foot = Some(depth)`, also darkens deck pixels
 /// near the unit's foot depth (S4: shadows on bridges).
 #[allow(clippy::too_many_arguments)]
-pub fn soft_shadow_on(fb: &mut stick_engine::raster::Framebuffer, cx: f32, cy: f32, rx: f32, ry: f32, strength: f32, core: f32, foot: Option<f32>) {
+pub fn soft_shadow_on(
+    fb: &mut stick_engine::raster::Framebuffer,
+    cx: f32,
+    cy: f32,
+    rx: f32,
+    ry: f32,
+    strength: f32,
+    core: f32,
+    foot: Option<f32>,
+) {
     if rx < 0.5 || ry < 0.5 {
         return;
     }
@@ -103,7 +119,12 @@ mod tests {
     use super::*;
     #[test]
     fn bayer_covers_levels_evenly() {
-        let n = |lv: f32| (0..4).flat_map(|y| (0..4).map(move |x| (x, y))).filter(|&(x, y)| on(x, y, lv)).count();
+        let n = |lv: f32| {
+            (0..4)
+                .flat_map(|y| (0..4).map(move |x| (x, y)))
+                .filter(|&(x, y)| on(x, y, lv))
+                .count()
+        };
         assert_eq!(n(0.0), 0);
         assert!(n(UNIT_CORE) < 16);
         assert_eq!(n(0.5), 8);
@@ -123,13 +144,23 @@ mod tests {
         let mut fb = stick_engine::raster::Framebuffer::new(16, 16);
         fb.color.fill(TRAIL_STONE);
         fb.clear_depth();
-        for d in fb.depth.iter_mut().take(128) { *d = 5.0; } // top half: deck at depth 5
+        for d in fb.depth.iter_mut().take(128) {
+            *d = 5.0;
+        } // top half: deck at depth 5
         soft_shadow_on(&mut fb, 8.0, 8.0, 6.0, 6.0, 1.0, 1.0, Some(5.2));
-        assert!(fb.color[..128].iter().any(|&c| c == TRAIL_STONE + 2), "deck near foot gets shadow");
+        assert!(
+            fb.color[..128].iter().any(|&c| c == TRAIL_STONE + 2),
+            "deck near foot gets shadow"
+        );
         let mut fb2 = stick_engine::raster::Framebuffer::new(16, 16);
         fb2.color.fill(TRAIL_STONE);
-        for d in fb2.depth.iter_mut() { *d = 9.0; }
+        for d in fb2.depth.iter_mut() {
+            *d = 9.0;
+        }
         soft_shadow_on(&mut fb2, 8.0, 8.0, 6.0, 6.0, 1.0, 1.0, Some(5.2));
-        assert!(fb2.color.iter().all(|&c| c == TRAIL_STONE), "far geometry untouched");
+        assert!(
+            fb2.color.iter().all(|&c| c == TRAIL_STONE),
+            "far geometry untouched"
+        );
     }
 }

@@ -1,14 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { PALE_HOLLOW_BOUNDS, paleHollowTrails } from "@bellgrave/config";
+import { PALE_HOLLOW_BOUNDS, PH_ROAD_NAMES, paleHollowTrails } from "@bellgrave/config";
 import { mapDataFor } from "./minimap";
 
-test("every dirt road in Pale Hollow has a minimap name", () => {
+test("named Pale Hollow roads appear on the minimap", () => {
   const d = mapDataFor("pale_hollow")!;
-  const dirt = new Set(paleHollowTrails().filter((t) => t.surface === "dirt").map((t) => t.id));
+  const namedInConfig = new Set(Object.keys(PH_ROAD_NAMES));
   assert.equal(d.roads.length, paleHollowTrails().length);
   const named = paleHollowTrails().filter((t, i) => d.roads[i]!.name !== "").map((t) => t.id);
-  assert.deepEqual(new Set(named), dirt);
+  assert.deepEqual(new Set(named), namedInConfig);
 });
 
 test("minimap labels sit inside the playable bounds", () => {

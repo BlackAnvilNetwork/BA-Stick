@@ -28,7 +28,7 @@ SKILL = {
 
 
 def main() -> None:
-    cat = json.loads(CATALOG.read_text())
+    cat = json.loads(CATALOG.read_text(encoding="utf-8"))
     name_to_slug: dict[str, str] = {}
     for it in cat:
         key = it["name"].strip().lower()

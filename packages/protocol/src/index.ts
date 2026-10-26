@@ -26,6 +26,12 @@ export type Gender = z.infer<typeof Gender>;
 export const ClientMessageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("auth/hello"), wallet: z.string().regex(/^0x[0-9a-fA-F]{40}$/) }),
   z.object({
+    type: z.literal("auth/resume"),
+    wallet: z.string().regex(/^0x[0-9a-fA-F]{40}$/),
+    resumeToken: z.string().regex(/^[0-9a-f]{64}$/),
+  }),
+  z.object({ type: z.literal("auth/logout") }),
+  z.object({
     type: z.literal("auth"),
     wallet: z.string().regex(/^0x[0-9a-fA-F]{40}$/),
     signature: z.string().min(8).max(200),
@@ -52,6 +58,10 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
     type: z.literal("char/enter"),
     /** Which roster slot to play; omit to enter the last-active character. */
     characterId: z.string().min(1).max(64).optional(),
+    /** Play this field. The server only accepts a baked zone and a walkable point. */
+    zone: z.enum(["pale_hollow", "hollow_road", "forest_basin"]).optional(),
+    x: z.number().finite().optional(),
+    z: z.number().finite().optional(),
   }),
   /** Pre-pay check: is this character name free on the global log? */
   z.object({
@@ -320,6 +330,8 @@ export type BuffState = {
   spellbladeFlashUntil: number;
   focusWeave: boolean;
   enSpellUntil: number;
+  /** 0 none, 1 fire (Cinder Edge), 2 ice, 3 thunder — while `enSpellUntil` is active. */
+  enSpellElement: number;
   phalanxUntil: number;
   stoneskinUntil: number;
   refreshUntil: number;
@@ -355,6 +367,8 @@ export type UnitSnapshot = {
   anim: "idle" | "walk" | "melee" | "cast" | "rest" | "dead";
   /** Unix ms when current anim ends — bumps each swing so clients can replay melee/cast. */
   animUntil: number;
+  /** Set while this unit is gathering. The sword is stowed and this tool is in the hand. */
+  gatherTool?: "shovel" | "pick";
   /** Enemy spell splash radius. Present only while an AoE cast is winding up. */
   castAoe?: number;
   targetId: string | null;
@@ -657,9 +671,23 @@ export type SnapshotMessage = {
     freeStats: { str: number; dex: number; vit: number; agi: number; int: number; mnd: number };
     /** Hash-chained lok balances. Settlement Key::Kek is historical; new AH pays on-chain. */
     lok?: LokSnapshot;
+    /** Pale Hollow kill tasks — multiple may be active. */
+    questLog?: {
+      id: string;
+      title: string;
+      kills: number;
+      need: number;
+      progress: string;
+      ready: boolean;
+    }[];
   };
   units: UnitSnapshot[];
   log: string[];
+  /** Pale Hollow zone weather — same for every client in the hollow. */
+  weather?: {
+    kind: "clear" | "rain" | "fog" | "snow";
+    snowCover: number;
+  };
   /** Active party — null when solo. */
   party: PartySnapshot | null;
   /** Pending invite for this client (accept/decline). */
@@ -721,6 +749,11 @@ export type ServerMessage =
        * The checker uses the keys it already stored from here.
        */
       replicaAllowlist?: string[];
+      /**
+       * Lets this page reconnect without another personal_sign.
+       * Issued only after the login signature checks out.
+       */
+      resumeToken?: string;
     }
   | { type: "log"; message: string }
   | {
@@ -864,6 +897,7 @@ export function emptyBuffs(): BuffState {
     spellbladeFlashUntil: 0,
     focusWeave: false,
     enSpellUntil: 0,
+    enSpellElement: 0,
     phalanxUntil: 0,
     stoneskinUntil: 0,
     refreshUntil: 0,

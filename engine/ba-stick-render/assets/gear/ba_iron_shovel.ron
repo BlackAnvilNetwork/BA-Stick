@@ -1,0 +1,19 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Iron shovel. Wood shaft in the hand frame, +y toward the blade.
+// The steel scoop is drawn on that plane, wide at the mouth.
+(
+    id: "ba_iron_shovel",
+    slot: MainHand,
+    attach: Some("r_hand"),
+    stance: Some("1h"),
+    reach: 0.88,
+    swing_weight: 1.2,
+    material: Some("steel"),
+    shapes: [
+        Capsule(from: (0.0, -0.16, 0.0), to: (0.0, 0.56, 0.0), ramp: Material, thick: 1.6),
+        Capsule(from: (-0.045, 0.56, 0.0), to: (0.045, 0.56, 0.0), ramp: Material, thick: 2.0),
+    ],
+)

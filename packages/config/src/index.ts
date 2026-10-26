@@ -84,6 +84,8 @@ export {
 
 export {
   PALE_HOLLOW_BOUNDS,
+  PH_CAMP_SHIFT_X,
+  PH_CAMP_SHIFT_Z,
   PH_HUB,
   PH_HUB_REAR_WALL,
   PH_SEGMENT_A,
@@ -104,11 +106,6 @@ export {
   PH_ACTIVE_GATHER_COUNT,
   PH_GATHER_RELOCATE_CHANCE,
   paleHollowNodeSpawnPoints,
-  PH_SEGMENT_A_MOBS,
-  PH_SEGMENT_B_MOBS,
-  PH_SEGMENT_C_MOBS,
-  PH_SEGMENT_D_MOBS,
-  PH_ALL_MOBS,
   PH_HUB_NPCS,
   PH_STORAGE_CHEST,
   PH_MOUNTAINS,
@@ -140,6 +137,7 @@ export {
   paleHollowInOpenWater,
   paleHollowInRiverWall,
   paleHollowOnBridge,
+  paleHollowBakedOnBridge,
   paleHollowInBridgeWaterGap,
   paleHollowInBridgeWallVisualGap,
   paleHollowBridgeDeckY,
@@ -149,6 +147,7 @@ export {
   PH_BRIDGE_RAMP,
   paleHollowBridgeGeom,
   paleHollowTrails,
+  paleHollowOnTrail,
   PH_ROAD_NAMES,
   PH_MAP_LABELS,
   type PaleHollowMapLabelKind,
@@ -165,6 +164,7 @@ export {
   paleHollowHubApronRect,
   paleHollowPlaceOnDryLand,
   PH_BUILDING_CLEARINGS,
+  PH_YARDS,
   PH_HUB_APRON,
   PALE_HOLLOW_WATER_CLEARANCE,
   clampPaleHollow,
@@ -173,6 +173,7 @@ export {
   type PaleHollowMobDef,
   type PaleHollowMobJob,
   type PaleHollowRareDrop,
+  type PaleHollowFixedDrop,
   type PaleHollowArchetype,
   type PaleHollowAggro,
   PH_ARCHETYPE_DEFAULT_JOB,
@@ -184,6 +185,131 @@ export {
   type PaleHollowRiverKind,
   type GatherNodeKind,
 } from "./pale-hollow";
+
+export {
+  PH_ALL_MOBS,
+  PH_SEGMENT_A_MOBS,
+  PH_SEGMENT_B_MOBS,
+  PH_SEGMENT_C_MOBS,
+  PH_SEGMENT_D_MOBS,
+  PH_FIELD_NPCS,
+  PH_QUESTS,
+  emptyPaleHollowQuests,
+  normalizePaleHollowQuestState,
+  paleHollowQuestById,
+  paleHollowQuestByNpc,
+  paleHollowQuestCredit,
+  paleHollowQuestLogEntries,
+  paleHollowQuestTalk,
+  type PaleHollowFieldNpc,
+  type PaleHollowQuestDef,
+  type PaleHollowQuestLogEntry,
+  type PaleHollowQuestProgress,
+  type PaleHollowQuestState,
+} from "./pale-hollow-field";
+
+export {
+  PH_SNOW_ACCUM_SEC,
+  PH_SNOW_MELT_SEC,
+  PH_WEATHER_CYCLE_MS,
+  PH_WEATHER_KIND_ID,
+  PH_WEATHER_SEED_XOR,
+  PH_WEATHER_WEIGHTS,
+  paleHollowWeatherCycleIndex,
+  paleHollowWeatherKindAt,
+  rollPaleHollowWeather,
+  type PaleHollowWeatherKind,
+  type PaleHollowWeatherSnapshot,
+} from "./pale-hollow-weather";
+
+export {
+  FOREST_BASIN_BOUNDS,
+  FB_TRAIL_WIDTH,
+  FB_BRIDGE_DECK_W,
+  FB_LAKE,
+  FB_CAMP,
+  FB_SPAWN,
+  FB_MOUNTAINS,
+  FB_GATES,
+  FB_BRIDGE,
+  FB_ROAD_NAMES,
+  FB_MAP_LABELS,
+  forestBasinMaskDist,
+  forestBasinRiverX,
+  forestBasinInOpenWater,
+  forestBasinBridgeCenter,
+  forestBasinOnBridge,
+  forestBasinWalkable,
+  forestBasinClamp,
+  forestBasinClampMove,
+  forestBasinWaterSurfaceY,
+  forestBasinStandHeight,
+  forestBasinHeight,
+  forestBasinBiome,
+  forestBasinTrails,
+  forestBasinOnTrail,
+  forestBasinGateSoftLevel,
+  type ForestBasinGate,
+  type ForestBasinBiome,
+  type ForestBasinTrail,
+  type ForestBasinLabelKind,
+} from "./forest-basin";
+
+export {
+  HR_BOUNDS,
+  HR_TRAIL_WIDTH,
+  HR_SPAWN,
+  HR_GATES,
+  HR_ROAD_NAMES,
+  HR_MAP_LABELS,
+  hollowRoadMaskDist,
+  hollowRoadWalkable,
+  hollowRoadInOpenWater,
+  hollowRoadWaterSurfaceY,
+  hollowRoadOnBridge,
+  hollowRoadStandHeight,
+  hollowRoadHeight,
+  hollowRoadClamp,
+  hollowRoadClampMove,
+  hollowRoadBiome,
+  hollowRoadTrails,
+  hollowRoadGateSoftLevel,
+  type HollowRoadGate,
+  type HollowRoadBiome,
+  type HollowRoadTrail,
+  type HollowRoadLabelKind,
+} from "./hollow-road";
+
+export { ZONE_LINKS, zoneLink, linksFrom, linkUnder, type ZoneLink, type GateHit } from "./zone-links";
+
+export { ZONE_ORIGINS, WORLD_ZONE_IDS, zoneOrigin, zoneWorldBounds, type ZoneOrigin } from "./zone-layout";
+
+export {
+  ZONE_FIELDS,
+  fieldById,
+  fieldStandHeight,
+  fieldClampMove,
+  fieldNav,
+  fieldGateSoftLevel,
+  travelAt,
+  applyTravel,
+  type ZoneField,
+  type ZoneGate,
+  type TravelStep,
+} from "./zone-fields";
+
+export {
+  BOOT_FORGE_MENU_BOUNDS,
+  BOOT_FORGE_MENU_HERO,
+  BOOT_FORGE_MENU_ID,
+  bootForgeMenuBiome,
+  bootForgeMenuInOpenWater,
+  bootForgeMenuOnBridge,
+  bootForgeMenuStandHeight,
+  bootForgeMenuTrails,
+  bootForgeMenuWalkable,
+  bootForgeMenuWaterSurfaceY,
+} from "./boot-forge-menu";
 
 export { paleHollowLandmarks, type PaleHollowLandmark } from "./pale-hollow-landmarks";
 
@@ -220,6 +346,14 @@ export {
 export const ZONE_IDS = [
   "palace_hall",
   "pale_hollow",
+  "hollow_road",
+  "forest_basin",
+  "spur_road",
+  "ring_ward",
+  "islet_fords",
+  "green_reach",
+  "coil_pass",
+  "coil_ridge",
   "shard_dwellings",
   "ashlands",
   "obsidia",
@@ -231,6 +365,11 @@ export const ZONE_IDS = [
   "citadel_of_kek",
 ] as const;
 export type ZoneId = (typeof ZONE_IDS)[number];
+
+/** Boot / wallet / character screens (loops until play). */
+export const MENU_MUSIC = "/audio/main-theme.mp3";
+/** Pale Hollow area field loop when a zone has no explicit track. */
+export const PALE_HOLLOW_MUSIC = "/audio/pale-hollow.mp3";
 
 export type ZoneDef = {
   id: ZoneId;
@@ -257,7 +396,57 @@ export const ZONES: Record<ZoneId, ZoneDef> = {
     name: "Pale Hollow",
     kind: "field",
     areaId: "pale_hollow",
-    music: "/audio/royal-march.mp3",
+    music: PALE_HOLLOW_MUSIC,
+  },
+  hollow_road: {
+    id: "hollow_road",
+    name: "Hollow Road",
+    kind: "field",
+    areaId: "pale_hollow",
+    music: PALE_HOLLOW_MUSIC,
+  },
+  forest_basin: {
+    id: "forest_basin",
+    name: "Forest Basin",
+    kind: "field",
+    areaId: "pale_hollow",
+    music: PALE_HOLLOW_MUSIC,
+  },
+  spur_road: {
+    id: "spur_road",
+    name: "Spur Road",
+    kind: "field",
+    areaId: "pale_hollow",
+  },
+  ring_ward: {
+    id: "ring_ward",
+    name: "Ring Ward",
+    kind: "field",
+    areaId: "pale_hollow",
+  },
+  islet_fords: {
+    id: "islet_fords",
+    name: "Islet Fords",
+    kind: "field",
+    areaId: "pale_hollow",
+  },
+  green_reach: {
+    id: "green_reach",
+    name: "Green Reach",
+    kind: "field",
+    areaId: "pale_hollow",
+  },
+  coil_pass: {
+    id: "coil_pass",
+    name: "Coil Pass",
+    kind: "field",
+    areaId: "pale_hollow",
+  },
+  coil_ridge: {
+    id: "coil_ridge",
+    name: "Coil Ridge",
+    kind: "field",
+    areaId: "pale_hollow",
   },
   shard_dwellings: {
     id: "shard_dwellings",
@@ -320,3 +509,12 @@ export const ZONES: Record<ZoneId, ZoneDef> = {
     music: "/audio/royal-march.mp3",
   },
 };
+
+/** Resolve looping BGM for a zone id (area defaults, e.g. all of Pale Hollow). */
+export function musicForZone(zoneId: string | undefined): string | undefined {
+  const id = (zoneId && (ZONE_IDS as readonly string[]).includes(zoneId) ? zoneId : "pale_hollow") as ZoneId;
+  const def = ZONES[id];
+  if (def.music) return def.music;
+  if (def.areaId === "pale_hollow") return PALE_HOLLOW_MUSIC;
+  return undefined;
+}

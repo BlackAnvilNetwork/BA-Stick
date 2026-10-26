@@ -1,0 +1,24 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+
+// Hero's rest. Hips on the ground, one knee up, the other leg out and slightly bent.
+// The right hand rests on a sword aimed into the ground. The head bows.
+(
+    name: "rest",
+    duration: 3.2,
+    looping: true,
+    mask: Full,
+    base: {
+        "bob": -0.67, "lean": 18.0, "head": 28.0,
+        "l_hip": 118.0, "l_knee": 112.0,
+        "r_hip": 84.0, "r_knee": 16.0,
+        "l_shoulder": 42.0, "l_elbow": 48.0, "l_arm_out": 14.0,
+        "r_shoulder": 92.0, "r_elbow": 10.0, "r_arm_out": 24.0,
+        "r_wpn_yaw": 8.0, "r_wpn_pitch": -78.0,
+    },
+    keys: [
+        (t: 0.0, pose: { "bob": -0.67, "lean": 18.0, "head": 28.0 }),
+        (t: 1.6, pose: { "bob": -0.70, "lean": 21.0, "head": 34.0 }),
+    ],
+)

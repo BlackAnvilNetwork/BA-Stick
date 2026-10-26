@@ -1,0 +1,17 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Fang dagger — same layout as ba_iron_dagger (grip only; short blade on the hand plane).
+(
+    id: "ba_fang_dagger",
+    slot: MainHand,
+    attach: Some("r_hand"),
+    stance: Some("1h"),
+    reach: 0.48,
+    swing_weight: 0.85,
+    material: Some("leather"),
+    shapes: [
+        Capsule(from: (0.0, -0.14, 0.0), to: (0.0, 0.04, 0.0), ramp: Material, thick: 2.0),
+    ],
+)
