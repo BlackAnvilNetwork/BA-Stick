@@ -112,6 +112,10 @@ impl StickRenderer {
     #[wasm_bindgen(js_name = setCamMode)]
     pub fn set_cam_mode(&mut self, mode: &str) { self.scene.set_cam_mode(mode); }
 
+    /// Time of day 0..1 (0 midnight, 0.5 noon) for the 3D pixel sky.
+    #[wasm_bindgen(js_name = setTimeOfDay)]
+    pub fn set_time_of_day(&mut self, phase: f32) { self.scene.set_time_of_day(phase); }
+
     #[wasm_bindgen(js_name = camMode)]
     pub fn cam_mode(&self) -> String { self.scene.cam_mode().to_owned() }
 

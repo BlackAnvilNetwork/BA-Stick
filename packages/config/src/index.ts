@@ -215,6 +215,8 @@ export {
   PH_WEATHER_KIND_ID,
   PH_WEATHER_SEED_XOR,
   PH_WEATHER_WEIGHTS,
+  PH_DAY_CYCLE_MS,
+  paleHollowDayPhaseAt,
   paleHollowWeatherCycleIndex,
   paleHollowWeatherKindAt,
   rollPaleHollowWeather,

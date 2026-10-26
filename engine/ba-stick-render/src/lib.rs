@@ -30,6 +30,7 @@ pub mod palette;
 pub mod preset;
 pub mod props;
 pub mod scene;
+pub mod sky;
 pub mod structure;
 pub mod tree;
 pub mod vfx;

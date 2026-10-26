@@ -129,6 +129,12 @@ pub const FLOAT: [(u8, u32); 5] = [
     (FN_MISS, 0xa6a2b4),
 ];
 
+/// True colour of a floating-number index. `FN_*` reuse the meadow slots
+/// (132..136) in the 256-entry palette, so the scene resolves them here.
+pub fn float_rgb(c: u8) -> Option<u32> {
+    FLOAT.iter().find(|(i, _)| *i == c).map(|(_, rgb)| *rgb)
+}
+
 /// Prop colours (100..148): foliage, ground cover, stone, wood, cloth, fire.
 pub const PROP: [(u8, u32); 32] = [
     (PINE_D, 0x1f3a2c),

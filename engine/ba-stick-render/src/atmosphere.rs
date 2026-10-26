@@ -80,6 +80,8 @@ pub struct Extra<'a> {
     /// Screen px — fog thins within ~2 m of the followed unit's feet.
     pub clear_center: Option<(f32, f32)>,
     pub clear_radius_px: f32,
+    /// Third/first-person pixel sky (#sky). `None` keeps the iso gradient + skyline.
+    pub sky: Option<crate::sky::SkyCtx>,
 }
 
 impl Extra<'_> {
@@ -88,6 +90,7 @@ impl Extra<'_> {
         depth: None,
         clear_center: None,
         clear_radius_px: 0.0,
+        sky: None,
     };
 }
 
@@ -211,12 +214,11 @@ fn meadow_blade(c: u8) -> bool {
     )
 }
 
-fn emissive(c: u8) -> bool {
+pub(crate) fn emissive(c: u8) -> bool {
     matches!(c, 9 | 11 | 14)
         || (80..=90).contains(&c)
         || c == COAL
         || c == EMBER
-        || (FN_DMG..=FN_MISS).contains(&c)
         || c == BLOOM_C
 }
 
@@ -395,7 +397,9 @@ pub fn write_rgba_key(
         for x in 0..w {
             let i = y * w + x;
             let c = color[i];
-            let v = if c == SKY {
+            let v = if c == SKY && ex.sky.is_some() {
+                ex.sky.as_ref().map(|s| s.shade(x, y)).unwrap_or([0.0; 3])
+            } else if c == SKY {
                 let (far_r, near_r) = ridges[x];
                 let mut v = if fy > near_r {
                     [sky[0] * 0.55, sky[1] * 0.55, sky[2] * 0.62]

@@ -1000,3 +1000,348 @@ fn settled_first_person_hides_the_body_while_walking() {
     s.tick(1.0 / 60.0);
     assert!(s.first_person(), "eye trailing the head must not reveal the body");
 }
+
+fn sky_rgba(mode: &str, phase: f32, weather: u8) -> (Scene, Vec<u8>) {
+    let mut s = cam3d_scene(mode);
+    s.minimap.on = false;
+    // Tilt the eye ~15° above the horizon so the shot shows sky and ground.
+    if mode != "iso" { s.set_look(0.0, -1.0); }
+    for _ in 0..8 { s.tick(1.0 / 60.0); }
+    s.set_look(0.0, 0.0);
+    s.set_time_of_day(phase);
+    s.set_weather(weather, 0.0);
+    for _ in 0..400 { s.tick(1.0 / 60.0); }
+    s.draw();
+    let mut out = vec![0u8; s.fb.w * s.fb.h * 4];
+    s.write_rgba(&mut out);
+    (s, out)
+}
+
+fn sky_luma(s: &Scene, out: &[u8]) -> f32 {
+    let (mut t, mut n) = (0.0, 0.0);
+    for (i, &c) in s.fb.color.iter().enumerate() {
+        if c == crate::atmosphere::SKY {
+            t += out[i * 4] as f32 * 0.3 + out[i * 4 + 1] as f32 * 0.59 + out[i * 4 + 2] as f32 * 0.11;
+            n += 1.0;
+        }
+    }
+    assert!(n > 0.0, "frame shows some sky");
+    t / n
+}
+
+#[test]
+fn pixel_sky_follows_clock_and_weather_in_3d_only() {
+    // Third person looks 30° down at a flat meadow, so only first person is
+    // guaranteed a sky band here; tp shares the same path (`Scene::sky_ctx`).
+    for mode in ["fp"] {
+        let (s, noon) = sky_rgba(mode, 0.5, 0);
+        let (_, night) = sky_rgba(mode, 0.0, 0);
+        let (_, rain) = sky_rgba(mode, 0.5, 1);
+        let (n, m, r) = (sky_luma(&s, &noon), sky_luma(&s, &night), sky_luma(&s, &rain));
+        assert!(n > m + 50.0, "{mode}: noon {n} vs midnight {m}");
+        assert!((r - n).abs() > 5.0, "{mode}: rain {r} vs clear {n}");
+    }
+    // Iso: no sky, and only character pixels follow the clock (they are lit
+    // by time of day in every view); terrain/props stay frame-identical.
+    let (s, a) = sky_rgba("iso", 0.5, 0);
+    let (_, b) = sky_rgba("iso", 0.0, 0);
+    let mut unit_diff = 0;
+    for i in 0..s.fb.color.len() {
+        let same = a[i * 4..i * 4 + 4] == b[i * 4..i * 4 + 4];
+        if s.unit_px[i] == 0 {
+            assert!(same, "iso world pixel {i} changed with time of day");
+        } else if !same {
+            unit_diff += 1;
+        }
+    }
+    assert!(unit_diff > 20, "iso characters dim at night ({unit_diff} px)");
+}
+
+/// `SKY_SHOTS=/dir cargo test -p ba_stick_render sky_shots -- --ignored` writes PPMs.
+#[test]
+#[ignore]
+fn sky_shots() {
+    let dir = std::env::var("SKY_SHOTS").unwrap_or_else(|_| "/tmp".into());
+    for mode in ["iso", "tp", "fp"] {
+        for (pn, phase) in [("midnight", 0.0), ("dawn", 0.26), ("noon", 0.5), ("dusk", 0.74)] {
+            for (wn, wk) in [("clear", 0u8), ("rain", 1), ("fog", 2), ("snow", 3)] {
+                if mode == "iso" && wn != "clear" { continue; }
+                let (s, out) = sky_rgba(mode, phase, wk);
+                let mut f = format!("P6\n{} {}\n255\n", s.fb.w, s.fb.h).into_bytes();
+                for px in out.chunks(4) { f.extend_from_slice(&px[..3]); }
+                std::fs::write(format!("{dir}/{mode}-{pn}-{wn}.ppm"), f).unwrap();
+            }
+        }
+    }
+}
+
+/// Wide upward first-person shots of the clear sky (galaxy / cumulus showcase).
+#[test]
+#[ignore]
+fn sky_wow_shots() {
+    let dir = std::env::var("SKY_SHOTS").unwrap_or_else(|_| "/tmp".into());
+    for (pn, phase) in [("midnight", 0.0), ("dawn", 0.255), ("noon", 0.5), ("dusk", 0.745), ("night-late", 0.1)] {
+        for (ln, look) in [("up", 16), ("high", 40)] {
+            let mut s = cam3d_scene("fp");
+            s.minimap.on = false;
+            s.set_look(0.0, -1.0);
+            for _ in 0..look { s.tick(1.0 / 60.0); }
+            s.set_look(0.0, 0.0);
+            s.set_time_of_day(phase);
+            s.set_weather(0, 0.0);
+            for _ in 0..400 { s.tick(1.0 / 60.0); }
+            s.draw();
+            let mut out = vec![0u8; s.fb.w * s.fb.h * 4];
+            s.write_rgba(&mut out);
+            let mut f = format!("P6\n{} {}\n255\n", s.fb.w, s.fb.h).into_bytes();
+            for px in out.chunks(4) { f.extend_from_slice(&px[..3]); }
+            std::fs::write(format!("{dir}/wow-{pn}-{ln}.ppm"), f).unwrap();
+        }
+    }
+}
+
+// Floating-ground sweep over the real zones (props included); see
+// props::tests::culled_vertex_never_paints_cleared_sky for the unit check.
+fn world_scene(zd: &str) -> Scene {
+    let origins = [
+        ("pale_hollow", 0.0),
+        ("hollow_road", 500.0),
+        ("forest_basin", 820.0),
+        ("spur_road", 980.0),
+        ("ring_ward", 1280.0),
+        ("islet_fords", 1416.0),
+        ("green_reach", 1542.0),
+        ("coil_pass", 1652.0),
+        ("coil_ridge", 1982.0),
+    ];
+    let mut s = Scene::new(320, 180);
+    for (id, oz) in origins {
+        let b = std::fs::read(format!("{zd}/{id}.baz")).unwrap();
+        s.place_zone(&b, 0.0, oz).unwrap();
+        if std::env::var("NOPROPS").is_err() {
+            if let Ok(p) = std::fs::read(format!("{zd}/{id}.bap")) {
+                let _ = s.place_props(&p, 0.0, oz);
+            }
+        }
+    }
+    s.minimap.on = false;
+    s
+}
+
+/// Columns where terrain sits above sky that itself sits above terrain
+/// (a floating ground band). Hills and props connect down to the ground.
+fn floating_ground_cols(s: &Scene) -> usize {
+    let (w, h) = (s.fb.w, s.fb.h);
+    let sky = crate::atmosphere::SKY;
+    let mut n = 0;
+    for x in 0..w {
+        let col: Vec<bool> = (0..h).map(|y| s.fb.color[y * w + x] == sky).collect();
+        // ground at row 0..k, then a run of >= 3 sky rows, then ground again
+        if col[0] {
+            continue;
+        }
+        let Some(a) = col.iter().position(|&c| c) else {
+            continue;
+        };
+        let Some(b) = col[a..].iter().position(|&c| !c) else {
+            continue;
+        };
+        if b >= 3 {
+            n += 1;
+        }
+    }
+    n
+}
+
+#[test]
+#[ignore]
+fn sweep_top_band() {
+    let zd = std::env::var("ZONES").unwrap();
+    let dir = std::env::var("SKY_SHOTS").unwrap_or_else(|_| "/tmp".into());
+    let mut s = world_scene(&zd);
+    let mut worst = (0, String::new());
+    for &(x, z) in &[
+        (106.4f32, 461.9f32),
+        (106.4, 480.0),
+        (80.0, 450.0),
+        (130.0, 495.0),
+        (100.0, 300.0),
+    ] {
+        let y = s.zone_height(x, z);
+        for k in 0..16 {
+            for up in [0usize, 6, 14] {
+                let f = k as f32 * std::f32::consts::PI / 8.0;
+                s.upsert_unit(
+                    "me",
+                    UnitInput {
+                        x,
+                        y,
+                        z,
+                        facing: f,
+                        anim: AnimState::Idle,
+                        preset: "knight".into(),
+                    },
+                );
+                s.follow(Some("me"));
+                s.set_cam_mode("fp");
+                s.set_look(0.0, 1.0);
+                for _ in 0..90 {
+                    s.tick(1.0 / 60.0);
+                }
+                s.set_look(0.0, -1.0);
+                for _ in 0..(30 + up) {
+                    s.tick(1.0 / 60.0);
+                }
+                s.set_look(0.0, 0.0);
+                for _ in 0..60 {
+                    s.tick(1.0 / 60.0);
+                }
+                s.draw();
+                let n = floating_ground_cols(&s);
+                let tag = format!("{x},{z},k{k},up{up}");
+                if n > worst.0 || tag == "80,450,k10,up6" {
+                    if n > worst.0 {
+                        worst = (n, tag.clone());
+                    }
+                    let mut out = vec![0u8; s.fb.w * s.fb.h * 4];
+                    s.write_rgba(&mut out);
+                    let mut fbuf = format!("P6\n{} {}\n255\n", s.fb.w, s.fb.h).into_bytes();
+                    for px in out.chunks(4) {
+                        fbuf.extend_from_slice(&px[..3]);
+                    }
+                    std::fs::write(
+                        format!(
+                            "{dir}/{}.ppm",
+                            if tag == "80,450,k10,up6" {
+                                "pose"
+                            } else {
+                                "worst"
+                            }
+                        ),
+                        fbuf,
+                    )
+                    .unwrap();
+                }
+            }
+        }
+    }
+    eprintln!("WORST {worst:?}");
+}
+
+
+#[test]
+#[ignore]
+fn pan_flicker_probe() {
+    let zd = std::env::var("ZONES").unwrap();
+    let dir = std::env::var("SKY_SHOTS").unwrap_or_else(|_| "/tmp".into());
+    let phase: f32 = std::env::var("PHASE").ok().and_then(|v| v.parse().ok()).unwrap_or(0.0);
+    let wk: u8 = std::env::var("WK").ok().and_then(|v| v.parse().ok()).unwrap_or(0);
+    let mut s = world_scene(&zd);
+    let (x, z) = (80.0f32, 450.0f32);
+    let y = s.zone_height(x, z);
+    s.upsert_unit("me", UnitInput { x, y, z, facing: std::env::var("FACE").ok().and_then(|v| v.parse().ok()).unwrap_or(3.93), anim: AnimState::Idle, preset: "knight".into() });
+    s.follow(Some("me"));
+    s.set_cam_mode(&std::env::var("MODE").unwrap_or_else(|_| "fp".into()));
+    s.set_time_of_day(phase);
+    s.set_weather(wk, 0.0);
+    for _ in 0..300 { s.tick(1.0 / 60.0); }
+    s.set_look(0.3, 0.0);
+    let meadow = |c: u8| (crate::palette::MEADOW_DEEP..=crate::palette::MEADOW_BLUE).contains(&c);
+    for fr in 0..40 {
+        s.tick(1.0 / 60.0);
+        s.draw();
+        let mut out = vec![0u8; s.fb.w * s.fb.h * 4];
+        s.write_rgba(&mut out);
+        let (mut ms, mut mn, mut gs, mut gn) = (0f64, 0, 0f64, 0);
+        for (i, &c) in s.fb.color.iter().enumerate() {
+            let l = out[i * 4 + 1] as f64;
+            if meadow(c) { ms += l; mn += 1 } else if (16..64).contains(&c) { gs += l; gn += 1 }
+        }
+        eprintln!("fr{fr:02} meadow n={mn:6} g={:6.1}  biome n={gn:6} g={:6.1}", ms / mn.max(1) as f64, gs / gn.max(1) as f64);
+        if fr == 0 {
+            let mut hist = [0usize; 256];
+            for &c in &s.fb.color { hist[c as usize] += 1; }
+            let top: Vec<_> = (0..256).filter(|&c| hist[c] > 200).map(|c| (c, hist[c])).collect();
+            eprintln!("hist {top:?}");
+        }
+        if fr < 2 {
+            let mut f = format!("P6\n{} {}\n255\n", s.fb.w, s.fb.h).into_bytes();
+            for px in out.chunks(4) { f.extend_from_slice(&px[..3]); }
+            std::fs::write(format!("{dir}/pan-{fr}.ppm"), f).unwrap();
+        }
+    }
+}
+
+/// Regression (grass flicker): meadow blade indices share palette slots with
+/// the floating combat numbers, which used to make grass "emissive" so it
+/// skipped ambient, weather and fog. Blades then glowed neon over dim ground
+/// and patches popped bright/dark as cells entered the view. Grass must be lit
+/// like the ground under it, at night, in rain, and frame to frame while panning.
+#[test]
+fn meadow_grass_is_lit_like_ground_and_stable_under_pan() {
+    let meadow = |c: u8| (palette::MEADOW_DEEP..=palette::MEADOW_BLUE).contains(&c);
+    let ground = |c: u8| (palette::BIOME0 + 13 * 3..palette::BIOME0 + 13 * 3 + 3).contains(&c);
+    for mode in ["tp", "fp"] {
+        for (phase, wk) in [(0.0f32, 0u8), (0.82, 1), (0.5, 0)] {
+            let mut s = cam3d_scene(mode);
+            s.minimap.on = false;
+            s.set_time_of_day(phase);
+            s.set_weather(wk, 0.0);
+            for _ in 0..400 { s.tick(1.0 / 60.0); }
+            s.set_look(0.25, 0.0);
+            let mut prev: Option<f64> = None;
+            for fr in 0..12 {
+                s.tick(1.0 / 60.0);
+                s.draw();
+                let mut out = vec![0u8; s.fb.w * s.fb.h * 4];
+                s.write_rgba(&mut out);
+                let (mut ms, mut mn, mut gs, mut gn) = (0f64, 0usize, 0f64, 0usize);
+                for (i, &c) in s.fb.color.iter().enumerate() {
+                    let l = out[i * 4..i * 4 + 3].iter().map(|&v| v as f64).sum::<f64>() / 3.0;
+                    if meadow(c) { ms += l; mn += 1 } else if ground(c) { gs += l; gn += 1 }
+                }
+                assert!(mn > 80 && gn > 500, "{mode} {phase} fr{fr}: blades {mn} ground {gn}");
+                let (m, g) = (ms / mn as f64, gs / gn as f64);
+                // Blades may be a little lighter than the ground, never a glow over it.
+                assert!(m < g * 1.9 + 12.0, "{mode} phase {phase} wk {wk} fr{fr}: grass {m:.1} vs ground {g:.1}");
+                if let Some(p) = prev {
+                    assert!((m - p).abs() < 6.0, "{mode} phase {phase} fr{fr}: grass luma jumped {p:.1} -> {m:.1}");
+                }
+                prev = Some(m);
+            }
+        }
+    }
+}
+
+/// Floating numbers keep their own colours (FN_* overlap the meadow slots).
+#[test]
+fn floaters_resolve_their_own_colours() {
+    for &(c, rgb) in palette::FLOAT.iter() {
+        assert_eq!(palette::float_rgb(c), Some(rgb));
+    }
+    assert!(!crate::atmosphere::emissive(palette::MEADOW));
+}
+
+/// Without the 3D sky (iso, or any frame where it is off) grass used to skip
+/// ambient entirely: a dark/wet ambient left blades at full palette brightness.
+#[test]
+fn meadow_follows_ambient_without_sky() {
+    let pal = palette::palette();
+    let (w, h) = (32, 32);
+    let g = palette::BIOME0 + 13 * 3 + 1;
+    let mut color = vec![g; w * h];
+    for (i, c) in color.iter_mut().enumerate() { if i % w >= w / 2 { *c = palette::MEADOW; } }
+    let luma = |amb: f32| {
+        let mut p = crate::atmosphere::PALE_HOLLOW;
+        p.ambient = [amb; 3];
+        p.vignette = 0.0;
+        let mut out = vec![0u8; w * h * 4];
+        crate::atmosphere::write_rgba_key(&pal, &color, w, h, &[], &p, 0.0, false, crate::atmosphere::Extra::NONE, &mut out);
+        let px = |i: usize| out[i * 4 + 1] as f32;
+        (px(w * 16 + 8), px(w * 16 + 24))
+    };
+    let (g_hi, m_hi) = luma(1.0);
+    let (g_lo, m_lo) = luma(0.3);
+    let (rg, rm) = (g_lo / g_hi, m_lo / m_hi);
+    assert!((rg - rm).abs() < 0.12, "ground x{rg:.2} vs grass x{rm:.2} when ambient drops");
+}

@@ -1699,6 +1699,22 @@ const ACCENT_BOOK: u8 = C_ACCENT;
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn culled_vertex_never_paints_cleared_sky() {
+        // Regression: a prop vertex behind the fp/tp eye projects to (0, 0)
+        // with d = INF. `INF <= INF` passed over cleared sky and drew a
+        // terrain-coloured wedge across the top of the screen.
+        use stick_engine::camera::P2;
+        let mut fb = stick_engine::raster::Framebuffer::new(64, 36);
+        let culled = P2 { x: 0.0, y: 0.0, d: f32::INFINITY, s: 0.0 };
+        let a = P2 { x: 60.0, y: 30.0, d: 5.0, s: 1.0 };
+        let b = P2 { x: 20.0, y: 34.0, d: 5.0, s: 1.0 };
+        super::tri(&mut fb, culled, a, b, 7);
+        fb.line(culled, a, 7);
+        let top = fb.color[..64 * 18].iter().filter(|&&c| c == 7).count();
+        assert_eq!(top, 0, "culled vertex smeared {top} px into the top half");
+    }
+
     use super::*;
 
     fn rec(kind: u8, x: f32, z: f32) -> Vec<u8> {
