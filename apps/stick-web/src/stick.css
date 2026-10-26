@@ -156,8 +156,8 @@ html, body, #root { margin: 0; width: 100%; height: 100%; background: #0d0b14; o
   min-height: 0;
   grid-template-columns: minmax(140px, 200px) minmax(160px, 1fr) minmax(200px, 280px);
 }
-.wiki-tree { max-height: min(60vh, 520px); overflow: auto; }
-.wiki-list { max-height: min(60vh, 520px); overflow: auto; }
+.wiki-tree { max-height: min(50vh, 440px); overflow: auto; }
+.wiki-list { max-height: min(50vh, 440px); overflow: auto; }
 .wiki-detail {
   max-height: min(60vh, 520px);
   overflow: auto;
@@ -221,3 +221,15 @@ html, body, #root { margin: 0; width: 100%; height: 100%; background: #0d0b14; o
 }
 
 html[data-ui-pixel="smooth"] .stick-canvas { image-rendering: auto; }
+
+.wiki-lore { display: grid; grid-template-columns: minmax(150px, 220px) 1fr; gap: 10px; flex-shrink: 0; }
+.wiki-lore-tabs { display: flex; flex-direction: column; gap: 2px; border-right: 1px solid rgba(154, 125, 69, 0.35); padding-right: 6px; }
+.wiki-lore-tab { text-align: left; background: none; border: 0; color: inherit; padding: 4px 8px; cursor: pointer; font: inherit; opacity: 0.75; }
+.wiki-lore-tab:hover, .wiki-lore-tab.is-active { opacity: 1; background: rgba(255, 255, 255, 0.08); }
+.wiki-lore-page { padding: 4px 12px; line-height: 1.5; max-width: 68ch; max-height: min(50vh, 440px); overflow: auto; }
+.wiki-lore-page p { margin: 0 0 0.7em; }
+.wiki-lore-title { margin: 0 0 0.6em; }
+.wiki-lore-list { margin: 0 0 0.7em; padding-left: 1.2em; }
+.wiki-lore-list li { margin-bottom: 0.35em; }
+.wiki-lore-quote { margin: 0.6em 0; padding-left: 10px; border-left: 2px solid rgba(255, 255, 255, 0.3); font-style: italic; opacity: 0.85; }
+.wiki-panel-stack > .wiki-section { flex-shrink: 0; }
