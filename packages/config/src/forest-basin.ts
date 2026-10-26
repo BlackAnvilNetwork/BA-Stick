@@ -40,13 +40,17 @@ export const FB_BRIDGE_DECK_W = 3.9;
 
 /** Northern mere. The river leaves the south shore. */
 let lakeCap: Float32Array | null = null;
+/** Lake room uses the pre-lobe glade outline so the Ash-tarn shoreline (and its shallows) stay where they were. */
+function fbLakeRoom(x: number, z: number): number {
+  return naturalMaskDist((px, pz) => forestBasinMaskDistRaw(px, pz, false), x, z, 905);
+}
 /** Per-angle room inside the basin mask (5 m clear of its rim), smoothed so the capped shore still curves. */
 function fbLakeCap(a: number): number {
   if (!lakeCap) {
     const raw = new Float32Array(180);
     for (let i = 0; i < 180; i++) {
       const t = (i / 180) * Math.PI * 2; let r = 0;
-      while (r < 60 && forestBasinMaskDist(0 + Math.cos(t) * r, 115 + Math.sin(t) * r) < -5) r += 0.5;
+      while (r < 60 && fbLakeRoom(0 + Math.cos(t) * r, 115 + Math.sin(t) * r) < -5) r += 0.5;
       raw[i] = r;
     }
     lakeCap = new Float32Array(180);
@@ -156,13 +160,28 @@ function segDist(x: number, z: number, ax: number, az: number, bx: number, bz: n
 
 /** Signed distance to the land mask. Negative is inside. */
 export function forestBasinMaskDist(x: number, z: number): number {
-  return naturalMaskDist(forestBasinMaskDistRaw, x, z, 905);
+  return naturalMaskDist(forestBasinMaskDistRaw, x, z, 905, 7);
+}
+
+/**
+ * Irregular glade outline: radius factor by polar angle (low harmonics with a per-glade phase) so each clearing
+ * reads as a lobed, bay-and-headland shape rather than a disc. Only ever grows past the old disc.
+ */
+function gladeLobe(i: number, a: number, camp: boolean): number {
+  const p = i * 2.399;
+  // every term is >= 0, so glades only grow (headlands) and never pull back from the old rim
+  const k = 1 + 0.09 * (1 + Math.sin(3 * a + p)) + 0.05 * (1 + Math.sin(5 * a + 1.7 * p)) + 0.035 * (1 + Math.sin(2 * a - 0.6 * p)) + 0.02 * (1 + Math.sin(7 * a + 2.3 * p));
+  void camp;
+  return k;
 }
 
 /** Geometric mask before the natural edge. */
-export function forestBasinMaskDistRaw(x: number, z: number): number {
+export function forestBasinMaskDistRaw(x: number, z: number, lobes = true): number {
   let d = Infinity;
-  for (const c of DISCS) d = Math.min(d, Math.hypot(x - c.x, z - c.z) - c.r);
+  for (let i = 0; i < DISCS.length; i++) {
+    const c = DISCS[i]!;
+    d = Math.min(d, Math.hypot(x - c.x, z - c.z) - c.r * (lobes ? gladeLobe(i, Math.atan2(z - c.z, x - c.x), c === DISCS[DISCS.length - 1]) : 1));
+  }
   for (const c of CAPS) d = Math.min(d, segDist(x, z, c.ax, c.az, c.bx, c.bz) - c.r);
   return d;
 }
