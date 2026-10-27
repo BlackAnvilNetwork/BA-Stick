@@ -284,6 +284,25 @@ export {
 
 export { ZONE_LINKS, zoneLink, linksFrom, linkUnder, type ZoneLink, type GateHit } from "./zone-links";
 
+export {
+  BASELINE_CLEAR,
+  BASELINE_FIELD_PLANS,
+  baseline as baselineFieldPopulation,
+  baselineHp,
+  baselineSpotProblem,
+  fieldMobDefById,
+  fieldMobDefs,
+  fieldNpcById,
+  fieldNpcDefs,
+  fieldReachable,
+  registerFieldPopulation,
+  unregisterFieldPopulation,
+  type FieldMobDef,
+  type FieldNpcDef,
+  type FieldNpcRole,
+  type FieldPopulationSource,
+} from "./field-population";
+
 export { ZONE_ORIGINS, WORLD_ZONE_IDS, zoneOrigin, zoneWorldBounds, type ZoneOrigin } from "./zone-layout";
 
 export {

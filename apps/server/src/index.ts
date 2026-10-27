@@ -101,6 +101,9 @@ import {
   fieldGateSoftLevel,
   fieldNav,
   fieldStandHeight,
+  fieldMobDefs,
+  fieldNpcById,
+  fieldNpcDefs,
   PVP_BOUNTY_WEI,
 } from "@bellgrave/config";
 import { paleHollowFindPath } from "./nav-grid";
@@ -193,6 +196,8 @@ import {
 import { createPaleHollowMobs, createPaleHollowNodes, relocateGatherNode, type FieldNode } from "./pale-hollow-world";
 import { paleHollowWeatherSnapshot, tickPaleHollowWeather } from "./pale-hollow-weather";
 import { steerMobStep } from "./mob-steer";
+import { inZone, mobGround, mobZoneKey } from "./zone-ground";
+import { chooseEntryPoint } from "./zone-entry";
 import { withinEngageRange } from "./engage-range";
 import { moveInputHeld, shouldDropWalk, walkUntilAfterStep, walkUntilAtArrival } from "./walk-pose";
 import { chaseNeedsReplan, shouldAutoEngage } from "./chase-route";
@@ -532,6 +537,8 @@ type Player = {
 
 type Mob = {
   id: string;
+  /** Zone the mob lives in ("pale_hollow" or a registered field id). */
+  zoneId: string;
   name: string;
   x: number;
   z: number;
@@ -2093,6 +2100,7 @@ function spawnFieldMob(
     hqId?: string | null;
     cloneIds?: string[];
     shinySummoned?: boolean;
+    zoneId?: string;
   },
 ): Mob {
   const level = Math.max(1, opts.level ?? 1);
@@ -2100,11 +2108,13 @@ function spawnFieldMob(
   const mpPool = mobMpForJob(job, level);
   const base = emptyCombatFields();
   const shinyBits = emptyShinyFields();
+  const zoneId = opts.zoneId ?? "pale_hollow";
   return {
     id,
+    zoneId,
     name,
     x,
-    y: paleHollowStandHeight(x, z),
+    y: fieldStandHeight(zoneId, x, z) ?? paleHollowStandHeight(x, z),
     z,
     spawnX: x,
     spawnZ: z,
@@ -2152,6 +2162,28 @@ function spawnFieldMob(
 }
 
 function spawnSegmentAPack(): Mob[] {
+  return [...spawnPaleHollowPack(), ...spawnFieldPacks()];
+}
+
+/** Every registered field's mobs (field-population.ts), one live mob per def. */
+function spawnFieldPacks(): Mob[] {
+  return fieldMobDefs().map((d) =>
+    spawnFieldMob(d.id, d.name, d.x, d.z, d.hp, {
+      aggro: d.aggro,
+      aggroRange: d.aggroRange,
+      linkRange: d.linkRange,
+      drops: d.drops,
+      rareDrops: d.rareDrops,
+      fixedDrops: d.fixedDrops,
+      archetype: d.archetype,
+      job: d.job,
+      level: d.level,
+      zoneId: d.zoneId,
+    }),
+  );
+}
+
+function spawnPaleHollowPack(): Mob[] {
   return createPaleHollowMobs().map((f) =>
     spawnFieldMob(f.id, f.name, f.spawnX, f.spawnZ, f.maxHp, {
       aggro: f.aggro,
@@ -2177,7 +2209,7 @@ function ensureShinyArmy(hq: Mob, wallet: string | null, now: number) {
     const off = formationOffset(hq.facing, i);
     let x = hq.x + off.dx;
     let z = hq.z + off.dz;
-    const placed = paleHollowPlaceOnDryLand(x, z);
+    const placed = mobGround(hq.zoneId).placeOnDry(x, z);
     x = placed.x;
     z = placed.z;
     const id = `${hq.id}-clone-${i}`;
@@ -2196,6 +2228,7 @@ function ensureShinyArmy(hq: Mob, wallet: string | null, now: number) {
       shinyClone: true,
       hqId: hq.id,
       shinySummoned: true,
+      zoneId: hq.zoneId,
     });
     if (wallet) {
       clone.targetId = wallet;
@@ -2234,13 +2267,14 @@ function shinyFleeAfterPlayerKill(hq: Mob, now: number) {
   hq.roamTz = Number.NaN;
   let bestX = hq.spawnX;
   let bestZ = hq.spawnZ;
+  const g = mobGround(hq.zoneId);
   for (let i = 0; i < 12; i++) {
     const ang = Math.random() * Math.PI * 2;
     const r = 18 + Math.random() * 28;
     const tx = hq.x + Math.sin(ang) * r;
     const tz = hq.z + Math.cos(ang) * r;
-    const dry = paleHollowPlaceOnDryLand(tx, tz);
-    if (paleHollowInBuildingClearing(dry.x, dry.z)) continue;
+    const dry = g.placeOnDry(tx, tz);
+    if (g.inClearing(dry.x, dry.z)) continue;
     bestX = dry.x;
     bestZ = dry.z;
     break;
@@ -2250,7 +2284,7 @@ function shinyFleeAfterPlayerKill(hq: Mob, now: number) {
   hq.facing = facingTo(hq.x, hq.z, bestX, bestZ);
   hq.fleeUntil = now + SHINY_FLEE_RELOCATE_MS;
   hq.anim = "walk";
-  const mid = paleHollowPlaceOnDryLand(
+  const mid = g.placeOnDry(
     hq.x + (bestX - hq.x) * 0.45,
     hq.z + (bestZ - hq.z) * 0.45,
   );
@@ -2259,7 +2293,7 @@ function shinyFleeAfterPlayerKill(hq: Mob, now: number) {
   syncUnitY(hq);
 }
 
-function respawnFieldMobFromDef(slotId: string, defName: string, spawnX: number, spawnZ: number): Mob {
+function respawnFieldMobFromDef(slotId: string, defName: string, spawnX: number, spawnZ: number, zoneId = "pale_hollow"): Mob {
   const def = lookupMobDef(slotId);
   const promote = !!def && rollShinyPromotion();
   if (!def) {
@@ -2269,9 +2303,11 @@ function respawnFieldMobFromDef(slotId: string, defName: string, spawnX: number,
       drops: [],
       archetype: "pale_slime",
       level: 1,
+      zoneId,
     });
   }
   const mob = spawnFieldMob(def.id, def.name, spawnX, spawnZ, def.hp, {
+    zoneId: (def as { zoneId?: string }).zoneId ?? zoneId,
     aggro: def.aggro,
     aggroRange: def.aggroRange,
     linkRange: def.linkRange,
@@ -2295,6 +2331,22 @@ function respawnFieldMobFromDef(slotId: string, defName: string, spawnX: number,
 function findMob(id: string | null | undefined): Mob | undefined {
   if (!id) return undefined;
   return mobs.find((m) => m.id === id);
+}
+
+/** Zone key a unit lives in for mob purposes: a registered field, else Pale Hollow. */
+function unitZone(zoneId: string | null | undefined): string {
+  return mobZoneKey(zoneId);
+}
+
+/** Mobs in the same zone as `zoneId` (field coordinates overlap Pale Hollow's). */
+function mobsIn(zoneId: string | null | undefined): Mob[] {
+  return inZone(mobs, zoneId);
+}
+
+/** A mob by id, only if it shares the given zone. */
+function findMobIn(zoneId: string | null | undefined, id: string | null | undefined): Mob | undefined {
+  const m = findMob(id);
+  return m && m.zoneId === unitZone(zoneId) ? m : undefined;
 }
 
 function clampToHall(x: number, z: number): { x: number; z: number } {
@@ -2327,9 +2379,20 @@ function crossField(p: Player): boolean {
   if (!applyTravel(p)) return false;
   clearRoute(p);
   syncUnitY(p);
+  if (left !== p.zoneId) dropZoneHate(p);
   const name = ZONES[p.zoneId as keyof typeof ZONES]?.name ?? p.zoneId;
   pushLog(p, `You enter ${name}.`);
   return left !== p.zoneId;
+}
+
+/** Leaving a zone: mobs there forget the player, and the player drops a mob target left behind. */
+function dropZoneHate(p: Player) {
+  const here = unitZone(p.zoneId);
+  for (const m of mobs) {
+    if (m.zoneId !== here && m.targetId === p.wallet) m.targetId = null;
+  }
+  const t = findMob(p.targetId);
+  if (t && t.zoneId !== here) p.targetId = null;
 }
 
 function pullMobOn(mob: Mob, wallet: string, now: number) {
@@ -2364,6 +2427,7 @@ function pullMobOn(mob: Mob, wallet: string, now: number) {
   for (const ally of mobs) {
     if (!ally.alive || ally.id === mob.id) continue;
     if (ally.archetype !== mob.archetype) continue;
+    if (ally.zoneId !== mob.zoneId) continue;
     if (ally.targetId) continue;
     if (dist(mob.x, mob.z, ally.x, ally.z) > link) continue;
     ally.targetId = wallet;
@@ -2400,9 +2464,10 @@ function tickMobRoam(mob: Mob, now: number, dt: number) {
           ? 0.75
           : 1.2;
 
+  const g = mobGround(mob.zoneId);
   const pickWaypoint = (towardHome: boolean) => {
     if (towardHome) {
-      const dry = paleHollowPlaceOnDryLand(mob.spawnX, mob.spawnZ);
+      const dry = g.placeOnDry(mob.spawnX, mob.spawnZ);
       mob.roamTx = dry.x;
       mob.roamTz = dry.z;
     } else {
@@ -2410,15 +2475,15 @@ function tickMobRoam(mob: Mob, now: number, dt: number) {
       const r = 1.4 + Math.random() * homeR;
       let tx = mob.spawnX + Math.sin(ang) * r;
       let tz = mob.spawnZ + Math.cos(ang) * r;
-      const dry = paleHollowPlaceOnDryLand(tx, tz);
+      const dry = g.placeOnDry(tx, tz);
       tx = dry.x;
       tz = dry.z;
-      if (paleHollowInBuildingClearing(tx, tz) || paleHollowInOpenWater(tx, tz)) {
-        const home = paleHollowPlaceOnDryLand(mob.spawnX, mob.spawnZ);
+      if (g.inClearing(tx, tz) || g.inOpenWater(tx, tz)) {
+        const home = g.placeOnDry(mob.spawnX, mob.spawnZ);
         tx = home.x;
         tz = home.z;
       }
-      const c = clampToHall(tx, tz);
+      const c = g.clamp(tx, tz);
       mob.roamTx = c.x;
       mob.roamTz = c.z;
     }
@@ -2450,9 +2515,9 @@ function tickMobRoam(mob: Mob, now: number, dt: number) {
   const step = speed * dt;
   const nx = mob.x + Math.sin(mob.facing) * step;
   const nz = mob.z + Math.cos(mob.facing) * step;
-  const c = clampPlayerMove(mob.x, mob.z, nx, nz);
+  const c = g.clampMove(mob.x, mob.z, nx, nz);
   // Don't walk into water, river walls, or buildings while roaming
-  if (!paleHollowWalkable(c.x, c.z) || paleHollowInBuildingClearing(c.x, c.z)) {
+  if (!g.walkable(c.x, c.z) || g.inClearing(c.x, c.z)) {
     pickWaypoint(false);
     mob.anim = "idle";
     return;
@@ -2801,8 +2866,7 @@ function closeViaRoute(p: Player, toX: number, toZ: number) {
 
 /** Keep closing on engaged target until in swing range. */
 function chaseEngaged(p: Player) {
-  if (offPaleHollow(p.zoneId)) return;
-  const mob = findMob(p.targetId);
+  const mob = findMobIn(p.zoneId, p.targetId);
   if (mob && mob.alive) {
     const d = dist(p.x, p.z, mob.x, mob.z);
     if (d <= MELEE_RANGE) return;
@@ -2836,7 +2900,7 @@ function angleDelta(a: number, b: number): number {
 function findNextHostile(p: Player, excludeId?: string): Mob | null {
   let best: Mob | null = null;
   let bestScore = Infinity;
-  for (const m of mobs) {
+  for (const m of mobsIn(p.zoneId)) {
     if (!m.alive || m.id === excludeId) continue;
     const d = dist(p.x, p.z, m.x, m.z);
     if (d > AUTO_ENGAGE_RANGE) continue;
@@ -3079,8 +3143,9 @@ function snapshotFor(p: Player): SnapshotMessage {
     });
   }
   // Corpses only while fading — then they vanish until MOB_RESPAWN_MS later.
+  const snapZone = unitZone(p.zoneId);
   for (const mob of mobs) {
-    if (offPaleHollow(p.zoneId)) break;
+    if (mob.zoneId !== snapZone) continue;
     const nowMob = Date.now();
     if (!mob.alive) {
       if (!mob.deathAt || nowMob >= mob.deathAt + MOB_DEATH_FADE_MS) continue;
@@ -3149,6 +3214,32 @@ function snapshotFor(p: Player): SnapshotMessage {
       buffs: emptyBuffs(),
       npcRole: npc.role,
     });
+  }
+
+  // Field NPCs (field-population.ts) — served only to players in that field.
+  if (snapZone !== "pale_hollow") {
+    for (const u of fieldNpcDefs(snapZone)) {
+      if (!inInterest(u.x, u.z)) continue;
+      units.push({
+        id: u.id,
+        kind: "npc",
+        name: u.name,
+        x: u.x,
+        y: fieldStandHeight(snapZone, u.x, u.z) ?? 0,
+        z: u.z,
+        facing: u.facing,
+        hp: 1,
+        maxHp: 1,
+        mp: 0,
+        maxMp: 0,
+        tp: 0,
+        anim: "idle",
+        animUntil: 0,
+        targetId: null,
+        buffs: emptyBuffs(),
+        npcRole: u.role,
+      });
+    }
   }
 
   const nowSnap = Date.now();
@@ -3783,7 +3874,8 @@ function rewardMobKill(p: Player, mob: Mob, now: number) {
     if (hq) hq.cloneIds = hq.cloneIds.filter((id) => id !== mob.id);
   }
   rememberPlayer(p);
-  if (p.zoneId === "pale_hollow" && p.hollowQuest.active.length > 0) {
+  // Pale Hollow tasks count Pale Hollow kills only (field mobs share coordinates, not ids).
+  if (p.zoneId === "pale_hollow" && mob.zoneId === "pale_hollow" && p.hollowQuest.active.length > 0) {
     const prev = p.hollowQuest.active;
     const next = paleHollowQuestCredit(
       { zoneId: "pale_hollow", active: prev, done: p.hollowQuest.done },
@@ -3873,24 +3965,22 @@ function downPlayer(p: Player, now: number): "reraise" | "fallen" | "already" {
   return outcome;
 }
 
-/** char/enter may name a baked zone and a walkable point. Anything else stays put. */
+/**
+ * char/enter may name a zone. The server picks the point (#124): the saved
+ * position when the character is already in that zone and standing on
+ * walkable ground, otherwise the zone's spawn. Client x/z are ignored.
+ */
 function placeEnteredZone(p: Player, msg: { zone?: string; x?: number; z?: number }) {
-  const entered = fieldById(msg.zone);
-  if (!entered && msg.zone !== "pale_hollow") return;
-  const x = msg.x ?? entered?.spawn.x ?? p.x;
-  const z = msg.z ?? entered?.spawn.z ?? p.z;
-  const walk = entered?.walkable ?? paleHollowWalkable;
-  if (!walk(x, z)) {
-    pushLog(p, "That spot is blocked.");
-    return;
-  }
-  p.zoneId = msg.zone!;
-  p.x = x;
-  p.z = z;
-  if (entered && msg.x == null && msg.z == null) p.facing = entered.spawn.facing;
+  const spot = chooseEntryPoint({ zoneId: p.zoneId, x: p.x, z: p.z, facing: p.facing }, msg.zone);
+  if (!spot) return;
+  p.zoneId = spot.zoneId;
+  p.x = spot.x;
+  p.z = spot.z;
+  p.facing = spot.facing;
   syncUnitY(p);
   clearRoute(p);
   p.targetId = null;
+  dropZoneHate(p);
 }
 
 function respawnAtHub(p: Player, reason = "You fallâ€¦ and wake in the Shard Dwellings.") {
@@ -4371,7 +4461,7 @@ function handleAbility(p: Player, id: AbilityId, targetId?: string) {
       pushLog: (pl, msg) => pushLog(pl as Player, msg),
       stopRest: (pl, reason) => stopRest(pl as Player, reason),
       facingTo,
-      findMob: (tid) => findMob(tid ?? null) ?? null,
+      findMob: (tid) => findMobIn(p.zoneId, tid ?? null) ?? null,
       onMobKill: (pl, m) => {
         const mob = findMob(m.id);
         if (mob) rewardMobKill(pl as Player, mob, now);
@@ -4404,8 +4494,8 @@ function handleAbility(p: Player, id: AbilityId, targetId?: string) {
       pushLog: (pl, msg) => pushLog(pl as Player, msg),
       stopRest: (pl, reason) => stopRest(pl as Player, reason),
       facingTo,
-      findMob: (tid) => findMob(tid ?? null) ?? null,
-      allMobs: () => mobs,
+      findMob: (tid) => findMobIn(p.zoneId, tid ?? null) ?? null,
+      allMobs: () => mobsIn(p.zoneId),
       onMobKill: (pl, m) => {
         const mob = findMob(m.id);
         if (mob) rewardMobKill(pl as Player, mob, now);
@@ -4421,8 +4511,8 @@ function handleAbility(p: Player, id: AbilityId, targetId?: string) {
       pushLog: (pl, msg) => pushLog(pl as Player, msg),
       stopRest: (pl, reason) => stopRest(pl as Player, reason),
       facingTo,
-      findMob: (tid) => findMob(tid ?? null) ?? null,
-      allMobs: () => mobs,
+      findMob: (tid) => findMobIn(p.zoneId, tid ?? null) ?? null,
+      allMobs: () => mobsIn(p.zoneId),
       allPlayers: () => partyAllies(p),
       onMobKill: (pl, m) => {
         const mob = findMob(m.id);
@@ -4438,7 +4528,7 @@ function handleAbility(p: Player, id: AbilityId, targetId?: string) {
       pushLog: (pl, msg) => pushLog(pl as Player, msg),
       stopRest: (pl, reason) => stopRest(pl as Player, reason),
       facingTo,
-      findMob: (tid) => findMob(tid ?? null) ?? null,
+      findMob: (tid) => findMobIn(p.zoneId, tid ?? null) ?? null,
       allPlayers: () => partyAllies(p),
       dist,
     });
@@ -4449,8 +4539,8 @@ function handleAbility(p: Player, id: AbilityId, targetId?: string) {
       pushLog: (pl, msg) => pushLog(pl as Player, msg),
       stopRest: (pl, reason) => stopRest(pl as Player, reason),
       facingTo,
-      findMob: (tid) => (findMob(tid ?? null) ?? null) as import("./sorcerer-abilities").SorcererMob | null,
-      allMobs: () => mobs as import("./sorcerer-abilities").SorcererMob[],
+      findMob: (tid) => (findMobIn(p.zoneId, tid ?? null) ?? null) as import("./sorcerer-abilities").SorcererMob | null,
+      allMobs: () => mobsIn(p.zoneId) as import("./sorcerer-abilities").SorcererMob[],
       onMobKill: (pl, m) => {
         const mob = findMob(m.id);
         if (mob) rewardMobKill(pl as Player, mob, now);
@@ -4465,8 +4555,8 @@ function handleAbility(p: Player, id: AbilityId, targetId?: string) {
       pushLog: (pl, msg) => pushLog(pl as Player, msg),
       stopRest: (pl, reason) => stopRest(pl as Player, reason),
       facingTo,
-      findMob: (tid) => findMob(tid ?? null) ?? null,
-      allMobs: () => mobs,
+      findMob: (tid) => findMobIn(p.zoneId, tid ?? null) ?? null,
+      allMobs: () => mobsIn(p.zoneId),
       allPlayers: () => partyAllies(p),
       onMobKill: (pl, m) => {
         const mob = findMob(m.id);
@@ -4485,8 +4575,8 @@ function handleAbility(p: Player, id: AbilityId, targetId?: string) {
         pushLog: (pl, msg) => pushLog(pl as unknown as Player, msg),
         stopRest: (pl, reason) => stopRest(pl as unknown as Player, reason),
         facingTo,
-        findMob: (tid) => findMob(tid ?? null) ?? null,
-        allMobs: () => mobs,
+        findMob: (tid) => findMobIn(p.zoneId, tid ?? null) ?? null,
+        allMobs: () => mobsIn(p.zoneId),
         allPlayers: () => partyAllies(p),
         onMobKill: (pl, m) => {
           const mob = findMob(m.id);
@@ -4499,7 +4589,7 @@ function handleAbility(p: Player, id: AbilityId, targetId?: string) {
     return;
   }
   if (isTimAbilityId(id) && playerHasJob(p, "time_mage")) {
-    resolveTimAbility(p, id, targetId, mobs, now, {
+    resolveTimAbility(p, id, targetId, mobsIn(p.zoneId), now, {
       pushLog: (msg) => pushLog(p, msg),
       stopRest: (reason) => stopRest(p, reason),
       facingTo,
@@ -4516,9 +4606,10 @@ function handleAbility(p: Player, id: AbilityId, targetId?: string) {
   pushLog(p, "You cannot use that ability.");
 }
 
-function speakHollowQuest(p: Player, npcId: string, nx: number, nz: number, name: string) {
-  if (p.zoneId !== "pale_hollow") return;
-  if (!canReachTownNpc(p.x, p.z, nx, nz)) {
+function speakHollowQuest(p: Player, npcId: string, nx: number, nz: number, name: string, zoneId = "pale_hollow") {
+  if (unitZone(p.zoneId) !== zoneId) return;
+  const reach = zoneId === "pale_hollow" ? canReachTownNpc(p.x, p.z, nx, nz) : dist(p.x, p.z, nx, nz) <= NPC_INTERACT_RANGE;
+  if (!reach) {
     pushLog(p, `Move closer to speak with ${name}.`);
     return;
   }
@@ -4537,7 +4628,30 @@ function speakHollowQuest(p: Player, npcId: string, nx: number, nz: number, name
   send(p.ws, { type: "npc/dialog", npcId, title: result.title, body: result.body });
 }
 
+/** Field NPCs (field-population.ts): same zone and within reach, then they speak. */
+function speakFieldNpc(p: Player, npcId: string): boolean {
+  const npc = fieldNpcById(npcId);
+  if (!npc) return false;
+  if (unitZone(p.zoneId) !== npc.zoneId) {
+    pushLog(p, "Nothing happens.");
+    return true;
+  }
+  if (dist(p.x, p.z, npc.x, npc.z) > NPC_INTERACT_RANGE) {
+    pushLog(p, `Move closer to speak with ${npc.name}.`);
+    return true;
+  }
+  p.facing = facingTo(p.x, p.z, npc.x, npc.z);
+  send(p.ws, { type: "npc/dialog", npcId: npc.id, title: npc.name, body: npc.lines ?? "…" });
+  return true;
+}
+
 function handleNpcInteract(p: Player, npcId: string) {
+  if (speakFieldNpc(p, npcId)) return;
+  // Everything below lives in Pale Hollow; field coordinates overlap it, so check the zone.
+  if (unitZone(p.zoneId) !== "pale_hollow") {
+    pushLog(p, "Nothing happens.");
+    return;
+  }
   // Party storage chest — stub until bank/storage inventory ships.
   if (npcId === PH_STORAGE_CHEST.id) {
     if (!canReachTownNpc(p.x, p.z, PH_STORAGE_CHEST.x, PH_STORAGE_CHEST.z)) {
@@ -5185,8 +5299,7 @@ function playerSwing(p: Player, now: number) {
     playerSwingPvp(p, foe, now);
     return;
   }
-  if (offPaleHollow(p.zoneId)) return;
-  const mob = findMob(p.targetId);
+  const mob = findMobIn(p.zoneId, p.targetId);
   if (!mob || !mob.alive) return;
   const d = dist(p.x, p.z, mob.x, mob.z);
   if (d > MELEE_RANGE) return;
@@ -5565,7 +5678,7 @@ function mobSwing(mob: Mob, now: number) {
 
   const focusCandidates: MobFocusCandidate[] = [];
   for (const p of players.values()) {
-    if (p.zoneId && p.zoneId !== "pale_hollow") continue;
+    if (unitZone(p.zoneId) !== mob.zoneId) continue;
     // Ghost Step — invisible to chase / aggro
     if (now < p.ghostStepUntil) continue;
     if (p.hp <= 0) continue;
@@ -5607,7 +5720,7 @@ function mobSwing(mob: Mob, now: number) {
       const speed = 2.2 * (1 - Math.max(swingSlow, grav));
       const step = (speed * TICK_MS) / 1000;
       // Walkability-aware chase (#73): slide along banks instead of crossing water.
-      const s = steerMobStep(mob.x, mob.z, nearest.x, nearest.z, step);
+      const s = steerMobStep(mob.x, mob.z, nearest.x, nearest.z, step, mobGround(mob.zoneId));
       if (s.moved) {
         mob.x = s.x;
         mob.z = s.z;
@@ -5916,7 +6029,7 @@ function tickSimBody() {
       const idx = mobs.indexOf(mob);
       // Drop any leftover clones from a prior shiny life before resetting the slot.
       if (mob.shiny) despawnShinyClones(mob, now);
-      mobs[idx] = respawnFieldMobFromDef(mob.id, mob.name, mob.spawnX, mob.spawnZ);
+      mobs[idx] = respawnFieldMobFromDef(mob.id, mob.name, mob.spawnX, mob.spawnZ, mob.zoneId);
     }
     if (now >= mob.slowUntil) mob.swingPenalty = 0;
     if (now >= mob.gravityUntil) mob.gravityPct = 0;
@@ -6091,8 +6204,9 @@ function tickSimBody() {
       const step = 2.2 * dt;
       const nx = mob.x + Math.sin(mob.facing) * step;
       const nz = mob.z + Math.cos(mob.facing) * step;
-      const c = clampPlayerMove(mob.x, mob.z, nx, nz);
-      if (!paleHollowWalkable(c.x, c.z) || paleHollowInBuildingClearing(c.x, c.z)) {
+      const fg = mobGround(mob.zoneId);
+      const c = fg.clampMove(mob.x, mob.z, nx, nz);
+      if (!fg.walkable(c.x, c.z) || fg.inClearing(c.x, c.z)) {
         // Nudge off obstacles instead of snapping against bounds each tick.
         mob.facing += (Math.random() > 0.5 ? 1 : -1) * (0.55 + Math.random() * 0.5);
       } else if (Math.hypot(c.x - mob.x, c.z - mob.z) < 1e-4) {
@@ -6134,7 +6248,7 @@ function tickSimBody() {
           const step = Math.min(dForm, 3.4 * dt);
           const nx = mob.x + ((tx - mob.x) / dForm) * step;
           const nz = mob.z + ((tz - mob.z) / dForm) * step;
-          const c = clampPlayerMove(mob.x, mob.z, nx, nz);
+          const c = mobGround(mob.zoneId).clampMove(mob.x, mob.z, nx, nz);
           mob.x = c.x;
           mob.z = c.z;
           syncUnitY(mob);
@@ -6163,7 +6277,7 @@ function tickSimBody() {
       let nearest: Player | null = null;
       let best = mob.aggroRange ?? 4;
       for (const pl of players.values()) {
-        if (pl.zoneId && pl.zoneId !== "pale_hollow") continue;
+        if (unitZone(pl.zoneId) !== mob.zoneId) continue;
         if (now < pl.ghostStepUntil) continue;
         const d = dist(mob.x, mob.z, pl.x, pl.z);
         if (d > best) continue;
@@ -6977,7 +7091,7 @@ function onMessage(ws: WebSocket, data: string) {
       void handleCraft(p, msg.itemId).catch(() => failAction(p, "Craft"));
       break;
     case "engage": {
-      const mob = findMob(msg.targetId);
+      const mob = findMobIn(p.zoneId, msg.targetId);
       const foe = !mob ? playerByIdOrName(String(msg.targetId ?? "")) : undefined;
       if (mob && mob.alive && !withinEngageRange(p.x, p.z, mob.x, mob.z)) {
         // #62: no pulling or hate on mobs across the map.
