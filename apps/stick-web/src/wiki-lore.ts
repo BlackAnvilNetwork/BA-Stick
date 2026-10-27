@@ -71,7 +71,7 @@ export const LORE_PAGES: LorePage[] = [
     title: "Mayflower and its people",
     lines: [
       "On Pale Hollow's eastern spur, past the scout encampment, a humble town of makers has grown into the Shard's broken fragments. The first settlers came in May, tools on their backs, and found the valley full of wildflowers; they named the town for it. Ask where they came from, and the elders change the subject.",
-      "- Wenna Gatesmoke, Herald of the Scout Gate: reads the Crown's news each morning and minds the signal fires. \"Crown's own news, read fair.\"",
+      "- Wenna Gatesmoke, Herald of the Scout Gate: stands at the Emberwatch fire, reads the Crown's news each morning, and minds the signal fires. \"Crown's own news, read fair.\"",
       "- Old Orrin Haltmark, Shard Elder of the Elder's Stair: tells visitors the story of the Crown Spire. \"Come back after dark and I'll tell you what everyone forgot.\"",
       "- Brann Coldiron, Craft Master of the Eightfold: master of the eight craft halls, smithing to cooking. \"Bank the fire low and strike it true.\"",
       "- Maudry Saltpenny, Provisioner of Tally Row: buys your log stacks, sells your supplies, keeps honest scales. \"That's the Crown's price, and I'll not cheat you on it.\"",

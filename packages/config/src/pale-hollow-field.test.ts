@@ -28,6 +28,26 @@ import {
   paleHollowQuestTalk,
 } from "./pale-hollow-field.ts";
 
+function canWalk(from: { x: number; z: number }, to: { x: number; z: number }): boolean {
+  const key = (x: number, z: number) => `${x},${z}`;
+  const q: [number, number][] = [[Math.round(from.x), Math.round(from.z)]];
+  const seen = new Set<string>([key(q[0]![0], q[0]![1])]);
+  while (q.length > 0) {
+    const [x, z] = q.pop()!;
+    if (Math.hypot(x - to.x, z - to.z) <= 1.5) return true;
+    for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+      const nx = x + dx;
+      const nz = z + dz;
+      if (nx < -90 || nx > -10 || nz < 250 || nz > 330) continue;
+      const id = key(nx, nz);
+      if (seen.has(id) || !paleHollowWalkable(nx, nz)) continue;
+      seen.add(id);
+      q.push([nx, nz]);
+    }
+  }
+  return false;
+}
+
 function inRect(
   x: number,
   z: number,
@@ -38,7 +58,7 @@ function inRect(
 
 describe("pale hollow field", () => {
   it("seats 226 dry spawns with room between them", () => {
-    assert.equal(PH_ALL_MOBS.length, 227);
+    assert.equal(PH_ALL_MOBS.length, 233);
     const linked = new Set(["hollow_scavenger", "ruin_dweller", "shard_wight"]);
     for (let i = 0; i < PH_ALL_MOBS.length; i++) {
       const a = PH_ALL_MOBS[i]!;
@@ -67,6 +87,37 @@ describe("pale hollow field", () => {
       if (linked.has(a.archetype) && a.id !== "ph-camp-dog" && a.id !== "ph-clay-crab") {
         assert.ok(neighbor <= 12, a.id);
       }
+    }
+  });
+
+  it("keeps Skirt of the Camp on the grass around Emberwatch", () => {
+    const wenna = { x: -50.5, z: 301.5 };
+    const skirt = PH_QUESTS.find((q) => q.id === "ph-skirt")!;
+    assert.match(skirt.offer, /Emberwatch/);
+    assert.equal(skirt.offer.includes("south of the dwellings"), false);
+    assert.equal(skirt.mobIds.length, 6);
+    const seen = new Set(skirt.mobIds);
+    assert.equal(seen.size, 6);
+    for (const id of skirt.mobIds) {
+      const mob = PH_ALL_MOBS.find((m) => m.id === id)!;
+      assert.equal(mob.name, "Dust Hare");
+      assert.equal(paleHollowWalkable(mob.x, mob.z), true, id);
+      assert.ok(Math.hypot(mob.x - wenna.x, mob.z - wenna.z) <= 40, id);
+    }
+    const hare = PH_ALL_MOBS.find((m) => m.id === "ph-hare-1")!;
+    assert.equal(hare.x, 152);
+    assert.equal(hare.z, 56);
+    const boar = PH_ALL_MOBS.find((m) => m.id === "ph-boar-7")!;
+    assert.equal(boar.x, 82);
+    assert.equal(boar.z, 282);
+    const dog = PH_ALL_MOBS.find((m) => m.id === "ph-camp-dog")!;
+    assert.equal(dog.x, 168);
+    assert.equal(dog.z, 208);
+    const start = { x: -53, z: 297 };
+    assert.equal(canWalk(start, wenna), true, "wenna");
+    for (const id of skirt.mobIds) {
+      const mob = PH_ALL_MOBS.find((m) => m.id === id)!;
+      assert.equal(canWalk(start, mob), true, id);
     }
   });
 
