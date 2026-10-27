@@ -36,7 +36,7 @@ pnpm dev
 1. **Connect Wallet** — injected extension or Reown AppKit
 2. **Create character** — pick appearance + job; claim starter kit
 3. Campaign world (see [`docs/world.md`](docs/world.md)):
-   - **Pale Hollow** ↔ The Shard Dwellings → **Ashlands** ↔ Obsidia → **Slagpits** ↔ The Great Filter → **Bellmarsh** ↔ Belltower Keep → **Throne Approach** ↔ Citadel of KEK
+   - **Pale Hollow** ↔ The Shard Dwellings → **Ashlands** ↔ Obsidia → **Slagpits** ↔ The Great Filter → **Bellmarsh** ↔ Belltower Keep → **Throne Approach** ↔ the Citadel of the Seven Seats
    - Areas: mobs + harvest nodes · Cities: NPCs + quests · Craft while progressing
 4. Clear the campaign, then replay with enemies scaled to your level
 5. The Citadel hall fight vs Petrified Guard still runs (hotbar keys **1–4**)

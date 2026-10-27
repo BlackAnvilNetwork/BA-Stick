@@ -8,7 +8,7 @@ Campaign path (collect → craft → clear → **replay with level-scaled enemie
 | 2 | **Ashlands** | 21–40 | **Obsidia** | Ash Dust |
 | 3 | **Slagpits** | 41–60 | **The Great Filter** | Slag Dust |
 | 4 | **Bellmarsh** | 61–80 | **Belltower Keep** | Bell Dust |
-| 5 | **Throne Approach** | 81–100 | **Citadel of KEK** | Throne Dust |
+| 5 | **Throne Approach** | 81–100 | **the Citadel of the Seven Seats** | Throne Dust |
 
 ## Rules
 

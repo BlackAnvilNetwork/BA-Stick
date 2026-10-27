@@ -341,9 +341,9 @@ def describe(name: str, kind: str, craft_skill: str | None, lv: int | None, obta
         return f"{name}. {obtained}."
     n = name.lower()
     if kind == "base":
-        return f"{name} scavenged across Bellgrave's zones. A crafting precursor."
+        return f"{name} scavenged across Pale Hollow and the lands beyond. A crafting precursor."
     if kind in ("intermediate", "filler"):
-        return f"{name} — synth material from Bellgrave crafts. Feed into higher recipes."
+        return f"{name} — worked stock from Mayflower's benches. Feed it into higher recipes."
     if kind == "bait":
         return f"{name} for dry troughs and mooring pools. Attracts fossil fish."
     if kind == "consumable":
@@ -351,9 +351,16 @@ def describe(name: str, kind: str, craft_skill: str | None, lv: int | None, obta
             return f"{name}. Distilled ash tonic that restores magic."
         if "potion" in n:
             return f"{name}. Desiccated grain medicine for wounds of the dead city."
-        return f"{name}. Consumable from Bellgrave's alchemy and cookfires."
+        return f"{name}. Brewed and cooked over the stills and cookfires of Mayflower."
     tier = "ruined" if (lv or 0) < 20 else "tempered" if (lv or 0) < 60 else "throne-forged"
-    return f"{name}. {tier.capitalize()} gear from Bellgrave's craft halls."
+    return f"{name}. {TIER_LINES.get(tier, tier.capitalize() + " gear from Mayflower's forges.")}"
+
+
+TIER_LINES = {
+    "ruined": "Ruined gear dug from the ashes of Anvilhold's fallen craft halls.",
+    "tempered": "Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
+    "throne-forged": "Throne-forged gear, wrought in the old Anvilhold manner the New Kings tried to burn away.",
+}
 
 
 def consume_effect(name: str, kind: str, stats: dict) -> dict | None:
