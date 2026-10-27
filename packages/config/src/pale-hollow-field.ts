@@ -1,12 +1,10 @@
 /**
- * Pale Hollow field for the enlarged basin: 226 grid spawns plus tutorial mobs,
+ * Pale Hollow field for the enlarged basin: 226 grid spawns, six Emberwatch hares, plus tutorial mobs,
  * a roof only where the ground already has a job, and a short kill quest at each roof.
  * Spacing is deterministic. Linked packs keep one neighbor inside 12 m.
  */
 import {
   PH_ASH_ROAD,
-  PH_CAMP_SHIFT_X,
-  PH_CAMP_SHIFT_Z,
   PH_HUB_SPAWN,
   PH_QUARRY_CUT,
   PH_SEAM_TUNNEL,
@@ -258,6 +256,17 @@ function stamp(band: Band, spots: { x: number; z: number }[], prefix: string): P
 
 const placed: { x: number; z: number }[] = [];
 
+/** Dust Hares for Skirt of the Camp, in the grass around Wenna at Emberwatch. */
+const EMBER_HARE_SPOTS = [
+  { x: -66, z: 286 },
+  { x: -56, z: 284 },
+  { x: -46, z: 286 },
+  { x: -38, z: 278 },
+  { x: -62, z: 276 },
+  { x: -50, z: 274 },
+];
+placed.push(...EMBER_HARE_SPOTS);
+
 const banks = grid(-20, 90, 40, 230, 3, (x, z) => paleHollowBiome(x, z) === "riverbank");
 const slimes = take(banks, 20, 16, placed, 2);
 
@@ -302,6 +311,11 @@ export const PH_ALL_MOBS: PaleHollowMobDef[] = [
     { id: "hare", name: "Dust Hare", archetype: "dust_hare", levels: [1, 1, 2], hp: [45, 45, 55], aggro: "safe", aggroRange: 0, drops: ["soft-pelt", "pale-dust", "desiccated-hide"], job: "rogue" },
     skirt,
     "ph-hare",
+  ),
+  ...stamp(
+    { id: "hare", name: "Dust Hare", archetype: "dust_hare", levels: [1, 1, 2], hp: [45, 45, 55], aggro: "safe", aggroRange: 0, drops: ["soft-pelt", "pale-dust", "desiccated-hide"], job: "rogue" },
+    EMBER_HARE_SPOTS,
+    "ph-ember-hare",
   ),
   ...stamp(
     { id: "slime", name: "Pale Slime", archetype: "pale_slime", levels: [3, 4, 5], hp: [80, 95, 110], aggro: "proximity", aggroRange: 4, drops: ["slime-oil", "pale-dust"], job: "sorcerer" },
@@ -428,8 +442,6 @@ function nearest(prefix: string, x: number, z: number, n: number): string[] {
     .map((m) => m.id);
 }
 
-const herald = { x: 0.4 + PH_CAMP_SHIFT_X, z: 5 + PH_CAMP_SHIFT_Z };
-
 export const PH_FIELD_NPCS: readonly PaleHollowFieldNpc[] = PH_YARDS.map((y) => {
   const spec = YARD_NPC[y.id]!;
   return { id: spec.id, name: spec.name, x: y.x + 2.2, z: y.z + 1.4, facing: y.yaw, role: "quest_giver" as const, yardId: y.id };
@@ -440,12 +452,12 @@ export const PH_QUESTS: readonly PaleHollowQuestDef[] = [
     id: "ph-skirt",
     npcId: "npc-ph-herald",
     title: "Skirt of the Camp",
-    offer: "Hares have moved onto the grass south of the dwellings. Bring down six of the nearest.",
-    progress: "The skirt is still full of hares.",
-    done: "The grass by the camp is clear.",
+    offer: "Hares are in the grass around Emberwatch. Bring down six of the nearest.",
+    progress: "The grass around Emberwatch is still full of hares.",
+    done: "The grass by Emberwatch is clear.",
     gold: 25,
     need: 6,
-    mobIds: nearest("ph-hare", herald.x, herald.z, 6),
+    mobIds: EMBER_HARE_SPOTS.map((_, i) => `ph-ember-hare-${i + 1}`),
   },
   ...PH_YARDS.map((y) => {
     const spec = YARD_NPC[y.id]!;

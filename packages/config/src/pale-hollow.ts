@@ -1811,7 +1811,7 @@ export function paleHollowMobJob(
 
 export const PH_HUB_NPCS = [
   { id: "npc-shard-elder", name: "Shard Elder", x: -2.2 + PH_CAMP_SHIFT_X, z: 2.8 + PH_CAMP_SHIFT_Z, facing: Math.PI / 2, role: "guide" as const },
-  { id: "npc-ph-herald", name: "Campaign Herald", x: 0.4 + PH_CAMP_SHIFT_X, z: 5.0 + PH_CAMP_SHIFT_Z, facing: Math.PI, role: "quest_giver" as const },
+  { id: "npc-ph-herald", name: "Campaign Herald", x: -50.5, z: 301.5, facing: Math.PI, role: "quest_giver" as const },
   { id: "npc-ph-job-master", name: "Job Master", x: 3.5 + PH_CAMP_SHIFT_X, z: 2.5 + PH_CAMP_SHIFT_Z, facing: -Math.PI / 2, role: "job_master" as const },
   { id: "npc-ph-crafter", name: "Craft Master", x: 3.8 + PH_CAMP_SHIFT_X, z: -0.2 + PH_CAMP_SHIFT_Z, facing: -Math.PI / 2, role: "crafter" as const },
   { id: "npc-ph-vendor", name: "Provisioner", x: -3.8 + PH_CAMP_SHIFT_X, z: -0.2 + PH_CAMP_SHIFT_Z, facing: Math.PI / 2, role: "vendor" as const },

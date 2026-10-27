@@ -4767,7 +4767,7 @@ function handleNpcInteract(p: Player, npcId: string) {
     }
     const bodies: Record<string, string> = {
       guide:
-        "The grass south of the dwellings is thick with hares. The Herald has a count if you want work.",
+        "Wenna is at the Emberwatch fire. The grass around her is thick with hares, and she has a count if you want work.",
       crafter:
         "Bring base mats from the field. Synth at my bench — I'll rank your crafts as you work.",
       vendor:
