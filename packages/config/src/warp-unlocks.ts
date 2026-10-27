@@ -1,4 +1,4 @@
-import { PH_HUB_SPAWN, PH_OUTDOOR_SPAWN } from "./pale-hollow";
+import { PH_HUB, PH_HUB_SPAWN, PH_OUTDOOR_SPAWN } from "./pale-hollow";
 
 /** New characters. East of the lake, facing east. The Scout Gate spawn stays put. */
 export const PH_START_SPAWN = { x: -53, z: 297, facing: Math.PI / 2 } as const;
@@ -10,6 +10,19 @@ export const PH_WARP_CIRCLES = [
 
 export type WarpCircle = (typeof PH_WARP_CIRCLES)[number];
 export type WarpCircleId = WarpCircle["id"];
+
+/**
+ * The Mayflower Ring sits inside the Scout Gate room on purpose.
+ * `PH_HUB` is that room's interact rectangle, not a warp exclusion.
+ * Any other ring that touches the room fails the overlap check.
+ */
+export const PH_WARP_HUB_EXCEPTIONS = ["warp-mayflower"] as const;
+
+export function warpCircleHitsHub(circle: { x: number; z: number; r: number }): boolean {
+  const x = Math.max(PH_HUB.minX, Math.min(circle.x, PH_HUB.maxX));
+  const z = Math.max(PH_HUB.minZ, Math.min(circle.z, PH_HUB.maxZ));
+  return Math.hypot(circle.x - x, circle.z - z) <= circle.r;
+}
 /** `hub` is the Scout Gate, for characters saved before Emberwatch. */
 export type RespawnHome = "emberwatch" | "mayflower" | "hub";
 
