@@ -351,7 +351,7 @@ def describe(name: str, kind: str, craft_skill: str | None, lv: int | None, obta
             return f"{name}. Distilled ash tonic that restores magic."
         if "potion" in n:
             return f"{name}. Desiccated grain medicine for wounds of the dead city."
-        return f"{name}. Brewed and cooked over the stills and cookfires of Mayflower."
+        return f"{name}. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires."
     tier = "ruined" if (lv or 0) < 20 else "tempered" if (lv or 0) < 60 else "throne-forged"
     return f"{name}. {TIER_LINES.get(tier, tier.capitalize() + " gear from Mayflower's forges.")}"
 

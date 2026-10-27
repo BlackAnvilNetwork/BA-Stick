@@ -360,7 +360,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 18,
     "name": "Bronze Arrow×12",
-    "description": "Bronze Arrow×12. Brewed and cooked over the stills and cookfires of Mayflower.",
+    "description": "Bronze Arrow×12. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/bronze-arrow.png",
     "slug": "bronze-arrow",
     "kind": "consumable",
@@ -396,7 +396,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 21,
     "name": "Mythril Arrow×12",
-    "description": "Mythril Arrow×12. Brewed and cooked over the stills and cookfires of Mayflower.",
+    "description": "Mythril Arrow×12. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/mythril-arrow.png",
     "slug": "mythril-arrow",
     "kind": "consumable",
@@ -417,7 +417,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 25,
     "name": "Darksteel Bolt×12",
-    "description": "Darksteel Bolt×12. Brewed and cooked over the stills and cookfires of Mayflower.",
+    "description": "Darksteel Bolt×12. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/darksteel-bolt.png",
     "slug": "darksteel-bolt",
     "kind": "consumable",
@@ -594,7 +594,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 37,
     "name": "Steel Arrow×12",
-    "description": "Steel Arrow×12. Brewed and cooked over the stills and cookfires of Mayflower.",
+    "description": "Steel Arrow×12. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/steel-arrow.png",
     "slug": "steel-arrow",
     "kind": "consumable",
@@ -615,7 +615,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 38,
     "name": "Orichalcum Bolt×12",
-    "description": "Orichalcum Bolt×12. Brewed and cooked over the stills and cookfires of Mayflower.",
+    "description": "Orichalcum Bolt×12. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/orichalcum-bolt.png",
     "slug": "orichalcum-bolt",
     "kind": "consumable",
@@ -886,7 +886,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 62,
     "name": "Bone Arrow×12",
-    "description": "Bone Arrow×12. Brewed and cooked over the stills and cookfires of Mayflower.",
+    "description": "Bone Arrow×12. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/bone-arrow.png",
     "slug": "bone-arrow",
     "kind": "consumable",
@@ -4279,7 +4279,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 324,
     "name": "Ash AGI Elixir",
-    "description": "Ash AGI Elixir. Brewed and cooked over the stills and cookfires of Mayflower.",
+    "description": "Ash AGI Elixir. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/ash-agi-elixir.png",
     "slug": "ash-agi-elixir",
     "kind": "consumable",
@@ -4551,7 +4551,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 342,
     "name": "Slag Binding Agent",
-    "description": "Slag Binding Agent. Brewed and cooked over the stills and cookfires of Mayflower.",
+    "description": "Slag Binding Agent. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/slag-binding-agent.png",
     "slug": "slag-binding-agent",
     "kind": "consumable",
@@ -4676,7 +4676,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 350,
     "name": "Slag Burn Salve",
-    "description": "Slag Burn Salve. Brewed and cooked over the stills and cookfires of Mayflower.",
+    "description": "Slag Burn Salve. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/slag-burn-salve.png",
     "slug": "slag-burn-salve",
     "kind": "consumable",
@@ -4696,7 +4696,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 351,
     "name": "Slag STR Elixir",
-    "description": "Slag STR Elixir. Brewed and cooked over the stills and cookfires of Mayflower.",
+    "description": "Slag STR Elixir. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/slag-str-elixir.png",
     "slug": "slag-str-elixir",
     "kind": "consumable",
@@ -4767,7 +4767,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 355,
     "name": "Slag INT Elixir",
-    "description": "Slag INT Elixir. Brewed and cooked over the stills and cookfires of Mayflower.",
+    "description": "Slag INT Elixir. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/slag-int-elixir.png",
     "slug": "slag-int-elixir",
     "kind": "consumable",
@@ -4789,7 +4789,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 356,
     "name": "Slag AGI Elixir",
-    "description": "Slag AGI Elixir. Brewed and cooked over the stills and cookfires of Mayflower.",
+    "description": "Slag AGI Elixir. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/slag-agi-elixir.png",
     "slug": "slag-agi-elixir",
     "kind": "consumable",
@@ -4865,7 +4865,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 360,
     "name": "Bell Binding Agent",
-    "description": "Bell Binding Agent. Brewed and cooked over the stills and cookfires of Mayflower.",
+    "description": "Bell Binding Agent. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/bell-binding-agent.png",
     "slug": "bell-binding-agent",
     "kind": "consumable",
@@ -4885,7 +4885,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 361,
     "name": "Bell Burn Salve",
-    "description": "Bell Burn Salve. Brewed and cooked over the stills and cookfires of Mayflower.",
+    "description": "Bell Burn Salve. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/bell-burn-salve.png",
     "slug": "bell-burn-salve",
     "kind": "consumable",
@@ -4905,7 +4905,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 362,
     "name": "Bell STR Elixir",
-    "description": "Bell STR Elixir. Brewed and cooked over the stills and cookfires of Mayflower.",
+    "description": "Bell STR Elixir. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/bell-str-elixir.png",
     "slug": "bell-str-elixir",
     "kind": "consumable",
@@ -4927,7 +4927,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 363,
     "name": "Bell INT Elixir",
-    "description": "Bell INT Elixir. Brewed and cooked over the stills and cookfires of Mayflower.",
+    "description": "Bell INT Elixir. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/bell-int-elixir.png",
     "slug": "bell-int-elixir",
     "kind": "consumable",
@@ -4949,7 +4949,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 364,
     "name": "Bell AGI Elixir",
-    "description": "Bell AGI Elixir. Brewed and cooked over the stills and cookfires of Mayflower.",
+    "description": "Bell AGI Elixir. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/bell-agi-elixir.png",
     "slug": "bell-agi-elixir",
     "kind": "consumable",
@@ -5081,7 +5081,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 374,
     "name": "Throne Binding Agent",
-    "description": "Throne Binding Agent. Brewed and cooked over the stills and cookfires of Mayflower.",
+    "description": "Throne Binding Agent. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/throne-binding-agent.png",
     "slug": "throne-binding-agent",
     "kind": "consumable",
@@ -5159,7 +5159,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 379,
     "name": "Antidote",
-    "description": "Antidote. Brewed and cooked over the stills and cookfires of Mayflower.",
+    "description": "Antidote. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/antidote.png",
     "slug": "antidote",
     "kind": "consumable",
@@ -5179,7 +5179,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 380,
     "name": "Burn Salve",
-    "description": "Burn Salve. Brewed and cooked over the stills and cookfires of Mayflower.",
+    "description": "Burn Salve. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/burn-salve.png",
     "slug": "burn-salve",
     "kind": "consumable",
@@ -5199,7 +5199,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 381,
     "name": "STR Elixir",
-    "description": "STR Elixir. Brewed and cooked over the stills and cookfires of Mayflower.",
+    "description": "STR Elixir. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/str-elixir.png",
     "slug": "str-elixir",
     "kind": "consumable",
@@ -5221,7 +5221,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 382,
     "name": "VIT Elixir",
-    "description": "VIT Elixir. Brewed and cooked over the stills and cookfires of Mayflower.",
+    "description": "VIT Elixir. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/vit-elixir.png",
     "slug": "vit-elixir",
     "kind": "consumable",
@@ -5263,7 +5263,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 384,
     "name": "AGI Elixir",
-    "description": "AGI Elixir. Brewed and cooked over the stills and cookfires of Mayflower.",
+    "description": "AGI Elixir. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/agi-elixir.png",
     "slug": "agi-elixir",
     "kind": "consumable",
@@ -5319,7 +5319,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 387,
     "name": "Echo Drops",
-    "description": "Echo Drops. Brewed and cooked over the stills and cookfires of Mayflower.",
+    "description": "Echo Drops. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/echo-drops.png",
     "slug": "echo-drops",
     "kind": "consumable",
@@ -5339,7 +5339,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 388,
     "name": "Eye Drops",
-    "description": "Eye Drops. Brewed and cooked over the stills and cookfires of Mayflower.",
+    "description": "Eye Drops. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/eye-drops.png",
     "slug": "eye-drops",
     "kind": "consumable",
@@ -5359,7 +5359,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 389,
     "name": "Binding Agent",
-    "description": "Binding Agent. Brewed and cooked over the stills and cookfires of Mayflower.",
+    "description": "Binding Agent. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/binding-agent.png",
     "slug": "binding-agent",
     "kind": "consumable",
@@ -5379,7 +5379,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 390,
     "name": "Focus Tincture",
-    "description": "Focus Tincture. Brewed and cooked over the stills and cookfires of Mayflower.",
+    "description": "Focus Tincture. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/focus-tincture.png",
     "slug": "focus-tincture",
     "kind": "consumable",
@@ -5399,7 +5399,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 391,
     "name": "Scroll: Cure",
-    "description": "Scroll: Cure. Brewed and cooked over the stills and cookfires of Mayflower.",
+    "description": "Scroll: Cure. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/scroll-cure.png",
     "slug": "scroll-cure",
     "kind": "consumable",
@@ -5419,7 +5419,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 392,
     "name": "DEX Elixir",
-    "description": "DEX Elixir. Brewed and cooked over the stills and cookfires of Mayflower.",
+    "description": "DEX Elixir. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/dex-elixir.png",
     "slug": "dex-elixir",
     "kind": "consumable",
@@ -5441,7 +5441,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 393,
     "name": "INT Elixir",
-    "description": "INT Elixir. Brewed and cooked over the stills and cookfires of Mayflower.",
+    "description": "INT Elixir. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/int-elixir.png",
     "slug": "int-elixir",
     "kind": "consumable",
@@ -5463,7 +5463,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 394,
     "name": "Silent Oil",
-    "description": "Silent Oil. Brewed and cooked over the stills and cookfires of Mayflower.",
+    "description": "Silent Oil. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/silent-oil.png",
     "slug": "silent-oil",
     "kind": "consumable",
@@ -5483,7 +5483,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 396,
     "name": "Prism Powder",
-    "description": "Prism Powder. Brewed and cooked over the stills and cookfires of Mayflower.",
+    "description": "Prism Powder. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/prism-powder.png",
     "slug": "prism-powder",
     "kind": "consumable",
@@ -5503,7 +5503,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 397,
     "name": "Enhancing Elixir",
-    "description": "Enhancing Elixir. Brewed and cooked over the stills and cookfires of Mayflower.",
+    "description": "Enhancing Elixir. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/enhancing-elixir.png",
     "slug": "enhancing-elixir",
     "kind": "consumable",
@@ -5557,7 +5557,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 400,
     "name": "Scroll: Slow",
-    "description": "Scroll: Slow. Brewed and cooked over the stills and cookfires of Mayflower.",
+    "description": "Scroll: Slow. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/scroll-slow.png",
     "slug": "scroll-slow",
     "kind": "consumable",
@@ -5577,7 +5577,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 401,
     "name": "Scroll: Fire",
-    "description": "Scroll: Fire. Brewed and cooked over the stills and cookfires of Mayflower.",
+    "description": "Scroll: Fire. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/scroll-fire.png",
     "slug": "scroll-fire",
     "kind": "consumable",
@@ -5597,7 +5597,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 403,
     "name": "Scroll: Quicken",
-    "description": "Scroll: Quicken. Brewed and cooked over the stills and cookfires of Mayflower.",
+    "description": "Scroll: Quicken. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/scroll-quicken.png",
     "slug": "scroll-quicken",
     "kind": "consumable",
@@ -5637,7 +5637,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 406,
     "name": "Remedy",
-    "description": "Remedy. Brewed and cooked over the stills and cookfires of Mayflower.",
+    "description": "Remedy. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/remedy.png",
     "slug": "remedy",
     "kind": "consumable",
@@ -5657,7 +5657,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 407,
     "name": "Enfeebling Tincture",
-    "description": "Enfeebling Tincture. Brewed and cooked over the stills and cookfires of Mayflower.",
+    "description": "Enfeebling Tincture. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/enfeebling-tincture.png",
     "slug": "enfeebling-tincture",
     "kind": "consumable",
@@ -5677,7 +5677,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 408,
     "name": "Fire Cluster",
-    "description": "Fire Cluster. Brewed and cooked over the stills and cookfires of Mayflower.",
+    "description": "Fire Cluster. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/fire-cluster.png",
     "slug": "fire-cluster",
     "kind": "consumable",
@@ -5697,7 +5697,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 409,
     "name": "Water Cluster",
-    "description": "Water Cluster. Brewed and cooked over the stills and cookfires of Mayflower.",
+    "description": "Water Cluster. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/water-cluster.png",
     "slug": "water-cluster",
     "kind": "consumable",
@@ -5717,7 +5717,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 410,
     "name": "Throne Focus Tincture",
-    "description": "Throne Focus Tincture. Brewed and cooked over the stills and cookfires of Mayflower.",
+    "description": "Throne Focus Tincture. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/throne-focus-tincture.png",
     "slug": "throne-focus-tincture",
     "kind": "consumable",
@@ -5757,7 +5757,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 413,
     "name": "Throne INT Elixir",
-    "description": "Throne INT Elixir. Brewed and cooked over the stills and cookfires of Mayflower.",
+    "description": "Throne INT Elixir. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/throne-int-elixir.png",
     "slug": "throne-int-elixir",
     "kind": "consumable",
@@ -5779,7 +5779,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 414,
     "name": "Throne AGI Elixir",
-    "description": "Throne AGI Elixir. Brewed and cooked over the stills and cookfires of Mayflower.",
+    "description": "Throne AGI Elixir. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/throne-agi-elixir.png",
     "slug": "throne-agi-elixir",
     "kind": "consumable",
@@ -5801,7 +5801,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 417,
     "name": "Throne Panacea",
-    "description": "Throne Panacea. Brewed and cooked over the stills and cookfires of Mayflower.",
+    "description": "Throne Panacea. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/throne-panacea.png",
     "slug": "throne-panacea",
     "kind": "consumable",
@@ -5821,7 +5821,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 418,
     "name": "Dried Ration",
-    "description": "Dried Ration. Brewed and cooked over the stills and cookfires of Mayflower.",
+    "description": "Dried Ration. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/dried-ration.png",
     "slug": "dried-ration",
     "kind": "consumable",
@@ -5855,7 +5855,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 420,
     "name": "Dustbread",
-    "description": "Dustbread. Brewed and cooked over the stills and cookfires of Mayflower.",
+    "description": "Dustbread. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/dustbread.png",
     "slug": "dustbread",
     "kind": "consumable",
@@ -5890,7 +5890,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 422,
     "name": "Fossil Grill",
-    "description": "Fossil Grill. Brewed and cooked over the stills and cookfires of Mayflower.",
+    "description": "Fossil Grill. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/fossil-grill.png",
     "slug": "fossil-grill",
     "kind": "consumable",
@@ -5964,7 +5964,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 428,
     "name": "Claycrab Stew",
-    "description": "Claycrab Stew. Brewed and cooked over the stills and cookfires of Mayflower.",
+    "description": "Claycrab Stew. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/claycrab-stew.png",
     "slug": "claycrab-stew",
     "kind": "consumable",
@@ -5985,7 +5985,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 431,
     "name": "Stone Scale Soup",
-    "description": "Stone Scale Soup. Brewed and cooked over the stills and cookfires of Mayflower.",
+    "description": "Stone Scale Soup. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/stone-scale-soup.png",
     "slug": "stone-scale-soup",
     "kind": "consumable",
@@ -6006,7 +6006,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 439,
     "name": "Carp Steak",
-    "description": "Carp Steak. Brewed and cooked over the stills and cookfires of Mayflower.",
+    "description": "Carp Steak. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/carp-steak.png",
     "slug": "carp-steak",
     "kind": "consumable",
@@ -6037,7 +6037,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 442,
     "name": "Mage Biscuits",
-    "description": "Mage Biscuits. Brewed and cooked over the stills and cookfires of Mayflower.",
+    "description": "Mage Biscuits. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/mage-biscuits.png",
     "slug": "mage-biscuits",
     "kind": "consumable",
@@ -6058,7 +6058,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 444,
     "name": "Rogue Jerky",
-    "description": "Rogue Jerky. Brewed and cooked over the stills and cookfires of Mayflower.",
+    "description": "Rogue Jerky. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/rogue-jerky.png",
     "slug": "rogue-jerky",
     "kind": "consumable",
@@ -6079,7 +6079,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 450,
     "name": "Eel Skewer",
-    "description": "Eel Skewer. Brewed and cooked over the stills and cookfires of Mayflower.",
+    "description": "Eel Skewer. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/eel-skewer.png",
     "slug": "eel-skewer",
     "kind": "consumable",
@@ -6099,7 +6099,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 453,
     "name": "Koi Sashimi",
-    "description": "Koi Sashimi. Brewed and cooked over the stills and cookfires of Mayflower.",
+    "description": "Koi Sashimi. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/koi-sashimi.png",
     "slug": "koi-sashimi",
     "kind": "consumable",
@@ -6120,7 +6120,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 456,
     "name": "Glass Eel Noodles",
-    "description": "Glass Eel Noodles. Brewed and cooked over the stills and cookfires of Mayflower.",
+    "description": "Glass Eel Noodles. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/glass-eel-noodles.png",
     "slug": "glass-eel-noodles",
     "kind": "consumable",
@@ -6140,7 +6140,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 466,
     "name": "Throne Feast",
-    "description": "Throne Feast. Brewed and cooked over the stills and cookfires of Mayflower.",
+    "description": "Throne Feast. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/throne-feast.png",
     "slug": "throne-feast",
     "kind": "consumable",
@@ -6169,7 +6169,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 471,
     "name": "Coronation Banquet",
-    "description": "Coronation Banquet. Brewed and cooked over the stills and cookfires of Mayflower.",
+    "description": "Coronation Banquet. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/coronation-banquet.png",
     "slug": "coronation-banquet",
     "kind": "consumable",
