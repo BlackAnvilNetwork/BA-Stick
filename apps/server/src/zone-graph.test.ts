@@ -10,6 +10,8 @@ import {
   fieldNav,
   paleHollowClampMove,
   paleHollowWalkable,
+  PLAYER_SPEED,
+  TICK_MS,
 } from "@bellgrave/config";
 import { paleHollowFindPath } from "./nav-grid";
 
@@ -71,19 +73,21 @@ test("a player can walk from each arrival to each exit with the server's path an
     for (const s of starts) {
       let x = s.x;
       let z = s.z;
-      for (let leg = 0; leg < 40; leg++) {
+      for (let leg = 0; leg < 6; leg++) {
         if (x >= gate.minX && x <= gate.maxX && z >= gate.minZ && z <= gate.maxZ) break;
         const path = paleHollowFindPath(x, z, gx, gz, fieldNav(l.from));
         if (!path.length) break;
+        let stalled = false;
         for (const n of path) {
+          if (stalled) break; // the server drops the route here; the next click plans again from this spot
           for (let i = 0; i < 4000; i++) {
             const d = Math.hypot(n.x - x, n.z - z);
             if (d < 0.2) break;
-            const s = Math.min(d, 0.25); // about one server tick of walking
+            const s = Math.min(d, (PLAYER_SPEED * TICK_MS) / 1000); // one server tick of walking
             const tx = x + ((n.x - x) / d) * s;
             const tz = z + ((n.z - z) / d) * s;
             const c = fieldClampMove(l.from, x, z, tx, tz) ?? paleHollowClampMove(x, z, tx, tz);
-            if (Math.hypot(c.x - x, c.z - z) < 1e-4) break; // server stops against a blocker
+            if (Math.hypot(c.x - x, c.z - z) < 1e-4) { stalled = true; break; } // server stops against a blocker
             x = c.x;
             z = c.z;
           }
