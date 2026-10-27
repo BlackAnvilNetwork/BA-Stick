@@ -24,6 +24,7 @@ import {
 import { formatJobs, ItemCatalogDetails } from "@bellgrave/ui/itemTip";
 import { useMemo, useRef, useState } from "react";
 import { WikiCraftPanel } from "./WikiCraftPanel";
+import { WikiLorePanel } from "./WikiLorePanel";
 import { WikiGearPreview } from "./WikiGearPreview";
 import { gearRonForSlug, gearViewerUrl } from "./wiki-gear";
 
@@ -77,12 +78,18 @@ export function WikiPage({ onClose }: Props) {
           <div>
             <div className="cmd-kicker">Black Anvil</div>
             <h2 className="wiki-title">Wiki</h2>
-            <p className="lok-note">Item catalog (auction house categories) and crafting recipes by skill and level.</p>
+            <p className="lok-note">World lore, item catalog (auction house categories) and crafting recipes by skill and level.</p>
           </div>
           <button type="button" className="cmd-close-btn" onClick={onClose}>
             Close
           </button>
         </header>
+        <section className="wiki-section wiki-lore-section" aria-labelledby="wiki-lore-title">
+          <h3 id="wiki-lore-title" className="wiki-section-title">
+            The world
+          </h3>
+          <WikiLorePanel />
+        </section>
         <section ref={itemSectionRef} className="wiki-section" aria-labelledby="wiki-items-title">
           <h3 id="wiki-items-title" className="wiki-section-title">
             Item wiki
