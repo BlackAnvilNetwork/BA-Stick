@@ -84,19 +84,22 @@ function cellKey(ix: number, iz: number): number {
   return (ix + 1024) * KEY_STRIDE + (iz + 1024);
 }
 
-function lineClear(ax: number, az: number, bx: number, bz: number): boolean {
-  const c = paleHollowClampMove(ax, az, bx, bz);
+type ClampMove = (fx: number, fz: number, tx: number, tz: number) => { x: number; z: number };
+
+/** Straight-line check with the zone's own movement clamp (fields are not Pale Hollow). */
+function lineClear(ax: number, az: number, bx: number, bz: number, move: ClampMove = paleHollowClampMove): boolean {
+  const c = move(ax, az, bx, bz);
   return Math.hypot(c.x - bx, c.z - bz) < 0.25;
 }
 
-function simplify(points: NavPoint[]): NavPoint[] {
+function simplify(points: NavPoint[], move?: ClampMove): NavPoint[] {
   if (points.length <= 2) return points;
   const out: NavPoint[] = [points[0]!];
   let anchor = 0;
   while (anchor < points.length - 1) {
     let next = anchor + 1;
     for (let i = points.length - 1; i > anchor + 1; i--) {
-      if (lineClear(points[anchor]!.x, points[anchor]!.z, points[i]!.x, points[i]!.z)) {
+      if (lineClear(points[anchor]!.x, points[anchor]!.z, points[i]!.x, points[i]!.z, move)) {
         next = i;
         break;
       }
@@ -116,6 +119,8 @@ export type NavZone = {
   bounds: { minX: number; maxX: number; minZ: number; maxZ: number };
   walkable: (x: number, z: number) => boolean;
   clamp: (x: number, z: number) => { x: number; z: number };
+  /** Movement clamp for straight-line checks. Defaults to Pale Hollow's. */
+  clampMove?: ClampMove;
 };
 
 const PALE_HOLLOW_NAV: NavZone = {
@@ -200,7 +205,7 @@ export function paleHollowFindPath(
     : { x: goalCell.ix * CELL, z: goalCell.iz * CELL };
 
   if (Math.hypot(goalPoint.x - from.x, goalPoint.z - from.z) < 0.2) return [];
-  if (lineClear(from.x, from.z, goalPoint.x, goalPoint.z)) return [goalPoint];
+  if (lineClear(from.x, from.z, goalPoint.x, goalPoint.z, zone.clampMove)) return [goalPoint];
 
   const goalK = cellKey(goalCell.ix, goalCell.iz);
   const gScore = new Map<number, number>();
@@ -271,9 +276,9 @@ export function paleHollowFindPath(
 
   if (found && exactWalk) {
     const tail = chain[chain.length - 1];
-    if (tail && lineClear(tail.x, tail.z, to.x, to.z)) {
+    if (tail && lineClear(tail.x, tail.z, to.x, to.z, zone.clampMove)) {
       chain[chain.length - 1] = { x: to.x, z: to.z };
-    } else if (lineClear(from.x, from.z, to.x, to.z)) {
+    } else if (lineClear(from.x, from.z, to.x, to.z, zone.clampMove)) {
       return [{ x: to.x, z: to.z }];
     }
   } else if (!found) {
@@ -288,6 +293,6 @@ export function paleHollowFindPath(
   }
 
   const withStart = [{ x: from.x, z: from.z }, ...chain.filter((p) => Math.hypot(p.x - from.x, p.z - from.z) > 0.3)];
-  const smooth = simplify(withStart);
+  const smooth = simplify(withStart, zone.clampMove);
   return smooth.slice(1).filter((p) => zone.walkable(p.x, p.z));
 }

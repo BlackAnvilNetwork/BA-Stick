@@ -374,10 +374,24 @@ export function fieldNav(zoneId: string | undefined): {
   bounds: ZoneField["bounds"];
   walkable: ZoneField["walkable"];
   clamp: ZoneField["clamp"];
+  /** Straight walk with no sliding: every sample on the segment is walkable. */
+  clampMove: ZoneField["clampMove"];
 } | undefined {
   const field = fieldById(zoneId);
   if (!field) return undefined;
-  return { bounds: field.bounds, walkable: field.walkable, clamp: field.clamp };
+  const straight = (fx: number, fz: number, tx: number, tz: number) => {
+    const dist = Math.hypot(tx - fx, tz - fz);
+    const steps = Math.max(1, Math.ceil(dist / 0.25));
+    let last = { x: fx, z: fz };
+    for (let i = 1; i <= steps; i++) {
+      const t = i / steps;
+      const c = { x: fx + (tx - fx) * t, z: fz + (tz - fz) * t };
+      if (!field.walkable(c.x, c.z)) return last;
+      last = c;
+    }
+    return last;
+  };
+  return { bounds: field.bounds, walkable: field.walkable, clamp: field.clamp, clampMove: straight };
 }
 
 export function fieldGateSoftLevel(zoneId: string | undefined, x: number, z: number): number | null | undefined {
