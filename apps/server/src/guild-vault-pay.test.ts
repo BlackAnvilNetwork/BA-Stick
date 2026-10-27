@@ -41,7 +41,7 @@ import {
 } from "./guild-safes";
 import { payGuildVault } from "./guild-vault-pay";
 import { postCertifiedBatch, resetRootAnchorForTests, setChallengeClockForTests } from "./root-anchor";
-import { resolveAnvilBin, resolveForgeBin, startThrowawayAnvil, SUPPORT_ANVIL_K0 } from "./support-anvil";
+import { resolveForgeBin, startThrowawayAnvil, SUPPORT_ANVIL_K0, supportAnvilAvailable } from "./support-anvil";
 
 const require = createRequire(import.meta.url);
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -143,7 +143,8 @@ describe("guild vault payout", { concurrency: false }, () => {
 
   test(
     "anvil pays the predicted Mark Safe and four undeployed Guild Wallets",
-    { skip: !resolveAnvilBin(), timeout: 180_000 },
+    // anvil alone is not enough: forge-std lives in gitignored lib/ and CI installs it first.
+    { skip: !supportAnvilAvailable, timeout: 180_000 },
     async () => {
       reset();
       const anvil = await startThrowawayAnvil();
