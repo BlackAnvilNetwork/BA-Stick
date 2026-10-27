@@ -17,8 +17,8 @@ import { paleHollowFindPath } from "./nav-grid";
 
 const START = "pale_hollow";
 const PLAYABLE = [START, ...Object.keys(ZONE_FIELDS)];
-/** Gates drawn in a field that lead nowhere yet. A new unlinked open gate fails the test. */
-const CLOSED_GATES = new Set(["forest_basin:north-pass", "forest_basin:west-gap", "forest_basin:northwest-gap", "forest_basin:southwest-gap"]);
+/** Open gates allowed to lead nowhere. Empty: every gate is either blocked or linked (#124). */
+const CLOSED_GATES = new Set<string>();
 
 function gateOf(zone: string, gate: string) {
   return zone === START ? PH_ASH_ROAD : ZONE_FIELDS[zone]?.gates.find((g) => g.id === gate);
@@ -61,6 +61,15 @@ test("open gates are wired, and arrivals land inside bounds", () => {
     if (l.to === START) continue;
     const b = ZONE_FIELDS[l.to]!.bounds;
     assert.ok(l.spawn.x >= b.minX && l.spawn.x <= b.maxX && l.spawn.z >= b.minZ && l.spawn.z <= b.maxZ, `${l.id} lands outside bounds`);
+  }
+});
+
+test("no gate is open without a destination (#124)", () => {
+  for (const [id, f] of Object.entries(ZONE_FIELDS)) {
+    for (const g of f.gates) {
+      if (g.blocked) continue;
+      assert.ok(g.destZone, `${id}:${g.id} is open with no destination`);
+    }
   }
 });
 

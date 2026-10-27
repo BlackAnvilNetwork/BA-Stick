@@ -11,7 +11,9 @@
  *    falling to ~0.45 m downriver, ridge crests 8–10 m, hard cap 11.5 m.
  * 4. Widths: dry necks 8 m, brook necks 12 m, valley spine ~56 m,
  *    main river 10 m, brooks 2.6 m, trail 3.3 m, bridge deck 3.9 m.
- * 5. Exits: four soft gates on the fingers, one blocked gate on the north shore.
+ * 5. Exits: the south lip (Hollow Road) and the southeast gap (Spur Road) are open.
+ *    The north pass and the west, northwest and southwest gaps are closed by
+ *    deadfall (blocked) until they have somewhere to lead.
  *    The south lip hands off to hollow_road (back to Pale Hollow). The southeast
  *    lip hands off to spur_road. The other lips are still closed.
  * 6. Landmarks: `FB_MAP_LABELS`.
@@ -95,9 +97,9 @@ export type ForestBasinGate = {
 
 export const FB_GATES: readonly ForestBasinGate[] = [
   { id: "north-pass", minX: -28, maxX: -16, minZ: 128, maxZ: 140, softLevel: 15, blocked: true, destZone: null },
-  { id: "west-gap", minX: -132, maxX: -120, minZ: 40, maxZ: 52, softLevel: 8, blocked: false, destZone: null },
-  { id: "northwest-gap", minX: -48, maxX: -36, minZ: 148, maxZ: 160, softLevel: 10, blocked: false, destZone: null },
-  { id: "southwest-gap", minX: -112, maxX: -100, minZ: -128, maxZ: -116, softLevel: 12, blocked: false, destZone: null },
+  { id: "west-gap", minX: -132, maxX: -120, minZ: 40, maxZ: 52, softLevel: 8, blocked: true, destZone: null },
+  { id: "northwest-gap", minX: -48, maxX: -36, minZ: 148, maxZ: 160, softLevel: 10, blocked: true, destZone: null },
+  { id: "southwest-gap", minX: -112, maxX: -100, minZ: -128, maxZ: -116, softLevel: 12, blocked: true, destZone: null },
   { id: "southeast-gap", minX: 124, maxX: 136, minZ: -120, maxZ: -108, softLevel: 12, blocked: false, destZone: "spur_road" },
   {
     id: "south-lip",

@@ -1,9 +1,4 @@
-import {
-  clampPaleHollow,
-  paleHollowClampMove,
-  paleHollowInBuildingClearing,
-  paleHollowWalkable,
-} from "@bellgrave/config";
+import { PALE_HOLLOW_GROUND, type MobGround } from "./zone-ground";
 
 /**
  * Chase steering for field mobs (#73).
@@ -21,19 +16,19 @@ const DEFLECTIONS = [0.45, 0.9, 1.35, 1.75];
 
 export type SteerResult = { x: number; z: number; heading: number; moved: boolean };
 
-function blockedAt(x: number, z: number, fromInClearing: boolean): boolean {
-  if (!paleHollowWalkable(x, z)) return true;
+function blockedAt(g: MobGround, x: number, z: number, fromInClearing: boolean): boolean {
+  if (!g.walkable(x, z)) return true;
   // Don't chase into building clearings, but let a mob already inside one walk out.
-  return !fromInClearing && paleHollowInBuildingClearing(x, z);
+  return !fromInClearing && g.inClearing(x, z);
 }
 
-function tryStep(x: number, z: number, heading: number, step: number, fromInClearing: boolean): { x: number; z: number } | null {
+function tryStep(g: MobGround, x: number, z: number, heading: number, step: number, fromInClearing: boolean): { x: number; z: number } | null {
   const nx = x + Math.sin(heading) * step;
   const nz = z + Math.cos(heading) * step;
-  const c = paleHollowClampMove(x, z, nx, nz);
+  const c = g.clampMove(x, z, nx, nz);
   // Clamp stopped us short: that line runs into water or a wall.
   if (Math.hypot(c.x - x, c.z - z) < step * 0.5) return null;
-  if (blockedAt(c.x, c.z, fromInClearing)) return null;
+  if (blockedAt(g, c.x, c.z, fromInClearing)) return null;
   return c;
 }
 
@@ -42,17 +37,24 @@ function tryStep(x: number, z: number, heading: number, step: number, fromInClea
  * an unwalkable tile. A mob that is already on bad ground (spawned or knocked
  * there) may take the direct step so it can get out.
  */
-export function steerMobStep(x: number, z: number, tx: number, tz: number, step: number): SteerResult {
+export function steerMobStep(
+  x: number,
+  z: number,
+  tx: number,
+  tz: number,
+  step: number,
+  g: MobGround = PALE_HOLLOW_GROUND,
+): SteerResult {
   const direct = Math.atan2(tx - x, tz - z);
   if (step <= 0) return { x, z, heading: direct, moved: false };
 
-  if (!paleHollowWalkable(x, z)) {
-    const c = clampPaleHollow(x + Math.sin(direct) * step, z + Math.cos(direct) * step);
+  if (!g.walkable(x, z)) {
+    const c = g.clamp(x + Math.sin(direct) * step, z + Math.cos(direct) * step);
     return { x: c.x, z: c.z, heading: direct, moved: true };
   }
 
-  const fromInClearing = paleHollowInBuildingClearing(x, z);
-  const straight = tryStep(x, z, direct, step, fromInClearing);
+  const fromInClearing = g.inClearing(x, z);
+  const straight = tryStep(g, x, z, direct, step, fromInClearing);
   if (straight) return { x: straight.x, z: straight.z, heading: direct, moved: true };
 
   let best: SteerResult | null = null;
@@ -60,7 +62,7 @@ export function steerMobStep(x: number, z: number, tx: number, tz: number, step:
   for (const off of DEFLECTIONS) {
     for (const sign of [1, -1]) {
       const heading = direct + off * sign;
-      const c = tryStep(x, z, heading, step, fromInClearing);
+      const c = tryStep(g, x, z, heading, step, fromInClearing);
       if (!c) continue;
       const d = Math.hypot(tx - c.x, tz - c.z);
       if (d < bestD - 1e-6) {

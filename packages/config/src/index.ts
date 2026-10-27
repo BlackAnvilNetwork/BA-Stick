@@ -284,6 +284,25 @@ export {
 
 export { ZONE_LINKS, zoneLink, linksFrom, linkUnder, type ZoneLink, type GateHit } from "./zone-links";
 
+export {
+  BASELINE_CLEAR,
+  BASELINE_FIELD_PLANS,
+  baseline as baselineFieldPopulation,
+  baselineHp,
+  baselineSpotProblem,
+  fieldMobDefById,
+  fieldMobDefs,
+  fieldNpcById,
+  fieldNpcDefs,
+  fieldReachable,
+  registerFieldPopulation,
+  unregisterFieldPopulation,
+  type FieldMobDef,
+  type FieldNpcDef,
+  type FieldNpcRole,
+  type FieldPopulationSource,
+} from "./field-population";
+
 export { ZONE_ORIGINS, WORLD_ZONE_IDS, zoneOrigin, zoneWorldBounds, type ZoneOrigin } from "./zone-layout";
 
 export {
@@ -343,7 +362,7 @@ export {
 
 /**
  * Zone catalog — music URL loops; omit / undefined music = keep previous track.
- * Field zones = areas; hub zones = cities. `palace_hall` aliases Citadel of KEK (MVP slice).
+ * Field zones = areas; hub zones = cities. `palace_hall` aliases the Citadel of the Seven Seats (MVP slice).
  */
 export const ZONE_IDS = [
   "palace_hall",
@@ -387,7 +406,7 @@ export type ZoneDef = {
 export const ZONES: Record<ZoneId, ZoneDef> = {
   palace_hall: {
     id: "palace_hall",
-    name: "Citadel of KEK (Hall)",
+    name: "The Citadel of the Seven Seats (Hall)",
     kind: "legacy",
     areaId: "throne_approach",
     cityId: "citadel_of_kek",
@@ -504,7 +523,7 @@ export const ZONES: Record<ZoneId, ZoneDef> = {
   },
   citadel_of_kek: {
     id: "citadel_of_kek",
-    name: "Citadel of KEK",
+    name: "The Citadel of the Seven Seats",
     kind: "city",
     areaId: "throne_approach",
     cityId: "citadel_of_kek",

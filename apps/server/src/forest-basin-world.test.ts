@@ -34,7 +34,7 @@ test("a path from spur camp stays on the basin mask", () => {
   for (const step of path) assert.equal(forestBasinWalkable(step.x, step.z), true);
 });
 
-test("char/enter keeps a forest basin placement", () => {
+test("char/enter still parses a client x/z (the server ignores it; see field-population-server.test.ts)", () => {
   const msg = parseClientMessage({ type: "char/enter", characterId: "c_test", zone: "forest_basin", x: 128, z: 28 });
   assert.ok(msg && msg.type === "char/enter");
   if (msg?.type !== "char/enter") return;

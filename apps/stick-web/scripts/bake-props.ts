@@ -351,7 +351,11 @@ export function forestBasinProps(): Prop[] {
   return out;
 }
 
+let paleHollowPropCache: Prop[] | null = null;
+
+/** Deterministic prop list. Cached so tests and bridge samples share one build. */
 export function paleHollowProps(): Prop[] {
+  if (paleHollowPropCache) return paleHollowPropCache;
   const out: Prop[] = [];
   riverBanks(out);
   hub(out);
@@ -359,6 +363,7 @@ export function paleHollowProps(): Prop[] {
   peaks(out);
   trees(out);
   clutter(out);
+  paleHollowPropCache = out;
   return out;
 }
 
@@ -429,9 +434,10 @@ export function encodeProps(props: Prop[]): Buffer {
  * with config and the renderer's Rust test checks its mesh against it.
  */
 export function bridgeProfileSamples() {
+  const props = paleHollowProps();
   return PH_BRIDGE_SITES.map((site) => {
     const g = paleHollowBridgeGeom(site);
-    const prop = paleHollowProps().find((p) => p.kind === K.bridge && Math.abs(p.x - g.x) < 1e-6 && Math.abs(p.z - g.zWorld) < 1e-6)!;
+    const prop = props.find((p) => p.kind === K.bridge && Math.abs(p.x - g.x) < 1e-6 && Math.abs(p.z - g.zWorld) < 1e-6)!;
     const samples = Array.from({ length: 21 }, (_, i) => {
       const t = i / 20;
       // stay a hair inside the footprint at the ends
