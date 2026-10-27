@@ -43,7 +43,7 @@ import {
 } from "./guild-safes";
 import { PINNED_GNOSIS_LISTING_ADDRESS } from "./production-boot";
 import { postedSlashableBond, resetRootAnchorForTests } from "./root-anchor";
-import { resolveAnvilBin, startThrowawayAnvil, SUPPORT_ANVIL_K0 } from "./support-anvil";
+import { startThrowawayAnvil, SUPPORT_ANVIL_K0, supportAnvilAvailable } from "./support-anvil";
 
 /**
  * Anvil's published default account 1. checkpoint-blob.test.ts already uses
@@ -306,7 +306,7 @@ describe("mark and guild safes", { concurrency: false }, () => {
 
   test(
     "anvil predicts a Safe, deploys it, and the address matches",
-    { skip: !resolveAnvilBin(), timeout: 180_000 },
+    { skip: !supportAnvilAvailable, timeout: 180_000 },
     async () => {
       reset();
       const anvil = await startThrowawayAnvil();

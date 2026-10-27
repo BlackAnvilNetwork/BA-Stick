@@ -882,8 +882,20 @@ function stoneApproach(id: string, end: "L" | "R", g: PaleHollowBridgeGeom): Pal
 /**
  * Packed-dirt corridors from the scout encampment onto each bridge landing,
  * then onward along the north and east corridors. Stone stubs meet the decks.
+ *
+ * Built once. `dryTrail` walks the banks, and prop scatter asks
+ * `paleHollowOnTrail` for every cell — rebuilding this each call is what
+ * made the bake-props tests sit for a quarter hour.
  */
+let paleHollowTrailCache: PaleHollowTrail[] | null = null;
+
 export function paleHollowTrails(): PaleHollowTrail[] {
+  if (paleHollowTrailCache) return paleHollowTrailCache;
+  paleHollowTrailCache = buildPaleHollowTrails();
+  return paleHollowTrailCache;
+}
+
+function buildPaleHollowTrails(): PaleHollowTrail[] {
   const north = trailBridge("hub-north");
   const chalk = trailBridge("chalkworks-corridor");
 
