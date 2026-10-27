@@ -585,7 +585,7 @@ export const CITIES: Record<CityId, CityDef> = {
   },
   citadel_of_kek: {
     id: "citadel_of_kek",
-    name: "Citadel of KEK",
+    name: "The Citadel of the Seven Seats",
     areaId: "throne_approach",
     npcs: [
       ...hubNpcs("citadel_of_kek", "ck"),

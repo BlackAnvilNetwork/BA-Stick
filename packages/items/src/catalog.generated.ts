@@ -7,7 +7,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 1,
     "name": "Ashbeam Staff",
-    "description": "Ashbeam Staff. Ruined gear from Bellgrave's craft halls.",
+    "description": "Ashbeam Staff. Ruined gear dug from the ashes of Anvilhold's fallen craft halls.",
     "icon": "/icons/items/ashbeam-staff.png",
     "slug": "ashbeam-staff",
     "kind": "equipment",
@@ -35,7 +35,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 2,
     "name": "Linen Robe",
-    "description": "Linen Robe. Ruined gear from Bellgrave's craft halls.",
+    "description": "Linen Robe. Ruined gear dug from the ashes of Anvilhold's fallen craft halls.",
     "icon": "/icons/items/linen-robe.png",
     "slug": "linen-robe",
     "kind": "equipment",
@@ -83,7 +83,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 4,
     "name": "Iron Sword",
-    "description": "Iron Sword. Tempered gear from Bellgrave's craft halls.",
+    "description": "Iron Sword. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/iron-sword.png",
     "slug": "iron-sword",
     "kind": "equipment",
@@ -111,7 +111,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 5,
     "name": "Iron Mail",
-    "description": "Iron Mail. Tempered gear from Bellgrave's craft halls.",
+    "description": "Iron Mail. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/iron-mail.png",
     "slug": "iron-mail",
     "kind": "equipment",
@@ -161,7 +161,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 7,
     "name": "Leather Vest",
-    "description": "Leather Vest. Ruined gear from Bellgrave's craft halls.",
+    "description": "Leather Vest. Ruined gear dug from the ashes of Anvilhold's fallen craft halls.",
     "icon": "/icons/items/leather-vest.png",
     "slug": "leather-vest",
     "kind": "equipment",
@@ -214,7 +214,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 9,
     "name": "Scale Harness",
-    "description": "Scale Harness. Tempered gear from Bellgrave's craft halls.",
+    "description": "Scale Harness. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/scale-harness.png",
     "slug": "scale-harness",
     "kind": "equipment",
@@ -240,7 +240,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 10,
     "name": "Bronze Arrowhead×6",
-    "description": "Bronze Arrowhead×6 — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Bronze Arrowhead×6 — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/bronze-arrowhead.png",
     "slug": "bronze-arrowhead",
     "kind": "intermediate",
@@ -255,7 +255,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 11,
     "name": "Iron Arrowhead×6",
-    "description": "Iron Arrowhead×6 — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Iron Arrowhead×6 — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/iron-arrowhead.png",
     "slug": "iron-arrowhead",
     "kind": "intermediate",
@@ -270,7 +270,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 12,
     "name": "Steel Nail×12",
-    "description": "Steel Nail×12 — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Steel Nail×12 — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/steel-nail.png",
     "slug": "steel-nail",
     "kind": "intermediate",
@@ -285,7 +285,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 13,
     "name": "Mythril Arrowhead×6",
-    "description": "Mythril Arrowhead×6 — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Mythril Arrowhead×6 — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/mythril-arrowhead.png",
     "slug": "mythril-arrowhead",
     "kind": "intermediate",
@@ -300,7 +300,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 14,
     "name": "Mythril Nail×12",
-    "description": "Mythril Nail×12 — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Mythril Nail×12 — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/mythril-nail.png",
     "slug": "mythril-nail",
     "kind": "intermediate",
@@ -315,7 +315,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 15,
     "name": "Darksteel Nail×12",
-    "description": "Darksteel Nail×12 — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Darksteel Nail×12 — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/darksteel-nail.png",
     "slug": "darksteel-nail",
     "kind": "intermediate",
@@ -330,7 +330,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 16,
     "name": "Steel Arrowhead×6",
-    "description": "Steel Arrowhead×6 — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Steel Arrowhead×6 — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/steel-arrowhead.png",
     "slug": "steel-arrowhead",
     "kind": "intermediate",
@@ -345,7 +345,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 17,
     "name": "Orichalcum Arrowhead×6",
-    "description": "Orichalcum Arrowhead×6 — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Orichalcum Arrowhead×6 — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/orichalcum-arrowhead.png",
     "slug": "orichalcum-arrowhead",
     "kind": "intermediate",
@@ -360,7 +360,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 18,
     "name": "Bronze Arrow×12",
-    "description": "Bronze Arrow×12. Consumable from Bellgrave's alchemy and cookfires.",
+    "description": "Bronze Arrow×12. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/bronze-arrow.png",
     "slug": "bronze-arrow",
     "kind": "consumable",
@@ -381,7 +381,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 19,
     "name": "Ashbeam Peg×12",
-    "description": "Ashbeam Peg×12 — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Ashbeam Peg×12 — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/ashbeam-peg.png",
     "slug": "ashbeam-peg",
     "kind": "filler",
@@ -396,7 +396,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 21,
     "name": "Mythril Arrow×12",
-    "description": "Mythril Arrow×12. Consumable from Bellgrave's alchemy and cookfires.",
+    "description": "Mythril Arrow×12. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/mythril-arrow.png",
     "slug": "mythril-arrow",
     "kind": "consumable",
@@ -417,7 +417,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 25,
     "name": "Darksteel Bolt×12",
-    "description": "Darksteel Bolt×12. Consumable from Bellgrave's alchemy and cookfires.",
+    "description": "Darksteel Bolt×12. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/darksteel-bolt.png",
     "slug": "darksteel-bolt",
     "kind": "consumable",
@@ -438,7 +438,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 31,
     "name": "Ashbeam Fire Rod",
-    "description": "Ashbeam Fire Rod. Tempered gear from Bellgrave's craft halls.",
+    "description": "Ashbeam Fire Rod. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/ashbeam-fire-rod.png",
     "slug": "ashbeam-fire-rod",
     "kind": "equipment",
@@ -463,7 +463,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 32,
     "name": "Ashbeam Water Rod",
-    "description": "Ashbeam Water Rod. Tempered gear from Bellgrave's craft halls.",
+    "description": "Ashbeam Water Rod. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/ashbeam-water-rod.png",
     "slug": "ashbeam-water-rod",
     "kind": "equipment",
@@ -489,7 +489,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 33,
     "name": "Bloodbeam Thunder Wand",
-    "description": "Bloodbeam Thunder Wand. Tempered gear from Bellgrave's craft halls.",
+    "description": "Bloodbeam Thunder Wand. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/bloodbeam-thunder-wand.png",
     "slug": "bloodbeam-thunder-wand",
     "kind": "equipment",
@@ -515,7 +515,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 34,
     "name": "Bloodbeam Earth Wand",
-    "description": "Bloodbeam Earth Wand. Tempered gear from Bellgrave's craft halls.",
+    "description": "Bloodbeam Earth Wand. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/bloodbeam-earth-wand.png",
     "slug": "bloodbeam-earth-wand",
     "kind": "equipment",
@@ -541,7 +541,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 35,
     "name": "Bellwood Ice Staff",
-    "description": "Bellwood Ice Staff. Throne-forged gear from Bellgrave's craft halls.",
+    "description": "Bellwood Ice Staff. Throne-forged gear, wrought in the old Anvilhold manner the New Kings tried to burn away.",
     "icon": "/icons/items/bellwood-ice-staff.png",
     "slug": "bellwood-ice-staff",
     "kind": "equipment",
@@ -567,7 +567,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 36,
     "name": "Bellwood Wind Staff",
-    "description": "Bellwood Wind Staff. Throne-forged gear from Bellgrave's craft halls.",
+    "description": "Bellwood Wind Staff. Throne-forged gear, wrought in the old Anvilhold manner the New Kings tried to burn away.",
     "icon": "/icons/items/bellwood-wind-staff.png",
     "slug": "bellwood-wind-staff",
     "kind": "equipment",
@@ -594,7 +594,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 37,
     "name": "Steel Arrow×12",
-    "description": "Steel Arrow×12. Consumable from Bellgrave's alchemy and cookfires.",
+    "description": "Steel Arrow×12. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/steel-arrow.png",
     "slug": "steel-arrow",
     "kind": "consumable",
@@ -615,7 +615,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 38,
     "name": "Orichalcum Bolt×12",
-    "description": "Orichalcum Bolt×12. Consumable from Bellgrave's alchemy and cookfires.",
+    "description": "Orichalcum Bolt×12. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/orichalcum-bolt.png",
     "slug": "orichalcum-bolt",
     "kind": "consumable",
@@ -636,7 +636,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 39,
     "name": "Ashbeam Fishing Rod",
-    "description": "Ashbeam Fishing Rod. Ruined gear from Bellgrave's craft halls.",
+    "description": "Ashbeam Fishing Rod. Ruined gear dug from the ashes of Anvilhold's fallen craft halls.",
     "icon": "/icons/items/ashbeam-fishing-rod.png",
     "slug": "ashbeam-fishing-rod",
     "kind": "equipment",
@@ -657,7 +657,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 40,
     "name": "Bloodbeam Fishing Rod",
-    "description": "Bloodbeam Fishing Rod. Tempered gear from Bellgrave's craft halls.",
+    "description": "Bloodbeam Fishing Rod. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/bloodbeam-fishing-rod.png",
     "slug": "bloodbeam-fishing-rod",
     "kind": "equipment",
@@ -679,7 +679,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 41,
     "name": "Bellwood Fishing Rod",
-    "description": "Bellwood Fishing Rod. Throne-forged gear from Bellgrave's craft halls.",
+    "description": "Bellwood Fishing Rod. Throne-forged gear, wrought in the old Anvilhold manner the New Kings tried to burn away.",
     "icon": "/icons/items/bellwood-fishing-rod.png",
     "slug": "bellwood-fishing-rod",
     "kind": "equipment",
@@ -701,7 +701,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 42,
     "name": "Sovereign's Staff",
-    "description": "Sovereign's Staff. Throne-forged gear from Bellgrave's craft halls.",
+    "description": "Sovereign's Staff. Throne-forged gear, wrought in the old Anvilhold manner the New Kings tried to burn away.",
     "icon": "/icons/items/sovereigns-staff.png",
     "slug": "sovereigns-staff",
     "kind": "equipment",
@@ -729,7 +729,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 43,
     "name": "Leather Royal Cord×4",
-    "description": "Leather Royal Cord×4 — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Leather Royal Cord×4 — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/leather-royal-cord.png",
     "slug": "leather-royal-cord",
     "kind": "filler",
@@ -744,7 +744,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 46,
     "name": "Leather Strip×8",
-    "description": "Leather Strip×8 — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Leather Strip×8 — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/leather-strip.png",
     "slug": "leather-strip",
     "kind": "intermediate",
@@ -759,7 +759,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 51,
     "name": "Linen Thread",
-    "description": "Linen Thread — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Linen Thread — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/linen-thread.png",
     "slug": "linen-thread",
     "kind": "intermediate",
@@ -773,7 +773,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 54,
     "name": "Shade Cotton Thread",
-    "description": "Shade Cotton Thread — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Shade Cotton Thread — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/ash-linen-thread.png",
     "slug": "ash-linen-thread",
     "kind": "intermediate",
@@ -787,7 +787,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 56,
     "name": "Spun Silk",
-    "description": "Spun Silk — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Spun Silk — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/silk-thread-2.png",
     "slug": "silk-thread-2",
     "kind": "intermediate",
@@ -801,7 +801,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 57,
     "name": "Velvet Thread",
-    "description": "Velvet Thread — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Velvet Thread — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/velvet-thread.png",
     "slug": "velvet-thread",
     "kind": "intermediate",
@@ -815,7 +815,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 59,
     "name": "Spellbound Tome",
-    "description": "Spellbound Tome. Tempered gear from Bellgrave's craft halls.",
+    "description": "Spellbound Tome. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/spellbound-tome.png",
     "slug": "spellbound-tome",
     "kind": "equipment",
@@ -843,7 +843,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 60,
     "name": "Grimoire of Throne",
-    "description": "Grimoire of Throne. Throne-forged gear from Bellgrave's craft halls.",
+    "description": "Grimoire of Throne. Throne-forged gear, wrought in the old Anvilhold manner the New Kings tried to burn away.",
     "icon": "/icons/items/grimoire-of-throne.png",
     "slug": "grimoire-of-throne",
     "kind": "equipment",
@@ -871,7 +871,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 61,
     "name": "Bone Arrowhead×6",
-    "description": "Bone Arrowhead×6 — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Bone Arrowhead×6 — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/bone-arrowhead.png",
     "slug": "bone-arrowhead",
     "kind": "intermediate",
@@ -886,7 +886,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 62,
     "name": "Bone Arrow×12",
-    "description": "Bone Arrow×12. Consumable from Bellgrave's alchemy and cookfires.",
+    "description": "Bone Arrow×12. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/bone-arrow.png",
     "slug": "bone-arrow",
     "kind": "consumable",
@@ -907,7 +907,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 65,
     "name": "Ash Bone Shell Buckle",
-    "description": "Ash Bone Shell Buckle — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Ash Bone Shell Buckle — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/ash-bone-shell-buckle.png",
     "slug": "ash-bone-shell-buckle",
     "kind": "filler",
@@ -921,7 +921,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 86,
     "name": "Neolithic Dagger",
-    "description": "Neolithic Dagger. Ruined gear from Bellgrave's craft halls.",
+    "description": "Neolithic Dagger. Ruined gear dug from the ashes of Anvilhold's fallen craft halls.",
     "icon": "/icons/items/bone-parrying-dagger.png",
     "slug": "neolithic-dagger",
     "kind": "equipment",
@@ -946,7 +946,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 87,
     "name": "Fang Dagger",
-    "description": "Fang Dagger. Tempered gear from Bellgrave's craft halls.",
+    "description": "Fang Dagger. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/fang-parrying-dagger.png",
     "slug": "fang-dagger",
     "kind": "equipment",
@@ -971,7 +971,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 88,
     "name": "Copper Goldsmith Cabochon",
-    "description": "Copper Goldsmith Cabochon — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Copper Goldsmith Cabochon — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/copper-goldsmith-cabochon.png",
     "slug": "copper-goldsmith-cabochon",
     "kind": "filler",
@@ -985,7 +985,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 89,
     "name": "Copper Goldsmith Torque Links×4",
-    "description": "Copper Goldsmith Torque Links×4 — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Copper Goldsmith Torque Links×4 — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/copper-goldsmith-torque-links.png",
     "slug": "copper-goldsmith-torque-links",
     "kind": "filler",
@@ -1000,7 +1000,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 90,
     "name": "Copper Goldsmith Royal Setting",
-    "description": "Copper Goldsmith Royal Setting — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Copper Goldsmith Royal Setting — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/copper-goldsmith-royal-setting.png",
     "slug": "copper-goldsmith-royal-setting",
     "kind": "filler",
@@ -1014,7 +1014,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 91,
     "name": "Copper Goldsmith Accent Socket",
-    "description": "Copper Goldsmith Accent Socket — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Copper Goldsmith Accent Socket — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/copper-goldsmith-accent-socket.png",
     "slug": "copper-goldsmith-accent-socket",
     "kind": "filler",
@@ -1028,7 +1028,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 100,
     "name": "Bronze Ingot",
-    "description": "Bronze Ingot — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Bronze Ingot — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/bronze-ingot.png",
     "slug": "bronze-ingot",
     "kind": "intermediate",
@@ -1042,7 +1042,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 102,
     "name": "Bronze Sword",
-    "description": "Bronze Sword. Ruined gear from Bellgrave's craft halls.",
+    "description": "Bronze Sword. Ruined gear dug from the ashes of Anvilhold's fallen craft halls.",
     "icon": "/icons/items/bronze-sword.png",
     "slug": "bronze-sword",
     "kind": "equipment",
@@ -1070,7 +1070,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 103,
     "name": "Bronze Axe",
-    "description": "Bronze Axe. Ruined gear from Bellgrave's craft halls.",
+    "description": "Bronze Axe. Ruined gear dug from the ashes of Anvilhold's fallen craft halls.",
     "icon": "/icons/items/bronze-axe.png",
     "slug": "bronze-axe",
     "kind": "equipment",
@@ -1095,7 +1095,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 104,
     "name": "Bronze Helm",
-    "description": "Bronze Helm. Ruined gear from Bellgrave's craft halls.",
+    "description": "Bronze Helm. Ruined gear dug from the ashes of Anvilhold's fallen craft halls.",
     "icon": "/icons/items/bronze-helm.png",
     "slug": "bronze-helm",
     "kind": "equipment",
@@ -1120,7 +1120,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 105,
     "name": "Bronze Mittens",
-    "description": "Bronze Mittens. Ruined gear from Bellgrave's craft halls.",
+    "description": "Bronze Mittens. Ruined gear dug from the ashes of Anvilhold's fallen craft halls.",
     "icon": "/icons/items/bronze-mittens.png",
     "slug": "bronze-mittens",
     "kind": "equipment",
@@ -1145,7 +1145,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 106,
     "name": "Bronze Harness",
-    "description": "Bronze Harness. Ruined gear from Bellgrave's craft halls.",
+    "description": "Bronze Harness. Ruined gear dug from the ashes of Anvilhold's fallen craft halls.",
     "icon": "/icons/items/bronze-harness.png",
     "slug": "bronze-harness",
     "kind": "equipment",
@@ -1170,7 +1170,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 107,
     "name": "Bronze Subligar",
-    "description": "Bronze Subligar. Ruined gear from Bellgrave's craft halls.",
+    "description": "Bronze Subligar. Ruined gear dug from the ashes of Anvilhold's fallen craft halls.",
     "icon": "/icons/items/bronze-subligar.png",
     "slug": "bronze-subligar",
     "kind": "equipment",
@@ -1195,7 +1195,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 108,
     "name": "Bronze Leggings",
-    "description": "Bronze Leggings. Ruined gear from Bellgrave's craft halls.",
+    "description": "Bronze Leggings. Ruined gear dug from the ashes of Anvilhold's fallen craft halls.",
     "icon": "/icons/items/bronze-leggings.png",
     "slug": "bronze-leggings",
     "kind": "equipment",
@@ -1220,7 +1220,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 109,
     "name": "Bronze Shield",
-    "description": "Bronze Shield. Ruined gear from Bellgrave's craft halls.",
+    "description": "Bronze Shield. Ruined gear dug from the ashes of Anvilhold's fallen craft halls.",
     "icon": "/icons/items/bronze-shield.png",
     "slug": "bronze-shield",
     "kind": "equipment",
@@ -1245,7 +1245,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 110,
     "name": "Bronze Sallet",
-    "description": "Bronze Sallet — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Bronze Sallet — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/bronze-sallet.png",
     "slug": "bronze-sallet",
     "kind": "filler",
@@ -1259,7 +1259,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 111,
     "name": "Iron Ingot",
-    "description": "Iron Ingot — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Iron Ingot — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/iron-ingot.png",
     "slug": "iron-ingot",
     "kind": "intermediate",
@@ -1273,7 +1273,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 113,
     "name": "Iron Great Axe",
-    "description": "Iron Great Axe. Tempered gear from Bellgrave's craft halls.",
+    "description": "Iron Great Axe. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/iron-great-axe.png",
     "slug": "iron-great-axe",
     "kind": "equipment",
@@ -1299,7 +1299,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 114,
     "name": "Iron Helm",
-    "description": "Iron Helm. Tempered gear from Bellgrave's craft halls.",
+    "description": "Iron Helm. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/iron-helm.png",
     "slug": "iron-helm",
     "kind": "equipment",
@@ -1324,7 +1324,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 115,
     "name": "Iron Mittens",
-    "description": "Iron Mittens. Tempered gear from Bellgrave's craft halls.",
+    "description": "Iron Mittens. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/iron-mittens.png",
     "slug": "iron-mittens",
     "kind": "equipment",
@@ -1349,7 +1349,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 116,
     "name": "Iron Subligar",
-    "description": "Iron Subligar. Tempered gear from Bellgrave's craft halls.",
+    "description": "Iron Subligar. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/iron-subligar.png",
     "slug": "iron-subligar",
     "kind": "equipment",
@@ -1374,7 +1374,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 117,
     "name": "Iron Leggings",
-    "description": "Iron Leggings. Tempered gear from Bellgrave's craft halls.",
+    "description": "Iron Leggings. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/iron-leggings.png",
     "slug": "iron-leggings",
     "kind": "equipment",
@@ -1399,7 +1399,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 119,
     "name": "Iron Tower Shield",
-    "description": "Iron Tower Shield — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Iron Tower Shield — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/iron-tower-shield.png",
     "slug": "iron-tower-shield",
     "kind": "filler",
@@ -1409,7 +1409,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 120,
     "name": "Steel Ingot",
-    "description": "Steel Ingot — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Steel Ingot — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/steel-ingot.png",
     "slug": "steel-ingot",
     "kind": "intermediate",
@@ -1423,7 +1423,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 122,
     "name": "Steel Greatsword",
-    "description": "Steel Greatsword. Tempered gear from Bellgrave's craft halls.",
+    "description": "Steel Greatsword. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/steel-greatsword.png",
     "slug": "steel-greatsword",
     "kind": "equipment",
@@ -1450,7 +1450,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 124,
     "name": "Mythril Ingot",
-    "description": "Mythril Ingot — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Mythril Ingot — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/mythril-ingot.png",
     "slug": "mythril-ingot",
     "kind": "intermediate",
@@ -1464,7 +1464,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 126,
     "name": "Mythril Sword",
-    "description": "Mythril Sword. Tempered gear from Bellgrave's craft halls.",
+    "description": "Mythril Sword. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/mythril-sword.png",
     "slug": "mythril-sword",
     "kind": "equipment",
@@ -1492,7 +1492,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 127,
     "name": "Mythril Helm",
-    "description": "Mythril Helm. Tempered gear from Bellgrave's craft halls.",
+    "description": "Mythril Helm. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/mythril-helm.png",
     "slug": "mythril-helm",
     "kind": "equipment",
@@ -1516,7 +1516,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 128,
     "name": "Mythril Mittens",
-    "description": "Mythril Mittens. Tempered gear from Bellgrave's craft halls.",
+    "description": "Mythril Mittens. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/mythril-mittens.png",
     "slug": "mythril-mittens",
     "kind": "equipment",
@@ -1540,7 +1540,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 129,
     "name": "Mythril Breastplate",
-    "description": "Mythril Breastplate. Tempered gear from Bellgrave's craft halls.",
+    "description": "Mythril Breastplate. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/mythril-breastplate.png",
     "slug": "mythril-breastplate",
     "kind": "equipment",
@@ -1564,7 +1564,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 130,
     "name": "Mythril Cuisses",
-    "description": "Mythril Cuisses. Tempered gear from Bellgrave's craft halls.",
+    "description": "Mythril Cuisses. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/mythril-cuisses.png",
     "slug": "mythril-cuisses",
     "kind": "equipment",
@@ -1588,7 +1588,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 131,
     "name": "Mythril Sabatons",
-    "description": "Mythril Sabatons. Tempered gear from Bellgrave's craft halls.",
+    "description": "Mythril Sabatons. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/mythril-sabatons.png",
     "slug": "mythril-sabatons",
     "kind": "equipment",
@@ -1612,7 +1612,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 132,
     "name": "Mythril Shield",
-    "description": "Mythril Shield. Tempered gear from Bellgrave's craft halls.",
+    "description": "Mythril Shield. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/mythril-shield.png",
     "slug": "mythril-shield",
     "kind": "equipment",
@@ -1635,7 +1635,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 133,
     "name": "Mythril Sallet",
-    "description": "Mythril Sallet — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Mythril Sallet — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/mythril-sallet.png",
     "slug": "mythril-sallet",
     "kind": "filler",
@@ -1645,7 +1645,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 134,
     "name": "Mythril Greatsword",
-    "description": "Mythril Greatsword. Tempered gear from Bellgrave's craft halls.",
+    "description": "Mythril Greatsword. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/mythril-greatsword.png",
     "slug": "mythril-greatsword",
     "kind": "equipment",
@@ -1672,7 +1672,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 136,
     "name": "Darksteel Ingot",
-    "description": "Darksteel Ingot — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Darksteel Ingot — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/darksteel-ingot.png",
     "slug": "darksteel-ingot",
     "kind": "intermediate",
@@ -1686,7 +1686,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 137,
     "name": "Darksteel Blade",
-    "description": "Darksteel Blade. Throne-forged gear from Bellgrave's craft halls.",
+    "description": "Darksteel Blade. Throne-forged gear, wrought in the old Anvilhold manner the New Kings tried to burn away.",
     "icon": "/icons/items/darksteel-blade.png",
     "slug": "darksteel-blade",
     "kind": "equipment",
@@ -1714,7 +1714,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 138,
     "name": "Darksteel Great Axe",
-    "description": "Darksteel Great Axe. Throne-forged gear from Bellgrave's craft halls.",
+    "description": "Darksteel Great Axe. Throne-forged gear, wrought in the old Anvilhold manner the New Kings tried to burn away.",
     "icon": "/icons/items/darksteel-great-axe.png",
     "slug": "darksteel-great-axe",
     "kind": "equipment",
@@ -1740,7 +1740,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 139,
     "name": "Darksteel Helm",
-    "description": "Darksteel Helm. Throne-forged gear from Bellgrave's craft halls.",
+    "description": "Darksteel Helm. Throne-forged gear, wrought in the old Anvilhold manner the New Kings tried to burn away.",
     "icon": "/icons/items/darksteel-helm.png",
     "slug": "darksteel-helm",
     "kind": "equipment",
@@ -1765,7 +1765,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 140,
     "name": "Darksteel Mittens",
-    "description": "Darksteel Mittens. Throne-forged gear from Bellgrave's craft halls.",
+    "description": "Darksteel Mittens. Throne-forged gear, wrought in the old Anvilhold manner the New Kings tried to burn away.",
     "icon": "/icons/items/darksteel-mittens.png",
     "slug": "darksteel-mittens",
     "kind": "equipment",
@@ -1790,7 +1790,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 141,
     "name": "Darksteel Hauberk",
-    "description": "Darksteel Hauberk. Throne-forged gear from Bellgrave's craft halls.",
+    "description": "Darksteel Hauberk. Throne-forged gear, wrought in the old Anvilhold manner the New Kings tried to burn away.",
     "icon": "/icons/items/darksteel-hauberk.png",
     "slug": "darksteel-hauberk",
     "kind": "equipment",
@@ -1815,7 +1815,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 142,
     "name": "Darksteel Breeches",
-    "description": "Darksteel Breeches. Throne-forged gear from Bellgrave's craft halls.",
+    "description": "Darksteel Breeches. Throne-forged gear, wrought in the old Anvilhold manner the New Kings tried to burn away.",
     "icon": "/icons/items/darksteel-breeches.png",
     "slug": "darksteel-breeches",
     "kind": "equipment",
@@ -1840,7 +1840,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 143,
     "name": "Darksteel Greaves",
-    "description": "Darksteel Greaves. Throne-forged gear from Bellgrave's craft halls.",
+    "description": "Darksteel Greaves. Throne-forged gear, wrought in the old Anvilhold manner the New Kings tried to burn away.",
     "icon": "/icons/items/darksteel-greaves.png",
     "slug": "darksteel-greaves",
     "kind": "equipment",
@@ -1865,7 +1865,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 144,
     "name": "Darksteel Shield",
-    "description": "Darksteel Shield. Throne-forged gear from Bellgrave's craft halls.",
+    "description": "Darksteel Shield. Throne-forged gear, wrought in the old Anvilhold manner the New Kings tried to burn away.",
     "icon": "/icons/items/darksteel-shield.png",
     "slug": "darksteel-shield",
     "kind": "equipment",
@@ -1888,7 +1888,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 145,
     "name": "Darksteel Sallet",
-    "description": "Darksteel Sallet — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Darksteel Sallet — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/darksteel-sallet.png",
     "slug": "darksteel-sallet",
     "kind": "filler",
@@ -1898,7 +1898,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 148,
     "name": "Orichalcum Ingot",
-    "description": "Orichalcum Ingot — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Orichalcum Ingot — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/orichalcum-ingot.png",
     "slug": "orichalcum-ingot",
     "kind": "intermediate",
@@ -1912,7 +1912,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 150,
     "name": "Orichalcum Mace Head",
-    "description": "Orichalcum Mace Head — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Orichalcum Mace Head — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/orichalcum-mace-head.png",
     "slug": "orichalcum-mace-head",
     "kind": "filler",
@@ -1922,7 +1922,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 151,
     "name": "Orichalcum Sword",
-    "description": "Orichalcum Sword. Throne-forged gear from Bellgrave's craft halls.",
+    "description": "Orichalcum Sword. Throne-forged gear, wrought in the old Anvilhold manner the New Kings tried to burn away.",
     "icon": "/icons/items/orichalcum-sword.png",
     "slug": "orichalcum-sword",
     "kind": "equipment",
@@ -1949,7 +1949,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 152,
     "name": "Orichalcum Shield Boss",
-    "description": "Orichalcum Shield Boss — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Orichalcum Shield Boss — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/orichalcum-shield-boss.png",
     "slug": "orichalcum-shield-boss",
     "kind": "filler",
@@ -1959,7 +1959,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 153,
     "name": "Palace Helm",
-    "description": "Palace Helm. Throne-forged gear from Bellgrave's craft halls.",
+    "description": "Palace Helm. Throne-forged gear, wrought in the old Anvilhold manner the New Kings tried to burn away.",
     "icon": "/icons/items/palace-helm.png",
     "slug": "palace-helm",
     "kind": "equipment",
@@ -1983,7 +1983,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 154,
     "name": "Palace Gauntlets",
-    "description": "Palace Gauntlets. Throne-forged gear from Bellgrave's craft halls.",
+    "description": "Palace Gauntlets. Throne-forged gear, wrought in the old Anvilhold manner the New Kings tried to burn away.",
     "icon": "/icons/items/palace-gauntlets.png",
     "slug": "palace-gauntlets",
     "kind": "equipment",
@@ -2007,7 +2007,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 155,
     "name": "Palace Plate",
-    "description": "Palace Plate. Throne-forged gear from Bellgrave's craft halls.",
+    "description": "Palace Plate. Throne-forged gear, wrought in the old Anvilhold manner the New Kings tried to burn away.",
     "icon": "/icons/items/palace-plate.png",
     "slug": "palace-plate",
     "kind": "equipment",
@@ -2031,7 +2031,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 156,
     "name": "Palace Cuisses",
-    "description": "Palace Cuisses. Throne-forged gear from Bellgrave's craft halls.",
+    "description": "Palace Cuisses. Throne-forged gear, wrought in the old Anvilhold manner the New Kings tried to burn away.",
     "icon": "/icons/items/palace-cuisses.png",
     "slug": "palace-cuisses",
     "kind": "equipment",
@@ -2055,7 +2055,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 157,
     "name": "Palace Sabatons",
-    "description": "Palace Sabatons. Throne-forged gear from Bellgrave's craft halls.",
+    "description": "Palace Sabatons. Throne-forged gear, wrought in the old Anvilhold manner the New Kings tried to burn away.",
     "icon": "/icons/items/palace-sabatons.png",
     "slug": "palace-sabatons",
     "kind": "equipment",
@@ -2079,7 +2079,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 158,
     "name": "Palace Great Axe",
-    "description": "Palace Great Axe. Throne-forged gear from Bellgrave's craft halls.",
+    "description": "Palace Great Axe. Throne-forged gear, wrought in the old Anvilhold manner the New Kings tried to burn away.",
     "icon": "/icons/items/palace-great-axe.png",
     "slug": "palace-great-axe",
     "kind": "equipment",
@@ -2105,7 +2105,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 159,
     "name": "Ornamented Plate Accent",
-    "description": "Ornamented Plate Accent — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Ornamented Plate Accent — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/ornamented-plate-accent.png",
     "slug": "ornamented-plate-accent",
     "kind": "intermediate",
@@ -2119,7 +2119,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 160,
     "name": "Ashbeam Lumber",
-    "description": "Ashbeam Lumber — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Ashbeam Lumber — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/ashbeam-lumber.png",
     "slug": "ashbeam-lumber",
     "kind": "intermediate",
@@ -2133,7 +2133,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 161,
     "name": "Ashbeam Cane",
-    "description": "Ashbeam Cane — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Ashbeam Cane — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/ashbeam-cane.png",
     "slug": "ashbeam-cane",
     "kind": "filler",
@@ -2147,7 +2147,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 162,
     "name": "Buckler (wood)",
-    "description": "Buckler (wood). Ruined gear from Bellgrave's craft halls.",
+    "description": "Buckler (wood). Ruined gear dug from the ashes of Anvilhold's fallen craft halls.",
     "icon": "/icons/items/buckler-wood.png",
     "slug": "buckler-wood",
     "kind": "equipment",
@@ -2167,7 +2167,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 163,
     "name": "Ashbeam Flatbow",
-    "description": "Ashbeam Flatbow — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Ashbeam Flatbow — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/ashbeam-flatbow.png",
     "slug": "ashbeam-flatbow",
     "kind": "filler",
@@ -2181,7 +2181,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 165,
     "name": "Ashbeam Bow Stave",
-    "description": "Ashbeam Bow Stave — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Ashbeam Bow Stave — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/ashbeam-bow-stave.png",
     "slug": "ashbeam-bow-stave",
     "kind": "filler",
@@ -2195,7 +2195,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 166,
     "name": "Ashbeam Shield Rim",
-    "description": "Ashbeam Shield Rim — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Ashbeam Shield Rim — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/ashbeam-shield-rim.png",
     "slug": "ashbeam-shield-rim",
     "kind": "intermediate",
@@ -2209,7 +2209,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 167,
     "name": "Ashbeam Grip",
-    "description": "Ashbeam Grip. Ruined gear from Bellgrave's craft halls.",
+    "description": "Ashbeam Grip. Ruined gear dug from the ashes of Anvilhold's fallen craft halls.",
     "icon": "/icons/items/ashbeam-grip.png",
     "slug": "ashbeam-grip",
     "kind": "equipment",
@@ -2229,7 +2229,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 170,
     "name": "Ashbeam Wand",
-    "description": "Ashbeam Wand — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Ashbeam Wand — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/ashbeam-wand.png",
     "slug": "ashbeam-wand",
     "kind": "filler",
@@ -2239,7 +2239,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 172,
     "name": "Ashbeam Rod",
-    "description": "Ashbeam Rod. Tempered gear from Bellgrave's craft halls.",
+    "description": "Ashbeam Rod. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/ashbeam-rod.png",
     "slug": "ashbeam-rod",
     "kind": "equipment",
@@ -2265,7 +2265,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 175,
     "name": "Ashbeam Quarterstaff",
-    "description": "Ashbeam Quarterstaff — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Ashbeam Quarterstaff — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/ashbeam-quarterstaff.png",
     "slug": "ashbeam-quarterstaff",
     "kind": "filler",
@@ -2275,7 +2275,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 178,
     "name": "Ashbeam Longbow",
-    "description": "Ashbeam Longbow — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Ashbeam Longbow — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/ashbeam-longbow.png",
     "slug": "ashbeam-longbow",
     "kind": "filler",
@@ -2285,7 +2285,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 180,
     "name": "Bloodbeam Lumber",
-    "description": "Bloodbeam Lumber — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Bloodbeam Lumber — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/bloodbeam-lumber.png",
     "slug": "bloodbeam-lumber",
     "kind": "intermediate",
@@ -2299,7 +2299,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 181,
     "name": "Bloodbeam Wand",
-    "description": "Bloodbeam Wand — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Bloodbeam Wand — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/bloodbeam-wand.png",
     "slug": "bloodbeam-wand",
     "kind": "filler",
@@ -2309,7 +2309,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 183,
     "name": "Ashbeam Club",
-    "description": "Ashbeam Club. Tempered gear from Bellgrave's craft halls.",
+    "description": "Ashbeam Club. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/ashbeam-club.png",
     "slug": "ashbeam-club",
     "kind": "equipment",
@@ -2334,7 +2334,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 186,
     "name": "Composite Bow",
-    "description": "Composite Bow. Tempered gear from Bellgrave's craft halls.",
+    "description": "Composite Bow. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/composite-bow.png",
     "slug": "composite-bow",
     "kind": "equipment",
@@ -2354,7 +2354,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 187,
     "name": "Bloodbeam Bow Stave",
-    "description": "Bloodbeam Bow Stave — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Bloodbeam Bow Stave — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/bloodbeam-bow-stave.png",
     "slug": "bloodbeam-bow-stave",
     "kind": "intermediate",
@@ -2368,7 +2368,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 189,
     "name": "Bloodbeam Crook",
-    "description": "Bloodbeam Crook — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Bloodbeam Crook — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/bloodbeam-crook.png",
     "slug": "bloodbeam-crook",
     "kind": "filler",
@@ -2378,7 +2378,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 192,
     "name": "Bellwood Lumber",
-    "description": "Bellwood Lumber — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Bellwood Lumber — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/bellwood-lumber.png",
     "slug": "bellwood-lumber",
     "kind": "intermediate",
@@ -2392,7 +2392,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 193,
     "name": "Bellwood Ferrule",
-    "description": "Bellwood Ferrule — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Bellwood Ferrule — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/bellwood-ferrule.png",
     "slug": "bellwood-ferrule",
     "kind": "filler",
@@ -2406,7 +2406,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 194,
     "name": "Bellwood Laminate",
-    "description": "Bellwood Laminate — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Bellwood Laminate — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/bellwood-laminate.png",
     "slug": "bellwood-laminate",
     "kind": "filler",
@@ -2420,7 +2420,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 195,
     "name": "Bellwood Staff",
-    "description": "Bellwood Staff. Throne-forged gear from Bellgrave's craft halls.",
+    "description": "Bellwood Staff. Throne-forged gear, wrought in the old Anvilhold manner the New Kings tried to burn away.",
     "icon": "/icons/items/bellwood-staff.png",
     "slug": "bellwood-staff",
     "kind": "equipment",
@@ -2447,7 +2447,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 196,
     "name": "Bellwood Grip",
-    "description": "Bellwood Grip. Throne-forged gear from Bellgrave's craft halls.",
+    "description": "Bellwood Grip. Throne-forged gear, wrought in the old Anvilhold manner the New Kings tried to burn away.",
     "icon": "/icons/items/bellwood-grip.png",
     "slug": "bellwood-grip",
     "kind": "equipment",
@@ -2468,7 +2468,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 199,
     "name": "Bellwood Longbow",
-    "description": "Bellwood Longbow — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Bellwood Longbow — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/bellwood-longbow.png",
     "slug": "bellwood-longbow",
     "kind": "filler",
@@ -2478,7 +2478,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 204,
     "name": "War Bow",
-    "description": "War Bow. Throne-forged gear from Bellgrave's craft halls.",
+    "description": "War Bow. Throne-forged gear, wrought in the old Anvilhold manner the New Kings tried to burn away.",
     "icon": "/icons/items/war-bow.png",
     "slug": "war-bow",
     "kind": "equipment",
@@ -2498,7 +2498,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 205,
     "name": "Bellwood Bow Stave",
-    "description": "Bellwood Bow Stave — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Bellwood Bow Stave — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/bellwood-bow-stave.png",
     "slug": "bellwood-bow-stave",
     "kind": "intermediate",
@@ -2512,7 +2512,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 206,
     "name": "Chrono Staff",
-    "description": "Chrono Staff. Throne-forged gear from Bellgrave's craft halls.",
+    "description": "Chrono Staff. Throne-forged gear, wrought in the old Anvilhold manner the New Kings tried to burn away.",
     "icon": "/icons/items/chrono-staff.png",
     "slug": "chrono-staff",
     "kind": "equipment",
@@ -2539,7 +2539,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 207,
     "name": "Mana Staff",
-    "description": "Mana Staff. Throne-forged gear from Bellgrave's craft halls.",
+    "description": "Mana Staff. Throne-forged gear, wrought in the old Anvilhold manner the New Kings tried to burn away.",
     "icon": "/icons/items/mana-staff.png",
     "slug": "mana-staff",
     "kind": "equipment",
@@ -2565,7 +2565,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 208,
     "name": "Relic Staff Blank",
-    "description": "Relic Staff Blank — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Relic Staff Blank — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/relic-staff-blank.png",
     "slug": "relic-staff-blank",
     "kind": "filler",
@@ -2579,7 +2579,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 209,
     "name": "Leather",
-    "description": "Leather — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Leather — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/leather.png",
     "slug": "leather",
     "kind": "intermediate",
@@ -2593,7 +2593,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 210,
     "name": "Leather Bracer",
-    "description": "Leather Bracer — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Leather Bracer — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/leather-bracer.png",
     "slug": "leather-bracer",
     "kind": "filler",
@@ -2607,7 +2607,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 211,
     "name": "Leather Bandana",
-    "description": "Leather Bandana. Ruined gear from Bellgrave's craft halls.",
+    "description": "Leather Bandana. Ruined gear dug from the ashes of Anvilhold's fallen craft halls.",
     "icon": "/icons/items/leather-bandana.png",
     "slug": "leather-bandana",
     "kind": "equipment",
@@ -2633,7 +2633,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 212,
     "name": "Leather Gloves",
-    "description": "Leather Gloves. Ruined gear from Bellgrave's craft halls.",
+    "description": "Leather Gloves. Ruined gear dug from the ashes of Anvilhold's fallen craft halls.",
     "icon": "/icons/items/leather-gloves.png",
     "slug": "leather-gloves",
     "kind": "equipment",
@@ -2659,7 +2659,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 213,
     "name": "Leather Sandals",
-    "description": "Leather Sandals. Ruined gear from Bellgrave's craft halls.",
+    "description": "Leather Sandals. Ruined gear dug from the ashes of Anvilhold's fallen craft halls.",
     "icon": "/icons/items/leather-sandals.png",
     "slug": "leather-sandals",
     "kind": "equipment",
@@ -2685,7 +2685,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 214,
     "name": "Leather Trousers",
-    "description": "Leather Trousers. Ruined gear from Bellgrave's craft halls.",
+    "description": "Leather Trousers. Ruined gear dug from the ashes of Anvilhold's fallen craft halls.",
     "icon": "/icons/items/leather-trousers.png",
     "slug": "leather-trousers",
     "kind": "equipment",
@@ -2711,7 +2711,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 215,
     "name": "Leather Oil-Cure",
-    "description": "Leather Oil-Cure — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Leather Oil-Cure — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/leather-oil-cure.png",
     "slug": "leather-oil-cure",
     "kind": "filler",
@@ -2725,7 +2725,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 216,
     "name": "Leather Emboss Kit",
-    "description": "Leather Emboss Kit — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Leather Emboss Kit — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/leather-emboss-kit.png",
     "slug": "leather-emboss-kit",
     "kind": "filler",
@@ -2739,7 +2739,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 217,
     "name": "Grip Wrap",
-    "description": "Grip Wrap. Ruined gear from Bellgrave's craft halls.",
+    "description": "Grip Wrap. Ruined gear dug from the ashes of Anvilhold's fallen craft halls.",
     "icon": "/icons/items/grip-wrap.png",
     "slug": "grip-wrap",
     "kind": "equipment",
@@ -2759,7 +2759,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 218,
     "name": "Leather Hardened Vest",
-    "description": "Leather Hardened Vest — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Leather Hardened Vest — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/leather-hardened-vest.png",
     "slug": "leather-hardened-vest",
     "kind": "filler",
@@ -2773,7 +2773,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 220,
     "name": "Darksteel Goldsmith Wire×6",
-    "description": "Darksteel Goldsmith Wire×6 — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Darksteel Goldsmith Wire×6 — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/darksteel-goldsmith-wire.png",
     "slug": "darksteel-goldsmith-wire",
     "kind": "filler",
@@ -2788,7 +2788,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 221,
     "name": "Shade Leather Bandana",
-    "description": "Shade Leather Bandana. Tempered gear from Bellgrave's craft halls.",
+    "description": "Shade Leather Bandana. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/shade-leather-bandana.png",
     "slug": "shade-leather-bandana",
     "kind": "equipment",
@@ -2812,7 +2812,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 222,
     "name": "Shade Leather Gloves",
-    "description": "Shade Leather Gloves. Tempered gear from Bellgrave's craft halls.",
+    "description": "Shade Leather Gloves. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/shade-leather-gloves.png",
     "slug": "shade-leather-gloves",
     "kind": "equipment",
@@ -2836,7 +2836,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 223,
     "name": "Shade Leather Trousers",
-    "description": "Shade Leather Trousers. Tempered gear from Bellgrave's craft halls.",
+    "description": "Shade Leather Trousers. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/shade-leather-trousers.png",
     "slug": "shade-leather-trousers",
     "kind": "equipment",
@@ -2860,7 +2860,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 224,
     "name": "Shade Leather Boots",
-    "description": "Shade Leather Boots. Tempered gear from Bellgrave's craft halls.",
+    "description": "Shade Leather Boots. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/shade-leather-boots.png",
     "slug": "shade-leather-boots",
     "kind": "equipment",
@@ -2884,7 +2884,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 225,
     "name": "Shade Leather Vest",
-    "description": "Shade Leather Vest. Tempered gear from Bellgrave's craft halls.",
+    "description": "Shade Leather Vest. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/shade-leather-vest.png",
     "slug": "shade-leather-vest",
     "kind": "equipment",
@@ -2908,7 +2908,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 226,
     "name": "Mercenary Mantle",
-    "description": "Mercenary Mantle. Tempered gear from Bellgrave's craft halls.",
+    "description": "Mercenary Mantle. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/mercenary-mantle.png",
     "slug": "mercenary-mantle",
     "kind": "equipment",
@@ -2934,7 +2934,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 230,
     "name": "Fine Leather",
-    "description": "Fine Leather — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Fine Leather — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/fine-leather.png",
     "slug": "fine-leather",
     "kind": "intermediate",
@@ -2948,7 +2948,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 232,
     "name": "Fine Leather Gorget",
-    "description": "Fine Leather Gorget. Tempered gear from Bellgrave's craft halls.",
+    "description": "Fine Leather Gorget. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/fine-leather-gorget.png",
     "slug": "fine-leather-gorget",
     "kind": "equipment",
@@ -2969,7 +2969,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 234,
     "name": "Fine Jerkin Helm",
-    "description": "Fine Jerkin Helm. Tempered gear from Bellgrave's craft halls.",
+    "description": "Fine Jerkin Helm. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/fine-jerkin-helm.png",
     "slug": "fine-jerkin-helm",
     "kind": "equipment",
@@ -2994,7 +2994,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 235,
     "name": "Fine Jerkin",
-    "description": "Fine Jerkin. Tempered gear from Bellgrave's craft halls.",
+    "description": "Fine Jerkin. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/fine-jerkin.png",
     "slug": "fine-jerkin",
     "kind": "equipment",
@@ -3020,7 +3020,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 236,
     "name": "Fine Jerkin Gloves",
-    "description": "Fine Jerkin Gloves. Tempered gear from Bellgrave's craft halls.",
+    "description": "Fine Jerkin Gloves. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/fine-jerkin-gloves.png",
     "slug": "fine-jerkin-gloves",
     "kind": "equipment",
@@ -3045,7 +3045,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 237,
     "name": "Fine Jerkin Trousers",
-    "description": "Fine Jerkin Trousers. Tempered gear from Bellgrave's craft halls.",
+    "description": "Fine Jerkin Trousers. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/fine-jerkin-trousers.png",
     "slug": "fine-jerkin-trousers",
     "kind": "equipment",
@@ -3070,7 +3070,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 238,
     "name": "Fine Jerkin Boots",
-    "description": "Fine Jerkin Boots. Tempered gear from Bellgrave's craft halls.",
+    "description": "Fine Jerkin Boots. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/fine-jerkin-boots.png",
     "slug": "fine-jerkin-boots",
     "kind": "equipment",
@@ -3095,7 +3095,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 242,
     "name": "Scale Leather",
-    "description": "Scale Leather — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Scale Leather — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/scale-leather.png",
     "slug": "scale-leather",
     "kind": "intermediate",
@@ -3109,7 +3109,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 244,
     "name": "Scale Leather Chaps",
-    "description": "Scale Leather Chaps — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Scale Leather Chaps — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/scale-leather-chaps.png",
     "slug": "scale-leather-chaps",
     "kind": "filler",
@@ -3119,7 +3119,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 245,
     "name": "Scale Mail Helm",
-    "description": "Scale Mail Helm. Throne-forged gear from Bellgrave's craft halls.",
+    "description": "Scale Mail Helm. Throne-forged gear, wrought in the old Anvilhold manner the New Kings tried to burn away.",
     "icon": "/icons/items/scale-mail-helm.png",
     "slug": "scale-mail-helm",
     "kind": "equipment",
@@ -3144,7 +3144,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 246,
     "name": "Scale Mail Gloves",
-    "description": "Scale Mail Gloves. Throne-forged gear from Bellgrave's craft halls.",
+    "description": "Scale Mail Gloves. Throne-forged gear, wrought in the old Anvilhold manner the New Kings tried to burn away.",
     "icon": "/icons/items/scale-mail-gloves.png",
     "slug": "scale-mail-gloves",
     "kind": "equipment",
@@ -3169,7 +3169,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 247,
     "name": "Scale Mail",
-    "description": "Scale Mail. Throne-forged gear from Bellgrave's craft halls.",
+    "description": "Scale Mail. Throne-forged gear, wrought in the old Anvilhold manner the New Kings tried to burn away.",
     "icon": "/icons/items/scale-mail.png",
     "slug": "scale-mail",
     "kind": "equipment",
@@ -3195,7 +3195,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 248,
     "name": "Scale Mail Trousers",
-    "description": "Scale Mail Trousers. Throne-forged gear from Bellgrave's craft halls.",
+    "description": "Scale Mail Trousers. Throne-forged gear, wrought in the old Anvilhold manner the New Kings tried to burn away.",
     "icon": "/icons/items/scale-mail-trousers.png",
     "slug": "scale-mail-trousers",
     "kind": "equipment",
@@ -3220,7 +3220,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 249,
     "name": "Scale Mail Boots",
-    "description": "Scale Mail Boots. Throne-forged gear from Bellgrave's craft halls.",
+    "description": "Scale Mail Boots. Throne-forged gear, wrought in the old Anvilhold manner the New Kings tried to burn away.",
     "icon": "/icons/items/scale-mail-boots.png",
     "slug": "scale-mail-boots",
     "kind": "equipment",
@@ -3245,7 +3245,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 251,
     "name": "Scale Leather Belt",
-    "description": "Scale Leather Belt — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Scale Leather Belt — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/scale-leather-belt.png",
     "slug": "scale-leather-belt",
     "kind": "filler",
@@ -3259,7 +3259,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 253,
     "name": "Scale Leather Stud Kit",
-    "description": "Scale Leather Stud Kit — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Scale Leather Stud Kit — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/scale-leather-stud-kit.png",
     "slug": "scale-leather-stud-kit",
     "kind": "filler",
@@ -3273,7 +3273,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 258,
     "name": "Rogue's Vest",
-    "description": "Rogue's Vest. Throne-forged gear from Bellgrave's craft halls.",
+    "description": "Rogue's Vest. Throne-forged gear, wrought in the old Anvilhold manner the New Kings tried to burn away.",
     "icon": "/icons/items/rogues-vest.png",
     "slug": "rogues-vest",
     "kind": "equipment",
@@ -3297,7 +3297,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 262,
     "name": "Linen Cloth",
-    "description": "Linen Cloth — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Linen Cloth — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/linen-cloth.png",
     "slug": "linen-cloth",
     "kind": "intermediate",
@@ -3311,7 +3311,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 263,
     "name": "Linen Capelet",
-    "description": "Linen Capelet — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Linen Capelet — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/linen-capelet.png",
     "slug": "linen-capelet",
     "kind": "filler",
@@ -3325,7 +3325,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 264,
     "name": "Linen Helm",
-    "description": "Linen Helm. Ruined gear from Bellgrave's craft halls.",
+    "description": "Linen Helm. Ruined gear dug from the ashes of Anvilhold's fallen craft halls.",
     "icon": "/icons/items/linen-helm.png",
     "slug": "linen-helm",
     "kind": "equipment",
@@ -3353,7 +3353,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 265,
     "name": "Linen Cuffs",
-    "description": "Linen Cuffs. Ruined gear from Bellgrave's craft halls.",
+    "description": "Linen Cuffs. Ruined gear dug from the ashes of Anvilhold's fallen craft halls.",
     "icon": "/icons/items/linen-cuffs.png",
     "slug": "linen-cuffs",
     "kind": "equipment",
@@ -3380,7 +3380,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 266,
     "name": "Linen Socks",
-    "description": "Linen Socks. Ruined gear from Bellgrave's craft halls.",
+    "description": "Linen Socks. Ruined gear dug from the ashes of Anvilhold's fallen craft halls.",
     "icon": "/icons/items/linen-socks.png",
     "slug": "linen-socks",
     "kind": "equipment",
@@ -3407,7 +3407,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 267,
     "name": "Linen Slops",
-    "description": "Linen Slops. Ruined gear from Bellgrave's craft halls.",
+    "description": "Linen Slops. Ruined gear dug from the ashes of Anvilhold's fallen craft halls.",
     "icon": "/icons/items/linen-slops.png",
     "slug": "linen-slops",
     "kind": "equipment",
@@ -3434,7 +3434,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 268,
     "name": "Linen Undersleeves",
-    "description": "Linen Undersleeves — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Linen Undersleeves — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/linen-undersleeves.png",
     "slug": "linen-undersleeves",
     "kind": "filler",
@@ -3448,7 +3448,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 269,
     "name": "Linen Scroll Bind",
-    "description": "Linen Scroll Bind — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Linen Scroll Bind — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/linen-scroll-bind.png",
     "slug": "linen-scroll-bind",
     "kind": "filler",
@@ -3462,7 +3462,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 270,
     "name": "Linen Hood Blank",
-    "description": "Linen Hood Blank — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Linen Hood Blank — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/linen-hood-blank.png",
     "slug": "linen-hood-blank",
     "kind": "filler",
@@ -3476,7 +3476,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 271,
     "name": "Linen Sanctified Patch",
-    "description": "Linen Sanctified Patch — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Linen Sanctified Patch — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/linen-sanctified-patch.png",
     "slug": "linen-sanctified-patch",
     "kind": "filler",
@@ -3490,7 +3490,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 273,
     "name": "Spell Parchment",
-    "description": "Spell Parchment — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Spell Parchment — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/spell-parchment.png",
     "slug": "spell-parchment",
     "kind": "intermediate",
@@ -3504,7 +3504,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 274,
     "name": "Linen Gloves",
-    "description": "Linen Gloves — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Linen Gloves — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/linen-gloves.png",
     "slug": "linen-gloves",
     "kind": "filler",
@@ -3514,7 +3514,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 276,
     "name": "Shade Helm",
-    "description": "Shade Helm. Tempered gear from Bellgrave's craft halls.",
+    "description": "Shade Helm. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/shade-helm.png",
     "slug": "shade-helm",
     "kind": "equipment",
@@ -3542,7 +3542,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 277,
     "name": "Shade Robe",
-    "description": "Shade Robe. Tempered gear from Bellgrave's craft halls.",
+    "description": "Shade Robe. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/shade-robe.png",
     "slug": "shade-robe",
     "kind": "equipment",
@@ -3570,7 +3570,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 278,
     "name": "Shade Cuffs",
-    "description": "Shade Cuffs. Tempered gear from Bellgrave's craft halls.",
+    "description": "Shade Cuffs. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/shade-cuffs.png",
     "slug": "shade-cuffs",
     "kind": "equipment",
@@ -3597,7 +3597,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 279,
     "name": "Shade Slops",
-    "description": "Shade Slops. Tempered gear from Bellgrave's craft halls.",
+    "description": "Shade Slops. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/shade-slops.png",
     "slug": "shade-slops",
     "kind": "equipment",
@@ -3624,7 +3624,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 280,
     "name": "Shade Pumps",
-    "description": "Shade Pumps. Tempered gear from Bellgrave's craft halls.",
+    "description": "Shade Pumps. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/shade-pumps.png",
     "slug": "shade-pumps",
     "kind": "equipment",
@@ -3651,7 +3651,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 282,
     "name": "Silk Cloth",
-    "description": "Silk Cloth — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Silk Cloth — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/silk-cloth.png",
     "slug": "silk-cloth",
     "kind": "intermediate",
@@ -3665,7 +3665,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 284,
     "name": "Silk Hat",
-    "description": "Silk Hat. Tempered gear from Bellgrave's craft halls.",
+    "description": "Silk Hat. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/silk-hat.png",
     "slug": "silk-hat",
     "kind": "equipment",
@@ -3693,7 +3693,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 285,
     "name": "Silk Coat",
-    "description": "Silk Coat. Tempered gear from Bellgrave's craft halls.",
+    "description": "Silk Coat. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/silk-coat.png",
     "slug": "silk-coat",
     "kind": "equipment",
@@ -3721,7 +3721,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 286,
     "name": "Silk Cuffs",
-    "description": "Silk Cuffs. Tempered gear from Bellgrave's craft halls.",
+    "description": "Silk Cuffs. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/silk-cuffs.png",
     "slug": "silk-cuffs",
     "kind": "equipment",
@@ -3748,7 +3748,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 287,
     "name": "Silk Slacks",
-    "description": "Silk Slacks. Tempered gear from Bellgrave's craft halls.",
+    "description": "Silk Slacks. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/silk-slacks.png",
     "slug": "silk-slacks",
     "kind": "equipment",
@@ -3775,7 +3775,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 288,
     "name": "Silk Pumps",
-    "description": "Silk Pumps. Tempered gear from Bellgrave's craft halls.",
+    "description": "Silk Pumps. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/silk-pumps.png",
     "slug": "silk-pumps",
     "kind": "equipment",
@@ -3802,7 +3802,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 292,
     "name": "Silk Gloves",
-    "description": "Silk Gloves — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Silk Gloves — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/silk-gloves.png",
     "slug": "silk-gloves",
     "kind": "filler",
@@ -3812,7 +3812,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 293,
     "name": "Velvet Cloth",
-    "description": "Velvet Cloth — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Velvet Cloth — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/velvet-cloth.png",
     "slug": "velvet-cloth",
     "kind": "intermediate",
@@ -3826,7 +3826,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 295,
     "name": "Velvet Shirt",
-    "description": "Velvet Shirt — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Velvet Shirt — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/velvet-shirt.png",
     "slug": "velvet-shirt",
     "kind": "filler",
@@ -3836,7 +3836,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 296,
     "name": "Velvet Hat",
-    "description": "Velvet Hat. Throne-forged gear from Bellgrave's craft halls.",
+    "description": "Velvet Hat. Throne-forged gear, wrought in the old Anvilhold manner the New Kings tried to burn away.",
     "icon": "/icons/items/velvet-hat.png",
     "slug": "velvet-hat",
     "kind": "equipment",
@@ -3861,7 +3861,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 297,
     "name": "Velvet Coat",
-    "description": "Velvet Coat. Throne-forged gear from Bellgrave's craft halls.",
+    "description": "Velvet Coat. Throne-forged gear, wrought in the old Anvilhold manner the New Kings tried to burn away.",
     "icon": "/icons/items/velvet-coat.png",
     "slug": "velvet-coat",
     "kind": "equipment",
@@ -3887,7 +3887,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 298,
     "name": "Velvet Cuffs",
-    "description": "Velvet Cuffs. Throne-forged gear from Bellgrave's craft halls.",
+    "description": "Velvet Cuffs. Throne-forged gear, wrought in the old Anvilhold manner the New Kings tried to burn away.",
     "icon": "/icons/items/velvet-cuffs.png",
     "slug": "velvet-cuffs",
     "kind": "equipment",
@@ -3912,7 +3912,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 299,
     "name": "Velvet Slacks",
-    "description": "Velvet Slacks. Throne-forged gear from Bellgrave's craft halls.",
+    "description": "Velvet Slacks. Throne-forged gear, wrought in the old Anvilhold manner the New Kings tried to burn away.",
     "icon": "/icons/items/velvet-slacks.png",
     "slug": "velvet-slacks",
     "kind": "equipment",
@@ -3937,7 +3937,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 300,
     "name": "Velvet Pumps",
-    "description": "Velvet Pumps. Throne-forged gear from Bellgrave's craft halls.",
+    "description": "Velvet Pumps. Throne-forged gear, wrought in the old Anvilhold manner the New Kings tried to burn away.",
     "icon": "/icons/items/velvet-pumps.png",
     "slug": "velvet-pumps",
     "kind": "equipment",
@@ -3962,7 +3962,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 301,
     "name": "Bell Torque Band",
-    "description": "Bell Torque Band. Throne-forged gear from Bellgrave's craft halls.",
+    "description": "Bell Torque Band. Throne-forged gear, wrought in the old Anvilhold manner the New Kings tried to burn away.",
     "icon": "/icons/items/bell-torque-band.png",
     "slug": "bell-torque-band",
     "kind": "equipment",
@@ -3983,7 +3983,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 303,
     "name": "Velvet Gloves",
-    "description": "Velvet Gloves — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Velvet Gloves — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/velvet-gloves.png",
     "slug": "velvet-gloves",
     "kind": "filler",
@@ -3993,7 +3993,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 304,
     "name": "Copper Collar",
-    "description": "Copper Collar. Tempered gear from Bellgrave's craft halls.",
+    "description": "Copper Collar. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/copper-collar.png",
     "slug": "copper-collar",
     "kind": "equipment",
@@ -4015,7 +4015,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 306,
     "name": "Velvet Hose",
-    "description": "Velvet Hose — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Velvet Hose — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/velvet-hose.png",
     "slug": "velvet-hose",
     "kind": "filler",
@@ -4025,7 +4025,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 307,
     "name": "Cleric's Bliaut",
-    "description": "Cleric's Bliaut. Throne-forged gear from Bellgrave's craft halls.",
+    "description": "Cleric's Bliaut. Throne-forged gear, wrought in the old Anvilhold manner the New Kings tried to burn away.",
     "icon": "/icons/items/clerics-bliaut.png",
     "slug": "clerics-bliaut",
     "kind": "equipment",
@@ -4050,7 +4050,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 309,
     "name": "Throneweave Robe",
-    "description": "Throneweave Robe. Throne-forged gear from Bellgrave's craft halls.",
+    "description": "Throneweave Robe. Throne-forged gear, wrought in the old Anvilhold manner the New Kings tried to burn away.",
     "icon": "/icons/items/throneweave-robe.png",
     "slug": "throneweave-robe",
     "kind": "equipment",
@@ -4076,7 +4076,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 313,
     "name": "Bone Ring",
-    "description": "Bone Ring. Ruined gear from Bellgrave's craft halls.",
+    "description": "Bone Ring. Ruined gear dug from the ashes of Anvilhold's fallen craft halls.",
     "icon": "/icons/items/bone-ring.png",
     "slug": "bone-ring",
     "kind": "equipment",
@@ -4096,7 +4096,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 314,
     "name": "Bone Earring",
-    "description": "Bone Earring. Ruined gear from Bellgrave's craft halls.",
+    "description": "Bone Earring. Ruined gear dug from the ashes of Anvilhold's fallen craft halls.",
     "icon": "/icons/items/bone-earring.png",
     "slug": "bone-earring",
     "kind": "equipment",
@@ -4116,7 +4116,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 315,
     "name": "Mythril Torque",
-    "description": "Mythril Torque. Tempered gear from Bellgrave's craft halls.",
+    "description": "Mythril Torque. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/mythril-torque.png",
     "slug": "mythril-torque",
     "kind": "equipment",
@@ -4138,7 +4138,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 316,
     "name": "Bone Knuckles",
-    "description": "Bone Knuckles — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Bone Knuckles — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/bone-knuckles.png",
     "slug": "bone-knuckles",
     "kind": "filler",
@@ -4152,7 +4152,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 317,
     "name": "Bone Dagger",
-    "description": "Bone Dagger. Ruined gear from Bellgrave's craft halls.",
+    "description": "Bone Dagger. Ruined gear dug from the ashes of Anvilhold's fallen craft halls.",
     "icon": "/icons/items/bone-dagger.png",
     "slug": "bone-dagger",
     "kind": "equipment",
@@ -4178,7 +4178,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 318,
     "name": "Bone Greave Blank",
-    "description": "Bone Greave Blank — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Bone Greave Blank — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/bone-greave-blank.png",
     "slug": "bone-greave-blank",
     "kind": "filler",
@@ -4192,7 +4192,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 319,
     "name": "Palace Gorget",
-    "description": "Palace Gorget. Throne-forged gear from Bellgrave's craft halls.",
+    "description": "Palace Gorget. Throne-forged gear, wrought in the old Anvilhold manner the New Kings tried to burn away.",
     "icon": "/icons/items/palace-gorget.png",
     "slug": "palace-gorget",
     "kind": "equipment",
@@ -4217,7 +4217,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 320,
     "name": "Bone Shell Buckle",
-    "description": "Bone Shell Buckle — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Bone Shell Buckle — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/bone-shell-buckle.png",
     "slug": "bone-shell-buckle",
     "kind": "filler",
@@ -4231,7 +4231,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 321,
     "name": "Bone Skull Charm",
-    "description": "Bone Skull Charm — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Bone Skull Charm — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/bone-skull-charm.png",
     "slug": "bone-skull-charm",
     "kind": "filler",
@@ -4245,7 +4245,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 322,
     "name": "Bone Onyx Socket",
-    "description": "Bone Onyx Socket — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Bone Onyx Socket — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/bone-onyx-socket.png",
     "slug": "bone-onyx-socket",
     "kind": "filler",
@@ -4259,7 +4259,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 323,
     "name": "Fang Earring",
-    "description": "Fang Earring. Tempered gear from Bellgrave's craft halls.",
+    "description": "Fang Earring. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/fang-earring.png",
     "slug": "fang-earring",
     "kind": "equipment",
@@ -4279,7 +4279,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 324,
     "name": "Ash AGI Elixir",
-    "description": "Ash AGI Elixir. Consumable from Bellgrave's alchemy and cookfires.",
+    "description": "Ash AGI Elixir. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/ash-agi-elixir.png",
     "slug": "ash-agi-elixir",
     "kind": "consumable",
@@ -4301,7 +4301,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 325,
     "name": "Bone Hilt",
-    "description": "Bone Hilt — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Bone Hilt — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/bone-hilt.png",
     "slug": "bone-hilt",
     "kind": "intermediate",
@@ -4315,7 +4315,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 326,
     "name": "Scarabrace Ring",
-    "description": "Scarabrace Ring. Tempered gear from Bellgrave's craft halls.",
+    "description": "Scarabrace Ring. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/scarabrace-ring.png",
     "slug": "scarabrace-ring",
     "kind": "equipment",
@@ -4335,7 +4335,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 327,
     "name": "Bone Harness",
-    "description": "Bone Harness. Tempered gear from Bellgrave's craft halls.",
+    "description": "Bone Harness. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/bone-harness.png",
     "slug": "bone-harness",
     "kind": "equipment",
@@ -4361,7 +4361,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 328,
     "name": "Bone Helm",
-    "description": "Bone Helm. Tempered gear from Bellgrave's craft halls.",
+    "description": "Bone Helm. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/bone-helm.png",
     "slug": "bone-helm",
     "kind": "equipment",
@@ -4386,7 +4386,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 329,
     "name": "Bone Inlay",
-    "description": "Bone Inlay — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Bone Inlay — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/bone-inlay.png",
     "slug": "bone-inlay",
     "kind": "filler",
@@ -4400,7 +4400,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 330,
     "name": "Bone Trousers",
-    "description": "Bone Trousers. Tempered gear from Bellgrave's craft halls.",
+    "description": "Bone Trousers. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/bone-trousers.png",
     "slug": "bone-trousers",
     "kind": "equipment",
@@ -4425,7 +4425,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 333,
     "name": "Horn Ring",
-    "description": "Horn Ring. Tempered gear from Bellgrave's craft halls.",
+    "description": "Horn Ring. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/horn-ring.png",
     "slug": "horn-ring",
     "kind": "equipment",
@@ -4445,7 +4445,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 334,
     "name": "Turtle Ring",
-    "description": "Turtle Ring. Tempered gear from Bellgrave's craft halls.",
+    "description": "Turtle Ring. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/turtle-ring.png",
     "slug": "turtle-ring",
     "kind": "equipment",
@@ -4466,7 +4466,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 335,
     "name": "Shell Shield",
-    "description": "Shell Shield. Tempered gear from Bellgrave's craft halls.",
+    "description": "Shell Shield. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/shell-shield.png",
     "slug": "shell-shield",
     "kind": "equipment",
@@ -4486,7 +4486,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 336,
     "name": "Mythril Bone Earring",
-    "description": "Mythril Bone Earring. Tempered gear from Bellgrave's craft halls.",
+    "description": "Mythril Bone Earring. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/mythril-bone-earring.png",
     "slug": "mythril-bone-earring",
     "kind": "equipment",
@@ -4506,7 +4506,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 337,
     "name": "Skull Bandana",
-    "description": "Skull Bandana. Tempered gear from Bellgrave's craft halls.",
+    "description": "Skull Bandana. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/skull-bandana.png",
     "slug": "skull-bandana",
     "kind": "equipment",
@@ -4530,7 +4530,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 341,
     "name": "Dark Onyx Ring",
-    "description": "Dark Onyx Ring. Throne-forged gear from Bellgrave's craft halls.",
+    "description": "Dark Onyx Ring. Throne-forged gear, wrought in the old Anvilhold manner the New Kings tried to burn away.",
     "icon": "/icons/items/dark-onyx-ring.png",
     "slug": "dark-onyx-ring",
     "kind": "equipment",
@@ -4551,7 +4551,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 342,
     "name": "Slag Binding Agent",
-    "description": "Slag Binding Agent. Consumable from Bellgrave's alchemy and cookfires.",
+    "description": "Slag Binding Agent. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/slag-binding-agent.png",
     "slug": "slag-binding-agent",
     "kind": "consumable",
@@ -4571,7 +4571,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 344,
     "name": "Bone Bracer",
-    "description": "Bone Bracer — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Bone Bracer — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/bone-bracer.png",
     "slug": "bone-bracer",
     "kind": "filler",
@@ -4581,7 +4581,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 345,
     "name": "Diamond Ring",
-    "description": "Diamond Ring. Throne-forged gear from Bellgrave's craft halls.",
+    "description": "Diamond Ring. Throne-forged gear, wrought in the old Anvilhold manner the New Kings tried to burn away.",
     "icon": "/icons/items/diamond-ring.png",
     "slug": "diamond-ring",
     "kind": "equipment",
@@ -4606,7 +4606,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 346,
     "name": "Royal Bone Sigil",
-    "description": "Royal Bone Sigil. Throne-forged gear from Bellgrave's craft halls.",
+    "description": "Royal Bone Sigil. Throne-forged gear, wrought in the old Anvilhold manner the New Kings tried to burn away.",
     "icon": "/icons/items/royal-bone-sigil.png",
     "slug": "royal-bone-sigil",
     "kind": "equipment",
@@ -4628,7 +4628,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 347,
     "name": "Glass Bead",
-    "description": "Glass Bead — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Glass Bead — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/glass-bead.png",
     "slug": "glass-bead",
     "kind": "intermediate",
@@ -4642,7 +4642,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 348,
     "name": "Goldsmith Earring",
-    "description": "Goldsmith Earring — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Goldsmith Earring — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/goldsmith-earring.png",
     "slug": "goldsmith-earring",
     "kind": "filler",
@@ -4656,7 +4656,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 349,
     "name": "Copper Ring",
-    "description": "Copper Ring. Ruined gear from Bellgrave's craft halls.",
+    "description": "Copper Ring. Ruined gear dug from the ashes of Anvilhold's fallen craft halls.",
     "icon": "/icons/items/copper-ring.png",
     "slug": "copper-ring",
     "kind": "equipment",
@@ -4676,7 +4676,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 350,
     "name": "Slag Burn Salve",
-    "description": "Slag Burn Salve. Consumable from Bellgrave's alchemy and cookfires.",
+    "description": "Slag Burn Salve. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/slag-burn-salve.png",
     "slug": "slag-burn-salve",
     "kind": "consumable",
@@ -4696,7 +4696,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 351,
     "name": "Slag STR Elixir",
-    "description": "Slag STR Elixir. Consumable from Bellgrave's alchemy and cookfires.",
+    "description": "Slag STR Elixir. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/slag-str-elixir.png",
     "slug": "slag-str-elixir",
     "kind": "consumable",
@@ -4718,7 +4718,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 352,
     "name": "Goldsmith Signet Blank",
-    "description": "Goldsmith Signet Blank — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Goldsmith Signet Blank — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/goldsmith-signet-blank.png",
     "slug": "goldsmith-signet-blank",
     "kind": "filler",
@@ -4732,7 +4732,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 353,
     "name": "Goldsmith Chip Mount",
-    "description": "Goldsmith Chip Mount — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Goldsmith Chip Mount — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/goldsmith-chip-mount.png",
     "slug": "goldsmith-chip-mount",
     "kind": "filler",
@@ -4746,7 +4746,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 354,
     "name": "Circlet",
-    "description": "Circlet. Ruined gear from Bellgrave's craft halls.",
+    "description": "Circlet. Ruined gear dug from the ashes of Anvilhold's fallen craft halls.",
     "icon": "/icons/items/circlet.png",
     "slug": "circlet",
     "kind": "equipment",
@@ -4767,7 +4767,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 355,
     "name": "Slag INT Elixir",
-    "description": "Slag INT Elixir. Consumable from Bellgrave's alchemy and cookfires.",
+    "description": "Slag INT Elixir. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/slag-int-elixir.png",
     "slug": "slag-int-elixir",
     "kind": "consumable",
@@ -4789,7 +4789,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 356,
     "name": "Slag AGI Elixir",
-    "description": "Slag AGI Elixir. Consumable from Bellgrave's alchemy and cookfires.",
+    "description": "Slag AGI Elixir. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/slag-agi-elixir.png",
     "slug": "slag-agi-elixir",
     "kind": "consumable",
@@ -4811,7 +4811,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 357,
     "name": "Slag Cluster Shell",
-    "description": "Slag Cluster Shell — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Slag Cluster Shell — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/slag-cluster-shell.png",
     "slug": "slag-cluster-shell",
     "kind": "filler",
@@ -4825,7 +4825,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 358,
     "name": "Ash Ring",
-    "description": "Ash Ring. Tempered gear from Bellgrave's craft halls.",
+    "description": "Ash Ring. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/ash-ring.png",
     "slug": "ash-ring",
     "kind": "equipment",
@@ -4845,7 +4845,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 359,
     "name": "Lapis Earring",
-    "description": "Lapis Earring. Tempered gear from Bellgrave's craft halls.",
+    "description": "Lapis Earring. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/lapis-earring.png",
     "slug": "lapis-earring",
     "kind": "equipment",
@@ -4865,7 +4865,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 360,
     "name": "Bell Binding Agent",
-    "description": "Bell Binding Agent. Consumable from Bellgrave's alchemy and cookfires.",
+    "description": "Bell Binding Agent. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/bell-binding-agent.png",
     "slug": "bell-binding-agent",
     "kind": "consumable",
@@ -4885,7 +4885,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 361,
     "name": "Bell Burn Salve",
-    "description": "Bell Burn Salve. Consumable from Bellgrave's alchemy and cookfires.",
+    "description": "Bell Burn Salve. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/bell-burn-salve.png",
     "slug": "bell-burn-salve",
     "kind": "consumable",
@@ -4905,7 +4905,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 362,
     "name": "Bell STR Elixir",
-    "description": "Bell STR Elixir. Consumable from Bellgrave's alchemy and cookfires.",
+    "description": "Bell STR Elixir. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/bell-str-elixir.png",
     "slug": "bell-str-elixir",
     "kind": "consumable",
@@ -4927,7 +4927,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 363,
     "name": "Bell INT Elixir",
-    "description": "Bell INT Elixir. Consumable from Bellgrave's alchemy and cookfires.",
+    "description": "Bell INT Elixir. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/bell-int-elixir.png",
     "slug": "bell-int-elixir",
     "kind": "consumable",
@@ -4949,7 +4949,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 364,
     "name": "Bell AGI Elixir",
-    "description": "Bell AGI Elixir. Consumable from Bellgrave's alchemy and cookfires.",
+    "description": "Bell AGI Elixir. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/bell-agi-elixir.png",
     "slug": "bell-agi-elixir",
     "kind": "consumable",
@@ -4971,7 +4971,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 367,
     "name": "Mythril Ring",
-    "description": "Mythril Ring. Tempered gear from Bellgrave's craft halls.",
+    "description": "Mythril Ring. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/mythril-ring.png",
     "slug": "mythril-ring",
     "kind": "equipment",
@@ -4992,7 +4992,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 368,
     "name": "Mythril Chain",
-    "description": "Mythril Chain — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Mythril Chain — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/mythril-chain.png",
     "slug": "mythril-chain",
     "kind": "intermediate",
@@ -5006,7 +5006,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 369,
     "name": "Jadeite Earring",
-    "description": "Jadeite Earring. Tempered gear from Bellgrave's craft halls.",
+    "description": "Jadeite Earring. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/jadeite-earring.png",
     "slug": "jadeite-earring",
     "kind": "equipment",
@@ -5026,7 +5026,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 370,
     "name": "Onyx Earring",
-    "description": "Onyx Earring. Tempered gear from Bellgrave's craft halls.",
+    "description": "Onyx Earring. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
     "icon": "/icons/items/onyx-earring.png",
     "slug": "onyx-earring",
     "kind": "equipment",
@@ -5046,7 +5046,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 372,
     "name": "Goldsmith Filigree",
-    "description": "Goldsmith Filigree — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Goldsmith Filigree — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/goldsmith-filigree.png",
     "slug": "goldsmith-filigree",
     "kind": "filler",
@@ -5060,7 +5060,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 373,
     "name": "Bell Ring",
-    "description": "Bell Ring. Throne-forged gear from Bellgrave's craft halls.",
+    "description": "Bell Ring. Throne-forged gear, wrought in the old Anvilhold manner the New Kings tried to burn away.",
     "icon": "/icons/items/bell-ring.png",
     "slug": "bell-ring",
     "kind": "equipment",
@@ -5081,7 +5081,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 374,
     "name": "Throne Binding Agent",
-    "description": "Throne Binding Agent. Consumable from Bellgrave's alchemy and cookfires.",
+    "description": "Throne Binding Agent. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/throne-binding-agent.png",
     "slug": "throne-binding-agent",
     "kind": "consumable",
@@ -5101,7 +5101,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 376,
     "name": "Diamond Earring",
-    "description": "Diamond Earring. Throne-forged gear from Bellgrave's craft halls.",
+    "description": "Diamond Earring. Throne-forged gear, wrought in the old Anvilhold manner the New Kings tried to burn away.",
     "icon": "/icons/items/diamond-earring.png",
     "slug": "diamond-earring",
     "kind": "equipment",
@@ -5123,7 +5123,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 377,
     "name": "Palace Signet",
-    "description": "Palace Signet. Throne-forged gear from Bellgrave's craft halls.",
+    "description": "Palace Signet. Throne-forged gear, wrought in the old Anvilhold manner the New Kings tried to burn away.",
     "icon": "/icons/items/palace-signet.png",
     "slug": "palace-signet",
     "kind": "equipment",
@@ -5145,7 +5145,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 378,
     "name": "Distilled Ash",
-    "description": "Distilled Ash — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Distilled Ash — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/distilled-ash.png",
     "slug": "distilled-ash",
     "kind": "intermediate",
@@ -5159,7 +5159,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 379,
     "name": "Antidote",
-    "description": "Antidote. Consumable from Bellgrave's alchemy and cookfires.",
+    "description": "Antidote. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/antidote.png",
     "slug": "antidote",
     "kind": "consumable",
@@ -5179,7 +5179,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 380,
     "name": "Burn Salve",
-    "description": "Burn Salve. Consumable from Bellgrave's alchemy and cookfires.",
+    "description": "Burn Salve. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/burn-salve.png",
     "slug": "burn-salve",
     "kind": "consumable",
@@ -5199,7 +5199,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 381,
     "name": "STR Elixir",
-    "description": "STR Elixir. Consumable from Bellgrave's alchemy and cookfires.",
+    "description": "STR Elixir. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/str-elixir.png",
     "slug": "str-elixir",
     "kind": "consumable",
@@ -5221,7 +5221,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 382,
     "name": "VIT Elixir",
-    "description": "VIT Elixir. Consumable from Bellgrave's alchemy and cookfires.",
+    "description": "VIT Elixir. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/vit-elixir.png",
     "slug": "vit-elixir",
     "kind": "consumable",
@@ -5263,7 +5263,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 384,
     "name": "AGI Elixir",
-    "description": "AGI Elixir. Consumable from Bellgrave's alchemy and cookfires.",
+    "description": "AGI Elixir. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/agi-elixir.png",
     "slug": "agi-elixir",
     "kind": "consumable",
@@ -5285,7 +5285,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 385,
     "name": "Multi-Status Base",
-    "description": "Multi-Status Base — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Multi-Status Base — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/multi-status-base.png",
     "slug": "multi-status-base",
     "kind": "filler",
@@ -5319,7 +5319,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 387,
     "name": "Echo Drops",
-    "description": "Echo Drops. Consumable from Bellgrave's alchemy and cookfires.",
+    "description": "Echo Drops. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/echo-drops.png",
     "slug": "echo-drops",
     "kind": "consumable",
@@ -5339,7 +5339,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 388,
     "name": "Eye Drops",
-    "description": "Eye Drops. Consumable from Bellgrave's alchemy and cookfires.",
+    "description": "Eye Drops. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/eye-drops.png",
     "slug": "eye-drops",
     "kind": "consumable",
@@ -5359,7 +5359,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 389,
     "name": "Binding Agent",
-    "description": "Binding Agent. Consumable from Bellgrave's alchemy and cookfires.",
+    "description": "Binding Agent. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/binding-agent.png",
     "slug": "binding-agent",
     "kind": "consumable",
@@ -5379,7 +5379,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 390,
     "name": "Focus Tincture",
-    "description": "Focus Tincture. Consumable from Bellgrave's alchemy and cookfires.",
+    "description": "Focus Tincture. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/focus-tincture.png",
     "slug": "focus-tincture",
     "kind": "consumable",
@@ -5399,7 +5399,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 391,
     "name": "Scroll: Cure",
-    "description": "Scroll: Cure. Consumable from Bellgrave's alchemy and cookfires.",
+    "description": "Scroll: Cure. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/scroll-cure.png",
     "slug": "scroll-cure",
     "kind": "consumable",
@@ -5419,7 +5419,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 392,
     "name": "DEX Elixir",
-    "description": "DEX Elixir. Consumable from Bellgrave's alchemy and cookfires.",
+    "description": "DEX Elixir. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/dex-elixir.png",
     "slug": "dex-elixir",
     "kind": "consumable",
@@ -5441,7 +5441,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 393,
     "name": "INT Elixir",
-    "description": "INT Elixir. Consumable from Bellgrave's alchemy and cookfires.",
+    "description": "INT Elixir. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/int-elixir.png",
     "slug": "int-elixir",
     "kind": "consumable",
@@ -5463,7 +5463,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 394,
     "name": "Silent Oil",
-    "description": "Silent Oil. Consumable from Bellgrave's alchemy and cookfires.",
+    "description": "Silent Oil. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/silent-oil.png",
     "slug": "silent-oil",
     "kind": "consumable",
@@ -5483,7 +5483,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 396,
     "name": "Prism Powder",
-    "description": "Prism Powder. Consumable from Bellgrave's alchemy and cookfires.",
+    "description": "Prism Powder. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/prism-powder.png",
     "slug": "prism-powder",
     "kind": "consumable",
@@ -5503,7 +5503,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 397,
     "name": "Enhancing Elixir",
-    "description": "Enhancing Elixir. Consumable from Bellgrave's alchemy and cookfires.",
+    "description": "Enhancing Elixir. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/enhancing-elixir.png",
     "slug": "enhancing-elixir",
     "kind": "consumable",
@@ -5523,7 +5523,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 398,
     "name": "Acid Bolt Compound",
-    "description": "Acid Bolt Compound — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Acid Bolt Compound — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/acid-bolt-compound.png",
     "slug": "acid-bolt-compound",
     "kind": "intermediate",
@@ -5557,7 +5557,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 400,
     "name": "Scroll: Slow",
-    "description": "Scroll: Slow. Consumable from Bellgrave's alchemy and cookfires.",
+    "description": "Scroll: Slow. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/scroll-slow.png",
     "slug": "scroll-slow",
     "kind": "consumable",
@@ -5577,7 +5577,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 401,
     "name": "Scroll: Fire",
-    "description": "Scroll: Fire. Consumable from Bellgrave's alchemy and cookfires.",
+    "description": "Scroll: Fire. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/scroll-fire.png",
     "slug": "scroll-fire",
     "kind": "consumable",
@@ -5597,7 +5597,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 403,
     "name": "Scroll: Quicken",
-    "description": "Scroll: Quicken. Consumable from Bellgrave's alchemy and cookfires.",
+    "description": "Scroll: Quicken. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/scroll-quicken.png",
     "slug": "scroll-quicken",
     "kind": "consumable",
@@ -5637,7 +5637,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 406,
     "name": "Remedy",
-    "description": "Remedy. Consumable from Bellgrave's alchemy and cookfires.",
+    "description": "Remedy. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/remedy.png",
     "slug": "remedy",
     "kind": "consumable",
@@ -5657,7 +5657,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 407,
     "name": "Enfeebling Tincture",
-    "description": "Enfeebling Tincture. Consumable from Bellgrave's alchemy and cookfires.",
+    "description": "Enfeebling Tincture. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/enfeebling-tincture.png",
     "slug": "enfeebling-tincture",
     "kind": "consumable",
@@ -5677,7 +5677,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 408,
     "name": "Fire Cluster",
-    "description": "Fire Cluster. Consumable from Bellgrave's alchemy and cookfires.",
+    "description": "Fire Cluster. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/fire-cluster.png",
     "slug": "fire-cluster",
     "kind": "consumable",
@@ -5697,7 +5697,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 409,
     "name": "Water Cluster",
-    "description": "Water Cluster. Consumable from Bellgrave's alchemy and cookfires.",
+    "description": "Water Cluster. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/water-cluster.png",
     "slug": "water-cluster",
     "kind": "consumable",
@@ -5717,7 +5717,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 410,
     "name": "Throne Focus Tincture",
-    "description": "Throne Focus Tincture. Consumable from Bellgrave's alchemy and cookfires.",
+    "description": "Throne Focus Tincture. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/throne-focus-tincture.png",
     "slug": "throne-focus-tincture",
     "kind": "consumable",
@@ -5757,7 +5757,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 413,
     "name": "Throne INT Elixir",
-    "description": "Throne INT Elixir. Consumable from Bellgrave's alchemy and cookfires.",
+    "description": "Throne INT Elixir. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/throne-int-elixir.png",
     "slug": "throne-int-elixir",
     "kind": "consumable",
@@ -5779,7 +5779,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 414,
     "name": "Throne AGI Elixir",
-    "description": "Throne AGI Elixir. Consumable from Bellgrave's alchemy and cookfires.",
+    "description": "Throne AGI Elixir. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/throne-agi-elixir.png",
     "slug": "throne-agi-elixir",
     "kind": "consumable",
@@ -5801,7 +5801,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 417,
     "name": "Throne Panacea",
-    "description": "Throne Panacea. Consumable from Bellgrave's alchemy and cookfires.",
+    "description": "Throne Panacea. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/throne-panacea.png",
     "slug": "throne-panacea",
     "kind": "consumable",
@@ -5821,7 +5821,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 418,
     "name": "Dried Ration",
-    "description": "Dried Ration. Consumable from Bellgrave's alchemy and cookfires.",
+    "description": "Dried Ration. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/dried-ration.png",
     "slug": "dried-ration",
     "kind": "consumable",
@@ -5841,7 +5841,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 419,
     "name": "Spice Rub",
-    "description": "Spice Rub — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Spice Rub — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/spice-rub.png",
     "slug": "spice-rub",
     "kind": "filler",
@@ -5855,7 +5855,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 420,
     "name": "Dustbread",
-    "description": "Dustbread. Consumable from Bellgrave's alchemy and cookfires.",
+    "description": "Dustbread. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/dustbread.png",
     "slug": "dustbread",
     "kind": "consumable",
@@ -5876,7 +5876,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 421,
     "name": "Smoked Minnow",
-    "description": "Smoked Minnow — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Smoked Minnow — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/smoked-minnow.png",
     "slug": "smoked-minnow",
     "kind": "filler",
@@ -5890,7 +5890,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 422,
     "name": "Fossil Grill",
-    "description": "Fossil Grill. Consumable from Bellgrave's alchemy and cookfires.",
+    "description": "Fossil Grill. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/fossil-grill.png",
     "slug": "fossil-grill",
     "kind": "consumable",
@@ -5908,7 +5908,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 423,
     "name": "Crab Cake",
-    "description": "Crab Cake — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Crab Cake — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/crab-cake.png",
     "slug": "crab-cake",
     "kind": "filler",
@@ -5922,7 +5922,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 424,
     "name": "Hearty Ration",
-    "description": "Hearty Ration — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Hearty Ration — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/hearty-ration.png",
     "slug": "hearty-ration",
     "kind": "filler",
@@ -5936,7 +5936,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 425,
     "name": "Grain Porridge",
-    "description": "Grain Porridge — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Grain Porridge — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/grain-porridge.png",
     "slug": "grain-porridge",
     "kind": "filler",
@@ -5950,7 +5950,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 427,
     "name": "Marina Stew",
-    "description": "Marina Stew — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Marina Stew — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/marina-stew.png",
     "slug": "marina-stew",
     "kind": "filler",
@@ -5964,7 +5964,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 428,
     "name": "Claycrab Stew",
-    "description": "Claycrab Stew. Consumable from Bellgrave's alchemy and cookfires.",
+    "description": "Claycrab Stew. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/claycrab-stew.png",
     "slug": "claycrab-stew",
     "kind": "consumable",
@@ -5985,7 +5985,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 431,
     "name": "Stone Scale Soup",
-    "description": "Stone Scale Soup. Consumable from Bellgrave's alchemy and cookfires.",
+    "description": "Stone Scale Soup. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/stone-scale-soup.png",
     "slug": "stone-scale-soup",
     "kind": "consumable",
@@ -6006,7 +6006,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 439,
     "name": "Carp Steak",
-    "description": "Carp Steak. Consumable from Bellgrave's alchemy and cookfires.",
+    "description": "Carp Steak. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/carp-steak.png",
     "slug": "carp-steak",
     "kind": "consumable",
@@ -6027,7 +6027,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 440,
     "name": "Hardtack",
-    "description": "Hardtack — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Hardtack — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/hardtack.png",
     "slug": "hardtack",
     "kind": "filler",
@@ -6037,7 +6037,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 442,
     "name": "Mage Biscuits",
-    "description": "Mage Biscuits. Consumable from Bellgrave's alchemy and cookfires.",
+    "description": "Mage Biscuits. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/mage-biscuits.png",
     "slug": "mage-biscuits",
     "kind": "consumable",
@@ -6058,7 +6058,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 444,
     "name": "Rogue Jerky",
-    "description": "Rogue Jerky. Consumable from Bellgrave's alchemy and cookfires.",
+    "description": "Rogue Jerky. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/rogue-jerky.png",
     "slug": "rogue-jerky",
     "kind": "consumable",
@@ -6079,7 +6079,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 450,
     "name": "Eel Skewer",
-    "description": "Eel Skewer. Consumable from Bellgrave's alchemy and cookfires.",
+    "description": "Eel Skewer. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/eel-skewer.png",
     "slug": "eel-skewer",
     "kind": "consumable",
@@ -6099,7 +6099,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 453,
     "name": "Koi Sashimi",
-    "description": "Koi Sashimi. Consumable from Bellgrave's alchemy and cookfires.",
+    "description": "Koi Sashimi. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/koi-sashimi.png",
     "slug": "koi-sashimi",
     "kind": "consumable",
@@ -6120,7 +6120,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 456,
     "name": "Glass Eel Noodles",
-    "description": "Glass Eel Noodles. Consumable from Bellgrave's alchemy and cookfires.",
+    "description": "Glass Eel Noodles. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/glass-eel-noodles.png",
     "slug": "glass-eel-noodles",
     "kind": "consumable",
@@ -6140,7 +6140,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 466,
     "name": "Throne Feast",
-    "description": "Throne Feast. Consumable from Bellgrave's alchemy and cookfires.",
+    "description": "Throne Feast. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/throne-feast.png",
     "slug": "throne-feast",
     "kind": "consumable",
@@ -6169,7 +6169,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 471,
     "name": "Coronation Banquet",
-    "description": "Coronation Banquet. Consumable from Bellgrave's alchemy and cookfires.",
+    "description": "Coronation Banquet. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
     "icon": "/icons/items/coronation-banquet.png",
     "slug": "coronation-banquet",
     "kind": "consumable",
@@ -6477,7 +6477,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 489,
     "name": "Distilled Pale",
-    "description": "Distilled Pale — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Distilled Pale — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/distilled-pale.png",
     "slug": "distilled-pale",
     "kind": "intermediate",
@@ -6950,11 +6950,11 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 1051,
     "name": "Bell Koi",
-    "description": "Bell Koi. Fish — Bellmarsh waters (premium node).",
+    "description": "Bell Koi. Fish — Bellmarsh waters, from its richest fishing pools.",
     "icon": "/icons/items/bell-koi.png",
     "slug": "bell-koi",
     "kind": "base",
-    "obtainedFrom": "Fish — Bellmarsh waters (premium node)"
+    "obtainedFrom": "Fish — Bellmarsh waters, richest fishing pools"
   },
   {
     "id": 1052,
@@ -7097,7 +7097,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 1064,
     "name": "Decayed Sword",
-    "description": "Decayed Sword. Ruined gear from Bellgrave's craft halls.",
+    "description": "Decayed Sword. Ruined gear dug from the ashes of Anvilhold's fallen craft halls.",
     "icon": "/icons/items/decayed-sword.png",
     "slug": "decayed-sword",
     "kind": "equipment",
@@ -7123,7 +7123,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 1065,
     "name": "Decayed Axe",
-    "description": "Decayed Axe. Ruined gear from Bellgrave's craft halls.",
+    "description": "Decayed Axe. Ruined gear dug from the ashes of Anvilhold's fallen craft halls.",
     "icon": "/icons/items/decayed-axe.png",
     "slug": "decayed-axe",
     "kind": "equipment",
@@ -7147,7 +7147,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 1066,
     "name": "Bronze Rivet×8",
-    "description": "Bronze Rivet×8 — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Bronze Rivet×8 — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/bronze-rivet.png",
     "slug": "bronze-rivet",
     "kind": "intermediate",
@@ -7162,7 +7162,7 @@ export const CATALOG: ItemDef[] = [
   {
     "id": 1067,
     "name": "Bronze Sheet",
-    "description": "Bronze Sheet — synth material from Bellgrave crafts. Feed into higher recipes.",
+    "description": "Bronze Sheet — worked stock from Mayflower's benches. Feed it into higher recipes.",
     "icon": "/icons/items/bronze-sheet.png",
     "slug": "bronze-sheet",
     "kind": "intermediate",

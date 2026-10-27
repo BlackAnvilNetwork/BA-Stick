@@ -362,7 +362,7 @@ export {
 
 /**
  * Zone catalog — music URL loops; omit / undefined music = keep previous track.
- * Field zones = areas; hub zones = cities. `palace_hall` aliases Citadel of KEK (MVP slice).
+ * Field zones = areas; hub zones = cities. `palace_hall` aliases the Citadel of the Seven Seats (MVP slice).
  */
 export const ZONE_IDS = [
   "palace_hall",
@@ -406,7 +406,7 @@ export type ZoneDef = {
 export const ZONES: Record<ZoneId, ZoneDef> = {
   palace_hall: {
     id: "palace_hall",
-    name: "Citadel of KEK (Hall)",
+    name: "The Citadel of the Seven Seats (Hall)",
     kind: "legacy",
     areaId: "throne_approach",
     cityId: "citadel_of_kek",
@@ -523,7 +523,7 @@ export const ZONES: Record<ZoneId, ZoneDef> = {
   },
   citadel_of_kek: {
     id: "citadel_of_kek",
-    name: "Citadel of KEK",
+    name: "The Citadel of the Seven Seats",
     kind: "city",
     areaId: "throne_approach",
     cityId: "citadel_of_kek",
