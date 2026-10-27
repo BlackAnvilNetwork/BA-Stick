@@ -6,6 +6,7 @@ import {
   ASH_PIT, PALE_HOLLOW_BOUNDS, PH_ALL_MOBS, PH_ALL_NODES, PH_ASH_ROAD, PH_BRIDGE_SITES, PH_FIELD_NPCS,
   PH_HUB, PH_HUB_NPCS, PH_HUB_SPAWN, PH_OUTDOOR_SPAWN, PH_QUARRY_CUT, PH_SEAM_TUNNEL,
   PH_STORAGE_CHEST, PH_TIMBER_BRIDGE, PH_TRAINER, PH_YARDS, ZONE_LINKS, paleHollowBridgeGeom, paleHollowHubApronRect,
+  MAYFLOWER_BBOX, MAYFLOWER_SCREEN, PH_START_CAMP,
 } from "@bellgrave/config";
 // PH_LAKE is not re-exported by the package index; read it from source (read-only).
 import { PH_LAKE } from "../../../../packages/config/src/pale-hollow";
@@ -16,6 +17,7 @@ export type Pad = { id: string; kind: "rect" | "disk"; x0: number; z0: number; x
 export function paleHollowAnchors() {
   const points: Pt[] = [];
   points.push({ id: "spawn-hub", kind: "spawn", x: PH_HUB_SPAWN.x, z: PH_HUB_SPAWN.z });
+  points.push({ id: "spawn-start-camp", kind: "spawn", x: PH_START_CAMP.x, z: PH_START_CAMP.z });
   points.push({ id: "spawn-outdoor", kind: "spawn", x: PH_OUTDOOR_SPAWN.x, z: PH_OUTDOOR_SPAWN.z });
   for (const n of PH_HUB_NPCS) points.push({ id: n.id, kind: "npc", x: n.x, z: n.z });
   points.push({ id: PH_STORAGE_CHEST.id, kind: "npc", x: PH_STORAGE_CHEST.x, z: PH_STORAGE_CHEST.z });
@@ -46,6 +48,11 @@ export function paleHollowAnchors() {
     { id: "ash-pit", kind: "rect", x0: ASH_PIT.bounds.minX, z0: ASH_PIT.bounds.minZ, x1: ASH_PIT.bounds.maxX, z1: ASH_PIT.bounds.maxZ, r: 0, soft: 12 },
     ...gates.map((g) => ({ id: `gate:${g.id}`, kind: "rect" as const, x0: g.minX, z0: g.minZ, x1: g.maxX, z1: Math.min(g.maxZ, PALE_HOLLOW_BOUNDS.maxZ), r: 0, soft: 16 })),
     ...PH_YARDS.map((y) => ({ id: `yard:${y.id}`, kind: "disk" as const, x0: y.x, z0: y.z, x1: y.x, z1: y.z, r: 10, soft: 18 })),
+    // Mayflower: the terraced town and the Mayhill screen keep their authored ground exactly.
+    { id: "mayflower", kind: "rect", x0: MAYFLOWER_BBOX.minX, z0: MAYFLOWER_BBOX.minZ, x1: MAYFLOWER_BBOX.maxX, z1: MAYFLOWER_BBOX.maxZ, r: 0, soft: 10 },
+    { id: "mayflower:mayhill", kind: "disk", x0: MAYFLOWER_SCREEN.x, z0: MAYFLOWER_SCREEN.z, x1: MAYFLOWER_SCREEN.x, z1: MAYFLOWER_SCREEN.z, r: MAYFLOWER_SCREEN.r, soft: 10 },
+    // Emberwatch start camp: level ground for the fire and tents.
+    { id: "camp:emberwatch", kind: "disk", x0: PH_START_CAMP.x, z0: PH_START_CAMP.z, x1: PH_START_CAMP.x, z1: PH_START_CAMP.z, r: 14, soft: 14 },
     ...bridges.map((b) => ({ id: `bridge:${b.id}`, kind: "disk" as const, x0: b.x, z0: b.z, x1: b.x, z1: b.z, r: b.spanHalf + 5, soft: 12 })),
   ];
   return { points, pads, bridges, lake: PH_LAKE, hub: PH_HUB, yards: PH_YARDS };

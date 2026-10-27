@@ -5,7 +5,8 @@
  */
 
 import { nearTrailCorridor } from "./trail-geom";
-import { MAYFLOWER_STATIONS as ST, MAYFLOWER_SPUR, mayflowerFieldWeight, mayflowerInTown, mayflowerSample } from "./pale-hollow-town";
+import { PH_START_SPAWN } from "./pale-hollow-camp";
+import { MAYFLOWER_STATIONS as ST, MAYFLOWER_SPUR, MAYFLOWER_SCREEN, mayflowerFieldWeight, mayflowerInTown, mayflowerSample } from "./pale-hollow-town";
 
 /**
  * The basin is a region, not a valley you can see in one glance.
@@ -1389,6 +1390,8 @@ function paleHollowHeightFieldBase(x: number, z: number): number {
   // Mayflower spur: the Shard's eastern fragments lift the spur north-east of the
   // scout encampment, so the exiles' town steps up a real slope (see pale-hollow-town.ts).
   {
+    const ds = Math.hypot(x - MAYFLOWER_SCREEN.x, z - MAYFLOWER_SCREEN.z);
+    if (ds < MAYFLOWER_SCREEN.r) y += smooth01(1 - ds / MAYFLOWER_SCREEN.r) * MAYFLOWER_SCREEN.h;
     const d = Math.hypot(x - MAYFLOWER_SPUR.x, z - MAYFLOWER_SPUR.z);
     if (d < MAYFLOWER_SPUR.r) {
       const t = smooth01(1 - d / MAYFLOWER_SPUR.r);
@@ -1772,7 +1775,8 @@ export function paleHollowGateSoftLevel(z: number): number | null {
   return null;
 }
 
-export const PH_HUB_SPAWN = { x: PH_CAMP_SHIFT_X, z: 2 + PH_CAMP_SHIFT_Z, facing: 0 } as const;
+/** Player start: Emberwatch camp (pale-hollow-camp.ts), far from Mayflower. */
+export const PH_HUB_SPAWN = PH_START_SPAWN;
 export const PH_OUTDOOR_SPAWN = { x: PH_CAMP_SHIFT_X, z: 14 + PH_CAMP_SHIFT_Z, facing: 0 } as const;
 
 export type GatherNodeKind = "harvest" | "mine" | "fish";
@@ -1934,7 +1938,7 @@ export function paleHollowMobJob(
 // They are five times the old corridor list, seated on the enlarged basin.
 
 export const PH_HUB_NPCS = [
-  // Mayflower districts (pale-hollow-town.ts). Herald stays at the Scout Gate (the hub pad).
+  // Mayflower districts (pale-hollow-town.ts). The Herald keeps Emberwatch, the start camp.
   { id: "npc-shard-elder", name: "Orrin Haltmark", x: ST["npc-shard-elder"].x, z: ST["npc-shard-elder"].z, facing: Math.PI, role: "guide" as const },
   { id: "npc-ph-herald", name: "Wenna Gatesmoke", x: ST["npc-ph-herald"].x, z: ST["npc-ph-herald"].z, facing: Math.PI, role: "quest_giver" as const },
   { id: "npc-ph-job-master", name: "Teodric Vane", x: ST["npc-ph-job-master"].x, z: ST["npc-ph-job-master"].z, facing: -Math.PI / 2, role: "job_master" as const },

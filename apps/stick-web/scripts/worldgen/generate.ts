@@ -12,6 +12,7 @@ import { fileURLToPath } from "node:url";
 import {
   PALE_HOLLOW_BOUNDS, paleHollowBridgeDeckY, paleHollowGroundHeight, paleHollowInOpenWater,
   paleHollowOnBridge, paleHollowStandHeight, paleHollowLakeDist, paleHollowRiverCenterX, paleHollowTributaryCenterX, paleHollowWalkable, paleHollowWaterSurfaceY,
+  MAYFLOWER_BBOX, MAYFLOWER_SCREEN,
 } from "@bellgrave/config";
 // PH_LAKE is not re-exported by the package index; read it from source (read-only).
 import { PH_LAKE } from "../../../../packages/config/src/pale-hollow";
@@ -167,7 +168,7 @@ export function generatePaleHollow() {
   // legacy heights, so the land is WARPED to meet them with a broad offset field (no cut platforms).
   // Soft pads (yards, gates, arena) only need level, walkable ground: flatten to the local mean.
   const padW = new Float32Array(N), fixed = new Uint8Array(N), hardCore = new Uint8Array(N);
-  const hardPads = A.pads.filter((p) => p.id === "hub-apron" || p.id.startsWith("bridge:"));
+  const hardPads = A.pads.filter((p) => p.id === "hub-apron" || p.id.startsWith("bridge:") || p.id.startsWith("mayflower"));
   const softPads = A.pads.filter((p) => !hardPads.includes(p));
   for (let k = 0; k < N; k++) for (const p of hardPads) { const w = padWeight({ ...p, soft: 1e-3 }, X(k), Z(k)); if (w > 0) { hardCore[k] = 1; break; } }
   const delta = new Float32Array(N); for (let k = 0; k < N; k++) if (hardCore[k]) delta[k] = paleHollowGroundHeight(X(k), Z(k)) - h[k]!;
@@ -345,15 +346,15 @@ export function generatePaleHollow() {
   // (b) The Old Pass road: least-cost route over the Seam Ridge's lowest saddle, abandoned for the gated Ash Road.
   { let best = -1; for (let i = 0; i < W; i++) { let mx = -1e9, mk = -1; for (let j = Math.round((440 - minZ) / cell); j < Math.round((480 - minZ) / cell); j++) { const k = j * W + i; if (h[k]! > mx) { mx = h[k]!; mk = k; } }
       if (X(mk) < -60 || X(mk) > 140) continue; if (best < 0 || h[mk]! < h[best]!) best = mk; }
-    if (best >= 0) lore.push({ id: "old-pass-saddle", kind: "abandoned-road", x: X(best), z: Z(best), why: `lowest crest of the Seam Ridge (${h[best]!.toFixed(1)} m): the natural route north before the Ash Road cut`, hook: "Wheel ruts over the saddle, older than the Ash Road toll gate. Records say no road ever ran here." }); }
+    if (best >= 0) lore.push({ id: "old-pass-saddle", kind: "abandoned-road", x: X(best), z: Z(best), why: `lowest crest of the Seam Ridge (${h[best]!.toFixed(1)} m): the natural route north before the Ash Road cut`, hook: "Wheel ruts over the saddle, older than the Ash Road toll gate. The old songs say no road ever ran here." }); }
   // (c) Defaced monument: the most visible knoll overlooking both river crossings (high, dry, view to bridges).
   { let best = -1, bs = -1e9; for (let k = 0; k < N; k += 3) { if (water[k] || padW[k]! > 0 || slope[k]! > 0.5) continue; const x = X(k), z = Z(k);
       const dist = Math.min(...A.bridges.map((b) => Math.hypot(x - b.x, z - b.z))); if (dist > 120 || dist < 30) continue;
       const s = h[k]! - dist * 0.02; if (s > bs) { bs = s; best = k; } }
-    if (best >= 0) lore.push({ id: "defaced-stele", kind: "defaced-monument", x: X(best), z: Z(best), why: "highest knoll in sight of both river crossings: where a toll-holder would raise a marker", hook: "A stele with its name chiselled off and a New King's crest cut over it." }); }
+    if (best >= 0) lore.push({ id: "defaced-stele", kind: "defaced-monument", x: X(best), z: Z(best), why: "highest knoll in sight of both river crossings: where a the Crown would raise a stone over the old makers", hook: "A stele with its name chiselled off and a New King's crest cut over it." }); }
   // (d) Dry mill-race: a creek that the generator routes into the main stem, mouth near the hub bridge (canal diverted by the Kings).
   { let best = -1; for (let k = 0; k < N; k++) if (creek[k] && acc[k]! > (best < 0 ? 0 : acc[best]!) && Z(k) > 150 && Z(k) < 300) best = k;
-    if (best >= 0) lore.push({ id: "dry-millrace", kind: "abandoned-works", x: X(best), z: Z(best), why: `largest side-creek mouth (${Math.round(acc[best]!)} m² catchment) on the main stem`, hook: "Cut stone lining a stream bed. A mill stood here; the census says the hollow never milled grain." }); }
+    if (best >= 0) lore.push({ id: "dry-millrace", kind: "abandoned-works", x: X(best), z: Z(best), why: `largest side-creek mouth (${Math.round(acc[best]!)} m² catchment) on the main stem`, hook: "Cut stone lining a stream bed. A mill stood here; the only hearth-ash and a chiselled-out name remain." }); }
 
   // (e) Time Mage warp circle (data hook only, no mechanic): a sheltered, gently sloping knoll beside an old crossroads —
   // many road cells within 25 m (routes converge), dry, off every pad, >= 18 m from any gameplay anchor, above the floodplain.
@@ -371,7 +372,9 @@ export function generatePaleHollow() {
   let civicKept = 0;
   const groundAt = (x: number, z: number) => { const fx = (x - minX) / cell, fz = (z - minZ) / cell; const i = Math.max(0, Math.min(W - 2, Math.floor(fx))), j = Math.max(0, Math.min(H - 2, Math.floor(fz)));
     const u = fx - i, v = fz - j; const a = h[j * W + i]!, b = h[j * W + i + 1]!, c = h[(j + 1) * W + i]!, d = h[(j + 1) * W + i + 1]!; return lerp(lerp(a, b, u), lerp(c, d, u), v); };
-  for (const p of legacy) if (civic.has(p.kind)) { const dy = groundAt(p.x, p.z) - paleHollowGroundHeight(p.x, p.z); props.push({ ...p, y: p.y + (p.kind === K.bridge ? 0 : dy) }); civicKept++; }
+  const inMayflower = (x: number, z: number) => (x >= MAYFLOWER_BBOX.minX - 12 && x <= MAYFLOWER_BBOX.maxX + 12 && z >= MAYFLOWER_BBOX.minZ - 12 && z <= MAYFLOWER_BBOX.maxZ + 12)
+    || Math.hypot(x - MAYFLOWER_SCREEN.x, z - MAYFLOWER_SCREEN.z) < MAYFLOWER_SCREEN.r;
+  for (const p of legacy) if (civic.has(p.kind) || inMayflower(p.x, p.z)) { const dy = groundAt(p.x, p.z) - paleHollowGroundHeight(p.x, p.z); props.push({ ...p, y: p.y + (p.kind === K.bridge ? 0 : dy) }); civicKept++; }
   const rnd = mulberry32(hashSeed(seed, "veg")); const occ = new Map<number, { x: number; z: number; r: number }[]>();
   const okSpace = (x: number, z: number, r: number) => { const ci = Math.floor(x / 8), cj = Math.floor(z / 8);
     for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) for (const o of occ.get((ci + a) * 100003 + cj + b) ?? []) if (Math.hypot(o.x - x, o.z - z) < Math.max(r, o.r)) return false; return true; };

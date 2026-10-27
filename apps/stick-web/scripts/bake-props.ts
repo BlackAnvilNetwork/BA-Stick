@@ -45,7 +45,7 @@ import {
   paleHollowWalkable,
   paleHollowWaterSurfaceY,
   type PaleHollowRiverKind,
-  mayflowerProps, mayflowerFlowers,
+  mayflowerProps, mayflowerFlowers, mayflowerRunnelPath, mayflowerScreenTrees, startCampProps, warpCircleProps,
 } from "@bellgrave/config";
 
 /** Must match `PropKind` in engine/ba-stick-render/src/props.rs. */
@@ -450,12 +450,38 @@ export function bridgeProfileSamples() {
 }
 
 /** Mayflower town props (data in config pale-hollow-town.ts; client-visual only). */
+/** Runnel water heights along its path: never rises, and falls at least 1 cm per metre on the flats. */
+export function mayflowerRunnelHeights(): { x: number; z: number; y: number }[] {
+  const pts = mayflowerRunnelPath(); const dense: { x: number; z: number }[] = [];
+  for (let i = 0; i + 1 < pts.length; i++) {
+    const a = pts[i], b = pts[i + 1], n = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.z - a.z)));
+    for (let k = 0; k < n; k++) dense.push({ x: a.x + ((b.x - a.x) * k) / n, z: a.z + ((b.z - a.z) * k) / n });
+  }
+  dense.push(pts[pts.length - 1]);
+  const out: { x: number; z: number; y: number }[] = [];
+  let prev = Infinity;
+  for (let i = 0; i < dense.length; i++) {
+    const p = dense[i], step = i ? Math.hypot(p.x - dense[i - 1].x, p.z - dense[i - 1].z) : 0;
+    const y = Math.min(prev - 0.01 * step, paleHollowStandHeight(p.x, p.z) + 0.02);
+    out.push({ ...p, y }); prev = y;
+  }
+  return out;
+}
+
 function mayflower(out: Prop[]): void {
+  const rn = mayflowerRunnelHeights();
+  for (let i = 0; i + 1 < rn.length; i++) {
+    const a = rn[i], b = rn[i + 1];
+    out.push({ kind: K.channel, v: 0, x: (a.x + b.x) / 2, z: (a.z + b.z) / 2, y: (a.y + b.y) / 2, yaw: Math.atan2(b.x - a.x, b.z - a.z), s: Math.hypot(b.x - a.x, b.z - a.z), w: 0.45, h: 0, d: 0 });
+  }
+  for (const t of mayflowerScreenTrees()) {
+    out.push({ kind: (K as Record<string, number>)[t.kind], v: 0, x: t.x, z: t.z, y: paleHollowHeight(t.x, t.z), yaw: 0, s: t.s ?? 1, w: 0, h: 0, d: 0 });
+  }
   for (const f of mayflowerFlowers()) {
     if (!paleHollowWalkable(f.x, f.z)) continue; // no flowers in water, walls or buildings
     out.push({ kind: K.bloom, v: f.v ?? 0, x: f.x, z: f.z, y: paleHollowStandHeight(f.x, f.z), yaw: 0, s: f.s ?? 1, w: 0, h: 0, d: 0 });
   }
-  for (const p of mayflowerProps()) {
+  for (const p of [...mayflowerProps(), ...startCampProps(), ...warpCircleProps()]) {
     const kind = (K as Record<string, number>)[p.kind];
     if (kind === undefined) throw new Error("unknown Mayflower prop kind " + p.kind);
     out.push({

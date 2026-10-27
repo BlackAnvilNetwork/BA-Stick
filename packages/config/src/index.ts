@@ -338,6 +338,7 @@ export {
 } from "./boot-forge-menu";
 
 export * from "./pale-hollow-town";
+export * from "./pale-hollow-camp";
 export { PH_TRAINER, paleHollowTownSample } from "./pale-hollow";
 export { paleHollowLandmarks, type PaleHollowLandmark } from "./pale-hollow-landmarks";
 
@@ -435,7 +436,7 @@ export const ZONES: Record<ZoneId, ZoneDef> = {
   },
   forest_basin: {
     id: "forest_basin",
-    name: "The Counting Wood",
+    name: "The Hush Wood",
     kind: "field",
     areaId: "pale_hollow",
     music: PALE_HOLLOW_MUSIC,

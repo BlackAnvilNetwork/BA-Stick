@@ -19,6 +19,12 @@
 export const MAYFLOWER_NAME = "Mayflower";
 
 /** Natural lift of the spur under the town (added to the basin height field). */
+/**
+ * The Mayhill: a wooded rise on the town's north-west shoulder. The fires are banked low: with the forge
+ * chimney kept just above the hall roof, this rise hides the town's skyline from the Ash Road gate.
+ */
+export const MAYFLOWER_SCREEN = { x: 200, z: 268, r: 28, h: 9 } as const;
+
 export const MAYFLOWER_SPUR = { x: 238, z: 226, r: 78, h: 6.5 } as const;
 
 export type MayflowerDistrictId =
@@ -42,7 +48,7 @@ export type MayflowerDistrict = {
 
 /** Scout Gate is the existing PH_HUB pad (168,190, floor 3.0); it is listed for labels only. */
 export const MAYFLOWER_DISTRICTS: readonly MayflowerDistrict[] = [
-  { id: "scout_gate", keeper: "Wenna Gatesmoke", name: "The Scout Gate", npcs: ["npc-ph-herald"], x: 168, z: 190, r: 0, level: 3.0, seed: 0,
+  { id: "scout_gate", keeper: "", name: "The Scout Gate", npcs: [], x: 168, z: 190, r: 0, level: 3.0, seed: 0,
     blurb: "The old encampment: watch-fires, lookout post toward the Ash Road, the Herald's lectern." },
   { id: "tally_row", keeper: "Maudry Saltpenny", name: "Tally Row", npcs: ["npc-ph-vendor"], x: 196, z: 178, r: 10, level: 3.2, seed: 1.3,
     blurb: "Covered market: stalls, barrels, granary and smokehouses; Maudry keeps two sets of scales, the Crown's and the honest." },
@@ -99,7 +105,7 @@ const HALL_ANGLES = [-1.95, -1.5, -1.05, -0.6, -0.15, 0.45, 0.95, 2.3];
 
 export const MAYFLOWER_BUILDINGS: readonly MayflowerBuilding[] = [
   { id: "great-forge-hall", district: "eightfold", name: "Great Forge Hall", x: EF.x + 4.5, z: EF.z + 0.5, w: 7, d: 5, yaw: 0.35, h: 4.2 },
-  { id: "chimney-stack", district: "eightfold", name: "Chimney Stack", x: EF.x + 8.6, z: EF.z + 2.3, w: 1.8, d: 1.8, yaw: 0.35, h: 13 },
+  { id: "chimney-stack", district: "eightfold", name: "Chimney Stack", x: EF.x + 8.6, z: EF.z + 2.3, w: 1.8, d: 1.8, yaw: 0.35, h: 5.5 },
   ...HALL_ANGLES.map((a, i) => ({
     id: `hall-${EIGHTFOLD_HALLS[i].toLowerCase()}`, district: "eightfold" as const, name: `${EIGHTFOLD_HALLS[i]} Hall`,
     x: EF.x + Math.cos(a) * (EF.r - 3.2), z: EF.z + Math.sin(a) * (EF.r - 3.2), w: 3.4, d: 2.6, yaw: -a + Math.PI / 2, h: 2.6,
@@ -118,15 +124,10 @@ export const MAYFLOWER_AQUEDUCT = [
   { x: 226.5, z: 246.5 }, { x: 228.5, z: 238 }, { x: 231.5, z: 230 }, { x: 234.5, z: 224.5 },
 ] as const;
 
-/** Rundown stream (visual runnel) from the wheel down the streets to the yard lane: wheel, ford stones where streets cross. */
-export const MAYFLOWER_RUNNEL = [
-  { x: 234.5, z: 224.5 }, { x: 228, z: 214 }, { x: 222, z: 204 }, { x: 214, z: 188 },
-  { x: 206, z: 180 }, { x: 198, z: 168 }, { x: 196, z: 161 }, { x: 188, z: 140 }, { x: 186, z: 128 },
-] as const;
 
 /** NPC stations inside their districts (world coords; walkable, clear of buildings). */
 export const MAYFLOWER_STATIONS = {
-  "npc-ph-herald": { x: 168.4, z: 193.0 },
+  "npc-ph-herald": { x: -50.5, z: 301.5 }, // Emberwatch (PH_START_HERALD)
   "npc-shard-elder": { x: 229.5, z: 243.0 },
   "npc-ph-crafter": { x: 236.0, z: 211.0 },
   "npc-ph-vendor": { x: 194.0, z: 179.5 },
@@ -284,12 +285,6 @@ function districtProps(): MayflowerProp[] {
     const a = aq[i], b = aq[i + 1];
     P.push({ kind: "channel", x: (a.x + b.x) / 2, z: (a.z + b.z) / 2, yaw: Math.atan2(b.x - a.x, b.z - a.z), s: Math.hypot(b.x - a.x, b.z - a.z), w: 0.7, dy: 2.2 });
   }
-  // Runnel down the town (visual water at ground level).
-  const rn = MAYFLOWER_RUNNEL;
-  for (let i = 0; i + 1 < rn.length; i++) {
-    const a = rn[i], b = rn[i + 1];
-    P.push({ kind: "channel", x: (a.x + b.x) / 2, z: (a.z + b.z) / 2, yaw: Math.atan2(b.x - a.x, b.z - a.z), s: Math.hypot(b.x - a.x, b.z - a.z), w: 0.45, dy: 0.02 });
-  }
   // Tally Row: stalls in a crescent, barrels, crates.
   const tr = dist("tally_row");
   ring(tr.x, tr.z, 6.4, 5, 2.3).forEach((p, i) => {
@@ -343,6 +338,44 @@ function streetLanterns(): MayflowerProp[] {
       const nx = -(g.bz - g.az) / L, nz = (g.bx - g.ax) / L;
       P.push({ kind: "lantern", x: g.bx + nx * (s.halfW - 0.35) * side, z: g.bz + nz * (s.halfW - 0.35) * side });
     }
+  }
+  return P;
+}
+
+/** Point on a street's curve at parameter t, pushed sideways by `off` metres. */
+function streetPoint(id: string, t: number, off: number): { x: number; z: number } {
+  const s = MAYFLOWER_STREETS.find((q) => q.id === id)!;
+  const dx = s.b.x - s.a.x, dz = s.b.z - s.a.z, L = Math.hypot(dx, dz);
+  const mx = (s.a.x + s.b.x) / 2 - (dz / L) * s.bow, mz = (s.a.z + s.b.z) / 2 + (dx / L) * s.bow;
+  const u = 1 - t, x = u * u * s.a.x + 2 * u * t * mx + t * t * s.b.x, z = u * u * s.a.z + 2 * u * t * mz + t * t * s.b.z;
+  const tx = 2 * u * (mx - s.a.x) + 2 * t * (s.b.x - mx), tz = 2 * u * (mz - s.a.z) + 2 * t * (s.b.z - mz), tl = Math.hypot(tx, tz) || 1;
+  return { x: x - (tz / tl) * off, z: z + (tx / tl) * off };
+}
+
+/**
+ * The runnel's course, from the water-wheel below the aqueduct down the street edges to the Turning Yard.
+ * The bake sets its water height so it only ever falls (see bake-props).
+ */
+export function mayflowerRunnelPath(): { x: number; z: number }[] {
+  const P: { x: number; z: number }[] = [{ x: 234.5, z: 224.5 }];
+  const run = (id: string, from: number, to: number, off: number) => {
+    for (let i = 0; i <= 40; i++) P.push(streetPoint(id, from + ((to - from) * i) / 40, off));
+  };
+  const hw = (id: string) => MAYFLOWER_STREETS.find((q) => q.id === id)!.halfW - 0.45;
+  run("hearth-way", 1, 0, hw("hearth-way"));
+  run("tally-climb", 1, 0, -hw("tally-climb"));
+  run("yard-stair", 0, 1, hw("yard-stair"));
+  return P;
+}
+
+/** Screening woods on the Mayhill (visual only). */
+export function mayflowerScreenTrees(): MayflowerProp[] {
+  const P: MayflowerProp[] = [], S = MAYFLOWER_SCREEN;
+  for (let x = S.x - S.r; x <= S.x + S.r; x += 3.2) for (let z = S.z - S.r; z <= S.z + S.r; z += 3.2) {
+    const jx = x + (fh(x, z, 11) - 0.5) * 2.4, jz = z + (fh(x, z, 12) - 0.5) * 2.4;
+    const d = Math.hypot(jx - S.x, jz - S.z);
+    if (d > S.r * 0.8 || fh(jx, jz, 13) > 0.7) continue;
+    P.push({ kind: fh(jx, jz, 14) < 0.6 ? "spruce" : "pine", x: jx, z: jz, s: 1.1 + fh(jx, jz, 15) * 0.6 });
   }
   return P;
 }
