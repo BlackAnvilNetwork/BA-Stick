@@ -374,10 +374,40 @@ export function fieldNav(zoneId: string | undefined): {
   bounds: ZoneField["bounds"];
   walkable: ZoneField["walkable"];
   clamp: ZoneField["clamp"];
+  /** Straight walk with no sliding: every sample on the segment is walkable. */
+  clampMove: ZoneField["clampMove"];
 } | undefined {
   const field = fieldById(zoneId);
   if (!field) return undefined;
-  return { bounds: field.bounds, walkable: field.walkable, clamp: field.clamp };
+  // Paths must keep a little clearance: a line that grazes a wall corner passes this check by a hair,
+  // but a player stepping along it lands a hair the other way and stops against the wall.
+  const CLEAR = 0.35;
+  const straight = (fx: number, fz: number, tx: number, tz: number) => {
+    const dist = Math.hypot(tx - fx, tz - fz);
+    const steps = Math.max(1, Math.ceil(dist / 0.25));
+    const px = dist > 0 ? (-(tz - fz) / dist) * CLEAR : 0;
+    const pz = dist > 0 ? ((tx - fx) / dist) * CLEAR : 0;
+    const startOpen = field.walkable(fx + px, fz + pz) && field.walkable(fx - px, fz - pz);
+    let last = { x: fx, z: fz };
+    for (let i = 1; i <= steps; i++) {
+      const t = i / steps;
+      const c = { x: fx + (tx - fx) * t, z: fz + (tz - fz) * t };
+      if (!field.walkable(c.x, c.z)) return last;
+      // Side clearance is only asked for away from the ends, so paths can still start or finish beside a wall.
+      const nearEnd = !startOpen && t * dist < 1 || (1 - t) * dist < 1;
+      if (!nearEnd && (!field.walkable(c.x + px, c.z + pz) || !field.walkable(c.x - px, c.z - pz))) return last;
+      last = c;
+    }
+    return last;
+  };
+  // Route cells keep the same clearance, so grid corners never cut a wall the walk would stop on.
+  const roomy = (x: number, z: number) =>
+    field.walkable(x, z) &&
+    field.walkable(x + 0.5, z) &&
+    field.walkable(x - 0.5, z) &&
+    field.walkable(x, z + 0.5) &&
+    field.walkable(x, z - 0.5);
+  return { bounds: field.bounds, walkable: roomy, clamp: field.clamp, clampMove: straight };
 }
 
 export function fieldGateSoftLevel(zoneId: string | undefined, x: number, z: number): number | null | undefined {
