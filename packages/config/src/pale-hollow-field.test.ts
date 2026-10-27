@@ -110,10 +110,15 @@ describe("pale hollow field", () => {
     const boar = PH_ALL_MOBS.find((m) => m.id === "ph-boar-7")!;
     assert.equal(boar.x, 82);
     assert.equal(boar.z, 282);
-    const dog = PH_ALL_MOBS.find((m) => m.id === "ph-camp-dog")!;
-    assert.equal(dog.x, 168);
-    assert.equal(dog.z, 208);
     const start = { x: -53, z: 297 };
+    const dog = PH_ALL_MOBS.find((m) => m.id === "ph-camp-dog")!;
+    const crab = PH_ALL_MOBS.find((m) => m.id === "ph-clay-crab")!;
+    const watch = { x: -55, z: 300 };
+    for (const mob of [dog, crab]) {
+      assert.equal(paleHollowWalkable(mob.x, mob.z), true, mob.id);
+      assert.ok(Math.hypot(mob.x - watch.x, mob.z - watch.z) <= 15, mob.id);
+      assert.equal(canWalk(start, mob), true, mob.id);
+    }
     assert.equal(canWalk(start, wenna), true, "wenna");
     for (const id of skirt.mobIds) {
       const mob = PH_ALL_MOBS.find((m) => m.id === id)!;

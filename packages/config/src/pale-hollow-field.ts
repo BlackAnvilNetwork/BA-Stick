@@ -5,7 +5,6 @@
  */
 import {
   PH_ASH_ROAD,
-  PH_HUB_SPAWN,
   PH_QUARRY_CUT,
   PH_SEAM_TUNNEL,
   PH_TIMBER_BRIDGE,
@@ -266,6 +265,7 @@ const EMBER_HARE_SPOTS = [
   { x: -50, z: 274 },
 ];
 placed.push(...EMBER_HARE_SPOTS);
+placed.push({ x: -55, z: 300 }, { x: -64, z: 298 });
 
 const banks = grid(-20, 90, 40, 230, 3, (x, z) => paleHollowBiome(x, z) === "riverbank");
 const slimes = take(banks, 20, 16, placed, 2);
@@ -370,8 +370,8 @@ export const PH_ALL_MOBS: PaleHollowMobDef[] = [
   {
     id: "ph-camp-dog",
     name: "Camp Dog",
-    x: PH_HUB_SPAWN.x,
-    z: PH_HUB_SPAWN.z + 18,
+    x: -55,
+    z: 300,
     level: 1,
     archetype: "hollow_scavenger",
     job: "rogue",
@@ -397,8 +397,8 @@ export const PH_ALL_MOBS: PaleHollowMobDef[] = [
   {
     id: "ph-clay-crab",
     name: "Clay Crab",
-    x: PH_HUB_SPAWN.x - 10,
-    z: PH_HUB_SPAWN.z + 18,
+    x: -64,
+    z: 298,
     level: 2,
     archetype: "clay_crab",
     job: "fighter",
