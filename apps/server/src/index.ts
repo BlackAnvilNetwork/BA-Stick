@@ -74,6 +74,9 @@ import {
   PH_FIELD_NPCS,
   PH_STORAGE_CHEST,
   PH_HUB_SPAWN,
+  PH_START_SPAWN,
+  reachWarp,
+  respawnStand,
   PLAYER_SPEED,
   PLAYER_SPEED_FLUX,
   TICK_HZ,
@@ -141,6 +144,7 @@ import {
   releaseEscrowReservation,
 } from "./root-anchor";
 import { opsAlert } from "./ops-log";
+import { normalizeRespawnHome, normalizeWarpUnlocked, trySetRespawn, tryUseWarp } from "./warp-progress";
 import {
   SHINY_CLONE_COUNT,
   SHINY_FLEE_RELOCATE_MS,
@@ -392,6 +396,10 @@ type Player = {
   dust: number;
   /** Pale Hollow kill tasks — several may be active. Old saves used a single `active`. */
   hollowQuest: { active: { id: string; kills: number }[]; done: string[] };
+  /** Rings walked into. The server is the only writer. */
+  warpUnlocked: string[];
+  /** Death home. `hub` keeps older characters at the Scout Gate. */
+  respawnHome: "emberwatch" | "mayflower" | "hub";
   claimedStarter: boolean;
   inventory: InventorySlot[];
   equip: Equipment;
@@ -1020,6 +1028,15 @@ function applySaved(p: Player, saved: PlayerProgress) {
     const norm = normalizePaleHollowQuestState(saved.hollowQuest);
     p.hollowQuest = { active: [...norm.active], done: [...norm.done] };
   }
+  p.warpUnlocked = normalizeWarpUnlocked(saved.warpUnlocked);
+  p.respawnHome = saved.respawnHome === undefined ? "hub" : normalizeRespawnHome(saved.respawnHome);
+  const home = respawnStand(p.respawnHome, p.warpUnlocked);
+  p.respawnHome = home.home;
+  p.x = home.x;
+  p.z = home.z;
+  p.facing = home.facing;
+  p.zoneId = "pale_hollow";
+  p.y = paleHollowStandHeight(home.x, home.z);
   ensureHollowQuest(p);
   syncVitals(p, true);
 }
@@ -1058,6 +1075,8 @@ function rememberPlayer(p: Player) {
       dust: p.dust,
       subjob: p.subjob,
       hollowQuest: { active: p.hollowQuest.active, done: [...p.hollowQuest.done] },
+      warpUnlocked: [...p.warpUnlocked],
+      respawnHome: p.respawnHome,
       logItemsMoved: flags.logItemsMoved,
       logItemsCopied: flags.logItemsCopied,
       ...(flags.logCopied ? { logCopied: { ...flags.logCopied } } : {}),
@@ -3409,6 +3428,8 @@ function ensurePlayer(wallet: string, ws: WebSocket): Player | undefined {
   if (typeof p.unlockCacheKey !== "string") p.unlockCacheKey = "";
   if (typeof p.y !== "number") p.y = paleHollowStandHeight(p.x, p.z);
   if (!p.zoneId) p.zoneId = "pale_hollow";
+  if (!Array.isArray(p.warpUnlocked)) p.warpUnlocked = [];
+  if (p.respawnHome !== "emberwatch" && p.respawnHome !== "mayflower" && p.respawnHome !== "hub") p.respawnHome = "hub";
   if (!p.baseMats || typeof p.baseMats !== "object") p.baseMats = {};
   ensureCraftSkills(p);
   p.equip = { ...emptyEquipment(), ...(p.equip ?? {}) };
@@ -3513,13 +3534,15 @@ function createPlayer(
     inventory: [],
     equip: emptyEquipment(),
     equipHq: {},
-    x: PH_HUB_SPAWN.x,
-    y: paleHollowHeight(PH_HUB_SPAWN.x, PH_HUB_SPAWN.z),
-    z: PH_HUB_SPAWN.z,
+    x: PH_START_SPAWN.x,
+    y: paleHollowHeight(PH_START_SPAWN.x, PH_START_SPAWN.z),
+    z: PH_START_SPAWN.z,
     zoneId: "pale_hollow",
     baseMats: {},
     craftSkills: emptyCraftSkills(),
-    facing: PH_HUB_SPAWN.facing,
+    facing: PH_START_SPAWN.facing,
+    warpUnlocked: [],
+    respawnHome: "emberwatch",
     hp: vitals.maxHp,
     maxHp: vitals.maxHp,
     mp: vitals.maxMp,
@@ -3983,18 +4006,32 @@ function placeEnteredZone(p: Player, msg: { zone?: string; x?: number; z?: numbe
   dropZoneHate(p);
 }
 
-function respawnAtHub(p: Player, reason = "You fallâ€¦ and wake in the Shard Dwellings.") {
+function touchWarps(p: Player) {
+  if (p.zoneId !== "pale_hollow" || !Array.isArray(p.warpUnlocked)) return;
+  const next = reachWarp(p.warpUnlocked, p.x, p.z);
+  if (!next.added) return;
+  p.warpUnlocked = next.unlocked;
+  const ring = next.unlocked.includes("warp-mayflower") ? "Mayflower Ring" : next.added;
+  pushLog(p, `The ${ring} opens for you.`);
+  rememberPlayer(p);
+}
+
+function respawnAtHub(p: Player, reason?: string) {
   stopRest(p);
   clearJobBuffs(p);
   p.fallenUntil = 0;
   p.hp = Math.max(1, Math.floor(p.maxHp * 0.3));
-  const home = fieldById(p.zoneId);
+  const spot = respawnStand(p.respawnHome, p.warpUnlocked);
+  p.respawnHome = spot.home;
+  const home = p.zoneId !== "pale_hollow" ? fieldById(p.zoneId) : undefined;
   if (home) {
     p.x = home.spawn.x;
     p.z = home.spawn.z;
   } else {
-    p.x = PH_HUB_SPAWN.x;
-    p.z = PH_HUB_SPAWN.z;
+    p.x = spot.x;
+    p.z = spot.z;
+    p.facing = spot.facing;
+    p.zoneId = "pale_hollow";
   }
   syncUnitY(p);
   clearRoute(p);
@@ -4008,7 +4045,13 @@ function respawnAtHub(p: Player, reason = "You fallâ€¦ and wake in the Shard
   }
   // Leaving the arena clears open bounty via cancel if still open (non-kill exit).
   syncVitals(p, false);
-  pushLog(p, reason);
+  const wake =
+    spot.home === "mayflower"
+      ? "You fall… and wake at the Mayflower Ring."
+      : spot.home === "emberwatch"
+        ? "You fall… and wake at Emberwatch."
+        : "You fall… and wake in the Shard Dwellings.";
+  pushLog(p, reason ?? wake);
 }
 
 function playerTokenId(p: Player): string | null {
@@ -6148,6 +6191,7 @@ function tickSimBody() {
         if (now >= p.animUntil) p.anim = "idle";
       }
     }
+    touchWarps(p);
 
     if (p.anim === "rest") {
       // Once per second: recover HP/MP, bleed TP
@@ -7084,6 +7128,42 @@ function onMessage(ws: WebSocket, data: string) {
     case "dash":
       handleDash(p, msg.dx, msg.dz);
       break;
+    case "warp/use": {
+      const used = tryUseWarp(msg.id, p.warpUnlocked);
+      if (!used.ok) {
+        pushLog(p, used.reason);
+        break;
+      }
+      stopRest(p);
+      clearRoute(p);
+      p.targetId = null;
+      p.zoneId = "pale_hollow";
+      p.x = used.x;
+      p.z = used.z;
+      p.facing = used.facing;
+      syncUnitY(p);
+      pushLog(p, "The ring takes you.");
+      rememberPlayer(p);
+      break;
+    }
+    case "respawn/set": {
+      const set = trySetRespawn(msg.home, p.warpUnlocked, p.x, p.z);
+      if (!set.ok) {
+        pushLog(p, set.reason);
+        break;
+      }
+      p.respawnHome = set.home;
+      rememberPlayer(p);
+      pushLog(
+        p,
+        set.home === "mayflower"
+          ? "You bind your death to the Mayflower Ring."
+          : set.home === "emberwatch"
+            ? "You bind your death to Emberwatch."
+            : "You bind your death to the Scout Gate.",
+      );
+      break;
+    }
     case "gather":
       handleGather(p, msg.nodeId);
       break;

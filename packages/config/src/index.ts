@@ -540,3 +540,17 @@ export function musicForZone(zoneId: string | undefined): string | undefined {
   return undefined;
 }
 export * from "./dash";
+
+export {
+  PH_START_SPAWN,
+  PH_WARP_CIRCLES,
+  reachWarp,
+  respawnStand,
+  unlockWarp,
+  warpCircleAt,
+  warpCircleById,
+  type RespawnHome,
+  type RespawnStand,
+  type WarpCircle,
+  type WarpCircleId,
+} from "./warp-unlocks";

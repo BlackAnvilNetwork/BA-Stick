@@ -71,6 +71,10 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("move"), x: z.number(), z: z.number() }),
   /** General dash: a direction only. The server picks the distance and checks walls and cooldown. */
   z.object({ type: z.literal("dash"), dx: z.number().finite(), dz: z.number().finite() }),
+  /** Step onto a ring this character has already opened. A locked or unknown id is refused. */
+  z.object({ type: z.literal("warp/use"), id: z.string().min(1).max(64) }),
+  /** Bind death. Mayflower is refused until that ring is open and the body is standing in it. */
+  z.object({ type: z.literal("respawn/set"), home: z.enum(["emberwatch", "mayflower", "hub"]) }),
   z.object({ type: z.literal("engage"), targetId: z.string().min(1).max(64) }),
   z.object({ type: z.literal("disengage") }),
   z.object({ type: z.literal("ability"), id: AbilityId, targetId: z.string().min(1).max(64).optional() }),
