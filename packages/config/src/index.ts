@@ -544,11 +544,13 @@ export * from "./dash";
 export {
   PH_START_SPAWN,
   PH_WARP_CIRCLES,
+  PH_WARP_HUB_EXCEPTIONS,
   reachWarp,
   respawnStand,
   unlockWarp,
   warpCircleAt,
   warpCircleById,
+  warpCircleHitsHub,
   type RespawnHome,
   type RespawnStand,
   type WarpCircle,
