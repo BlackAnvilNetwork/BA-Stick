@@ -10,7 +10,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test src/network-profile.test.ts src/pvp-areas.test.ts src/pale-hollow-field.test.ts src/pale-hollow-weather.test.ts src/trail-geom.test.ts"
+    "test": "tsx --test src/network-profile.test.ts src/pvp-areas.test.ts src/pale-hollow-field.test.ts src/pale-hollow-weather.test.ts src/trail-geom.test.ts src/field-population.test.ts"
   },
   "devDependencies": {
     "@types/node": "^22.13.10",

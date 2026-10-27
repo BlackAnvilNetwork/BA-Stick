@@ -5,6 +5,7 @@
  */
 import {
   PH_ALL_MOBS,
+  fieldMobDefById,
   SHINY_CLONE_COUNT,
   SHINY_FLEE_RELOCATE_MS,
   SHINY_LEVEL_BONUS,
@@ -49,7 +50,7 @@ export function emptyShinyFields(): ShinyMobFields {
 
 export function lookupMobDef(id: string): PaleHollowMobDef | undefined {
   const baseId = id.includes("-clone-") ? id.replace(/-clone-\d+$/, "") : id;
-  return PH_ALL_MOBS.find((d) => d.id === baseId);
+  return PH_ALL_MOBS.find((d) => d.id === baseId) ?? fieldMobDefById(baseId);
 }
 
 export function rollShinyPromotion(): boolean {
