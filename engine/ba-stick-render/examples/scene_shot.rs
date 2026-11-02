@@ -5,6 +5,8 @@
 //! Offline scene render for review shots (zone + props + units, game renderer).
 //! cargo run --release --example scene_shot -- <zone.baz|-> <zone.bap|-> <units.txt> <iso|tp> <w> <h> <out.ppm>
 //! units.txt: one unit per line: `id x z facing preset anim` (y from the zone; first line is followed).
+//! Optional 8th arg, a light mood: `r,g,b,playerRadius,playerStrength,glow` (lighting overhaul).
+//! Optional 9th arg, extra lights: `x,z,kind;x,z,kind;...` (world metres, kind as `addLight`).
 use ba_stick_render::preset::AnimState;
 use ba_stick_render::scene::{Scene, UnitInput};
 
@@ -34,9 +36,29 @@ fn main() {
         }
     }
     s.follow(first.as_deref());
+    if let Some(m) = a.get(8) {
+        let v: Vec<f32> = m.split(',').map(|x| x.parse().unwrap()).collect();
+        let mood = ba_stick_render::lighting::Mood { ambient: [v[0], v[1], v[2]], warm: [1.0, 0.6, 0.25], player_r: v[3], player_k: v[4], glow: v[5] };
+        s.set_light_mood(mood, true);
+    }
+    if let Some(l) = a.get(9) {
+        for e in l.split(';').filter(|e| !e.is_empty()) {
+            let v: Vec<f32> = e.split(',').map(|x| x.parse().unwrap()).collect();
+            s.add_light(v[0], f32::NAN, v[1], v[2] as u8, 0.0, 0);
+        }
+    }
     s.set_cam_mode(&a[4]);
     for _ in 0..120 {
         s.tick(1.0 / 60.0);
+    }
+    // A spell flash at the followed unit for the effect-light shot (`SHOT_FLASH=1`).
+    if std::env::var("SHOT_FLASH").is_ok() {
+        if let Some(id) = first.as_deref() {
+            s.spawn_vfx(ba_stick_render::vfx::Prim::Burst, id, Some(id), 0x8fc8ff, 12, 1.2, 0);
+            for _ in 0..4 {
+                s.tick(1.0 / 60.0);
+            }
+        }
     }
     s.draw();
     let mut rgba = vec![0u8; w * h * 4];
