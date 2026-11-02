@@ -401,6 +401,7 @@ export function abilityTooltip(id: AbilityId): AbilityTooltip | string {
   if (isClericAbilityId(id)) return clericAbilityTooltip(id);
   if (isBattleMageAbilityId(id)) return battleMageAbilityTooltip(id);
   if (isMapBuilderAbilityId(id)) return mapBuilderAbilityTooltip(id);
+  return id;
 }
 
 
