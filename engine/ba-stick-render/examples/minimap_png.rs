@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+
 //! Offline minimap render through the game's own Minimap::bake (worldgen review).
 //! cargo run --example minimap_png -- <zone.baz> <zone.bap> <out.ppm>
 use ba_stick_render::{minimap::Minimap, props, zone::Zone};
