@@ -715,4 +715,4 @@ export const FB_SINKS: readonly { id: string; name: string; x: number; z: number
 ];
 
 /** Terraced quarry: ground snapped to cut benches inside r. */
-export const FB_QUARRY = { id: "graven-cuts", name: "the Graven Cuts", x: 12, z: 124, r: 22, bench: 2.4 } as const;
+export const FB_QUARRY = { id: "graven-cuts", name: "the Graven Cuts", x: 12, z: 124, r: 22, bench: 3.0 } as const;

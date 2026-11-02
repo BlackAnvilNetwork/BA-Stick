@@ -153,8 +153,11 @@ export function planHeight(x: number, z: number): number {
     const q = FB_QUARRY;
     const d = Math.hypot(x - q.x, z - q.z) + 4 * fbm(x / 9, z / 9);
     if (d < q.r) {
-      const cut = Math.floor((h + 0.9 * fbm(x / 11, z / 11)) / q.bench) * q.bench + 0.15 + 0.1 * fbm(x / 4, z / 4);
-      const t = smooth(q.r, q.r - 5, d);
+      // worked down into the hill in benches about 3 m high, each a sheer cut face
+      const rim = macroHeight(q.x, q.z) + 0.15;
+      const tier = Math.min(3, Math.floor((q.r - d) / 4.5));
+      const cut = rim - tier * q.bench + 0.1 * fbm(x / 4, z / 4);
+      const t = smooth(q.r, q.r - 3, d);
       h = h + (cut - h) * t;
     }
   }
