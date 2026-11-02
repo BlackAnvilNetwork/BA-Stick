@@ -592,10 +592,12 @@ export {
   warpCircleAt,
   warpCircleById,
   warpCircleHitsHub,
+  WARP_RINGS,
   type RespawnHome,
   type RespawnStand,
   type WarpCircle,
   type WarpCircleId,
+  type WarpRing,
 } from "./warp-unlocks";
 export * from "./forest-basin-features";
 export * from "./forest-basin-content";

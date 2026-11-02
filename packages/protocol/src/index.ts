@@ -681,7 +681,9 @@ export type SnapshotMessage = {
     freeStats: { str: number; dex: number; vit: number; agi: number; int: number; mnd: number };
     /** Hash-chained lok balances. Settlement Key::Kek is historical; new AH pays on-chain. */
     lok?: LokSnapshot;
-    /** Pale Hollow kill tasks — multiple may be active. */
+    /** Rings this character has walked into. */
+    warpRings?: { id: string; name: string; zoneId: string }[];
+    /** Kill tasks — Pale Hollow and Forest Basin. Multiple may be active. */
     questLog?: {
       id: string;
       title: string;

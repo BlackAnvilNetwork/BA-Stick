@@ -104,6 +104,12 @@ import {
   paleHollowQuestCredit,
   paleHollowQuestLogEntries,
   paleHollowQuestTalk,
+  forestBasinQuestById,
+  forestBasinQuestByNpc,
+  forestBasinQuestCredit,
+  forestBasinQuestLogEntries,
+  forestBasinQuestTalk,
+  warpCircleById,
   ZONES,
   applyTravel,
   fieldById,
@@ -3406,10 +3412,17 @@ function snapshotFor(p: Player): SnapshotMessage {
       skillPrestige: p.skillPrestige,
       freeStatPoints: p.freeStatPoints,
       freeStats: { ...p.freeStats },
-      questLog: paleHollowQuestLogEntries({
-        zoneId: "pale_hollow",
-        active: p.hollowQuest.active,
-        done: p.hollowQuest.done,
+      questLog: [
+        ...paleHollowQuestLogEntries({
+          zoneId: "pale_hollow",
+          active: p.hollowQuest.active,
+          done: p.hollowQuest.done,
+        }).filter((entry) => paleHollowQuestById(entry.id)),
+        ...forestBasinQuestLogEntries(p.hollowQuest),
+      ],
+      warpRings: p.warpUnlocked.flatMap((id) => {
+        const ring = warpCircleById(id);
+        return ring ? [{ id: ring.id, name: ring.name, zoneId: ring.zoneId }] : [];
       }),
       lok: (() => {
         const view = lok.view(lokToken(p));
@@ -3942,17 +3955,17 @@ function rewardMobKill(p: Player, mob: Mob, now: number) {
   }
   rememberPlayer(p);
   // Pale Hollow tasks count Pale Hollow kills only (field mobs share coordinates, not ids).
-  if (p.zoneId === "pale_hollow" && mob.zoneId === "pale_hollow" && p.hollowQuest.active.length > 0) {
+  if (p.zoneId === mob.zoneId && p.hollowQuest.active.length > 0 && (p.zoneId === "pale_hollow" || p.zoneId === "forest_basin")) {
     const prev = p.hollowQuest.active;
-    const next = paleHollowQuestCredit(
-      { zoneId: "pale_hollow", active: prev, done: p.hollowQuest.done },
-      mob.id,
-    );
+    const bag = { active: prev, done: p.hollowQuest.done };
+    const next = p.zoneId === "forest_basin"
+      ? forestBasinQuestCredit(bag, mob.id)
+      : paleHollowQuestCredit({ zoneId: "pale_hollow", ...bag }, mob.id);
     if (next.active !== prev) {
       for (const row of next.active) {
         const was = prev.find((a) => a.id === row.id);
         if (was && row.kills > was.kills) {
-          const def = paleHollowQuestById(row.id);
+          const def = p.zoneId === "forest_basin" ? forestBasinQuestById(row.id) : paleHollowQuestById(row.id);
           pushLog(p, def ? `${def.title}: ${row.kills}/${def.need}.` : `Task: ${row.kills} down.`);
         }
       }
@@ -4051,12 +4064,12 @@ function placeEnteredZone(p: Player, msg: { zone?: string; x?: number; z?: numbe
 }
 
 function touchWarps(p: Player) {
-  if (p.zoneId !== "pale_hollow" || !Array.isArray(p.warpUnlocked)) return;
-  const next = reachWarp(p.warpUnlocked, p.x, p.z);
+  if ((p.zoneId !== "pale_hollow" && p.zoneId !== "forest_basin") || !Array.isArray(p.warpUnlocked)) return;
+  const next = reachWarp(p.warpUnlocked, p.x, p.z, p.zoneId);
   if (!next.added) return;
   p.warpUnlocked = next.unlocked;
-  const ring = next.unlocked.includes("warp-mayflower") ? "Mayflower Ring" : next.added;
-  pushLog(p, `The ${ring} opens for you.`);
+  const ring = warpCircleById(next.added);
+  pushLog(p, ring ? `The ${ring.name} opens for you.` : "A ring opens for you.");
   rememberPlayer(p);
 }
 
@@ -4762,6 +4775,21 @@ function speakFieldNpc(p: Player, npcId: string): boolean {
     return true;
   }
   p.facing = facingTo(p.x, p.z, npc.x, npc.z);
+  if (npc.role === "quest_giver" && forestBasinQuestByNpc(npc.id)) {
+    ensureHollowQuest(p);
+    const result = forestBasinQuestTalk(
+      { active: p.hollowQuest.active, done: p.hollowQuest.done },
+      npc.id,
+    );
+    p.hollowQuest = { active: result.state.active, done: result.state.done };
+    rememberPlayer(p);
+    if (result.gold > 0) {
+      earnLogGold(p, "quest", result.gold);
+      pushLog(p, `${result.title} complete. +${result.gold} gold.`);
+    }
+    send(p.ws, { type: "npc/dialog", npcId: npc.id, title: result.title, body: result.body });
+    return true;
+  }
   send(p.ws, { type: "npc/dialog", npcId: npc.id, title: npc.name, body: npc.lines ?? "…" });
   return true;
 }
@@ -7253,7 +7281,8 @@ function onMessage(ws: WebSocket, data: string) {
       stopRest(p);
       clearRoute(p);
       p.targetId = null;
-      p.zoneId = "pale_hollow";
+      if (p.zoneId !== used.zoneId) dropZoneHate(p);
+      p.zoneId = used.zoneId;
       p.x = used.x;
       p.z = used.z;
       p.facing = used.facing;

@@ -181,3 +181,134 @@ export const FB_MOB_PACKS: readonly { id: string; archetype: string; name?: stri
   { id: "chapel-steps", archetype: "ruin_dweller", name: "Brother Whitewash", x: -78, z: -58, level: 12, n: 1 },
   { id: "veil-slimes", archetype: "pale_slime", x: -80, z: 113, level: 10, n: 2 },
 ];
+
+/** Same shape as the Pale Hollow kill tasks. Forest Basin keeps its own list. */
+export type FbQuestDef = {
+  id: string;
+  npcId: string;
+  title: string;
+  offer: string;
+  progress: string;
+  done: string;
+  gold: number;
+  need: number;
+  mobIds: readonly string[];
+};
+
+export type FbQuestBag = { active: { id: string; kills: number }[]; done: string[] };
+
+function packIds(pack: string, n: number): string[] {
+  return Array.from({ length: n }, (_, i) => `fb-${pack}-${i}`);
+}
+
+export const FB_QUESTS: readonly FbQuestDef[] = [
+  {
+    id: "fb-cold-hearth",
+    npcId: "fb-hild",
+    title: "The Cold Hearth",
+    offer: "Someone lights a hearth at the Cold Forges and feeds it with my charcoal. The scavengers there are the ones. Put them down, and don't tell Abel.",
+    progress: "The hearth at the Cold Forges is still lit.",
+    done: "The Cold Forges are quiet. Abel can wonder where his charcoal went.",
+    gold: 24,
+    need: 3,
+    mobIds: packIds("forge-scavengers", 3),
+  },
+  {
+    id: "fb-last-stones",
+    npcId: "fb-tobin",
+    title: "The Last Stones",
+    offer: "Boars in the thorn are rooting the last stones that still hold a mark. The Merrow Stone and the Gannet Stone will not survive them. Put the boars down.",
+    progress: "The boars are still at the stones.",
+    done: "The thorn is quiet. Rub the Merrow Stone, the Gannet Stone and Aldric's Waystone before the weather takes what's left.",
+    gold: 18,
+    need: 2,
+    mobIds: packIds("thornwall-boars", 2),
+  },
+  {
+    id: "fb-wheel-lock",
+    npcId: "fb-corwin",
+    title: "The Wheel-Lock",
+    offer: "The vault by the Kiln Path has woken its guardian. The wheel-lock will not turn while that thing stands. Put it down.",
+    progress: "The vault's guardian is still standing.",
+    done: "The guardian is down. Bring me rubbings from Heron Isle, from under the Wright's Veil, and from the Sunk Hall, and I will turn the wheel.",
+    gold: 32,
+    need: 1,
+    mobIds: packIds("vault-golem", 1),
+  },
+  {
+    id: "fb-pilgrims-pack",
+    npcId: "fb-pumice",
+    title: "The Pilgrim's Pack",
+    offer: "Peace, traveller. Adders have a pilgrim's pack at the bottom of Rook's Throat. Clear them out. The pack stays unopened. The Chapel will know.",
+    progress: "The adders still hold Rook's Throat.",
+    done: "The throat is clear. Leave the pack shut and bring it up.",
+    gold: 20,
+    need: 2,
+    mobIds: packIds("gorge-adders", 2),
+  },
+];
+
+export function forestBasinQuestByNpc(npcId: string): FbQuestDef | undefined {
+  return FB_QUESTS.find((quest) => quest.npcId === npcId);
+}
+
+export function forestBasinQuestById(id: string): FbQuestDef | undefined {
+  return FB_QUESTS.find((quest) => quest.id === id);
+}
+
+export function forestBasinQuestLogEntries(state: FbQuestBag) {
+  return state.active.flatMap((entry) => {
+    const quest = forestBasinQuestById(entry.id);
+    if (!quest) return [];
+    return [{
+      id: quest.id,
+      title: quest.title,
+      kills: entry.kills,
+      need: quest.need,
+      progress: quest.progress,
+      ready: entry.kills >= quest.need,
+    }];
+  });
+}
+
+export function forestBasinQuestCredit(state: FbQuestBag, mobId: string): FbQuestBag {
+  if (state.active.length === 0) return state;
+  let changed = false;
+  const active = state.active.map((entry) => {
+    const quest = forestBasinQuestById(entry.id);
+    if (!quest || !quest.mobIds.includes(mobId) || entry.kills >= quest.need) return entry;
+    changed = true;
+    return { ...entry, kills: entry.kills + 1 };
+  });
+  return changed ? { active, done: state.done } : state;
+}
+
+export function forestBasinQuestTalk(
+  state: FbQuestBag,
+  npcId: string,
+): { state: FbQuestBag; title: string; body: string; gold: number } {
+  const quest = forestBasinQuestByNpc(npcId);
+  if (!quest) return { state, title: "…", body: "…", gold: 0 };
+  if (state.done.includes(quest.id)) {
+    return { state, title: quest.title, body: quest.done, gold: 0 };
+  }
+  const idx = state.active.findIndex((entry) => entry.id === quest.id);
+  if (idx < 0) {
+    return {
+      state: { active: [...state.active, { id: quest.id, kills: 0 }], done: state.done },
+      title: quest.title,
+      body: quest.offer,
+      gold: 0,
+    };
+  }
+  const entry = state.active[idx]!;
+  if (entry.kills < quest.need) {
+    return { state, title: quest.title, body: `${quest.progress} ${entry.kills}/${quest.need}.`, gold: 0 };
+  }
+  return {
+    state: { active: state.active.filter((row) => row.id !== quest.id), done: [...state.done, quest.id] },
+    title: quest.title,
+    body: quest.done,
+    gold: quest.gold,
+  };
+}
