@@ -481,7 +481,7 @@ export const FB_PLACES: readonly FbPlace[] = [
     x: -72,
     z: -72,
     kind: "cult",
-    story: "Cultists of the Seven keep a makers' stele here and whitewash it every dawn. Brother Scour leads the Whitening; Lime-Hand and Sister Pumice carry the buckets. Under the lime the stele still lists the seven houses.",
+    story: "Cultists of the Seven keep a makers' stele here and whitewash it every dawn. Brother Whitewash leads the work; Brother Lime, Sister Chalk and Sister Pumice carry the buckets. Under the lime the stele still lists the seven houses.",
   },
   {
     id: "stacked-pass",

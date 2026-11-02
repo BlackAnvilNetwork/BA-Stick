@@ -1,5 +1,5 @@
 # The civilization layer: the Black Anvil story on the ground
-_Status: design. The places below exist as data on the procedural worldgen branch, but gameplay does not use them yet. Every place sits on generated, walkable ground that a player can reach from the field's starting point, and an automated check confirms this._
+_Status: design, except Forest Basin, which is the walked field. Other places below still exist as data on the procedural worldgen branch. Every place sits on walkable ground that a player can reach from the field's starting point._
 
 ## 1. The story in one breath
 Long before any crown, the Smith struck the Black Anvil once and laid the Hammer crosswise on it, so that it belonged to no one hand. The makers of Anvilhold kept that open strike: seven houses of smiths and stonewrights, and the Time Mages, whose warp circles joined the land's crossroads. Then six of the houses took crowns. As the New Kings they seized Anvilhold, and by edict, fire and chisel they erased the makers' names: they re-cut the stones under their own House marks and scraped the Hammer off every Anvil they could reach. The seventh house refused, left the Hammer open and walked away nameless, the first of the Unwritten. But the land remembers, and so do the songs and the people. The player follows the scrape marks from a defaced stele in Pale Hollow to the Seven-Stone Ring beneath the Citadel of the Seven Seats, and there learns the Smith's old words: **"Struck once, true for all."**
@@ -9,7 +9,7 @@ Each place tells one part of the story. The Kings come into it only as people wh
 ## 2. How the old world sat on this land
 - **Water first.** The old settlements sat on the former Ash Pit shore (the Moorings), at river confluences (Twofold), on mill creeks (Dry Millrace) and at the canal and wharf of the Ring Ward.
 - **Fords and passes.** The old roads followed the land: Old Saddle (the lowest crest of Seam Ridge), the ravine of the Hollow Road, the islet causeway and the Coil Pass switchback. The Kings' roads cut straight lines instead: the Ash Road cut, the dressed-stone shoulders of the Hollow Road and the King's Stair.
-- **High ground.** Every ascent ends at a lookout: Westwatch, West Ridge Top, High Ridge Corner, White Caps, East Cap Ledge and Hollow Stair. From each one, the layout of the circles and roads makes sense.
+- **High ground.** Every ascent ends at a lookout: Westwatch, the Cutters' Crown, Lantern Rock, the Unnamed Hall, White Caps, East Cap Ledge and Hollow Stair. From each one, the layout of the circles and roads makes sense.
 - **Ore.** Copper Seams (a bronze-age adit) and the Hollow Quarry fed the forge-stones.
 - **Warp circles.** Each field has a circle of standing stones raised by the Time Mages, older than any crown. They are dormant now. They sit at the natural crossroads, and the Kings' settlements grew up *around* them; the walls of the Ring Ward bend around its circle because the builders dared not cut it.
 
@@ -21,7 +21,7 @@ Each place tells one part of the story. The Kings come into it only as people wh
 | 3 | The Third Fragment, *The Mill Ashes* | Dry Millrace, Pale Hollow | A mill burned with the miller's name still over the door |
 | 4 | The Fourth Fragment, *The Saddle Ruts* | Old Saddle, Pale Hollow | The old road north |
 | 5 | The Fifth Fragment, *The Seventh Post* | Seven Posts, the Hollow Road | Seven circle stones, the seventh broken on purpose |
-| 6 | The Sixth Fragment, *The Drowned Village* | Drowned Spoke, the Hush Wood | A village the Kings drowned; its bell still rings on still nights |
+| 6 | The Sixth Fragment, *The Drowned Hall* | the Sunk Hall, Forest Basin | A hall the Kings flooded under the Stillmere; the name is scraped off the lintel |
 | 7 | The Seventh Fragment, *The Boundary of Seven* | Seven-Stone Bench, the East Spur | A free hold's hearth, remembered in song |
 | 8 | The Eighth Fragment, *The Older Paving* | Older Paving, the Ring Ward | The circle is older than the walls |
 | 9 | The Ninth Fragment, *The Ring Held* | Islet Ring, the Seam Fords | The river moved; the ring held |
@@ -57,13 +57,14 @@ Positions are given as local (x, z) coordinates within each field.
 - Seven Posts (5, 64): the circle, and the Fifth Fragment.
 - Dressed Shoulder (-4, 118): the Kings' cut pass; the land's own path runs down the east ravine.
 
-### The Hush Wood (6 places)
-- Hush Ring (-6, -112): the circle; the trees are all one age because they were replanted after a burning.
-- Drowned Spoke (-38, 100): the Sixth Fragment.
-- Valley Cross Graves (-14, 75): the graves face the mere.
-- West Ridge Top (-150, 28): at the top of the West Ridge Cave.
-- High Ridge Corner (142, -132): at the top of the Corner Stair; the watch-post faces inward.
-- Sealed Pass Shrine (-22, 116): the "rockfall" in the north pass is stacked quarry blocks, which is why the pass stays shut.
+### Forest Basin
+- Kettle Hollow (10, -102) and the Kettle Ring (20, -94): the camp and the hub circle. The trunks are one age; the Crown burned the old wood.
+- the Scraped Ring (-24, 6): the crossroads circle, among the Scraped Stones.
+- the Spurgate Ring (112, -96): the circle at the spur gate.
+- the Sunk Hall (55, 10): the Sixth Fragment, roof-beams under the Stillmere.
+- the Swallow (141, -25): the Sinkwater goes into the rock.
+- the Graven Cuts (12, 124) and the Cutters' Crown (22, 140): cut-rock benches and the high seat above them.
+- the Cold Forges (-56, 78), the Wright's Veil (-84, 121), the Whitewashed Chapel (-72, -72), Rook's Throat, Lantern Rock (-139, -30), the Kiln Shelf (121, 67) and the Unnamed Hall (-97, 141).
 
 ### The East Spur (2 places)
 - Seven-Stone Bench (5, 64): the Seventh Fragment; a free hold's hearth-stone ringed by seven carved stones, one for each family in its song.
@@ -115,7 +116,7 @@ The exiles left in May and settled where the slope above the Scout Gate runs thi
 ## 6. Hooks for later regions
 - **Ashlands.** The Mirror Ring, where a reflection shows the Anvil's arms with the hammer intact. Tablets fused in glass still carry the Kings' order for the Burning. The glass at Mirror Tarn and Scarp Head foreshadows this.
 - **Slagpits.** The Sieve Ring, and a wall of seven carved smiths' marks with the seventh chiselled blank. The bronze tool marks in the Old Adit seed the forge-stone trade.
-- **Bellmarsh.** The Drowned Ring and the Echo Wraith witnesses ("the one who kept the hammer"). It echoes Merewick at the Drowned Spoke.
+- **Bellmarsh.** The Drowned Ring and the Echo Wraith witnesses ("the one who kept the hammer"). It echoes the Sunk Hall under the Stillmere.
 - **Throne Approach.** Re-headed statues with seven bodies and six crowns, ending at the Seven-Stone Ring (★).
 
 ## 7. What the checks guarantee

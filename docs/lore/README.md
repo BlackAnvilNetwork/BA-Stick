@@ -11,6 +11,6 @@ Design canon for the world. These files are for writers and builders, not player
 - [grounded-notes.md](grounded-notes.md): review notes that check the lore against the actual terrain.
 - [final-reveal-notes.md](final-reveal-notes.md): the endgame reveal. Spoilers.
 
-Forest Basin is being rebuilt from a blank map. Its places in these files (the Counting Ring, the Drowned Spoke, West Ridge Top, High Ridge Corner, the Sealed Pass Shrine) describe the earlier design and aren't in the game right now.
+Forest Basin is in the game. Kettle Hollow is the camp. The rings are the Kettle Ring, the Scraped Ring and the Spurgate Ring. Water runs as the Briarwater, the Coldrun and the Sinkwater, into the Stillmere and down the Swallow. Walked places include the Graven Cuts, the sinks, the Wright's Veil, the Cold Forges, the Whitewashed Chapel, Rook's Throat, Lantern Rock, the Kiln Shelf and the Unnamed Hall. The people there are Oswy Fernhallow, Garth Underhill, Abel Coalhurst, Hild Coalhurst, Tobin Reede, Old Corwin Ashdown and Sister Pumice. Do not bring back the retired names for this field: the Counting Ring, the Hush Wood, the Hush Ring, the Drowned Spoke, Merewick, or Sister Ondine.
 
 Reference images (heraldry guide, warp circle, periodic table) aren't committed here because each is 2 to 4 MB.
