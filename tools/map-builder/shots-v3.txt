@@ -14,7 +14,7 @@ bridge-reedwalk-walk-b 33.8 38.7 1.90 tp
 wrights-veil-walk -100 111 0.87 tp
 wrights-veil-below -93.5 107 0.0 tp
 wrights-veil-iso -91 111 -0.3 iso
-great-sink 128 -32 3.1 iso
+great-sink 128 -37 3.1 iso
 great-sink-rim 128 -31 3.14 tp
 little-sink 113 -26 3.1 iso
 pale-sink 136 -46 3.1 iso

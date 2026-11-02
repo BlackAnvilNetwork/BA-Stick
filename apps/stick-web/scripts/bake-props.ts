@@ -486,14 +486,14 @@ export function forestBasinProps(): Prop[] {
   // Sinks: a ring of bare rock faces down to the silt floor, open where a stair comes down.
   for (const k of FB_SINKS) {
     const floor = forestBasinGroundY(k.x, k.z);
-    const rr = k.r * 0.74;
+    const rr = k.r * 0.78;
     const n = Math.ceil((Math.PI * 2 * rr) / 2.1);
     for (let i = 0; i < n; i++) {
       const a = (i / n) * Math.PI * 2;
       const px = k.x + Math.cos(a) * rr, pz = k.z + Math.sin(a) * rr;
       const asc = fbAscentAt(px, pz);
       if (asc && asc.dist < asc.ascent.halfWidth + 1.2) continue;
-      const rim = forestBasinGroundY(k.x + Math.cos(a) * k.r * 0.9, k.z + Math.sin(a) * k.r * 0.9);
+      const rim = forestBasinGroundY(k.x + Math.cos(a) * k.r * 0.8, k.z + Math.sin(a) * k.r * 0.8);
       // forward (f) points at the sink centre
       wall(px, pz, Math.atan2(k.x - px, k.z - pz), (Math.PI * 2 * rr) / n + 0.4, Math.max(1, rim - floor + 0.1), floor);
     }
@@ -569,6 +569,7 @@ export function forestBasinProps(): Prop[] {
       if (!firm(jx, jz) || b === "bridge" || b === "mountain") continue;
       if (Math.hypot(jx - FB_CAMP.x, jz - FB_CAMP.z) < FB_CAMP.r + 3) continue;
       if (Math.hypot(jx - FB_QUARRY.x, jz - FB_QUARRY.z) < FB_QUARRY.r - 2) continue; // bare cut rock
+      if (FB_SINKS.some((k) => Math.hypot(jx - k.x, jz - k.z) < k.r * 1.1)) continue; // bare pit
       if (FB_WARP_SITES.some((w) => Math.hypot(jx - w.x, jz - w.z) < w.r + 3)) continue;
       if (near.some((q) => Math.hypot(jx - q.x, jz - q.z) < q.r)) continue;
       if (fbTrailDist(jx, jz) < 2.6 || anchors.some((a) => Math.hypot(a.x - jx, a.z - jz) < 3.2)) continue;
