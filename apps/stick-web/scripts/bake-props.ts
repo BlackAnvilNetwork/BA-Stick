@@ -485,17 +485,16 @@ export function forestBasinProps(): Prop[] {
     out.push({ kind: K.rockWall, v: 0, x, z, y, yaw, s: len, w: 0.9, h: hgt, d: 0 });
   // Sinks: a ring of bare rock faces down to the silt floor, open where a stair comes down.
   for (const k of FB_SINKS) {
-    const floor = forestBasinGroundY(k.x, k.z);
-    const rr = k.r * 0.78;
-    const n = Math.ceil((Math.PI * 2 * rr) / 2.1);
+    // the pit wall itself is the steep rock-faced terrain; only a low broken lip of stone sits on the rim
+    const rr = k.r * 0.95;
+    const n = Math.ceil((Math.PI * 2 * rr) / 2.6);
     for (let i = 0; i < n; i++) {
+      if (i % 4 === 3) continue;
       const a = (i / n) * Math.PI * 2;
       const px = k.x + Math.cos(a) * rr, pz = k.z + Math.sin(a) * rr;
       const asc = fbAscentAt(px, pz);
       if (asc && asc.dist < asc.ascent.halfWidth + 1.2) continue;
-      const rim = forestBasinGroundY(k.x + Math.cos(a) * k.r * 0.8, k.z + Math.sin(a) * k.r * 0.8);
-      // forward (f) points at the sink centre
-      wall(px, pz, Math.atan2(k.x - px, k.z - pz), (Math.PI * 2 * rr) / n + 0.4, Math.max(1, rim - floor + 0.1), floor);
+      wall(px, pz, Math.atan2(k.x - px, k.z - pz), 1.8, 0.7, forestBasinGroundY(px, pz));
     }
   }
   // Cut faces of the Graven Cuts and the walls of Rook's Throat: rock where the ground steps.
@@ -569,7 +568,7 @@ export function forestBasinProps(): Prop[] {
       if (!firm(jx, jz) || b === "bridge" || b === "mountain") continue;
       if (Math.hypot(jx - FB_CAMP.x, jz - FB_CAMP.z) < FB_CAMP.r + 3) continue;
       if (Math.hypot(jx - FB_QUARRY.x, jz - FB_QUARRY.z) < FB_QUARRY.r - 2) continue; // bare cut rock
-      if (FB_SINKS.some((k) => Math.hypot(jx - k.x, jz - k.z) < k.r * 1.1)) continue; // bare pit
+      if (FB_SINKS.some((k) => Math.hypot(jx - k.x, jz - k.z) < k.r * 1.7)) continue; // bare pit and rim
       if (FB_WARP_SITES.some((w) => Math.hypot(jx - w.x, jz - w.z) < w.r + 3)) continue;
       if (near.some((q) => Math.hypot(jx - q.x, jz - q.z) < q.r)) continue;
       if (fbTrailDist(jx, jz) < 2.6 || anchors.some((a) => Math.hypot(a.x - jx, a.z - jz) < 3.2)) continue;
