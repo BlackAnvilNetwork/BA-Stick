@@ -532,6 +532,14 @@ fn value_noise(x: f32, z: f32) -> f32 {
 /// 0..6 along the meadow ramp. A broad octave sets the patch, a finer one
 /// drifts it, and a slow pocket pulls the top of the ramp into blue-green.
 #[inline(always)]
+/// True where the ground is a cut face or cliff (rise over a cell beside it > 0.9 per m).
+fn grass_steep(zone: &Zone, i: i32, j: i32) -> bool {
+    let h = |a: i32, b: i32| zone.height[zone.idx(a.clamp(0, zone.w as i32 - 1), b.clamp(0, zone.h as i32 - 1))];
+    let c = h(i, j);
+    let m = (h(i + 1, j) - c).abs().max((h(i - 1, j) - c).abs()).max((h(i, j + 1) - c).abs()).max((h(i, j - 1) - c).abs());
+    m > 0.9 * zone.cell
+}
+
 fn grass_field(i: i32, j: i32) -> f32 {
     let x = i as f32 / 12.0;
     let z = j as f32 / 12.0;
@@ -648,6 +656,9 @@ pub fn draw_meadow_grass(
             let f = zone.flags[k];
             if f & (F_WATER | F_BRIDGE | F_TRAIL) != 0 {
                 continue;
+            }
+            if grass_steep(zone, i, j) {
+                continue; // cut faces and cliffs stay bare rock
             }
             let h = cell_hash(i, j);
             let x = zone.min_x + i as f32 * cell;

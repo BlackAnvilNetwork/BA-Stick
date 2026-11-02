@@ -1206,6 +1206,47 @@ pub fn draw(
             eye_y: eye.as_ref().map_or(0.0, |e| e.eye.y - base.y),
         };
         draw_one(&mut c, p, time);
+        weather(&mut c, p);
+    }
+}
+
+/// Age on built stone: an earth skirt where it meets the ground, moss and grass
+/// creeping up the lower course, and rubble fallen at its feet. Seeded by position.
+fn weather(c: &mut Ctx, p: &Prop) {
+    let (hw, hd, var_ok) = match p.kind {
+        kind::RUIN_ARCH if p.var == 2 => (p.w.max(1.5) * 0.5 + 0.4, 0.55, true),
+        kind::RUIN_ARCH if p.var == 1 => (0.4, 0.4, true),
+        kind::RUIN_ARCH => (p.w.max(1.5) * 0.5 + 0.35, 0.4, true),
+        kind::WALL_BLOCK => (p.w * 0.5, p.d * 0.5, true),
+        kind::ROCK_WALL => (p.s.max(1.0) * 0.5, p.w.max(0.4) * 0.5, true),
+        _ => (0.0, 0.0, false),
+    };
+    if !var_ok {
+        return;
+    }
+    let r = |k: f32| ((p.x * 12.9898 + p.z * 78.233 + k * 37.719).sin() * 43758.547).fract().abs();
+    // the skirt: a low flared bank of earth, ground colours, hiding the hard contact line
+    c.boxy(0.0, -0.35, 0.0, hw * 2.0 + 0.6, 0.5, hd * 2.0 + 0.6, GRASS, GRASS_D, GRASS_D);
+    c.boxy(0.0, -0.3, 0.0, hw * 2.0 + 1.1, 0.3, hd * 2.0 + 1.1, GRASS_D, GRASS_D, GRASS_D);
+    // moss and grass creeping onto the lower course, in ragged patches
+    let n = ((hw * 2.0) / 0.7).ceil().max(1.0) as i32;
+    for k in 0..n {
+        if r(k as f32) < 0.35 {
+            continue;
+        }
+        let x = -hw + (k as f32 + 0.5) * (hw * 2.0 / n as f32);
+        let ht = 0.25 + 0.55 * r(k as f32 + 9.0);
+        let col = if r(k as f32 + 3.0) > 0.5 { MOSS_C } else { GRASS_L };
+        c.boxy(x, 0.1, 0.0, hw * 2.0 / n as f32 * 0.9, ht, hd * 2.0 + 0.08, col, col, GRASS_D);
+    }
+    // rubble fallen at the feet
+    for k in 0..6 {
+        let a = r(k as f32 + 20.0) * std::f32::consts::TAU;
+        let dist = 1.0 + 0.9 * r(k as f32 + 30.0);
+        let (x, z) = (a.cos() * (hw + 0.3) * dist, a.sin() * (hd + 0.3) * dist + a.sin() * 0.6);
+        let sz = 0.18 + 0.3 * r(k as f32 + 40.0);
+        let (lit, dark) = if p.kind == kind::ROCK_WALL { (ROCK, ROCK_D) } else { (WALL, WALL_D) };
+        c.boxy(x, -0.08, z, sz * 1.3, sz, sz, if p.kind == kind::ROCK_WALL { ROCK_L } else { WALL_L }, lit, dark);
     }
 }
 
@@ -1888,7 +1929,10 @@ fn draw_one(c: &mut Ctx, p: &Prop, time: f32) {
                 c.quad(q[0], q[1], q[2], q[3], WATER + ph);
             } else if p.var == 1 {
                 c.boxy(0.0, -0.2, 0.0, 0.8, hgt * 0.9, 0.8, WALL_L, WALL, WALL_D);
-                c.boxy(0.15, hgt * 0.7, 0.0, 0.55, hgt * 0.25, 0.6, WALL_L, WALL, WALL_D);
+                // broken, irregular top: a leaning upper drum and a chipped stub, set by position
+                let j = ((p.x * 3.7 + p.z * 5.3).sin() * 0.5 + 0.5, (p.x * 1.9 - p.z * 4.1).cos() * 0.5 + 0.5);
+                c.boxy(0.15 + 0.2 * (j.0 - 0.5), hgt * 0.7, 0.1 * (j.1 - 0.5), 0.55, hgt * (0.12 + 0.2 * j.0), 0.6, WALL_L, WALL, WALL_D);
+                c.boxy(-0.2, hgt * 0.84, 0.15, 0.3, hgt * 0.1 * j.1 + 0.1, 0.3, WALL_L, WALL, WALL_D);
                 c.boxy(0.0, -0.2, 0.0, 1.1, 0.35, 1.1, WALL, WALL_D, ROCK_D);
             } else {
                 let span = p.w.max(1.5);

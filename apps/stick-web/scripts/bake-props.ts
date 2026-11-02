@@ -459,7 +459,7 @@ export function forestBasinProps(): Prop[] {
         for (const al of [-4.5, -1.5, 1.5]) for (const ac of [-2.4, 2.4]) {
           const q = P(al, ac); k++;
           if (rise(q.px, q.pz) < 0.3) continue;
-          out.push({ kind: K.ruinArch, v: 1, x: q.px, z: q.pz, y: forestBasinGroundY(q.px, q.pz) - 0.2, yaw: al, s: rise(q.px, q.pz) + 0.8 + rnd(k) * 2, w: 0, h: 0, d: 0 });
+          out.push({ kind: K.ruinArch, v: 1, x: q.px, z: q.pz, y: forestBasinGroundY(q.px, q.pz) - 0.5, yaw: al + 0.4 * hash2(q.px, q.pz), s: rise(q.px, q.pz) + 0.8 + rnd(k) * 2, w: 0, h: 0, d: 0 });
         }
         clear = 7; break;
       }
@@ -494,7 +494,7 @@ export function forestBasinProps(): Prop[] {
       const px = k.x + Math.cos(a) * rr, pz = k.z + Math.sin(a) * rr;
       const asc = fbAscentAt(px, pz);
       if (asc && asc.dist < asc.ascent.halfWidth + 1.2) continue;
-      wall(px, pz, Math.atan2(k.x - px, k.z - pz), 1.8, 0.7, forestBasinGroundY(px, pz));
+      at(i % 3 ? K.pebble : K.stone, px, pz, a * 3.1, 0.6 + 0.5 * hash2(px, pz)); // crumbled lip stones
     }
   }
   // Cut faces of the Graven Cuts and the walls of Rook's Throat: rock where the ground steps.
@@ -531,24 +531,23 @@ export function forestBasinProps(): Prop[] {
         if (hi - lo < 1) continue;
         // face looks toward the lower bench
         const ux = (b0 < b1 ? x - nx : nx - x) / st, uz = (b0 < b1 ? z - nz : nz - z) / st;
-        wall(mx + ux * 0.4, mz + uz * 0.4, Math.atan2(ux, uz), st + 0.3, hi - lo + 0.1, lo, 1);
+        // the face itself is cut rock in the ground; only spoil lies at its foot
+        if (hash2(mx * 3, mz * 3) > 0.55) at(K.stone, mx + ux * 1.1, mz + uz * 1.1, hash2(mz, mx) * 6.28, 0.5 + hash2(mx, mz) * 0.5);
       }
     }
   }
-  for (const gq of FB_GORGES) for (const p of gq.points) face(p.x, p.z, gq.halfWidth + 3);
+  void face; // gorge walls are shaped rock in the terrain now
   // The Wright's Veil: the Briarwater pours off the Veil Scarp into Fenstone Pool.
   {
     const lip = FB_RIVERS.find((r) => r.id === "briarwater")!.points.find((p) => p.y >= 15.5 && p.z < 119)!;
     const pool = forestBasinWaterSurfaceY(-93.3, 114.2) ?? 10.4;
     out.push({ kind: K.falls, v: 0, x: -93.3, z: 116.6, y: pool, yaw: Math.PI, s: 1, w: 3.4, h: lip.y - pool, d: 0 });
-    wall(-97.4, 117.4, Math.PI - 0.2, 4.4, lip.y - pool + 0.4, pool - 0.2);
-    wall(-89.6, 116.9, Math.PI + 0.25, 3.6, lip.y - pool - 0.6, pool - 0.2);
   }
   // The Cold Forges: three dead hearths, each with a broken chimney stack.
   for (const [dx, dz] of [[-3.5, -2], [3, -2.5], [0, 3.5]] as const) {
     const px = -56 + dx, pz = 77.5 + dz;
     if (anchors.some((m) => Math.hypot(m.x - px, m.z - pz) < 2.5) || fbDesignWater(px, pz)) continue;
-    out.push({ kind: K.ruinArch, v: 1, x: px, z: pz, y: forestBasinStandHeight(px, pz) - 0.1, yaw: dx, s: 3.2, w: 0, h: 0, d: 0 });
+    out.push({ kind: K.ruinArch, v: 1, x: px, z: pz, y: forestBasinStandHeight(px, pz) - 0.45, yaw: dx + 0.3 * hash2(px, pz), s: 3.6, w: 0, h: 0, d: 0 });
     at(K.firePit, px + 1.1, pz + 0.4);
   }
   // The wood, plus reeds on the banks.
