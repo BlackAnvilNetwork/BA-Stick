@@ -12,8 +12,15 @@ export type WarpCircle = (typeof PH_WARP_CIRCLES)[number];
 export type WarpCircleId = WarpCircle["id"];
 
 /**
- * The Mayflower Ring sits inside the Scout Gate room on purpose.
+ * The Mayflower Ring sits inside the Scout Gate room on purpose: it is Mayflower's
+ * own ring, and the room is where returning travellers arrive.
  * `PH_HUB` is that room's interact rectangle, not a warp exclusion.
+ * The Scout Gate spawn (PH_HUB_SPAWN) is back on the hub pad and is used for zone
+ * entry, recall and returning characters, so the floor is not empty. The exception
+ * holds because the ring stays clear of it: the spawn stands about 6.2 m from the
+ * ring's centre (beyond r + 1.5 m), the whole disc is walkable and reachable, and no
+ * other point anchor is within r + 1.5 m. warp-unlocks.test.ts checks the clearance.
+ * New characters start at Emberwatch (PH_START_SPAWN), not here.
  * Any other ring that touches the room fails the overlap check.
  */
 export const PH_WARP_HUB_EXCEPTIONS = ["warp-mayflower"] as const;
