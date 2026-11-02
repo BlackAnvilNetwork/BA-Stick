@@ -148,7 +148,9 @@ export function planHeight(x: number, z: number): number {
     const shore = 1.85 + outside * (0.2 + 0.08 * fbm(x / 8, z / 8)) + Math.max(0, outside - 14) * 0.6;
     if (shore < h) h = shore;
   }
-  // The Graven Cuts: old quarry benches, each cut face a short cliff.
+  // The Graven Cuts: four cut-rock benches, about 12, 9, 6 and 3 m.
+  // The shipped grid is restamped by tools/map-builder/restamp-sets.ts so the
+  // floors stay even and the steps stay about 3 m. A later drive should match that.
   {
     const q = FB_QUARRY;
     const d = Math.hypot(x - q.x, z - q.z) + 4 * fbm(x / 9, z / 9);
