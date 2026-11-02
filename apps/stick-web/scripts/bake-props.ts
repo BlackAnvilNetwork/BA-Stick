@@ -9,10 +9,13 @@
 import {
   PALE_HOLLOW_BOUNDS,
   PH_CAMP_SHIFT_X,
-  FB_BRIDGE,
+  FB_BRIDGES,
+  FB_PLACES,
+  FB_WARP_SITES,
+  FB_ASCENTS,
+  fbDesignWater,
   FB_BRIDGE_DECK_W,
   FB_CAMP,
-  FB_MOUNTAINS,
   FOREST_BASIN_BOUNDS,
   forestBasinBiome,
   forestBasinBridgeCenter,
@@ -304,47 +307,69 @@ function riverBanks(out: Prop[]): void {
 
 export function forestBasinProps(): Prop[] {
   const out: Prop[] = [];
-  const c = forestBasinBridgeCenter();
-  const deck = forestBasinStandHeight(c.x, c.z);
-  const span = FB_BRIDGE.halfSpan * 2;
-  out.push({
-    kind: K.bridge, v: Math.round(0.22 * 200), x: c.x, z: c.z, y: deck, yaw: Math.atan2(1, 0),
-    s: span, w: FB_BRIDGE_DECK_W, h: 0.35, d: deck,
-  });
-  for (const m of FB_MOUNTAINS) {
+  const at = (kind: number, x: number, z: number, yaw = 0, s = 1) =>
+    out.push({ kind, v: 0, x, z, y: forestBasinStandHeight(x, z), yaw, s, w: 0, h: 0, d: 0 });
+  // Bridges (deck spans from a to b).
+  for (const b of FB_BRIDGES) {
+    const dx = b.b.x - b.a.x, dz = b.b.z - b.a.z;
     out.push({
-      kind: K.peak, v: 0, x: m.x, z: m.z, y: forestBasinStandHeight(m.x, m.z),
-      yaw: 0, s: Math.max(0.7, m.h / 8), w: 0, h: m.h, d: 0,
+      kind: K.bridge, v: Math.round(0.18 * 200), x: (b.a.x + b.b.x) / 2, z: (b.a.z + b.b.z) / 2, y: b.deckY,
+      yaw: Math.atan2(dx, dz), s: Math.hypot(dx, dz), w: Math.min(FB_BRIDGE_DECK_W, b.halfWidth * 2), h: 0.4, d: b.deckY,
     });
   }
+  // Warp rings: standing stones around each circle.
+  for (const w of FB_WARP_SITES) {
+    const n = w.id === "scraped-ring" ? 7 : 8;
+    for (let k = 0; k < n; k++) {
+      const a = (k / n) * Math.PI * 2 + 0.3;
+      // The Scraped Stones: six re-cut faces, the seventh left uncut (a cairn).
+      at(w.id === "scraped-ring" && k === 6 ? K.cairn : K.stone, w.x + Math.cos(a) * w.r, w.z + Math.sin(a) * w.r, a, 1.3);
+    }
+  }
+  // Ruins and heights: broken walls, mossy blocks.
+  for (const p of FB_PLACES) {
+    if (p.kind !== "ruin" && p.kind !== "height" && p.kind !== "cult") continue;
+    const n = p.kind === "height" ? 4 : 7;
+    for (let k = 0; k < n; k++) {
+      const a = hash2(k, p.x) * Math.PI * 2;
+      const r = 3 + hash2(p.z, k) * 4;
+      at(k % 3 === 2 ? K.moss : K.wallBlock, p.x + Math.cos(a) * r, p.z + Math.sin(a) * r, a, 0.8 + hash2(k, k) * 0.6);
+    }
+  }
+  // Cairns mark the ascent routes.
+  for (const a of FB_ASCENTS) for (const q of a.points) at(K.cairn, q.x + a.halfWidth + 0.8, q.z, 0, 0.8);
+  // Kettle Hollow camp.
   const camp = [
-    [K.tent, -6, 3, 0.4],
-    [K.tent, 5, 2, -0.3],
-    [K.firePit, 0, -1, 0],
-    [K.leanTo, 4, -4, 0.2],
-    [K.crate, -3, -3, 0.5],
+    [K.tent, -6, 3, 0.4], [K.tent, 5, 4, -0.3], [K.firePit, -6, -4, 0], [K.leanTo, 6, -4, 0.2],
+    [K.crate, -3, -6, 0.5], [K.firewood, -8, -2, 0.1], [K.sapling, 3, 8, 0], [K.sapling, -2, 9, 0],
   ] as const;
-  for (const [kind, dx, dz, yaw] of camp) {
-    out.push({
-      kind, v: 0, x: FB_CAMP.x + dx, z: FB_CAMP.z + dz, y: FB_CAMP.floorY,
-      yaw, s: 1, w: 0, h: 0, d: 0,
-    });
-  }
+  for (const [kind, dx, dz, yaw] of camp) at(kind, FB_CAMP.x + dx, FB_CAMP.z + dz, yaw);
+  // The wood, plus reeds on the banks.
   const { minX, maxX, minZ, maxZ } = FOREST_BASIN_BOUNDS;
-  for (let iz = minZ + 8; iz <= maxZ - 8; iz += 6.8) {
-    for (let ix = minX + 8; ix <= maxX - 8; ix += 6.2) {
+  for (let iz = minZ + 8; iz <= maxZ - 8; iz += 5.6) {
+    for (let ix = minX + 8; ix <= maxX - 8; ix += 5.2) {
       const jx = ix + (hash2(ix, iz) - 0.5) * 4;
       const jz = iz + (hash2(iz, ix) - 0.5) * 4;
-      if (!forestBasinWalkable(jx, jz)) continue;
-      if (forestBasinOnTrail(jx, jz)) continue;
+      if (forestBasinOnTrail(jx, jz) || fbDesignWater(jx, jz)) continue;
       const b = forestBasinBiome(jx, jz);
-      if (b === "hub_indoor" || b === "river" || b === "bridge" || b === "mountain") continue;
       const h = hash2(Math.floor(jx * 2), Math.floor(jz * 2));
-      if (h < 0.45) continue;
-      const kind = h > 0.72 ? K.pine : K.spruce;
+      if (b === "riverbank") {
+        if (h > 0.4) at(K.reed, jx, jz, h * 6.28, 1);
+        continue;
+      }
+      if (!forestBasinWalkable(jx, jz) || b === "bridge" || b === "mountain") continue;
+      if (Math.hypot(jx - FB_CAMP.x, jz - FB_CAMP.z) < FB_CAMP.r + 3) continue;
+      if (FB_WARP_SITES.some((w) => Math.hypot(jx - w.x, jz - w.z) < w.r + 3)) continue;
+      if (b === "meadow") {
+        if (h > 0.8) at(K.bloom, jx, jz, h * 6.28, 1);
+        else if (h > 0.6) at(K.bush, jx, jz, h * 6.28, 1);
+        continue;
+      }
+      if (h < 0.3) continue;
+      const kind = h > 0.7 ? K.pine : h > 0.4 ? K.spruce : K.fern;
       out.push({
         kind, v: 0, x: jx, z: jz, y: forestBasinStandHeight(jx, jz),
-        yaw: h * 6.28, s: 3.2 + h * 1.4, w: 0, h: 0, d: 0,
+        yaw: h * 6.28, s: kind === K.fern ? 1 : 3.2 + h * 1.4, w: 0, h: 0, d: 0,
       });
     }
   }
