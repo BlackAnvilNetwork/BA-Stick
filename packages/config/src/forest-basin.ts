@@ -25,6 +25,8 @@ import {
   FB_WARP_SITES,
   fbBridgeAt,
   fbDesignWater,
+  fbBridgeDeckY,
+  fbBridgeT,
   fbTrailDist,
 } from "./forest-basin-features";
 import { FB_TERRAIN_B64, FB_TERRAIN_N } from "./forest-basin-terrain";
@@ -187,7 +189,7 @@ export function forestBasinWaterSurfaceY(x: number, z: number): number | null {
 
 export function forestBasinStandHeight(x: number, z: number): number {
   const b = fbBridgeAt(x, z);
-  if (b) return b.deckY;
+  if (b) return fbBridgeDeckY(b, fbBridgeT(b, x, z));
   return forestBasinGroundY(x, z);
 }
 

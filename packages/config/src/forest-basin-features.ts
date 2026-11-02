@@ -29,10 +29,10 @@ const RIVER_SPINES: readonly FbRiver[] = [
     id: "briarwater",
     name: "the Briarwater",
     points: [
-      { x: -101, z: 131, y: 12.6, w: 1.6, d: 0.3 },
-      { x: -96, z: 121, y: 12.3, w: 1.9, d: 0.35 },
-      { x: -93, z: 117.5, y: 12.2, w: 2.0, d: 0.3 }, // lip of the Wright's Veil
-      { x: -93.5, z: 114.8, y: 10.4, w: 2.4, d: 0.6 }, // foot of the falls
+      { x: -101, z: 131, y: 16.1, w: 1.6, d: 0.3 },
+      { x: -96, z: 121, y: 15.8, w: 1.9, d: 0.35 },
+      { x: -93, z: 118.4, y: 15.6, w: 2.0, d: 0.3 }, // lip of the Wright's Veil (5 m drop)
+      { x: -93.5, z: 114.6, y: 10.4, w: 2.4, d: 0.6 }, // foot of the falls
       { x: -92, z: 111.5, y: 10.35, w: 3.4, d: 1.6 }, // Fenstone Pool (plunge pool)
       { x: -85, z: 109, y: 10.0, w: 2.4, d: 0.4 },
       { x: -79, z: 104, y: 9.4, w: 2.5, d: 0.4 },
@@ -154,14 +154,21 @@ export type FbBridge = {
   a: { x: number; z: number };
   b: { x: number; z: number };
   halfWidth: number;
+  /** Deck height over mid-span. */
   deckY: number;
+  /** Bank height at a and b: the deck ramps down to meet each bank. */
+  yA: number;
+  yB: number;
 };
 
+/** Ramp fraction of each bridge's span at either end (trapezoid profile, as the renderer). */
+export const FB_BRIDGE_RAMP = 0.25;
+
 export const FB_BRIDGES: readonly FbBridge[] = [
-  { id: "wrightsbridge", name: "Wrightsbridge", a: { x: -31.2, z: 57.3 }, b: { x: -24.8, z: 70.7 }, halfWidth: 1.9, deckY: 5.5 },
-  { id: "stoneback", name: "Stoneback Bridge", a: { x: 52.6, z: 65.1 }, b: { x: 65.4, z: 68.9 }, halfWidth: 1.9, deckY: 4.8 },
-  { id: "rope-span", name: "the Rope Span", a: { x: -46.5, z: -61.7 }, b: { x: -31.8, z: -66.3 }, halfWidth: 1.3, deckY: 3.4 },
-  { id: "mere-causeway", name: "the Reedwalk", a: { x: 51.4, z: 20.5 }, b: { x: 56.6, z: 35.5 }, halfWidth: 1.7, deckY: 2.3 },
+  { id: "wrightsbridge", name: "Wrightsbridge", a: { x: -31.3, z: 57 }, b: { x: -24.6, z: 71.2 }, halfWidth: 1.9, deckY: 5.9, yA: 4.8, yB: 4.9 },
+  { id: "stoneback", name: "Stoneback Bridge", a: { x: 52.5, z: 65.1 }, b: { x: 64.5, z: 68.6 }, halfWidth: 1.9, deckY: 5.1, yA: 4.2, yB: 4.2 },
+  { id: "rope-span", name: "the Rope Span", a: { x: -49.4, z: -60.8 }, b: { x: -31.5, z: -66.4 }, halfWidth: 1.3, deckY: 3.6, yA: 2.95, yB: 3.15 },
+  { id: "mere-causeway", name: "the Reedwalk", a: { x: 51.1, z: 19.5 }, b: { x: 59.2, z: 42.9 }, halfWidth: 1.7, deckY: 2.7, yA: 2.2, yB: 2.0 },
 ];
 
 export type FbTrail = { id: string; name: string; surface: "dirt" | "stone"; points: readonly { x: number; z: number }[] };
@@ -191,8 +198,8 @@ const TRAIL_SPINES: readonly FbTrail[] = [
     name: "the Wrights' Road",
     surface: "stone",
     points: [
-      { x: -18, z: 4 }, { x: -23, z: 21 }, { x: -21, z: 38 }, { x: -27, z: 50 }, { x: -31.2, z: 57.3 },
-      { x: -24.8, z: 70.7 }, { x: -36, z: 78 }, { x: -44, z: 82 }, { x: -58, z: 90 }, { x: -71, z: 99 }, { x: -78, z: 110 },
+      { x: -18, z: 4 }, { x: -23, z: 21 }, { x: -21, z: 38 }, { x: -27, z: 50 }, { x: -31.3, z: 57 },
+      { x: -24.6, z: 71.2 }, { x: -36, z: 78 }, { x: -44, z: 82 }, { x: -58, z: 90 }, { x: -71, z: 99 }, { x: -78, z: 110 },
     ],
   },
   {
@@ -200,8 +207,8 @@ const TRAIL_SPINES: readonly FbTrail[] = [
     name: "the Mere Path",
     surface: "dirt",
     points: [
-      { x: -18, z: 4 }, { x: -2, z: 9 }, { x: 15, z: 8 }, { x: 31, z: 14 }, { x: 44, z: 17 }, { x: 51.4, z: 20.5 },
-      { x: 56.6, z: 35.5 }, { x: 52, z: 45 }, { x: 50, z: 57 }, { x: 52.6, z: 65.1 }, { x: 65.4, z: 68.9 }, { x: 72, z: 76 },
+      { x: -18, z: 4 }, { x: -2, z: 9 }, { x: 15, z: 8 }, { x: 31, z: 14 }, { x: 44, z: 17 }, { x: 51.1, z: 19.5 },
+      { x: 59.2, z: 42.9 }, { x: 52, z: 45 }, { x: 50, z: 57 }, { x: 52.5, z: 65.1 }, { x: 64.5, z: 68.6 }, { x: 72, z: 76 },
     ],
   },
   {
@@ -217,7 +224,7 @@ const TRAIL_SPINES: readonly FbTrail[] = [
     id: "chapel-track",
     name: "the Chapel Track",
     surface: "dirt",
-    points: [{ x: -9, z: -50 }, { x: -24, z: -59 }, { x: -31.8, z: -66.3 }, { x: -46.5, z: -61.7 }, { x: -58, z: -68 }, { x: -72, z: -72 }],
+    points: [{ x: -9, z: -50 }, { x: -24, z: -59 }, { x: -31.5, z: -66.4 }, { x: -49.4, z: -60.8 }, { x: -58, z: -68 }, { x: -72, z: -72 }],
   },
   {
     id: "ledge-track",
@@ -614,6 +621,18 @@ export function fbBridgeAt(x: number, z: number): FbBridge | null {
     if (segProject(x, z, b.a.x, b.a.z, b.b.x, b.b.z).d <= b.halfWidth) return b;
   }
   return null;
+}
+
+/** Span parameter (0 at a, 1 at b) of a point on a bridge. */
+export function fbBridgeT(b: FbBridge, x: number, z: number): number {
+  return segProject(x, z, b.a.x, b.a.z, b.b.x, b.b.z).t;
+}
+
+/** Walk height of a bridge deck at span parameter t: bank to deck to bank. */
+export function fbBridgeDeckY(b: FbBridge, t: number): number {
+  const u = Math.max(0, Math.min(1, t));
+  const lift = Math.max(0, b.deckY - (b.yA + b.yB) / 2);
+  return b.yA + (b.yB - b.yA) * u + lift * Math.min(1, u / FB_BRIDGE_RAMP, (1 - u) / FB_BRIDGE_RAMP);
 }
 
 export function fbAscentAt(x: number, z: number): { ascent: FbAscent; y: number; dist: number } | null {

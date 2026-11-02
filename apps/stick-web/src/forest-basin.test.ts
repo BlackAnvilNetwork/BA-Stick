@@ -127,3 +127,40 @@ test("forest basin bake is the area-sheet byte length", () => {
   assert.equal(buf.length, 24 + 4 * w * h);
   assert.equal(buf.toString("ascii", 0, 4), "BAZ1");
 });
+
+test("forest basin bridges land on dry banks and the deck is continuous", () => {
+  for (const b of FB_BRIDGES) {
+    const L = Math.hypot(b.b.x - b.a.x, b.b.z - b.a.z);
+    const ux = (b.b.x - b.a.x) / L, uz = (b.b.z - b.a.z) / L;
+    const at = (t: number, off = 0) => ({ x: b.a.x + ux * t + uz * off, z: b.a.z + uz * t - ux * off });
+    // Both ends, and a short overlap past them, are dry walkable bank at deck height.
+    for (const [t, yEnd] of [[0, b.yA], [L, b.yB]] as const) {
+      for (const dt of [0, t === 0 ? -0.75 : 0.75]) {
+        const p = at(t + dt);
+        assert.equal(fbDesignWater(p.x, p.z), null, `${b.id} end ${t === 0 ? "a" : "b"} is dry`);
+        assert.ok(forestBasinWalkable(p.x, p.z), `${b.id} end walkable`);
+      }
+      const p = at(t);
+      assert.ok(Math.abs(forestBasinGroundY(p.x, p.z) - yEnd) < 0.45, `${b.id} end meets the bank (ground ${forestBasinGroundY(p.x, p.z).toFixed(2)} deck ${yEnd})`);
+      const past = at(t + (t === 0 ? -0.6 : 0.6));
+      assert.ok(Math.abs(forestBasinStandHeight(past.x, past.z) - yEnd) < 0.5, `${b.id} no step off the end`);
+    }
+    // Every wet or dropped cell along the line is under the deck, and the deck never jumps.
+    let prev = forestBasinStandHeight(b.a.x, b.a.z);
+    let spansGap = false;
+    for (let t = 0.25; t <= L; t += 0.25) {
+      for (const off of [-b.halfWidth * 0.8, 0, b.halfWidth * 0.8]) {
+        const p = at(t, off);
+        assert.ok(forestBasinOnBridge(p.x, p.z) && forestBasinWalkable(p.x, p.z), `${b.id} deck at ${t.toFixed(2)}`);
+        const w = fbDesignWater(p.x, p.z);
+        if ((w && w.depth > 0.5) || forestBasinStandHeight(p.x, p.z) - forestBasinGroundY(p.x, p.z) > 2) spansGap = true;
+        if (w) assert.ok(forestBasinStandHeight(p.x, p.z) > w.surface + 0.3, `${b.id} deck clears the water`);
+      }
+      const p = at(t);
+      const y = forestBasinStandHeight(p.x, p.z);
+      assert.ok(Math.abs(y - prev) < 0.3, `${b.id} deck step at ${t.toFixed(2)}`);
+      prev = y;
+    }
+    assert.ok(spansGap, `${b.id} crosses deep water or a drop`);
+  }
+});
