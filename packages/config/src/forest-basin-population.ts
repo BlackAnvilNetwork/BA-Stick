@@ -27,7 +27,7 @@ export function forestBasinMobs(): FieldMobDef[] {
       out.push({
         id: `fb-${p.id}-${i}`,
         zoneId: ZONE,
-        name: p.name ?? t.name,
+        name: p.names?.[i] ?? p.name ?? t.name,
         x: Math.round((p.x + Math.cos(ang) * r) * 2) / 2,
         z: Math.round((p.z + Math.sin(ang) * r) * 2) / 2,
         level: p.level,

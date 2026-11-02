@@ -12,6 +12,9 @@ import {
   FB_BRIDGES,
   FB_PLACES,
   FB_POIS,
+  forestBasinNpcs,
+  forestBasinMobs,
+  fbTrailDist,
   FB_WARP_SITES,
   FB_ASCENTS,
   fbDesignWater,
@@ -345,7 +348,8 @@ export function forestBasinProps(): Prop[] {
     [K.crate, -3, -6, 0.5], [K.firewood, -8, -2, 0.1], [K.sapling, 3, 8, 0], [K.sapling, -2, 9, 0],
   ] as const;
   for (const [kind, dx, dz, yaw] of camp) at(kind, FB_CAMP.x + dx, FB_CAMP.z + dz, yaw);
-  // Points of interest: one small recipe per kind.
+  // Points of interest: one small recipe per kind (kept clear of NPCs and mobs).
+  const anchors = [...forestBasinNpcs(), ...forestBasinMobs()];
   const near: { x: number; z: number; r: number }[] = [];
   for (const poi of FB_POIS) {
     const { x, z } = poi;
@@ -357,7 +361,7 @@ export function forestBasinProps(): Prop[] {
         f(x + Math.cos(a) * rr, z + Math.sin(a) * rr, a, k);
       }
     };
-    const dry = (px: number, pz: number) => !fbDesignWater(px, pz) && !forestBasinOnTrail(px, pz);
+    const dry = (px: number, pz: number) => !fbDesignWater(px, pz) && !forestBasinOnTrail(px, pz) && forestBasinWalkable(px, pz) && fbTrailDist(px, pz) > 2.2 && !anchors.some((a) => Math.hypot(a.x - px, a.z - pz) < 3.2);
     const put = (kind: number, px: number, pz: number, yaw = 0, sc = 1) => { if (dry(px, pz)) at(kind, px, pz, yaw, sc); };
     let clear = 5;
     switch (poi.kind) {
@@ -409,6 +413,7 @@ export function forestBasinProps(): Prop[] {
       if (Math.hypot(jx - FB_CAMP.x, jz - FB_CAMP.z) < FB_CAMP.r + 3) continue;
       if (FB_WARP_SITES.some((w) => Math.hypot(jx - w.x, jz - w.z) < w.r + 3)) continue;
       if (near.some((q) => Math.hypot(jx - q.x, jz - q.z) < q.r)) continue;
+      if (fbTrailDist(jx, jz) < 2.6 || anchors.some((a) => Math.hypot(a.x - jx, a.z - jz) < 3.2)) continue;
       if (b === "meadow") {
         if (h > 0.8) at(K.bloom, jx, jz, h * 6.28, 1);
         else if (h > 0.6) at(K.bush, jx, jz, h * 6.28, 1);

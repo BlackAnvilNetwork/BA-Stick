@@ -32,8 +32,8 @@ const RIVER_SPINES: readonly FbRiver[] = [
       { x: -101, z: 131, y: 12.6, w: 1.6, d: 0.3 },
       { x: -96, z: 121, y: 12.3, w: 1.9, d: 0.35 },
       { x: -93, z: 117.5, y: 12.2, w: 2.0, d: 0.3 }, // lip of the Wright's Veil
-      { x: -91.5, z: 115.5, y: 10.4, w: 2.6, d: 0.6 }, // foot of the falls
-      { x: -89, z: 112.5, y: 10.35, w: 4.4, d: 1.7 }, // Fenstone Pool (plunge pool)
+      { x: -93.5, z: 114.8, y: 10.4, w: 2.4, d: 0.6 }, // foot of the falls
+      { x: -92, z: 111.5, y: 10.35, w: 3.4, d: 1.6 }, // Fenstone Pool (plunge pool)
       { x: -85, z: 109, y: 10.0, w: 2.4, d: 0.4 },
       { x: -79, z: 104, y: 9.4, w: 2.5, d: 0.4 },
       { x: -71, z: 99, y: 8.3, w: 2.8, d: 0.35 }, // Hartstep Ford (shallow riffle)
@@ -259,14 +259,28 @@ export const FB_ASCENTS: readonly FbAscent[] = [
     name: "the Sink Stair",
     kind: "stair",
     halfWidth: 1.3,
-    points: [{ x: 127, z: -30, y: 3.3 }, { x: 128, z: -34, y: 1.2 }, { x: 128, z: -38, y: -1.4 }],
+    points: [{ x: 127, z: -30, y: 3.2 }, { x: 128, z: -34, y: 0.4 }, { x: 128, z: -37.5, y: -2.5 }],
+  },
+  {
+    id: "little-sink-steps",
+    name: "the Little Sink Steps",
+    kind: "stair",
+    halfWidth: 1.2,
+    points: [{ x: 112, z: -24.5, y: 1.9 }, { x: 113, z: -27.5, y: 0.4 }, { x: 113, z: -30, y: -1.1 }],
+  },
+  {
+    id: "pale-sink-steps",
+    name: "the Pale Sink Steps",
+    kind: "stair",
+    halfWidth: 1.2,
+    points: [{ x: 136, z: -45.5, y: 2.6 }, { x: 136, z: -49, y: 1.25 }],
   },
   {
     id: "swallow-cut",
     name: "the Swallow Cut",
     kind: "cleft",
     halfWidth: 1.3,
-    points: [{ x: 128, z: -40, y: -1.6 }, { x: 133, z: -46, y: 1.2 }, { x: 139, z: -47, y: 4.2 }, { x: 142, z: -52, y: 7.0 }, { x: 146, z: -50, y: 9.5 }],
+    points: [{ x: 128, z: -40, y: -2.5 }, { x: 133, z: -46, y: 1.2 }, { x: 139, z: -47, y: 4.2 }, { x: 142, z: -52, y: 7.0 }, { x: 146, z: -50, y: 9.5 }],
   },
   {
     id: "cutters-ramp",
@@ -596,16 +610,18 @@ export function fbBridgeAt(x: number, z: number): FbBridge | null {
 }
 
 export function fbAscentAt(x: number, z: number): { ascent: FbAscent; y: number; dist: number } | null {
+  // Nearest segment wins (the first-hit version left a gap past every joint).
+  let best: { ascent: FbAscent; y: number; dist: number } | null = null;
   for (const a of FB_ASCENTS) {
     const p = a.points;
     for (let i = 0; i < p.length - 1; i++) {
       const A = p[i]!;
       const B = p[i + 1]!;
       const { t, d } = segProject(x, z, A.x, A.z, B.x, B.z);
-      if (d <= a.halfWidth + 0.6) return { ascent: a, y: A.y + (B.y - A.y) * t, dist: d };
+      if (d <= a.halfWidth + 0.6 && (!best || d < best.dist)) best = { ascent: a, y: A.y + (B.y - A.y) * t, dist: d };
     }
   }
-  return null;
+  return best;
 }
 
 export function fbTrailDist(x: number, z: number): number {
@@ -634,6 +650,17 @@ export const FB_SHOALS: readonly { id: string; name: string; a: { x: number; z: 
   { id: "heron-bar", name: "the Heron Bar", a: { x: 72, z: 15 }, b: { x: 81, z: 26 }, halfWidth: 1.4 },
 ];
 
+/** Metres inside the nearest island's shore (negative outside). */
+export function fbIslandInset(x: number, z: number): number {
+  let best = -Infinity;
+  for (const i of FB_ISLANDS) {
+    const a = Math.atan2(z - i.z, x - i.x);
+    const r = i.r * (1 + 0.22 * Math.sin(a * 3 + i.x) + 0.12 * Math.sin(a * 5 + i.z));
+    best = Math.max(best, r - Math.hypot(x - i.x, z - i.z));
+  }
+  return best;
+}
+
 export function fbIslandAt(x: number, z: number): boolean {
   for (const i of FB_ISLANDS) {
     const a = Math.atan2(z - i.z, x - i.x);
@@ -648,7 +675,7 @@ export const FB_GORGES: readonly { id: string; name: string; halfWidth: number; 
   {
     id: "rooks-throat",
     name: "Rook's Throat",
-    halfWidth: 3.6,
+    halfWidth: 4.6,
     depth: 5,
     points: [{ x: -50, z: -36 }, { x: -45, z: -50 }, { x: -39, z: -64 }, { x: -42, z: -80 }, { x: -35, z: -96 }, { x: -30, z: -110 }],
   },

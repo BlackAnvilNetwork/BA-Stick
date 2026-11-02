@@ -18,6 +18,7 @@ import {
   fbDesignWater,
   fbLakeSigned,
   fbIslandAt,
+  fbIslandInset,
   FB_ISLANDS,
   FB_GORGES,
   FB_SINKS,
@@ -115,7 +116,11 @@ export function planHeight(x: number, z: number): number {
   }
   // Islands: low humped tops above the lake.
   for (const isl of FB_ISLANDS) {
-    if (fbIslandAt(x, z)) return isl.top - 0.12 * Math.hypot(x - isl.x, z - isl.z) + 0.25 * fbm(x / 3, z / 3);
+    if (fbIslandAt(x, z) && Math.hypot(x - isl.x, z - isl.z) < isl.r * 1.5) {
+      // Shore at the waterline, rising gently inland: the shoals walk straight up.
+      const t = Math.min(1, fbIslandInset(x, z) / 3);
+      return 1.68 + (isl.top - 1.68) * t * t * (3 - 2 * t) + 0.1 * t * fbm(x / 3, z / 3);
+    }
   }
   // Shore apron around the Stillmere.
   const outside = -fbLakeSigned(x, z);
@@ -136,7 +141,8 @@ export function planHeight(x: number, z: number): number {
   // Sinkholes.
   for (const k of FB_SINKS) {
     const d = Math.hypot(x - k.x, z - k.z) / (k.r * (1 + 0.15 * fbm(x / 3, z / 3)));
-    if (d < 1) h -= k.depth * (1 - d * d) ** 0.7;
+    // Flat silt floor inside 0.5 r, steep crumbling walls outside.
+    if (d < 1) h -= k.depth * (d < 0.5 ? 1 : 1 - smooth(0.5, 1, d));
   }
   // Gorges: steep-walled cuts, floor rising out of the open mouth.
   for (const g of FB_GORGES) {
