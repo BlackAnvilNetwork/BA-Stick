@@ -1792,14 +1792,22 @@ fn draw_one(c: &mut Ctx, p: &Prop, time: f32) {
                 let fb_ = 0.2 + 0.5 * (1.0 - yb / hgt).powi(2);
                 let a = c.p(x * (1.0 + 0.25 * (1.0 - ya / hgt)), ya, fa);
                 let b = c.p(x * (1.0 + 0.25 * (1.0 - yb / hgt)), yb, fb_);
-                c.fb.line(P2 { d: a.d - 0.05, ..a }, P2 { d: b.d - 0.05, ..b }, GEAR_BONE);
+                for dx in [-1.0f32, 0.0, 1.0] {
+                    c.fb.line(P2 { x: a.x + dx, d: a.d - 0.05, ..a }, P2 { x: b.x + dx, d: b.d - 0.05, ..b }, BLOOM_C);
+                }
+            }
+            // spray hanging over the plunge
+            for k in 0..14 {
+                let u = k as f32 / 13.0;
+                let f = c.p(-hw * 1.4 + w * 1.4 * u, 0.4 + 0.9 * ((k * 3) % 4) as f32 / 3.0, 0.9 + 0.5 * ((k * 5) % 3) as f32);
+                c.fb.disc(P2 { d: f.d - 0.2, ..f }, 3.0 + 2.0 * ((k * 7) % 3) as f32, BLOOM_C, None);
             }
             // lip highlight and foam where it lands
             c.fb.line(c.p(-hw, hgt, 0.15), c.p(hw, hgt, 0.15), GEAR_BONE);
             for k in 0..9 {
                 let x = -hw * 1.3 + w * 1.3 * k as f32 / 8.0;
                 let f = c.p(x, 0.08, 0.7 + 0.35 * ((k * 7) % 3) as f32);
-                c.fb.disc(P2 { d: f.d - 0.05, ..f }, 2.6 + (k % 2) as f32, GEAR_BONE, None);
+                c.fb.disc(P2 { d: f.d - 0.05, ..f }, 5.0 + 2.0 * (k % 2) as f32, BLOOM_C, None);
             }
         }
         kind::ROCK_WALL => {
@@ -1841,7 +1849,27 @@ fn draw_one(c: &mut Ctx, p: &Prop, time: f32) {
         }
         kind::RUIN_ARCH => {
             let hgt = s.max(1.0);
-            if p.var == 1 {
+            if p.var == 2 {
+                // one bay of an aqueduct: piers, a round arch, and the water channel on top
+                let span = p.w.max(1.5);
+                let rise = span * 0.42;
+                for side in [-1.0f32, 1.0] {
+                    c.boxy(side * span * 0.5, -0.3, 0.0, 0.8, hgt + 0.3, 1.1, WALL_L, WALL, WALL_D);
+                }
+                for k in 0..7 {
+                    let a = std::f32::consts::PI * (1.0 - (k as f32 + 0.5) / 7.0);
+                    c.boxy(a.cos() * span * 0.47, hgt + a.sin() * rise - 0.3, 0.0, 0.75, 0.6, 1.0, WALL_L, WALL, WALL_D);
+                }
+                let top = hgt + rise + 0.25;
+                let l = span * 0.5 + 0.4;
+                c.boxy(0.0, hgt + rise * 0.55, 0.0, l * 2.0, top - hgt - rise * 0.55, 1.2, WALL, WALL, WALL_D);
+                for zz in [-0.5f32, 0.5] {
+                    c.boxy(0.0, top, zz, l * 2.0, 0.45, 0.22, WALL_L, WALL, WALL_D);
+                }
+                let ph = ((time * 3.0) as i32).rem_euclid(3) as u8;
+                let q = [c.p(-l, top + 0.3, -0.38), c.p(l, top + 0.3, -0.38), c.p(l, top + 0.3, 0.38), c.p(-l, top + 0.3, 0.38)];
+                c.quad(q[0], q[1], q[2], q[3], WATER + ph);
+            } else if p.var == 1 {
                 c.boxy(0.0, -0.2, 0.0, 0.8, hgt * 0.9, 0.8, WALL_L, WALL, WALL_D);
                 c.boxy(0.15, hgt * 0.7, 0.0, 0.55, hgt * 0.25, 0.6, WALL_L, WALL, WALL_D);
                 c.boxy(0.0, -0.2, 0.0, 1.1, 0.35, 1.1, WALL, WALL_D, ROCK_D);
