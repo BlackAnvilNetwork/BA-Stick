@@ -425,10 +425,17 @@ export function forestBasinProps(): Prop[] {
       case "vault": for (let k = -2; k <= 2; k++) put(K.wallBlock, x + k * 1.1, z - 1.5, 0, 1.3); put(K.stone, x, z - 1.2, 0, 1.6); put(K.crate, x + 2.5, z + 1, 0.4); break;
       case "aqueduct":
         // a broken run of arches stepping across the slope (arch spans lie along the run)
-        for (let k = 0; k < 6; k++) {
-          const px = x - 10 + k * 4, pz = z - 7.5 + k * 3;
-          if (!dry(px, pz)) continue;
-          out.push({ kind: K.ruinArch, v: k === 4 ? 1 : 0, x: px, z: pz, y: forestBasinStandHeight(px, pz) - 0.1, yaw: -Math.atan2(3, 4), s: 4.2 - (k % 2) * 0.5, w: 3.4, h: 0, d: 0 });
+        {
+          // seven bays stride the hollow; the channel stays level, so the piers grow in the dip
+          const bays = [-3, -2, -1, 0, 1, 2, 3].map((k) => ({ k, px: x + k * 5 * 0.8, pz: z + k * 5 * 0.6 }));
+          const rise = 5 * 0.42;
+          const top = Math.max(...bays.map((b) => forestBasinGroundY(b.px, b.pz))) + 1.6 + rise + 0.25;
+          for (const b of bays) {
+            if (fbDesignWater(b.px, b.pz)) continue;
+            const g = forestBasinGroundY(b.px, b.pz);
+            if (b.k === 2) { out.push({ kind: K.ruinArch, v: 1, x: b.px - 2, z: b.pz - 1.5, y: g - 0.1, yaw: 0.3, s: (top - g) * 0.8, w: 0, h: 0, d: 0 }); continue; } // the fallen bay
+            out.push({ kind: K.ruinArch, v: 2, x: b.px, z: b.pz, y: g, yaw: -Math.atan2(3, 4), s: top - rise - 0.25 - g, w: 5, h: 0, d: 0 });
+          }
         }
         clear = 9; break;
       case "waystone": put(K.stone, x, z, rnd(1) * 6, 1.2); put(K.pebble, x + 0.9, z + 0.5); clear = 3; break;
@@ -437,8 +444,23 @@ export function forestBasinProps(): Prop[] {
       case "sunken": {
         // a drowned hall: an arch and broken pillars standing up out of the lake
         const rise = (px: number, pz: number) => { const s = forestBasinWaterSurfaceY(px, pz); return (s ?? forestBasinGroundY(px, pz)) - forestBasinGroundY(px, pz); };
-        out.push({ kind: K.ruinArch, v: 0, x, z, y: forestBasinGroundY(x, z) - 0.2, yaw: 0.5, s: rise(x, z) + 2.6, w: 3.4, h: 0, d: 0 });
-        ring(5, 4.6, (px, pz, a, k) => out.push({ kind: K.ruinArch, v: 1, x: px, z: pz, y: forestBasinGroundY(px, pz) - 0.2, yaw: a, s: rise(px, pz) + 0.9 + rnd(k) * 1.8, w: 0, h: 0, d: 0 }));
+        // the hall stands where the shelf is about a metre deep, its doorway toward the shore
+        let hx = x, hz = z, best = 1e9;
+        for (let dz = -16; dz <= 16; dz += 1) for (let dx = -16; dx <= 16; dx += 1) {
+          const r0 = rise(x + dx, z + dz);
+          const sc = Math.abs(r0 - 1.1) * 6 + Math.hypot(dx, dz) * 0.15;
+          if (r0 > 0.5 && sc < best) { best = sc; hx = x + dx; hz = z + dz; }
+        }
+        const ax = (x - hx) / (Math.hypot(x - hx, z - hz) || 1), az = (z - hz) / (Math.hypot(x - hx, z - hz) || 1);
+        const P = (al: number, ac: number) => ({ px: hx + ax * al - az * ac, pz: hz + az * al + ax * ac });
+        const door = P(3.6, 0);
+        out.push({ kind: K.ruinArch, v: 0, x: door.px, z: door.pz, y: forestBasinGroundY(door.px, door.pz) - 0.2, yaw: Math.atan2(ax, az) + Math.PI / 2, s: rise(door.px, door.pz) + 2.8, w: 3.4, h: 0, d: 0 });
+        let k = 0;
+        for (const al of [-4.5, -1.5, 1.5]) for (const ac of [-2.4, 2.4]) {
+          const q = P(al, ac); k++;
+          if (rise(q.px, q.pz) < 0.3) continue;
+          out.push({ kind: K.ruinArch, v: 1, x: q.px, z: q.pz, y: forestBasinGroundY(q.px, q.pz) - 0.2, yaw: al, s: rise(q.px, q.pz) + 0.8 + rnd(k) * 2, w: 0, h: 0, d: 0 });
+        }
         clear = 7; break;
       }
       case "charcoal": ring(3, 4, (px, pz) => put(K.cairn, px, pz, 0, 1.4)); put(K.leanTo, x + 5, z + 3, 0.6); put(K.firewood, x - 4, z + 4); put(K.firewood, x - 5, z + 2.5, 0.8); put(K.barrel, x + 3, z - 4); put(K.bedroll, x + 6, z + 1, 0.2); clear = 8; break;
@@ -464,14 +486,14 @@ export function forestBasinProps(): Prop[] {
   // Sinks: a ring of bare rock faces down to the silt floor, open where a stair comes down.
   for (const k of FB_SINKS) {
     const floor = forestBasinGroundY(k.x, k.z);
-    const rr = k.r * 0.66;
+    const rr = k.r * 0.74;
     const n = Math.ceil((Math.PI * 2 * rr) / 2.1);
     for (let i = 0; i < n; i++) {
       const a = (i / n) * Math.PI * 2;
       const px = k.x + Math.cos(a) * rr, pz = k.z + Math.sin(a) * rr;
       const asc = fbAscentAt(px, pz);
       if (asc && asc.dist < asc.ascent.halfWidth + 1.2) continue;
-      const rim = forestBasinGroundY(k.x + Math.cos(a) * k.r * 1.05, k.z + Math.sin(a) * k.r * 1.05);
+      const rim = forestBasinGroundY(k.x + Math.cos(a) * k.r * 0.9, k.z + Math.sin(a) * k.r * 0.9);
       // forward (f) points at the sink centre
       wall(px, pz, Math.atan2(k.x - px, k.z - pz), (Math.PI * 2 * rr) / n + 0.4, Math.max(1, rim - floor + 0.1), floor);
     }
@@ -493,7 +515,27 @@ export function forestBasinProps(): Prop[] {
       wall(x + ux * 0.3, z + uz * 0.3, Math.atan2(ux, uz), 2.8, hi - lo + 0.1, lo);
     }
   };
-  face(FB_QUARRY.x, FB_QUARRY.z, FB_QUARRY.r);
+  // The Graven Cuts: a cut face wherever one bench drops to the next, so the faces follow the tiers.
+  {
+    const q = FB_QUARRY, st = 1.6;
+    const bench = (x: number, z: number) => Math.round((forestBasinGroundY(x, z) - 0.15) / q.bench);
+    for (let z = q.z - q.r; z <= q.z + q.r; z += st) for (let x = q.x - q.r; x <= q.x + q.r; x += st) {
+      if (Math.hypot(x - q.x, z - q.z) > q.r - 3) continue;
+      for (const [nx, nz] of [[x + st, z], [x, z + st]] as const) {
+        const b0 = bench(x, z), b1 = bench(nx, nz);
+        if (b0 === b1) continue;
+        const mx = (x + nx) / 2, mz = (z + nz) / 2;
+        if (fbDesignWater(mx, mz) || fbTrailDist(mx, mz) < 2 || anchors.some((m) => Math.hypot(m.x - mx, m.z - mz) < 2.5)) continue;
+        const asc = fbAscentAt(mx, mz);
+        if (asc && asc.dist < asc.ascent.halfWidth + 0.8) continue;
+        const lo = Math.min(forestBasinGroundY(x, z), forestBasinGroundY(nx, nz)), hi = Math.max(forestBasinGroundY(x, z), forestBasinGroundY(nx, nz));
+        if (hi - lo < 1) continue;
+        // face looks toward the lower bench
+        const ux = (b0 < b1 ? x - nx : nx - x) / st, uz = (b0 < b1 ? z - nz : nz - z) / st;
+        wall(mx, mz, Math.atan2(ux, uz), st + 0.3, hi - lo + 0.1, lo);
+      }
+    }
+  }
   for (const gq of FB_GORGES) for (const p of gq.points) face(p.x, p.z, gq.halfWidth + 3);
   // The Wright's Veil: the Briarwater pours off the Veil Scarp into Fenstone Pool.
   {
@@ -526,6 +568,7 @@ export function forestBasinProps(): Prop[] {
       }
       if (!firm(jx, jz) || b === "bridge" || b === "mountain") continue;
       if (Math.hypot(jx - FB_CAMP.x, jz - FB_CAMP.z) < FB_CAMP.r + 3) continue;
+      if (Math.hypot(jx - FB_QUARRY.x, jz - FB_QUARRY.z) < FB_QUARRY.r - 2) continue; // bare cut rock
       if (FB_WARP_SITES.some((w) => Math.hypot(jx - w.x, jz - w.z) < w.r + 3)) continue;
       if (near.some((q) => Math.hypot(jx - q.x, jz - q.z) < q.r)) continue;
       if (fbTrailDist(jx, jz) < 2.6 || anchors.some((a) => Math.hypot(a.x - jx, a.z - jz) < 3.2)) continue;
