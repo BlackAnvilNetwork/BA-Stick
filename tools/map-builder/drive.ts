@@ -122,13 +122,17 @@ function watch(obs: BuilderClient) {
 
 function stats(): { rms: number; max: number; at: string } {
   let s = 0, mx = 0, at = 0;
+  let n = 0;
   for (let k = 0; k < H.length; k++) {
+    const ci = k % W, cj = Math.floor(k / W);
+    if (ci < 8 || cj < 8 || ci >= W - 8 || cj >= W - 8) continue; // outer 4 m is blocked rim, never walked
+    n++;
     const d = Math.abs(T[k]! - H[k]!);
     s += d * d;
     if (d > mx) { mx = d; at = k; }
   }
   const p = forestBasinWorldOfCell(at % W, Math.floor(at / W));
-  return { rms: Math.sqrt(s / H.length), max: mx, at: `${p.x},${p.z} T=${T[at]!.toFixed(2)} H=${H[at]!.toFixed(2)}` };
+  return { rms: Math.sqrt(s / n), max: mx, at: `${p.x},${p.z} T=${T[at]!.toFixed(2)} H=${H[at]!.toFixed(2)}` };
 }
 
 /** Raise/Lower strokes at radius r on a jittered grid, sized by weighted least squares on the residual. */

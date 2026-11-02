@@ -155,9 +155,9 @@ export type FbBridge = {
 };
 
 export const FB_BRIDGES: readonly FbBridge[] = [
-  { id: "wrightsbridge", name: "Wrightsbridge", a: { x: -33, z: 71 }, b: { x: -23, z: 57 }, halfWidth: 1.9, deckY: 5.5 },
-  { id: "stoneback", name: "Stoneback Bridge", a: { x: 52, z: 69 }, b: { x: 66, z: 65 }, halfWidth: 1.9, deckY: 4.8 },
-  { id: "mere-causeway", name: "the Reedwalk", a: { x: 48, z: 21 }, b: { x: 58, z: 30 }, halfWidth: 1.7, deckY: 2.3 },
+  { id: "wrightsbridge", name: "Wrightsbridge", a: { x: -31.2, z: 57.3 }, b: { x: -24.8, z: 70.7 }, halfWidth: 1.9, deckY: 5.5 },
+  { id: "stoneback", name: "Stoneback Bridge", a: { x: 52.6, z: 65.1 }, b: { x: 65.4, z: 68.9 }, halfWidth: 1.9, deckY: 4.8 },
+  { id: "mere-causeway", name: "the Reedwalk", a: { x: 51.4, z: 20.5 }, b: { x: 56.6, z: 35.5 }, halfWidth: 1.7, deckY: 2.3 },
 ];
 
 export type FbTrail = { id: string; name: string; surface: "dirt" | "stone"; points: readonly { x: number; z: number }[] };
@@ -187,8 +187,8 @@ const TRAIL_SPINES: readonly FbTrail[] = [
     name: "the Wrights' Road",
     surface: "stone",
     points: [
-      { x: -18, z: 4 }, { x: -23, z: 21 }, { x: -21, z: 38 }, { x: -24, z: 52 }, { x: -23, z: 57 },
-      { x: -33, z: 71 }, { x: -44, z: 80 }, { x: -58, z: 90 }, { x: -71, z: 99 }, { x: -78, z: 110 },
+      { x: -18, z: 4 }, { x: -23, z: 21 }, { x: -21, z: 38 }, { x: -27, z: 50 }, { x: -31.2, z: 57.3 },
+      { x: -24.8, z: 70.7 }, { x: -36, z: 78 }, { x: -44, z: 82 }, { x: -58, z: 90 }, { x: -71, z: 99 }, { x: -78, z: 110 },
     ],
   },
   {
@@ -196,8 +196,8 @@ const TRAIL_SPINES: readonly FbTrail[] = [
     name: "the Mere Path",
     surface: "dirt",
     points: [
-      { x: -18, z: 4 }, { x: -2, z: 9 }, { x: 15, z: 8 }, { x: 31, z: 14 }, { x: 44, z: 17 }, { x: 48, z: 21 },
-      { x: 58, z: 30 }, { x: 52, z: 45 }, { x: 50, z: 57 }, { x: 52, z: 69 }, { x: 66, z: 65 }, { x: 72, z: 76 },
+      { x: -18, z: 4 }, { x: -2, z: 9 }, { x: 15, z: 8 }, { x: 31, z: 14 }, { x: 44, z: 17 }, { x: 51.4, z: 20.5 },
+      { x: 56.6, z: 35.5 }, { x: 52, z: 45 }, { x: 50, z: 57 }, { x: 52.6, z: 65.1 }, { x: 65.4, z: 68.9 }, { x: 72, z: 76 },
     ],
   },
   {
