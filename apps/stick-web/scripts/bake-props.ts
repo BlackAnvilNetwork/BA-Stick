@@ -1,3 +1,4 @@
+import { naturalSample } from "./natural-edges";
 /**
  * Pale Hollow static props for ba-stick-render, placed exactly like the old
  * client (the retired apps/web/src/PaleHollowMap.tsx): hub encampment coordinates, the
@@ -32,6 +33,7 @@ import {
   PH_BRIDGE_SITES,
   PH_RIVER_MAIN,
   PH_RIVER_TRIB,
+  paleHollowRiverJunctionOpen,
   PH_RIVER_WALL,
   PH_YARDS,
   paleHollowBankPoint,
@@ -43,6 +45,7 @@ import {
   paleHollowWalkable,
   paleHollowWaterSurfaceY,
   type PaleHollowRiverKind,
+  mayflowerProps, mayflowerFlowers, mayflowerRunnelPath, mayflowerScreenTrees, startCampProps, warpCircleProps,
 } from "@bellgrave/config";
 
 /** Must match `PropKind` in engine/ba-stick-render/src/props.rs. */
@@ -52,6 +55,7 @@ export const K = {
   wallBlock: 30, moss: 31, firePit: 32, tent: 33, bedroll: 34, crate: 35, chest: 36, leanTo: 37, trainer: 38, stall: 39,
   weaponRack: 40, firewood: 41, barrel: 42, banner: 43, stone: 44, pebble: 45, peak: 46, riverWall: 47, bridge: 48,
   shack: 49, cairn: 50,
+  lantern: 51, anvil: 52, trough: 53, dummy: 54, butt: 55, wheel: 56, channel: 57,
 } as const;
 
 export type Prop = { kind: number; v: number; x: number; z: number; y: number; yaw: number; s: number; w: number; h: number; d: number };
@@ -85,7 +89,7 @@ function treeInsidePeakRock(x: number, z: number): boolean {
 
 function trees(out: Prop[]): void {
   const blocked = (x: number, z: number) => {
-    const b = paleHollowBiome(x, z);
+    const b = naturalSample(paleHollowBiome, x, z);
     if (b === "river" || b === "hub_indoor" || b === "bridge" || b === "ash_road") return true;
     if (paleHollowOnTrail(x, z)) return true;
     return paleHollowInOpenWater(x, z) || paleHollowInBuildingClearing(x, z) || treeInsidePeakRock(x, z);
@@ -99,7 +103,7 @@ function trees(out: Prop[]): void {
       const jx = ix + (hash2(ix, iz) - 0.5) * 5.5;
       const jz = iz + (hash2(iz, ix) - 0.5) * 5.5;
       if (blocked(jx, jz)) continue;
-      const b = paleHollowBiome(jx, jz);
+      const b = naturalSample(paleHollowBiome, jx, jz);
       const h = hash2(Math.floor(jx * 2), Math.floor(jz * 2));
       const h2 = hash2(Math.floor(jz * 3), Math.floor(jx * 3));
       if (b === "riverbank" && h > 0.35) {
@@ -143,7 +147,7 @@ function clutter(out: Prop[]): void {
     for (let ix = CLUTTER_IX0; ix <= CLUTTER_IX_MAX; ix += CLUTTER_IX_STEP) {
       const jx = ix + (hash2(ix, iz) - 0.5) * 3.2;
       const jz = iz + (hash2(iz, ix) - 0.5) * 3.2;
-      const b = paleHollowBiome(jx, jz);
+      const b = naturalSample(paleHollowBiome, jx, jz);
       if (b === "hub_indoor" || b === "river" || b === "bridge" || b === "ash_road") continue;
       if (paleHollowOnTrail(jx, jz)) continue;
       if (paleHollowInOpenWater(jx, jz) || paleHollowInBuildingClearing(jx, jz)) continue;
@@ -200,18 +204,12 @@ function hub(out: Prop[]): void {
   p(K.bedroll, -5.6 + 0.15, 4.2 - 0.15, 0.65);
   p(K.tent, -5.8, -1.6, -0.25, 1, 0, 0, 0, 1);
   p(K.bedroll, -5.8 + 0.15, -1.6 - 0.15, -0.15, 1, 0, 0, 0, 1);
-  p(K.leanTo, 4.6, -0.9, -0.35);
-  p(K.trainer, -4.35, 3.55, 0.4);
-  p(K.stall, -3.5, -1.35, 0.15);
-  p(K.crate, -3.5 + 0.85, -1.35 + 0.2, 0.15, 1, 0.48, 0.38, 0.4);
-  p(K.crate, -3.5 - 1.15, -1.35 + 0.35, 0.15, 1, 0.42, 0.32, 0.36);
-  p(K.weaponRack, 4.6, 2.85, -0.55);
+  p(K.weaponRack, 4.6, 2.85, -0.55); // scouts' rack
   p(K.firewood, 2.4, -2.6);
   p(K.barrel, -1.8, -3.2);
   p(K.stone, 1.6, 3.8, 0.3, 0.8);
   p(K.banner, 1.05, 5.45);
   p(K.stone, -1.2, -4.2, 0.3, 1.1);
-  p(K.chest, 3.2, -1.5, -0.35);
   for (const [x, z, yaw] of [[5.2, 2.0, 0.3], [-0.8, 4.2, 0.7], [2.6, -3.6, 1.2], [-2.6, 2.4, 2.0]] as const) p(K.pebble, x, z, yaw, 0.5);
 }
 
@@ -254,6 +252,7 @@ function riverBanks(out: Prop[]): void {
     const x = (a.x + b.x) * 0.5, z = (a.z + b.z) * 0.5;
     const len = Math.hypot(b.x - a.x, b.z - a.z);
     if (len < 0.15 || !Number.isFinite(x) || !Number.isFinite(z)) return;
+    if (paleHollowRiverJunctionOpen(x, z)) return; // confluence: no wall across the tributary mouth
     const y = paleHollowTerrainMeshY(x, z) + 0.04;
     // Where the bank sits low, the river surface can stand above a standard
     // wall's coping, so open water showed over the far wall as blue teeth.
@@ -284,7 +283,7 @@ function riverBanks(out: Prop[]): void {
       }
     }
     // semicircular bowls closing each channel end
-    for (const [zEnd, outward] of [[r.z0, -1], [r.z1, 1]] as const) {
+    for (const [zEnd, outward] of (river === "tributary" ? [[r.z0, -1]] : [[r.z0, -1], [r.z1, 1]]) as readonly (readonly [number, 1 | -1])[]) {
       const eps = 0.85;
       const tx = centerX(zEnd + eps) - centerX(zEnd - eps), tz = eps * 2, tl = Math.hypot(tx, tz) || 1;
       const fx = tx / tl, fz = tz / tl, rx = -fz, rz = fx, ox = fx * outward, oz = fz * outward, cx = centerX(zEnd);
@@ -359,6 +358,7 @@ export function paleHollowProps(): Prop[] {
   const out: Prop[] = [];
   riverBanks(out);
   hub(out);
+  mayflower(out);
   yards(out);
   peaks(out);
   trees(out);
@@ -447,4 +447,46 @@ export function bridgeProfileSamples() {
     });
     return { id: site.id, prop: { v: prop.v, y: prop.y, s: prop.s, w: prop.w, h: prop.h, d: prop.d }, samples };
   });
+}
+
+/** Mayflower town props (data in config pale-hollow-town.ts; client-visual only). */
+/** Runnel water heights along its path: never rises, and falls at least 1 cm per metre on the flats. */
+export function mayflowerRunnelHeights(): { x: number; z: number; y: number }[] {
+  const pts = mayflowerRunnelPath(); const dense: { x: number; z: number }[] = [];
+  for (let i = 0; i + 1 < pts.length; i++) {
+    const a = pts[i], b = pts[i + 1], n = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.z - a.z)));
+    for (let k = 0; k < n; k++) dense.push({ x: a.x + ((b.x - a.x) * k) / n, z: a.z + ((b.z - a.z) * k) / n });
+  }
+  dense.push(pts[pts.length - 1]);
+  const out: { x: number; z: number; y: number }[] = [];
+  let prev = Infinity;
+  for (let i = 0; i < dense.length; i++) {
+    const p = dense[i], step = i ? Math.hypot(p.x - dense[i - 1].x, p.z - dense[i - 1].z) : 0;
+    const y = Math.min(prev - 0.01 * step, paleHollowStandHeight(p.x, p.z) + 0.02);
+    out.push({ ...p, y }); prev = y;
+  }
+  return out;
+}
+
+function mayflower(out: Prop[]): void {
+  const rn = mayflowerRunnelHeights();
+  for (let i = 0; i + 1 < rn.length; i++) {
+    const a = rn[i], b = rn[i + 1];
+    out.push({ kind: K.channel, v: 0, x: (a.x + b.x) / 2, z: (a.z + b.z) / 2, y: (a.y + b.y) / 2, yaw: Math.atan2(b.x - a.x, b.z - a.z), s: Math.hypot(b.x - a.x, b.z - a.z), w: 0.45, h: 0, d: 0 });
+  }
+  for (const t of mayflowerScreenTrees()) {
+    out.push({ kind: (K as Record<string, number>)[t.kind], v: 0, x: t.x, z: t.z, y: paleHollowHeight(t.x, t.z), yaw: 0, s: t.s ?? 1, w: 0, h: 0, d: 0 });
+  }
+  for (const f of mayflowerFlowers()) {
+    if (!paleHollowWalkable(f.x, f.z)) continue; // no flowers in water, walls or buildings
+    out.push({ kind: K.bloom, v: f.v ?? 0, x: f.x, z: f.z, y: paleHollowStandHeight(f.x, f.z), yaw: 0, s: f.s ?? 1, w: 0, h: 0, d: 0 });
+  }
+  for (const p of [...mayflowerProps(), ...startCampProps(), ...warpCircleProps()]) {
+    const kind = (K as Record<string, number>)[p.kind];
+    if (kind === undefined) throw new Error("unknown Mayflower prop kind " + p.kind);
+    out.push({
+      kind, v: p.v ?? 0, x: p.x, z: p.z, y: paleHollowStandHeight(p.x, p.z) + (p.dy ?? 0),
+      yaw: p.yaw ?? 0, s: p.s ?? 1, w: p.w ?? 0, h: p.h ?? 0, d: p.d ?? 0,
+    });
+  }
 }

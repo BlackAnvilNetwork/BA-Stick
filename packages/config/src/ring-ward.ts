@@ -1,3 +1,4 @@
+import { inShoreShallows, inShoreWater, shoreDist, shoreTerrainY } from "./natural-shore";
 /**
  * Ring Ward — concentric wards, a west canal, and a south-east wharf.
  *
@@ -41,7 +42,7 @@ export const RW_CANAL = { x: -62, z0: -40, z1: 70, halfWidth: 6, surface: 0.6 } 
 
 export const RW_BRIDGE = { x: -62, z: 20, halfSpan: 12, halfDeck: 1.95 } as const;
 
-export const RW_WHARF = { x: 70, z: -70, r: 18, surface: 0.35 } as const;
+export const RW_WHARF = { x: 70, z: -70, r: 18, surface: 0.35, seed: 711 } as const;
 
 const BUILDING_RINGS: readonly [number, number][] = [
   [18, 28],
@@ -177,7 +178,12 @@ function inCanal(x: number, z: number): boolean {
 }
 
 function inWharfDisc(x: number, z: number): boolean {
-  return Math.hypot(x - RW_WHARF.x, z - RW_WHARF.z) <= RW_WHARF.r;
+  return inShoreWater(RW_WHARF, x, z, 1.6);
+}
+
+/** Wadeable fringe of the wharf basin (rho >= 0.8, <= 0.5 m deep). */
+export function ringWardInWharfShallows(x: number, z: number): boolean {
+  return !inCanal(x, z) && !inSouthCut(x, z) && inShoreShallows(RW_WHARF, x, z, 1.6);
 }
 
 function inSouthCut(x: number, z: number): boolean {
@@ -206,6 +212,7 @@ export function ringWardWaterSurfaceY(x: number, z: number): number | null {
 export function ringWardWalkable(x: number, z: number): boolean {
   if (!inBounds(x, z)) return false;
   if (ringWardOnBridge(x, z)) return true;
+  if (ringWardInWharfShallows(x, z) && Math.hypot(x, z) <= RW_WALK_R && !buildingBlocked(x, z)) return true;
   if (ringWardInOpenWater(x, z)) return false;
   if (onQuay(x, z)) return true;
   if (Math.hypot(x, z) > RW_WALK_R) return false;
@@ -227,8 +234,8 @@ function carveCanal(x: number, z: number, y: number): number {
 }
 
 function carveWharf(x: number, z: number, y: number): number {
-  const dist = Math.hypot(x - RW_WHARF.x, z - RW_WHARF.z);
-  return carve(dist, RW_WHARF.r + 4, RW_WHARF.surface, y);
+  if (shoreDist(RW_WHARF, x, z, 1.6) >= RW_WHARF.r + 4) return y;
+  return Math.min(y, shoreTerrainY(RW_WHARF, x, z, y, 4, 1.6));
 }
 
 function carveSouthCut(x: number, z: number, y: number): number {
@@ -292,7 +299,7 @@ function nearWaterBank(x: number, z: number): boolean {
     const d = Math.abs(x - RW_CANAL.x);
     if (d > RW_CANAL.halfWidth && d < RW_CANAL.halfWidth + 3.5) return true;
   }
-  const w = Math.hypot(x - RW_WHARF.x, z - RW_WHARF.z);
+  const w = shoreDist(RW_WHARF, x, z, 1.6);
   return w > RW_WHARF.r && w < RW_WHARF.r + 4;
 }
 

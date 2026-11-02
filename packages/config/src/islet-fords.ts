@@ -1,3 +1,4 @@
+import { naturalMaskDist } from "./natural-shore";
 /**
  * Islet Fords — travel chain of three islets between ring_ward and green_reach.
  *
@@ -93,8 +94,18 @@ function segDist(x: number, z: number, ax: number, az: number, bx: number, bz: n
 
 /** Signed distance to the islet-and-ford mask. Negative is inside. */
 export function isletFordsMaskDist(x: number, z: number): number {
+  return naturalMaskDist(isletFordsMaskDistRaw, x, z, 903);
+}
+
+/** Geometric mask before the natural edge. */
+export function isletFordsMaskDistRaw(x: number, z: number): number {
   let d = Infinity;
-  for (const c of IF_ISLETS) d = Math.min(d, Math.hypot(x - c.x, z - c.z) - c.r);
+  for (let i = 0; i < IF_ISLETS.length; i++) {
+    const c = IF_ISLETS[i]!, a = Math.atan2(z - c.z, x - c.x), p = 0.7 + i * 2.399;
+    // grow-only headlands and spits so each islet reads as a shore, not a disc
+    const k = 1 + 0.1 * (1 + Math.sin(3 * a + p)) + 0.06 * (1 + Math.sin(5 * a + 1.7 * p)) + 0.03 * (1 + Math.sin(8 * a - p));
+    d = Math.min(d, Math.hypot(x - c.x, z - c.z) - c.r * k);
+  }
   for (const f of IF_FORDS) d = Math.min(d, segDist(x, z, f.ax, f.az, f.bx, f.bz) - f.r);
   return d;
 }

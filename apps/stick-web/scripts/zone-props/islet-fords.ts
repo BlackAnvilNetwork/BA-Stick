@@ -1,3 +1,4 @@
+import { naturalSample } from "../natural-edges";
 /**
  * Islet Fords props. Shore reeds and rocks on a 6.5 m grid, a few pines
  * on the islet interiors, one lean-to on the mid islet.
@@ -103,7 +104,7 @@ export function isletFordsProps(): Prop[] {
         if (Math.hypot(jx - isle.x, jz - isle.z) > isle.r - 3.5) continue;
         if (h < 0.55) continue;
         if (!isletFordsWalkable(jx, jz)) continue;
-        if (isletFordsBiome(jx, jz) !== "grass") continue;
+        if (naturalSample(isletFordsBiome, jx, jz) !== "grass") continue;
         if (onLane(jx, jz)) continue;
         if (Math.hypot(jx - LEAN.x, jz - LEAN.z) < 4.5) continue;
         out.push({

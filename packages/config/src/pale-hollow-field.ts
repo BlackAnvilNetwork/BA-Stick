@@ -290,7 +290,13 @@ const bowl = grid(-12, 70, 48, 136, 3, (x, z) => {
 const dwellers = takePairs(bowl, 10, 12, 12, placed, 6);
 
 const seam = grid(26, 48, 392, 430, 2, (x, z) => paleHollowBiome(x, z) === "ore_seam" && x >= 26);
-const golems = take(seam, 10, 10, placed, 9);
+// Pinned to the pre-shoreline positions so the irregular lake (Oct 2026) does not reshuffle ph-golem ids.
+const golems = [
+  { x: 36, z: 396 }, { x: 28, z: 428 }, { x: 42, z: 410 }, { x: 32, z: 416 }, { x: 28, z: 404 },
+  { x: 42, z: 422 }, { x: 46, z: 400 }, { x: 38, z: 430 }, { x: 36, z: 404 }, { x: 34, z: 424 },
+];
+void seam;
+for (const g of golems) placed.push(g);
 
 const crypt = grid(-42, 2, 412, 452, 2, (x, z) => paleHollowBiome(x, z) === "crypt");
 const wights = takePairs(crypt, 7, 12, 12, placed, 10);
@@ -370,8 +376,9 @@ export const PH_ALL_MOBS: PaleHollowMobDef[] = [
   {
     id: "ph-camp-dog",
     name: "Camp Dog",
-    x: -55,
-    z: 300,
+    // Lies beside the Emberwatch fire (about 2.9 m north-west of the pit at -55,300), not in it.
+    x: -56.5,
+    z: 302.5,
     level: 1,
     archetype: "hollow_scavenger",
     job: "rogue",
