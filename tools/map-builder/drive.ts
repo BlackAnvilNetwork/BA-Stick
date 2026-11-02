@@ -27,6 +27,9 @@ import { planCell, planHeight } from "./forest-basin-plan";
 
 const URL = process.env.WS ?? "ws://localhost:8797";
 const CREW = Number(process.env.CREW ?? 4);
+// AREA="x,z,r" limits every stroke to one disc of the map (a local rework).
+const AREA = process.env.AREA ? process.env.AREA.split(",").map(Number) : null;
+const inArea = (x: number, z: number) => !AREA || Math.hypot(x - AREA[0]!, z - AREA[1]!) <= AREA[2]!;
 const CELL = 0.5;
 const { minX, minZ, maxX, maxZ } = FOREST_BASIN_BOUNDS;
 const W = Math.round((maxX - minX) / CELL) + 1;
@@ -145,6 +148,7 @@ function heightJobs(r: number, gain: number, thr: number, seed: number): Job[] {
   let row = 0;
   for (let cz = minZ + 2 + ((seed * 0.37) % 1) * sp; cz <= maxZ - 2; cz += sp, row++) {
     for (let cx = minX + 2 + (row % 2) * sp * 0.5 + ((seed * 0.61) % 1) * sp; cx <= maxX - 2; cx += sp) {
+      if (!inArea(cx, cz)) continue;
       const ci = Math.round((cx - minX) / CELL), cj = Math.round((cz - minZ) / CELL);
       let num = 0, den = 0;
       for (let dj = -rc; dj <= rc; dj++) {
@@ -210,6 +214,7 @@ async function paint(crew: Crew) {
       const gx = (H[k + step]! - H[k - step]!) / (2 * step * CELL);
       const gz = (H[k + step * W]! - H[k - step * W]!) / (2 * step * CELL);
       const c = planCell(x, z, Math.hypot(gx, gz));
+      if (!inArea(x, z)) continue;
       if (c.biome === "mountain") jobs.push({ id: "map_biome_mountain", target: encodeBrushTarget(x, z, 1.1, 1) });
       else if (c.biome === "meadow" && (i + j) % 6 === 0) jobs.push({ id: "map_biome_meadow", target: encodeBrushTarget(x, z, 2.2, 1) });
     }
@@ -220,7 +225,7 @@ async function paint(crew: Crew) {
     for (let dz = -8; dz <= 8; dz += 1.5) for (let dx = -8; dx <= 8; dx += 1.5) {
       const x = t.x + dx, z = t.z + dz;
       const r = 6.5 * (1 + 0.3 * Math.sin(Math.atan2(dz, dx) * 3 + t.x));
-      if (Math.hypot(dx, dz) > r || fbTrailDistC(x, z) < 2.6) continue;
+      if (Math.hypot(dx, dz) > r || fbTrailDistC(x, z) < 2.6 || !inArea(x, z)) continue;
       jobs.push({ id: "map_block", target: encodeBrushTarget(x, z, 1, 1) });
     }
   }
@@ -231,13 +236,14 @@ async function paint(crew: Crew) {
       const n = Math.ceil(Math.hypot(q.x - p.x, q.z - p.z) / 1.5);
       for (let t = 0; t <= n; t++) {
         const x = p.x + ((q.x - p.x) * t) / n, z = p.z + ((q.z - p.z) * t) / n;
+        if (!inArea(x, z)) continue;
         walk.push({ id: "map_walk", target: encodeBrushTarget(x, z, a.halfWidth + 0.4, 1) });
         walk.push({ id: "map_biome_grass", target: encodeBrushTarget(x, z, a.halfWidth, 1) });
       }
     }
   }
   for (const b of FB_BRIDGES) {
-    for (const e of [b.a, b.b]) walk.push({ id: "map_walk", target: encodeBrushTarget(e.x, e.z, b.halfWidth + 1, 1) });
+    for (const e of [b.a, b.b]) if (inArea(e.x, e.z)) walk.push({ id: "map_walk", target: encodeBrushTarget(e.x, e.z, b.halfWidth + 1, 1) });
   }
   void fbAscentAt;
   void fbDesignWater;
