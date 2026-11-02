@@ -15,6 +15,7 @@ import {
   FOREST_BASIN_BOUNDS,
   fbAscentAt,
   fbBridgeAt,
+  FB_BRIDGES,
   fbDesignWater,
   fbLakeSigned,
   fbIslandAt,
@@ -171,7 +172,11 @@ export function planHeight(x: number, z: number): number {
   if (asc && asc.ascent.kind === "cleft") return Math.max(h, asc.y + 3.5); // crag walls either side
   // Bridges: abutments level with the deck ends.
   const br = fbBridgeAt(x, z);
-  if (br && fbDesignWater(x, z) == null) return Math.max(h, br.deckY - 0.1);
+  if (br && fbDesignWater(x, z) == null) {
+    const b = FB_BRIDGES.find((q) => q.id === br.id) ?? null;
+    const end = b ? Math.min(Math.hypot(x - b.a.x, z - b.a.z), Math.hypot(x - b.b.x, z - b.b.z)) : 0;
+    if (end < 2.5) return Math.max(h, br.deckY - 0.1); // only the abutments; a dry gorge stays open under the span
+  }
   // Ring floors and camp: gently levelled, not flat.
   for (const w of FB_WARP_SITES) {
     const d = Math.hypot(x - w.x, z - w.z);

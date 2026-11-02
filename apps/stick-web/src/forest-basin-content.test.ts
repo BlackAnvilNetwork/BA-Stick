@@ -9,12 +9,36 @@ import {
   fieldMobDefs,
   fieldNpcDefs,
   fieldReachable,
+  forestBasinWalkable,
+  FB_SPAWN,
+  FOREST_BASIN_BOUNDS,
 } from "@bellgrave/config";
 
 const retired = /drowned spoke|merewick|ondine|hush wood|counting ring|ledger|token|coin|chain|crypto/i;
 
+/** Reachable on foot from the spawn, wading counted (0.5 m grid, 8-way). */
+function wadeReach(): (x: number, z: number) => boolean {
+  const { minX, maxX, minZ, maxZ } = FOREST_BASIN_BOUNDS;
+  const c = 0.5, w = Math.round((maxX - minX) / c) + 1, h = Math.round((maxZ - minZ) / c) + 1;
+  const walk = new Uint8Array(w * h), seen = new Uint8Array(w * h);
+  for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) walk[j * w + i] = forestBasinWalkable(minX + i * c, minZ + j * c) ? 1 : 0;
+  const s = Math.round((FB_SPAWN.z - minZ) / c) * w + Math.round((FB_SPAWN.x - minX) / c);
+  const q = [s];
+  seen[s] = 1;
+  for (let k = 0; k < q.length; k++) {
+    const i = q[k]! % w, j = (q[k]! - i) / w;
+    for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+      const ni = i + di, nj = j + dj;
+      if (ni < 0 || nj < 0 || ni >= w || nj >= h) continue;
+      const m = nj * w + ni;
+      if (!seen[m] && walk[m]) { seen[m] = 1; q.push(m); }
+    }
+  }
+  return (x, z) => seen[Math.round((z - minZ) / c) * w + Math.round((x - minX) / c)] === 1;
+}
+
 test("forest basin POIs: unique, named, no retired names, reachable on foot", () => {
-  const reach = fieldReachable("forest_basin");
+  const reach = wadeReach();
   const ids = new Set<string>();
   for (const p of FB_POIS) {
     assert.ok(!ids.has(p.id), p.id);

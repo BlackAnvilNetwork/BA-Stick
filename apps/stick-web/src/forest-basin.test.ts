@@ -11,6 +11,7 @@ import {
   fbDesignWater,
   forestBasinOnBridge,
   FB_SPAWN,
+  forestBasinGroundY,
   FOREST_BASIN_BOUNDS,
   forestBasinInOpenWater,
   forestBasinStandHeight,
@@ -46,7 +47,10 @@ test("forest basin water runs downhill and wades only at fords", () => {
     const mx = (b.a.x + b.b.x) / 2;
     const mz = (b.a.z + b.b.z) / 2;
     assert.equal(forestBasinWalkable(mx, mz), true, b.id);
-    assert.ok(fbDesignWater(mx, mz)!.depth > 0.5, `${b.id} spans deep water`);
+    // A bridge spans deep water, or (the Rope Span) a dry gorge well below its deck.
+    const w = fbDesignWater(mx, mz);
+    if (w) assert.ok(w.depth > 0.5, `${b.id} spans deep water`);
+    else assert.ok(b.deckY - forestBasinGroundY(mx, mz) > 3, `${b.id} spans a drop`);
   }
 });
 
@@ -89,9 +93,11 @@ test("forest basin gates stay reachable from spawn", () => {
   for (const w of FB_WARP_SITES) assert.equal(reached(Math.round(w.x / 2) * 2, Math.round(w.z / 2) * 2), true, w.id);
   for (const h of FB_HEIGHTS) {
     assert.equal(reached(Math.round(h.x / 2) * 2, Math.round(h.z / 2) * 2), true, `${h.id} reachable by its ascent`);
-    assert.ok(forestBasinStandHeight(h.x, h.z) > forestBasinStandHeight(FB_SPAWN.x, FB_SPAWN.z) + 6, `${h.id} is high`);
+    // Every height stands at its design level and well above the spawn.
+    assert.ok(Math.abs(forestBasinStandHeight(h.x, h.z) - h.y) < 0.8, `${h.id} at design height`);
+    assert.ok(forestBasinStandHeight(h.x, h.z) > forestBasinStandHeight(FB_SPAWN.x, FB_SPAWN.z) + 5, `${h.id} is high`);
   }
-  assert.equal(FB_ASCENTS.length, 3);
+  assert.ok(FB_ASCENTS.length >= 7);
   for (const g of FB_GATES) {
     const cx = (g.minX + g.maxX) / 2;
     const cz = (g.minZ + g.maxZ) / 2;

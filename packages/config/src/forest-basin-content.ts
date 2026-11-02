@@ -174,7 +174,7 @@ export const FB_MOB_PACKS: readonly { id: string; archetype: string; name?: stri
   { id: "forge-scavengers", archetype: "hollow_scavenger", x: -62, z: 74, level: 10, n: 3 },
   { id: "ashlin-dwellers", archetype: "ruin_dweller", x: -44, z: 64, level: 10, n: 2 },
   { id: "vault-golem", archetype: "seam_golem", x: 95, z: -22, level: 12, n: 1 },
-  { id: "sink-wights", archetype: "shard_wight", x: 128, z: -40.5, level: 12, n: 2 },
+  { id: "sink-wights", archetype: "shard_wight", x: 119.5, z: -41, level: 12, n: 1 },
   { id: "cuts-golem", archetype: "seam_golem", x: 14, z: 127, level: 11, n: 1 },
   { id: "gorge-adders", archetype: "cliff_adder", x: -38.5, z: -88, level: 10, n: 2 },
   { id: "pale-watch", archetype: "hollow_scavenger", names: ["Brother Lime", "Sister Chalk"], x: -62, z: -82, level: 11, n: 2 },
