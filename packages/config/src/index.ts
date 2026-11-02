@@ -584,3 +584,5 @@ export {
   type WarpCircleId,
 } from "./warp-unlocks";
 export * from "./forest-basin-features";
+export * from "./forest-basin-content";
+export * from "./forest-basin-population";

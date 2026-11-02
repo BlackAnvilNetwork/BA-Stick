@@ -11,6 +11,7 @@ import {
   PH_CAMP_SHIFT_X,
   FB_BRIDGES,
   FB_PLACES,
+  FB_POIS,
   FB_WARP_SITES,
   FB_ASCENTS,
   fbDesignWater,
@@ -344,6 +345,53 @@ export function forestBasinProps(): Prop[] {
     [K.crate, -3, -6, 0.5], [K.firewood, -8, -2, 0.1], [K.sapling, 3, 8, 0], [K.sapling, -2, 9, 0],
   ] as const;
   for (const [kind, dx, dz, yaw] of camp) at(kind, FB_CAMP.x + dx, FB_CAMP.z + dz, yaw);
+  // Points of interest: one small recipe per kind.
+  const near: { x: number; z: number; r: number }[] = [];
+  for (const poi of FB_POIS) {
+    const { x, z } = poi;
+    const rnd = (k: number) => hash2(x * 7.1 + k, z * 3.3 - k);
+    const ring = (n: number, r: number, f: (px: number, pz: number, a: number, k: number) => void) => {
+      for (let k = 0; k < n; k++) {
+        const a = (k / n) * Math.PI * 2 + rnd(k) * 0.6;
+        const rr = r * (0.8 + rnd(k + 9) * 0.4);
+        f(x + Math.cos(a) * rr, z + Math.sin(a) * rr, a, k);
+      }
+    };
+    const dry = (px: number, pz: number) => !fbDesignWater(px, pz) && !forestBasinOnTrail(px, pz);
+    const put = (kind: number, px: number, pz: number, yaw = 0, sc = 1) => { if (dry(px, pz)) at(kind, px, pz, yaw, sc); };
+    let clear = 5;
+    switch (poi.kind) {
+      case "grove": ring(9, 7, (px, pz, a, k) => put(k % 3 ? K.spruce : K.pine, px, pz, a, 6 + rnd(k) * 2.5)); ring(6, 3, (px, pz, a) => put(K.fern, px, pz, a)); clear = 9; break;
+      case "glade": ring(10, 9, (px, pz, a, k) => put(k % 2 ? K.tallPatch : K.bloom, px, pz, a)); ring(5, 4, (px, pz, a) => put(K.longGrass, px, pz, a)); clear = 10; break;
+      case "thicket": ring(14, 5.5, (px, pz, a, k) => put(k % 3 ? K.bush : K.scrub, px, pz, a, 1.3)); ring(8, 3, (px, pz, a) => put(K.bush, px, pz, a, 1.5)); clear = 8; break;
+      case "fungus": ring(9, 2.6, (px, pz, a) => put(K.stalk, px, pz, a, 0.6)); put(K.moss, x, z); clear = 4; break;
+      case "hollow-tree": put(K.pine, x, z, 0, 9); ring(5, 1.8, (px, pz, a) => put(K.moss, px, pz, a, 1.2)); put(K.chest, x + 1.2, z + 0.4, 1); break;
+      case "fallen-giant": for (let k = 0; k < 14; k++) put(k % 2 ? K.moss : K.wallBlock, x - 10 + k * 1.5, z + Math.sin(k * 0.4) * 0.8, 1.57, 1.1); put(K.fern, x + 12, z + 1); put(K.fern, x - 11, z - 1); break;
+      case "forge": ring(3, 2.5, (px, pz, a) => put(K.wallBlock, px, pz, a, 1.2)); put(K.firePit, x, z); put(K.weaponRack, x + 2, z - 1, 0.8); put(K.barrel, x - 2, z + 1.5); put(K.moss, x + 1, z + 2.5); break;
+      case "statue": put(K.stone, x, z, 1.2, 2.2); put(K.wallBlock, x + 1.8, z + 0.6, 0.3, 1.4); put(K.cairn, x - 1.6, z - 0.8, 0, 0.7); put(K.moss, x + 0.6, z - 1.4); break;
+      case "vault": for (let k = -2; k <= 2; k++) put(K.wallBlock, x + k * 1.1, z - 1.5, 0, 1.3); put(K.stone, x, z - 1.2, 0, 1.6); put(K.crate, x + 2.5, z + 1, 0.4); break;
+      case "aqueduct": for (let k = 0; k < 5; k++) put(k === 2 ? K.moss : K.peak, x - 8 + k * 4, z - 6 + k * 3, 0.6, 0.35); break;
+      case "waystone": put(K.stone, x, z, rnd(1) * 6, 1.2); put(K.pebble, x + 0.9, z + 0.5); clear = 3; break;
+      case "edict": put(K.stone, x, z, 0, 1.6); put(K.banner, x + 0.8, z + 0.2, 0); put(K.wallBlock, x - 1.4, z + 0.3, 0.4, 1.1); clear = 3; break;
+      case "village": ring(8, 9, (px, pz, a, k) => put(k % 4 === 3 ? K.moss : K.wallBlock, px, pz, a, 1 + rnd(k) * 0.6)); ring(3, 5, (px, pz, a) => put(K.sapling, px, pz, a)); put(K.firePit, x, z); clear = 11; break;
+      case "sunken": ring(7, 5, (px, pz, a, k) => at(k % 2 ? K.moss : K.wallBlock, px, pz, a, 1.2)); at(K.stone, x, z, 0, 1.5); clear = 7; break;
+      case "charcoal": ring(3, 4, (px, pz) => put(K.cairn, px, pz, 0, 1.4)); put(K.leanTo, x + 5, z + 3, 0.6); put(K.firewood, x - 4, z + 4); put(K.firewood, x - 5, z + 2.5, 0.8); put(K.barrel, x + 3, z - 4); put(K.bedroll, x + 6, z + 1, 0.2); clear = 8; break;
+      case "hermit": put(K.shack, x, z, 2.4); put(K.firePit, x + 3, z + 1); put(K.firewood, x - 2.5, z + 2); put(K.barrel, x + 2, z - 2); break;
+      case "shrine": put(K.cairn, x, z, 0, 1.2); ring(6, 1.4, (px, pz, a) => put(K.pebble, px, pz, a)); put(K.bloom, x + 1.8, z); put(K.bloom, x - 1.6, z + 0.8); clear = 4; break;
+      case "cult": put(K.tent, x, z, 0.4); put(K.tent, x + 4, z + 2, -0.5); put(K.banner, x - 2, z - 2); put(K.banner, x + 6, z - 1); put(K.firePit, x + 2, z - 3); put(K.crate, x - 3, z + 2.5, 0.3); clear = 8; break;
+      case "den": ring(5, 2.4, (px, pz, a, k) => put(k % 2 ? K.rock : K.bush, px, pz, a, 1.2)); put(K.pebble, x, z); clear = 4; break;
+      case "vista": put(K.cairn, x, z, 0, 1); put(K.tuft, x + 1, z + 1); clear = 3; break;
+      case "cache": put(K.chest, x, z, rnd(2) * 6); clear = 2; break;
+      case "camp": put(K.tent, x, z, 0.3); put(K.firePit, x + 3, z - 1); put(K.crate, x - 2, z + 2, 0.4); put(K.stall, x + 4, z + 3, -0.4); clear = 7; break;
+      case "falls": ring(6, 4, (px, pz, a, k) => put(k % 2 ? K.rock : K.fern, px, pz, a, 1.4)); put(K.stone, x - 1.5, z + 1.5, 0, 1.3); break;
+      case "quarry": put(K.crate, x, z, 0.3); put(K.wallBlock, x + 2, z + 1, 0, 1.3); put(K.wallBlock, x + 3.2, z + 1.1, 0.1, 1.3); put(K.leanTo, x - 3, z + 2, 0.4); break;
+      case "sink": ring(6, 4, (px, pz, a) => put(K.stalk, px, pz, a, 0.7)); clear = 7; break;
+      case "gorge": ring(6, 6, (px, pz, a) => put(K.rock, px, pz, a, 1.6)); clear = 0; break;
+      case "ruin": ring(6, 3.5, (px, pz, a, k) => put(k % 3 ? K.wallBlock : K.moss, px, pz, a, 1.1)); put(K.stone, x, z, 0.5, 1); clear = 6; break;
+      case "isle": ring(6, 2.5, (px, pz, a) => put(K.reed, px, pz, a)); put(K.stone, x, z, 0, 1.3); clear = 4; break;
+    }
+    if (clear) near.push({ x, z, r: clear });
+  }
   // The wood, plus reeds on the banks.
   const { minX, maxX, minZ, maxZ } = FOREST_BASIN_BOUNDS;
   for (let iz = minZ + 8; iz <= maxZ - 8; iz += 5.6) {
@@ -360,6 +408,7 @@ export function forestBasinProps(): Prop[] {
       if (!forestBasinWalkable(jx, jz) || b === "bridge" || b === "mountain") continue;
       if (Math.hypot(jx - FB_CAMP.x, jz - FB_CAMP.z) < FB_CAMP.r + 3) continue;
       if (FB_WARP_SITES.some((w) => Math.hypot(jx - w.x, jz - w.z) < w.r + 3)) continue;
+      if (near.some((q) => Math.hypot(jx - q.x, jz - q.z) < q.r)) continue;
       if (b === "meadow") {
         if (h > 0.8) at(K.bloom, jx, jz, h * 6.28, 1);
         else if (h > 0.6) at(K.bush, jx, jz, h * 6.28, 1);

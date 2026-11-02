@@ -10,6 +10,8 @@
  *   tools/map-builder/serve.sh            # in another shell
  *   tsx tools/map-builder/drive.ts [heights|paint|all]
  */
+import { FB_POIS } from "../../packages/config/src/forest-basin-content";
+import { fbTrailDist as fbTrailDistC } from "../../packages/config/src/forest-basin-features";
 import {
   FOREST_BASIN_BOUNDS,
   FB_ASCENTS,
@@ -94,7 +96,7 @@ class Crew {
   }
 }
 
-const PACE = { map_raise: 380, map_lower: 380, map_smooth: 520, map_biome_meadow: 300, map_biome_mountain: 300, map_biome_grass: 300, map_walk: 300 };
+const PACE = { map_raise: 380, map_lower: 380, map_smooth: 520, map_biome_meadow: 300, map_biome_mountain: 300, map_biome_grass: 300, map_walk: 300, map_block: 300 };
 
 function initState() {
   for (let j = 0; j < W; j++) {
@@ -210,6 +212,16 @@ async function paint(crew: Crew) {
       const c = planCell(x, z, Math.hypot(gx, gz));
       if (c.biome === "mountain") jobs.push({ id: "map_biome_mountain", target: encodeBrushTarget(x, z, 1.1, 1) });
       else if (c.biome === "meadow" && (i + j) % 6 === 0) jobs.push({ id: "map_biome_meadow", target: encodeBrushTarget(x, z, 2.2, 1) });
+    }
+  }
+  // Thickets: blocked tangles either side of the trail that funnel it.
+  for (const t of FB_POIS) {
+    if (t.kind !== "thicket") continue;
+    for (let dz = -8; dz <= 8; dz += 1.5) for (let dx = -8; dx <= 8; dx += 1.5) {
+      const x = t.x + dx, z = t.z + dz;
+      const r = 6.5 * (1 + 0.3 * Math.sin(Math.atan2(dz, dx) * 3 + t.x));
+      if (Math.hypot(dx, dz) > r || fbTrailDistC(x, z) < 2.6) continue;
+      jobs.push({ id: "map_block", target: encodeBrushTarget(x, z, 1, 1) });
     }
   }
   // Ascent routes and bridge abutments must stay open even where the slope reads as cliff.

@@ -217,7 +217,7 @@ const TRAIL_SPINES: readonly FbTrail[] = [
     id: "chapel-track",
     name: "the Chapel Track",
     surface: "dirt",
-    points: [{ x: -9, z: -50 }, { x: -27, z: -58 }, { x: -45, z: -66 }, { x: -62, z: -68 }, { x: -72, z: -72 }],
+    points: [{ x: -9, z: -50 }, { x: -24, z: -59 }, { x: -31.8, z: -66.3 }, { x: -46.5, z: -61.7 }, { x: -58, z: -68 }, { x: -72, z: -72 }],
   },
   {
     id: "ledge-track",
