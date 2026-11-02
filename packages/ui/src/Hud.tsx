@@ -104,7 +104,7 @@ function abilityTargetId(id: AbilityId, selected: string | null): string | undef
   if (!snap || !wallet) return undefined;
   const me = snap.units.find((u) => u.id.toLowerCase() === wallet.toLowerCase() && u.kind === "player");
   const combatTargetId = me?.targetId ?? null;
-  return resolveAbilityTargetId(id, selected, wallet, combatTargetId, snap.units);
+  return resolveAbilityTargetId(id, selected, wallet, combatTargetId, snap.units, g.groundPick);
 }
 
 function hudAbilityTip(id: CombatAbilityId): { title: string; body: string; meta: string } {
@@ -1273,9 +1273,20 @@ export function Hud() {
                 · drag onto hotbar
               </div>
             </div>
-            <button type="button" className="cmd-close-btn" onClick={() => setBookOpen(false)}>
-              Close
-            </button>
+            <div className="spellbook-head-actions">
+              {bookIds.includes("map_undo" as CombatAbilityId) && (
+                <button
+                  type="button"
+                  className="cmd-close-btn spellbook-undo-btn"
+                  onClick={() => castAbility("map_undo" as CombatAbilityId)}
+                >
+                  Undo
+                </button>
+              )}
+              <button type="button" className="cmd-close-btn" onClick={() => setBookOpen(false)}>
+                Close
+              </button>
+            </div>
           </div>
           {bookTabs.length > 0 && (
             <div className="spellbook-tabs" role="tablist" aria-label="Ability categories">

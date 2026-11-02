@@ -255,7 +255,35 @@ export {
   type ForestBasinBiome,
   type ForestBasinTrail,
   type ForestBasinLabelKind,
+  forestBasinClampMoveUsing,
 } from "./forest-basin";
+
+export { BAZ_BIOME, BAZ_FLAG } from "./zone-biomes";
+
+export {
+  FB_EDIT_CELL,
+  effectiveForestBasinHeight,
+  effectiveForestBasinWalkable,
+  effectiveForestBasinBiome,
+  forestBasinCellOf,
+  forestBasinWorldOfCell,
+  loadForestBasinOverlay,
+  serializeForestBasinOverlay,
+  resetForestBasinOverlay,
+  allForestBasinPatchCells,
+  applyForestBasinRaise,
+  applyForestBasinFlat,
+  applyForestBasinSmooth,
+  applyForestBasinBiome,
+  applyForestBasinWalk,
+  patchCellToMessage,
+  undoForestBasinEdit,
+  forestBasinCanUndo,
+  clearForestBasinUndoHistory,
+  type ForestBasinCellEdit,
+  type ForestBasinPatchCell,
+  type ForestBasinUndoCell,
+} from "./forest-basin-overlay";
 
 export {
   HR_BOUNDS,

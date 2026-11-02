@@ -105,10 +105,19 @@ export function resolveAbilityTargetId(
   wallet: string,
   combatTargetId: string | null,
   units: readonly UnitSnapshot[],
+  ground: { x: number; z: number } | null = null,
 ): string | undefined {
   if (!abilityNeedsTarget(id)) return undefined;
   const faction = abilityTargetFaction(id);
   const picked = selected ? units.find((u) => u.id === selected) : undefined;
+
+  if (faction === "ground") {
+    if (ground) {
+      const { encodeGroundTarget } = require("./map-builder-kit") as typeof import("./map-builder-kit");
+      return encodeGroundTarget(ground.x, ground.z);
+    }
+    return undefined;
+  }
 
   if (faction === "ally") {
     if (picked && picked.kind === "player") return picked.id;

@@ -1,3 +1,4 @@
+import { swordSwingRendererAnim } from "@bellgrave/combat";
 import { gatherInteractMs, gatherMethod } from "./gather";
 import type { UnitSnapshot } from "@bellgrave/protocol";
 

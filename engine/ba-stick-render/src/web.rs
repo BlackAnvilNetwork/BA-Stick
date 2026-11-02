@@ -47,6 +47,12 @@ impl StickRenderer {
         self.scene.place_zone(bytes, ox, oz).map_err(|e| JsValue::from_str(&e))
     }
 
+    /// Live map-builder edit — patch biome, flags, and height (metres) at a world point.
+    #[wasm_bindgen(js_name = patchZoneCell)]
+    pub fn patch_zone_cell(&mut self, x: f32, z: f32, biome: u8, flags: u8, height: f32) -> bool {
+        self.scene.patch_zone_cell_world(x, z, biome, flags, height)
+    }
+
     /// Props for a placed zone, shifted by the same origin.
     #[wasm_bindgen(js_name = placeProps)]
     pub fn place_props(&mut self, bytes: &[u8], ox: f32, oz: f32) -> Result<usize, JsValue> {

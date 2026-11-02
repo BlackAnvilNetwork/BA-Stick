@@ -7,13 +7,13 @@
  * Output "BAP1": magic[4] | u32 n | n × { u8 kind | u8 var | f32 x z y yaw s w h d } (LE).
  */
 import {
+  PALE_HOLLOW_BOUNDS,
+  PH_CAMP_SHIFT_X,
   FB_BRIDGE,
   FB_BRIDGE_DECK_W,
   FB_CAMP,
   FB_MOUNTAINS,
   FOREST_BASIN_BOUNDS,
-  PALE_HOLLOW_BOUNDS,
-  PH_CAMP_SHIFT_X,
   forestBasinBiome,
   forestBasinBridgeCenter,
   forestBasinStandHeight,
@@ -23,8 +23,8 @@ import {
   PH_MOUNTAINS,
   paleHollowBiome,
   paleHollowHeight,
-  paleHollowInBuildingClearing,
   paleHollowInOpenWater,
+  paleHollowInBuildingClearing,
   paleHollowOnTrail,
   paleHollowStandHeight,
   forestBasinOnTrail,

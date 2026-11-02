@@ -27,7 +27,11 @@ test("presetFor maps job/gender, npc role and mob archetype", () => {
 });
 
 test("animFor holds melee/cast only until animUntil", () => {
-  assert.equal(animFor(unit({ anim: "melee", animUntil: 2000 }), 1000), "melee");
+  assert.equal(animFor(unit({ anim: "melee", animUntil: 2000 }), 1000), "melee_slash");
+  assert.equal(
+    animFor(unit({ anim: "melee", animUntil: 2000, meleeSwing: "spin" }), 1000),
+    "melee_spin",
+  );
   assert.equal(animFor(unit({ anim: "melee", animUntil: 2000 }), 3000), "idle");
   assert.equal(animFor(unit({ anim: "walk" }), 0), "walk");
   assert.equal(animFor(unit({ anim: "rest" }), 0), "rest");

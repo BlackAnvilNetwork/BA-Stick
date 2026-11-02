@@ -21,6 +21,21 @@ use crate::palette::*;
 use crate::zone::Zone;
 use crate::{creature, figure, floaters, ground, palette, props};
 
+fn patch_zone_cell(zone: &mut Zone, x: f32, z: f32, biome: u8, flags: u8, height: f32) -> bool {
+    if !zone.contains_point(x, z) {
+        return false;
+    }
+    let (i, j) = zone.cell_of(x, z);
+    if i < 0 || j < 0 {
+        return false;
+    }
+    let k = zone.idx(i, j);
+    zone.biome[k] = biome;
+    zone.flags[k] = flags;
+    zone.height[k] = height;
+    true
+}
+
 /// One unit update from the host (mirrors the fields of `UnitSnapshot` that
 /// affect rendering).
 #[derive(Clone, Debug)]
@@ -225,6 +240,9 @@ impl Scene {
     pub fn new(w: usize, h: usize) -> Scene {
         let mut lib = AnimLibrary::builtin();
         lib.register_ron(include_str!("../assets/clips/rest.ron")).expect("rest clip");
+        lib.register_ron(include_str!("../assets/clips/swing.ron")).expect("swing clip");
+        lib.register_ron(include_str!("../assets/clips/swing_overhead.ron")).expect("swing_overhead clip");
+        lib.register_ron(include_str!("../assets/clips/swing_spin.ron")).expect("swing_spin clip");
         Scene {
             fb: Framebuffer::new(w, h),
             cam: Camera::new(w, h),
@@ -393,6 +411,29 @@ impl Scene {
         zone.min_z += oz;
         self.world.push(zone);
         Ok(())
+    }
+
+    /// Patch one baked cell at world (x, z). Updates the placed world zone and the
+    /// local minimap copy (`self.zone` at map origin) so temp map-builder edits rebake.
+    pub fn patch_zone_cell_world(&mut self, x: f32, z: f32, biome: u8, flags: u8, height: f32) -> bool {
+        let mut ok = false;
+        for zone in self.world.iter_mut().rev() {
+            if patch_zone_cell(zone, x, z, biome, flags, height) {
+                ok = true;
+                break;
+            }
+        }
+        if let Some(zone) = self.zone.as_mut() {
+            let lx = x - self.map_ox;
+            let lz = z - self.map_oz;
+            if patch_zone_cell(zone, lx, lz, biome, flags, height) {
+                ok = true;
+            }
+        }
+        if ok {
+            self.minimap.invalidate();
+        }
+        ok
     }
 
     /// Props for a placed zone. Positions are shifted by the same origin as `place_zone`.
@@ -906,7 +947,7 @@ impl Scene {
                     let fk = rig::solve(&u.animator.pose, &body, draw_base, u.yaw, u.walk.sway);
                     let j = crate::compat::Fig::from_joints(&fk, u.preset.props.sword);
                     let planted = u.anim == AnimState::Rest;
-                    let swinging = matches!(u.anim, AnimState::Melee | AnimState::Cast);
+                    let swinging = u.anim.is_melee_swing();
                     let w = u
                         .garb
                         .weapon
@@ -1371,7 +1412,17 @@ impl Scene {
                     if is_me {
                         body.hair = self.player_appearance.style;
                     }
-                    let mut fk = rig::solve(&u.animator.pose, &body, base, u.yaw, u.walk.sway);
+                    let mut draw_base = base;
+                    if u.anim.is_sword_combo_swing() {
+                        let commit = match u.anim {
+                            AnimState::MeleeOverhead => 1.35,
+                            AnimState::MeleeSpin => 1.15,
+                            _ => 1.28,
+                        };
+                        let l = melee_lunge_weighted(u.act_t, commit);
+                        draw_base = base + v3(u.yaw.sin() * l, 0.0, u.yaw.cos() * l);
+                    }
+                    let mut fk = rig::solve(&u.animator.pose, &body, draw_base, u.yaw, u.walk.sway);
                     if is_me {
                         fk.hair_sway = crate::appearance::hair_sway(&self.player_hair_spring);
                     }
@@ -1405,7 +1456,7 @@ impl Scene {
                     if !u.ghosts.is_empty() && !fp {
                         dash_ghosts(&mut self.fb, &cam, &j, u.pos, &u.ghosts);
                     }
-                    let swinging = matches!(u.anim, AnimState::Melee | AnimState::Cast);
+                    let swinging = u.anim.is_melee_swing();
                     let tool = match u.anim {
                         AnimState::Harvest => figure::GatherTool::Shovel,
                         AnimState::Mine => figure::GatherTool::Pick,
@@ -1436,8 +1487,13 @@ impl Scene {
                 ref body => {
                     // Old-client melee punch (F27): non-canine mobs lunge toward their facing,
                     // snapping forward then settling, repeating while the server holds "melee".
-                    let lunge = if u.anim == AnimState::Melee && !matches!(body, Body::Canine { .. } | Body::Node { .. }) {
-                        melee_lunge(u.act_t)
+                    let lunge = if u.anim.is_sword_combo_swing() && !matches!(body, Body::Canine { .. } | Body::Node { .. }) {
+                        let commit = match u.anim {
+                            AnimState::MeleeOverhead => 1.35,
+                            AnimState::MeleeSpin => 1.15,
+                            _ => 1.28,
+                        };
+                        melee_lunge_weighted(u.act_t, commit)
                     } else {
                         0.0
                     };
@@ -1449,7 +1505,7 @@ impl Scene {
                         dead: if u.anim == AnimState::Dead { u.dead_t.min(1.0) } else { 0.0 },
                         time: t + u.gait * 0.01,
                         ready: u.fx.flags & FX_DEPLETED == 0,
-                        attack: if u.anim == AnimState::Melee { (u.act_t / creature::LUNGE_S).min(1.0) } else { 1.0 },
+                        attack: if u.anim.is_sword_combo_swing() { (u.act_t / creature::LUNGE_S).min(1.0) } else { 1.0 },
                     };
                     creature::draw(&mut self.fb, &cam, body, &pose);
                 }
@@ -1875,9 +1931,15 @@ pub const MELEE_SWING_S: f32 = 0.42;
 /// Forward offset (world units) of a creature melee punch `t` seconds into the
 /// melee state: 0.06 rest + 0.22 punch, fast out (35%) and eased back.
 pub fn melee_lunge(t: f32) -> f32 {
+    melee_lunge_weighted(t, 1.0)
+}
+
+/// `weight` > 1.0 = more forward commit (heroic sword combo on bipeds).
+pub fn melee_lunge_weighted(t: f32, weight: f32) -> f32 {
     let k = (t.max(0.0) % MELEE_SWING_S) / MELEE_SWING_S;
     let punch = if k < 0.35 { k / 0.35 } else { (1.0 - (k - 0.35) / 0.65).max(0.0) };
-    0.06 + punch * 0.22
+    let w = weight.max(0.5);
+    0.06 * w + punch * 0.22 * w
 }
 
 /// Exact inverse of the iso / persp-blend projection for a point `dy` above
@@ -2176,7 +2238,7 @@ mod lunge_tests {
             s.fb.color.clone()
         };
         let idle = draw(AnimState::Idle, MELEE_SWING_S * 0.35);
-        let hit = draw(AnimState::Melee, MELEE_SWING_S * 0.35);
+        let hit = draw(AnimState::MeleeSlash, MELEE_SWING_S * 0.35);
         assert_ne!(idle, hit);
     }
 }

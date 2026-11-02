@@ -25,6 +25,8 @@ fn upsert_and_remove() {
 #[test]
 fn anim_mapping() {
     assert_eq!(AnimState::parse("melee").clip(), "swing");
+    assert_eq!(AnimState::parse("melee_overhead").action_clip(), Some("swing_overhead"));
+    assert_eq!(AnimState::parse("melee_spin").action_clip(), Some("swing_spin"));
     assert_eq!(AnimState::parse("walk").clip(), "walk");
     assert_eq!(AnimState::parse("rest").action_clip(), Some("rest"));
     assert_eq!(AnimState::parse("bogus"), AnimState::Idle);

@@ -2,9 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   FB_GATES,
-  FB_LAKE,
   FB_MAP_LABELS,
-  FB_ROAD_NAMES,
   FB_SPAWN,
   FOREST_BASIN_BOUNDS,
   forestBasinInOpenWater,
@@ -14,42 +12,34 @@ import {
 } from "@bellgrave/config";
 import { bakeForestBasin } from "../scripts/bake-zones";
 
-test("forest basin spawn is dry ground and the mere holds water", () => {
+test("forest basin blank canvas: flat spawn and no water", () => {
   assert.equal(forestBasinWalkable(FB_SPAWN.x, FB_SPAWN.z), true);
   assert.equal(forestBasinInOpenWater(FB_SPAWN.x, FB_SPAWN.z), false);
-  assert.equal(forestBasinInOpenWater(FB_LAKE.x, FB_LAKE.z), true);
-  assert.equal(forestBasinInOpenWater(FB_LAKE.x + FB_LAKE.r + 8, FB_LAKE.z), false);
+  assert.equal(forestBasinStandHeight(0, 0), 2);
 });
 
-test("forest basin relief stays inside 12 m and the mask is a branching fraction of the box", () => {
-  let minY = Infinity;
-  let maxY = -Infinity;
+test("forest basin blank canvas: nearly full pad walkable", () => {
   let walk = 0;
   let n = 0;
   const { minX, maxX, minZ, maxZ } = FOREST_BASIN_BOUNDS;
   for (let z = minZ; z <= maxZ; z += 4) {
     for (let x = minX; x <= maxX; x += 4) {
-      const y = forestBasinStandHeight(x, z);
-      minY = Math.min(minY, y);
-      maxY = Math.max(maxY, y);
       n++;
       if (forestBasinWalkable(x, z)) walk++;
     }
   }
-  assert.ok(minY >= -0.5 && maxY <= 11.5, `relief ${minY}..${maxY}`);
   const frac = walk / n;
-  assert.ok(frac > 0.28 && frac < 0.55, `walkable fraction ${frac.toFixed(3)}`);
+  assert.ok(frac > 0.85, `walkable fraction ${frac.toFixed(3)}`);
 });
 
-test("forest basin gates are reachable from the spur camp", () => {
+test("forest basin gates stay reachable from spawn", () => {
   const step = 2;
   const { minX, minZ, maxX, maxZ } = FOREST_BASIN_BOUNDS;
   const cols = Math.ceil((maxX - minX) / step) + 1;
-  const rows = Math.ceil((maxZ - minZ) / step) + 1;
-  const seen = new Uint8Array(cols * rows);
   const key = (x: number, z: number) =>
     Math.round((x - minX) / step) + Math.round((z - minZ) / step) * cols;
   const q: [number, number][] = [[FB_SPAWN.x, FB_SPAWN.z]];
+  const seen = new Uint8Array(cols * Math.ceil((maxZ - minZ) / step) + 1);
   seen[key(FB_SPAWN.x, FB_SPAWN.z)] = 1;
   for (let i = 0; i < q.length; i++) {
     const [x, z] = q[i]!;
@@ -72,34 +62,12 @@ test("forest basin gates are reachable from the spur camp", () => {
       assert.equal(reached(cx, cz), true, g.id);
     } else {
       assert.equal(forestBasinWalkable(cx, cz), false, g.id);
-      let approach = false;
-      for (let z = g.minZ - 10; z <= g.maxZ + 10 && !approach; z += 2) {
-        for (let x = g.minX - 10; x <= g.maxX + 10; x += 2) {
-          if (x >= g.minX && x <= g.maxX && z >= g.minZ && z <= g.maxZ) continue;
-          if (reached(x, z)) approach = true;
-        }
-      }
-      assert.equal(approach, true, g.id);
     }
   }
 });
 
-test("forest basin roads stay out of the water and every road is named", () => {
-  const wet: string[] = [];
-  for (const t of forestBasinTrails()) {
-    assert.ok(FB_ROAD_NAMES[t.id], t.id);
-    for (let i = 1; i < t.points.length; i++) {
-      const a = t.points[i - 1]!;
-      const b = t.points[i]!;
-      for (let s = 0; s <= 16; s++) {
-        const u = s / 16;
-        const x = a.x + (b.x - a.x) * u;
-        const z = a.z + (b.z - a.z) * u;
-        if (forestBasinInOpenWater(x, z) && !forestBasinWalkable(x, z)) wet.push(`${t.id} ${x.toFixed(1)},${z.toFixed(1)}`);
-      }
-    }
-  }
-  assert.deepEqual(wet, []);
+test("forest basin has no trails until authored", () => {
+  assert.deepEqual(forestBasinTrails(), []);
   for (const l of FB_MAP_LABELS) {
     assert.ok(l.x >= FOREST_BASIN_BOUNDS.minX && l.x <= FOREST_BASIN_BOUNDS.maxX);
     assert.ok(l.z >= FOREST_BASIN_BOUNDS.minZ && l.z <= FOREST_BASIN_BOUNDS.maxZ);

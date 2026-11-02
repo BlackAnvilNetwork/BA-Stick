@@ -1,4 +1,4 @@
-﻿import type { ClientMessage, ServerMessage } from "@bellgrave/protocol";
+import type { ClientMessage, ServerMessage } from "@bellgrave/protocol";
 import { generatePrivateKey, privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
 import {
   appKitConfigured,
@@ -630,6 +630,10 @@ export function connectSocket() {
         craftOpen: msg.craftOpen,
         lokOpen: msg.lokOpen,
       });
+    } else if (msg.type === "zone/patch" || msg.type === "zone/overlay") {
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("bellgrave:zone-edit", { detail: msg }));
+      }
     }
   });
   return ws;

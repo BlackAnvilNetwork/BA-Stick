@@ -53,10 +53,17 @@ import {
   subjobLevel,
   swingDelayMs,
   resolveSwingDelayMs,
+  isSwordSwingFamily,
+  nextSwordSwing,
+  swordSwingReachMul,
+  SWORD_SPIN_SPLASH_DAMAGE_MUL,
+  SWORD_SPIN_SPLASH_RADIUS_MUL,
+  type SwordSwingKind,
   abilityIdsForJob,
   weaponTpUnlocked,
   weaponTypeFromTokenId,
   isWeaponTpAbilityId,
+  MAP_BUILDER_ABILITY_IDS,
   xpToNextLevel,
   type AttrKey,
   type JobId,
@@ -108,8 +115,13 @@ import {
   fieldNpcById,
   fieldNpcDefs,
   PVP_BOUNTY_WEI,
+  allForestBasinPatchCells,
+  type ForestBasinPatchCell,
 } from "@bellgrave/config";
 import { paleHollowFindPath } from "./nav-grid";
+import { loadForestBasinEditsFromDisk } from "./forest-basin-builder-persist";
+import { isMapBuilderPlayer } from "./map-builder-auth";
+import { isMapBuilderAbility, resolveMapBuilderAbility } from "./map-builder-abilities";
 import {
   ASH_PIT as ASH_PIT_AREA,
   areaAtPlayer,
@@ -138,6 +150,7 @@ import { bringBondedMarkOnline } from "./mark-boot";
 import { guildHour, noteGuildBatch, qualifyingEventsFromJournalCmds, settleGuildPayouts } from "./guild-score";
 import {
   admitEscrowFill,
+  chainBoundSendGate,
   configureEpochLedger,
   pinEpochCharge,
   recordPostedSlashableBonds,
@@ -531,6 +544,10 @@ type Player = {
   refreshTick: number;
   nextSwingAt: number;
   animUntil: number;
+  /** In-memory sword auto-attack combo index (slash → overhead → spin). */
+  swordComboStep: number;
+  /** Pose for the current melee swing when wielding a sword / greatsword. */
+  meleeSwing?: SwordSwingKind;
   /** Keep walk pose briefly after a waypoint so WASD/net gaps don't flicker idle. */
   walkUntil: number;
   /** Wall time of the last `move` packet; held WASD refreshes it every 50ms (#436). */
@@ -832,6 +849,7 @@ const lok: LokWorld = await (async (): Promise<LokWorld> => {
       if (!result.ok) console.warn("[bellgrave] mark online refused: " + result.error);
     });
     const world = LokWorld.open(defaultLokDir());
+    loadForestBasinEditsFromDisk();
     loadGameRoll(defaultLokDir());
     configureMintClaimNonceStore(pathJoin(defaultLokDir(), "mint-claim-nonces.json"));
     console.log(
@@ -2393,6 +2411,21 @@ function offPaleHollow(zoneId: string | undefined): boolean {
   return fieldById(zoneId) != null;
 }
 
+function broadcastForestBasinPatch(cells: ForestBasinPatchCell[]) {
+  if (cells.length === 0) return;
+  const msg = { type: "zone/patch" as const, zone: "forest_basin" as const, cells };
+  for (const pl of players.values()) {
+    if (pl.ws && unitZone(pl.zoneId) === "forest_basin") send(pl.ws, msg);
+  }
+}
+
+function sendForestBasinOverlay(p: Player) {
+  if (!p.ws) return;
+  const cells = allForestBasinPatchCells();
+  if (cells.length === 0) return;
+  send(p.ws, { type: "zone/overlay", zone: "forest_basin", cells });
+}
+
 function crossField(p: Player): boolean {
   const left = p.zoneId;
   if (!applyTravel(p)) return false;
@@ -2401,6 +2434,7 @@ function crossField(p: Player): boolean {
   if (left !== p.zoneId) dropZoneHate(p);
   const name = ZONES[p.zoneId as keyof typeof ZONES]?.name ?? p.zoneId;
   pushLog(p, `You enter ${name}.`);
+  if (p.zoneId === "forest_basin") sendForestBasinOverlay(p);
   return left !== p.zoneId;
 }
 
@@ -2952,6 +2986,7 @@ function autoEngageNext(p: Player, deadId: string) {
 }
 
 function pushLog(p: Player, message: string) {
+  if (!Array.isArray(p.lastLog)) p.lastLog = [];
   p.lastLog.push(message);
   if (p.lastLog.length > 40) p.lastLog.shift();
   send(p.ws, { type: "log", message });
@@ -3111,14 +3146,15 @@ function mobBuffs(m: Mob): UnitSnapshot["buffs"] {
 /** Recompute / return unlocked abilities for a player (job + Trainer purchases + weapon skills). */
 function ensurePlayerUnlocked(p: Player): AbilityId[] {
   const learned = Array.isArray(p.learned) ? p.learned : [];
-  const unlockKey = `${p.job}|${p.subjob ?? ""}|${p.level}|${p.equip.main ?? ""}|${learned.length}`;
+  const unlockKey = `${p.job}|${p.subjob ?? ""}|${p.level}|${p.equip.main ?? ""}|${learned.length}|mb:${isMapBuilderPlayer(p) ? 1 : 0}`;
   if (p.unlockCacheKey !== unlockKey || !p.unlockCache) {
     const jobUnlocked = abilitiesUnlockedDual(p.job, p.level, p.subjob, learned) as AbilityId[];
     const wsUnlocked = weaponTpUnlocked(
       weaponTypeFromTokenId(p.equip.main),
       p.level,
     ) as AbilityId[];
-    p.unlockCache = Array.from(new Set<AbilityId>([...jobUnlocked, ...wsUnlocked]));
+    const mapUnlocked = isMapBuilderPlayer(p) ? ([...MAP_BUILDER_ABILITY_IDS] as AbilityId[]) : [];
+    p.unlockCache = Array.from(new Set<AbilityId>([...jobUnlocked, ...wsUnlocked, ...mapUnlocked]));
     p.unlockCacheKey = unlockKey;
   }
   return p.unlockCache;
@@ -3152,6 +3188,7 @@ function snapshotFor(p: Player): SnapshotMessage {
       tp: pl.tp,
       anim: pl.hp <= 0 && Date.now() < pl.fallenUntil ? "dead" : pl.anim,
       animUntil: pl.animUntil,
+      ...(pl.meleeSwing ? { meleeSwing: pl.meleeSwing } : {}),
       ...(pl.dash ? { dashTo: { x: pl.dash.tx, z: pl.dash.tz } } : {}),
       gatherTool: gatherToolFor(pl),
       targetId: pl.targetId,
@@ -3291,14 +3328,15 @@ function snapshotFor(p: Player): SnapshotMessage {
   }
 
   const learned = Array.isArray(p.learned) ? p.learned : [];
-  const unlockKey = `${p.job}|${p.subjob ?? ""}|${p.level}|${p.equip.main ?? ""}|${learned.length}`;
+  const unlockKey = `${p.job}|${p.subjob ?? ""}|${p.level}|${p.equip.main ?? ""}|${learned.length}|mb:${isMapBuilderPlayer(p) ? 1 : 0}`;
   if (p.unlockCacheKey !== unlockKey || !p.unlockCache) {
     const jobUnlocked = abilitiesUnlockedDual(p.job, p.level, p.subjob, learned) as AbilityId[];
     const wsUnlocked = weaponTpUnlocked(
       weaponTypeFromTokenId(p.equip.main),
       p.level,
     ) as AbilityId[];
-    p.unlockCache = Array.from(new Set<AbilityId>([...jobUnlocked, ...wsUnlocked]));
+    const mapUnlocked = isMapBuilderPlayer(p) ? ([...MAP_BUILDER_ABILITY_IDS] as AbilityId[]) : [];
+    p.unlockCache = Array.from(new Set<AbilityId>([...jobUnlocked, ...wsUnlocked, ...mapUnlocked]));
     p.unlockCacheKey = unlockKey;
   }
   const unlocked = p.unlockCache;
@@ -3386,7 +3424,7 @@ function snapshotFor(p: Player): SnapshotMessage {
       })(),
     },
     units,
-    log: p.lastLog.slice(-12),
+    log: (p.lastLog ?? []).slice(-12),
     weather: offPaleHollow(p.zoneId) ? undefined : paleHollowWeatherSnapshot(),
     party: buildPartySnapshot(p.wallet, partyLookup),
     partyInvite: buildInviteView(p.wallet, partyNameOf),
@@ -3421,6 +3459,8 @@ function ensurePlayer(wallet: string, ws: WebSocket): Player | undefined {
   const p = players.get(id);
   if (!p) return undefined;
   p.ws = ws;
+  if (!Array.isArray(p.lastLog)) p.lastLog = [];
+  if (!p.recasts || typeof p.recasts !== "object") p.recasts = {};
   if (!Array.isArray(p.learned)) p.learned = [];
   if (!p.charId) p.charId = `c_${wallet.slice(-8)}_${Date.now().toString(36)}`;
   if (p.gender !== "male" && p.gender !== "female" && p.gender !== "pepeka") p.gender = "male";
@@ -3475,6 +3515,8 @@ function activateCharacter(wallet: string, charId: string, ws: WebSocket): Playe
   const p = slots?.get(charId);
   if (!p) return undefined;
   p.ws = ws;
+  if (!Array.isArray(p.lastLog)) p.lastLog = [];
+  if (!p.recasts || typeof p.recasts !== "object") p.recasts = {};
   players.set(wallet, p);
   walletToPlayer.set(wallet, wallet);
   return p;
@@ -3647,12 +3689,13 @@ function createPlayer(
     curseUntil: 0,
     nextSwingAt: 0,
     animUntil: 0,
+    swordComboStep: 0,
     walkUntil: 0,
     lastMoveInputAt: 0,
     unlockCacheKey: "",
     unlockCache: [],
     recasts: {},
-    lastLog: [`Welcome to Bellgrave, ${name}.`],
+    lastLog: [],
     ws,
   };
   if (existingCharId) {
@@ -4396,6 +4439,8 @@ function kickPvpLoser(
 
 /** In-flight auto-cancels so the tick loop does not double-spend operator txs. */
 const pvpAreaCancelInFlight = new Set<string>();
+/** One player-facing line while the cancel is held on the root / delay / epoch gate. */
+const pvpAreaCancelGateTold = new Set<string>();
 
 /** Auto-cancel bounty when the marked player leaves the arena without a kill. */
 function tickPvpBountyArea(p: Player) {
@@ -4405,6 +4450,15 @@ function tickPvpBountyArea(p: Player) {
   if (!open) return;
   const area = areaAtPlayer(p.x, p.z);
   if (area && area.id === open.areaId) return;
+  const gate = chainBoundSendGate();
+  if (!gate.ok) {
+    if (!pvpAreaCancelGateTold.has(tokenId)) {
+      pvpAreaCancelGateTold.add(tokenId);
+      pushLog(p, gate.error);
+    }
+    return;
+  }
+  pvpAreaCancelGateTold.delete(tokenId);
   if (pvpAreaCancelInFlight.has(tokenId)) return;
   pvpAreaCancelInFlight.add(tokenId);
   void (async () => {
@@ -4531,6 +4585,14 @@ function handleAbility(p: Player, id: AbilityId, targetId?: string) {
   ) {
     pushLog(p, "You are silenced.");
     return;
+  if (isMapBuilderAbility(id)) {
+    resolveMapBuilderAbility(p, id, targetId, now, {
+      pushLog: (pl, line) => pushLog(pl as Player, line),
+      broadcastPatch: broadcastForestBasinPatch,
+    });
+    syncUnitY(p);
+    return;
+  }
   }
   if (isRogueAbilityId(id) && playerHasJob(p, "rogue")) {
     resolveRogueAbility(p, id, targetId, now, {
@@ -5244,13 +5306,41 @@ function playerMoveSpeed(p: Player, now: number): number {
   return speed;
 }
 
+
+function playerMainWeaponFamily(p: Player): string | undefined {
+  const tok = p.equip.main;
+  if (!tok) return undefined;
+  return getItem(tok)?.weaponFamily;
+}
+
+function peekPlayerMeleeReach(p: Player): number {
+  const family = playerMainWeaponFamily(p);
+  if (!isSwordSwingFamily(family)) return MELEE_RANGE;
+  const { kind } = nextSwordSwing(p.swordComboStep ?? 0);
+  return MELEE_RANGE * swordSwingReachMul(kind);
+}
+
+function beginPlayerMeleeAnim(p: Player, now: number, delay: number): void {
+  p.anim = "melee";
+  p.animUntil = now + Math.max(160, Math.min(delay * 0.9, 520));
+  const family = playerMainWeaponFamily(p);
+  if (isSwordSwingFamily(family)) {
+    const step = p.swordComboStep ?? 0;
+    const { kind, nextStep } = nextSwordSwing(step);
+    p.swordComboStep = nextStep;
+    p.meleeSwing = kind;
+  } else {
+    p.meleeSwing = undefined;
+  }
+}
+
 function playerSwingPvp(p: Player, foe: Player, now: number) {
   const block = pvpStrikeBlock(p, foe);
   if (block) return;
   const gate = canPvpStrike(p, foe, playerHasOpenBounty(foe));
   if (!gate.ok) return;
   const d = dist(p.x, p.z, foe.x, foe.z);
-  if (d > MELEE_RANGE) return;
+  if (d > peekPlayerMeleeReach(p)) return;
   if (now < p.nextSwingAt) return;
 
   const haste = playerHastePct(p, now);
@@ -5262,8 +5352,7 @@ function playerSwingPvp(p: Player, foe: Player, now: number) {
   }
   p.nextSwingAt = now + delay;
   p.facing = facingTo(p.x, p.z, foe.x, foe.z);
-  p.anim = "melee";
-  p.animUntil = now + Math.max(160, Math.min(delay * 0.9, 520));
+  beginPlayerMeleeAnim(p, now, delay);
 
   const stance = playerStance(p);
   const stats = playerCombatStats(p);
@@ -5345,7 +5434,7 @@ function playerSwing(p: Player, now: number) {
   const mob = findMobIn(p.zoneId, p.targetId);
   if (!mob || !mob.alive) return;
   const d = dist(p.x, p.z, mob.x, mob.z);
-  if (d > MELEE_RANGE) return;
+  if (d > peekPlayerMeleeReach(p)) return;
   if (now < p.nextSwingAt) return;
   if (now < p.petrifyUntil) {
     p.nextSwingAt = now + 800;
@@ -5361,7 +5450,6 @@ function playerSwing(p: Player, now: number) {
   const haste = playerHastePct(p, now);
   const weaponDelay = p.equip.main ? getItem(p.equip.main)?.delayMs : undefined;
   let delay = resolveSwingDelayMs(weaponDelay, haste);
-  // Enemy Slow: swingDelayMs clamps haste>=0, so apply attack-speed drag here.
   if (now < p.slowUntil) {
     const slowAmt =
       now < p.moveUntil && p.movePct < 0 ? -p.movePct : 0.22;
@@ -5369,11 +5457,9 @@ function playerSwing(p: Player, now: number) {
   }
   p.nextSwingAt = now + delay;
   p.facing = facingTo(p.x, p.z, mob.x, mob.z);
-  p.anim = "melee";
-  // Cover most of the swing window so haste still shows a punch each hit.
-  p.animUntil = now + Math.max(160, Math.min(delay * 0.9, 520));
+  beginPlayerMeleeAnim(p, now, delay);
+  const swingKind = p.meleeSwing;
 
-  // Enemy Blind / Shield Bash daze — same wild-swing chance as mob Blind.
   if (now < p.blindUntil && rollUnit("combat.player.blind") < 0.45) {
     pushLog(p, "You swing wild (Blind)!");
     return;
@@ -5381,8 +5467,6 @@ function playerSwing(p: Player, now: number) {
 
   const stance = playerStance(p);
   const stats = playerCombatStats(p);
-  // Time Mage keeps Flux / suppressed swings. Sorcerer and Cleric use a STR
-  // staff chip (autoAttackFStr floors the glance). Other jobs are full melee.
   const physical =
     p.job !== "time_mage" && p.job !== "sorcerer" && p.job !== "cleric";
   let att = attackFromStats(stats, stance, playerWeaponBonus(p), {
@@ -5390,7 +5474,6 @@ function playerSwing(p: Player, now: number) {
   });
   const tree = playerTreeBonuses(p);
   att += tree.atk;
-  // Fighter support counts too (#88): Berserk's attack comes with its defense penalty.
   if (physical || playerHasJob(p, "fighter")) {
     att = Math.max(1, Math.floor(att * autoAttackFighterAttackMul(p, now, physical)));
   }
@@ -5457,8 +5540,26 @@ function playerSwing(p: Player, now: number) {
   dmg = takeMobHit(mob, dmg, "physical", now);
   mob.hp -= dmg;
   noteMobHit(mob, p.wallet);
+  if (swingKind === "spin" && dmg > 0) {
+    const splashR = MELEE_RANGE * SWORD_SPIN_SPLASH_RADIUS_MUL;
+    for (const other of mobs) {
+      if (!other.alive || other.zoneId !== p.zoneId || other.id === mob.id) continue;
+      if (dist(p.x, p.z, other.x, other.z) > splashR) continue;
+      const splash = takeMobHit(
+        other,
+        Math.max(1, Math.floor(dmg * SWORD_SPIN_SPLASH_DAMAGE_MUL)),
+        "physical",
+        now,
+      );
+      if (splash <= 0) continue;
+      other.hp -= splash;
+      noteMobHit(other, p.wallet);
+      if (now < other.sleepUntil) other.sleepUntil = 0;
+      pushLog(p, `Whirlwind catches ${other.name} for ${splash}.`);
+      if (other.hp <= 0) rewardMobKill(p, other, now);
+    }
+  }
   if (now < mob.sleepUntil) mob.sleepUntil = 0;
-  // Hitting a shiny HQ/clone counts as a pull (summon + fight); they stay non-auto-aggro.
   if ((mob.shiny || mob.shinyClone) && mob.hp > 0) {
     pullMobOn(mob, p.wallet, now);
   }
@@ -5468,7 +5569,6 @@ function playerSwing(p: Player, now: number) {
     mob.roamTx = Number.NaN;
     mob.roamTz = Number.NaN;
     mob.roamPauseUntil = 0;
-    // Face the flee direction (away from attacker) so client mirror/hop stay stable.
     mob.facing = facingTo(mob.x, mob.z, p.x, p.z) + Math.PI;
     mob.anim = "walk";
   }

@@ -11,7 +11,12 @@ pub enum AnimState {
     Idle,
     Walk,
     Run,
-    Melee,
+    /// Horizontal slash (default `melee` / sword combo step 1).
+    MeleeSlash,
+    /// Diagonal overhead chop (sword combo step 2).
+    MeleeOverhead,
+    /// Whirlwind arc (sword combo step 3).
+    MeleeSpin,
     Cast,
     Rest,
     Dead,
@@ -36,7 +41,9 @@ impl AnimState {
         match s {
             "walk" => AnimState::Walk,
             "run" => AnimState::Run,
-            "melee" => AnimState::Melee,
+            "melee" | "melee_slash" => AnimState::MeleeSlash,
+            "melee_overhead" => AnimState::MeleeOverhead,
+            "melee_spin" => AnimState::MeleeSpin,
             "cast" => AnimState::Cast,
             "rest" => AnimState::Rest,
             "dead" => AnimState::Dead,
@@ -56,21 +63,40 @@ impl AnimState {
         match self {
             AnimState::Walk => "walk",
             AnimState::Run | AnimState::Dash => "run",
-            AnimState::Melee | AnimState::Cast => "swing",
+            AnimState::MeleeSlash | AnimState::Cast => "swing",
+            AnimState::MeleeOverhead => "swing_overhead",
+            AnimState::MeleeSpin => "swing_spin",
             AnimState::Idle | AnimState::Rest | AnimState::Dead | AnimState::Harvest | AnimState::Mine | AnimState::Leathercraft | AnimState::Smithing | AnimState::Cooking | AnimState::Goldsmithing => "idle",
         }
     }
     /// Action-layer clip (None = base idle/gait layer only).
     pub fn action_clip(self) -> Option<&'static str> {
         match self {
-            AnimState::Melee | AnimState::Cast => Some("swing"),
+            AnimState::MeleeSlash | AnimState::Cast => Some("swing"),
+            AnimState::MeleeOverhead => Some("swing_overhead"),
+            AnimState::MeleeSpin => Some("swing_spin"),
             AnimState::Rest => Some("rest"),
             AnimState::Dash => Some("dash"),
             _ => None,
         }
     }
     pub fn restarts(self) -> bool {
-        matches!(self, AnimState::Melee | AnimState::Cast)
+        matches!(
+            self,
+            AnimState::MeleeSlash | AnimState::MeleeOverhead | AnimState::MeleeSpin | AnimState::Cast
+        )
+    }
+    pub fn is_melee_swing(self) -> bool {
+        matches!(
+            self,
+            AnimState::MeleeSlash | AnimState::MeleeOverhead | AnimState::MeleeSpin | AnimState::Cast
+        )
+    }
+    pub fn is_sword_combo_swing(self) -> bool {
+        matches!(
+            self,
+            AnimState::MeleeSlash | AnimState::MeleeOverhead | AnimState::MeleeSpin
+        )
     }
 }
 

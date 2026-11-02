@@ -373,6 +373,8 @@ export type UnitSnapshot = {
   anim: "idle" | "walk" | "melee" | "cast" | "rest" | "dead";
   /** Unix ms when current anim ends — bumps each swing so clients can replay melee/cast. */
   animUntil: number;
+  /** Sword / greatsword auto-attack pose: slash → overhead → spin. */
+  meleeSwing?: "slash" | "overhead" | "spin";
   /** Set while this player is mid-dash (general ability): the server-validated landing point. */
   dashTo?: { x: number; z: number };
   /** Set while this unit is gathering. The sword is stowed and this tool is in the hand. */
@@ -830,6 +832,28 @@ export type ServerMessage =
       craftOpen?: boolean;
       /** Provisioner — client may open the lok exchange. */
       lokOpen?: boolean;
+    }
+  | {
+      type: "zone/patch";
+      zone: "forest_basin";
+      cells: {
+        i: number;
+        j: number;
+        heightCm?: number;
+        biome?: number;
+        flags?: number;
+      }[];
+    }
+  | {
+      type: "zone/overlay";
+      zone: "forest_basin";
+      cells: {
+        i: number;
+        j: number;
+        heightCm?: number;
+        biome?: number;
+        flags?: number;
+      }[];
     };
 
 export function parseClientMessage(raw: unknown): ClientMessage | null {
