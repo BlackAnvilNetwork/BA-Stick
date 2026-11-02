@@ -42,6 +42,10 @@ export function animFor(u: UnitWithCraft, now: number): string {
   if (u.dashTo) return "dash";
   switch (u.anim) {
     case "melee":
+      if (now >= u.animUntil) return "idle";
+      if (u.meleeSwing === "overhead") return "melee_overhead";
+      if (u.meleeSwing === "spin") return "melee_spin";
+      return "melee_slash";
     case "cast":
       return now < u.animUntil ? u.anim : "idle";
     case "walk":
