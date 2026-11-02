@@ -377,8 +377,9 @@ export const PH_ALL_MOBS: PaleHollowMobDef[] = [
   {
     id: "ph-camp-dog",
     name: "Camp Dog",
-    x: -55,
-    z: 300,
+    // Lies beside the Emberwatch fire (about 2.9 m north-west of the pit at -55,300), not in it.
+    x: -56.5,
+    z: 302.5,
     level: 1,
     archetype: "hollow_scavenger",
     job: "rogue",

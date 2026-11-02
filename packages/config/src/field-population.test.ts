@@ -8,6 +8,7 @@ import {
   BASELINE_FIELD_PLANS,
   baseline,
   baselineSpotProblem,
+  fieldPointAnchors,
   fieldMobDefById,
   fieldMobDefs,
   fieldNpcDefs,
@@ -79,4 +80,18 @@ test("a registered content pack replaces the baseline for its zones only", () =>
     unregisterFieldPopulation("test-pack");
   }
   assert.ok(fieldMobDefs("hollow_road").length > 1);
+});
+
+test("no field monster or NPC stands within 4 m of a point anchor (world POIs, spawn, arrivals)", () => {
+  const bad: string[] = [];
+  for (const id of FIELDS) {
+    for (const u of [...fieldMobDefs(id), ...fieldNpcDefs(id)]) {
+      if (u.id.startsWith("lm-")) continue; // read-at-landmark markers sit on their POI by design
+      for (const a of fieldPointAnchors(id)) {
+        const d = Math.hypot(a.x - u.x, a.z - u.z);
+        if (d < 4) bad.push(`${u.id} at ${u.x},${u.z}: ${d.toFixed(2)} m from ${a.id}`);
+      }
+    }
+  }
+  assert.deepEqual(bad, []);
 });

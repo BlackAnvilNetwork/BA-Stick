@@ -13,7 +13,9 @@
  * - The baseline source keeps every other field alive: a few packs of the
  *   existing creatures scaled to the field's level, plus one warden near the
  *   arrival. Spots are generated against each field's own walk mask, reachable
- *   from the field spawn, off bridges and open water, and clear of gates.
+ *   from the field spawn, off bridges and open water, clear of gates, and clear
+ *   of every point anchor (world POIs, the field spawn and arrival points), so
+ *   nothing stands on a landmark (the anchor rule is 4 m; we keep 5 m).
  *
  * Coordinates are zone-local metres (the same frame as the field's walkable).
  * Nothing is computed at import time; results are memoised per zone.
@@ -24,6 +26,8 @@ import {
   type PaleHollowMobDef,
 } from "./pale-hollow";
 import { PH_ALL_MOBS } from "./pale-hollow-field";
+import { WORLD_POIS } from "./world-pois";
+import { ZONE_LINKS } from "./zone-links";
 import { ZONE_FIELDS, fieldById, type ZoneField } from "./zone-fields";
 
 /** A Pale Hollow style mob def plus the field it lives in. */
@@ -160,7 +164,7 @@ export const BASELINE_FIELD_PLANS: Readonly<Record<string, BaselinePlan>> = {
 };
 
 /** Distance rules for baseline spots (metres). */
-export const BASELINE_CLEAR = { gate: 8, spawnMob: 24, spawnNpc: 5, npcMob: 10, packGap: 18 } as const;
+export const BASELINE_CLEAR = { gate: 8, spawnMob: 24, spawnNpc: 5, npcMob: 10, packGap: 18, poi: 5 } as const;
 
 const ARCHETYPE_TEMPLATE = new Map<PaleHollowArchetype, PaleHollowMobDef>();
 function template(a: PaleHollowArchetype): PaleHollowMobDef {
@@ -235,6 +239,15 @@ function gateDist(f: ZoneField, p: Pt): number {
   return best;
 }
 
+/** Point anchors baseline content must keep clear of: world POIs and arrival points in the field. */
+export function fieldPointAnchors(zoneId: string): { id: string; x: number; z: number }[] {
+  const f = fieldById(zoneId);
+  const out: { id: string; x: number; z: number }[] = WORLD_POIS.filter((p) => p.zone === zoneId).map((p) => ({ id: p.id, x: p.x, z: p.z }));
+  if (f) out.push({ id: "spawn", x: f.spawn.x, z: f.spawn.z });
+  for (const l of ZONE_LINKS) if (l.to === zoneId) out.push({ id: `arrival:${l.id}`, x: l.spawn.x, z: l.spawn.z });
+  return out;
+}
+
 /** Why a spot is not fit for baseline content, or null when it is. */
 export function baselineSpotProblem(zoneId: string, p: Pt): string | null {
   const f = fieldById(zoneId);
@@ -246,6 +259,9 @@ export function baselineSpotProblem(zoneId: string, p: Pt): string | null {
   if (f.onBridge(p.x, p.z)) return "on a bridge";
   if (!fieldReachable(zoneId)(p.x, p.z)) return "unreachable from spawn";
   if (gateDist(f, p) < BASELINE_CLEAR.gate) return "too close to a gate";
+  for (const a of fieldPointAnchors(zoneId)) {
+    if (Math.hypot(a.x - p.x, a.z - p.z) < BASELINE_CLEAR.poi) return `too close to ${a.id}`;
+  }
   return null;
 }
 

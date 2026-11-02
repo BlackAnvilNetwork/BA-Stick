@@ -24,6 +24,10 @@ const cell = Number(args.find((a) => a.startsWith("--cell="))?.slice(7) ?? 0.5);
 const asJson = args.includes("--json");
 const strict = args.includes("--strict");
 const want = args.find((a) => !a.startsWith("--")) ?? "all";
+/** Known, deferred items: still reported as WARN, but labelled so reviewers know they are expected. */
+const KNOWN_DEFERRED: Record<string, string> = {
+  forest_basin: "known: Forest Basin (Hush Wood) is left as main has it; deferred to #139 (map builder blanks the basin). See docs/worldgen/KNOWN-DEFERRED.md",
+};
 const SNAP = 2.0; // metres an interactable may sit off walkable ground
 
 function arrivalsInto(zone: string): Anchor[] {
@@ -148,7 +152,7 @@ function main() {
     }
     for (const gt of z.gates) {
       const base = { zone: z.id, id: `gate:${gt.id}`, kind: "gate", x: (gt.minX + gt.maxX) / 2, z: (gt.minZ + gt.maxZ) / 2 };
-      if (gt.blocked) { out.push({ ...base, status: "WARN", why: "gate blocked" }); continue; }
+      if (gt.blocked) { out.push({ ...base, status: "WARN", why: KNOWN_DEFERRED[z.id] ? `gate blocked (${KNOWN_DEFERRED[z.id]})` : "gate blocked" }); continue; }
       let any = false;
       for (let x = gt.minX; x <= gt.maxX && !any; x += cell) for (let zz = gt.minZ; zz <= gt.maxZ && !any; zz += cell) { const k = G.idx(x, zz); if (k >= 0 && G.reach[k]) any = true; }
       const link = C.zoneLink(z.id, gt.id);
