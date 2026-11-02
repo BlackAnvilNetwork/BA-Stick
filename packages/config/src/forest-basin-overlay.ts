@@ -234,6 +234,13 @@ export function allForestBasinPatchCells(): ForestBasinPatchCell[] {
   return out;
 }
 
+/** Soft brush weight: 1 at the centre, easing to 0 at the rim (no hard disc edge). */
+function brushWeight(cx: number, cz: number, radius: number, i: number, j: number): number {
+  const { x, z } = forestBasinWorldOfCell(i, j);
+  const t = Math.min(1, Math.hypot(x - cx, z - cz) / Math.max(0.5, radius));
+  return 0.5 * (1 + Math.cos(Math.PI * t));
+}
+
 export function applyForestBasinRaise(cx: number, cz: number, radius: number, deltaM: number): ForestBasinPatchCell[] {
   const cells = forestBasinBrushCells(cx, cz, radius);
   pushUndoStep(cells);
@@ -241,7 +248,7 @@ export function applyForestBasinRaise(cx: number, cz: number, radius: number, de
     const { x, z } = forestBasinWorldOfCell(i, j);
     const e = editAt(i, j);
     const base = e.heightCm != null ? e.heightCm / 100 : forestBasinStandHeight(x, z);
-    e.heightCm = Math.round((base + deltaM) * 100);
+    e.heightCm = Math.round((base + deltaM * brushWeight(cx, cz, radius, i, j)) * 100);
   }
   pruneEmptyEdits(cells);
   return cells.map(({ i, j }) => patchCellToMessage(i, j));
@@ -256,16 +263,29 @@ export function applyForestBasinFlat(cx: number, cz: number, radius: number, hei
   return cells.map(({ i, j }) => patchCellToMessage(i, j));
 }
 
-export function applyForestBasinSmooth(cx: number, cz: number, radius: number): ForestBasinPatchCell[] {
+/** Blur: each cell eases toward its 5x5 neighbourhood mean, soft at the brush rim. */
+export function applyForestBasinSmooth(cx: number, cz: number, radius: number, strength = 1): ForestBasinPatchCell[] {
   const cells = forestBasinBrushCells(cx, cz, radius);
   pushUndoStep(cells);
-  const heights: number[] = [];
+  const next: number[] = [];
   for (const { i, j } of cells) {
+    let sum = 0;
+    let n = 0;
+    for (let dj = -2; dj <= 2; dj++) {
+      for (let di = -2; di <= 2; di++) {
+        const { x, z } = forestBasinWorldOfCell(i + di, j + dj);
+        sum += effectiveForestBasinHeight(x, z);
+        n++;
+      }
+    }
     const { x, z } = forestBasinWorldOfCell(i, j);
-    heights.push(effectiveForestBasinHeight(x, z));
+    const here = effectiveForestBasinHeight(x, z);
+    const w = Math.min(1, strength) * brushWeight(cx, cz, radius, i, j);
+    next.push(here + (sum / n - here) * w);
   }
-  const avg = heights.reduce((a, b) => a + b, 0) / Math.max(1, heights.length);
-  for (const { i, j } of cells) editAt(i, j).heightCm = Math.round(avg * 100);
+  cells.forEach(({ i, j }, k) => {
+    editAt(i, j).heightCm = Math.round(next[k] * 100);
+  });
   pruneEmptyEdits(cells);
   return cells.map(({ i, j }) => patchCellToMessage(i, j));
 }

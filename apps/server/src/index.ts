@@ -116,6 +116,7 @@ import {
   fieldNpcDefs,
   PVP_BOUNTY_WEI,
   allForestBasinPatchCells,
+  FB_SPAWN,
   type ForestBasinPatchCell,
 } from "@bellgrave/config";
 import { paleHollowFindPath } from "./nav-grid";
@@ -4585,6 +4586,22 @@ function handleAbility(p: Player, id: AbilityId, targetId?: string) {
   ) {
     pushLog(p, "You are silenced.");
     return;
+  }
+  // Map builder strokes. This branch used to sit after the silence return, so it never ran.
+  if (id === "map_enter") {
+    if (p.zoneId !== "forest_basin") {
+      dropZoneHate(p);
+      clearRoute(p);
+      p.zoneId = "forest_basin";
+      p.x = FB_SPAWN.x;
+      p.z = FB_SPAWN.z;
+      p.facing = FB_SPAWN.facing;
+      syncUnitY(p);
+      pushLog(p, "You step into Forest Basin.");
+      sendForestBasinOverlay(p);
+    } else pushLog(p, "You are already in Forest Basin.");
+    return;
+  }
   if (isMapBuilderAbility(id)) {
     resolveMapBuilderAbility(p, id, targetId, now, {
       pushLog: (pl, line) => pushLog(pl as Player, line),
@@ -4592,7 +4609,6 @@ function handleAbility(p: Player, id: AbilityId, targetId?: string) {
     });
     syncUnitY(p);
     return;
-  }
   }
   if (isRogueAbilityId(id) && playerHasJob(p, "rogue")) {
     resolveRogueAbility(p, id, targetId, now, {

@@ -469,7 +469,7 @@ export function abilitiesUnlockedForJob(
 export function abilityNeedsTarget(id: AbilityId): boolean {
   if (isWeaponTpAbilityId(id)) return true;
 
-  if (isMapBuilderAbilityId(id)) return id !== "map_undo";
+  if (isMapBuilderAbilityId(id)) return id !== "map_undo" && id !== "map_enter";
   if (isTimAbilityId(id)) {
 
     const def = TIM_ABILITIES[id];

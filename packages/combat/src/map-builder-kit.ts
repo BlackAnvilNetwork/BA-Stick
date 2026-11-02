@@ -4,6 +4,7 @@
  */
 
 export const MAP_BUILDER_ABILITY_IDS = [
+  "map_enter",
   "map_undo",
   "map_raise",
   "map_lower",
@@ -30,6 +31,13 @@ export type MapBuilderAbilityDef = {
 };
 
 export const MAP_BUILDER_ABILITIES: Record<MapBuilderAbilityId, MapBuilderAbilityDef> = {
+  map_enter: {
+    id: "map_enter",
+    label: "Step Into the Basin",
+    glyph: "⇲",
+    blurb: "Builders only: step straight to the Forest Basin spawn to sculpt.",
+    recastMs: 0,
+  },
   map_undo: {
     id: "map_undo",
     label: "Undo",
@@ -124,6 +132,8 @@ export function mapBuilderAbilityTooltip(id: MapBuilderAbilityId): {
   const meta =
     id === "map_undo"
       ? "Ctrl+Z · instant"
+      : id === "map_enter"
+      ? "instant"
       : `${def.brush ?? 0} m brush · ${(def.recastMs / 1000).toFixed(1)}s recast`;
   return {
     title: def.label,
@@ -139,13 +149,32 @@ export function encodeGroundTarget(x: number, z: number): string {
   return `${GROUND_TARGET_PREFIX}${x.toFixed(2)},${z.toFixed(2)}`;
 }
 
-export function parseGroundTarget(raw: string | undefined): { x: number; z: number } | null {
+/**
+ * `g:x,z` from the client cursor. Scripted builders may add `,radius,strength`
+ * (`g:x,z,r,s`): radius 1..16 m, strength 0.05..2 (metres for raise/lower,
+ * blend for smooth). Missing values fall back to the spell's own brush.
+ */
+export function parseGroundTarget(
+  raw: string | undefined,
+): { x: number; z: number; radius?: number; strength?: number } | null {
   if (!raw?.startsWith(GROUND_TARGET_PREFIX)) return null;
-  const body = raw.slice(GROUND_TARGET_PREFIX.length);
-  const comma = body.indexOf(",");
-  if (comma <= 0) return null;
-  const x = Number(body.slice(0, comma));
-  const z = Number(body.slice(comma + 1));
+  const parts = raw.slice(GROUND_TARGET_PREFIX.length).split(",");
+  if (parts.length < 2 || parts.length > 4) return null;
+  const [x, z, r, s] = parts.map((v) => Number(v));
   if (!Number.isFinite(x) || !Number.isFinite(z)) return null;
-  return { x, z };
+  const out: { x: number; z: number; radius?: number; strength?: number } = { x, z };
+  if (parts.length >= 3) {
+    if (!Number.isFinite(r)) return null;
+    out.radius = Math.max(1, Math.min(16, r));
+  }
+  if (parts.length === 4) {
+    if (!Number.isFinite(s)) return null;
+    out.strength = Math.max(0.05, Math.min(2, s));
+  }
+  return out;
+}
+
+export function encodeBrushTarget(x: number, z: number, radius: number, strength?: number): string {
+  const base = `${GROUND_TARGET_PREFIX}${x.toFixed(2)},${z.toFixed(2)},${radius.toFixed(2)}`;
+  return strength == null ? base : `${base},${strength.toFixed(2)}`;
 }

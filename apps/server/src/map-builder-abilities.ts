@@ -64,34 +64,36 @@ export function resolveMapBuilderAbility(
     hooks.pushLog(p, "Aim at the ground and cast again.");
     return;
   }
+  const brush = ground.radius ?? def.brush ?? 4;
+  const step = ground.strength ?? 0.5;
   let cells: ForestBasinPatchCell[] = [];
   switch (id) {
     case "map_raise":
-      cells = applyForestBasinRaise(ground.x, ground.z, def.brush, 0.5);
+      cells = applyForestBasinRaise(ground.x, ground.z, brush, step);
       break;
     case "map_lower":
-      cells = applyForestBasinRaise(ground.x, ground.z, def.brush, -0.5);
+      cells = applyForestBasinRaise(ground.x, ground.z, brush, -step);
       break;
     case "map_flat":
-      cells = applyForestBasinFlat(ground.x, ground.z, def.brush, effectiveForestBasinHeight(p.x, p.z));
+      cells = applyForestBasinFlat(ground.x, ground.z, brush, effectiveForestBasinHeight(p.x, p.z));
       break;
     case "map_smooth":
-      cells = applyForestBasinSmooth(ground.x, ground.z, def.brush);
+      cells = applyForestBasinSmooth(ground.x, ground.z, brush, ground.strength ?? 1);
       break;
     case "map_biome_grass":
-      cells = applyForestBasinBiome(ground.x, ground.z, def.brush, BAZ_BIOME.grass, false);
+      cells = applyForestBasinBiome(ground.x, ground.z, brush, BAZ_BIOME.grass, false);
       break;
     case "map_biome_meadow":
-      cells = applyForestBasinBiome(ground.x, ground.z, def.brush, BAZ_BIOME.meadow, false);
+      cells = applyForestBasinBiome(ground.x, ground.z, brush, BAZ_BIOME.meadow, false);
       break;
     case "map_biome_mountain":
-      cells = applyForestBasinBiome(ground.x, ground.z, def.brush, BAZ_BIOME.mountain, true);
+      cells = applyForestBasinBiome(ground.x, ground.z, brush, BAZ_BIOME.mountain, true);
       break;
     case "map_walk":
-      cells = applyForestBasinWalk(ground.x, ground.z, def.brush, true);
+      cells = applyForestBasinWalk(ground.x, ground.z, brush, true);
       break;
     case "map_block":
-      cells = applyForestBasinWalk(ground.x, ground.z, def.brush, false);
+      cells = applyForestBasinWalk(ground.x, ground.z, brush, false);
       break;
     default:
       return;

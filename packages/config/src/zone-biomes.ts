@@ -3,8 +3,10 @@
  */
 export const BAZ_BIOME = {
   grass: 13,
-  meadow: 14,
-  mountain: 15,
+  // Indices follow BIOMES in bake-zones.ts: 14 is mountain, 15 is meadow.
+  // (They were swapped, so a painted meadow patched in as mountain.)
+  mountain: 14,
+  meadow: 15,
 } as const;
 
 /** BAZ1 flag bits (engine/ba-stick-render/src/zone.rs). */
