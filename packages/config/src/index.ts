@@ -243,7 +243,6 @@ export {
   forestBasinMaskDist,
   forestBasinRiverX,
   forestBasinInOpenWater,
-  forestBasinInLakeShallows,
   forestBasinBridgeCenter,
   forestBasinOnBridge,
   forestBasinWalkable,
@@ -436,7 +435,7 @@ export const ZONES: Record<ZoneId, ZoneDef> = {
   },
   forest_basin: {
     id: "forest_basin",
-    name: "The Hush Wood",
+    name: "Forest Basin",
     kind: "field",
     areaId: "pale_hollow",
     music: PALE_HOLLOW_MUSIC,

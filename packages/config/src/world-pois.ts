@@ -53,6 +53,17 @@ export const TRAIL_ENDPOINT = {
   story: "Six of the seven stones carry a re-cut House mark. The seventh is plain: its rune is the hammer laid crosswise, the open strike scraped from every defaced Anvil. The Seventh Seat was never a throne; it was a smith's stool. Struck once, true for all.",
 } as const;
 
+/**
+ * Fragments with no place in the world right now. The Drowned Spoke stood in Forest Basin, which is
+ * being rebuilt from a blank map with the spell-book world tools; re-place it there when that land exists.
+ */
+export const UNPLACED_FRAGMENTS = {
+  "f06-drowned-village": {
+    area: "forest_basin", place: "Drowned Spoke",
+    story: "The spoke runs into the mere. Roof-beams show under the water; the Kings flooded the village, and the drowned bell is still heard on still nights.",
+  },
+} as const;
+
 const F = LORE_FRAGMENTS;
 const after = (i: number) => (i > 0 ? [F[i - 1]] : undefined);
 
@@ -102,26 +113,6 @@ export const WORLD_POIS: WorldPoi[] = [
     story: "The shoulders are dressed stone: the pass was cut. The land's own path runs the ravine east, where older cairns still stand.",
     props: ["chisel-faced road walls", "quarry wedge slots", "a cairn visible in the ravine"] },
 
-  // ── Forest Basin ───────────────────────────────────────────────────────
-  { id: "fb-hush-ring", zone: "forest_basin", name: "Hush Ring", x: -6, z: -112, kind: "warp-remnant",
-    story: "Moss-split stones under trees that are all one age: the forest was planted after a burning, the ring left standing.",
-    props: ["moss-split circle stones", "even-aged trunks", "charcoal layer in a root hole"] },
-  { id: "fb-drowned-spoke", zone: "forest_basin", name: "Drowned Spoke", x: -38, z: 100, kind: "ruin",
-    story: "The spoke runs into the mere. Roof-beams show under the water; the Kings flooded the village, and the drowned bell is still heard on still nights.",
-    props: ["road ending at the water", "chimney tops in the shallows", "a bell-frame leaning in the reeds"],
-    fragmentId: F[5], requires: after(5) },
-  { id: "fb-valley-cross", zone: "forest_basin", name: "Valley Cross Graves", x: -14, z: 75, kind: "grave",
-    story: "The graves face the mere, not the road: Merewick's dead, buried by survivors who could no longer go home.",
-    props: ["graves facing the water", "carved door-lintels used as headstones", "wilted offerings"] },
-  { id: "fb-west-ridge-lookout", zone: "forest_basin", name: "West Ridge Top", x: -150, z: 28, kind: "lookout",
-    story: "From the top, the six spokes meet at the Hush Ring, not at the Kings' camp — the basin was laid out around the circle.",
-    props: ["spoke sighting stones", "a wind-worn survey cairn"] },
-  { id: "fb-corner-lookout", zone: "forest_basin", name: "High Ridge Corner", x: 142, z: -132, kind: "lookout",
-    story: "The watch-post faces inward, at the basin: built to watch the foresters, not the road.",
-    props: ["arrow-slit facing the basin", "ration crates with royal seals"] },
-  { id: "fb-north-pass-shrine", zone: "forest_basin", name: "Sealed Pass Shrine", x: -22, z: 116, kind: "shrine",
-    story: "A Struck Faith shrine at the rockfall; the fall is quarried blocks, stacked.",
-    props: ["shrine niche with struck rune", "squared blocks in the rockfall", "pilgrim tokens"] },
 
   // ── Spur Road ──────────────────────────────────────────────────────────
   { id: "sr-seven-stones", zone: "spur_road", name: "Seven-Stone Bench", x: 5, z: 64, kind: "warp-remnant",

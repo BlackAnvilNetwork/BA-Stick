@@ -1,6 +1,3 @@
-import { makeAscents, type AscentDef } from "./natural-ascent";
-import { naturalMaskDist } from "./natural-shore";
-import { inShoreShallows, inShoreWater, shoreDist, shoreTerrainY } from "./natural-shore";
 /**
  * Forest Basin — a branching field north of the hollow's scale.
  *
@@ -40,27 +37,7 @@ export const FB_TRAIL_WIDTH = 3.3;
 export const FB_BRIDGE_DECK_W = 3.9;
 
 /** Northern mere. The river leaves the south shore. */
-let lakeCap: Float32Array | null = null;
-/** Lake room uses the pre-lobe glade outline so the Ash-tarn shoreline (and its shallows) stay where they were. */
-function fbLakeRoom(x: number, z: number): number {
-  return naturalMaskDist((px, pz) => forestBasinMaskDistRaw(px, pz, false), x, z, 905);
-}
-/** Per-angle room inside the basin mask (5 m clear of its rim), smoothed so the capped shore still curves. */
-function fbLakeCap(a: number): number {
-  if (!lakeCap) {
-    const raw = new Float32Array(180);
-    for (let i = 0; i < 180; i++) {
-      const t = (i / 180) * Math.PI * 2; let r = 0;
-      while (r < 60 && fbLakeRoom(0 + Math.cos(t) * r, 115 + Math.sin(t) * r) < -5) r += 0.5;
-      raw[i] = r;
-    }
-    lakeCap = new Float32Array(180);
-    for (let i = 0; i < 180; i++) { let m = Infinity; for (let k = -6; k <= 6; k++) m = Math.min(m, raw[(i + k + 180) % 180]! + Math.abs(k) * 0.6); lakeCap[i] = m * (0.92 + 0.06 * Math.sin(i * 0.7)); }
-  }
-  const u = (((a / (Math.PI * 2)) % 1) + 1) % 1 * 180, i0 = Math.floor(u) % 180, f = u - Math.floor(u);
-  return lakeCap[i0]! * (1 - f) + lakeCap[(i0 + 1) % 180]! * f;
-}
-export const FB_LAKE = { x: 0, z: 115, r: 22, surface: 1.55, seed: 611, cap: fbLakeCap } as const;
+export const FB_LAKE = { x: 0, z: 115, r: 22, surface: 1.55 } as const;
 
 /** Eastern spur camp. Local pad is flat. */
 export const FB_CAMP = { x: 128, z: 28, r: 16, floorY: 2.35 } as const;
@@ -161,43 +138,10 @@ function segDist(x: number, z: number, ax: number, az: number, bx: number, bz: n
 
 /** Signed distance to the land mask. Negative is inside. */
 export function forestBasinMaskDist(x: number, z: number): number {
-  return naturalMaskDist(forestBasinMaskDistRaw, x, z, 905, 7);
-}
-
-/**
- * Irregular glade outline: radius factor by polar angle (low harmonics with a per-glade phase) so each clearing
- * reads as a lobed, bay-and-headland shape rather than a disc. Only ever grows past the old disc.
- */
-function gladeLobe(i: number, a: number, camp: boolean): number {
-  const p = i * 2.399;
-  // every term is >= 0, so glades only grow (headlands) and never pull back from the old rim
-  const k = 1 + 0.09 * (1 + Math.sin(3 * a + p)) + 0.05 * (1 + Math.sin(5 * a + 1.7 * p)) + 0.035 * (1 + Math.sin(2 * a - 0.6 * p)) + 0.02 * (1 + Math.sin(7 * a + 2.3 * p));
-  void camp;
-  return k;
-}
-
-/** Geometric mask before the natural edge. */
-export function forestBasinMaskDistRaw(x: number, z: number, lobes = true): number {
   let d = Infinity;
-  for (let i = 0; i < DISCS.length; i++) {
-    const c = DISCS[i]!;
-    d = Math.min(d, Math.hypot(x - c.x, z - c.z) - c.r * (lobes ? gladeLobe(i, Math.atan2(z - c.z, x - c.x), c === DISCS[DISCS.length - 1]) : 1));
-  }
+  for (const c of DISCS) d = Math.min(d, Math.hypot(x - c.x, z - c.z) - c.r);
   for (const c of CAPS) d = Math.min(d, segDist(x, z, c.ax, c.az, c.bx, c.bz) - c.r);
   return d;
-}
-
-/** Rare natural ascents to two summit vistas (see natural-ascent.ts). */
-export const FB_ASCENT_DEFS: readonly AscentDef[] = [
-  { id: "west-ridge-cave", name: "West Ridge Cave", kind: "cave", peak: 3, a0: 0.1, turns: 1.5, half: 0.65, rout: 0.8, rin: 0.2 },
-  { id: "corner-stair", name: "Corner Stair", kind: "stair", peak: 7, a0: 4.6, turns: -0.6, half: 0.85, rout: 0.74, rin: 0.3 },
-];
-const FB_ASC = makeAscents(FB_ASCENT_DEFS, FB_MOUNTAINS, 0.38, (x, z) => terrainY(x, z));
-export function forestBasinAscents() {
-  return FB_ASC.list();
-}
-function ascentY(x: number, z: number): number | null {
-  return inPeakCore(x, z) ? FB_ASC.at(x, z) : null;
 }
 
 function inPeakCore(x: number, z: number): boolean {
@@ -236,7 +180,7 @@ function nearRiver(x: number, z: number): number {
 
 export function forestBasinInOpenWater(x: number, z: number): boolean {
   if (forestBasinMaskDist(x, z) > 1) return false;
-  if (inShoreWater(FB_LAKE, x, z)) return true;
+  if (Math.hypot(x - FB_LAKE.x, z - FB_LAKE.z) < FB_LAKE.r) return true;
   if (z <= RIVER_Z0 && z >= RIVER_Z1 && nearRiver(x, z) < riverHalf(z)) return true;
   for (const b of BROOKS) {
     if (segDist(x, z, b.ax, b.az, b.bx, b.bz) < b.r) return true;
@@ -260,18 +204,12 @@ function inRect(x: number, z: number, g: ForestBasinGate): boolean {
   return x >= g.minX && x <= g.maxX && z >= g.minZ && z <= g.maxZ;
 }
 
-/** Wadeable fringe of the North Mere (rho >= 0.8, <= 0.5 m deep). */
-export function forestBasinInLakeShallows(x: number, z: number): boolean {
-  return forestBasinMaskDist(x, z) <= 1 && inShoreShallows(FB_LAKE, x, z);
-}
-
 export function forestBasinWalkable(x: number, z: number): boolean {
   if (x < FOREST_BASIN_BOUNDS.minX || x > FOREST_BASIN_BOUNDS.maxX) return false;
   if (z < FOREST_BASIN_BOUNDS.minZ || z > FOREST_BASIN_BOUNDS.maxZ) return false;
   if (forestBasinOnBridge(x, z)) return true;
   if (forestBasinMaskDist(x, z) > 0) return false;
-  if (inPeakCore(x, z) && ascentY(x, z) === null) return false;
-  if (forestBasinInLakeShallows(x, z)) return true;
+  if (inPeakCore(x, z)) return false;
   if (forestBasinInOpenWater(x, z)) return false;
   for (const g of FB_GATES) {
     if (g.blocked && inRect(x, z, g)) return false;
@@ -302,10 +240,11 @@ function terrainY(x: number, z: number): number {
   const d = forestBasinMaskDist(x, z);
   if (d > 0) y = Math.max(y, 1.15 + smooth(d / 16) * 8.3);
 
-  const ld = shoreDist(FB_LAKE, x, z);
+  const ld = Math.hypot(x - FB_LAKE.x, z - FB_LAKE.z);
   if (ld < FB_LAKE.r + 12) {
-    const rim = 4.2 * smooth((ld - FB_LAKE.r) / 10) * (1 - smooth(ld / (FB_LAKE.r + 12)));
-    y = shoreTerrainY(FB_LAKE, x, z, FB_LAKE.surface + 0.5 + Math.max(0, rim), 6);
+    const bowl = 0.15 + (2.4 - 0.15) * smooth(ld / (FB_LAKE.r + 4));
+    const rim = ld > FB_LAKE.r ? 4.2 * smooth((ld - FB_LAKE.r) / 10) : 0;
+    y = bowl + rim * (1 - smooth(ld / (FB_LAKE.r + 12)));
   }
 
   const rd = nearRiver(x, z);
@@ -343,8 +282,6 @@ function deckY(): number {
 /** Feet height. The bridge deck is flat; everywhere else matches the mesh. */
 export function forestBasinStandHeight(x: number, z: number): number {
   if (forestBasinOnBridge(x, z)) return deckY();
-  const ay = ascentY(x, z);
-  if (ay !== null) return Math.max(-0.5, Math.min(11.5, ay));
   return terrainY(x, z);
 }
 
@@ -368,11 +305,11 @@ export function forestBasinBiome(x: number, z: number): ForestBasinBiome {
   if (Math.hypot(x - FB_CAMP.x, z - FB_CAMP.z) < 11) return "hub_indoor";
   if (forestBasinOnBridge(x, z)) return "bridge";
   if (forestBasinInOpenWater(x, z)) return "river";
-  if (shoreDist(FB_LAKE, x, z) < FB_LAKE.r + 5) return "riverbank";
+  if (Math.hypot(x - FB_LAKE.x, z - FB_LAKE.z) < FB_LAKE.r + 5) return "riverbank";
   if (z <= RIVER_Z0 && z >= RIVER_Z1 && nearRiver(x, z) < riverHalf(z) + 4) return "riverbank";
   const d = forestBasinMaskDist(x, z);
   // Outside the mask is empty on the minimap (blocked crypt). Peak cores stay highland.
-  if (inPeakCore(x, z)) return ascentY(x, z) === null ? "mountain" : "scrub";
+  if (inPeakCore(x, z)) return "mountain";
   if (d > 0) return "crypt";
   if (Math.hypot(x + 112, z - 20) < 30) return "meadow";
   if (Math.hypot(x - 20, z + 20) < 22) return "ashbeam";
@@ -388,19 +325,7 @@ export type ForestBasinTrail = {
 
 export function forestBasinTrails(): ForestBasinTrail[] {
   const c = forestBasinBridgeCenter();
-  const asc = forestBasinAscents();
-  const mouth = (k: number) => ({ x: asc[k]!.pts[0]!.x, z: asc[k]!.pts[0]!.z });
   return [
-    { id: "west-ridge-spur", surface: "dirt", points: [{ x: -100, z: 24 }, { x: -108, z: 24 }, { x: -117, z: 25 }, { x: -125, z: 25.5 }, { x: -133, z: 25 }, { x: -138, z: 28.5 }, mouth(0)] },
-    {
-      id: "corner-spur",
-      surface: "dirt",
-      points: [
-        { x: 82, z: -74 }, { x: 89, z: -77.7 }, { x: 97, z: -85.7 }, { x: 105, z: -95.7 }, { x: 113, z: -105.7 },
-        { x: 118, z: -114 }, { x: 120, z: -122 }, { x: 126, z: -130 }, { x: 133, z: -135.7 }, { x: 139, z: -139.7 }, mouth(1),
-      ],
-    },
-    ...asc.map((a) => ({ id: a.id, surface: "stone" as const, points: a.pts.filter((_, k) => k % 6 === 0 || k === a.pts.length - 1).map((p) => ({ x: p.x, z: p.z })) })),
     {
       id: "spur-road",
       surface: "dirt",
@@ -480,10 +405,6 @@ export function forestBasinOnTrail(x: number, z: number): boolean {
 }
 
 export const FB_ROAD_NAMES: Readonly<Record<string, string>> = {
-  "west-ridge-spur": "West Ridge Spur",
-  "corner-spur": "Corner Spur",
-  "west-ridge-cave": "West Ridge Cave",
-  "corner-stair": "Corner Stair",
   "spur-road": "Spur Road",
   "valley-cross": "Valley Cross",
   "west-road": "West Reach Road",

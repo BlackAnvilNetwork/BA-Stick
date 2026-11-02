@@ -336,7 +336,7 @@ export function forestBasinProps(): Prop[] {
       const jz = iz + (hash2(iz, ix) - 0.5) * 4;
       if (!forestBasinWalkable(jx, jz)) continue;
       if (forestBasinOnTrail(jx, jz)) continue;
-      const b = naturalSample(forestBasinBiome, jx, jz);
+      const b = forestBasinBiome(jx, jz);
       if (b === "hub_indoor" || b === "river" || b === "bridge" || b === "mountain") continue;
       const h = hash2(Math.floor(jx * 2), Math.floor(jz * 2));
       if (h < 0.45) continue;

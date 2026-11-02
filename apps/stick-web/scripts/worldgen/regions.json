@@ -355,27 +355,6 @@
         }
       ]
     },
-    "forest_basin": {
-      "blendM": 14,
-      "continentGain": 0.9,
-      "reliefBias": 1.5,
-      "ridgeAmp": 3.5,
-      "fineAmp": 0.8,
-      "dissection": 1.6,
-      "creekThreshold": 350,
-      "vegTries": 0.06,
-      "warpEntryM": 40,
-      "seed": 50612,
-      "entryFrom": "hollow_road",
-      "warpWhy": "hub glade of the basin where the spokes meet: crossroads of six trails, central to gather-dense groves",
-      "warpHook": "Moss-split stones under the oldest trees. Foresters call it the Counting Ring; the trees inside are all the same age.",
-      "lore": [
-        {
-          "id": "drowned-spoke",
-          "hook": "One spoke trail ends at the pond. The Kings' map shows a village there."
-        }
-      ]
-    },
     "spur_road": {
       "blendM": 14,
       "continentGain": 0.9,

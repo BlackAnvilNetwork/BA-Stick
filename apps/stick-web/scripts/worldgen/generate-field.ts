@@ -22,7 +22,6 @@ import { isletFordsProps } from "../zone-props/islet-fords";
 import { ringWardProps } from "../zone-props/ring-ward";
 import { hollowRoadProps } from "../zone-props/hollow-road";
 import { spurRoadProps } from "../zone-props/spur-road";
-import { forestBasinProps } from "../bake-props";
 import { Noise2, hashSeed, mulberry32 } from "./noise";
 import { D8, d8Receivers, accumulate, distanceTo, priorityFill } from "./grid";
 import { whittaker } from "./generate";
@@ -30,7 +29,7 @@ import { whittaker } from "./generate";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CFG = JSON.parse(readFileSync(resolve(HERE, "regions.json"), "utf8"));
 const IMG = "/workspace/worldgen-review";
-const LEGACY_PROPS: Record<string, () => Prop[]> = { hollow_road: hollowRoadProps, forest_basin: forestBasinProps, spur_road: spurRoadProps, ring_ward: ringWardProps, islet_fords: isletFordsProps, green_reach: greenReachProps, coil_pass: coilPassProps, coil_ridge: coilRidgeProps };
+const LEGACY_PROPS: Record<string, () => Prop[]> = { hollow_road: hollowRoadProps, spur_road: spurRoadProps, ring_ward: ringWardProps, islet_fords: isletFordsProps, green_reach: greenReachProps, coil_pass: coilPassProps, coil_ridge: coilRidgeProps };
 const KEEP_BIOME = new Set(["hub_indoor", "bridge", "crypt", "quarry", "ore_seam", "ash_road", "river", "riverbank", "farm", "terrace", "ashbeam"]);
 const sstep = (a: number, b: number, x: number) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 function segD(px: number, pz: number, ax: number, az: number, bx: number, bz: number) { const dx = bx - ax, dz = bz - az; const L = dx * dx + dz * dz || 1; const t = Math.max(0, Math.min(1, ((px - ax) * dx + (pz - az) * dz) / L)); return Math.hypot(px - ax - t * dx, pz - az - t * dz); }
