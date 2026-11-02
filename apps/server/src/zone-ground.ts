@@ -6,6 +6,8 @@ import {
   clampPaleHollow,
   fieldById,
   fieldNpcDefs,
+  isSeamCountryZone,
+  seamCountryCamps,
   paleHollowClampMove,
   paleHollowInBuildingClearing,
   paleHollowInOpenWater,
@@ -49,7 +51,8 @@ export function mobGround(zoneId: string | null | undefined): MobGround {
   if (!f) return PALE_HOLLOW_GROUND;
   const hit = cache.get(f.id);
   if (hit) return hit;
-  const camps = fieldNpcDefs(f.id);
+  // Field NPCs, plus Seam Country's camps (friendly hearths and mob dens).
+  const camps = [...fieldNpcDefs(f.id), ...(isSeamCountryZone(f.id) ? seamCountryCamps(f.id) : [])];
   const walkable = (x: number, z: number) => f.walkable(x, z) && !f.openWater(x, z);
   const placeOnDry = (x: number, z: number) => {
     const c = f.clamp(x, z);

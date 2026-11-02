@@ -21,11 +21,15 @@ function zone(id: PoiZone): Z {
     };
   }
   const f = (C.ZONE_FIELDS as any)[id];
-  return { bounds: f.bounds, walkable: f.walkable, spawn: f.spawn, gates: f.gates, anchors: [
-    { id: "spawn", ...f.spawn }, ...arrivals,
-    // Field population (baseline or a content pack); read-at-landmark markers (lm-*) sit on their POI by design.
-    ...[...C.fieldMobDefs(id), ...C.fieldNpcDefs(id)].filter((u) => !u.id.startsWith("lm-")).map((u) => ({ id: u.id, x: u.x, z: u.z })),
-  ] };
+  // Seam Country population (seam-country-field.ts). Landmarks are the POIs themselves, so they are not anchors.
+  const sc = C.isSeamCountryZone(id)
+    ? [...C.seamCountryMobs(id), ...C.seamCountryNpcs(id), ...C.seamCountryCamps(id)].map((a) => ({ id: a.id, x: a.x, z: a.z }))
+    : [];
+  // Field population (baseline or a content pack); read-at-landmark markers (lm-*) sit on their POI by design.
+  const fp = [...C.fieldMobDefs(id), ...C.fieldNpcDefs(id)].filter((u) => !u.id.startsWith("lm-")).map((u) => ({ id: u.id, x: u.x, z: u.z }));
+  const seen = new Set<string>();
+  const units = [...sc, ...fp].filter((u) => !seen.has(u.id) && !!seen.add(u.id));
+  return { bounds: f.bounds, walkable: f.walkable, spawn: f.spawn, gates: f.gates, anchors: [{ id: "spawn", ...f.spawn }, ...arrivals, ...units] };
 }
 
 const reachCache = new Map<string, (x: number, z: number) => boolean>();

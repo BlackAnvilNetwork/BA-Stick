@@ -44,7 +44,8 @@ export type PaleHollowQuestDef = {
   mobIds: readonly string[];
 };
 
-export type PaleHollowQuestProgress = { id: string; kills: number };
+/** `read` = the on-site landmark step (world quests with `readPoi`). */
+export type PaleHollowQuestProgress = { id: string; kills: number; read?: boolean };
 
 export type PaleHollowQuestState = {
   zoneId: "pale_hollow";
@@ -495,9 +496,9 @@ export function normalizePaleHollowQuestState(raw: unknown): PaleHollowQuestStat
     const active: PaleHollowQuestProgress[] = [];
     for (const item of row.active) {
       if (!item || typeof item !== "object") continue;
-      const e = item as { id?: unknown; kills?: unknown };
+      const e = item as { id?: unknown; kills?: unknown; read?: unknown };
       if (typeof e.id !== "string" || !Number.isInteger(e.kills) || (e.kills as number) < 0) continue;
-      active.push({ id: e.id, kills: e.kills as number });
+      active.push(e.read === true ? { id: e.id, kills: e.kills as number, read: true } : { id: e.id, kills: e.kills as number });
     }
     return { zoneId: "pale_hollow", active, done };
   }

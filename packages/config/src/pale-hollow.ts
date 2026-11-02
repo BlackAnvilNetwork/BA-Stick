@@ -1861,7 +1861,14 @@ export type PaleHollowArchetype =
   | "ruin_dweller"
   | "cliff_adder"
   | "seam_golem"
-  | "shard_wight";
+  | "shard_wight"
+  // Seam Country (fields east of Pale Hollow)
+  | "crown_soldier"
+  | "stag"
+  | "drowned_one"
+  | "lamprey"
+  | "seam_drover"
+  | "penitent";
 
 export type PaleHollowAggro = "safe" | "proximity" | "sight" | "sound";
 
@@ -1904,6 +1911,12 @@ export const PH_ARCHETYPE_DEFAULT_JOB: Record<PaleHollowArchetype, PaleHollowMob
   cliff_adder: "rogue",
   seam_golem: "knight",
   shard_wight: "time_mage",
+  crown_soldier: "knight",
+  stag: "fighter",
+  drowned_one: "fighter",
+  lamprey: "rogue",
+  seam_drover: "rogue",
+  penitent: "cleric",
 };
 
 export type PaleHollowMobDef = {

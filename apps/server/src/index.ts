@@ -108,6 +108,14 @@ import {
   fieldMobDefs,
   fieldNpcById,
   fieldNpcDefs,
+  isLandmarkId,
+  isWorldQuestGiver,
+  landmarkById,
+  worldQuestById,
+  worldQuestCredit,
+  worldQuestLogEntries,
+  worldQuestRead,
+  worldQuestTalk,
   PVP_BOUNTY_WEI,
 } from "@bellgrave/config";
 import { paleHollowFindPath } from "./nav-grid";
@@ -3249,6 +3257,7 @@ function snapshotFor(p: Player): SnapshotMessage {
         targetId: null,
         buffs: emptyBuffs(),
         npcRole: u.role,
+        archetype: isLandmarkId(u.id) ? "landmark" : undefined,
       });
     }
   }
@@ -3359,7 +3368,7 @@ function snapshotFor(p: Player): SnapshotMessage {
       skillPrestige: p.skillPrestige,
       freeStatPoints: p.freeStatPoints,
       freeStats: { ...p.freeStats },
-      questLog: paleHollowQuestLogEntries({
+      questLog: worldQuestLogEntries({
         zoneId: "pale_hollow",
         active: p.hollowQuest.active,
         done: p.hollowQuest.done,
@@ -3892,15 +3901,16 @@ function rewardMobKill(p: Player, mob: Mob, now: number) {
   // Pale Hollow tasks count Pale Hollow kills only (field mobs share coordinates, not ids).
   if (p.zoneId === "pale_hollow" && mob.zoneId === "pale_hollow" && p.hollowQuest.active.length > 0) {
     const prev = p.hollowQuest.active;
-    const next = paleHollowQuestCredit(
-      { zoneId: "pale_hollow", active: prev, done: p.hollowQuest.done },
-      mob.id,
-    );
+    const st = { zoneId: "pale_hollow" as const, active: prev, done: p.hollowQuest.done };
+    // Pale Hollow keeps its own credit; field kills credit through the world registry.
+    const next = mob.zoneId === "pale_hollow"
+      ? (p.zoneId === "pale_hollow" ? paleHollowQuestCredit(st, mob.id) : st)
+      : worldQuestCredit(st, mob.id);
     if (next.active !== prev) {
       for (const row of next.active) {
         const was = prev.find((a) => a.id === row.id);
         if (was && row.kills > was.kills) {
-          const def = paleHollowQuestById(row.id);
+          const def = paleHollowQuestById(row.id) ?? worldQuestById(row.id);
           pushLog(p, def ? `${def.title}: ${row.kills}/${def.need}.` : `Task: ${row.kills} down.`);
         }
       }
@@ -4650,10 +4660,9 @@ function speakHollowQuest(p: Player, npcId: string, nx: number, nz: number, name
   }
   p.facing = facingTo(p.x, p.z, nx, nz);
   ensureHollowQuest(p);
-  const result = paleHollowQuestTalk(
-    { zoneId: "pale_hollow", active: p.hollowQuest.active, done: p.hollowQuest.done },
-    npcId,
-  );
+  const state = { zoneId: "pale_hollow" as const, active: p.hollowQuest.active, done: p.hollowQuest.done };
+  // Pale Hollow givers keep their own talk; Seam Country givers chain through `requires`.
+  const result = zoneId === "pale_hollow" ? paleHollowQuestTalk(state, npcId) : worldQuestTalk(state, npcId);
   p.hollowQuest = { active: result.state.active, done: result.state.done };
   rememberPlayer(p);
   if (result.gold > 0) {
@@ -4663,12 +4672,48 @@ function speakHollowQuest(p: Player, npcId: string, nx: number, nz: number, name
   send(p.ws, { type: "npc/dialog", npcId, title: result.title, body: result.body });
 }
 
+/** Readable landmark (Seam Country): tells its story, and credits a quest step when one asks for it. */
+const LANDMARK_READ_RANGE = 4.5;
+
+function readLandmark(p: Player, landmarkId: string) {
+  const lm = landmarkById(landmarkId);
+  if (!lm || unitZone(p.zoneId) !== lm.zoneId) {
+    pushLog(p, "Nothing happens.");
+    return;
+  }
+  if (dist(p.x, p.z, lm.x, lm.z) > LANDMARK_READ_RANGE) {
+    pushLog(p, `Move closer to read ${lm.name}.`);
+    return;
+  }
+  p.facing = facingTo(p.x, p.z, lm.x, lm.z);
+  ensureHollowQuest(p);
+  const result = worldQuestRead(
+    { zoneId: "pale_hollow", active: p.hollowQuest.active, done: p.hollowQuest.done },
+    landmarkId,
+  );
+  if (result.credited.length > 0) {
+    p.hollowQuest = { active: result.state.active, done: result.state.done };
+    rememberPlayer(p);
+    pushLog(p, `You read ${lm.name}. The words stay with you.`);
+  }
+  send(p.ws, { type: "npc/dialog", npcId: landmarkId, title: result.title, body: result.body });
+}
+
 /** Field NPCs (field-population.ts): same zone and within reach, then they speak. */
 function speakFieldNpc(p: Player, npcId: string): boolean {
   const npc = fieldNpcById(npcId);
   if (!npc) return false;
   if (unitZone(p.zoneId) !== npc.zoneId) {
     pushLog(p, "Nothing happens.");
+    return true;
+  }
+  // Seam Country: reading a landmark on site is a quest step; givers chain their quests.
+  if (isLandmarkId(npc.id)) {
+    readLandmark(p, npc.id);
+    return true;
+  }
+  if (isWorldQuestGiver(npc.id)) {
+    speakHollowQuest(p, npc.id, npc.x, npc.z, npc.name, npc.zoneId);
     return true;
   }
   if (dist(p.x, p.z, npc.x, npc.z) > NPC_INTERACT_RANGE) {
