@@ -331,6 +331,20 @@ export {
 } from "./field-population";
 
 export { ZONE_ORIGINS, WORLD_ZONE_IDS, zoneOrigin, zoneWorldBounds, type ZoneOrigin } from "./zone-layout";
+export {
+  LIGHT_KIND,
+  LIGHT_MOODS,
+  ZONE_LIGHT_MOODS,
+  ZONE_MAP_LIGHTS,
+  ZONE_MOOD_AREAS,
+  moodIsBright,
+  zoneLightMood,
+  zoneMapLights,
+  type LightKind,
+  type LightMood,
+  type MapLight,
+  type MoodArea,
+} from "./zone-lighting";
 
 export {
   ZONE_FIELDS,

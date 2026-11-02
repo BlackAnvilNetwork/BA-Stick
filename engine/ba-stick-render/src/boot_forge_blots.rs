@@ -5,7 +5,7 @@
 //! Boot menu backdrop — color blots (reference layout) + slow content-aware drift pixels.
 use stick_engine::raster::Framebuffer;
 
-use crate::atmosphere::Light;
+use crate::lighting::ScreenLight as Light;
 use crate::palette::*;
 
 const VOID: u8 = crate::atmosphere::SKY;

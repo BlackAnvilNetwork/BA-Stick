@@ -198,7 +198,8 @@ pub struct Scene {
     pub follow_lift_px: f32,
     time: f32,
     pal: [u32; 256],
-    lights: Vec<crate::atmosphere::Light>,
+    /// Localized light: moods, static lights, effect flashes and the light layer.
+    pub lighting: crate::lighting::Lighting,
     /// Lighting, haze, skyline and vignette (#26).
     pub atmosphere: bool,
     /// Extra third-person boom pitch that keeps the eye out of the terrain.
@@ -268,7 +269,7 @@ impl Scene {
             follow_lift_px: 40.0,
             time: 0.0,
             pal: palette::palette(),
-            lights: Vec::new(),
+            lighting: crate::lighting::Lighting::default(),
             atmosphere: true,
             boom_lift: 0.0,
             rig_persp: false,
@@ -390,12 +391,14 @@ impl Scene {
     pub fn clear_zone(&mut self) {
         self.zone = None;
         self.props.clear();
+        self.rebuild_static_lights();
         self.minimap.clear();
     }
 
     /// Load static props (BAP1). Replaces any previous set.
     pub fn load_props(&mut self, bytes: &[u8]) -> Result<usize, String> {
         self.props = props::parse(bytes)?;
+        self.rebuild_static_lights();
         self.minimap.invalidate();
         Ok(self.props.len())
     }
@@ -445,6 +448,7 @@ impl Scene {
         }
         let n = placed.len();
         self.world_props.extend(placed);
+        self.rebuild_static_lights();
         Ok(n)
     }
 
@@ -618,6 +622,7 @@ impl Scene {
             _ => b + chest,
         };
         self.vfx.spawn(prim, src, dst, color, count, radius, flags & 1 != 0);
+        self.push_effect_light(prim, src, dst, color, radius);
     }
 
     pub fn vfx_count(&self) -> usize { self.vfx.count() }
@@ -821,6 +826,8 @@ impl Scene {
         self.weather_time += dt as f64;
         self.tick_weather(dt);
         self.vfx.tick(dt);
+        let at = self.follow.as_deref().and_then(|id| self.units.get(id)).map(|u| (u.pos.x, u.pos.z));
+        self.lighting.tick(dt, at.or(Some((self.cam.cx, self.cam.cz))));
         if self.boot_menu {
             self.tick_boot_menu_vfx(dt);
             self.tick_boot_menu_units(dt);
@@ -1225,7 +1232,6 @@ impl Scene {
         }
         // Terrain is colour-only; reset depth before grass/props/units so nothing stale blocks draws.
         if self.boot_menu {
-            self.lights.clear();
             self.fb.color.fill(BACKDROP);
             self.fb.clear_depth();
         } else if !self.backdrop {
@@ -1322,18 +1328,7 @@ impl Scene {
             );
             props::draw_shadows(&mut self.fb, &cam, props, self.cam_y);
         }
-        if !self.boot_menu {
-            self.lights.clear();
-        }
-        if !self.boot_menu && (self.zone.is_some() || placed) {
-            for p in props.iter().filter(|p| p.kind == props::kind::FIRE_PIT) {
-                let q = cam.project(v3(p.x, p.y - self.cam_y, p.z));
-                let flick = 1.0 + 0.07 * (t * 13.0).sin() + 0.05 * (t * 7.3 + 1.0).sin();
-                if q.x > -200.0 && q.x < self.fb.w as f32 + 200.0 && q.y > -200.0 && q.y < self.fb.h as f32 + 200.0 {
-                    self.lights.push(crate::atmosphere::Light { x: q.x, y: q.y - 4.0, r: 150.0 * flick, k: 0.9 * flick });
-                }
-            }
-        }
+        self.build_light_stamps();
         let cy = self.cam_y;
         let rel = |p: Vec3| v3(p.x, p.y - cy, p.z);
         // Ground decals: buff rings (#34), telegraphs, selection / hover rings, shadows.
@@ -1726,8 +1721,16 @@ impl Scene {
             smoothstep(self.weather_blend),
         );
         let mut m = crate::sky::unit_light(self.day_phase, w);
-        if self.atmosphere && self.sky_ctx().is_some() {
-            let a = crate::sky::ambient_scale(self.day_phase);
+        // Whatever night dim the world already carries is divided out so
+        // figures get unit_light's readable floor, not the dim twice.
+        let carried = if self.atmosphere && self.light_pass_on() {
+            Some(self.layer_night())
+        } else if self.atmosphere && self.sky_ctx().is_some() {
+            Some(crate::sky::ambient_scale(self.day_phase))
+        } else {
+            None
+        };
+        if let Some(a) = carried {
             for k in 0..3 {
                 m[k] /= a[k];
             }
@@ -1745,6 +1748,165 @@ impl Scene {
                 o[k] = (o[k] as f32 * m[k]).min(255.0) as u8;
             }
         }
+    }
+
+    /// True when this frame builds and composites the light layer.
+    fn light_pass_on(&self) -> bool {
+        !self.boot_menu
+            && !self.backdrop
+            && !self.lighting.off
+            && self.has_zone()
+            && self.frame_mood().is_some_and(|m| !m.bright())
+    }
+
+    /// The eased mood at this time of day (what the frame is lit with).
+    fn frame_mood(&self) -> Option<crate::lighting::Mood> {
+        // A scene the host never gave a mood (tests, previews) keeps the old
+        // rule: only the 3D sky and characters follow the clock.
+        if self.lighting.base.is_none() {
+            return self.lighting.mood;
+        }
+        self.lighting.mood.map(|m| m.at_time(self.day_phase))
+    }
+
+    /// Night dim the light layer already carries (to divide out of unit light).
+    fn layer_night(&self) -> [f32; 3] {
+        let n = if self.lighting.base.is_none() { 0.0 } else { self.lighting.mood.map_or(0.0, |m| m.night.clamp(0.0, 1.0)) };
+        let s = crate::sky::ambient_scale(self.day_phase);
+        [1.0 + (s[0] - 1.0) * n, 1.0 + (s[1] - 1.0) * n, 1.0 + (s[2] - 1.0) * n]
+    }
+
+    /// Static lights from map data: fire pits and lanterns among the props,
+    /// plus any the host added (forges, braziers).
+    fn rebuild_static_lights(&mut self) {
+        use crate::lighting::{Kind, StaticLight};
+        let mut v = Vec::new();
+        for p in self.props.iter().chain(self.world_props.iter()) {
+            let kind = match p.kind {
+                props::kind::FIRE_PIT => Kind::Fire,
+                props::kind::LANTERN => Kind::Lantern,
+                _ => continue,
+            };
+            // Lantern glass hangs about 2 m up; the pit's flame sits low.
+            let lift = if kind == Kind::Lantern { 2.0 } else { 0.4 };
+            v.push(StaticLight::of_kind(kind, v3(p.x, p.y + lift, p.z)));
+        }
+        self.lighting.statics = v;
+    }
+
+    /// Host-placed light (map data such as a forge). `y` NaN = ground height + 1 m.
+    pub fn add_light(&mut self, x: f32, y: f32, z: f32, kind: u8, radius: f32, color: u32) {
+        let y = if y.is_finite() { y } else { self.zone_height(x, z) + 1.0 };
+        let mut l = crate::lighting::StaticLight::of_kind(crate::lighting::Kind::from_u8(kind), v3(x, y, z));
+        if radius > 0.0 {
+            l.r = radius;
+        }
+        if color != 0 {
+            l.rgb = [(color >> 16 & 255) as f32 / 255.0, (color >> 8 & 255) as f32 / 255.0, (color & 255) as f32 / 255.0];
+        }
+        self.lighting.extra.push(l);
+    }
+
+    pub fn clear_lighting(&mut self) {
+        self.lighting.extra.clear();
+        self.lighting.areas.clear();
+        self.lighting.base = None;
+    }
+
+    /// The current zone's mood. `snap` skips the easing (first load).
+    pub fn set_light_mood(&mut self, m: crate::lighting::Mood, snap: bool) {
+        self.lighting.base = Some(m);
+        if snap {
+            let at = self.follow.as_deref().and_then(|id| self.units.get(id)).map(|u| (u.pos.x, u.pos.z));
+            self.lighting.settle(at.or(Some((self.cam.cx, self.cam.cz))));
+        }
+    }
+
+    pub fn add_mood_area(&mut self, a: crate::lighting::MoodArea) { self.lighting.areas.push(a); }
+
+    /// A short flash where an ability lands (and a smaller one at the caster).
+    fn push_effect_light(&mut self, prim: crate::vfx::Prim, src: Vec3, dst: Vec3, color: u32, radius: f32) {
+        use crate::lighting::EffectLight;
+        use crate::vfx::Prim;
+        let rgb = [(color >> 16 & 255) as f32 / 255.0, (color >> 8 & 255) as f32 / 255.0, (color & 255) as f32 / 255.0];
+        let rgb = if rgb == [0.0; 3] { [1.0, 0.9, 0.7] } else { rgb };
+        let d = ((dst.x - src.x).powi(2) + (dst.z - src.z).powi(2)).sqrt();
+        let delay = if matches!(prim, Prim::Projectile) { (d / 14.0).clamp(0.12, 0.6) } else { 0.0 };
+        let r = (radius * 3.0).clamp(2.5, 7.0);
+        self.lighting.push_effect(EffectLight { pos: src, r: 2.5, k: 0.5, rgb, delay: 0.0, age: 0.0, life: 0.25 });
+        self.lighting.push_effect(EffectLight { pos: dst, r, k: 1.0, rgb, delay, age: 0.0, life: 0.45 });
+    }
+
+    /// Project every light for this frame: cull, cap and snap (the light pass input).
+    fn build_light_stamps(&mut self) {
+        use crate::lighting::{flicker, project_light, Flicker, Stamp};
+        self.lighting.stamps.clear();
+        if !self.light_pass_on() {
+            return;
+        }
+        let mood = self.frame_mood().unwrap_or(crate::lighting::Mood::DAYLIGHT);
+        let (cam, cy, t) = (self.cam, self.cam_y, self.time);
+        let mut st = Vec::new();
+        let mut push = |pos: Vec3, r: f32, k: f32, rgb: [f32; 3], glow: bool| {
+            let p = v3(pos.x, pos.y - cy, pos.z);
+            if let Some((x, y, rx, ry)) = project_light(&cam, p, r) {
+                // Props and units take this light only near its own depth: a
+                // little in front (things between it and the camera face away
+                // from it), further behind (walls facing it).
+                let d = cam.project(p).d;
+                let (zmin, zmax) = if d.is_finite() { (d - (r * 0.35).max(1.5), d + r * 1.45) } else { (f32::NEG_INFINITY, f32::INFINITY) };
+                st.push(Stamp { x, y, rx, ry, rgb, k, glow, zmin, zmax });
+            }
+        };
+        for l in self.lighting.statics.iter().chain(self.lighting.extra.iter()) {
+            // Cheap world-space pre-cull before projecting.
+            if (l.pos.x - cam.cx).abs() > 90.0 || (l.pos.z - cam.cz).abs() > 90.0 {
+                continue;
+            }
+            let f = flicker(l.flicker, l.seed(), t);
+            // Radius breathes less than brightness, so the pool edge stays calm.
+            push(l.pos, l.r * (1.0 + (f - 1.0) * 0.3), l.k * f, l.rgb, l.glow);
+        }
+        for e in &self.lighting.effects {
+            let a = e.envelope();
+            if a > 0.0 {
+                push(e.pos, e.r, e.k * a, e.rgb, true);
+            }
+        }
+        if mood.player_k > 0.0 && mood.player_r > 0.0 {
+            if let Some(u) = self.follow.as_deref().and_then(|id| self.units.get(id)) {
+                let f = flicker(Flicker::Lantern, 3.7, t);
+                let p = v3(u.pos.x, u.pos.y + 0.1, u.pos.z);
+                push(p, mood.player_r, mood.player_k * f, crate::lighting::PLAYER_RGB, false);
+                // In the 3D views, anything nearer the camera than the player
+                // (a tree trunk, a wall) fades out of the player's light.
+                if self.rig.mode != CamMode::Iso {
+                    let d = cam.project(v3(p.x, u.pos.y + 1.0 - cy, p.z)).d;
+                    if let (Some(s), true) = (st.last_mut(), d.is_finite()) {
+                        s.zmin = s.zmin.max(d - 2.0 * crate::lighting::PLAYER_OCCLUDE_FADE);
+                    }
+                }
+            }
+        }
+        // The player's light is the last pushed; keep it whatever the cap does.
+        let player = if mood.player_k > 0.0 { st.pop() } else { None };
+        crate::lighting::cull(&mut st, self.fb.w, self.fb.h, crate::lighting::MAX_LIGHTS - 1);
+        st.extend(player);
+        self.lighting.stamps = st;
+    }
+
+    /// Build the light layer and multiply it over the frame.
+    fn composite_light_layer(&mut self, out: &mut [u8]) {
+        let mood = self.frame_mood().unwrap_or(crate::lighting::Mood::DAYLIGHT);
+        let (w, h) = (self.fb.w, self.fb.h);
+        let stamps = std::mem::take(&mut self.lighting.stamps);
+        self.lighting.layer.build(w, h, mood.ambient, &stamps, Some(&self.fb.depth));
+        self.lighting.stamps = stamps;
+        let color = &self.fb.color;
+        self.lighting.layer.composite(out, |i| {
+            let c = color[i];
+            c == crate::atmosphere::SKY || crate::atmosphere::emissive(c)
+        });
     }
 
     /// Pixel sky context when the camera is a settled-enough 3D view.
@@ -1825,7 +1987,7 @@ impl Scene {
     }
 
     /// Framebuffer as RGBA8 (ImageData layout).
-    pub fn write_rgba(&self, out: &mut [u8]) {
+    pub fn write_rgba(&mut self, out: &mut [u8]) {
         if self.atmosphere && (self.has_zone() || self.boot_menu) {
             let scroll = if self.boot_menu {
                 0.0
@@ -1848,11 +2010,29 @@ impl Scene {
             };
             let sky = self.sky_ctx();
             let mut params = params;
+            // Bright moods fold their ambient into the atmosphere tint and skip the light pass.
+            if !self.boot_menu && !self.light_pass_on() {
+                // 3D: the night dim comes from ambient_scale below; iso has none, so use the timed mood.
+                let m = if sky.is_some() { self.lighting.mood } else { self.frame_mood() };
+                let m = m.unwrap_or(crate::lighting::Mood::DAYLIGHT);
+                for k in 0..3 {
+                    params.ambient[k] *= m.ambient[k];
+                }
+            } else if self.boot_menu {
+                for k in 0..3 {
+                    params.ambient[k] *= crate::lighting::Mood::FORGE_MENU.ambient[k];
+                }
+            }
             if sky.is_some() {
                 // Night dims the world and its haze in 3D, in step with the sky.
                 let m = crate::sky::ambient_scale(self.day_phase);
+                // With the light pass on, the layer carries the night dim
+                // (scaled by the mood's `night`), so only the haze takes it here.
+                let pass = self.light_pass_on();
                 for k in 0..3 {
-                    params.ambient[k] *= m[k];
+                    if !pass {
+                        params.ambient[k] *= m[k];
+                    }
                 }
                 let h = params.haze;
                 let ch = |sh: u32, k: usize| ((((h >> sh) & 255) as f32 * m[k]) as u32).min(255) << sh;
@@ -1870,7 +2050,6 @@ impl Scene {
                 &self.fb.color,
                 self.fb.w,
                 self.fb.h,
-                &self.lights,
                 &params,
                 scroll,
                 self.keylight,
@@ -1879,6 +2058,9 @@ impl Scene {
             );
         } else {
             palette::write_rgba(&self.pal, &self.fb.color, out);
+        }
+        if self.light_pass_on() && self.atmosphere {
+            self.composite_light_layer(out);
         }
         if !self.boot_menu && !self.backdrop && self.has_zone() {
             self.light_units(out);
@@ -1890,6 +2072,10 @@ impl Scene {
                     o.copy_from_slice(&[(rgb >> 16) as u8, (rgb >> 8) as u8, rgb as u8]);
                 }
             }
+        }
+        if self.light_pass_on() && self.atmosphere {
+            let g = self.frame_mood().map_or(0.0, |m| m.glow);
+            self.lighting.layer.glow(out, self.fb.w, self.fb.h, &self.lighting.stamps, g);
         }
         crate::vfx::blend(&self.vfx.sparks, self.fb.w, self.fb.h, out);
         if !self.backdrop && !self.boot_menu && self.zone.is_some() && self.minimap.on {

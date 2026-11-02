@@ -74,6 +74,8 @@ pub mod kind {
     pub const SHACK: u8 = 49;
     /// Stone stack from `ba_cairn.ron`.
     pub const CAIRN: u8 = 50;
+    /// Street lantern. Same kind number as main, so a baked lantern becomes a light.
+    pub const LANTERN: u8 = 51;
     /// Fallen giant tree: s = length along yaw, w = trunk radius, h = root-plate height.
     pub const FALLEN_LOG: u8 = 60;
     /// Mushroom cluster: s = cap height, var = 1 for glowing caps.

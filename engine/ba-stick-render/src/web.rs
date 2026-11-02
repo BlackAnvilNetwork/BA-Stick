@@ -154,6 +154,42 @@ impl StickRenderer {
         self.scene.atmosphere = on;
     }
 
+    /// Light pass on/off (phones, `?lights=0`). Off keeps every mood's ambient tint.
+    #[wasm_bindgen(js_name = setLights)]
+    pub fn set_lights(&mut self, on: bool) {
+        self.scene.lighting.off = !on;
+    }
+
+    /// The current zone's light mood (from @bellgrave/config zone-lighting.ts).
+    /// `night` (0..1) is how far the time of day reaches it (1 open sky, 0 cave).
+    /// `snap` skips the easing (first load, after a zone fade).
+    #[wasm_bindgen(js_name = setLightMood)]
+    #[allow(clippy::too_many_arguments)]
+    pub fn set_light_mood(&mut self, r: f32, g: f32, b: f32, player_r: f32, player_k: f32, glow: f32, night: f32, snap: bool) {
+        self.scene.set_light_mood(crate::lighting::Mood { ambient: [r, g, b], warm: [1.0, 0.6, 0.25], player_r, player_k, glow, night }, snap);
+    }
+
+    /// A place with its own mood inside a zone (world metres).
+    #[wasm_bindgen(js_name = addMoodArea)]
+    #[allow(clippy::too_many_arguments)]
+    pub fn add_mood_area(&mut self, x: f32, z: f32, radius: f32, feather: f32, r: f32, g: f32, b: f32, player_r: f32, player_k: f32, glow: f32, night: f32) {
+        let mood = crate::lighting::Mood { ambient: [r, g, b], warm: [1.0, 0.6, 0.25], player_r, player_k, glow, night };
+        self.scene.add_mood_area(crate::lighting::MoodArea { x, z, r: radius, feather, mood });
+    }
+
+    /// A static light from map data (world metres). kind: 0 fire, 1 lantern, 2 forge,
+    /// 3 brazier, 4 lava, 5 crystal, 6 torch. y NaN = ground + 1 m; radius/colour 0 = kind default.
+    #[wasm_bindgen(js_name = addLight)]
+    pub fn add_light(&mut self, x: f32, y: f32, z: f32, kind: u8, radius: f32, color: u32) {
+        self.scene.add_light(x, y, z, kind, radius, color);
+    }
+
+    /// Drop host lights, mood areas and the zone mood (fire pits and lanterns stay with their props).
+    #[wasm_bindgen(js_name = clearLighting)]
+    pub fn clear_lighting(&mut self) {
+        self.scene.clear_lighting();
+    }
+
     /// Pale Hollow weather: kind 0 clear, 1 rain, 2 fog, 3 snow; snowCover 0..1.
     #[wasm_bindgen(js_name = setWeather)]
     pub fn set_weather(&mut self, kind: u8, snow_cover: f32) {

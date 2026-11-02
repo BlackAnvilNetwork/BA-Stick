@@ -573,7 +573,7 @@ pub fn draw_forge_ambient(
     zone: &Zone,
     cam_y: f32,
     time: f32,
-    lights: &mut Vec<crate::atmosphere::Light>,
+    lights: &mut Vec<crate::lighting::ScreenLight>,
 ) {
     let Some((i0, j0, i1, j1)) = view_cells(fb, cam, zone) else {
         return;
@@ -611,7 +611,7 @@ pub fn draw_forge_ambient(
             fb.plot(p.x as i32, p.y as i32, p.d - 0.35, col);
             if biome == FORGE_LAVA && (h & 31) == 0 && life < 0.2 {
                 let flick = 1.0 + 0.08 * (time * 9.0 + x).sin();
-                lights.push(crate::atmosphere::Light {
+                lights.push(crate::lighting::ScreenLight {
                     x: p.x,
                     y: p.y,
                     r: 120.0 * flick,

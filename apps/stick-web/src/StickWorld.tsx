@@ -15,6 +15,7 @@ import { GatherIcons, loadIconAtlas, type IconAtlas } from "./gather";
 import { craftActFor, gatherActFor, presentCraft, presentGather, syncUnits, type CraftAct, type GatherAct } from "./units";
 import { engageHeadingGoal, getMoveKeys, headingEase, headingStep, headingTarget, headingToward, moveKeyFromCode, shouldResend, stopTarget, wasdTarget, DASH_KEY_CODE, DashClock, dashDirection } from "./input";
 import { atmosphereFor, isCoarsePointer, keylightFor } from "./mobile";
+import { applyWorldLighting, applyZoneMood, lightsFor } from "./lighting";
 import { CastClock, sameId, unitFx } from "./fx";
 import { routeUnitClick } from "./clicks";
 import { Labels, labelFor } from "./labels";
@@ -65,7 +66,11 @@ export function StickWorld() {
       renderer = r;
       // Dev/test hook for headless checks (fb→client mapping lives in renderer.ts).
       if (import.meta.env.DEV) Object.assign(window, { __stick: { r, canvas, fromFramebuffer, send } });
-      void placeAllZones(r);
+      // Lighting overhaul: moods, mood areas and map lights once the terrain is placed.
+      void placeAllZones(r).then(() => {
+        if (alive) applyWorldLighting(r, useGame.getState().snapshot?.you.zoneId);
+      });
+      r.setLights(lightsFor(location.search));
       // Phones: atmosphere pass costs ~1/3 of the frame; drop it to hold 30+ fps (#18).
       if (!atmosphereFor(isCoarsePointer(), location.search)) r.setAtmosphere(false);
       // L2 key light: on by default on desktop, off on touch; `?keylight=0` kills it.
@@ -401,6 +406,7 @@ export function StickWorld() {
           followed = undefined;
           floats.reset();
           if (!zc.first) fade(fadeRef.current);
+          applyZoneMood(r, zid, zc.first);
           const want = bakedZoneFor(zid);
           if (want !== zoneLoaded) {
             zoneLoaded = want;
