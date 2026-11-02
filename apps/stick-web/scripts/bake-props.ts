@@ -12,6 +12,9 @@ import {
   FB_BRIDGES,
   FB_PLACES,
   FB_POIS,
+  ZONE_LINKS,
+  FB_SPAWN,
+  FB_GATES,
   forestBasinNpcs,
   forestBasinMobs,
   fbTrailDist,
@@ -311,6 +314,9 @@ function riverBanks(out: Prop[]): void {
 
 export function forestBasinProps(): Prop[] {
   const out: Prop[] = [];
+  const anchors = [...forestBasinNpcs(), ...forestBasinMobs(), FB_SPAWN, ...ZONE_LINKS.filter((l) => l.to === "forest_basin").map((l) => l.spawn)];
+  const firm = (x: number, z: number) => [[0, 0], [0.5, 0], [-0.5, 0], [0, 0.5], [0, -0.5]].every(([dx, dz]) => forestBasinWalkable(x + dx!, z + dz!));
+  const nearGate = (x: number, z: number) => FB_GATES.some((g) => x > g.minX - 1 && x < g.maxX + 1 && z > g.minZ - 1 && z < g.maxZ + 1);
   const at = (kind: number, x: number, z: number, yaw = 0, s = 1) =>
     out.push({ kind, v: 0, x, z, y: forestBasinStandHeight(x, z), yaw, s, w: 0, h: 0, d: 0 });
   // Bridges (deck spans from a to b).
@@ -337,19 +343,27 @@ export function forestBasinProps(): Prop[] {
     for (let k = 0; k < n; k++) {
       const a = hash2(k, p.x) * Math.PI * 2;
       const r = 3 + hash2(p.z, k) * 4;
-      at(k % 3 === 2 ? K.moss : K.wallBlock, p.x + Math.cos(a) * r, p.z + Math.sin(a) * r, a, 0.8 + hash2(k, k) * 0.6);
+      const bx = p.x + Math.cos(a) * r, bz = p.z + Math.sin(a) * r;
+      if (!firm(bx, bz) || fbDesignWater(bx, bz)) continue;
+      at(k % 3 === 2 ? K.moss : K.wallBlock, bx, bz, a, 0.8 + hash2(k, k) * 0.6);
     }
   }
   // Cairns mark the ascent routes.
-  for (const a of FB_ASCENTS) for (const q of a.points) at(K.cairn, q.x + a.halfWidth + 0.8, q.z, 0, 0.8);
+  for (const a of FB_ASCENTS) for (const q of a.points) {
+    const side = [a.halfWidth + 0.8, -(a.halfWidth + 0.8)].find((o) => firm(q.x + o, q.z) && !fbDesignWater(q.x + o, q.z) && !anchors.some((m) => Math.hypot(m.x - q.x - o, m.z - q.z) < 3.2));
+    if (side != null) at(K.cairn, q.x + side, q.z, 0, 0.8);
+  }
   // Kettle Hollow camp.
   const camp = [
     [K.tent, -6, 3, 0.4], [K.tent, 5, 4, -0.3], [K.firePit, -6, -4, 0], [K.leanTo, 6, -4, 0.2],
     [K.crate, -3, -6, 0.5], [K.firewood, -8, -2, 0.1], [K.sapling, 3, 8, 0], [K.sapling, -2, 9, 0],
   ] as const;
-  for (const [kind, dx, dz, yaw] of camp) at(kind, FB_CAMP.x + dx, FB_CAMP.z + dz, yaw);
+  for (const [kind, dx, dz, yaw] of camp) {
+    const cx = FB_CAMP.x + dx, cz = FB_CAMP.z + dz;
+    if (FB_WARP_SITES.some((w) => Math.hypot(cx - w.x, cz - w.z) < w.r + 1)) continue;
+    at(kind, cx, cz, yaw);
+  }
   // Points of interest: one small recipe per kind (kept clear of NPCs and mobs).
-  const anchors = [...forestBasinNpcs(), ...forestBasinMobs()];
   const near: { x: number; z: number; r: number }[] = [];
   for (const poi of FB_POIS) {
     const { x, z } = poi;
@@ -361,7 +375,7 @@ export function forestBasinProps(): Prop[] {
         f(x + Math.cos(a) * rr, z + Math.sin(a) * rr, a, k);
       }
     };
-    const dry = (px: number, pz: number) => !fbDesignWater(px, pz) && !forestBasinOnTrail(px, pz) && forestBasinWalkable(px, pz) && fbTrailDist(px, pz) > 2.2 && !anchors.some((a) => Math.hypot(a.x - px, a.z - pz) < 3.2);
+    const dry = (px: number, pz: number) => !fbDesignWater(px, pz) && !forestBasinOnTrail(px, pz) && firm(px, pz) && fbTrailDist(px, pz) > 2.2 && !anchors.some((a) => Math.hypot(a.x - px, a.z - pz) < 3.2);
     const put = (kind: number, px: number, pz: number, yaw = 0, sc = 1) => { if (dry(px, pz)) at(kind, px, pz, yaw, sc); };
     let clear = 5;
     switch (poi.kind) {
@@ -405,11 +419,12 @@ export function forestBasinProps(): Prop[] {
       if (forestBasinOnTrail(jx, jz) || fbDesignWater(jx, jz)) continue;
       const b = forestBasinBiome(jx, jz);
       const h = hash2(Math.floor(jx * 2), Math.floor(jz * 2));
+      if (nearGate(jx, jz) || anchors.some((a) => Math.hypot(a.x - jx, a.z - jz) < 3.2)) continue;
       if (b === "riverbank") {
         if (h > 0.4) at(K.reed, jx, jz, h * 6.28, 1);
         continue;
       }
-      if (!forestBasinWalkable(jx, jz) || b === "bridge" || b === "mountain") continue;
+      if (!firm(jx, jz) || b === "bridge" || b === "mountain") continue;
       if (Math.hypot(jx - FB_CAMP.x, jz - FB_CAMP.z) < FB_CAMP.r + 3) continue;
       if (FB_WARP_SITES.some((w) => Math.hypot(jx - w.x, jz - w.z) < w.r + 3)) continue;
       if (near.some((q) => Math.hypot(jx - q.x, jz - q.z) < q.r)) continue;

@@ -276,6 +276,13 @@ export const FB_ASCENTS: readonly FbAscent[] = [
     points: [{ x: 136, z: -45.5, y: 2.6 }, { x: 136, z: -49, y: 1.25 }],
   },
   {
+    id: "rooks-ramp",
+    name: "the Rooks' Ramp",
+    kind: "ledge",
+    halfWidth: 1.4,
+    points: [{ x: -30, z: -110, y: 3.7 }, { x: -33, z: -103, y: 1.0 }, { x: -35, z: -96, y: -1.6 }, { x: -38.5, z: -88, y: -1.6 }, { x: -42, z: -80, y: -1.5 }],
+  },
+  {
     id: "swallow-cut",
     name: "the Swallow Cut",
     kind: "cleft",
