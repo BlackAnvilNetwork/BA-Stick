@@ -404,9 +404,9 @@ const FIELDS: Record<SeamCountryZone, FieldSpec> = {
         progress: "Five of the ford drowned, and the ring read.",
         done: "The ring held because it was set to. Tell Orrin the river remembers." },
       { id: "if-eels", npcId: "npc-if-tobin", for: "Maudry Saltpenny", title: "Eels on the Causeway", families: ["lamprey"], need: 5, gold: 320,
-        offer: "Lampreys hunt the wet stones of the Broken Causeway, just north of this stage. They take ankles. Five of them, and Maudry Saltpenny pays for the oil.",
+        offer: "Most of the year these fords are wading water, and I keep this stage to show folk the safe stones. Come May, when the snowmelt drowns the fords, I pole them across instead. Either way, lampreys hunt the wet stones of the Broken Causeway, just north of here. They take ankles. Five of them, and Maudry Saltpenny pays for the oil.",
         progress: "The edges still bite.",
-        done: "Maudry will render the oil. I will keep my ankles." },
+        done: "Maudry will render the oil. I will keep my ankles, and the safe stones stay safe until the May flood." },
     ],
   },
   green_reach: {

@@ -144,7 +144,7 @@ export const WORLD_POIS: WorldPoi[] = [
     story: "Ferrymen's graves, each with a ferry token stamped with the old crossing-mark.",
     props: ["ferry tokens", "oar planted as marker"] },
   { id: "if-east-causeway", zone: "islet_fords", name: "Broken Causeway", x: 160, z: -2, kind: "old-road",
-    story: "Causeway stones under the shallows link the islets in a straight line.",
+    story: "Causeway stones under the shallows link the islets in a straight line. Beside them stands the Ferry Stage, where the pole-boat waits for May, when the snowmelt drowns the fords. The rest of the year folk wade, and the stage-keeper shows them the safe stones.",
     props: ["submerged causeway blocks", "a bollard on the islet"] },
 
   // ── Green Reach ────────────────────────────────────────────────────────
