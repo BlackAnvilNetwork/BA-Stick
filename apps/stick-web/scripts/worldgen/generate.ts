@@ -16,6 +16,7 @@ import {
 } from "@bellgrave/config";
 // PH_LAKE is not re-exported by the package index; read it from source (read-only).
 import { PH_LAKE } from "../../../../packages/config/src/pale-hollow";
+import { WORLD_POIS } from "../../../../packages/config/src/world-pois";
 import { encodeProps, paleHollowProps, K, type Prop } from "../bake-props";
 import { BIOMES } from "../bake-zones";
 import { Noise2, hashSeed, mulberry32 } from "./noise";
@@ -351,7 +352,7 @@ export function generatePaleHollow() {
   { let best = -1, bs = -1e9; for (let k = 0; k < N; k += 3) { if (water[k] || padW[k]! > 0 || slope[k]! > 0.5) continue; const x = X(k), z = Z(k);
       const dist = Math.min(...A.bridges.map((b) => Math.hypot(x - b.x, z - b.z))); if (dist > 120 || dist < 30) continue;
       const s = h[k]! - dist * 0.02; if (s > bs) { bs = s; best = k; } }
-    if (best >= 0) lore.push({ id: "defaced-stele", kind: "defaced-monument", x: X(best), z: Z(best), why: "highest knoll in sight of both river crossings: where a the Crown would raise a stone over the old makers", hook: "A stele with its name chiselled off and a New King's crest cut over it." }); }
+    if (best >= 0) lore.push({ id: "defaced-stele", kind: "defaced-monument", x: X(best), z: Z(best), why: "highest knoll in sight of both river crossings: where the Crown would raise a stone over the old makers", hook: "A stele with its name chiselled off and a New King's crest cut over it." }); }
   // (d) Dry mill-race: a creek that the generator routes into the main stem, mouth near the hub bridge (canal diverted by the Kings).
   { let best = -1; for (let k = 0; k < N; k++) if (creek[k] && acc[k]! > (best < 0 ? 0 : acc[best]!) && Z(k) > 150 && Z(k) < 300) best = k;
     if (best >= 0) lore.push({ id: "dry-millrace", kind: "abandoned-works", x: X(best), z: Z(best), why: `largest side-creek mouth (${Math.round(acc[best]!)} m² catchment) on the main stem`, hook: "Cut stone lining a stream bed. A mill stood here; the only hearth-ash and a chiselled-out name remain." }); }
@@ -363,7 +364,10 @@ export function generatePaleHollow() {
       let rc = 0; for (let dz = -25; dz <= 25; dz += 2) for (let dx = -25; dx <= 25; dx += 2) if (road[kAt(x + dx, z + dz)]) rc++;
       let flat = 0; for (let dz = -6; dz <= 6; dz += 2) for (let dx = -6; dx <= 6; dx += 2) { const q = kAt(x + dx, z + dz); if (!water[q] && slope[q]! < 0.2 && padW[q] === 0) flat++; }
       if (flat < 49) continue; const sc = Math.min(rc, 60) + (h[k]! - LAKE_Y) * 0.3; if (sc > bs) { bs = sc; best = k; } }
-    if (best >= 0) lore.push({ id: "warp-circle-pale", kind: "time-mage-warp-circle", x: X(best), z: Z(best), why: `old crossroads knoll (${h[best]!.toFixed(1)} m, ${Math.round(dWet[best]! * cell)} m from water): routes converge, footprint r6 walkable, clear of all anchors`, hook: "Rune stones ring a sunken floor. The New Kings' maps mark it as a sheepfold. Dormant until a Time Mage unlocks it (mechanic not implemented)." }); }
+    // The Sheepfold's listed place (world-pois.ts) is canon; the search above only confirms the knoll exists.
+    const fold = WORLD_POIS.find((p) => p.id === "ph-sheepfold-ring");
+    if (best >= 0 && fold) best = kAt(fold.x, fold.z);
+    if (best >= 0) lore.push({ id: "warp-circle-pale", kind: "time-mage-warp-circle", x: fold?.x ?? X(best), z: fold?.z ?? Z(best), why: `old crossroads knoll (${h[best]!.toFixed(1)} m, ${Math.round(dWet[best]! * cell)} m from water): routes converge, footprint r6 walkable, clear of all anchors`, hook: "Rune stones ring a sunken floor. The New Kings' maps mark it as a sheepfold. Dormant until a Time Mage unlocks it (mechanic not implemented)." }); }
 
   // ---- Stage 8: vegetation & rocks by ecology. Poisson-disk darts with density from eco/moisture/slope.
   const props: Prop[] = [];
