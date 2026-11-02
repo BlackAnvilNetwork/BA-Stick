@@ -1,7 +1,8 @@
 /**
  * Emberwatch: the scouts' first camp in Pale Hollow, where newcomers arrive. Mayflower lies a long,
- * winding walk away: round the lake shore, then north-east up the flats to the Scout Gate. It is found by exploring.
- * Data only: spawn, respawn and warp unlocks are wired in code elsewhere.
+ * walk away, about 280 m north-east over the Timber Bridge to the Scout Gate. It is found by exploring.
+ * Terrain data only. Spawn, respawn and warp unlocks live in warp-unlocks.ts, and main's values win;
+ * pale-hollow-camp.test.ts keeps the two in agreement.
  */
 export const PH_START_CAMP = { name: "Emberwatch", x: -55, z: 300 } as const;
 

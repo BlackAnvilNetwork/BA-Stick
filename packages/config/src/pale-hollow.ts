@@ -5,7 +5,6 @@
  */
 
 import { nearTrailCorridor } from "./trail-geom";
-import { PH_START_SPAWN } from "./pale-hollow-camp";
 import { MAYFLOWER_STATIONS as ST, MAYFLOWER_SPUR, MAYFLOWER_SCREEN, mayflowerFieldWeight, mayflowerInTown, mayflowerSample } from "./pale-hollow-town";
 
 /**
@@ -1776,7 +1775,7 @@ export function paleHollowGateSoftLevel(z: number): number | null {
 }
 
 /** Player start: Emberwatch camp (pale-hollow-camp.ts), far from Mayflower. */
-export const PH_HUB_SPAWN = PH_START_SPAWN;
+export const PH_HUB_SPAWN = { x: PH_CAMP_SHIFT_X, z: 2 + PH_CAMP_SHIFT_Z, facing: 0 } as const; // Scout Gate. New arrivals use PH_START_SPAWN in warp-unlocks.ts.
 export const PH_OUTDOOR_SPAWN = { x: PH_CAMP_SHIFT_X, z: 14 + PH_CAMP_SHIFT_Z, facing: 0 } as const;
 
 export type GatherNodeKind = "harvest" | "mine" | "fish";
