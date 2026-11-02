@@ -1814,7 +1814,7 @@ fn draw_one(c: &mut Ctx, p: &Prop, time: f32) {
                 let hh = hgt * (0.7 + 0.3 * jit(k, 2.3));
                 let back = jit(k, 4.1) * 0.45;
                 // lower course, then a narrower stepped crown set back
-                c.boxy(cx, -0.4, back, bw + 0.1, hh * 0.65 + 0.4, th, ROCK, ROCK_D, BANK_DD);
+                c.boxy(cx, -0.4, back, bw + 0.1, hh * 0.65 + 0.4, th, ROCK, ROCK_D, ROCK_D);
                 c.boxy(cx + (jit(k, 5.7) - 0.5) * 0.3, hh * 0.6, back - 0.25, bw * 0.75, hh * 0.4, th * 0.8, ROCK_L, ROCK, ROCK_D);
             }
         }
@@ -1844,7 +1844,7 @@ fn draw_one(c: &mut Ctx, p: &Prop, time: f32) {
             if p.var == 1 {
                 c.boxy(0.0, -0.2, 0.0, 0.8, hgt * 0.9, 0.8, WALL_L, WALL, WALL_D);
                 c.boxy(0.15, hgt * 0.7, 0.0, 0.55, hgt * 0.25, 0.6, WALL_L, WALL, WALL_D);
-                c.boxy(0.0, -0.2, 0.0, 1.1, 0.35, 1.1, WALL, WALL_D, BANK_DD);
+                c.boxy(0.0, -0.2, 0.0, 1.1, 0.35, 1.1, WALL, WALL_D, ROCK_D);
             } else {
                 let span = p.w.max(1.5);
                 for side in [-1.0f32, 1.0] {
@@ -1858,7 +1858,7 @@ fn draw_one(c: &mut Ctx, p: &Prop, time: f32) {
                     let y = hgt - 0.5 + a.sin() * span * 0.35;
                     c.boxy(x, y, 0.0, 0.6, 0.5, 0.8, WALL_L, WALL, WALL_D);
                 }
-                c.boxy(span * 0.35, -0.2, 0.9, 0.9, 0.4, 0.7, WALL, WALL_D, BANK_DD);
+                c.boxy(span * 0.35, -0.2, 0.9, 0.9, 0.4, 0.7, WALL, WALL_D, ROCK_D);
             }
         }
         kind::HOLLOW_OAK => {
