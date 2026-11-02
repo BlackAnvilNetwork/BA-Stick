@@ -4,7 +4,7 @@
 
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { LIGHT_MOODS, ZONE_MAP_LIGHTS, ZONE_MOOD_AREAS, zoneOrigin } from "@bellgrave/config";
+import { LIGHT_MOODS, WORLD_ZONE_IDS, ZONE_MAP_LIGHTS, ZONE_MOOD_AREAS, zoneMapLights, zoneOrigin } from "@bellgrave/config";
 import { applyWorldLighting, applyZoneMood, lightsFor, type LightingRenderer } from "./lighting";
 
 function fake() {
@@ -25,13 +25,14 @@ describe("lighting wiring", () => {
     applyWorldLighting(r, "hollow_road");
     assert.equal(calls[0].fn, "clearLighting");
     const areas = Object.values(ZONE_MOOD_AREAS).flat().length;
-    const lights = Object.values(ZONE_MAP_LIGHTS).flat().length;
+    const lights = WORLD_ZONE_IDS.reduce((n, id) => n + zoneMapLights(id).length, 0);
     assert.equal(calls.filter((c) => c.fn === "addMoodArea").length, areas);
     assert.equal(calls.filter((c) => c.fn === "addLight").length, lights);
     const last = calls.at(-1)!;
     assert.equal(last.fn, "setLightMood");
     assert.deepEqual(last.args.slice(0, 3), [...LIGHT_MOODS.seamCountry.ambient]);
-    assert.equal(last.args[6], true);
+    assert.equal(last.args[6], LIGHT_MOODS.seamCountry.night);
+    assert.equal(last.args[7], true);
     const forge = ZONE_MAP_LIGHTS.pale_hollow[0];
     const o = zoneOrigin("pale_hollow");
     const sent = calls.find((c) => c.fn === "addLight")!.args;

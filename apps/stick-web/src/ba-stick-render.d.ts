@@ -40,8 +40,8 @@ declare module "ba-stick-render" {
     setView3d(on: boolean): void;
     setKeylight(on: boolean): void;
     setLights(on: boolean): void;
-    setLightMood(r: number, g: number, b: number, playerR: number, playerK: number, glow: number, snap: boolean): void;
-    addMoodArea(x: number, z: number, radius: number, feather: number, r: number, g: number, b: number, playerR: number, playerK: number, glow: number): void;
+    setLightMood(r: number, g: number, b: number, playerR: number, playerK: number, glow: number, night: number, snap: boolean): void;
+    addMoodArea(x: number, z: number, radius: number, feather: number, r: number, g: number, b: number, playerR: number, playerK: number, glow: number, night: number): void;
     addLight(x: number, y: number, z: number, kind: number, radius: number, color: number): void;
     clearLighting(): void;
     setBackdrop(on: boolean): void;
