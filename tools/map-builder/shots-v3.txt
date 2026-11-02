@@ -1,0 +1,30 @@
+# name x z facing cam [phase]  (v3: every bridge end to end, then the named set pieces)
+bridge-wrightsbridge-iso -27.9 64.1 0.44 iso
+bridge-wrightsbridge-walk -33.6 52.4 0.44 tp
+bridge-stoneback-iso 58.5 66.8 1.29 iso
+bridge-stoneback-walk 46.8 63.4 1.29 tp
+bridge-rope-span-iso -40.4 -63.6 1.88 iso
+bridge-rope-span-walk -54 -59.3 1.88 tp
+bridge-reedwalk-iso 55.1 31.2 0.33 iso
+bridge-reedwalk-walk 49.4 14.8 0.33 tp
+wrights-veil-walk -90 105 -0.3 tp
+wrights-veil-iso -91 111 -0.3 iso
+great-sink 128 -32 3.1 iso
+little-sink 113 -26 3.1 iso
+pale-sink 136 -46 3.1 iso
+long-fall-walk 51 -103 0 tp
+long-fall-iso 51 -97 0 iso
+lantern-caps-night -31 -16 -2.6 iso 0.02
+lantern-caps -29 -14 -2.6 tp
+ninefold-ring 15 -89 0 iso
+thornwall -19.5 31 0 iso
+brambles 71.5 -116 0 iso
+sunk-hall-walk 50 6 0.9 tp
+sunk-hall-iso 52 6 0.9 iso
+graven-cuts 4 104 0.3 iso
+graven-cuts-high 12 116 0.3 iso
+hollow-oak-walk -19 -11 -2.54 tp
+hollow-oak-iso -22 -15 -2.54 iso
+ashlin-aqueduct -55 84 -0.6 iso
+cold-forges -56 74 0 iso
+rooks-throat -36 -100 -0.3 iso

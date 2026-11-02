@@ -10,6 +10,14 @@ import {
   PALE_HOLLOW_BOUNDS,
   PH_CAMP_SHIFT_X,
   FB_BRIDGES,
+  forestBasinGroundY,
+  forestBasinWaterSurfaceY,
+  fbAscentAt,
+  FB_RIVERS,
+  FB_GORGES,
+  FB_QUARRY,
+  FB_SINKS,
+  FB_BRIDGE_RAMP,
   FB_PLACES,
   FB_POIS,
   ZONE_LINKS,
@@ -62,6 +70,8 @@ export const K = {
   wallBlock: 30, moss: 31, firePit: 32, tent: 33, bedroll: 34, crate: 35, chest: 36, leanTo: 37, trainer: 38, stall: 39,
   weaponRack: 40, firewood: 41, barrel: 42, banner: 43, stone: 44, pebble: 45, peak: 46, riverWall: 47, bridge: 48,
   shack: 49, cairn: 50,
+  // Forest Basin set pieces (engine props.rs 60-66)
+  fallenLog: 60, mushrooms: 61, falls: 62, rockWall: 63, thorn: 64, ruinArch: 65, hollowOak: 66,
 } as const;
 
 export type Prop = { kind: number; v: number; x: number; z: number; y: number; yaw: number; s: number; w: number; h: number; d: number };
@@ -323,8 +333,9 @@ export function forestBasinProps(): Prop[] {
   for (const b of FB_BRIDGES) {
     const dx = b.b.x - b.a.x, dz = b.b.z - b.a.z;
     out.push({
-      kind: K.bridge, v: Math.round(0.18 * 200), x: (b.a.x + b.b.x) / 2, z: (b.a.z + b.b.z) / 2, y: b.deckY,
-      yaw: Math.atan2(dx, dz), s: Math.hypot(dx, dz), w: Math.min(FB_BRIDGE_DECK_W, b.halfWidth * 2), h: 0.4, d: b.deckY,
+      // y/d are the bank heights at a/b; h lifts mid-span to deckY (same trapezoid as fbBridgeDeckY)
+      kind: K.bridge, v: Math.round(FB_BRIDGE_RAMP * 200), x: (b.a.x + b.b.x) / 2, z: (b.a.z + b.b.z) / 2, y: b.yA,
+      yaw: Math.atan2(dx, dz), s: Math.hypot(dx, dz), w: Math.min(FB_BRIDGE_DECK_W, b.halfWidth * 2), h: Math.max(0, b.deckY - (b.yA + b.yB) / 2), d: b.yB,
     });
   }
   // Warp rings: standing stones around each circle.
@@ -377,22 +388,59 @@ export function forestBasinProps(): Prop[] {
     };
     const dry = (px: number, pz: number) => !fbDesignWater(px, pz) && !forestBasinOnTrail(px, pz) && firm(px, pz) && fbTrailDist(px, pz) > 2.2 && !anchors.some((a) => Math.hypot(a.x - px, a.z - pz) < 3.2);
     const put = (kind: number, px: number, pz: number, yaw = 0, sc = 1) => { if (dry(px, pz)) at(kind, px, pz, yaw, sc); };
+    // thickets are blocked ground on purpose: thorns only keep off water, trails and units
+    const soft = (px: number, pz: number) => !fbDesignWater(px, pz) && fbTrailDist(px, pz) > 1.8 && !anchors.some((a) => Math.hypot(a.x - px, a.z - pz) < 3);
+    const thorn = (px: number, pz: number, a: number, sc: number) => { if (soft(px, pz)) at(K.thorn, px, pz, a, sc); };
     let clear = 5;
     switch (poi.kind) {
       case "grove": ring(9, 7, (px, pz, a, k) => put(k % 3 ? K.spruce : K.pine, px, pz, a, 6 + rnd(k) * 2.5)); ring(6, 3, (px, pz, a) => put(K.fern, px, pz, a)); clear = 9; break;
       case "glade": ring(10, 9, (px, pz, a, k) => put(k % 2 ? K.tallPatch : K.bloom, px, pz, a)); ring(5, 4, (px, pz, a) => put(K.longGrass, px, pz, a)); clear = 10; break;
-      case "thicket": ring(14, 5.5, (px, pz, a, k) => put(k % 3 ? K.bush : K.scrub, px, pz, a, 1.3)); ring(8, 3, (px, pz, a) => put(K.bush, px, pz, a, 1.5)); clear = 8; break;
-      case "fungus": ring(9, 2.6, (px, pz, a) => put(K.stalk, px, pz, a, 0.6)); put(K.moss, x, z); clear = 4; break;
-      case "hollow-tree": put(K.pine, x, z, 0, 9); ring(5, 1.8, (px, pz, a) => put(K.moss, px, pz, a, 1.2)); put(K.chest, x + 1.2, z + 0.4, 1); break;
-      case "fallen-giant": for (let k = 0; k < 14; k++) put(k % 2 ? K.moss : K.wallBlock, x - 10 + k * 1.5, z + Math.sin(k * 0.4) * 0.8, 1.57, 1.1); put(K.fern, x + 12, z + 1); put(K.fern, x - 11, z - 1); break;
+      case "thicket": ring(18, 5.5, (px, pz, a, k) => thorn(px, pz, a, 1.5 + rnd(k) * 0.9)); ring(9, 3, (px, pz, a, k) => thorn(px, pz, a, 1.9 + rnd(k + 3) * 0.6)); ring(7, 7.5, (px, pz, a) => thorn(px, pz, a, 1.2)); thorn(x, z, 0, 2.2); clear = 9; break;
+      case "fungus":
+        if (poi.id === "ninefold-ring") {
+          // nine caps in a true fairy ring, the floor inside left bare
+          // centre nudged off the Hollow Way so all nine stand
+          const offs = [[0, 0], [2, 0], [3, 1.5], [3, -1.5], [4, 0], [2, 2.5]].map(([ox, oz]) => {
+            let ok = 0; for (let k = 0; k < 9; k++) { const a = (k / 9) * Math.PI * 2; if (soft(x + ox! + Math.cos(a) * 4.2, z + oz! + Math.sin(a) * 4.2)) ok++; }
+            return { ox: ox!, oz: oz!, ok };
+          });
+          const best = offs.reduce((p, q) => (q.ok > p.ok ? q : p));
+          for (let k = 0; k < 9; k++) { const a = (k / 9) * Math.PI * 2; const px = x + best.ox + Math.cos(a) * 4.2, pz = z + best.oz + Math.sin(a) * 4.2; if (soft(px, pz)) out.push({ kind: K.mushrooms, v: 0, x: px, z: pz, y: forestBasinStandHeight(px, pz), yaw: a, s: 0.9 + rnd(k) * 0.4, w: 0, h: 0, d: 0 }); }
+        } else {
+          // the Lantern Caps: glowing caps, one giant at the heart
+          ring(8, 3.2, (px, pz, a, k) => { if (soft(px, pz)) out.push({ kind: K.mushrooms, v: 1, x: px, z: pz, y: forestBasinStandHeight(px, pz), yaw: a, s: 0.9 + rnd(k) * 0.8, w: 0, h: 0, d: 0 }); });
+          if (soft(x + 1.6, z - 1.2)) out.push({ kind: K.mushrooms, v: 1, x: x + 1.6, z: z - 1.2, y: forestBasinStandHeight(x + 1.6, z - 1.2), yaw: 0, s: 2.2, w: 0, h: 0, d: 0 });
+        }
+        put(K.moss, x, z); clear = 6; break;
+      case "hollow-tree": { const ox = x - 1.2, oz = z - 2.6; if (dry(ox, oz)) out.push({ kind: K.hollowOak, v: 0, x: ox, z: oz, y: forestBasinStandHeight(ox, oz) - 0.2, yaw: 0, s: 11, w: 1.5, h: 0, d: 0 }); ring(5, 4.5, (px, pz, a) => put(K.moss, px, pz, a, 1.2)); put(K.chest, x + 1.2, z + 0.4, 1); clear = 7; break; }
+      case "fallen-giant": {
+        // one giant trunk lying east-west beside the path, root plate at the west end
+        const lz = z + 2.6;
+        const ys = [-11, -5, 0, 5, 11].map((dx) => forestBasinGroundY(x + dx, lz));
+        out.push({ kind: K.fallenLog, v: 0, x, z: lz, y: Math.min(...ys) + 0.1, yaw: Math.PI / 2, s: 24, w: 1.5, h: 5.5, d: 0 });
+        ring(7, 13, (px, pz, a) => put(K.fern, px, pz, a, 1.2)); put(K.moss, x + 6, z - 1.2); clear = 13; break;
+      }
       case "forge": ring(3, 2.5, (px, pz, a) => put(K.wallBlock, px, pz, a, 1.2)); put(K.firePit, x, z); put(K.weaponRack, x + 2, z - 1, 0.8); put(K.barrel, x - 2, z + 1.5); put(K.moss, x + 1, z + 2.5); break;
       case "statue": put(K.stone, x, z, 1.2, 2.2); put(K.wallBlock, x + 1.8, z + 0.6, 0.3, 1.4); put(K.cairn, x - 1.6, z - 0.8, 0, 0.7); put(K.moss, x + 0.6, z - 1.4); break;
       case "vault": for (let k = -2; k <= 2; k++) put(K.wallBlock, x + k * 1.1, z - 1.5, 0, 1.3); put(K.stone, x, z - 1.2, 0, 1.6); put(K.crate, x + 2.5, z + 1, 0.4); break;
-      case "aqueduct": for (let k = 0; k < 5; k++) put(k === 2 ? K.moss : K.peak, x - 8 + k * 4, z - 6 + k * 3, 0.6, 0.35); break;
+      case "aqueduct":
+        // a broken run of arches stepping across the slope (arch spans lie along the run)
+        for (let k = 0; k < 6; k++) {
+          const px = x - 10 + k * 4, pz = z - 7.5 + k * 3;
+          if (!dry(px, pz)) continue;
+          out.push({ kind: K.ruinArch, v: k === 4 ? 1 : 0, x: px, z: pz, y: forestBasinStandHeight(px, pz) - 0.1, yaw: -Math.atan2(3, 4), s: 4.2 - (k % 2) * 0.5, w: 3.4, h: 0, d: 0 });
+        }
+        clear = 9; break;
       case "waystone": put(K.stone, x, z, rnd(1) * 6, 1.2); put(K.pebble, x + 0.9, z + 0.5); clear = 3; break;
       case "edict": put(K.stone, x, z, 0, 1.6); put(K.banner, x + 0.8, z + 0.2, 0); put(K.wallBlock, x - 1.4, z + 0.3, 0.4, 1.1); clear = 3; break;
       case "village": ring(8, 9, (px, pz, a, k) => put(k % 4 === 3 ? K.moss : K.wallBlock, px, pz, a, 1 + rnd(k) * 0.6)); ring(3, 5, (px, pz, a) => put(K.sapling, px, pz, a)); put(K.firePit, x, z); clear = 11; break;
-      case "sunken": ring(7, 5, (px, pz, a, k) => at(k % 2 ? K.moss : K.wallBlock, px, pz, a, 1.2)); at(K.stone, x, z, 0, 1.5); clear = 7; break;
+      case "sunken": {
+        // a drowned hall: an arch and broken pillars standing up out of the lake
+        const rise = (px: number, pz: number) => { const s = forestBasinWaterSurfaceY(px, pz); return (s ?? forestBasinGroundY(px, pz)) - forestBasinGroundY(px, pz); };
+        out.push({ kind: K.ruinArch, v: 0, x, z, y: forestBasinGroundY(x, z) - 0.2, yaw: 0.5, s: rise(x, z) + 2.6, w: 3.4, h: 0, d: 0 });
+        ring(5, 4.6, (px, pz, a, k) => out.push({ kind: K.ruinArch, v: 1, x: px, z: pz, y: forestBasinGroundY(px, pz) - 0.2, yaw: a, s: rise(px, pz) + 0.9 + rnd(k) * 1.8, w: 0, h: 0, d: 0 }));
+        clear = 7; break;
+      }
       case "charcoal": ring(3, 4, (px, pz) => put(K.cairn, px, pz, 0, 1.4)); put(K.leanTo, x + 5, z + 3, 0.6); put(K.firewood, x - 4, z + 4); put(K.firewood, x - 5, z + 2.5, 0.8); put(K.barrel, x + 3, z - 4); put(K.bedroll, x + 6, z + 1, 0.2); clear = 8; break;
       case "hermit": put(K.shack, x, z, 2.4); put(K.firePit, x + 3, z + 1); put(K.firewood, x - 2.5, z + 2); put(K.barrel, x + 2, z - 2); break;
       case "shrine": put(K.cairn, x, z, 0, 1.2); ring(6, 1.4, (px, pz, a) => put(K.pebble, px, pz, a)); put(K.bloom, x + 1.8, z); put(K.bloom, x - 1.6, z + 0.8); clear = 4; break;
@@ -401,14 +449,66 @@ export function forestBasinProps(): Prop[] {
       case "vista": put(K.cairn, x, z, 0, 1); put(K.tuft, x + 1, z + 1); clear = 3; break;
       case "cache": put(K.chest, x, z, rnd(2) * 6); clear = 2; break;
       case "camp": put(K.tent, x, z, 0.3); put(K.firePit, x + 3, z - 1); put(K.crate, x - 2, z + 2, 0.4); put(K.stall, x + 4, z + 3, -0.4); clear = 7; break;
-      case "falls": ring(6, 4, (px, pz, a, k) => put(k % 2 ? K.rock : K.fern, px, pz, a, 1.4)); put(K.stone, x - 1.5, z + 1.5, 0, 1.3); break;
+      case "falls": ring(6, 3, (px, pz, a, k) => put(k % 2 ? K.rock : K.fern, px, pz, a, 1.4)); break;
       case "quarry": put(K.crate, x, z, 0.3); put(K.wallBlock, x + 2, z + 1, 0, 1.3); put(K.wallBlock, x + 3.2, z + 1.1, 0.1, 1.3); put(K.leanTo, x - 3, z + 2, 0.4); break;
-      case "sink": ring(6, 4, (px, pz, a) => put(K.stalk, px, pz, a, 0.7)); clear = 7; break;
+      case "sink": ring(5, 3, (px, pz, a) => put(K.fern, px, pz, a, 0.9)); clear = 7; break;
       case "gorge": ring(6, 6, (px, pz, a) => put(K.rock, px, pz, a, 1.6)); clear = 0; break;
       case "ruin": ring(6, 3.5, (px, pz, a, k) => put(k % 3 ? K.wallBlock : K.moss, px, pz, a, 1.1)); put(K.stone, x, z, 0.5, 1); clear = 6; break;
       case "isle": ring(6, 2.5, (px, pz, a) => put(K.reed, px, pz, a)); put(K.stone, x, z, 0, 1.3); clear = 4; break;
     }
     if (clear) near.push({ x, z, r: clear });
+  }
+  // Set pieces that read from their names (rock walls, falls, forges).
+  const wall = (x: number, z: number, yaw: number, len: number, hgt: number, y: number) =>
+    out.push({ kind: K.rockWall, v: 0, x, z, y, yaw, s: len, w: 0.9, h: hgt, d: 0 });
+  // Sinks: a ring of bare rock faces down to the silt floor, open where a stair comes down.
+  for (const k of FB_SINKS) {
+    const floor = forestBasinGroundY(k.x, k.z);
+    const rr = k.r * 0.66;
+    const n = Math.ceil((Math.PI * 2 * rr) / 2.1);
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2;
+      const px = k.x + Math.cos(a) * rr, pz = k.z + Math.sin(a) * rr;
+      const asc = fbAscentAt(px, pz);
+      if (asc && asc.dist < asc.ascent.halfWidth + 1.2) continue;
+      const rim = forestBasinGroundY(k.x + Math.cos(a) * k.r * 1.05, k.z + Math.sin(a) * k.r * 1.05);
+      // forward (f) points at the sink centre
+      wall(px, pz, Math.atan2(k.x - px, k.z - pz), (Math.PI * 2 * rr) / n + 0.4, Math.max(1, rim - floor + 0.1), floor);
+    }
+  }
+  // Cut faces of the Graven Cuts and the walls of Rook's Throat: rock where the ground steps.
+  const face = (cx: number, cz: number, r: number) => {
+    for (let z = cz - r; z <= cz + r; z += 2.5) for (let x = cx - r; x <= cx + r; x += 2.5) {
+      if (Math.hypot(x - cx, z - cz) > r || fbDesignWater(x, z)) continue;
+      const gx = (forestBasinGroundY(x + 0.75, z) - forestBasinGroundY(x - 0.75, z)) / 1.5;
+      const gz = (forestBasinGroundY(x, z + 0.75) - forestBasinGroundY(x, z - 0.75)) / 1.5;
+      const g = Math.hypot(gx, gz);
+      if (g < 1.1) continue;
+      const asc = fbAscentAt(x, z);
+      if ((asc && asc.dist < asc.ascent.halfWidth + 0.8) || fbTrailDist(x, z) < 2 || anchors.some((m) => Math.hypot(m.x - x, m.z - z) < 2.5)) continue;
+      // face looks downhill; base at the foot of the step
+      const ux = -gx / g, uz = -gz / g;
+      const lo = forestBasinGroundY(x + ux * 1.2, z + uz * 1.2), hi = forestBasinGroundY(x - ux * 1.2, z - uz * 1.2);
+      if (hi - lo < 1) continue;
+      wall(x + ux * 0.3, z + uz * 0.3, Math.atan2(ux, uz), 2.8, hi - lo + 0.1, lo);
+    }
+  };
+  face(FB_QUARRY.x, FB_QUARRY.z, FB_QUARRY.r);
+  for (const gq of FB_GORGES) for (const p of gq.points) face(p.x, p.z, gq.halfWidth + 3);
+  // The Wright's Veil: the Briarwater pours off the Veil Scarp into Fenstone Pool.
+  {
+    const lip = FB_RIVERS.find((r) => r.id === "briarwater")!.points.find((p) => p.y >= 15.5 && p.z < 119)!;
+    const pool = forestBasinWaterSurfaceY(-93.3, 114.2) ?? 10.4;
+    out.push({ kind: K.falls, v: 0, x: -93.3, z: 116.6, y: pool, yaw: Math.PI, s: 1, w: 3.4, h: lip.y - pool, d: 0 });
+    wall(-97.4, 117.4, Math.PI - 0.2, 4.4, lip.y - pool + 0.4, pool - 0.2);
+    wall(-89.6, 116.9, Math.PI + 0.25, 3.6, lip.y - pool - 0.6, pool - 0.2);
+  }
+  // The Cold Forges: three dead hearths, each with a broken chimney stack.
+  for (const [dx, dz] of [[-3.5, -2], [3, -2.5], [0, 3.5]] as const) {
+    const px = -56 + dx, pz = 77.5 + dz;
+    if (anchors.some((m) => Math.hypot(m.x - px, m.z - pz) < 2.5) || fbDesignWater(px, pz)) continue;
+    out.push({ kind: K.ruinArch, v: 1, x: px, z: pz, y: forestBasinStandHeight(px, pz) - 0.1, yaw: dx, s: 3.2, w: 0, h: 0, d: 0 });
+    at(K.firePit, px + 1.1, pz + 0.4);
   }
   // The wood, plus reeds on the banks.
   const { minX, maxX, minZ, maxZ } = FOREST_BASIN_BOUNDS;
