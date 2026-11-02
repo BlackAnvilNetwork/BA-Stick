@@ -22,6 +22,9 @@ shot() { # name x z facing cam [phase]
   else "$EX/scene_shot" "$BAZ" "$BAP" /tmp/fb-units.txt "$5" 1280 720 "$OUT/$1.ppm" "$MOOD" "$LIGHTS"; fi
   png "$OUT/$1.ppm" "$OUT/$1.png"
 }
+if [ -n "${SHOTS:-}" ]; then
+  while read -r n x z f c ph; do [ -z "$n" ] || [ "${n:0:1}" = "#" ] || shot "$n" "$x" "$z" "$f" "$c" "$ph"; done < "$SHOTS"
+else
 shot kettle-hollow 12 -96 0 iso
 shot scraped-ring -24 2 0 iso
 shot wrightsbridge -28 58 0 tp
@@ -36,4 +39,5 @@ shot stoneback-bridge 59 62 0 iso
 shot crossing-stones 116 -6 0.8 iso
 shot spurgate-ring 112 -92 0 iso
 shot kettle-hollow-night 12 -98 0 iso 0.02
+fi
 ls "$OUT"
