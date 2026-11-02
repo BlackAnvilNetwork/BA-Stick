@@ -391,11 +391,11 @@ const FIELDS: Record<SeamCountryZone, FieldSpec> = {
     ],
   },
   islet_fords: {
-    camps: [{ id: "if-camp-ferry", name: "Ferry Stage", side: "friendly", kit: "ferry", pref: { x: 84, z: -14 }, yaw: 0 }],
+    camps: [{ id: "if-camp-ferry", name: "Ferry Stage", side: "friendly", kit: "ferry", pref: { x: 166, z: -14 }, yaw: Math.PI }],
     givers: [{ id: "npc-if-tobin", name: "Ferryman Tobin Reed", campId: "if-camp-ferry" }],
     families: [
       { key: "drowned", name: "Ford Drowned", archetype: "drowned_one", levels: [17, 18], aggro: "proximity", aggroRange: NEAR, drops: ["bone-chip", "slime-oil", "linen-scrap"], den: { x: 110, z: 8 }, radius: 18, count: 5 },
-      { key: "lamprey", name: "Causeway Lamprey", archetype: "lamprey", levels: [17], aggro: "proximity", aggroRange: NEAR, drops: ["slime-oil", "poison-sac", "stone-scale"], den: { x: 16, z: -14 }, radius: 18, count: 5 },
+      { key: "lamprey", name: "Causeway Lamprey", archetype: "lamprey", levels: [17], aggro: "proximity", aggroRange: NEAR, drops: ["slime-oil", "poison-sac", "stone-scale"], den: { x: 170, z: 12 }, radius: 12, count: 5 },
       { key: "crab", name: "Ford Crab", archetype: "clay_crab", levels: [17], aggro: "safe", aggroRange: 0, hpMul: 1.1, drops: ["clay-crab", "river-sand"], den: { x: 175, z: 8 }, radius: 18, count: 3 },
     ],
     quests: [
@@ -404,7 +404,7 @@ const FIELDS: Record<SeamCountryZone, FieldSpec> = {
         progress: "Five of the ford drowned, and the ring read.",
         done: "The ring held because it was set to. Tell Orrin the river remembers." },
       { id: "if-eels", npcId: "npc-if-tobin", for: "Maudry Saltpenny", title: "Eels on the Causeway", families: ["lamprey"], need: 5, gold: 320,
-        offer: "Lampreys hunt the dry edges of the first islet. They take ankles. Five of them, and Maudry Saltpenny pays for the oil.",
+        offer: "Lampreys hunt the wet stones of the Broken Causeway, just north of this stage. They take ankles. Five of them, and Maudry Saltpenny pays for the oil.",
         progress: "The edges still bite.",
         done: "Maudry will render the oil. I will keep my ankles." },
     ],
