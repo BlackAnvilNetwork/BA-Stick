@@ -1226,8 +1226,17 @@ fn weather(c: &mut Ctx, p: &Prop) {
     }
     let r = |k: f32| ((p.x * 12.9898 + p.z * 78.233 + k * 37.719).sin() * 43758.547).fract().abs();
     // the skirt: a low flared bank of earth, ground colours, hiding the hard contact line
-    c.boxy(0.0, -0.35, 0.0, hw * 2.0 + 0.6, 0.5, hd * 2.0 + 0.6, GRASS, GRASS_D, GRASS_D);
-    c.boxy(0.0, -0.3, 0.0, hw * 2.0 + 1.1, 0.3, hd * 2.0 + 1.1, GRASS_D, GRASS_D, GRASS_D);
+    if p.kind == kind::RUIN_ARCH && p.var == 2 {
+        // aqueduct piers stand on stepped stone footings (they may be in the stream)
+        for sd in [-1.0f32, 1.0] {
+            c.boxy(sd * (hw - 0.4), -0.4, 0.0, 1.5, 0.7, 1.7, WALL, WALL_D, ROCK_D);
+        }
+    } else {
+        c.boxy(0.0, -0.35, 0.0, hw * 2.0 + 0.6, 0.5, hd * 2.0 + 0.6, GRASS, GRASS_D, GRASS_D);
+    }
+    if !(p.kind == kind::RUIN_ARCH && p.var == 2) {
+        c.boxy(0.0, -0.3, 0.0, hw * 2.0 + 1.1, 0.3, hd * 2.0 + 1.1, GRASS_D, GRASS_D, GRASS_D);
+    }
     // moss and grass creeping onto the lower course, in ragged patches
     let n = ((hw * 2.0) / 0.7).ceil().max(1.0) as i32;
     for k in 0..n {

@@ -431,7 +431,7 @@ export function forestBasinProps(): Prop[] {
           const rise = 5 * 0.42;
           const top = Math.max(...bays.map((b) => forestBasinGroundY(b.px, b.pz))) + 1.6 + rise + 0.25;
           for (const b of bays) {
-            if (fbDesignWater(b.px, b.pz)) continue;
+            // bays in the stream keep their piers: a continuous arcade, as built
             const g = forestBasinGroundY(b.px, b.pz);
             if (b.k === 2) { out.push({ kind: K.ruinArch, v: 1, x: b.px - 2, z: b.pz - 1.5, y: g - 0.1, yaw: 0.3, s: (top - g) * 0.8, w: 0, h: 0, d: 0 }); continue; } // the fallen bay
             out.push({ kind: K.ruinArch, v: 2, x: b.px, z: b.pz, y: g, yaw: -Math.atan2(3, 4), s: top - rise - 0.25 - g, w: 5, h: 0, d: 0 });
