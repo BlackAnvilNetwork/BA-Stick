@@ -182,7 +182,9 @@ export const FB_MOB_PACKS: readonly { id: string; archetype: string; name?: stri
   { id: "veil-slimes", archetype: "pale_slime", x: -80, z: 113, level: 10, n: 2 },
 ];
 
-/** Same shape as the Pale Hollow kill tasks. Forest Basin keeps its own list. */
+/** Kill tasks match Pale Hollow. A fetch is walked to, then brought back. There is no escort. */
+export type FbQuestSite = { id: string; name: string; x: number; z: number; r: number; line: string };
+
 export type FbQuestDef = {
   id: string;
   npcId: string;
@@ -193,9 +195,14 @@ export type FbQuestDef = {
   gold: number;
   need: number;
   mobIds: readonly string[];
+  kind?: "kill" | "fetch";
+  sites?: readonly FbQuestSite[];
 };
 
-export type FbQuestBag = { active: { id: string; kills: number }[]; done: string[] };
+export type FbQuestBag = {
+  active: { id: string; kills: number; seen?: string[] }[];
+  done: string[];
+};
 
 function packIds(pack: string, n: number): string[] {
   return Array.from({ length: n }, (_, i) => `fb-${pack}-${i}`);
@@ -217,12 +224,18 @@ export const FB_QUESTS: readonly FbQuestDef[] = [
     id: "fb-last-stones",
     npcId: "fb-tobin",
     title: "The Last Stones",
-    offer: "Boars in the thorn are rooting the last stones that still hold a mark. The Merrow Stone and the Gannet Stone will not survive them. Put the boars down.",
-    progress: "The boars are still at the stones.",
-    done: "The thorn is quiet. Rub the Merrow Stone, the Gannet Stone and Aldric's Waystone before the weather takes what's left.",
+    kind: "fetch",
+    offer: "Every waystone in this basin was scraped, but not every scraper was thorough. Take a rubbing from the Merrow Stone, the Gannet Stone, and Aldric's Waystone. Bring me what survives.",
+    progress: "The stones still want a rubbing.",
+    done: "These are enough. The names are gone, but the marks under them are not.",
     gold: 18,
-    need: 2,
-    mobIds: packIds("thornwall-boars", 2),
+    need: 3,
+    mobIds: [],
+    sites: [
+      { id: "merrow", name: "the Merrow Stone", x: 17, z: 6, r: 4, line: "You take a rubbing from the Merrow Stone." },
+      { id: "gannet", name: "the Gannet Stone", x: -68, z: -29, r: 4, line: "You take a rubbing from the Gannet Stone." },
+      { id: "aldric", name: "Aldric's Waystone", x: -3, z: -53, r: 4, line: "You take a rubbing from Aldric's Waystone." },
+    ],
   },
   {
     id: "fb-wheel-lock",
@@ -239,12 +252,21 @@ export const FB_QUESTS: readonly FbQuestDef[] = [
     id: "fb-pilgrims-pack",
     npcId: "fb-pumice",
     title: "The Pilgrim's Pack",
-    offer: "Peace, traveller. Adders have a pilgrim's pack at the bottom of Rook's Throat. Clear them out. The pack stays unopened. The Chapel will know.",
-    progress: "The adders still hold Rook's Throat.",
-    done: "The throat is clear. Leave the pack shut and bring it up.",
+    kind: "fetch",
+    offer: "Peace, traveller. A pilgrim's pack lies at the bottom of Rook's Throat. Fetch it up. Unopened, mind. The Chapel will know.",
+    progress: "The pack is still at the bottom of Rook's Throat.",
+    done: "Leave it shut. The Chapel will know you brought it.",
     gold: 20,
-    need: 2,
-    mobIds: packIds("gorge-adders", 2),
+    need: 1,
+    mobIds: [],
+    sites: [{
+      id: "rooks-throat",
+      name: "the bottom of Rook's Throat",
+      x: -35,
+      z: -96,
+      r: 6,
+      line: "The pilgrim's pack is here. You leave it shut.",
+    }],
   },
 ];
 
@@ -269,6 +291,29 @@ export function forestBasinQuestLogEntries(state: FbQuestBag) {
       ready: entry.kills >= quest.need,
     }];
   });
+}
+
+/** Stand on a fetch site to take what it holds. The same site does not count twice. */
+export function forestBasinQuestVisit(
+  state: FbQuestBag,
+  x: number,
+  z: number,
+): { state: FbQuestBag; found: FbQuestSite[] } {
+  const found: FbQuestSite[] = [];
+  const active = state.active.map((entry) => {
+    const quest = forestBasinQuestById(entry.id);
+    if (!quest || quest.kind !== "fetch" || !quest.sites) return entry;
+    const seen = entry.seen ?? [];
+    if (seen.length >= quest.need) return entry;
+    const hit = quest.sites.find(
+      (site) => !seen.includes(site.id) && Math.hypot(site.x - x, site.z - z) <= site.r,
+    );
+    if (!hit) return entry;
+    found.push(hit);
+    const nextSeen = [...seen, hit.id];
+    return { ...entry, seen: nextSeen, kills: nextSeen.length };
+  });
+  return { state: found.length ? { active, done: state.done } : state, found };
 }
 
 export function forestBasinQuestCredit(state: FbQuestBag, mobId: string): FbQuestBag {

@@ -109,6 +109,7 @@ import {
   forestBasinQuestCredit,
   forestBasinQuestLogEntries,
   forestBasinQuestTalk,
+  forestBasinQuestVisit,
   warpCircleById,
   ZONES,
   applyTravel,
@@ -415,7 +416,7 @@ type Player = {
   xp: number;
   dust: number;
   /** Pale Hollow kill tasks — several may be active. Old saves used a single `active`. */
-  hollowQuest: { active: { id: string; kills: number }[]; done: string[] };
+  hollowQuest: { active: { id: string; kills: number; seen?: string[] }[]; done: string[] };
   /** Rings walked into. The server is the only writer. */
   warpUnlocked: string[];
   /** Death home. `hub` keeps older characters at the Scout Gate. */
@@ -4063,6 +4064,19 @@ function placeEnteredZone(p: Player, msg: { zone?: string; x?: number; z?: numbe
   dropZoneHate(p);
 }
 
+function touchBasinQuests(p: Player) {
+  if (p.zoneId !== "forest_basin" || p.hollowQuest.active.length === 0) return;
+  const next = forestBasinQuestVisit(
+    { active: p.hollowQuest.active, done: p.hollowQuest.done },
+    p.x,
+    p.z,
+  );
+  if (!next.found.length) return;
+  p.hollowQuest = { active: next.state.active, done: p.hollowQuest.done };
+  for (const site of next.found) pushLog(p, site.line);
+  rememberPlayer(p);
+}
+
 function touchWarps(p: Player) {
   if ((p.zoneId !== "pale_hollow" && p.zoneId !== "forest_basin") || !Array.isArray(p.warpUnlocked)) return;
   const next = reachWarp(p.warpUnlocked, p.x, p.z, p.zoneId);
@@ -6336,6 +6350,7 @@ function tickSimBody() {
       }
     }
     touchWarps(p);
+    touchBasinQuests(p);
 
     if (p.anim === "rest") {
       // Once per second: recover HP/MP, bleed TP

@@ -9,6 +9,7 @@ import {
   FB_BRIDGES,
   forestBasinQuestCredit,
   forestBasinQuestTalk,
+  forestBasinQuestVisit,
   fieldMobDefs,
   fieldNpcDefs,
   fieldReachable,
@@ -82,7 +83,7 @@ test("forest basin population: hand-placed mobs and NPCs stand on reachable grou
   }
 });
 
-test("forest basin quests follow the kill-task pattern for the four givers", () => {
+test("forest basin quests: two kill tasks and two fetches", () => {
   const givers = ["Hild Coalhurst", "Tobin Reede", "Old Corwin Ashdown", "Sister Pumice"];
   const npcs = fieldNpcDefs("forest_basin");
   const mobs = new Set(fieldMobDefs("forest_basin").map((mob) => mob.id));
@@ -93,13 +94,21 @@ test("forest basin quests follow the kill-task pattern for the four givers", () 
     const spoken = `${quest.title} ${quest.offer} ${quest.progress} ${quest.done}`;
     assert.equal(retired.test(spoken), false, quest.title);
     assert.equal(/\bfb-/.test(spoken), false, quest.title);
-    assert.equal(quest.mobIds.length, quest.need);
-    for (const id of quest.mobIds) assert.ok(mobs.has(id), id);
     const offered = forestBasinQuestTalk({ active: [], done: [] }, quest.npcId);
     assert.equal(offered.body, quest.offer);
     assert.equal(offered.gold, 0);
     let bag = offered.state;
-    for (const id of quest.mobIds) bag = forestBasinQuestCredit(bag, id);
+    if (quest.kind === "fetch") {
+      assert.equal(quest.sites?.length, quest.need);
+      for (const site of quest.sites ?? []) {
+        assert.equal(forestBasinWalkable(site.x, site.z), true, site.name);
+        bag = forestBasinQuestVisit(bag, site.x, site.z).state;
+      }
+    } else {
+      assert.equal(quest.mobIds.length, quest.need);
+      for (const id of quest.mobIds) assert.ok(mobs.has(id), id);
+      for (const id of quest.mobIds) bag = forestBasinQuestCredit(bag, id);
+    }
     const paid = forestBasinQuestTalk(bag, quest.npcId);
     assert.equal(paid.gold, quest.gold);
     assert.equal(paid.body, quest.done);

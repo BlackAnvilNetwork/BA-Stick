@@ -89,9 +89,9 @@ Each field's **fragment beat** (from the 13-fragment trail) uses its POI as the 
 | Hollow Road | **The Seventh Post** (fragment 5) | Orrin Haltmark, via **Wick Tallow, Roadside Hermit** | Drive off 5 Tithe-Takers at the Seven Posts | 360 | The Seven Posts; the seventh stone is broken on purpose. |
 | Hollow Road | **One in Seven** | Maudry Saltpenny, via Wick | Kill 4 Toll Hounds harrying carts | 240 | **Tithe Booth** (Crown camp). |
 | Forest Basin | **The Cold Hearth** | **Hild Coalhurst** | Put down the scavengers at the Cold Forges | 24 | The Cold Forges. In the game. |
-| Forest Basin | **The Last Stones** | **Tobin Reede** | Put down the boars rooting the waystones | 18 | The Merrow Stone, the Gannet Stone, Aldric's Waystone. In the game. |
+| Forest Basin | **The Last Stones** | **Tobin Reede** | Take a rubbing from the Merrow Stone, the Gannet Stone and Aldric's Waystone | 18 | A fetch. Tobin Reede is the stone-copier at Reede's Camp, not the ferryman. In the game. |
 | Forest Basin | **The Wheel-Lock** | **Old Corwin Ashdown** | Put down the vault's guardian | 32 | The vault by the Kiln Path. Rubbings from Heron Isle, under the Wright's Veil, and the Sunk Hall. In the game. |
-| Forest Basin | **The Pilgrim's Pack** | **Sister Pumice** | Clear the adders in Rook's Throat | 20 | The pack stays unopened. In the game. |
+| Forest Basin | **The Pilgrim's Pack** | **Sister Pumice** | Fetch the unopened pack from the bottom of Rook's Throat | 20 | A fetch. There is no escort task. In the game. |
 | Spur Road | **Bounded in Sevens** (fragment 7) | Orrin, via **Old Hesk, Last Freeholder** | Kill 5 Crown Outriders | 405 | Seven-Stone Bench. |
 | Spur Road | **Under the Cairn** | Maudry, via Hesk | Kill 4 Spur Adders | 280 | Toll-Keeper's Cairn; old tolls were paid in labour. |
 | Ring Ward | **Older Than the Walls** (fragment 8) | Ilse, via **Marrow Quaylan, Wharf Lampman** | Lay down 4 Wharf Drowned and the Lockkeeper Drowned | 435 | Older Paving. |

@@ -269,9 +269,9 @@ Between Seam Ridge and the Ember Crown foothills, with the Westwall on the west,
 | Forest Basin | **Oswy Fernhallow** | Meets travellers at Kettle Hollow and points them up the Hollow Way. |
 | Forest Basin | **Hild Coalhurst** | Keeps the charcoal. Someone is lighting a hearth at the Cold Forges with it. |
 | Forest Basin | **Abel Coalhurst** | Burns timber from Brannock Grove for the kilns. |
-| Forest Basin | **Tobin Reede** | Reads what the scrapers left on the Merrow Stone, the Gannet Stone and Aldric's Waystone. |
+| Forest Basin | **Tobin Reede** | Copies what the scrapers left. He pays for a rubbing from the Merrow Stone, the Gannet Stone and Aldric's Waystone. |
 | Forest Basin | **Old Corwin Ashdown** | Knows the wheel-lock on the vault by the Kiln Path. |
-| Forest Basin | **Sister Pumice** | Cult-given name. Asks for an unopened pilgrim's pack from the bottom of Rook's Throat. |
+| Forest Basin | **Sister Pumice** | Cult-given name. Sends you to fetch an unopened pilgrim's pack from the bottom of Rook's Throat. |
 | Spur Road | **Old Hesk, the Last Freeholder** | Named, his family says, for Hesk Tallowmere; the last of a free hold counted in sevens. |
 | Ring Ward | **Marrow Quaylan, the Wharf Lampman** | Lights the wharf lamps and remembers the lockkeeper who kept the old sevens cut. |
 | Islet Fords | **Ferryman Tobin Reed** | Poles folk across from the Ferry Stage only in May, when the snowmelt drowns the fords. The rest of the year he keeps the stage as a ford-keeper who knows the safe stones, and buries ferrymen at the West Cairn. |
