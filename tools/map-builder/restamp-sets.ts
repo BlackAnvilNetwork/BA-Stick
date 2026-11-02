@@ -7,8 +7,9 @@
  * a little uneven. The outline wanders, so the steps are not rings. Cells the
  * hill never reached are left alone, so a bench is a cut, not a platform.
  *
- * The sinks: a silt floor, a short steep wall, and a low rim, so the hole
- * still reads from the overhead camera. Stairs are put back afterwards.
+ * The sinks: a silt floor that dips and carries rubble, a short steep rock
+ * wall, and a low rim. The floor is never a disc. The wall is painted
+ * mountain so the overhead view reads as a pit. Stairs are put back afterwards.
  *
  *   pnpm --filter @bellgrave/config exec tsx ../../tools/map-builder/restamp-sets.ts
  */
@@ -30,6 +31,11 @@ function cmAt(src: Buffer, i: number, j: number): number {
 function setCm(i: number, j: number, metres: number): void {
   const o = (j * N + i) * 3;
   buf.writeInt16LE(Math.round(metres * 100), o);
+}
+/** Low two flag bits are the paint: 3 is mountain, the dark rock. */
+function setRock(i: number, j: number): void {
+  const o = (j * N + i) * 3 + 2;
+  buf[o] = (buf[o]! & ~3) | 3;
 }
 function ij(x: number, z: number): { i: number; j: number } {
   return {
@@ -149,6 +155,33 @@ function rimMedian(x0: number, z0: number, r: number): number {
   return ys[6]!;
 }
 
+/** A few mounds, different in each hole, so the silt is not a stamped disc. */
+function rubble(x: number, z: number, pit: Pit): number {
+  const bumps = [
+    [0.28, 0.16, 0.22, 0.55],
+    [-0.34, 0.3, 0.18, 0.42],
+    [0.06, -0.4, 0.24, 0.72],
+    [-0.2, -0.14, 0.15, 0.34],
+    [0.4, -0.06, 0.14, 0.48],
+  ] as const;
+  const shift = pit.x * 0.01 + pit.z * 0.02;
+  let h = 0;
+  for (const [ox, oz, rad, amp] of bumps) {
+    const dx = (x - pit.x) / pit.r - ox - shift;
+    const dz = (z - pit.z) / pit.r - oz;
+    const t = 1 - Math.hypot(dx, dz) / rad;
+    if (t > 0) h = Math.max(h, amp * t * t);
+  }
+  return h;
+}
+
+/** Deeper in the middle, then rubble. The edge of the silt meets the wall. */
+function pitFloor(x: number, z: number, pit: Pit, floor: number, d: number): number {
+  const bowl = 0.7 * (1 - Math.min(1, d / 0.58));
+  const grit = 0.08 * Math.sin(x * 0.73 + pit.x) * Math.sin(z * 0.61 + pit.z);
+  return floor - bowl + rubble(x, z, pit) + grit;
+}
+
 const pits: Pit[] = [
   ...FB_SINKS.map((s) => ({
     ...s,
@@ -173,13 +206,14 @@ for (const pit of pits) {
       const rad = pit.r * (1 + 0.1 * Math.sin(ang * 3 + 0.5) + 0.05 * Math.sin(ang * 2 - 0.8));
       const d = Math.hypot(x - pit.x, z - pit.z) / rad;
       const was = cmAt(orig, i, j) / 100;
-      const grit = 0.12 * Math.sin(x * 0.8 + 1.1) * Math.sin(z * 0.55);
+      const wet = pit.id === "the-swallow" && fbDesignWater(x, z);
       let h = was;
-      if (d < 0.58) h = floor + grit;
-      else if (d < 0.78) h = floor + (rim - floor) * smoothstep((d - 0.58) / 0.2) + grit * 0.4;
+      if (d < 0.58) h = pitFloor(x, z, pit, floor, d);
+      else if (d < 0.78) h = floor + (rim - floor) * smoothstep((d - 0.58) / 0.2);
       else if (d < 1.12) h = was + 0.55 * Math.sin(Math.PI * smoothstep((d - 0.78) / 0.34));
       else continue;
       setCm(i, j, h);
+      if (d < 0.9 && !wet) setRock(i, j);
     }
   }
   if (pit.stair) carveAscent(pit.stair, 0);
@@ -193,8 +227,9 @@ for (const pit of pits) {
       const rad = pit.r * (1 + 0.1 * Math.sin(ang * 3 + 0.5) + 0.05 * Math.sin(ang * 2 - 0.8));
       if (Math.hypot(x - pit.x, z - pit.z) > rad * 0.5) continue;
       if (pit.id === "the-swallow" && fbDesignWater(x, z) && x < pit.x - 1.5) continue;
-      const grit = 0.1 * Math.sin(x * 0.8 + 1.1) * Math.sin(z * 0.55);
-      setCm(i, j, floor + grit);
+      const inward = Math.hypot(x - pit.x, z - pit.z) / rad;
+      setCm(i, j, pitFloor(x, z, pit, floor, inward));
+      if (!fbDesignWater(x, z)) setRock(i, j);
     }
   }
 }
