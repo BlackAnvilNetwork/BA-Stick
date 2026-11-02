@@ -270,7 +270,7 @@ Between Seam Ridge and the Ember Crown foothills, with the Westwall on the west,
 | Forest Basin | **Gerd Halloway, the Basin Trapper** | Sells hides to Mayflower's halls. |
 | Spur Road | **Old Hesk, the Last Freeholder** | Named, his family says, for Hesk Tallowmere; the last of a free hold counted in sevens. |
 | Ring Ward | **Marrow Quaylan, the Wharf Lampman** | Lights the wharf lamps and remembers the lockkeeper who kept the old sevens cut. |
-| Islet Fords | **Ferryman Tobin Reed** | Works the Ferry Stage and buries ferrymen at the West Cairn. |
+| Islet Fords | **Ferryman Tobin Reed** | Poles folk across from the Ferry Stage only in May, when the snowmelt drowns the fords. The rest of the year he keeps the stage as a ford-keeper who knows the safe stones, and buries ferrymen at the West Cairn. |
 | Green Reach | **Drover-Widow Annet** | Lost her husband to the feral herd; keeps the Herders' Fold. |
 | Coil Pass | **Brother Lantern, the Pass Pilgrim** | Walks the switchbacks to the Crown Stones and prays to the beacon that no longer burns. |
 | Coil Ridge (the Broken Stair) | **Ashen Wenlo, the Stair Hermit** | Lives in a cell by the Scarp Cave and watches the Penitents whitewash the steles. |

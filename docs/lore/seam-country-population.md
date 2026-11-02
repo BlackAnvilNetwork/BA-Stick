@@ -95,7 +95,7 @@ Each field's **fragment beat** (from the 13-fragment trail) uses its POI as the 
 | Ring Ward | **Older Than the Walls** (fragment 8) | Ilse, via **Marrow Quaylan, Wharf Lampman** | Lay down 4 Wharf Drowned and the Lockkeeper Drowned | 435 | Older Paving. |
 | Ring Ward | **Seven Courses** | Brann, via Marrow | Kill 3 Crown Wharfwardens | 300 | **Wharfwarden's Post** (Crown camp). |
 | Islet Fords | **The Ring Held** (fragment 9) | Orrin, via **Ferryman Tobin Reed** | Lay down 5 Ford Drowned | 450 | Islet Ring; the river moved and the ring held. |
-| Islet Fords | **Eels on the Causeway** | Maudry, via Tobin | Kill 5 Causeway Lampreys | 320 | **Ferry Stage** by the Broken Causeway. |
+| Islet Fords | **Eels on the Causeway** | Maudry, via Tobin | Kill 5 Causeway Lampreys | 320 | **Ferry Stage** by the Broken Causeway. The ferry runs only in the May snowmelt flood; the rest of the year Tobin keeps the safe stones of the wadeable fords. |
 | Green Reach | **The View of Seven** (fragment 10) | Ilse, via **Drover-Widow Annet** | Kill 4 Ringblight Wolves and Old Banding, then climb to White Caps Summit | 465 | White Caps Summit, by the White Caps Stair. |
 | Green Reach | **Strays of the Reach** | Brann, via Annet | Kill 6 Banded Grazers | 340 | **Herders' Fold**. |
 | Coil Pass | **Crown Stones** (fragment 11) | Orrin, via **Brother Lantern, Pass Pilgrim** | Kill 5 Seam Drovers and Crook Maddoc | 480 | Crown Stones. |
@@ -113,7 +113,7 @@ Fragment quests `require` the previous fragment quest, matching the trail order.
   - Trapper's Lean-to (Forest Basin, a glade west of the Valley Cross Graves)
   - Spur Watch Fire (Spur Road, a side bay north of the spawn)
   - Wharfwarden's Post (Ring Ward, the far wharf shelf)
-  - Ferry Stage (Islet Fords, the far side of the first ford)
+  - Ferry Stage (Islet Fords, beside the Broken Causeway; a spring-flood ferry, used only when the May snowmelt drowns the fords)
   - Herders' Fold (Green Reach, the side valley south of the spawn)
   - Drover Camp (Coil Pass, a ledge off the switchback)
   - Penitents' Whitewash Camp (The Broken Stair, the ruin shelf beside the Stele Field)

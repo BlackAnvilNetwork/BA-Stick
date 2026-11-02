@@ -139,6 +139,7 @@ Map placement follows §4 of the terrain worker's fields report. The eight field
 - **Peoples (proposed):**
   - **Seam drovers** work the green reaches. In fact the march is Pale Hollow's only grazing, which squares with the "ring the shepherds won't graze" hook.
   - **Ford-wardens** keep the islet causeways.
+  - **The spring-flood ferry.** The islet fords can be waded most of the year. In May, when the snowmelt comes (the month the exiles fled), the fords drown, and **Ferryman Tobin Reed** poles folk across from the **Ferry Stage** by the Broken Causeway. The rest of the year he keeps the stage as a ford-keeper who knows the safe stones.
   - The ring-town in Ring Ward is a Crown toll town built around an older paving circle.
 - **Physics note:** the fords in the game are dry causeways and decks; there is no walkable water [generated terrain]. Write them as raised stone fords, not wading.
 
