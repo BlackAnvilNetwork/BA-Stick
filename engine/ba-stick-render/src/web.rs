@@ -155,18 +155,19 @@ impl StickRenderer {
     }
 
     /// The current zone's light mood (from @bellgrave/config zone-lighting.ts).
+    /// `night` (0..1) is how far the time of day reaches it (1 open sky, 0 cave).
     /// `snap` skips the easing (first load, after a zone fade).
     #[wasm_bindgen(js_name = setLightMood)]
     #[allow(clippy::too_many_arguments)]
-    pub fn set_light_mood(&mut self, r: f32, g: f32, b: f32, player_r: f32, player_k: f32, glow: f32, snap: bool) {
-        self.scene.set_light_mood(crate::lighting::Mood { ambient: [r, g, b], warm: [1.0, 0.6, 0.25], player_r, player_k, glow }, snap);
+    pub fn set_light_mood(&mut self, r: f32, g: f32, b: f32, player_r: f32, player_k: f32, glow: f32, night: f32, snap: bool) {
+        self.scene.set_light_mood(crate::lighting::Mood { ambient: [r, g, b], warm: [1.0, 0.6, 0.25], player_r, player_k, glow, night }, snap);
     }
 
     /// A place with its own mood inside a zone (world metres).
     #[wasm_bindgen(js_name = addMoodArea)]
     #[allow(clippy::too_many_arguments)]
-    pub fn add_mood_area(&mut self, x: f32, z: f32, radius: f32, feather: f32, r: f32, g: f32, b: f32, player_r: f32, player_k: f32, glow: f32) {
-        let mood = crate::lighting::Mood { ambient: [r, g, b], warm: [1.0, 0.6, 0.25], player_r, player_k, glow };
+    pub fn add_mood_area(&mut self, x: f32, z: f32, radius: f32, feather: f32, r: f32, g: f32, b: f32, player_r: f32, player_k: f32, glow: f32, night: f32) {
+        let mood = crate::lighting::Mood { ambient: [r, g, b], warm: [1.0, 0.6, 0.25], player_r, player_k, glow, night };
         self.scene.add_mood_area(crate::lighting::MoodArea { x, z, r: radius, feather, mood });
     }
 

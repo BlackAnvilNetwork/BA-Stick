@@ -72,13 +72,13 @@ impl Kind {
     /// (radius m, strength, colour, flicker, glow).
     pub fn defaults(self) -> (f32, f32, [f32; 3], Flicker, bool) {
         match self {
-            Kind::Fire => (7.5, 1.0, [1.0, 0.62, 0.30], Flicker::Fire, true),
-            Kind::Lantern => (4.5, 0.75, [1.0, 0.82, 0.52], Flicker::Lantern, false),
-            Kind::Forge => (9.0, 1.15, [1.0, 0.50, 0.20], Flicker::Fire, true),
-            Kind::Brazier => (6.0, 0.95, [1.0, 0.58, 0.26], Flicker::Fire, true),
-            Kind::Lava => (8.0, 0.9, [1.0, 0.36, 0.12], Flicker::Lantern, true),
-            Kind::Crystal => (5.0, 0.7, [0.62, 0.78, 1.0], Flicker::Lantern, true),
-            Kind::Torch => (5.0, 0.85, [1.0, 0.66, 0.34], Flicker::Fire, true),
+            Kind::Fire => (9.0, 1.05, [1.0, 0.6, 0.3], Flicker::Fire, true),
+            Kind::Lantern => (5.0, 0.7, [1.0, 0.8, 0.5], Flicker::Lantern, false),
+            Kind::Forge => (10.0, 1.1, [1.0, 0.52, 0.22], Flicker::Fire, true),
+            Kind::Brazier => (7.0, 0.95, [1.0, 0.58, 0.27], Flicker::Fire, true),
+            Kind::Lava => (8.0, 0.85, [1.0, 0.38, 0.14], Flicker::Lantern, true),
+            Kind::Crystal => (5.5, 0.6, [0.6, 0.76, 1.0], Flicker::Lantern, true),
+            Kind::Torch => (6.0, 0.85, [1.0, 0.64, 0.33], Flicker::Fire, true),
         }
     }
 }
@@ -153,6 +153,8 @@ pub struct Mood {
     pub player_k: f32,
     /// Additive glow strength over fires and flashes (0 = off).
     pub glow: f32,
+    /// How much the time of day reaches this place (1 open sky, 0 deep cave).
+    pub night: f32,
 }
 
 impl Mood {
@@ -162,6 +164,7 @@ impl Mood {
         player_r: 0.0,
         player_k: 0.0,
         glow: 0.0,
+        night: 1.0,
     };
     /// The boot menu's forge cavern (was atmosphere::FORGE_MENU's ambient/warm).
     pub const FORGE_MENU: Mood = Mood {
@@ -170,6 +173,7 @@ impl Mood {
         player_r: 0.0,
         player_k: 0.0,
         glow: 0.0,
+        night: 0.0,
     };
 
     /// True when the light pass can be skipped.
@@ -187,9 +191,45 @@ impl Mood {
             player_r: l(a.player_r, b.player_r),
             player_k: l(a.player_k, b.player_k),
             glow: l(a.glow, b.glow),
+            night: l(a.night, b.night),
         }
     }
+
+    /// This mood at a time of day (0 midnight, 0.5 noon). Ambient follows the
+    /// sky's own night dim, weighted by `night`; after dark a small warm
+    /// carried light and a little glow come up, so dark fields stay playable.
+    /// Continuous in `phase`, so dusk eases in with the sky.
+    pub fn at_time(&self, phase: f32) -> Mood {
+        let n = self.night.clamp(0.0, 1.0);
+        if n <= 0.0 {
+            return *self;
+        }
+        let d = (1.0 - crate::sky::daylight(phase)) * n;
+        let s = crate::sky::ambient_scale(phase);
+        let mut m = *self;
+        for k in 0..3 {
+            m.ambient[k] *= 1.0 + (s[k] - 1.0) * n;
+        }
+        if d > 0.0 {
+            if m.player_r <= 0.0 {
+                m.player_r = NIGHT_PLAYER_R;
+            }
+            m.player_k = m.player_k.max(NIGHT_PLAYER_K * d);
+            m.glow = m.glow.max(NIGHT_GLOW * d);
+        }
+        m
+    }
 }
+
+/// Carried light and glow every outdoor place gets at full night.
+const NIGHT_PLAYER_R: f32 = 6.0;
+const NIGHT_PLAYER_K: f32 = 0.45;
+const NIGHT_GLOW: f32 = 0.45;
+/// Warm-neutral colour of the player's carried light.
+pub const PLAYER_RGB: [f32; 3] = [1.0, 0.86, 0.66];
+/// Player light fades out over this view depth in front of the player, so a
+/// tree or wall between the camera and the player is not lit by it.
+pub const PLAYER_OCCLUDE_FADE: f32 = 1.5;
 
 /// A place inside a zone with its own mood (Emberwatch inside Pale Hollow).
 #[derive(Clone, Copy, Debug)]
@@ -260,6 +300,13 @@ pub struct Stamp {
     pub rgb: [f32; 3],
     pub k: f32,
     pub glow: bool,
+    /// Only prop and unit pixels with view depth inside `zmin..zmax` receive
+    /// the light (fading over PLAYER_OCCLUDE_FADE at both ends): a roof or
+    /// trunk standing well in front of or behind the light is not washed by
+    /// its ground pool. Terrain (infinite depth) always receives. Infinite
+    /// bounds = no test.
+    pub zmin: f32,
+    pub zmax: f32,
 }
 
 /// Project a ground light (centre + radius in metres) to a pixel-snapped
@@ -306,6 +353,8 @@ pub struct LightLayer {
     buf: Vec<[f32; 3]>,
     sprite: Vec<f32>,
     glow_sprite: Vec<f32>,
+    /// Reused additive buffer for the glow pass.
+    glow_buf: Vec<[f32; 3]>,
     /// Times the buffer was (re)allocated; tests check reuse.
     pub allocs: u32,
 }
@@ -324,15 +373,17 @@ impl LightLayer {
                     let (dx, dy) = ((x as f32 - c) / c, (y as f32 - c) / c);
                     let d2 = dx * dx + dy * dy;
                     if d2 < 1.0 {
-                        // Smooth to zero at the rim, a soft hot core at the centre.
-                        let f = (1.0 - d2) * (1.0 - d2);
+                        // Smooth to zero at the rim (zero slope, no visible edge)
+                        // with a gentle extra lift toward the centre for a soft core.
+                        let rim = (1.0 - d2) * (1.0 - d2) * (1.0 - d2).sqrt();
+                        let f = rim * (0.7 + 0.3 * (-5.0 * d2).exp());
                         s[y * SPRITE + x] = f.powf(pow);
                     }
                 }
             }
             s
         };
-        LightLayer { w: 0, h: 0, buf: Vec::new(), sprite: mk(1.0), glow_sprite: mk(2.5), allocs: 0 }
+        LightLayer { w: 0, h: 0, buf: Vec::new(), sprite: mk(1.0), glow_sprite: mk(2.5), glow_buf: Vec::new(), allocs: 0 }
     }
 
     /// Resize only on change.
@@ -348,11 +399,14 @@ impl LightLayer {
     pub fn at(&self, x: usize, y: usize) -> [f32; 3] { self.buf[y * self.w + x] }
 
     /// Ambient fill plus every stamp.
-    pub fn build(&mut self, w: usize, h: usize, ambient: [f32; 3], stamps: &[Stamp]) {
+    /// `depth` (view depth per pixel, smaller = nearer) drives stamps with a
+    /// finite `zmin`.
+    pub fn build(&mut self, w: usize, h: usize, ambient: [f32; 3], stamps: &[Stamp], depth: Option<&[f32]>) {
         self.ensure(w, h);
         self.buf.fill(ambient);
         for s in stamps {
-            stamp(&mut self.buf, w, h, &self.sprite, s, s.k, s.rgb);
+            let d = if s.zmin.is_finite() || s.zmax.is_finite() { depth.filter(|d| d.len() == w * h) } else { None };
+            stamp(&mut self.buf, w, h, &self.sprite, s, s.k, s.rgb, d);
         }
     }
 
@@ -372,20 +426,21 @@ impl LightLayer {
     }
 
     /// Additive coloured bloom over stamps flagged `glow`.
-    pub fn glow(&self, out: &mut [u8], w: usize, h: usize, stamps: &[Stamp], strength: f32) {
-        if strength <= 0.0 {
+    /// Subtle: a small soft halo (a third of the light's radius) whose peak
+    /// adds about `strength * 45` levels, so flames read hot without blowing out.
+    pub fn glow(&mut self, out: &mut [u8], w: usize, h: usize, stamps: &[Stamp], strength: f32) {
+        if strength <= 0.0 || !stamps.iter().any(|s| s.glow) {
             return;
         }
-        let mut add = vec![[0f32; 3]; 0];
+        if self.glow_buf.len() != w * h {
+            self.glow_buf = vec![[0f32; 3]; w * h];
+        } else {
+            self.glow_buf.fill([0.0; 3]);
+        }
+        let add = &mut self.glow_buf;
         for s in stamps.iter().filter(|s| s.glow) {
             let g = Stamp { rx: (s.rx / 3).max(2), ry: (s.ry / 3).max(2), ..*s };
-            if add.is_empty() {
-                add = vec![[0f32; 3]; w * h];
-            }
-            stamp(&mut add, w, h, &self.glow_sprite, &g, s.k * strength * 70.0, s.rgb);
-        }
-        if add.is_empty() {
-            return;
+            stamp(add, w, h, &self.glow_sprite, &g, s.k.min(1.2) * strength * 45.0, s.rgb, None);
         }
         for (i, a) in add.iter().enumerate() {
             if a[0] + a[1] + a[2] <= 0.0 {
@@ -399,7 +454,8 @@ impl LightLayer {
     }
 }
 
-fn stamp(buf: &mut [[f32; 3]], w: usize, h: usize, sprite: &[f32], s: &Stamp, k: f32, rgb: [f32; 3]) {
+#[allow(clippy::too_many_arguments)]
+fn stamp(buf: &mut [[f32; 3]], w: usize, h: usize, sprite: &[f32], s: &Stamp, k: f32, rgb: [f32; 3], depth: Option<&[f32]>) {
     let (x0, x1) = ((s.x - s.rx).max(0), (s.x + s.rx).min(w as i32 - 1));
     let (y0, y1) = ((s.y - s.ry).max(0), (s.y + s.ry).min(h as i32 - 1));
     if x0 > x1 || y0 > y1 {
@@ -412,7 +468,13 @@ fn stamp(buf: &mut [[f32; 3]], w: usize, h: usize, sprite: &[f32], s: &Stamp, k:
         let line = &mut buf[y as usize * w..];
         for x in x0..=x1 {
             let u = (((x - s.x + s.rx) as f32 + 0.5) * fx) as usize;
-            let f = row[u.min(SPRITE - 1)] * k;
+            let mut f = row[u.min(SPRITE - 1)] * k;
+            if let Some(d) = depth {
+                let z = d[y as usize * w + x as usize];
+                if z.is_finite() {
+                    f *= ((z - s.zmin) / PLAYER_OCCLUDE_FADE).clamp(0.0, 1.0) * ((s.zmax - z) / PLAYER_OCCLUDE_FADE).clamp(0.0, 1.0);
+                }
+            }
             if f > 0.0 {
                 let p = &mut line[x as usize];
                 p[0] += rgb[0] * f;
@@ -502,9 +564,9 @@ mod tests {
     #[test]
     fn layer_is_reused_and_lights_fall_off() {
         let mut l = LightLayer::new();
-        let st = [Stamp { x: 32, y: 18, rx: 20, ry: 11, rgb: [1.0, 0.6, 0.3], k: 1.0, glow: false }];
-        l.build(64, 36, [0.2; 3], &st);
-        l.build(64, 36, [0.2; 3], &st);
+        let st = [Stamp { x: 32, y: 18, rx: 20, ry: 11, rgb: [1.0, 0.6, 0.3], k: 1.0, glow: false, zmin: f32::NEG_INFINITY, zmax: f32::INFINITY }];
+        l.build(64, 36, [0.2; 3], &st, None);
+        l.build(64, 36, [0.2; 3], &st, None);
         assert_eq!(l.allocs, 1, "same size reuses the buffer");
         let c = l.at(32, 18);
         let mid = l.at(42, 18);
@@ -512,13 +574,13 @@ mod tests {
         assert!(c[0] > mid[0] && mid[0] > far[0], "falls off with distance");
         assert_eq!(far, [0.2; 3], "outside the light is ambient");
         assert!(c[0] > c[2], "warm light");
-        l.build(80, 36, [0.2; 3], &st);
+        l.build(80, 36, [0.2; 3], &st, None);
         assert_eq!(l.allocs, 2);
     }
 
     #[test]
     fn cull_drops_offscreen_and_caps() {
-        let mk = |x: i32, k: f32| Stamp { x, y: 50, rx: 10, ry: 5, rgb: [1.0; 3], k, glow: false };
+        let mk = |x: i32, k: f32| Stamp { x, y: 50, rx: 10, ry: 5, rgb: [1.0; 3], k, glow: false, zmin: f32::NEG_INFINITY, zmax: f32::INFINITY };
         let mut v: Vec<Stamp> = (0..40).map(|i| mk(i * 10, 0.5)).collect();
         v.push(mk(-50, 1.0));
         cull(&mut v, 200, 100, MAX_LIGHTS);
@@ -551,5 +613,37 @@ mod tests {
         assert!(e.envelope() > 0.0);
         e.age = 0.61;
         assert!(e.done());
+    }
+
+    #[test]
+    fn night_dims_smoothly_and_spares_caves() {
+        let day = Mood::DAYLIGHT;
+        assert!(day.at_time(0.5).bright(), "noon stays on the free path");
+        let night = day.at_time(0.0);
+        assert!(!night.bright() && night.ambient[0] < 0.6, "midnight is dark: {:?}", night.ambient);
+        assert!(night.ambient[2] > night.ambient[0], "cool night ambient");
+        assert!(night.player_k > 0.3, "a carried light comes up");
+        let mut prev = day.at_time(0.0).ambient[0];
+        for i in 1..=1000 {
+            let a = day.at_time(i as f32 / 1000.0).ambient[0];
+            assert!((a - prev).abs() < 0.01, "no step at {i}");
+            prev = a;
+        }
+        let cave = Mood { ambient: [0.3; 3], night: 0.0, ..Mood::DAYLIGHT };
+        assert_eq!(cave.at_time(0.0), cave);
+    }
+
+    #[test]
+    fn occluder_in_front_of_the_player_is_not_lit() {
+        let mut l = LightLayer::new();
+        let mut depth = vec![f32::INFINITY; 64 * 36];
+        depth[18 * 64 + 30] = 2.0; // a branch well in front of the player (depth 10)
+        let st = [Stamp { x: 32, y: 18, rx: 20, ry: 11, rgb: [1.0; 3], k: 1.0, glow: false, zmin: 10.0 - PLAYER_OCCLUDE_FADE, zmax: f32::INFINITY }];
+        l.build(64, 36, [0.2; 3], &st, Some(&depth));
+        assert_eq!(l.at(30, 18), [0.2; 3]);
+        assert!(l.at(34, 18)[0] > 0.8, "ground around the player is lit");
+        depth[18 * 64 + 34] = 10.5; // the player's own body
+        l.build(64, 36, [0.2; 3], &st, Some(&depth));
+        assert!(l.at(34, 18)[0] > 0.8, "the player is lit");
     }
 }

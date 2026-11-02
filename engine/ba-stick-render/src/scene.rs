@@ -1665,8 +1665,16 @@ impl Scene {
             smoothstep(self.weather_blend),
         );
         let mut m = crate::sky::unit_light(self.day_phase, w);
-        if self.atmosphere && self.sky_ctx().is_some() {
-            let a = crate::sky::ambient_scale(self.day_phase);
+        // Whatever night dim the world already carries is divided out so
+        // figures get unit_light's readable floor, not the dim twice.
+        let carried = if self.atmosphere && self.light_pass_on() {
+            Some(self.layer_night())
+        } else if self.atmosphere && self.sky_ctx().is_some() {
+            Some(crate::sky::ambient_scale(self.day_phase))
+        } else {
+            None
+        };
+        if let Some(a) = carried {
             for k in 0..3 {
                 m[k] /= a[k];
             }
@@ -1692,7 +1700,24 @@ impl Scene {
             && !self.backdrop
             && !self.lighting.off
             && self.has_zone()
-            && self.lighting.mood.is_some_and(|m| !m.bright())
+            && self.frame_mood().is_some_and(|m| !m.bright())
+    }
+
+    /// The eased mood at this time of day (what the frame is lit with).
+    fn frame_mood(&self) -> Option<crate::lighting::Mood> {
+        // A scene the host never gave a mood (tests, previews) keeps the old
+        // rule: only the 3D sky and characters follow the clock.
+        if self.lighting.base.is_none() {
+            return self.lighting.mood;
+        }
+        self.lighting.mood.map(|m| m.at_time(self.day_phase))
+    }
+
+    /// Night dim the light layer already carries (to divide out of unit light).
+    fn layer_night(&self) -> [f32; 3] {
+        let n = if self.lighting.base.is_none() { 0.0 } else { self.lighting.mood.map_or(0.0, |m| m.night.clamp(0.0, 1.0)) };
+        let s = crate::sky::ambient_scale(self.day_phase);
+        [1.0 + (s[0] - 1.0) * n, 1.0 + (s[1] - 1.0) * n, 1.0 + (s[2] - 1.0) * n]
     }
 
     /// Static lights from map data: fire pits and lanterns among the props,
@@ -1763,12 +1788,18 @@ impl Scene {
         if !self.light_pass_on() {
             return;
         }
-        let mood = self.lighting.mood.unwrap_or(crate::lighting::Mood::DAYLIGHT);
+        let mood = self.frame_mood().unwrap_or(crate::lighting::Mood::DAYLIGHT);
         let (cam, cy, t) = (self.cam, self.cam_y, self.time);
         let mut st = Vec::new();
         let mut push = |pos: Vec3, r: f32, k: f32, rgb: [f32; 3], glow: bool| {
-            if let Some((x, y, rx, ry)) = project_light(&cam, v3(pos.x, pos.y - cy, pos.z), r) {
-                st.push(Stamp { x, y, rx, ry, rgb, k, glow });
+            let p = v3(pos.x, pos.y - cy, pos.z);
+            if let Some((x, y, rx, ry)) = project_light(&cam, p, r) {
+                // Props and units take this light only near its own depth: a
+                // little in front (things between it and the camera face away
+                // from it), further behind (walls facing it).
+                let d = cam.project(p).d;
+                let (zmin, zmax) = if d.is_finite() { (d - (r * 0.35).max(1.5), d + r * 1.45) } else { (f32::NEG_INFINITY, f32::INFINITY) };
+                st.push(Stamp { x, y, rx, ry, rgb, k, glow, zmin, zmax });
             }
         };
         for l in self.lighting.statics.iter().chain(self.lighting.extra.iter()) {
@@ -1789,7 +1820,16 @@ impl Scene {
         if mood.player_k > 0.0 && mood.player_r > 0.0 {
             if let Some(u) = self.follow.as_deref().and_then(|id| self.units.get(id)) {
                 let f = flicker(Flicker::Lantern, 3.7, t);
-                push(v3(u.pos.x, u.pos.y + 0.1, u.pos.z), mood.player_r, mood.player_k * f, [1.0, 0.93, 0.8], false);
+                let p = v3(u.pos.x, u.pos.y + 0.1, u.pos.z);
+                push(p, mood.player_r, mood.player_k * f, crate::lighting::PLAYER_RGB, false);
+                // In the 3D views, anything nearer the camera than the player
+                // (a tree trunk, a wall) fades out of the player's light.
+                if self.rig.mode != CamMode::Iso {
+                    let d = cam.project(v3(p.x, u.pos.y + 1.0 - cy, p.z)).d;
+                    if let (Some(s), true) = (st.last_mut(), d.is_finite()) {
+                        s.zmin = s.zmin.max(d - 2.0 * crate::lighting::PLAYER_OCCLUDE_FADE);
+                    }
+                }
             }
         }
         // The player's light is the last pushed; keep it whatever the cap does.
@@ -1801,10 +1841,10 @@ impl Scene {
 
     /// Build the light layer and multiply it over the frame.
     fn composite_light_layer(&mut self, out: &mut [u8]) {
-        let mood = self.lighting.mood.unwrap_or(crate::lighting::Mood::DAYLIGHT);
+        let mood = self.frame_mood().unwrap_or(crate::lighting::Mood::DAYLIGHT);
         let (w, h) = (self.fb.w, self.fb.h);
         let stamps = std::mem::take(&mut self.lighting.stamps);
-        self.lighting.layer.build(w, h, mood.ambient, &stamps);
+        self.lighting.layer.build(w, h, mood.ambient, &stamps, Some(&self.fb.depth));
         self.lighting.stamps = stamps;
         let color = &self.fb.color;
         self.lighting.layer.composite(out, |i| {
@@ -1916,7 +1956,9 @@ impl Scene {
             let mut params = params;
             // Bright moods fold their ambient into the atmosphere tint and skip the light pass.
             if !self.boot_menu && !self.light_pass_on() {
-                let m = self.lighting.mood.unwrap_or(crate::lighting::Mood::DAYLIGHT);
+                // 3D: the night dim comes from ambient_scale below; iso has none, so use the timed mood.
+                let m = if sky.is_some() { self.lighting.mood } else { self.frame_mood() };
+                let m = m.unwrap_or(crate::lighting::Mood::DAYLIGHT);
                 for k in 0..3 {
                     params.ambient[k] *= m.ambient[k];
                 }
@@ -1928,8 +1970,13 @@ impl Scene {
             if sky.is_some() {
                 // Night dims the world and its haze in 3D, in step with the sky.
                 let m = crate::sky::ambient_scale(self.day_phase);
+                // With the light pass on, the layer carries the night dim
+                // (scaled by the mood's `night`), so only the haze takes it here.
+                let pass = self.light_pass_on();
                 for k in 0..3 {
-                    params.ambient[k] *= m[k];
+                    if !pass {
+                        params.ambient[k] *= m[k];
+                    }
                 }
                 let h = params.haze;
                 let ch = |sh: u32, k: usize| ((((h >> sh) & 255) as f32 * m[k]) as u32).min(255) << sh;
@@ -1971,7 +2018,7 @@ impl Scene {
             }
         }
         if self.light_pass_on() && self.atmosphere {
-            let g = self.lighting.mood.map_or(0.0, |m| m.glow);
+            let g = self.frame_mood().map_or(0.0, |m| m.glow);
             self.lighting.layer.glow(out, self.fb.w, self.fb.h, &self.lighting.stamps, g);
         }
         crate::vfx::blend(&self.vfx.sparks, self.fb.w, self.fb.h, out);

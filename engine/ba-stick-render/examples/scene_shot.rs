@@ -6,7 +6,7 @@
 //! cargo run --release --example scene_shot -- <zone.baz|-> <zone.bap|-> <units.txt> <iso|tp> <w> <h> <out.ppm>
 //! units.txt: one unit per line: `id x z facing preset anim` (y from the zone; first line is followed).
 //! Optional 8th arg, a light mood: `r,g,b,playerRadius,playerStrength,glow` (lighting overhaul).
-//! Optional 9th arg, extra lights: `x,z,kind;x,z,kind;...` (world metres, kind as `addLight`).
+//! Optional 9th arg, extra lights: `x,z,kind[,radius];...` (world metres, kind as `addLight`).
 use ba_stick_render::preset::AnimState;
 use ba_stick_render::scene::{Scene, UnitInput};
 
@@ -38,16 +38,20 @@ fn main() {
     s.follow(first.as_deref());
     if let Some(m) = a.get(8) {
         let v: Vec<f32> = m.split(',').map(|x| x.parse().unwrap()).collect();
-        let mood = ba_stick_render::lighting::Mood { ambient: [v[0], v[1], v[2]], warm: [1.0, 0.6, 0.25], player_r: v[3], player_k: v[4], glow: v[5] };
+        let mood = ba_stick_render::lighting::Mood { ambient: [v[0], v[1], v[2]], warm: [1.0, 0.6, 0.25], player_r: v[3], player_k: v[4], glow: v[5], night: v.get(6).copied().unwrap_or(1.0) };
         s.set_light_mood(mood, true);
     }
     if let Some(l) = a.get(9) {
         for e in l.split(';').filter(|e| !e.is_empty()) {
             let v: Vec<f32> = e.split(',').map(|x| x.parse().unwrap()).collect();
-            s.add_light(v[0], f32::NAN, v[1], v[2] as u8, 0.0, 0);
+            s.add_light(v[0], f32::NAN, v[1], v[2] as u8, v.get(3).copied().unwrap_or(0.0), 0);
         }
     }
     s.set_cam_mode(&a[4]);
+    // Time of day 0..1 (0 midnight, 0.5 noon) for night shots (`SHOT_PHASE=0.02`).
+    if let Some(p) = std::env::var("SHOT_PHASE").ok().and_then(|p| p.parse().ok()) {
+        s.set_time_of_day(p);
+    }
     for _ in 0..120 {
         s.tick(1.0 / 60.0);
     }

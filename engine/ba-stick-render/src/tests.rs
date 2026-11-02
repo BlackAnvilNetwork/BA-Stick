@@ -1415,6 +1415,15 @@ fn light_pass_is_local_and_skipped_when_bright() {
     let (px, py) = (st.x + st.rx / 2, st.y);
     let ratio_pool = lum(&night, px, py) as f32 / lum(&day, px, py).max(1) as f32;
     assert!(ratio_pool > 0.5, "the fire lights its pool: {ratio_pool}");
+    // Night: with a zone mood set, iso ground dims too and a carried light comes up.
+    s.set_light_mood(Mood::DAYLIGHT, true);
+    s.set_time_of_day(0.0);
+    s.draw();
+    let mut midnight = vec![0u8; 320 * 180 * 4];
+    s.write_rgba(&mut midnight);
+    assert!(lum(&midnight, 2, 178) * 10 < lum(&day, 2, 178) * 7, "night dims the daylight mood");
+    s.set_time_of_day(0.5);
+    s.set_light_mood(dark, true);
     // A second frame reuses the buffer.
     s.draw();
     s.write_rgba(&mut night);
