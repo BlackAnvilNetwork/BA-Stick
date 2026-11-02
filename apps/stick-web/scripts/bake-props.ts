@@ -454,7 +454,7 @@ export function forestBasinProps(): Prop[] {
         const ax = (x - hx) / (Math.hypot(x - hx, z - hz) || 1), az = (z - hz) / (Math.hypot(x - hx, z - hz) || 1);
         const P = (al: number, ac: number) => ({ px: hx + ax * al - az * ac, pz: hz + az * al + ax * ac });
         const door = P(3.6, 0);
-        out.push({ kind: K.ruinArch, v: 0, x: door.px, z: door.pz, y: forestBasinGroundY(door.px, door.pz) - 0.2, yaw: Math.atan2(ax, az) + Math.PI / 2, s: rise(door.px, door.pz) + 2.8, w: 3.4, h: 0, d: 0 });
+        out.push({ kind: K.ruinArch, v: 0, x: door.px, z: door.pz, y: forestBasinGroundY(door.px, door.pz) - 0.2, yaw: Math.atan2(ax, az), s: rise(door.px, door.pz) + 2.8, w: 3.4, h: 0, d: 0 });
         let k = 0;
         for (const al of [-4.5, -1.5, 1.5]) for (const ac of [-2.4, 2.4]) {
           const q = P(al, ac); k++;
@@ -481,8 +481,8 @@ export function forestBasinProps(): Prop[] {
     if (clear) near.push({ x, z, r: clear });
   }
   // Set pieces that read from their names (rock walls, falls, forges).
-  const wall = (x: number, z: number, yaw: number, len: number, hgt: number, y: number) =>
-    out.push({ kind: K.rockWall, v: 0, x, z, y, yaw, s: len, w: 0.9, h: hgt, d: 0 });
+  const wall = (x: number, z: number, yaw: number, len: number, hgt: number, y: number, v = 0) =>
+    out.push({ kind: K.rockWall, v, x, z, y, yaw, s: len, w: 0.9, h: hgt, d: 0 });
   // Sinks: a ring of bare rock faces down to the silt floor, open where a stair comes down.
   for (const k of FB_SINKS) {
     // the pit wall itself is the steep rock-faced terrain; only a low broken lip of stone sits on the rim
@@ -531,7 +531,7 @@ export function forestBasinProps(): Prop[] {
         if (hi - lo < 1) continue;
         // face looks toward the lower bench
         const ux = (b0 < b1 ? x - nx : nx - x) / st, uz = (b0 < b1 ? z - nz : nz - z) / st;
-        wall(mx, mz, Math.atan2(ux, uz), st + 0.3, hi - lo + 0.1, lo);
+        wall(mx + ux * 0.4, mz + uz * 0.4, Math.atan2(ux, uz), st + 0.3, hi - lo + 0.1, lo, 1);
       }
     }
   }

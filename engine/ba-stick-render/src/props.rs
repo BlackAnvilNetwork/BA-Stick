@@ -1822,6 +1822,12 @@ fn draw_one(c: &mut Ctx, p: &Prop, time: f32) {
                 let hh = hgt * (0.7 + 0.3 * jit(k, 2.3));
                 let back = jit(k, 4.1) * 0.45;
                 // lower course, then a narrower stepped crown set back
+                if p.var == 1 {
+                    // a quarry cut: one dark sheer face, and a pale dressed bench top running back from its lip
+                    c.boxy(cx, -0.4, 0.0, bw + 0.15, hgt + 0.4, th, ROCK_D, ROCK_D, C_OUTLINE);
+                    c.boxy(cx, hgt - 0.05, -0.9, bw + 0.15, 0.12, 1.8, ROCK_L, ROCK_L, ROCK);
+                    continue;
+                }
                 c.boxy(cx, -0.4, back, bw + 0.1, hh * 0.65 + 0.4, th, ROCK, ROCK_D, ROCK_D);
                 c.boxy(cx + (jit(k, 5.7) - 0.5) * 0.3, hh * 0.6, back - 0.25, bw * 0.75, hh * 0.4, th * 0.8, ROCK_L, ROCK, ROCK_D);
             }

@@ -25,10 +25,10 @@ lantern-caps -29 -14 -2.6 tp
 ninefold-ring 15 -89 0 iso
 thornwall -19.5 31 0 iso
 brambles 71.5 -116 0 iso
-sunk-hall-walk 56.5 11.5 0.79 tp
+sunk-hall-walk 57.6 12.6 0.79 tp
 sunk-hall-iso 60 15 0.9 iso
-graven-cuts 4 104 0.3 iso
-graven-cuts-high 12 116 0.3 iso
+graven-cuts 12 112 3.14 iso
+graven-cuts-high 12 136 0 iso
 hollow-oak-walk -19 -11 -2.54 tp
 hollow-oak-iso -22 -15 -2.54 iso
 ashlin-aqueduct -52 81 -0.64 iso
