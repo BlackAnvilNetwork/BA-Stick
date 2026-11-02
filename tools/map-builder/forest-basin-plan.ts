@@ -160,8 +160,15 @@ export function planHeight(x: number, z: number): number {
   // Sinkholes.
   for (const k of FB_SINKS) {
     const d = Math.hypot(x - k.x, z - k.z) / (k.r * (1 + 0.15 * fbm(x / 3, z / 3)));
-    // Flat silt floor inside 0.5 r, steep crumbling walls outside.
-    if (d < 1) h -= k.depth * (d < 0.5 ? 1 : 1 - smooth(0.5, 1, d));
+    // Flat silt floor inside 0.62 r, a sheer drop to 0.85 r, then a crumbling lip.
+    if (d < 1) h -= k.depth * (d < 0.62 ? 1 : d < 0.85 ? 1 - 0.8 * smooth(0.62, 0.85, d) : 0.2 * (1 - smooth(0.85, 1, d)));
+  }
+  // The dip the Ashlin Aqueduct strides across: a dry hollow under the arches.
+  {
+    const ax = -57, az = 88, ux = 0.8, uz = 0.6; // run direction
+    const along = (x - ax) * ux + (z - az) * uz, across = -(x - ax) * uz + (z - az) * ux;
+    const r = Math.hypot(along / 9, across / 14) * (1 + 0.12 * fbm(x / 5, z / 5));
+    if (r < 1) h -= 2.6 * (1 - smooth(0, 1, r));
   }
   // Gorges: steep-walled cuts, floor rising out of the open mouth.
   for (const g of FB_GORGES) {

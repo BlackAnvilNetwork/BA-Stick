@@ -165,7 +165,7 @@ export type FbBridge = {
 export const FB_BRIDGE_RAMP = 0.25;
 
 export const FB_BRIDGES: readonly FbBridge[] = [
-  { id: "wrightsbridge", name: "Wrightsbridge", a: { x: -31.3, z: 57 }, b: { x: -24.6, z: 71.2 }, halfWidth: 1.9, deckY: 5.9, yA: 4.8, yB: 4.9 },
+  { id: "wrightsbridge", name: "Wrightsbridge", a: { x: -32, z: 55.6 }, b: { x: -24.6, z: 71.2 }, halfWidth: 1.9, deckY: 6.3, yA: 4.55, yB: 4.9 },
   { id: "stoneback", name: "Stoneback Bridge", a: { x: 52.5, z: 65.1 }, b: { x: 64.5, z: 68.6 }, halfWidth: 1.9, deckY: 5.1, yA: 4.2, yB: 4.2 },
   { id: "rope-span", name: "the Rope Span", a: { x: -49.4, z: -60.8 }, b: { x: -31.5, z: -66.4 }, halfWidth: 1.3, deckY: 3.6, yA: 2.95, yB: 3.15 },
   { id: "mere-causeway", name: "the Reedwalk", a: { x: 51.1, z: 19.5 }, b: { x: 59.2, z: 42.9 }, halfWidth: 1.7, deckY: 2.7, yA: 2.2, yB: 2.0 },
@@ -709,9 +709,9 @@ export const FB_GORGES: readonly { id: string; name: string; halfWidth: number; 
 
 /** Sinkholes by the Swallow: cones the Sinkwater has eaten out of the ground. */
 export const FB_SINKS: readonly { id: string; name: string; x: number; z: number; r: number; depth: number }[] = [
-  { id: "great-sink", name: "the Great Sink", x: 128, z: -40, r: 7, depth: 5.5 },
-  { id: "little-sink", name: "the Little Sink", x: 113, z: -31, r: 4, depth: 3 },
-  { id: "pale-sink", name: "the Pale Sink", x: 136, z: -52, r: 4.5, depth: 3.5 },
+  { id: "great-sink", name: "the Great Sink", x: 128, z: -40, r: 7, depth: 7.5 },
+  { id: "little-sink", name: "the Little Sink", x: 113, z: -31, r: 4, depth: 4.5 },
+  { id: "pale-sink", name: "the Pale Sink", x: 136, z: -52, r: 4.5, depth: 5 },
 ];
 
 /** Terraced quarry: ground snapped to cut benches inside r. */
