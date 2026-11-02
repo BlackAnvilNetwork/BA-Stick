@@ -30,8 +30,11 @@ const RIVER_SPINES: readonly FbRiver[] = [
     name: "the Briarwater",
     points: [
       { x: -101, z: 131, y: 12.6, w: 1.6, d: 0.3 },
-      { x: -96, z: 121, y: 11.9, w: 1.9, d: 0.35 },
-      { x: -88, z: 112, y: 10.8, w: 2.2, d: 0.35 },
+      { x: -96, z: 121, y: 12.3, w: 1.9, d: 0.35 },
+      { x: -93, z: 117.5, y: 12.2, w: 2.0, d: 0.3 }, // lip of the Wright's Veil
+      { x: -91.5, z: 115.5, y: 10.4, w: 2.6, d: 0.6 }, // foot of the falls
+      { x: -89, z: 112.5, y: 10.35, w: 4.4, d: 1.7 }, // Fenstone Pool (plunge pool)
+      { x: -85, z: 109, y: 10.0, w: 2.4, d: 0.4 },
       { x: -79, z: 104, y: 9.4, w: 2.5, d: 0.4 },
       { x: -71, z: 99, y: 8.3, w: 2.8, d: 0.35 }, // Hartstep Ford (shallow riffle)
       { x: -63, z: 93, y: 7.4, w: 3.1, d: 0.45 },
@@ -157,6 +160,7 @@ export type FbBridge = {
 export const FB_BRIDGES: readonly FbBridge[] = [
   { id: "wrightsbridge", name: "Wrightsbridge", a: { x: -31.2, z: 57.3 }, b: { x: -24.8, z: 70.7 }, halfWidth: 1.9, deckY: 5.5 },
   { id: "stoneback", name: "Stoneback Bridge", a: { x: 52.6, z: 65.1 }, b: { x: 65.4, z: 68.9 }, halfWidth: 1.9, deckY: 4.8 },
+  { id: "rope-span", name: "the Rope Span", a: { x: -46.5, z: -61.7 }, b: { x: -31.8, z: -66.3 }, halfWidth: 1.3, deckY: 3.4 },
   { id: "mere-causeway", name: "the Reedwalk", a: { x: 51.4, z: 20.5 }, b: { x: 56.6, z: 35.5 }, halfWidth: 1.7, deckY: 2.3 },
 ];
 
@@ -244,6 +248,34 @@ export type FbAscent = {
 
 export const FB_ASCENTS: readonly FbAscent[] = [
   {
+    id: "kestrel-ledge",
+    name: "the Kestrel Ledge",
+    kind: "ledge",
+    halfWidth: 1.2,
+    points: [{ x: -112, z: -38, y: 8.2 }, { x: -116, z: -45, y: 9.4 }, { x: -120, z: -50, y: 10.6 }, { x: -124, z: -55, y: 11.6 }],
+  },
+  {
+    id: "sink-stair",
+    name: "the Sink Stair",
+    kind: "stair",
+    halfWidth: 1.3,
+    points: [{ x: 127, z: -30, y: 3.3 }, { x: 128, z: -34, y: 1.2 }, { x: 128, z: -38, y: -1.4 }],
+  },
+  {
+    id: "swallow-cut",
+    name: "the Swallow Cut",
+    kind: "cleft",
+    halfWidth: 1.3,
+    points: [{ x: 128, z: -40, y: -1.6 }, { x: 133, z: -46, y: 1.2 }, { x: 139, z: -47, y: 4.2 }, { x: 142, z: -52, y: 7.0 }, { x: 146, z: -50, y: 9.5 }],
+  },
+  {
+    id: "cutters-ramp",
+    name: "the Cutters' Ramp",
+    kind: "ledge",
+    halfWidth: 1.5,
+    points: [{ x: 2, z: 106, y: 7.3 }, { x: 10, z: 112, y: 9.0 }, { x: 6, z: 121, y: 10.6 }, { x: 15, z: 128, y: 12.4 }, { x: 13, z: 136, y: 13.9 }, { x: 22, z: 140, y: 15.5 }],
+  },
+  {
     id: "wrights-stair",
     name: "the Wrights' Stair",
     kind: "stair",
@@ -280,6 +312,9 @@ export const FB_HEIGHTS: readonly { id: string; name: string; x: number; z: numb
   { id: "unnamed-hall", name: "the Unnamed Hall", x: -97, z: 141, r: 7, y: 17.5 },
   { id: "lantern-rock", name: "Lantern Rock", x: -139, z: -30, r: 5, y: 16.0 },
   { id: "kiln-shelf", name: "the Kiln Shelf", x: 121, z: 67, r: 6, y: 13.5 },
+  { id: "kestrel-shelf", name: "the Kestrel Shelf", x: -124, z: -55, r: 3.5, y: 11.6 },
+  { id: "swallows-brow", name: "the Swallow's Brow", x: 147, z: -51, r: 4, y: 9.5 },
+  { id: "cutters-crown", name: "the Cutters' Crown", x: 22, z: 140, r: 4, y: 15.5 },
 ];
 
 /** Forge-stone rings (warp circles) at the hub, the crossroads and the region gate. */
@@ -533,8 +568,17 @@ export function fbLakeInset(x: number, z: number): number | null {
 export function fbDesignWater(x: number, z: number): { surface: number; depth: number; tier: WaterTier } | null {
   const inset = fbLakeInset(x, z);
   if (inset != null) {
+    if (fbIslandAt(x, z)) return null;
     const s = FB_STILLMERE;
-    const depth = inset <= s.shelf ? 0.1 + 0.35 * (inset / s.shelf) : Math.min(s.maxDepth, 0.45 + (inset - s.shelf) * 0.22);
+    let depth = inset <= s.shelf ? 0.1 + 0.35 * (inset / s.shelf) : Math.min(s.maxDepth, 0.45 + (inset - s.shelf) * 0.22);
+    // Islands shelve: wadeable margin round each, then deepening.
+    for (const isl of FB_ISLANDS) {
+      const d = Math.hypot(x - isl.x, z - isl.z) - isl.r;
+      if (d < 6) depth = Math.min(depth, 0.15 + Math.max(0, d) * 0.22);
+    }
+    for (const sh of FB_SHOALS) {
+      if (segProject(x, z, sh.a.x, sh.a.z, sh.b.x, sh.b.z).d <= sh.halfWidth + fbWobble(x * 2, z * 2, 0.3)) depth = Math.min(depth, 0.38);
+    }
     return { surface: s.surface, depth, tier: depth <= FB_WADE_DEPTH ? "ford" : "lake" };
   }
   const r = fbRiverAt(x, z);
@@ -575,3 +619,47 @@ export function fbTrailDist(x: number, z: number): number {
   }
   return d;
 }
+
+// ------------------------------------------------------------------ set pieces
+
+/** Islands in the Stillmere (lobed by wobble, never round). */
+export const FB_ISLANDS: readonly { id: string; name: string; x: number; z: number; r: number; top: number }[] = [
+  { id: "heron-isle", name: "Heron Isle", x: 85, z: 30, r: 6, top: 2.9 },
+  { id: "rush-isle", name: "Rush Isle", x: 70, z: 13, r: 3.5, top: 2.3 },
+];
+
+/** Wadeable shoals: the only dry-shod ways onto the islands. */
+export const FB_SHOALS: readonly { id: string; name: string; a: { x: number; z: number }; b: { x: number; z: number }; halfWidth: number }[] = [
+  { id: "stepping-shoal", name: "the Stepping Shoal", a: { x: 64, z: 3 }, b: { x: 69, z: 10 }, halfWidth: 1.6 },
+  { id: "heron-bar", name: "the Heron Bar", a: { x: 72, z: 15 }, b: { x: 81, z: 26 }, halfWidth: 1.4 },
+];
+
+export function fbIslandAt(x: number, z: number): boolean {
+  for (const i of FB_ISLANDS) {
+    const a = Math.atan2(z - i.z, x - i.x);
+    const r = i.r * (1 + 0.22 * Math.sin(a * 3 + i.x) + 0.12 * Math.sin(a * 5 + i.z));
+    if (Math.hypot(x - i.x, z - i.z) < r) return true;
+  }
+  return false;
+}
+
+/** Dry ravines: carved below the woods, floor walkable from the open mouth (last point). */
+export const FB_GORGES: readonly { id: string; name: string; halfWidth: number; depth: number; points: readonly { x: number; z: number }[] }[] = [
+  {
+    id: "rooks-throat",
+    name: "Rook's Throat",
+    halfWidth: 3.6,
+    depth: 5,
+    points: [{ x: -50, z: -36 }, { x: -45, z: -50 }, { x: -39, z: -64 }, { x: -42, z: -80 }, { x: -35, z: -96 }, { x: -30, z: -110 }],
+  },
+];
+
+/** Sinkholes by the Swallow: cones the Sinkwater has eaten out of the ground. */
+export const FB_SINKS: readonly { id: string; name: string; x: number; z: number; r: number; depth: number }[] = [
+  { id: "great-sink", name: "the Great Sink", x: 128, z: -40, r: 7, depth: 5.5 },
+  { id: "little-sink", name: "the Little Sink", x: 113, z: -31, r: 4, depth: 3 },
+  { id: "pale-sink", name: "the Pale Sink", x: 136, z: -52, r: 4.5, depth: 3.5 },
+];
+
+/** Terraced quarry: ground snapped to cut benches inside r. */
+export const FB_QUARRY = { id: "graven-cuts", name: "the Graven Cuts", x: 12, z: 124, r: 22, bench: 2.4 } as const;

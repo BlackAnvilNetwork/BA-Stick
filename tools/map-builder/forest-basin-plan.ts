@@ -17,6 +17,11 @@ import {
   fbBridgeAt,
   fbDesignWater,
   fbLakeSigned,
+  fbIslandAt,
+  FB_ISLANDS,
+  FB_GORGES,
+  FB_SINKS,
+  FB_QUARRY,
   fbRiverAt,
   fbTrailDist,
 } from "@bellgrave/config";
@@ -108,11 +113,48 @@ export function planHeight(x: number, z: number): number {
     const d = Math.hypot(x - t.x, z - t.z);
     if (d <= t.r + 1.5 * fbm(x / 3, z / 3) + 1) return t.y + 0.2 * fbm(x / 4, z / 4);
   }
+  // Islands: low humped tops above the lake.
+  for (const isl of FB_ISLANDS) {
+    if (fbIslandAt(x, z)) return isl.top - 0.12 * Math.hypot(x - isl.x, z - isl.z) + 0.25 * fbm(x / 3, z / 3);
+  }
   // Shore apron around the Stillmere.
   const outside = -fbLakeSigned(x, z);
   if (outside < 40) {
     const shore = 1.85 + outside * (0.2 + 0.08 * fbm(x / 8, z / 8)) + Math.max(0, outside - 14) * 0.6;
     if (shore < h) h = shore;
+  }
+  // The Graven Cuts: old quarry benches, each cut face a short cliff.
+  {
+    const q = FB_QUARRY;
+    const d = Math.hypot(x - q.x, z - q.z) + 4 * fbm(x / 9, z / 9);
+    if (d < q.r) {
+      const cut = Math.floor((h + 0.9 * fbm(x / 11, z / 11)) / q.bench) * q.bench + 0.15 + 0.1 * fbm(x / 4, z / 4);
+      const t = smooth(q.r, q.r - 5, d);
+      h = h + (cut - h) * t;
+    }
+  }
+  // Sinkholes.
+  for (const k of FB_SINKS) {
+    const d = Math.hypot(x - k.x, z - k.z) / (k.r * (1 + 0.15 * fbm(x / 3, z / 3)));
+    if (d < 1) h -= k.depth * (1 - d * d) ** 0.7;
+  }
+  // Gorges: steep-walled cuts, floor rising out of the open mouth.
+  for (const g of FB_GORGES) {
+    const p = g.points;
+    for (let i = 0; i < p.length - 1; i++) {
+      const a = p[i]!, b = p[i + 1]!;
+      const vx = b.x - a.x, vz = b.z - a.z;
+      const t = Math.max(0, Math.min(1, ((x - a.x) * vx + (z - a.z) * vz) / (vx * vx + vz * vz)));
+      const d = Math.hypot(x - (a.x + vx * t), z - (a.z + vz * t));
+      const along = (i + t) / (p.length - 1);
+      const depth = g.depth * (along < 0.08 ? along / 0.08 : along > 0.8 ? (1 - along) / 0.2 : 1);
+      const w = g.halfWidth * (1 + 0.25 * fbm(x / 6, z / 6));
+      if (d < w + 2.5) {
+        const floor = macroHeight(x, z) - depth;
+        const wall = floor + Math.max(0, d - w) * 3.2;
+        if (wall < h) h = wall;
+      }
+    }
   }
   // Ascents: carve the route into the cliff (stairs step, ledges grade, clefts cut).
   const asc = fbAscentAt(x, z);
