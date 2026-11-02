@@ -16,6 +16,8 @@ import {
   fbAscentAt,
   fbBridgeAt,
   FB_BRIDGES,
+  FB_BRIDGE_RAMP,
+  fbBridgeDeckY,
   fbDesignWater,
   fbLakeSigned,
   fbIslandAt,
@@ -58,6 +60,12 @@ const smooth = (a: number, b: number, t: number) => {
 };
 const gauss = (x: number, z: number, cx: number, cz: number, r: number) => Math.exp(-((x - cx) ** 2 + (z - cz) ** 2) / (r * r));
 
+/** 0 below the Veil Scarp, 1 on the shelf above it. */
+function veilScarp(x: number, z: number): number {
+  const line = 115.6 + 0.7 * fbm(x / 6 + 3, 11) + 0.3 * Math.sin(x * 0.4);
+  return smooth(line, line + 1.4, z) * (1 - smooth(-90, -85, x));
+}
+
 /** Big landforms only: bowl, fells, ridges, crag. */
 export function macroHeight(x: number, z: number): number {
   const n = fbm(x / 38, z / 38);
@@ -76,6 +84,9 @@ export function macroHeight(x: number, z: number): number {
   h += 9.5 * gauss(x, z, 128, 58, 24) + 4 * gauss(x, z, 146, -30, 16);
   // Southern rise toward the Hollow Road lip, gentle.
   h += 2.0 * smooth(-90, -150, z);
+  // The Veil Scarp: a 4 m rock step across the upper Briarwater valley. The river
+  // leaves the upper shelf at the lip and falls to Fenstone Pool (the Wright's Veil).
+  h += 4.0 * veilScarp(x, z);
   // Soft cap so the rim corners stay climbable-looking rather than spiking.
   if (h > 17) h = 17 + (h - 17) * 0.35;
   // Mesas for high places.
@@ -93,6 +104,8 @@ export type PlanCell = { h: number; cliff: boolean; walkForce: boolean; biome: "
 /** Target ground height at (x,z), water beds and banks included. */
 export function planHeight(x: number, z: number): number {
   let h = macroHeight(x, z);
+  let levee = -Infinity; // banks hold the water: never below the surface beside it
+  let shelf = h; // on the Veil shelf only the upper Briarwater cuts the banks
   // River valleys: banks fall toward the water and never sit below the surface.
   for (const r of FB_RIVERS) {
     for (let i = 0; i < r.points.length - 1; i++) {
@@ -105,11 +118,16 @@ export function planHeight(x: number, z: number): number {
       if (d < w + 30) {
         const bank = s + 0.3 + Math.max(0, d - w) * (0.32 + 0.1 * fbm(x / 7, z / 7));
         if (bank < h) h = bank;
+        if (Math.min(a.y, b.y) >= 15 && bank < shelf) shelf = bank;
+        if (d < w + 8) levee = Math.max(levee, s + 0.25 - Math.max(0, d - w - 0.5) * 0.45);
       }
     }
   }
+  const sc = veilScarp(x, z);
+  if (sc > 0 && shelf > h) h = h + (shelf - h) * sc;
   const water = fbDesignWater(x, z);
   if (water) return water.surface - water.depth;
+  if (levee > h) h = levee;
   // High places keep their tops: level within r, steep walls outside.
   for (const t of FB_HEIGHTS) {
     const d = Math.hypot(x - t.x, z - t.z);
@@ -170,12 +188,31 @@ export function planHeight(x: number, z: number): number {
     return y;
   }
   if (asc && asc.ascent.kind === "cleft") return Math.max(h, asc.y + 3.5); // crag walls either side
-  // Bridges: abutments level with the deck ends.
-  const br = fbBridgeAt(x, z);
-  if (br && fbDesignWater(x, z) == null) {
-    const b = FB_BRIDGES.find((q) => q.id === br.id) ?? null;
-    const end = b ? Math.min(Math.hypot(x - b.a.x, z - b.a.z), Math.hypot(x - b.b.x, z - b.b.z)) : 0;
-    if (end < 2.5) return Math.max(h, br.deckY - 0.1); // only the abutments; a dry gorge stays open under the span
+  // Bridges: solid abutments under the dry part of each ramp (deck - 0.1), and an
+  // embankment beyond each end that eases from the bank height down to the ground
+  // (grade 0.35), so deck ends sit on the bank and the approach has no step.
+  for (const b of FB_BRIDGES) {
+    const L = Math.hypot(b.b.x - b.a.x, b.b.z - b.a.z);
+    const ux = (b.b.x - b.a.x) / L, uz = (b.b.z - b.a.z) / L;
+    const along = (x - b.a.x) * ux + (z - b.a.z) * uz;
+    const side = Math.abs((x - b.a.x) * uz - (z - b.a.z) * ux);
+    if (side > b.halfWidth + 3) continue;
+    const lat = side <= b.halfWidth + 0.5 ? 1 : 1 - (side - b.halfWidth - 0.5) / 2.5;
+    if (along >= 0 && along <= L) {
+      if (fbDesignWater(x, z) != null) continue;
+      const t = along / L;
+      if (t > FB_BRIDGE_RAMP && t < 1 - FB_BRIDGE_RAMP) continue; // gorge stays open under mid-span
+      const deck = fbBridgeDeckY(b, t) - 0.1;
+      if (deck > h && deck - h < 1.2) h = h + (deck - h) * lat; // ease the bank lip, never fill a drop
+      continue;
+    }
+    const out = along < 0 ? -along : along - L;
+    const yEnd = along < 0 ? b.yA : b.yB;
+    if (out > 9) continue;
+    const want = yEnd - 0.1 - out * 0.35;
+    // fill a low approach up, cut a high one down, fading out over the embankment
+    const k = lat * Math.max(0, 1 - out / 9);
+    h = h + (Math.max(want, Math.min(h, yEnd - 0.1 + out * 0.35)) - h) * k;
   }
   // Ring floors and camp: gently levelled, not flat.
   for (const w of FB_WARP_SITES) {
