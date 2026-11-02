@@ -9,14 +9,20 @@
  * that pass entirely.
  *
  * Fire pits and lanterns light themselves from the baked props. This file adds
- * the moods and the lights the props do not carry (forges, braziers).
+ * the moods and light-only entries for what the props do not carry: forges,
+ * braziers at gates, torches at friendly posts, crystal glow over warp circles.
+ * Each mood also says how far night reaches it (`night`): open country dims
+ * with the sky clock, caves do not.
  *
  * Coordinates are zone-local metres; the client adds the zone origin.
  * Forest Basin has no entry on purpose: it is the map builder's blank map and
  * keeps plain daylight until its maker gives it a mood.
  */
-import { PH_START_CAMP } from "./pale-hollow-camp";
+import { PH_SEAM_TUNNEL } from "./pale-hollow";
+import { PH_START_CAMP, PH_WARP_CIRCLES } from "./pale-hollow-camp";
 import { MAYFLOWER_BBOX, MAYFLOWER_DISTRICTS } from "./pale-hollow-town";
+import { SEAM_COUNTRY_WARPS, SEAM_COUNTRY_ZONES, seamCountryCamps, type SeamCountryZone } from "./seam-country-field";
+import { ZONE_FIELDS } from "./zone-fields";
 
 export type LightMood = {
   /** Ambient multiplier, 0..1 per channel (1 = unlit scene colour). */
@@ -27,6 +33,8 @@ export type LightMood = {
   playerStrength: number;
   /** Additive glow over fires, lava and spell flashes (0 = off). */
   glow: number;
+  /** How far the time of day reaches it, 0..1 (1 open sky, 0 underground). */
+  night: number;
 };
 
 /** Light kinds, numbered as the renderer's addLight expects. */
@@ -54,20 +62,20 @@ export type MoodArea = {
 };
 
 export const LIGHT_MOODS = {
-  /** Open sky at midday: no light pass. */
-  daylight: { ambient: [1, 1, 1], playerRadius: 0, playerStrength: 0, glow: 0 },
-  /** Mayflower: warm, bright streets; no light pass. */
-  mayflower: { ambient: [1.0, 0.97, 0.9], playerRadius: 0, playerStrength: 0, glow: 0 },
-  /** Emberwatch: the scouts' camp under the ridge's shadow, lit by its fire. */
-  emberwatch: { ambient: [0.62, 0.55, 0.6], playerRadius: 5, playerStrength: 0.55, glow: 0.6 },
-  /** Seam Country: cold overcast fields east of the Hollow. */
-  seamCountry: { ambient: [0.6, 0.64, 0.74], playerRadius: 6, playerStrength: 0.5, glow: 0.5 },
-  /** Caves and deep places: near-black, the player's light carries the scene. */
-  cave: { ambient: [0.18, 0.17, 0.22], playerRadius: 7, playerStrength: 1.0, glow: 0.9 },
+  /** Open sky at midday: no light pass by day; dims with the sky at night. */
+  daylight: { ambient: [1, 1, 1], playerRadius: 0, playerStrength: 0, glow: 0, night: 1 },
+  /** Mayflower: warm, bright streets; no light pass by day. */
+  mayflower: { ambient: [1.0, 0.97, 0.9], playerRadius: 0, playerStrength: 0, glow: 0, night: 1 },
+  /** Emberwatch: the scouts' camp in the ridge's cool shadow, warmed by its fire. */
+  emberwatch: { ambient: [0.62, 0.64, 0.76], playerRadius: 5, playerStrength: 0.35, glow: 0.45, night: 1 },
+  /** Seam Country: cold overcast fields east of the Hollow, still easy to read. */
+  seamCountry: { ambient: [0.72, 0.76, 0.86], playerRadius: 5, playerStrength: 0.3, glow: 0.4, night: 1 },
+  /** Caves and deep places: very dark and blue; the player's light carries the scene. */
+  cave: { ambient: [0.26, 0.27, 0.36], playerRadius: 7, playerStrength: 0.85, glow: 0.6, night: 0 },
   /** The Citadel: cold stone halls, braziers burning. */
-  citadel: { ambient: [0.34, 0.3, 0.4], playerRadius: 6, playerStrength: 0.7, glow: 0.8 },
+  citadel: { ambient: [0.42, 0.42, 0.54], playerRadius: 6, playerStrength: 0.55, glow: 0.5, night: 0.4 },
   /** Ash and slag country: red-brown murk over forge pits. */
-  slag: { ambient: [0.5, 0.36, 0.3], playerRadius: 5, playerStrength: 0.5, glow: 0.9 },
+  slag: { ambient: [0.56, 0.44, 0.42], playerRadius: 5, playerStrength: 0.4, glow: 0.6, night: 0.6 },
 } as const satisfies Record<string, LightMood>;
 
 const SEAM = LIGHT_MOODS.seamCountry;
@@ -110,13 +118,72 @@ export const ZONE_MOOD_AREAS: Readonly<Record<string, readonly MoodArea[]>> = {
 
 const EIGHTFOLD = MAYFLOWER_DISTRICTS.find((d) => d.id === "eightfold")!;
 
-/** Lights the baked props do not carry. Fire pits and lanterns are not repeated here. */
+const district = (id: string) => MAYFLOWER_DISTRICTS.find((d) => d.id === id)!;
+const CAMP = PH_START_CAMP;
+
+/**
+ * Hand-placed lights the baked props do not carry. Fire pits and lanterns are
+ * not repeated here. Mayflower's lights only show once dusk turns its light
+ * pass on; by day the town stays on the bright, free path.
+ */
 export const ZONE_MAP_LIGHTS: Readonly<Record<string, readonly MapLight[]>> = {
   pale_hollow: [
-    // The Great Forge Hall's hearth (pale-hollow-town.ts places the hall at the Eightfold).
-    { name: "Great Forge Hall hearth", kind: "forge", x: EIGHTFOLD.x + 4.5, z: EIGHTFOLD.z + 0.5 },
+    // The Great Forge Hall's hearth glow, spilling out of its doors toward the
+    // anvil-stone (the hall stands at the Eightfold + (4.5, 0.5), 7 m wide).
+    // A light inside the hall would only wash its roof.
+    { name: "Great Forge Hall hearth", kind: "forge", x: EIGHTFOLD.x + 0.6, z: EIGHTFOLD.z - 0.6, radius: 7 },
+    { name: "Eightfold anvil-stone brazier", kind: "brazier", x: EIGHTFOLD.x - 2.5, z: EIGHTFOLD.z - 2.5 },
+    { name: "Scout Gate watch-fire", kind: "brazier", x: 181, z: 196 },
+    { name: "Scout Gate watch-fire", kind: "brazier", x: 181, z: 184 },
+    { name: "Tally Row torch", kind: "torch", x: district("tally_row").x - 3, z: district("tally_row").z - 3 },
+    { name: "Turning Yard torch", kind: "torch", x: district("turning_yard").x + 4, z: district("turning_yard").z + 3 },
+    { name: "Strongroom door torch", kind: "torch", x: district("strongroom").x - 2, z: district("strongroom").z - 1 },
+    { name: "Jobhouse yard torch", kind: "torch", x: district("jobhouse").x + 1, z: district("jobhouse").z - 3.5 },
+    { name: "Elder's Stair torch", kind: "torch", x: district("elders_stair").x - 1.5, z: district("elders_stair").z - 4 },
+    { name: "Emberwatch lookout torch", kind: "torch", x: CAMP.x + 7.5, z: CAMP.z - 5.5 },
+    { name: "Emberwatch trail torch", kind: "torch", x: CAMP.x + 5, z: CAMP.z + 4.5 },
+    { name: "Seam Tunnel brazier", kind: "brazier", x: (PH_SEAM_TUNNEL.minX + PH_SEAM_TUNNEL.maxX) / 2, z: PH_SEAM_TUNNEL.minZ + 2 },
+    ...PH_WARP_CIRCLES.map((c) => ({ name: `${c.name} glow`, kind: "crystal" as const, x: c.x, z: c.z, radius: 4.5 })),
   ],
 };
+
+function centre(g: { minX: number; maxX: number; minZ: number; maxZ: number }) {
+  return { x: (g.minX + g.maxX) / 2, z: (g.minZ + g.maxZ) / 2 };
+}
+
+/** Seam Country lights from its own data: gates, warp circles and friendly posts. */
+function seamCountryLights(zone: SeamCountryZone): MapLight[] {
+  const out: MapLight[] = [];
+  for (const g of ZONE_FIELDS[zone]?.gates ?? []) {
+    if (g.blocked) continue;
+    out.push({ name: "Gate brazier", kind: "brazier", ...centre(g) });
+  }
+  const w = SEAM_COUNTRY_WARPS[zone];
+  out.push({ name: "Warp circle glow", kind: "crystal", x: w.x, z: w.z, radius: 4.5 });
+  for (const c of seamCountryCamps(zone)) {
+    if (c.side !== "friendly") continue;
+    // Beside the post, not in its fire.
+    out.push({ name: `${c.name} torch`, kind: "torch", x: c.x + Math.cos(c.yaw) * 2.5, z: c.z - Math.sin(c.yaw) * 2.5 });
+  }
+  return out;
+}
+
+const lightCache = new Map<string, readonly MapLight[]>();
+
+/**
+ * Every map light for a zone: the hand-placed ones plus those derived from
+ * Seam Country data. Built on first use (camp placement is not free).
+ * Forest Basin gets none: the map builder's blank map is left alone.
+ */
+export function zoneMapLights(zoneId: string): readonly MapLight[] {
+  let v = lightCache.get(zoneId);
+  if (!v) {
+    const seam = (SEAM_COUNTRY_ZONES as readonly string[]).includes(zoneId);
+    v = [...(ZONE_MAP_LIGHTS[zoneId] ?? []), ...(seam ? seamCountryLights(zoneId as SeamCountryZone) : [])];
+    lightCache.set(zoneId, v);
+  }
+  return v;
+}
 
 export function zoneLightMood(zoneId: string | null | undefined): LightMood {
   return (zoneId && ZONE_LIGHT_MOODS[zoneId]) || LIGHT_MOODS.daylight;

@@ -316,6 +316,7 @@ export {
   ZONE_MOOD_AREAS,
   moodIsBright,
   zoneLightMood,
+  zoneMapLights,
   type LightKind,
   type LightMood,
   type MapLight,
