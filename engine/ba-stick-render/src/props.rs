@@ -1654,96 +1654,168 @@ fn draw_one(c: &mut Ctx, p: &Prop, time: f32) {
         kind::FALLEN_LOG => {
             let (l, r) = (s.max(2.0), p.w.max(0.3));
             let hl = l * 0.5;
-            // trunk lying on its side, a little sunk into the ground, bark in bands
-            let n = 6;
-            for k in 0..n {
-                let z0 = -hl + l * k as f32 / n as f32;
-                let z1 = -hl + l * (k + 1) as f32 / n as f32;
-                let taper = 1.0 - 0.35 * (k as f32 + 0.5) / n as f32;
-                let rr = r * taper;
-                c.boxy(0.0, -0.15 * r, (z0 + z1) * 0.5, rr * 2.0, rr * 1.9, z1 - z0 + 0.02,
-                    if k % 2 == 0 { WOOD_L } else { WOOD }, WOOD, WOOD_D);
-                // moss saddle on the top
-                if k % 2 == 1 {
-                    c.boxy(0.0, rr * 1.75 - 0.15 * r, (z0 + z1) * 0.5, rr * 1.2, 0.08, (z1 - z0) * 0.7, GRASS_L, GRASS, GRASS_D);
+            const SIDES: usize = 8;
+            const BANDS: usize = 8;
+            // a round trunk lying along its length, sunk a little into the ground
+            let ring = |c: &Ctx, b: usize| -> Vec<(P2, f32, f32)> {
+                let u = b as f32 / BANDS as f32;
+                let rr = r * (1.0 - 0.3 * u) * (1.0 + 0.06 * (u * 17.0 + p.x).sin());
+                let fz = -hl + l * u;
+                (0..SIDES)
+                    .map(|i| {
+                        let a = i as f32 / SIDES as f32 * std::f32::consts::TAU;
+                        (c.p(a.cos() * rr, r * 0.85 + a.sin() * rr, fz), a.cos(), a.sin())
+                    })
+                    .collect()
+            };
+            let rings: Vec<_> = (0..=BANDS).map(|b| ring(c, b)).collect();
+            for b in 0..BANDS {
+                for i in 0..SIDES {
+                    let j = (i + 1) % SIDES;
+                    let (nx, ny) = ((rings[b][i].1 + rings[b][j].1) * 0.5, (rings[b][i].2 + rings[b][j].2) * 0.5);
+                    let col = if ny > 0.6 && b % 3 == 1 {
+                        GRASS_L // moss along the top
+                    } else if ny > 0.35 {
+                        WOOD_L
+                    } else if ny < -0.4 {
+                        WOOD_D
+                    } else {
+                        foliage(sun_of(c, nx, 0.0), WOOD_D, GEAR_LEATHER, WOOD)
+                    };
+                    let cull = c.cull_back;
+                    c.quad_tube(rings[b][i].0, rings[b][j].0, rings[b + 1][j].0, rings[b + 1][i].0, col, cull);
                 }
             }
-            // torn-up root plate standing on end at the butt
-            let rh = p.h.max(r * 2.6);
-            let rp = [c.p(-rh * 0.6, -0.1, -hl), c.p(rh * 0.6, -0.1, -hl), c.p(rh * 0.5, rh, -hl - 0.2), c.p(-rh * 0.5, rh * 0.95, -hl - 0.2)];
-            c.quad(rp[0], rp[1], rp[2], rp[3], BANK_D);
-            for k in 0..7 {
-                let a = k as f32 / 6.0 * std::f32::consts::PI;
-                let o = c.p(0.0, rh * 0.45, -hl - 0.25);
-                let e = c.p(a.cos() * rh * 0.75, rh * 0.45 + a.sin() * rh * 0.6, -hl - 0.6);
-                c.cap(o, e, 1.2, WOOD_D);
+            // outline the silhouette, and bark splits between the bands
+            for b in 0..BANDS {
+                c.edge(rings[b][2].0, rings[b + 1][2].0);
+                c.edge(rings[b][6].0, rings[b + 1][6].0);
+                for i in [0usize, 7] {
+                    let (a, z) = (rings[b][i].0, rings[b + 1][i].0);
+                    c.edge_col(a, P2 { x: a.x + (z.x - a.x) * 0.6, y: a.y + (z.y - a.y) * 0.6, d: a.d, ..a }, WOOD_D);
+                }
             }
-            // snapped crown end: splintered stubs
-            for k in 0..3 {
-                let a = 0.6 + k as f32 * 0.9;
-                let o = c.p(0.0, r * 0.9, hl);
-                let e = c.p(a.cos() * r * 1.6, r * 0.9 + a.sin() * r * 1.4, hl + r * 0.8);
-                c.cap(o, e, 1.4, WOOD_L);
+            // snapped crown end: pale heartwood and splinters
+            let e = c.p(0.0, r * 0.85, hl + 0.02);
+            let e1 = c.p(r * 0.7, r * 0.85, hl + 0.02);
+            let px = ((e1.x - e.x).powi(2) + (e1.y - e.y).powi(2)).sqrt().max(1.5);
+            c.fb.disc(e, px, GEAR_BONE, Some(C_OUTLINE));
+            for k in 0..4 {
+                let a = 0.4 + k as f32 * 0.8;
+                let o = c.p(a.cos() * r * 0.4, r * 0.85 + a.sin() * r * 0.4, hl);
+                let t = c.p(a.cos() * r * 0.6, r * 0.85 + a.sin() * r * 0.9, hl + r * 1.1);
+                c.cap(o, t, 1.2, WOOD_L);
+            }
+            // torn-up root plate standing on end at the butt: earth disc and roots
+            let rh = p.h.max(r * 2.6);
+            let ctr = c.p(0.0, rh * 0.5, -hl - 0.3);
+            let ed = c.p(rh * 0.5, rh * 0.5, -hl - 0.3);
+            let pr = ((ed.x - ctr.x).powi(2) + (ed.y - ctr.y).powi(2)).sqrt().max(3.0);
+            // ragged earth plate with the roots torn through it
+            for k in 0..7 {
+                let a = k as f32 / 7.0 * std::f32::consts::TAU;
+                let o = P2 { x: ctr.x + a.cos() * pr * 0.35, y: ctr.y + a.sin() * pr * 0.35, ..ctr };
+                c.fb.disc(o, pr * (0.62 + 0.12 * ((k * 5) % 3) as f32), GEAR_LEATHER, Some(C_OUTLINE));
+            }
+            c.fb.disc(P2 { d: ctr.d - 0.05, ..ctr }, pr * 0.7, WOOD_D, None);
+            for k in 0..11 {
+                let a = k as f32 / 11.0 * std::f32::consts::TAU + 0.3;
+                let o = c.p(a.cos() * rh * 0.12, rh * 0.5 + a.sin() * rh * 0.12, -hl - 0.4);
+                let t = c.p(a.cos() * rh * 0.55, (rh * 0.5 + a.sin() * rh * 0.55).max(0.1), -hl - 0.5);
+                c.cap(P2 { d: o.d - 0.1, ..o }, P2 { d: t.d - 0.1, ..t }, 1.4, WOOD_L);
             }
         }
         kind::MUSHROOMS => {
             let glow = p.var == 1;
             let hh = s.max(0.3);
-            for k in 0..5 {
-                let a = k as f32 * 2.4 + p.x;
-                let rad = if k == 0 { 0.0 } else { hh * 0.55 };
-                let (ox, oz) = (a.cos() * rad, a.sin() * rad);
-                let ht = hh * (if k == 0 { 1.0 } else { 0.55 + 0.1 * (k % 3) as f32 });
+            // back to front so near caps overlap far ones
+            let mut caps: Vec<(f32, f32, f32)> = (0..5)
+                .map(|k| {
+                    let a = k as f32 * 2.4 + p.x;
+                    let rad = if k == 0 { 0.0 } else { hh * 0.6 };
+                    let ht = hh * (if k == 0 { 1.0 } else { 0.5 + 0.12 * (k % 3) as f32 });
+                    (a.cos() * rad, a.sin() * rad, ht)
+                })
+                .collect();
+            caps.sort_by(|a, b| c.p(b.0, 0.0, b.1).d.partial_cmp(&c.p(a.0, 0.0, a.1).d).unwrap_or(std::cmp::Ordering::Equal));
+            for (ox, oz, ht) in caps {
                 let b = c.p(ox, 0.0, oz);
                 let t = c.p(ox, ht, oz);
-                c.cap(b, t, 1.6, GEAR_BONE);
-                let cr = ht * 0.55;
+                c.cap(b, t, (ht * 2.2).clamp(1.2, 4.0), GEAR_BONE);
+                let cr = ht * 0.6;
                 let e0 = c.p(ox - cr, ht, oz);
                 let e1 = c.p(ox + cr, ht, oz);
-                let px = ((e1.x - e0.x).powi(2) + (e1.y - e0.y).powi(2)).sqrt() * 0.5;
-                let top = c.p(ox, ht + cr * 0.25, oz);
-                let (cap_c, spot) = if glow { (STALK_C, GEAR_BONE) } else { (BLOOM_C, GEAR_BONE) };
-                c.fb.disc(P2 { d: top.d - 0.05, ..top }, px.max(1.5), cap_c, Some(C_OUTLINE));
-                c.fb.disc(P2 { x: top.x - px * 0.3, y: top.y - px * 0.25, d: top.d - 0.1, ..top }, (px * 0.22).max(0.8), spot, None);
+                let px = (((e1.x - e0.x).powi(2) + (e1.y - e0.y).powi(2)).sqrt() * 0.5).max(2.0);
+                // dome: a fan of triangles over a flat gill line
+                let (cap_c, rim) = if glow { (FX_LEVEL, GEAR_BRONZE) } else { (FX_TELL, WOOD_D) };
+                let d = t.d - 0.08;
+                let n = 8;
+                let pt = |i: usize| {
+                    let a = std::f32::consts::PI * i as f32 / n as f32;
+                    P2 { x: t.x - a.cos() * px, y: t.y - a.sin() * px * 0.75, d, ..t }
+                };
+                for i in 0..n {
+                    tri(c.fb, P2 { d, ..t }, pt(i), pt(i + 1), cap_c);
+                }
+                for i in 0..n {
+                    c.fb.line(pt(i), pt(i + 1), C_OUTLINE);
+                }
+                c.fb.line(P2 { x: t.x - px, y: t.y + 1.0, d, ..t }, P2 { x: t.x + px, y: t.y + 1.0, d, ..t }, rim);
+                c.fb.line(P2 { x: t.x - px, d, ..t }, P2 { x: t.x + px, d, ..t }, C_OUTLINE);
+                // pale spots
+                c.fb.disc(P2 { x: t.x - px * 0.35, y: t.y - px * 0.4, d: d - 0.02, ..t }, (px * 0.16).max(0.8), GEAR_BONE, None);
+                c.fb.disc(P2 { x: t.x + px * 0.3, y: t.y - px * 0.3, d: d - 0.02, ..t }, (px * 0.12).max(0.7), GEAR_BONE, None);
             }
         }
         kind::FALLS => {
             let (w, hgt) = (p.w.max(0.8), p.h.max(0.5));
             let hw = w * 0.5;
-            // the rock lip and the cliff behind
-            c.boxy(0.0, -0.3, -0.45, w + 1.6, hgt + 0.5, 0.7, ROCK_L, ROCK, ROCK_D);
-            // the sheet, animated in bands
-            let bands = 6;
+            // the sheet bows out from the lip and spreads as it falls
+            let bands = 8;
             for k in 0..bands {
-                let y0 = hgt * k as f32 / bands as f32;
-                let y1 = hgt * (k + 1) as f32 / bands as f32;
-                let ph = ((time * 3.0 + k as f32) as i32).rem_euclid(3) as u8;
-                let q = [c.p(-hw, y1, 0.0), c.p(hw, y1, 0.0), c.p(hw * 1.08, y0, 0.12), c.p(-hw * 1.08, y0, 0.12)];
+                let u0 = k as f32 / bands as f32;
+                let u1 = (k + 1) as f32 / bands as f32;
+                let (y0, y1) = (hgt * (1.0 - u1), hgt * (1.0 - u0));
+                let (s0, s1) = (1.0 + 0.25 * u1, 1.0 + 0.25 * u0);
+                let (f0, f1) = (0.15 + 0.5 * u1 * u1, 0.15 + 0.5 * u0 * u0);
+                let ph = ((time * 4.0 + k as f32) as i32).rem_euclid(3) as u8;
+                let q = [c.p(-hw * s1, y1, f1), c.p(hw * s1, y1, f1), c.p(hw * s0, y0, f0), c.p(-hw * s0, y0, f0)];
                 c.quad(q[0], q[1], q[2], q[3], WATER + ph);
             }
-            // white streaks falling
-            for k in 0..7 {
-                let x = -hw + w * (k as f32 + 0.5) / 7.0;
-                let t = (time * 1.7 + k as f32 * 0.37).fract();
-                let a = c.p(x, hgt * (1.0 - t * 0.6), 0.05);
-                let b = c.p(x, (hgt * (1.0 - t * 0.6) - hgt * 0.35).max(0.0), 0.1);
+            // white streaks running down
+            for k in 0..11 {
+                let x = -hw + w * (k as f32 + 0.5) / 11.0;
+                let t = (time * 1.3 + k as f32 * 0.37).fract();
+                let ya = hgt * (1.0 - t * 0.7);
+                let yb = (ya - hgt * 0.3).max(0.0);
+                let fa = 0.2 + 0.5 * (1.0 - ya / hgt).powi(2);
+                let fb_ = 0.2 + 0.5 * (1.0 - yb / hgt).powi(2);
+                let a = c.p(x * (1.0 + 0.25 * (1.0 - ya / hgt)), ya, fa);
+                let b = c.p(x * (1.0 + 0.25 * (1.0 - yb / hgt)), yb, fb_);
                 c.fb.line(P2 { d: a.d - 0.05, ..a }, P2 { d: b.d - 0.05, ..b }, GEAR_BONE);
             }
-            // foam at the foot
-            for k in 0..6 {
-                let x = -hw + w * k as f32 / 5.0;
-                let f = c.p(x, 0.05, 0.4 + 0.3 * ((k * 7) % 3) as f32);
-                c.fb.disc(P2 { d: f.d - 0.05, ..f }, 2.2, GEAR_BONE, None);
+            // lip highlight and foam where it lands
+            c.fb.line(c.p(-hw, hgt, 0.15), c.p(hw, hgt, 0.15), GEAR_BONE);
+            for k in 0..9 {
+                let x = -hw * 1.3 + w * 1.3 * k as f32 / 8.0;
+                let f = c.p(x, 0.08, 0.7 + 0.35 * ((k * 7) % 3) as f32);
+                c.fb.disc(P2 { d: f.d - 0.05, ..f }, 2.6 + (k % 2) as f32, GEAR_BONE, None);
             }
         }
         kind::ROCK_WALL => {
             let (l, hgt, th) = (s.max(1.0), p.h.max(0.5), p.w.max(0.4));
-            let n = (l / 1.1).ceil().max(1.0) as i32;
+            let n = (l / 0.8).ceil().max(1.0) as i32;
+            let jit = |k: i32, m: f32| (p.x * 3.1 + p.z * 1.7 + k as f32 * m).sin() * 0.5 + 0.5;
+            let mut x = -l * 0.5;
             for k in 0..n {
-                let x = -l * 0.5 + l * (k as f32 + 0.5) / n as f32;
-                let j = ((p.x * 3.1 + p.z * 1.7 + k as f32 * 2.3).sin() * 0.5 + 0.5) * 0.35;
-                let hh = hgt * (0.82 + j);
-                c.boxy(x, -0.4, j * 0.4, l / n as f32 + 0.15, hh + 0.4, th * (0.8 + j), ROCK_L, ROCK, ROCK_D);
+                let bw = (l / n as f32) * (0.75 + 0.5 * jit(k, 1.3));
+                let cx = (x + bw * 0.5).min(l * 0.5 - 0.2);
+                x += l / n as f32;
+                let hh = hgt * (0.7 + 0.3 * jit(k, 2.3));
+                let back = jit(k, 4.1) * 0.45;
+                // lower course, then a narrower stepped crown set back
+                c.boxy(cx, -0.4, back, bw + 0.1, hh * 0.65 + 0.4, th, ROCK, ROCK_D, BANK_DD);
+                c.boxy(cx + (jit(k, 5.7) - 0.5) * 0.3, hh * 0.6, back - 0.25, bw * 0.75, hh * 0.4, th * 0.8, ROCK_L, ROCK, ROCK_D);
             }
         }
         kind::THORN => {
@@ -1758,7 +1830,6 @@ fn draw_one(c: &mut Ctx, p: &Prop, time: f32) {
                 let r0 = c.p(0.0, 0.1, 0.0);
                 let tip = c.p(a.cos() * sz * 0.9, sz * (0.5 + 0.5 * ((k % 3) as f32 / 2.0)), a.sin() * sz * 0.9);
                 c.cap(r0, tip, 0.8, WOOD_D);
-                // spikes along the cane
                 for t in [0.4f32, 0.7] {
                     let q = P2 { x: r0.x + (tip.x - r0.x) * t, y: r0.y + (tip.y - r0.y) * t, d: tip.d - 0.05, ..tip };
                     c.fb.line(q, P2 { x: q.x + 2.0, y: q.y - 2.0, d: q.d, ..q }, GEAR_BONE);
@@ -1780,40 +1851,46 @@ fn draw_one(c: &mut Ctx, p: &Prop, time: f32) {
                     let h2 = if side < 0.0 { hgt } else { hgt * 0.7 }; // one jamb broken lower
                     c.boxy(side * span * 0.5, -0.2, 0.0, 0.7, h2, 0.8, WALL_L, WALL, WALL_D);
                 }
-                // surviving half of the lintel / voussoirs
-                c.boxy(-span * 0.18, hgt - 0.1, 0.0, span * 0.75, 0.45, 0.8, WALL_L, WALL, WALL_D);
+                // surviving voussoirs springing from the tall jamb
+                for k in 0..4 {
+                    let a = std::f32::consts::PI * (1.0 - k as f32 / 6.0);
+                    let x = a.cos() * span * 0.5;
+                    let y = hgt - 0.5 + a.sin() * span * 0.35;
+                    c.boxy(x, y, 0.0, 0.6, 0.5, 0.8, WALL_L, WALL, WALL_D);
+                }
                 c.boxy(span * 0.35, -0.2, 0.9, 0.9, 0.4, 0.7, WALL, WALL_D, BANK_DD);
             }
         }
         kind::HOLLOW_OAK => {
             let hgt = s.max(3.0);
             let r = p.w.max(0.6);
-            // squat, gnarled trunk as stacked tapered boxes
-            for k in 0..4 {
-                let y = hgt * 0.13 * k as f32;
-                let rr = r * (1.25 - 0.12 * k as f32);
-                c.boxy(0.0, y - 0.2, 0.0, rr * 2.0, hgt * 0.14 + 0.05, rr * 2.0, WOOD_L, WOOD, WOOD_D);
+            let seed = p.x * 0.37 + p.z * 0.11;
+            let top = hgt * 0.55;
+            // great limbs first (behind the crown edge)
+            for k in 0..6 {
+                let a = k as f32 * 1.05 + 0.4;
+                let o = c.p(0.0, top * 0.9, 0.0);
+                let e = c.p(a.cos() * r * 3.4, top + hgt * 0.15, a.sin() * r * 3.4);
+                c.cap(o, e, 3.0, WOOD_D);
             }
-            // the hollow: dark split facing forward
-            let q = [c.p(-r * 0.35, 0.0, r * 1.26), c.p(r * 0.35, 0.0, r * 1.26), c.p(r * 0.2, hgt * 0.38, r * 1.15), c.p(-r * 0.25, hgt * 0.42, r * 1.15)];
-            c.quad(q[0], q[1], q[2], q[3], C_OUTLINE);
-            // great limbs
-            let top = hgt * 0.52;
-            for k in 0..5 {
-                let a = k as f32 * 1.26 + 0.4;
-                let o = c.p(0.0, top, 0.0);
-                let e = c.p(a.cos() * r * 3.2, top + hgt * 0.22, a.sin() * r * 3.2);
-                c.cap(o, e, 2.6, WOOD_D);
+            draw_trunk(c, seed, (0.0, 0.0), top, r);
+            // the hollow: a tall dark split in the trunk's face
+            {
+                let q = |rx: f32, y: f32| { let v = c.p(rx * r, y * r, r * 1.15); P2 { d: v.d - 0.4, ..v } };
+                let (a, b, cc, d, e) = (q(-0.45, 0.0), q(0.45, 0.0), q(0.3, 1.6), q(0.0, 2.6), q(-0.3, 1.7));
+                tri(c.fb, a, b, cc, C_OUTLINE);
+                tri(c.fb, a, cc, e, C_OUTLINE);
+                tri(c.fb, e, cc, d, C_OUTLINE);
             }
             // broad crown in clumps
-            for k in 0..7 {
-                let a = k as f32 * 0.9;
-                let rad = if k == 0 { 0.0 } else { r * 2.6 };
-                let ctr = c.p(a.cos() * rad, hgt * (0.8 + 0.08 * (k % 2) as f32), a.sin() * rad);
-                let ed = c.p(a.cos() * rad + r * 2.0, hgt * 0.8, a.sin() * rad);
+            for k in 0..9 {
+                let a = k as f32 * 0.7;
+                let rad = if k == 0 { 0.0 } else { r * (2.2 + 0.8 * (k % 2) as f32) };
+                let ctr = c.p(a.cos() * rad, hgt * (0.72 + 0.1 * (k % 3) as f32), a.sin() * rad);
+                let ed = c.p(a.cos() * rad + r * 2.1, hgt * 0.75, a.sin() * rad);
                 let px = ((ed.x - ctr.x).powi(2) + (ed.y - ctr.y).powi(2)).sqrt().max(3.0);
-                let col = if k % 3 == 0 { ASH_L } else if k % 3 == 1 { ASH } else { ASH_D };
-                c.fb.disc(P2 { d: ctr.d - 0.1 * k as f32, ..ctr }, px, col, Some(C_OUTLINE));
+                let col = foliage(sun_of(c, a.cos() * rad, a.sin() * rad), ASH_D, ASH, ASH_L);
+                c.fb.disc(ctr, px, col, Some(C_OUTLINE));
             }
         }
         kind::PEAK => {
