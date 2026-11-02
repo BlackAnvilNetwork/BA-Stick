@@ -1856,13 +1856,24 @@ fn draw_one(c: &mut Ctx, p: &Prop, time: f32) {
                 for side in [-1.0f32, 1.0] {
                     c.boxy(side * span * 0.5, -0.3, 0.0, 0.8, hgt + 0.3, 1.1, WALL_L, WALL, WALL_D);
                 }
-                for k in 0..7 {
-                    let a = std::f32::consts::PI * (1.0 - (k as f32 + 0.5) / 7.0);
-                    c.boxy(a.cos() * span * 0.47, hgt + a.sin() * rise - 0.3, 0.0, 0.75, 0.6, 1.0, WALL_L, WALL, WALL_D);
+                // a true half-round: small voussoirs on the opening's radius, dark soffit inside
+                let ro = rise - 0.55;
+                for k in 0..13 {
+                    let a = std::f32::consts::PI * (1.0 - (k as f32 + 0.5) / 13.0);
+                    c.boxy(a.cos() * (ro + 0.2), hgt + a.sin() * (ro + 0.2) - 0.2, 0.0, 0.42, 0.4, 1.25, WALL_D, WALL_D, ROCK_D);
                 }
                 let top = hgt + rise + 0.25;
                 let l = span * 0.5 + 0.4;
-                c.boxy(0.0, hgt + rise * 0.55, 0.0, l * 2.0, top - hgt - rise * 0.55, 1.2, WALL, WALL, WALL_D);
+                // the wall above the arch in narrow strips whose feet follow the half-round, so the opening reads round
+                let ns = 14;
+                for k in 0..ns {
+                    let x0 = -l + 2.0 * l * (k as f32 + 0.5) / ns as f32;
+                    let foot = if x0.abs() < ro + 0.4 { hgt + ((ro + 0.4).powi(2) - x0 * x0).max(0.0).sqrt() } else { hgt };
+                    if top - foot > 0.05 {
+                        c.boxy(x0, foot, 0.0, 2.0 * l / ns as f32 + 0.02, top - foot, 1.15, WALL, WALL, WALL_D);
+                    }
+                }
+                c.boxy(0.0, top - 0.45, 0.0, l * 2.0, 0.45, 1.2, WALL, WALL, WALL_D);
                 for zz in [-0.5f32, 0.5] {
                     c.boxy(0.0, top, zz, l * 2.0, 0.45, 0.22, WALL_L, WALL, WALL_D);
                 }

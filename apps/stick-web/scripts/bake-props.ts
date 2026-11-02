@@ -427,7 +427,7 @@ export function forestBasinProps(): Prop[] {
         // a broken run of arches stepping across the slope (arch spans lie along the run)
         {
           // seven bays stride the hollow; the channel stays level, so the piers grow in the dip
-          const bays = [-3, -2, -1, 0, 1, 2, 3].map((k) => ({ k, px: x + k * 5 * 0.8, pz: z + k * 5 * 0.6 }));
+          const bays = [-3, -2, -1, 0, 1, 2, 3].map((k) => ({ k, px: -57 + k * 5 * 0.8, pz: 88 + k * 5 * 0.6 })) // centred on the hollow;
           const rise = 5 * 0.42;
           const top = Math.max(...bays.map((b) => forestBasinGroundY(b.px, b.pz))) + 1.6 + rise + 0.25;
           for (const b of bays) {
