@@ -24,6 +24,7 @@ pub mod figure;
 pub mod floaters;
 pub mod gear;
 pub mod ground;
+pub mod lighting;
 pub mod mapfont;
 pub mod minimap;
 pub mod palette;

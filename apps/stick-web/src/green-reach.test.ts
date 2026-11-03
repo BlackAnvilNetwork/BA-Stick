@@ -1,3 +1,4 @@
+import { naturalSample } from "../scripts/natural-edges";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { K } from "../scripts/bake-props";
@@ -39,7 +40,7 @@ test("green reach spawn is dry and both pools hold water", () => {
     assert.equal(greenReachBiome(p.x, p.z), "river");
     assert.equal(greenReachWaterSurfaceY(p.x, p.z), GR_SURFACE);
     const bed = greenReachStandHeight(p.x, p.z);
-    assert.ok(Math.abs(bed - GR_BED) < 0.05, `bed ${bed}`);
+    assert.ok(GR_SURFACE - bed > 1.3, `bed ${bed}`); // deep core (natural-shore tiers: wadeable fringe, deep, deeper core)
     for (const [dx, dz] of [[2, 0], [-2, 0], [0, 2], [0, -2]] as const) {
       assert.equal(greenReachInOpenWater(p.x + dx, p.z + dz), true, `${p.x + dx},${p.z + dz}`);
     }
@@ -48,7 +49,7 @@ test("green reach spawn is dry and both pools hold water", () => {
   assert.equal(greenReachWalkable(-16, 40), true);
   assert.equal(greenReachInOpenWater(-16, 40), false);
   for (const m of GR_PEAKS) {
-    assert.equal(greenReachWalkable(m.x, m.z), false, `${m.x},${m.z}`);
+    assert.equal(greenReachWalkable(m.x, m.z), true, `${m.x},${m.z} summit vista reached by its ascent`);
     const cap = greenReachStandHeight(m.x, m.z);
     assert.ok(Math.abs(cap - m.h) < 0.05, `cap ${cap} expected ${m.h}`);
   }
@@ -124,7 +125,8 @@ test("green reach gates are reachable from the claw spawn", () => {
 test("green reach trail stays dry and every road is named", () => {
   const wet: string[] = [];
   for (const t of greenReachTrails()) {
-    assert.equal(t.surface, "dirt");
+    const ascent = ["white-caps-stair", "east-cap-ledge", "north-cave"].includes(t.id); // narrow natural ascents
+    assert.equal(t.surface, ascent ? "stone" : "dirt", t.id);
     assert.ok(GR_ROAD_NAMES[t.id], t.id);
     for (let i = 1; i < t.points.length; i++) {
       const a = t.points[i - 1]!;
@@ -138,7 +140,7 @@ test("green reach trail stays dry and every road is named", () => {
         const u = s / 16;
         const x = a.x + dx * u;
         const z = a.z + dz * u;
-        for (const side of [0, 1.5, -1.5] as const) {
+        for (const side of ascent ? ([0, 0.4, -0.4] as const) : ([0, 1.5, -1.5] as const)) {
           const px = x + nx * side;
           const pz = z + nz * side;
           if (!greenReachWalkable(px, pz) || greenReachInOpenWater(px, pz)) {
@@ -176,7 +178,8 @@ test("green reach props stay under the budget and off the pools", () => {
     assert.ok(p.kind === K.pine || p.kind === K.spruce, `kind ${p.kind}`);
     assert.equal(greenReachWalkable(p.x, p.z), true);
     assert.equal(greenReachInOpenWater(p.x, p.z), false);
-    const b = greenReachBiome(p.x, p.z);
+    // trees follow the warped (natural-edge) biome the ground is painted with
+    const b = naturalSample(greenReachBiome, p.x, p.z);
     assert.ok(b === "grass" || b === "meadow", b);
     for (const m of GR_PEAKS) {
       assert.ok(Math.hypot(p.x - m.x, p.z - m.z) >= m.r * 0.38);

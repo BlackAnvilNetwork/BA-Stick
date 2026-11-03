@@ -1,3 +1,4 @@
+import { naturalSample } from "../natural-edges";
 /**
  * Ring Ward props. Outer-ring stones, canal walls, one bridge, keep and street clutter.
  * Trees stay outside r=40 on an 8 m grid.
@@ -154,7 +155,7 @@ function parkTrees(out: Prop[]): void {
       if (Math.hypot(jx, jz) < 40) continue;
       if (!ringWardWalkable(jx, jz) || ringWardOnBridge(jx, jz)) continue;
       if (ringWardOnTrail(jx, jz)) continue;
-      if (ringWardBiome(jx, jz) !== "meadow") continue;
+      if (naturalSample(ringWardBiome, jx, jz) !== "meadow") continue;
       const h = hash2(Math.floor(jx), Math.floor(jz));
       if (h < 0.7) continue;
       out.push({

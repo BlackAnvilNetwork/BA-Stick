@@ -1,3 +1,4 @@
+import { naturalSample } from "../scripts/natural-edges";
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
@@ -16,44 +17,45 @@ import {
   coilRidgeTrails,
   coilRidgeWalkable,
   coilRidgeWaterSurfaceY,
+  CR_BRIDGE,
+  CR_TARN,
+  CR_RUINS,
+  coilRidgeInShallows,
 } from "../../../packages/config/src/coil-ridge";
 import { bakeZoneGrid } from "../scripts/bake-zones";
 import { K } from "../scripts/bake-props";
 import { coilRidgeProps } from "../scripts/zone-props/coil-ridge";
 
-/** A point on the spiral arm at the given radius. Angle = radius × 0.15. */
-function onArm(radius: number): { x: number; z: number } {
-  const theta = radius * 0.15;
-  return { x: radius * Math.cos(theta), z: 10 + radius * Math.sin(theta) };
-}
-
-test("coil ridge spawn is dry, the tongue is dry, and the spiral arm holds water", () => {
+test("coil ridge (the Broken Stair): spawn dry on the apron, tarn has a wadeable shelf and a deep core", () => {
   assert.equal(coilRidgeWalkable(CR_SPAWN.x, CR_SPAWN.z), true);
   assert.equal(coilRidgeInOpenWater(CR_SPAWN.x, CR_SPAWN.z), false);
   assert.equal(coilRidgeOnBridge(CR_SPAWN.x, CR_SPAWN.z), false);
   assert.equal(CR_SPAWN.facing, 0);
   assert.equal(CR_TRAIL_WIDTH, 3.3);
-  assert.ok(Math.abs(coilRidgeStandHeight(CR_SPAWN.x, CR_SPAWN.z) - 2.4) < 0.05);
+  assert.ok(Math.abs(coilRidgeStandHeight(CR_SPAWN.x, CR_SPAWN.z) - 2.61) < 0.1);
   assert.equal(coilRidgeHeight(0, -80), coilRidgeStandHeight(0, -80));
 
-  assert.equal(coilRidgeWalkable(0, -80), true);
-  assert.equal(coilRidgeInOpenWater(0, -80), false);
-  assert.ok(Math.abs(coilRidgeStandHeight(0, -80) - 2.4) < 0.05);
-
-  const arm = onArm(50);
-  assert.ok(arm.z > -50, `arm z ${arm.z}`);
-  assert.ok(Math.abs(Math.hypot(arm.x, arm.z - 10) - 50) < 1e-6);
-  assert.equal(coilRidgeInOpenWater(arm.x, arm.z), true);
-  assert.equal(coilRidgeWalkable(arm.x, arm.z), false);
-  assert.equal(coilRidgeWaterSurfaceY(arm.x, arm.z), 1);
-  assert.ok(Math.abs(coilRidgeStandHeight(arm.x, arm.z) - (1 - 1.35)) < 1e-6);
-
-  assert.equal(coilRidgeWalkable(0, 50), true);
-  assert.equal(coilRidgeInOpenWater(0, 50), false);
-  assert.equal(coilRidgeWalkable(0, 10), false);
+  // deep tarn core: water, not walkable, more than 2 m deep
+  assert.equal(coilRidgeInOpenWater(CR_TARN.x, CR_TARN.z), true);
+  assert.equal(coilRidgeWalkable(CR_TARN.x, CR_TARN.z), false);
+  const s = coilRidgeWaterSurfaceY(CR_TARN.x, CR_TARN.z)!;
+  assert.ok(s - coilRidgeStandHeight(CR_TARN.x, CR_TARN.z) > 2, "tarn core depth");
+  // every walkable wet cell is shallow (<= 0.6 m)
+  let wade = 0;
+  const { minX, maxX, minZ, maxZ } = CR_BOUNDS;
+  for (let z = minZ; z <= maxZ; z += 1) {
+    for (let x = minX; x <= maxX; x += 1) {
+      const w = coilRidgeWaterSurfaceY(x, z);
+      if (w == null || !coilRidgeWalkable(x, z) || coilRidgeOnBridge(x, z)) continue;
+      wade++;
+      assert.ok(w - coilRidgeStandHeight(x, z) <= 0.61, `deep walkable at ${x},${z}`);
+    }
+  }
+  assert.ok(wade > 50, `wadeable cells ${wade}`);
+  assert.equal(coilRidgeInShallows(CR_SPAWN.x, CR_SPAWN.z), false);
 });
 
-test("coil ridge relief stays under 11.5 m", () => {
+test("coil ridge walkable relief stays under 11.5 m and the bridge spans the race", () => {
   let minY = Infinity;
   let maxY = -Infinity;
   let walk = 0;
@@ -63,23 +65,28 @@ test("coil ridge relief stays under 11.5 m", () => {
     for (let x = minX; x <= maxX; x += 4) {
       const y = coilRidgeStandHeight(x, z);
       minY = Math.min(minY, y);
-      maxY = Math.max(maxY, y);
       n++;
-      if (coilRidgeWalkable(x, z)) walk++;
+      if (coilRidgeWalkable(x, z)) {
+        walk++;
+        maxY = Math.max(maxY, y);
+      }
     }
   }
-  const arm = onArm(50);
-  minY = Math.min(minY, coilRidgeStandHeight(arm.x, arm.z));
-  const crown = coilRidgeStandHeight(0, 10);
-  maxY = Math.max(maxY, crown);
-  assert.ok(crown <= 10.5 && crown > 10, `crown ${crown}`);
   assert.ok(minY >= -0.5 && maxY < 11.5, `relief ${minY}..${maxY}`);
   const frac = walk / n;
   console.log(`coil_ridge walkable fraction ${frac.toFixed(3)} (${walk}/${n})`);
-  assert.ok(frac > 0.35 && frac < 0.6, `walkable fraction ${frac.toFixed(3)}`);
+  assert.ok(frac > 0.3 && frac < 0.7, `walkable fraction ${frac.toFixed(3)}`);
+  assert.equal(coilRidgeOnBridge(CR_BRIDGE.x, CR_BRIDGE.z), true);
+  assert.equal(coilRidgeWalkable(CR_BRIDGE.x, CR_BRIDGE.z), true);
+  for (const sgn of [-1, 1]) {
+    const x = CR_BRIDGE.x + sgn * CR_BRIDGE.dir.x * (CR_BRIDGE.span / 2 + 1.5);
+    const z = CR_BRIDGE.z + sgn * CR_BRIDGE.dir.z * (CR_BRIDGE.span / 2 + 1.5);
+    assert.equal(coilRidgeWalkable(x, z), true, `bank ${sgn}`);
+    assert.equal(coilRidgeInOpenWater(x, z), false, `bank ${sgn}`);
+  }
 });
 
-test("coil ridge flood from the tongue reaches the lip and the dry disc", () => {
+test("coil ridge flood from the tongue reaches the lip, the shelf and both bridge banks", () => {
   assert.deepEqual(
     CR_GATES.map((g) => ({
       id: g.id,
@@ -126,15 +133,12 @@ test("coil ridge flood from the tongue reaches the lip and the dry disc", () => 
     assert.equal(reached(cx, cz), true, g.id);
     assert.equal(coilRidgeGateSoftLevel(cx, cz), 8, g.id);
   }
-  assert.equal(coilRidgeWalkable(0, 50), true);
-  assert.equal(coilRidgeInOpenWater(0, 50), false);
-  assert.equal(reached(0, 50), true);
+  for (const r of CR_RUINS) assert.equal(reached(Math.round(r.x / 4) * 4, Math.round(r.z / 4) * 4) || reached(Math.round(r.x / 4) * 4 + 4, Math.round(r.z / 4) * 4), true, r.id);
 });
 
-test("coil ridge tongue track is named and dry, and labels sit in bounds", () => {
+test("coil ridge trails are named and dry, and labels sit in bounds", () => {
   const wet: string[] = [];
   for (const t of coilRidgeTrails()) {
-    assert.equal(t.surface, "dirt");
     assert.ok(CR_ROAD_NAMES[t.id], t.id);
     for (let i = 1; i < t.points.length; i++) {
       const a = t.points[i - 1]!;
@@ -143,50 +147,36 @@ test("coil ridge tongue track is named and dry, and labels sit in bounds", () =>
         const u = s / 16;
         const x = a.x + (b.x - a.x) * u;
         const z = a.z + (b.z - a.z) * u;
-        if (coilRidgeInOpenWater(x, z) || !coilRidgeWalkable(x, z)) wet.push(`${t.id} ${x.toFixed(1)},${z.toFixed(1)}`);
+        if ((coilRidgeInOpenWater(x, z) && !coilRidgeOnBridge(x, z)) || !coilRidgeWalkable(x, z)) wet.push(`${t.id} ${x.toFixed(1)},${z.toFixed(1)}`);
       }
     }
   }
   assert.deepEqual(wet, []);
   const labels = [...CR_MAP_LABELS];
-  assert.deepEqual(
-    labels.map((l) => l.text),
-    ["South Tongue", "Spiral Water", "Crown"],
-  );
-  assert.deepEqual(
-    labels.map((l) => l.kind),
-    ["area", "water", "landmark"],
-  );
+  assert.ok(labels.some((l) => l.text === "Broken Stair"));
+  assert.ok(labels.some((l) => l.text === "Mirror Tarn" && l.kind === "water"));
   for (const l of labels) {
     assert.ok(l.x >= CR_BOUNDS.minX && l.x <= CR_BOUNDS.maxX);
     assert.ok(l.z >= CR_BOUNDS.minZ && l.z <= CR_BOUNDS.maxZ);
   }
-  assert.equal(coilRidgeBiome(0, 10), "mountain");
 });
 
-test("coil ridge props are one peak plus meadow trees under the cap", () => {
+test("coil ridge props: one bridge, ruin stones, trees on dry meadow 8 m apart", () => {
   const props = coilRidgeProps();
-  const peaks = props.filter((p) => p.kind === K.peak);
+  const bridges = props.filter((p) => p.kind === K.bridge);
   const trees = props.filter((p) => p.kind === K.pine || p.kind === K.spruce);
   console.log(`coil_ridge props ${props.length} trees ${trees.length}`);
-  assert.equal(peaks.length, 1);
-  assert.equal(peaks[0]!.x, 0);
-  assert.equal(peaks[0]!.z, 10);
-  assert.ok(props.length > 1 && props.length < 2500, `props ${props.length}`);
-  assert.equal(props.length, peaks.length + trees.length);
-  for (const t of trees) {
+  assert.equal(bridges.length, 1);
+  assert.equal(props.filter((p) => p.kind === K.peak).length, 0);
+  assert.ok(props.length > 10 && props.length < 2500, `props ${props.length}`);
+  for (const t of props.filter((p) => p.kind !== K.bridge)) {
     assert.equal(coilRidgeWalkable(t.x, t.z), true);
     assert.equal(coilRidgeInOpenWater(t.x, t.z), false);
-    assert.ok(coilRidgeStandHeight(t.x, t.z) < 6);
-    assert.equal(coilRidgeBiome(t.x, t.z), "meadow");
   }
+  for (const t of trees) assert.equal(naturalSample(coilRidgeBiome, t.x, t.z), "meadow"); // warped ground biome
   for (let i = 0; i < trees.length; i++) {
-    const a = trees[i]!;
     for (let j = i + 1; j < trees.length; j++) {
-      const b = trees[j]!;
-      if (Math.hypot(a.x - b.x, a.z - b.z) < 8 - 1e-3) {
-        assert.fail(`trees closer than 8 m at ${a.x},${a.z} and ${b.x},${b.z}`);
-      }
+      if (Math.hypot(trees[i]!.x - trees[j]!.x, trees[i]!.z - trees[j]!.z) < 8 - 1e-3) assert.fail("trees closer than 8 m");
     }
   }
 });

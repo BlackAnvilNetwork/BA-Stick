@@ -88,6 +88,20 @@ pub mod kind {
     pub const RUIN_ARCH: u8 = 65;
     /// Hollow giant oak: s = height, w = trunk radius.
     pub const HOLLOW_OAK: u8 = 66;
+    /// Coldhearth town (pale-hollow-town.ts): street lantern on a post.
+    pub const LANTERN: u8 = 51;
+    /// Smith's anvil on a stump (s = scale).
+    pub const ANVIL: u8 = 52;
+    /// Stone quench trough (w = length, d = width).
+    pub const TROUGH: u8 = 53;
+    /// Straw practice dummy.
+    pub const DUMMY: u8 = 54;
+    /// Archery butt (straw boss with painted rings).
+    pub const BUTT: u8 = 55;
+    /// Water-wheel (s = radius), turning.
+    pub const WHEEL: u8 = 56;
+    /// Water channel / runnel strip: s = length along yaw, w = width.
+    pub const CHANNEL: u8 = 57;
 }
 
 pub fn parse(bytes: &[u8]) -> Result<Vec<Prop>, String> {
@@ -202,6 +216,10 @@ pub fn footprint(p: &Prop) -> Option<f32> {
         kind::BARREL => 0.45,
         kind::BEDROLL => 0.5,
         kind::WALL_BLOCK => p.w.max(p.d) * 0.6,
+        kind::ANVIL => 0.45 * p.s,
+        kind::TROUGH => p.w.max(0.6) * 0.55,
+        kind::DUMMY | kind::BUTT => 0.4,
+        kind::LANTERN => 0.2,
         _ => return None,
     })
 }
@@ -1393,7 +1411,9 @@ fn draw_one(c: &mut Ctx, p: &Prop, time: f32) {
             for i in 0..3 {
                 let q = c.p((i as f32 - 1.0) * 0.12 * s, 0.12 * s + i as f32 * 0.02, 0.0);
                 c.fb.line(c.p((i as f32 - 1.0) * 0.1 * s, 0.0, 0.0), q, GRASS);
-                c.fb.disc(q, 1.3, BLOOM_C, None);
+                // v: 0 pink (default), 1 gold, 2 white, 3 red. Mayflower's meadows mix all four.
+                let col = match (p.var as u32 + i as u32) % 4 { 1 => C_GOLD, 2 => BEIGE, 3 => FX_HP, _ => BLOOM_C };
+                c.fb.disc(q, 1.3, if p.var == 0 { BLOOM_C } else { col }, None);
             }
         }
         kind::BUSH => {
@@ -1990,6 +2010,63 @@ fn draw_one(c: &mut Ctx, p: &Prop, time: f32) {
                 let col = foliage(sun_of(c, a.cos() * rad, a.sin() * rad), ASH_D, ASH, ASH_L);
                 c.fb.disc(ctr, px, col, Some(C_OUTLINE));
             }
+        }
+        kind::LANTERN => {
+            c.cap(up(c, 0.0), up(c, 2.1), 1.1, WOOD_D);
+            c.cap(c.p(0.0, 2.1, 0.0), c.p(0.35, 2.1, 0.0), 0.8, WOOD_D);
+            let flick = 0.85 + (time * 7.0 + p.x * 1.7).sin() * 0.15;
+            let q = c.p(0.35, 1.9, 0.0);
+            c.fb.disc(P2 { d: q.d - 0.2, ..q }, 2.6 * flick, EMBER, Some(C_OUTLINE));
+            c.fb.disc(P2 { d: q.d - 0.3, ..q }, 1.2, C_GOLD, None);
+        }
+        kind::ANVIL => {
+            let k = p.s;
+            c.cap(up(c, 0.0), up(c, 0.45 * k), 3.2 * k, WOOD_D);
+            c.boxy(0.0, 0.45 * k, 0.0, 0.7 * k, 0.16 * k, 0.28 * k, C_STEEL, IRON_C, C_OUTLINE);
+            c.boxy(0.0, 0.61 * k, 0.0, 0.95 * k, 0.12 * k, 0.32 * k, C_STEEL, C_STEEL, IRON_C);
+            let horn = c.p(0.62 * k, 0.67 * k, 0.0);
+            c.fb.disc(horn, 1.6 * k, C_STEEL, Some(C_OUTLINE));
+        }
+        kind::TROUGH => {
+            let (l, w) = (p.w.max(0.6), p.d.max(0.35));
+            c.boxy(0.0, 0.0, 0.0, l, 0.45, w, WALL_L, WALL, WALL_D);
+            c.boxy(0.0, 0.38, 0.0, l * 0.86, 0.05, w * 0.7, WATER, WATER + 1, WATER + 2);
+        }
+        kind::DUMMY => {
+            c.cap(up(c, 0.0), up(c, 1.5), 1.2, WOOD_D);
+            c.cap(c.p(-0.45, 1.15, 0.0), c.p(0.45, 1.15, 0.0), 1.0, WOOD);
+            c.cap(up(c, 0.6), up(c, 1.25), 3.6, BEIGE);
+            let head = up(c, 1.55);
+            c.fb.disc(head, 2.4, BEIGE, Some(C_OUTLINE));
+        }
+        kind::BUTT => {
+            c.cap(c.p(-0.3, 0.0, -0.15), c.p(-0.3, 0.9, 0.0), 1.0, WOOD_D);
+            c.cap(c.p(0.3, 0.0, -0.15), c.p(0.3, 0.9, 0.0), 1.0, WOOD_D);
+            let q = c.p(0.0, 0.8, 0.05);
+            c.fb.disc(P2 { d: q.d - 0.1, ..q }, 6.0, BEIGE, Some(C_OUTLINE));
+            c.fb.disc(P2 { d: q.d - 0.2, ..q }, 4.0, FX_HP, None);
+            c.fb.disc(P2 { d: q.d - 0.3, ..q }, 2.0, C_GOLD, None);
+        }
+        kind::WHEEL => {
+            let r = s.max(0.5);
+            let a0 = time * 0.6;
+            let hub = c.p(0.0, r, 0.0);
+            for i in 0..8 {
+                let a = a0 + i as f32 / 8.0 * std::f32::consts::TAU;
+                let rim = c.p(a.cos() * r, r + a.sin() * r, 0.0);
+                c.cap(hub, rim, 0.9, WOOD);
+                let b = a + std::f32::consts::TAU / 8.0;
+                let rim2 = c.p(b.cos() * r, r + b.sin() * r, 0.0);
+                c.cap(rim, rim2, 1.1, WOOD_D);
+                c.fb.disc(rim, 1.6, WOOD_L, Some(C_OUTLINE));
+            }
+            c.fb.disc(hub, 2.0, IRON_C, Some(C_OUTLINE));
+        }
+        kind::CHANNEL => {
+            let (l, w) = (s.max(0.2), p.w.max(0.2));
+            c.boxy(0.0, -0.05, 0.0, w + 0.3, 0.12, l, WALL_L, WALL, WALL_D);
+            let ph = ((time * 2.0 + p.x) as i32).rem_euclid(3) as u8;
+            c.boxy(0.0, 0.03, 0.0, w, 0.05, l, WATER + ph, WATER + 1, WATER + 2);
         }
         kind::PEAK => {
             let sc = p.s;

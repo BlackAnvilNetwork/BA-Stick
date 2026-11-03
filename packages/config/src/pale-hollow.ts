@@ -5,6 +5,7 @@
  */
 
 import { nearTrailCorridor } from "./trail-geom";
+import { MAYFLOWER_STATIONS as ST, MAYFLOWER_SPUR, MAYFLOWER_SCREEN, mayflowerFieldWeight, mayflowerInTown, mayflowerSample } from "./pale-hollow-town";
 
 /**
  * The basin is a region, not a valley you can see in one glance.
@@ -100,9 +101,18 @@ export function paleHollowInHubApron(x: number, z: number): boolean {
  */
 export const PH_STORAGE_CHEST = {
   id: "npc-ph-storage",
-  name: "Storage Chest",
-  x: 3.2 + PH_CAMP_SHIFT_X,
-  z: -1.5 + PH_CAMP_SHIFT_Z,
+  name: "Gaunt Hobb",
+  x: ST["npc-ph-storage"].x,
+  z: ST["npc-ph-storage"].z,
+} as const;
+
+/** Pale Hollow Trainer (stable id npc-ph-chronomancer), in Mayflower's Turning Yard. Server-owned dialog. */
+export const PH_TRAINER = {
+  id: "npc-ph-chronomancer",
+  name: "Ilse Morrowglass",
+  x: ST["npc-ph-chronomancer"].x,
+  z: ST["npc-ph-chronomancer"].z,
+  facing: Math.PI,
 } as const;
 
 /** Soft level bands â€” content focus, not hard walls. Stretched with the basin. */
@@ -375,9 +385,37 @@ function tributaryCenterX(z: number): number {
   return sampleRun(CHALK_FORK, z);
 }
 
-export function paleHollowLakeDist(x: number, z: number): number {
-  return Math.hypot(x - PH_LAKE.x, z - PH_LAKE.z);
+/**
+ * Ash Pit shoreline radius at polar angle `a` (radians, atan2(dz, dx)). Low harmonics plus a
+ * delta lobe toward the outflow (south) and a drowned bay to the north-west, so the lake reads as
+ * a natural basin rather than a disc. Mean radius stays PH_LAKE.r.
+ */
+export function paleHollowLakeShoreR(a: number): number {
+  const lobe = Math.exp(-(((Math.atan2(Math.sin(a + Math.PI / 2), Math.cos(a + Math.PI / 2))) / 0.45) ** 2));
+  const bay = Math.exp(-(((Math.atan2(Math.sin(a - 2.3), Math.cos(a - 2.3))) / 0.35) ** 2));
+  const k = 1 + 0.11 * Math.sin(2 * a + 0.7) + 0.07 * Math.sin(3 * a + 2.1) + 0.045 * Math.sin(5 * a + 0.3) + 0.025 * Math.sin(8 * a + 1.9)
+    + 0.08 * lobe + 0.1 * bay;
+  // Keep the shore off the Seam Tunnel gate (rect x -28..16, z 400..424, centre (-6,412) at ~1.49 rad):
+  // in that sector the shore stays at most 0.94 r, a dry margin of >= 3 m before the gate.
+  const seam = Math.exp(-(((Math.atan2(Math.sin(a - 1.49), Math.cos(a - 1.49))) / 0.5) ** 2));
+  return PH_LAKE.r * (k * (1 - seam) + Math.min(k, 0.94) * seam);
 }
+
+/**
+ * Normalised lake distance: PH_LAKE.r on the (irregular) shoreline, smaller inside. Every
+ * `paleHollowLakeDist(x, z) < PH_LAKE.r` test therefore follows the natural shoreline.
+ */
+export function paleHollowLakeDist(x: number, z: number): number {
+  const dx = x - PH_LAKE.x, dz = z - PH_LAKE.z;
+  const d = Math.hypot(dx, dz);
+  if (d < 1e-6) return 0;
+  return (d * PH_LAKE.r) / paleHollowLakeShoreR(Math.atan2(dz, dx));
+}
+
+/** Width (normalised metres) of the wadeable shelf just inside the Ash Pit shoreline. */
+export const PH_LAKE_SHALLOW_BAND = 4;
+/** Deepest water a stick may wade (m). Deeper water blocks. */
+export const PH_WADE_MAX = 0.6;
 
 /** Shared with client water ribbon / shore foam. */
 export function paleHollowRiverCenterX(z: number): number {
@@ -942,6 +980,8 @@ function buildPaleHollowTrails(): PaleHollowTrail[] {
         near(chalk, "R"),
       ],
     },
+    // Westwatch Climb: a least-grade, terrain-following path from the west farm up the western upland to a vista.
+    { id: "westwatch-climb", surface: "dirt", points: [{x:-125,z:55},{x:-134,z:56},{x:-141,z:59},{x:-152,z:67},{x:-161,z:68},{x:-169,z:72},{x:-178,z:82},{x:-182,z:89},{x:-186,z:93},{x:-192,z:93},{x:-198,z:90}] },
     {
       id: "east-grove",
       surface: "dirt",
@@ -1142,13 +1182,28 @@ function paleHollowRiverWallBand(x: number, z: number): boolean {
     const dist = Math.hypot(x - qx, z - qz);
     return Math.abs(dist - bankDist) <= solid;
   };
+  if (paleHollowRiverJunctionOpen(x, z)) return false;
   if (hit("main", PH_RIVER_MAIN.z0, PH_RIVER_MAIN.z1)) return true;
   if (hit("tributary", PH_RIVER_TRIB.z0, PH_RIVER_TRIB.z1)) return true;
   if (culdesacWall(riverCenterX, PH_RIVER_MAIN.z0, PH_RIVER_MAIN.bankDist, -1, x, z)) return true;
   if (culdesacWall(riverCenterX, PH_RIVER_MAIN.z1, PH_RIVER_MAIN.bankDist, 1, x, z)) return true;
   if (culdesacWall(tributaryCenterX, PH_RIVER_TRIB.z0, PH_RIVER_TRIB.bankDist, -1, x, z)) return true;
-  if (culdesacWall(tributaryCenterX, PH_RIVER_TRIB.z1, PH_RIVER_TRIB.bankDist, 1, x, z)) return true;
+  // no end wall at PH_RIVER_TRIB.z1: the tributary mouth opens into the main stem (confluence near (-4,198))
   return false;
+}
+
+/**
+ * Confluence opening: where the main-stem and tributary corridors (bank + wall) overlap, neither
+ * bank wall is solid, so the tributary flows into the main stem instead of dead-ending.
+ * Shared with the client bank-wall props so collision and visuals agree.
+ */
+export function paleHollowRiverJunctionOpen(x: number, z: number): boolean {
+  if (z < PH_RIVER_TRIB.z1 - 30 || z > PH_RIVER_TRIB.z1 + 6) return false;
+  const pad = PH_RIVER_WALL.thick * 0.5 + PH_RIVER_WALL.collidePad + 0.35;
+  const dm = Math.abs(x - riverCenterX(z));
+  const dt = Math.abs(x - tributaryCenterX(Math.min(z, PH_RIVER_TRIB.z1)));
+  const inTribMouth = z <= PH_RIVER_TRIB.z1 + 0.5 ? dt <= PH_RIVER_TRIB.bankDist + pad : false;
+  return dm <= PH_RIVER_MAIN.bankDist + pad && inTribMouth;
 }
 
 /** Rounded end wall: semicircle of radius `bankDist` bulging out of the channel. */
@@ -1189,9 +1244,25 @@ export function paleHollowInRiverWall(x: number, z: number): boolean {
  * Clear walkable check: dry land OR on-bridge; reject open water and river walls.
  * Soft-gate landmark "bridge" biomes are dry land and remain walkable.
  */
+/**
+ * Wadeable shelf of the Ash Pit: just inside the natural shoreline and no deeper than
+ * PH_WADE_MAX. Open water (drawn wet) but walkable; feet stand on the bed.
+ */
+export function paleHollowInLakeShallows(x: number, z: number): boolean {
+  const ld = paleHollowLakeDist(x, z);
+  if (ld > PH_LAKE.r || ld < PH_LAKE.r - PH_LAKE_SHALLOW_BAND) return false;
+  const surf = paleHollowHeightField(PH_LAKE.x, PH_LAKE.z) + PALE_HOLLOW_WATER_CLEARANCE;
+  return surf - paleHollowTerrainMeshY(x, z) <= PH_WADE_MAX;
+}
+
 export function paleHollowWalkable(x: number, z: number): boolean {
   if (paleHollowInHubRearWall(x, z)) return false;
+  if (mayflowerInTown(x, z)) {
+    const t = paleHollowTownSample(x, z);
+    if (t && !t.walk) return false;
+  }
   if (paleHollowOnBridge(x, z)) return true;
+  if (paleHollowInLakeShallows(x, z)) return true;
   if (paleHollowInOpenWater(x, z)) return false;
   if (paleHollowInRiverWall(x, z)) return false;
   if (paleHollowBiomeCore(x, z) === "river") return false;
@@ -1231,7 +1302,46 @@ export function paleHollowClampMove(
  * (Hard Math.min river floors caused the canal cliffs in-game.)
  * Does not apply stone-bridge deck elevation (see `paleHollowHeight`).
  */
+/**
+ * Ash Pit west shelf: on the west shore (polar angle |a| > 2.2 rad) the basin used to drop straight to deep
+ * water at the shoreline. Lift the bed inside a ~5 m band so a wadeable fringe (<= ~0.5 m) rims that shore,
+ * feathered in/out by angle. Only ever raises the bed (never adds deep water); the centre is untouched so the
+ * lake surface is unchanged.
+ */
+let phWestSurf: number | undefined;
+function phWestShelf(x: number, z: number, y: number): number {
+  const dx = x - PH_LAKE.x, dz = z - PH_LAKE.z;
+  const a = Math.abs(Math.atan2(dz, dx));
+  if (a < 2.2) return y;
+  const ld = paleHollowLakeDist(x, z);
+  const inner = PH_LAKE.r - 6;
+  if (ld < inner || ld > PH_LAKE.r + 0.5) return y;
+  const surf = (phWestSurf ??= paleHollowHeightFieldRaw(PH_LAKE.x, PH_LAKE.z) + PALE_HOLLOW_WATER_CLEARANCE);
+  const t = smooth01(Math.min(1, (PH_LAKE.r - ld) / 5)); // 0 at shore -> 1 at the drop-off
+  const fadeA = smooth01(Math.min(1, (a - 2.2) / 0.25));
+  const fadeIn = smooth01(Math.min(1, (ld - inner) / 1)); // vertical-ish lip to the deep water
+  const target = surf - (0.12 + 0.36 * t);
+  const lift = Math.max(0, target - y) * fadeA * fadeIn;
+  return y + lift;
+}
+
 function paleHollowHeightField(x: number, z: number): number {
+  return phWestShelf(x, z, paleHollowHeightFieldRaw(x, z));
+}
+
+function paleHollowHeightFieldRaw(x: number, z: number): number {
+  const base = paleHollowHeightFieldBase(x, z);
+  const town = mayflowerSample(x, z, () => base, paleHollowHeightFieldBase);
+  return town ? town.y : base;
+}
+
+/** Mayflower town shaping at (x,z), or null outside the town (see pale-hollow-town.ts). */
+export function paleHollowTownSample(x: number, z: number) {
+  return mayflowerSample(x, z, () => paleHollowHeightFieldBase(x, z), paleHollowHeightFieldBase);
+}
+
+/** Natural ground (no town terracing). */
+function paleHollowHeightFieldBase(x: number, z: number): number {
   const biome = paleHollowBiomeCore(x, z);
   if (biome === "hub_indoor") return PH_HUB.floorY;
 
@@ -1273,6 +1383,18 @@ function paleHollowHeightField(x: number, z: number): number {
         const t = 1 - d / R;
         y += smooth01(t) * smooth01(t) * m.h * 0.82 * mountainScale;
       }
+    }
+  }
+
+  // Mayflower spur: the Shard's eastern fragments lift the spur north-east of the
+  // scout encampment, so the exiles' town steps up a real slope (see pale-hollow-town.ts).
+  {
+    const ds = Math.hypot(x - MAYFLOWER_SCREEN.x, z - MAYFLOWER_SCREEN.z);
+    if (ds < MAYFLOWER_SCREEN.r) y += smooth01(1 - ds / MAYFLOWER_SCREEN.r) * MAYFLOWER_SCREEN.h;
+    const d = Math.hypot(x - MAYFLOWER_SPUR.x, z - MAYFLOWER_SPUR.z);
+    if (d < MAYFLOWER_SPUR.r) {
+      const t = smooth01(1 - d / MAYFLOWER_SPUR.r);
+      y += t * MAYFLOWER_SPUR.h;
     }
   }
 
@@ -1385,10 +1507,13 @@ export function paleHollowTerrainMeshY(x: number, z: number): number {
   const h01 = paleHollowGroundHeight(x0, z0 + dz);
   const h11 = paleHollowGroundHeight(x0 + dx, z0 + dz);
   // PlaneGeometry triangles: (ix,iy)-(ix,iy+1)-(ix+1,iy) and the opposite corner.
-  if (fu + fv <= 1) {
-    return h00 * (1 - fu - fv) + h10 * fu + h01 * fv;
-  }
-  return h11 * (fu + fv - 1) + h10 * (1 - fv) + h01 * (1 - fu);
+  const mesh =
+    fu + fv <= 1
+      ? h00 * (1 - fu - fv) + h10 * fu + h01 * fv
+      : h11 * (fu + fv - 1) + h10 * (1 - fv) + h01 * (1 - fu);
+  // Mayflower: terraces and streets need the fine field, not 6 m mesh chords.
+  const w = mayflowerFieldWeight(x, z);
+  return w > 0 ? mesh + (paleHollowGroundHeight(x, z) - mesh) * w : mesh;
 }
 
 /**
@@ -1600,6 +1725,7 @@ export const PH_BUILDING_CLEARINGS: readonly { x: number; z: number; r: number }
 /** True if (x,z) is inside a building / landmark clearing. */
 export function paleHollowInBuildingClearing(x: number, z: number): boolean {
   if (paleHollowInHubApron(x, z)) return true;
+  if (mayflowerInTown(x, z)) return true;
   for (const c of PH_BUILDING_CLEARINGS) {
     if (Math.hypot(x - c.x, z - c.z) < c.r) return true;
   }
@@ -1648,7 +1774,8 @@ export function paleHollowGateSoftLevel(z: number): number | null {
   return null;
 }
 
-export const PH_HUB_SPAWN = { x: PH_CAMP_SHIFT_X, z: 2 + PH_CAMP_SHIFT_Z, facing: 0 } as const;
+/** Player start: Emberwatch camp (pale-hollow-camp.ts), far from Mayflower. */
+export const PH_HUB_SPAWN = { x: PH_CAMP_SHIFT_X, z: 2 + PH_CAMP_SHIFT_Z, facing: 0 } as const; // Scout Gate. New arrivals use PH_START_SPAWN in warp-unlocks.ts.
 export const PH_OUTDOOR_SPAWN = { x: PH_CAMP_SHIFT_X, z: 14 + PH_CAMP_SHIFT_Z, facing: 0 } as const;
 
 export type GatherNodeKind = "harvest" | "mine" | "fish";
@@ -1734,7 +1861,14 @@ export type PaleHollowArchetype =
   | "ruin_dweller"
   | "cliff_adder"
   | "seam_golem"
-  | "shard_wight";
+  | "shard_wight"
+  // Seam Country (fields east of Pale Hollow)
+  | "crown_soldier"
+  | "stag"
+  | "drowned_one"
+  | "lamprey"
+  | "seam_drover"
+  | "penitent";
 
 export type PaleHollowAggro = "safe" | "proximity" | "sight" | "sound";
 
@@ -1777,6 +1911,12 @@ export const PH_ARCHETYPE_DEFAULT_JOB: Record<PaleHollowArchetype, PaleHollowMob
   cliff_adder: "rogue",
   seam_golem: "knight",
   shard_wight: "time_mage",
+  crown_soldier: "knight",
+  stag: "fighter",
+  drowned_one: "fighter",
+  lamprey: "rogue",
+  seam_drover: "rogue",
+  penitent: "cleric",
 };
 
 export type PaleHollowMobDef = {
@@ -1810,11 +1950,12 @@ export function paleHollowMobJob(
 // They are five times the old corridor list, seated on the enlarged basin.
 
 export const PH_HUB_NPCS = [
-  { id: "npc-shard-elder", name: "Shard Elder", x: -2.2 + PH_CAMP_SHIFT_X, z: 2.8 + PH_CAMP_SHIFT_Z, facing: Math.PI / 2, role: "guide" as const },
-  { id: "npc-ph-herald", name: "Campaign Herald", x: -50.5, z: 301.5, facing: Math.PI, role: "quest_giver" as const },
-  { id: "npc-ph-job-master", name: "Job Master", x: 3.5 + PH_CAMP_SHIFT_X, z: 2.5 + PH_CAMP_SHIFT_Z, facing: -Math.PI / 2, role: "job_master" as const },
-  { id: "npc-ph-crafter", name: "Craft Master", x: 3.8 + PH_CAMP_SHIFT_X, z: -0.2 + PH_CAMP_SHIFT_Z, facing: -Math.PI / 2, role: "crafter" as const },
-  { id: "npc-ph-vendor", name: "Provisioner", x: -3.8 + PH_CAMP_SHIFT_X, z: -0.2 + PH_CAMP_SHIFT_Z, facing: Math.PI / 2, role: "vendor" as const },
+  // Mayflower districts (pale-hollow-town.ts). The Herald keeps Emberwatch, the start camp.
+  { id: "npc-shard-elder", name: "Orrin Haltmark", x: ST["npc-shard-elder"].x, z: ST["npc-shard-elder"].z, facing: Math.PI, role: "guide" as const },
+  { id: "npc-ph-herald", name: "Wenna Gatesmoke", x: ST["npc-ph-herald"].x, z: ST["npc-ph-herald"].z, facing: Math.PI, role: "quest_giver" as const },
+  { id: "npc-ph-job-master", name: "Teodric Vane", x: ST["npc-ph-job-master"].x, z: ST["npc-ph-job-master"].z, facing: -Math.PI / 2, role: "job_master" as const },
+  { id: "npc-ph-crafter", name: "Brann Coldiron", x: ST["npc-ph-crafter"].x, z: ST["npc-ph-crafter"].z, facing: Math.PI / 2, role: "crafter" as const },
+  { id: "npc-ph-vendor", name: "Maudry Saltpenny", x: ST["npc-ph-vendor"].x, z: ST["npc-ph-vendor"].z, facing: Math.PI / 2, role: "vendor" as const },
 ] as const;
 
 /**
@@ -1822,6 +1963,7 @@ export const PH_HUB_NPCS = [
  * Stone bridge approaches are drawn but not named; they read as part of the bridge.
  */
 export const PH_ROAD_NAMES: Readonly<Record<string, string>> = {
+  "westwatch-climb": "Westwatch Climb",
   "camp-to-north": "Terrace Way",
   "camp-to-west-farm": "Clay Bank Path",
   "north-to-ashbeam": "Hollow Steps Road",
@@ -1838,7 +1980,14 @@ export type PaleHollowMapLabelKind = "area" | "camp" | "landmark" | "water";
  * docs/pale-hollow-area.md, placed at the geometry they name above.
  */
 export const PH_MAP_LABELS: readonly { text: string; x: number; z: number; kind: PaleHollowMapLabelKind }[] = [
-  { text: "The Shard Dwellings", x: PH_CAMP_SHIFT_X, z: 2 + PH_CAMP_SHIFT_Z, kind: "camp" },
+  { text: "The Scout Gate", x: PH_CAMP_SHIFT_X, z: 2 + PH_CAMP_SHIFT_Z, kind: "camp" },
+  { text: "Mayflower", x: 214, z: 200, kind: "camp" },
+  { text: "Tally Row", x: 196, z: 178, kind: "landmark" },
+  { text: "The Turning Yard", x: 192, z: 150, kind: "landmark" },
+  { text: "The Strongroom", x: 214, z: 191, kind: "landmark" },
+  { text: "The Jobhouse", x: 206, z: 214, kind: "landmark" },
+  { text: "The Eightfold", x: 238, z: 214, kind: "landmark" },
+  { text: "Elder's Stair", x: 232, z: 246, kind: "landmark" },
   { text: "Scavenger Camp", x: -57, z: 167, kind: "camp" },
   { text: "Hollow Steps", x: -82, z: 123, kind: "area" },
   { text: "Ashbeam Reach", x: -120, z: 200, kind: "area" },

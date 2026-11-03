@@ -13,7 +13,9 @@ Campaign path (collect → craft → clear → **replay with level-scaled enemie
 ## Rules
 
 - **Areas** — harvesting nodes (mine / harvest / fish) and mob packs from the item manifest.
-- **Cities** — hubs with quest givers, Job Master, spell trainer, crafter, vendor.
+- **Cities** — hubs with quest givers, Job Master, Trainer, Craft Master, Provisioner.
+- **Playable now** — only Pale Hollow has a field map; it links north through Hollow Road, Forest Basin, Spur Road, Ring Ward, Islet Fords, Green Reach, Coil Pass, Coil Ridge (`ZONE_LINKS`); those fields have terrain but no mobs or nodes yet. Ashlands → Throne Approach are data-only so far.
+- **Crafting** — costs gold + materials. No KEK.
 - **Campaign** — play chapters in order while gathering and crafting.
 - **Replay** — after Citadel clear, enemies scale to player level (+ per-clear bonus). See `replayEnemyScale` in `@bellgrave/config`.
 

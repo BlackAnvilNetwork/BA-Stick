@@ -521,21 +521,30 @@ function hubNpcs(cityId: CityId, prefix: string): CityNpcDef[] {
       id: `${prefix}-vendor`,
       name: "Provisioner",
       role: "vendor",
-      blurb: "Buys log stacks for gold; lists and sends on the ledger.",
+      blurb: "Buys log stacks for gold and sends goods on to other players.",
     },
   ];
 }
 
+/** Mayflower's keepers (lore-bible §7.6), by role. */
+const MAYFLOWER_NPC_NAMES: Partial<Record<string, string>> = {
+  quest_giver: "Wenna Gatesmoke",
+  job_master: "Teodric Vane",
+  spell_trainer: "Ilse Morrowglass",
+  crafter: "Brann Coldiron",
+  vendor: "Maudry Saltpenny",
+};
+
 export const CITIES: Record<CityId, CityDef> = {
   shard_dwellings: {
     id: "shard_dwellings",
-    name: "The Shard Dwellings",
+    name: "Mayflower",
     areaId: "pale_hollow",
     npcs: [
-      ...hubNpcs("shard_dwellings", "sd"),
+      ...hubNpcs("shard_dwellings", "sd").map((n) => ({ ...n, name: MAYFLOWER_NPC_NAMES[n.role] ?? n.name })),
       {
         id: "sd-guide",
-        name: "Shard Elder",
+        name: "Orrin Haltmark",
         role: "guide",
         blurb: "Tutorial guide — gathering, combat, and the road to Obsidia.",
       },

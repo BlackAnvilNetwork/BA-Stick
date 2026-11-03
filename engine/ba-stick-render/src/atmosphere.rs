@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
 
-//! Atmosphere (#26): per-pixel light at RGB conversion time. Cool ambient,
-//! warm radial campfire pools with flicker, distance haze toward the
-//! horizon colour, a pixel skyline behind the zone edge, and a vignette.
-//! Emissive palette entries (fire, FX, floaters) skip the ambient/haze so they
-//! read as "glow" without a bloom pass.
+//! Atmosphere (#26): per-pixel weather tint at RGB conversion time, distance
+//! haze toward the horizon colour, a pixel skyline behind the zone edge, and a
+//! vignette. Emissive palette entries (fire, FX, floaters) skip the tint/haze.
+//! Light sources (fires, lanterns, the player's light, spell flashes) are no
+//! longer here: see `lighting.rs`, which composites a light layer afterwards.
 use crate::palette::*;
 
 /// Shared sun direction (round 1 polish): unit vector pointing *toward* the
@@ -26,19 +26,10 @@ pub fn shadow_offset(r: f32) -> (f32, f32) {
 /// Framebuffer index left where no terrain was drawn (sky / beyond bounds).
 pub const SKY: u8 = 141;
 
-#[derive(Clone, Copy, Debug)]
-pub struct Light {
-    pub x: f32,
-    pub y: f32,
-    /// Radius in px (horizontal; vertical is halved for the iso ground).
-    pub r: f32,
-    pub k: f32,
-}
-
 #[derive(Clone, Copy)]
 pub struct Params {
+    /// Weather / zone tint multiplier (bright moods fold their ambient in here).
     pub ambient: [f32; 3],
-    pub warm: [f32; 3],
     pub haze: u32,
     pub sky_top: u32,
     pub vignette: f32,
@@ -52,7 +43,6 @@ pub struct Params {
 
 pub const PALE_HOLLOW: Params = Params {
     ambient: [0.82, 0.86, 0.98],
-    warm: [0.62, 0.34, 0.08],
     haze: 0x6e6a7c,
     sky_top: 0x1e1b2c,
     vignette: 0.32,
@@ -63,7 +53,6 @@ pub const PALE_HOLLOW: Params = Params {
 
 pub const FORGE_MENU: Params = Params {
     ambient: [0.14, 0.11, 0.1],
-    warm: [1.05, 0.52, 0.14],
     haze: 0x682818,
     sky_top: 0x0a0608,
     vignette: 0.42,
@@ -119,7 +108,6 @@ pub fn pale_hollow_weather(base: &Params, kind: WeatherKind) -> Params {
         }
         WeatherKind::Rain => {
             p.ambient = [0.48, 0.50, 0.56];
-            p.warm = [0.38, 0.28, 0.12];
             p.haze = 0x4a4e58;
             p.sky_top = 0x101218;
             p.haze_strength = 1.35;
@@ -171,11 +159,6 @@ pub fn lerp_params(a: Params, b: Params, t: f32) -> Params {
             lerp_f(a.ambient[0], b.ambient[0], t),
             lerp_f(a.ambient[1], b.ambient[1], t),
             lerp_f(a.ambient[2], b.ambient[2], t),
-        ],
-        warm: [
-            lerp_f(a.warm[0], b.warm[0], t),
-            lerp_f(a.warm[1], b.warm[1], t),
-            lerp_f(a.warm[2], b.warm[2], t),
         ],
         haze: lerp_rgb(a.haze, b.haze, t),
         sky_top: lerp_rgb(a.sky_top, b.sky_top, t),
@@ -257,12 +240,11 @@ pub fn write_rgba(
     color: &[u8],
     w: usize,
     h: usize,
-    lights: &[Light],
     p: &Params,
     scroll: f32,
     out: &mut [u8],
 ) {
-    write_rgba_key(pal, color, w, h, lights, p, scroll, false, Extra::NONE, out);
+    write_rgba_key(pal, color, w, h, p, scroll, false, Extra::NONE, out);
 }
 
 /// Key-light strength (L2): lit ramp steps warm up, shadow steps cool down.
@@ -291,7 +273,6 @@ pub fn write_rgba_key(
     color: &[u8],
     w: usize,
     h: usize,
-    lights: &[Light],
     p: &Params,
     scroll: f32,
     key: bool,
@@ -320,30 +301,6 @@ pub fn write_rgba_key(
     }
     // separable vignette
     let vx: Vec<f32> = (0..w).map(|x| ((x as f32 - cx) / cx).powi(2)).collect();
-    let glow = 1.0 + 0.5 * (p.haze_strength - 1.0).max(0.0).min(1.7) / 1.7;
-    // warm-light buffer, only filled inside each light's box
-    let mut warm = vec![0f32; w * h];
-    for l in lights {
-        let (rx, ry) = (l.r * glow, l.r * glow * 0.55);
-        let (x0, x1) = (
-            (l.x - rx).max(0.0) as usize,
-            ((l.x + rx) as usize + 1).min(w),
-        );
-        let (y0, y1) = (
-            (l.y - ry).max(0.0) as usize,
-            ((l.y + ry) as usize + 1).min(h),
-        );
-        for y in y0..y1 {
-            let dy = (y as f32 - l.y) / ry;
-            for x in x0..x1 {
-                let dx = (x as f32 - l.x) / rx;
-                let d2 = dx * dx + dy * dy;
-                if d2 < 1.0 {
-                    warm[y * w + x] += l.k * (1.0 - d2) * (1.0 - d2);
-                }
-            }
-        }
-    }
     let horizon = h as f32 * 0.55;
     let ridges: Vec<(f32, f32)> = (0..w)
         .map(|x| {
@@ -419,7 +376,6 @@ pub fn write_rgba_key(
             } else {
                 let mut v = lut[c as usize];
                 if !emis[c as usize] {
-                    let wm = warm[i];
                     let cloud = bank_at(x, y);
                     let mut fog = far;
                     let mut depth_fog = 0.0f32;
@@ -453,7 +409,7 @@ pub fn write_rgba_key(
                     let cap = if p.fog_depth > 0.5 { 0.88 } else { 0.95 };
                     let fog = (((fog.min(cap)) * FOG_STEPS + th).floor() / FOG_STEPS).min(cap);
                     for k in 0..3 {
-                        v[k] *= p.ambient[k] + wm * p.warm[k];
+                        v[k] *= p.ambient[k];
                         v[k] += (haze[k] - v[k]) * fog;
                     }
                 }
@@ -475,30 +431,25 @@ mod tests {
     use super::*;
 
     #[test]
-    fn campfire_warms_and_ambient_cools() {
+    fn ambient_tints_and_emissive_skips() {
         let pal = palette();
         let (w, h) = (64, 36);
         let color = vec![BIOME0 + 13 * 3 + 1; w * h];
-        let mut lit = vec![0u8; w * h * 4];
-        let light = [Light {
-            x: 32.0,
-            y: 18.0,
-            r: 20.0,
-            k: 1.0,
-        }];
-        write_rgba(&pal, &color, w, h, &light, &PALE_HOLLOW, 0.0, &mut lit);
+        let mut out = vec![0u8; w * h * 4];
+        let dim = Params { ambient: [0.5; 3], ..PALE_HOLLOW };
+        let mut full = vec![0u8; w * h * 4];
+        write_rgba(&pal, &color, w, h, &dim, 0.0, &mut out);
+        write_rgba(&pal, &color, w, h, &PALE_HOLLOW, 0.0, &mut full);
         let px = |b: &[u8], x: usize, y: usize| {
             let i = (y * w + x) * 4;
             (b[i] as i32, b[i + 1] as i32, b[i + 2] as i32)
         };
-        let (c, e) = (px(&lit, 32, 18), px(&lit, 2, 18));
-        assert!(c.0 > e.0 + 20, "warm pool is brighter red: {c:?} vs {e:?}");
-        assert!(c.0 - c.2 > e.0 - e.2, "pool is warmer");
+        assert!(px(&out, 32, 18).1 < px(&full, 32, 18).1, "lower ambient is darker");
         // emissive colours skip the ambient multiply
         let mut col2 = color.clone();
         col2[18 * w + 32] = EMBER;
         let mut out2 = vec![0u8; w * h * 4];
-        write_rgba(&pal, &col2, w, h, &[], &PALE_HOLLOW, 0.0, &mut out2);
+        write_rgba(&pal, &col2, w, h, &PALE_HOLLOW, 0.0, &mut out2);
         assert!(px(&out2, 32, 18).0 >= 240);
     }
 
@@ -508,7 +459,7 @@ mod tests {
         let (w, h) = (32, 32);
         let color = vec![SKY; w * h];
         let mut out = vec![0u8; w * h * 4];
-        write_rgba(&pal, &color, w, h, &[], &PALE_HOLLOW, 0.0, &mut out);
+        write_rgba(&pal, &color, w, h, &PALE_HOLLOW, 0.0, &mut out);
         // top darker than bottom
         assert!(
             out[(16) * 4 + 2] < out[((h - 1) * w + 16) * 4 + 2]

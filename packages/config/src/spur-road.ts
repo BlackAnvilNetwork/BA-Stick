@@ -1,3 +1,4 @@
+import { naturalMaskDist } from "./natural-shore";
 /**
  * Spur Road — the scrub track that climbs from the basin to the ring wards.
  *
@@ -76,8 +77,18 @@ function smooth(t: number): number {
 
 /** Signed distance to the road mask. Negative is inside. */
 export function spurRoadMaskDist(x: number, z: number): number {
-  const road = Math.abs(x) - SR_ROAD_HALF;
-  const pad = Math.hypot(x - SR_PAD.x, z - SR_PAD.z) - SR_PAD.r;
+  return naturalMaskDist(spurRoadMaskDistRaw, x, z, 902, 8);
+}
+
+/** Geometric mask before the natural edge. */
+export function spurRoadMaskDistRaw(x: number, z: number): number {
+  // grow-only, side-specific bays so the valley floor reads as worn ground, not a ruled strip
+  const side = x >= 0 ? 1 : -1;
+  const ph = 1.3 + (side > 0 ? 0 : 2.1);
+  const bay = 1 + 0.12 * (1 + Math.sin(z / 23 + ph)) + 0.07 * (1 + Math.sin(z / 9.7 + 1.9 * ph)) + 0.04 * (1 + Math.sin(z / 4.1 - ph));
+  const road = Math.abs(x) - SR_ROAD_HALF * bay;
+  const a = Math.atan2(z - SR_PAD.z, x - SR_PAD.x);
+  const pad = Math.hypot(x - SR_PAD.x, z - SR_PAD.z) - SR_PAD.r * (1 + 0.12 * (1 + Math.sin(3 * a + ph)) + 0.06 * (1 + Math.sin(5 * a - ph)));
   return Math.min(road, pad);
 }
 

@@ -128,10 +128,23 @@ pub enum Body {
     Canine {
         size: f32,
     },
+    /// Stag / doe (Seam Country beasts): long legs, raised neck; `antlers` off = doe.
+    Stag {
+        size: f32,
+        antlers: bool,
+        body: u8,
+        far: u8,
+    },
+    /// Banded low eel with a ringed mouth (Causeway Lamprey).
+    Lamprey {
+        size: f32,
+    },
     /// Gather node marker (#30): 0 mine (ore rock), 1 harvest (herb), 2 fish (ripples).
     Node {
         method: u8,
     },
+    /// Readable landmark (Seam Country quest step): a carved standing stone with a rune.
+    Landmark,
 }
 
 /// What a biped holds (`JOB_WEAPON` in packages/combat).
@@ -178,7 +191,7 @@ fn staff(mut p: RigPreset) -> RigPreset {
 
 /// Every mob archetype in packages/config (`PaleHollowArchetype`) plus the
 /// legacy hall guard. Exposed for tests.
-pub const MOB_ARCHETYPES: [&str; 10] = [
+pub const MOB_ARCHETYPES: [&str; 16] = [
     "dust_hare",
     "pale_slime",
     "clay_crab",
@@ -188,6 +201,12 @@ pub const MOB_ARCHETYPES: [&str; 10] = [
     "cliff_adder",
     "seam_golem",
     "shard_wight",
+    "crown_soldier",
+    "stag",
+    "drowned_one",
+    "lamprey",
+    "seam_drover",
+    "penitent",
     "guard",
 ];
 /// Every `npcRole` in packages/protocol.
@@ -243,6 +262,11 @@ impl RigPreset {
             })),
             b if b.starts_with("npc:") => npc(&b[4..]),
             b if b.starts_with("mob:") => mob(&b[4..]),
+            "landmark" => RigPreset {
+                body: Body::Landmark,
+                weapon: Weapon::None,
+                ..with(|_, _| {})
+            },
             b if b.starts_with("gather:") => {
                 let method = match &b[7..] {
                     "harvest" => 1,
@@ -389,6 +413,74 @@ fn mob(arch: &str) -> RigPreset {
                 l.accent = C_DASH;
             });
             p.weapon = Weapon::Staff;
+            p
+        }
+        // Seam Country (new rigs).
+        // Crown Soldier: broad tabarded pikeman, long blade read as a pike.
+        "crown_soldier" => biped(&|p, l| {
+            p.limb_px = 2.9;
+            p.shoulder_w = 0.24;
+            p.sword = 1.15;
+            l.body = C_STEEL;
+            l.far = C_STONE_FAR;
+            l.accent = C_GOLD;
+        }),
+        "stag" => RigPreset {
+            body: Body::Stag {
+                size: 1.15,
+                antlers: true,
+                body: CR_HARE,
+                far: CR_HARE_FAR,
+            },
+            weapon: Weapon::None,
+            ..with(|_, _| {})
+        },
+        // Drowned One: bloated, short-necked, slack-armed, weed-green.
+        "drowned_one" => {
+            let mut p = biped(&|p, l| {
+                p.limb_px = 3.6;
+                p.shoulder_w = 0.26;
+                p.spine *= 0.9;
+                p.thigh *= 0.9;
+                p.head_r = 0.18;
+                p.sword = 0.0;
+                l.body = CR_SLIME_FAR;
+                l.far = C_STONE_FAR;
+                l.accent = CR_SLIME;
+            });
+            p.weapon = Weapon::None;
+            p
+        }
+        "lamprey" => RigPreset {
+            body: Body::Lamprey { size: 1.2 },
+            weapon: Weapon::None,
+            ..with(|_, _| {})
+        },
+        // Seam Drover: lean, hooded leather, crook-staff.
+        "seam_drover" => {
+            let mut p = biped(&|p, l| {
+                p.limb_px = 2.2;
+                p.spine *= 1.05;
+                p.sword = 0.0;
+                l.body = GEAR_LEATHER;
+                l.far = GEAR_LEATHER_FAR;
+                l.accent = C_HILT;
+            });
+            p.weapon = Weapon::Staff;
+            p
+        }
+        // Penitent: tall grey robe, pale stained hands, whitewash brush.
+        "penitent" => {
+            let mut p = biped(&|p, l| {
+                p.limb_px = 2.0;
+                p.spine *= 1.15;
+                p.head_r = 0.14;
+                p.sword = 0.0;
+                l.body = C_DUST;
+                l.far = C_STONE_FAR;
+                l.accent = GEAR_BONE;
+            });
+            p.weapon = Weapon::Club;
             p
         }
         "guard" => biped(&|p, l| {

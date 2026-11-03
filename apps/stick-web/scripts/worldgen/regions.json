@@ -1,0 +1,453 @@
+{
+  "generatorVersion": "wg-0.1.0",
+  "continent": {
+    "name": "The Anvil Reach (working name)",
+    "prevailingWind": {
+      "x": 1,
+      "z": 0.25
+    },
+    "seaLevel": -4,
+    "notes": "One continent. Westerlies off a western ocean hit the Spine (N-S range). Pale Hollow sits in the Spine's rain shadow; campaign climbs north/east into volcanic and marsh country."
+  },
+  "regions": {
+    "pale_hollow": {
+      "seed": 918273,
+      "continentOrigin": {
+        "x": 0,
+        "z": 0
+      },
+      "latitude": 38,
+      "cell": 1,
+      "identity": "endorheic evaporite basin in the lee of the Spine",
+      "ranges": [
+        {
+          "name": "Spine foothills (west wall)",
+          "pts": [
+            [
+              -235,
+              -80
+            ],
+            [
+              -215,
+              60
+            ],
+            [
+              -225,
+              200
+            ],
+            [
+              -205,
+              330
+            ],
+            [
+              -220,
+              520
+            ]
+          ],
+          "width": 50,
+          "height": 24,
+          "asym": 0.35
+        },
+        {
+          "name": "Southern Scarp",
+          "pts": [
+            [
+              -200,
+              -75
+            ],
+            [
+              -80,
+              -60
+            ],
+            [
+              60,
+              -72
+            ],
+            [
+              200,
+              -55
+            ],
+            [
+              275,
+              -40
+            ]
+          ],
+          "width": 34,
+          "height": 13,
+          "asym": -0.2
+        },
+        {
+          "name": "East Spur",
+          "pts": [
+            [
+              275,
+              60
+            ],
+            [
+              225,
+              140
+            ],
+            [
+              200,
+              195
+            ],
+            [
+              230,
+              300
+            ],
+            [
+              275,
+              420
+            ]
+          ],
+          "width": 40,
+          "height": 13,
+          "asym": 0.0
+        },
+        {
+          "name": "Seam Ridge",
+          "pts": [
+            [
+              -200,
+              430
+            ],
+            [
+              -110,
+              445
+            ],
+            [
+              -40,
+              470
+            ],
+            [
+              60,
+              465
+            ],
+            [
+              150,
+              430
+            ],
+            [
+              270,
+              440
+            ]
+          ],
+          "width": 30,
+          "height": 11,
+          "asym": 0.3,
+          "passes": [
+            [
+              0,
+              468,
+              45,
+              0.95
+            ]
+          ]
+        }
+      ],
+      "basin": {
+        "x": -10,
+        "z": 360,
+        "rx": 150,
+        "rz": 120,
+        "depth": 3.5
+      },
+      "valleyPrior": {
+        "width": 34,
+        "depth": 3.0
+      },
+      "regional": {
+        "fbmAmp": 2.2,
+        "fbmScale": 140,
+        "warp": 45,
+        "ridgedAmp": 1.4
+      },
+      "erosion": {
+        "iterations": 30,
+        "k": 0.0018,
+        "m": 0.5,
+        "talus": 0.75,
+        "deposit": 0.35
+      },
+      "climate": {
+        "baseTempC": 17,
+        "lapsePerM": 0.0065,
+        "oceanMoisture": 1.0,
+        "orographicRate": 0.012,
+        "evapRecovery": 0.0006
+      },
+      "anchorPad": {
+        "softRadius": 22,
+        "offsetRadius": 70
+      },
+      "creekThreshold": 2200,
+      "access": [
+        [
+          0,
+          470,
+          45,
+          0.45
+        ],
+        [
+          -16,
+          450,
+          20,
+          0.45
+        ]
+      ],
+      "dissection": 2.2
+    }
+  },
+  "seamCountry": {
+    "seed": 4417,
+    "frame": "Seam Country: the valley between the Seam Ridge (south) and the Ember Crown (north), walled west by the Westwall; westerlies spill through the Coil Gap; the Seam Water drains east to the Smirch. World coords = game ZONE_ORIGINS (zone-layout.ts).",
+    "ranges": [
+      {
+        "id": "westwall",
+        "line": [
+          [
+            -340,
+            480
+          ],
+          [
+            -330,
+            1300
+          ],
+          [
+            -345,
+            2200
+          ]
+        ],
+        "height": 16,
+        "width": 150,
+        "passes": [
+          [
+            820,
+            140,
+            0.6
+          ]
+        ]
+      },
+      {
+        "id": "seam_ridge_north_flank",
+        "line": [
+          [
+            -300,
+            470
+          ],
+          [
+            300,
+            470
+          ]
+        ],
+        "height": 8,
+        "width": 70
+      },
+      {
+        "id": "east_spur",
+        "line": [
+          [
+            110,
+            980
+          ],
+          [
+            170,
+            1200
+          ],
+          [
+            220,
+            1400
+          ]
+        ],
+        "height": 9,
+        "width": 60
+      },
+      {
+        "id": "ember_crown",
+        "line": [
+          [
+            -320,
+            2260
+          ],
+          [
+            360,
+            2200
+          ]
+        ],
+        "height": 24,
+        "width": 230
+      }
+    ],
+    "valleys": [
+      {
+        "id": "seam_water",
+        "line": [
+          [
+            -260,
+            820
+          ],
+          [
+            -40,
+            900
+          ],
+          [
+            40,
+            1250
+          ],
+          [
+            110,
+            1416
+          ],
+          [
+            320,
+            1430
+          ]
+        ],
+        "depth": 4,
+        "width": 60
+      }
+    ],
+    "northTilt": 0.008,
+    "tiltFrom": 1400,
+    "basePrecip": 420,
+    "wetBands": [
+      [
+        820,
+        170,
+        620
+      ],
+      [
+        1416,
+        140,
+        420
+      ],
+      [
+        1560,
+        110,
+        200
+      ]
+    ],
+    "orographic": 22,
+    "eastDrying": 0.35,
+    "baseTemp": 12.5,
+    "lapse": 0.3,
+    "latGrad": 0.0025
+  },
+  "fields": {
+    "hollow_road": {
+      "blendM": 14,
+      "continentGain": 0.9,
+      "reliefBias": 1.5,
+      "ridgeAmp": 2.2,
+      "fineAmp": 0.8,
+      "dissection": 1.6,
+      "creekThreshold": 350,
+      "vegTries": 0.05,
+      "warpEntryM": 55,
+      "seed": 50611,
+      "entryFrom": "pale_hollow",
+      "warpWhy": "mid-road camp shoulder on the Seam Ridge's north flank: first level ground after the pass, where the road leaves the Kings' cut",
+      "warpHook": "A ring of fallen marker stones beside the camp. Royal surveys call them 'mile posts'; there are seven, and no road has seven miles.",
+      "lore": [
+        {
+          "id": "cut-road-scarps",
+          "hook": "The road's shoulders are dressed stone: the Kings cut this pass. The land's own path runs a ravine to the east."
+        }
+      ]
+    },
+    "spur_road": {
+      "blendM": 14,
+      "continentGain": 0.9,
+      "reliefBias": 1.5,
+      "ridgeAmp": 3.0,
+      "fineAmp": 0.8,
+      "dissection": 1.6,
+      "creekThreshold": 350,
+      "vegTries": 0.05,
+      "warpEntryM": 50,
+      "seed": 50613,
+      "entryFrom": "forest_basin",
+      "warpWhy": "mid-climb bench on the East Spur where the road levels, halfway between Forest Basin and Ring Ward",
+      "warpHook": "Seven stones on a bench above the road; the Ward's toll-keepers say they mark an old boundary that no charter records."
+    },
+    "ring_ward": {
+      "blendM": 14,
+      "continentGain": 0.9,
+      "reliefBias": 1.5,
+      "ridgeAmp": 3.0,
+      "fineAmp": 0.8,
+      "dissection": 1.6,
+      "creekThreshold": 350,
+      "vegTries": 0.05,
+      "warpEntryM": 35,
+      "seed": 50614,
+      "entryFrom": "spur_road",
+      "warpWhy": "inside the ward's north gate, at the junction of the ring road and the north spoke: the ward's transit node",
+      "warpHook": "Paving stones set in a circle older than the ward walls; the walls bend around them."
+    },
+    "islet_fords": {
+      "blendM": 14,
+      "continentGain": 0.9,
+      "reliefBias": 1.5,
+      "ridgeAmp": 3.0,
+      "fineAmp": 0.8,
+      "dissection": 1.6,
+      "creekThreshold": 350,
+      "vegTries": 0.05,
+      "warpEntryM": 30,
+      "seed": 50615,
+      "entryFrom": "ring_ward",
+      "warpWhy": "the dry islet nearest the wharf-gap: the one safe rest between fords of the Seam Water",
+      "warpHook": "Stones stand on the islet above the flood line. The river has moved; the ring has not."
+    },
+    "green_reach": {
+      "blendM": 14,
+      "continentGain": 0.9,
+      "reliefBias": 1.5,
+      "ridgeAmp": 3.0,
+      "fineAmp": 0.8,
+      "dissection": 1.6,
+      "creekThreshold": 350,
+      "vegTries": 0.05,
+      "warpEntryM": 40,
+      "seed": 50616,
+      "entryFrom": "islet_fords",
+      "warpWhy": "claw-lip trailhead where the reach's trails fan out north toward Coil Pass: region entry + crossroads",
+      "warpHook": "A grassed-over ring at the trail fan; shepherds will not graze it."
+    },
+    "coil_pass": {
+      "blendM": 14,
+      "continentGain": 1.2,
+      "reliefBias": 1.5,
+      "ridgeAmp": 4.5,
+      "fineAmp": 0.8,
+      "dissection": 1.6,
+      "creekThreshold": 350,
+      "vegTries": 0.05,
+      "warpEntryM": 90,
+      "seed": 50617,
+      "entryFrom": "green_reach",
+      "warpWhy": "widest landing of the switchback climb, mid-pass: the zone transition between the lowland reach and the Coil Ridge",
+      "warpHook": "Frost-shattered stones on the landing, aligned to the Ember Crown's summit."
+    },
+    "coil_ridge": {
+      "blendM": 14,
+      "continentGain": 1.2,
+      "reliefBias": 1.5,
+      "ridgeAmp": 4.5,
+      "fineAmp": 0.8,
+      "dissection": 1.6,
+      "creekThreshold": 350,
+      "vegTries": 0.05,
+      "warpEntryM": 35,
+      "seed": 50618,
+      "entryFrom": "coil_pass",
+      "warpWhy": "Scarp Head: the crossroads where the King's Stair tops out onto the shelf; every route (Stele Way, Kingsbridge, Ember Crown flank) leaves from here.",
+      "warpHook": "The stair's last landing is a ring of cut stones older than the stair itself; the chroniclers who rewrote the Ascent left it off every map.",
+      "warpBias": [
+        -8,
+        -30
+      ]
+    }
+  }
+}

@@ -135,6 +135,10 @@ export {
   paleHollowTerrainWeights,
   paleHollowWaterSurfaceY,
   paleHollowInOpenWater,
+  paleHollowRiverJunctionOpen,
+  paleHollowInLakeShallows,
+  paleHollowLakeShoreR,
+  paleHollowLakeDist,
   paleHollowInRiverWall,
   paleHollowOnBridge,
   paleHollowBakedOnBridge,
@@ -331,6 +335,20 @@ export {
 } from "./field-population";
 
 export { ZONE_ORIGINS, WORLD_ZONE_IDS, zoneOrigin, zoneWorldBounds, type ZoneOrigin } from "./zone-layout";
+export {
+  LIGHT_KIND,
+  LIGHT_MOODS,
+  ZONE_LIGHT_MOODS,
+  ZONE_MAP_LIGHTS,
+  ZONE_MOOD_AREAS,
+  moodIsBright,
+  zoneLightMood,
+  zoneMapLights,
+  type LightKind,
+  type LightMood,
+  type MapLight,
+  type MoodArea,
+} from "./zone-lighting";
 
 export {
   ZONE_FIELDS,
@@ -345,6 +363,40 @@ export {
   type ZoneGate,
   type TravelStep,
 } from "./zone-fields";
+export {
+  SEAM_COUNTRY_ZONES,
+  SEAM_COUNTRY_WARPS,
+  SEAM_COUNTRY_QUEST_IDS,
+  SEAM_COUNTRY_NPC_IDS,
+  SC_CLEAR,
+  LANDMARK_PREFIX,
+  isSeamCountryZone,
+  isLandmarkId,
+  isWorldQuestGiver,
+  landmarkById,
+  seamCountryCamps,
+  seamCountryHp,
+  seamCountryLandmarks,
+  seamCountryMobs,
+  seamCountryNpcs,
+  seamCountryQuests,
+  seamCountryReachable,
+  seamCountrySpotProblem,
+  worldQuestById,
+  worldQuestCredit,
+  worldQuestLogEntries,
+  worldQuestRead,
+  worldQuestTalk,
+  worldQuestsByNpc,
+  type SeamCountryCamp,
+  type SeamCountryLandmark,
+  type SeamCountryMobDef,
+  type SeamCountryNpc,
+  type SeamCountryQuestDef,
+  type SeamCountryZone,
+  type WorldQuestDef,
+  type WorldQuestTalk,
+} from "./seam-country-field";
 
 export {
   BOOT_FORGE_MENU_BOUNDS,
@@ -359,6 +411,9 @@ export {
   bootForgeMenuWaterSurfaceY,
 } from "./boot-forge-menu";
 
+export * from "./pale-hollow-town";
+export * from "./pale-hollow-camp";
+export { PH_TRAINER, paleHollowTownSample } from "./pale-hollow";
 export { paleHollowLandmarks, type PaleHollowLandmark } from "./pale-hollow-landmarks";
 
 export {
@@ -448,7 +503,7 @@ export const ZONES: Record<ZoneId, ZoneDef> = {
   },
   hollow_road: {
     id: "hollow_road",
-    name: "Hollow Road",
+    name: "The Hollow Road",
     kind: "field",
     areaId: "pale_hollow",
     music: PALE_HOLLOW_MUSIC,
@@ -462,43 +517,43 @@ export const ZONES: Record<ZoneId, ZoneDef> = {
   },
   spur_road: {
     id: "spur_road",
-    name: "Spur Road",
+    name: "The East Spur",
     kind: "field",
     areaId: "pale_hollow",
   },
   ring_ward: {
     id: "ring_ward",
-    name: "Ring Ward",
+    name: "The Ring Ward",
     kind: "field",
     areaId: "pale_hollow",
   },
   islet_fords: {
     id: "islet_fords",
-    name: "Islet Fords",
+    name: "The Seam Fords",
     kind: "field",
     areaId: "pale_hollow",
   },
   green_reach: {
     id: "green_reach",
-    name: "Green Reach",
+    name: "The Green Reach",
     kind: "field",
     areaId: "pale_hollow",
   },
   coil_pass: {
     id: "coil_pass",
-    name: "Coil Pass",
+    name: "The Coil Pass",
     kind: "field",
     areaId: "pale_hollow",
   },
   coil_ridge: {
     id: "coil_ridge",
-    name: "Coil Ridge",
+    name: "The Broken Stair",
     kind: "field",
     areaId: "pale_hollow",
   },
   shard_dwellings: {
     id: "shard_dwellings",
-    name: "The Shard Dwellings",
+    name: "Mayflower",
     kind: "city",
     areaId: "pale_hollow",
     cityId: "shard_dwellings",
@@ -586,3 +641,4 @@ export {
 export * from "./forest-basin-features";
 export * from "./forest-basin-content";
 export * from "./forest-basin-population";
+export * from "./natural-shore";
