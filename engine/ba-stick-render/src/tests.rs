@@ -651,7 +651,7 @@ fn bridge_deck_is_one_continuous_ribbon() {
 fn l1_slope_shade_follows_sun() {
     use crate::zone::Zone;
     let (w, h) = (8usize, 8usize);
-    let mut z = Zone { min_x: 0.0, min_z: 0.0, cell: 0.5, w, h, biome: vec![0; w * h], flags: vec![0; w * h], height: vec![0.0; w * h] };
+    let mut z = Zone { min_x: 0.0, min_z: 0.0, cell: 0.5, w, h, biome: vec![0; w * h], flags: vec![0; w * h], height: vec![0.0; w * h], vy: Vec::new() };
     assert_eq!(crate::ground::slope_shade(&z, 1, 1), 1, "flat = mid");
     // Rise toward +x: face tilts toward -x (NW sun) => lit.
     for j in 0..z.h { for i in 0..z.w { let k = z.idx(i as i32, j as i32); z.height[k] = i as f32 * 0.4; } }
@@ -763,7 +763,7 @@ fn clear_map_data_drops_the_title() {
 
 fn raised_zone(h: f32) -> crate::zone::Zone {
     let (w, d) = (120, 120);
-    crate::zone::Zone { min_x: -30.0, min_z: -30.0, cell: 0.5, w, h: d, biome: vec![13; w * d], flags: vec![0; w * d], height: vec![h; w * d] }
+    crate::zone::Zone { min_x: -30.0, min_z: -30.0, cell: 0.5, w, h: d, biome: vec![13; w * d], flags: vec![0; w * d], height: vec![h; w * d], vy: Vec::new() }
 }
 
 #[test]

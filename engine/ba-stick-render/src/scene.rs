@@ -33,6 +33,7 @@ fn patch_zone_cell(zone: &mut Zone, x: f32, z: f32, biome: u8, flags: u8, height
     zone.biome[k] = biome;
     zone.flags[k] = flags;
     zone.height[k] = height;
+    crate::ground::refresh_vertex_heights(zone, i, j, 3);
     true
 }
 
@@ -1290,15 +1291,20 @@ impl Scene {
             } else if self.world.is_empty() {
                 self.ensure_water_fields();
                 let ripples = self.water_ripples();
+                let breeze = self.grass_breeze();
+                // Blades are drawn inside the ground pass and write depth.
+                self.fb.clear_depth();
                 match &self.zone {
-                    Some(z) => ground::draw_zone(
+                    Some(z) => ground::draw_zone_in(
                         &mut self.fb,
                         &self.cam,
                         z,
                         self.cam_y,
                         self.time,
+                        true,
                         self.water_field.as_ref(),
                         &ripples,
+                        Some(breeze),
                     ),
                     None => draw_ground(&mut self.fb, &self.cam),
                 }
@@ -1307,6 +1313,8 @@ impl Scene {
                 let foot = ground::view_world_rect(&self.fb, &self.cam);
                 self.bake_visible_world_water(foot.0, foot.1, foot.2, foot.3);
                 let ripples = self.water_ripples();
+                let breeze = self.grass_breeze();
+                self.fb.clear_depth();
                 // North first, so a nearer southern zone paints over it.
                 for i in (0..self.world.len()).rev() {
                     let z = &self.world[i];
@@ -1323,6 +1331,7 @@ impl Scene {
                         false,
                         field,
                         &ripples,
+                        Some(breeze),
                     );
                 }
             }
@@ -1332,35 +1341,15 @@ impl Scene {
             self.fb.color.fill(BACKDROP);
             self.fb.clear_depth();
         } else if !self.backdrop {
-            self.fb.clear_depth();
+            // Ground and grass already drew; depth was cleared before them.
             let melting = crate::weather::snow_melting(
                 self.weather_snow,
                 self.weather_snow_target,
                 self.weather_kind_to,
             );
             let snow = crate::weather::snow_cover_display(self.weather_snow, melting);
-            let grass_breeze = self.grass_breeze();
             if self.world.is_empty() {
                 if let Some(z) = &self.zone {
-                    if self.cam.view.is_some() {
-                        ground::draw_meadow_grass_view(
-                            &mut self.fb,
-                            &self.cam,
-                            z,
-                            self.cam_y,
-                            self.time,
-                            grass_breeze,
-                        );
-                    } else {
-                        ground::draw_meadow_grass(
-                            &mut self.fb,
-                            &self.cam,
-                            z,
-                            self.cam_y,
-                            self.time,
-                            grass_breeze,
-                        );
-                    }
                     if snow > 0.0 {
                         crate::weather::draw_snow_ground(&mut self.fb, &self.cam, z, self.cam_y, snow, melting);
                     }
@@ -1370,25 +1359,6 @@ impl Scene {
                 for z in self.world.iter().rev() {
                     if !ground::zone_overlaps_world_rect(z, foot.0, foot.1, foot.2, foot.3) {
                         continue;
-                    }
-                    if self.cam.view.is_some() {
-                        ground::draw_meadow_grass_view(
-                            &mut self.fb,
-                            &self.cam,
-                            z,
-                            self.cam_y,
-                            self.time,
-                            grass_breeze,
-                        );
-                    } else {
-                        ground::draw_meadow_grass(
-                            &mut self.fb,
-                            &self.cam,
-                            z,
-                            self.cam_y,
-                            self.time,
-                            grass_breeze,
-                        );
                     }
                     if snow > 0.0 {
                         crate::weather::draw_snow_ground(&mut self.fb, &self.cam, z, self.cam_y, snow, melting);

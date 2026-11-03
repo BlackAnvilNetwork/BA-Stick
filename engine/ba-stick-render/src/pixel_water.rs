@@ -583,7 +583,6 @@ impl WaterField {
         if falls.is_empty() {
             falls.extend(detect_falls(zone, &water));
         }
-        eprintln!("water falls in zone: {}", falls.len()); // temporary
         WaterField {
             cfg: FieldCfg { x0: zone.min_x, z0: zone.min_z, w, h, res },
             ground: g,
@@ -968,13 +967,24 @@ pub fn fill_wet_lip(
     field: &WaterField,
     ripples: &[Ripple],
     land: u8,
+    ys: [f32; 3],
+    level: f32,
 ) {
     let w = fb.w;
     let du0 = ua.0 - uc.0;
     let du1 = ub.0 - uc.0;
     let dv0 = ua.1 - uc.1;
     let dv1 = ub.1 - uc.1;
+    // Above this the bank is dry ground, whatever the smoothed mask says.
+    const LIP_RISE: f32 = 0.08;
+    if ys[0].min(ys[1]).min(ys[2]) > level + LIP_RISE {
+        return;
+    }
     for_tri_pixels(fb.w as i32, fb.h as i32, a, b, c, |x, y, w0, w1| {
+        let gy = ys[0] * w0 + ys[1] * w1 + ys[2] * (1.0 - w0 - w1);
+        if gy > level + LIP_RISE {
+            return;
+        }
         let u = uc.0 + w0 * du0 + w1 * du1;
         let v = uc.1 + w0 * dv0 + w1 * dv1;
         let wx = ox + u * cell;
