@@ -1,0 +1,21 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+
+// Overhead chop: weapon raised high behind the head, brought straight down
+// in front with a forward lean, then recover.
+(
+    name: "swing_overhead",
+    duration: 0.55,
+    looping: false,
+    mask: Full,
+    base: { "l_hip": 25.0, "l_knee": 20.0, "r_hip": -20.0, "r_knee": 15.0, "l_shoulder": 30.0, "l_elbow": 50.0, "l_arm_out": 20.0 },
+    keys: [
+        (t: 0.0,  pose: { "lean": 4.0,   "r_shoulder": 25.0,  "r_elbow": 40.0, "r_arm_out": 15.0, "r_wpn_yaw": 0.0, "r_wpn_pitch": -40.0 }),
+        (t: 0.18, pose: { "lean": -10.0, "r_shoulder": 165.0, "r_elbow": 70.0, "r_arm_out": 10.0, "r_wpn_yaw": 0.0, "r_wpn_pitch": 60.0, "bob": 0.02 }),
+        (t: 0.28, pose: { "lean": 22.0,  "r_shoulder": 60.0,  "r_elbow": 5.0,  "r_arm_out": 5.0,  "r_wpn_yaw": 0.0, "r_wpn_pitch": -10.0, "bob": -0.08 }),
+        (t: 0.36, pose: { "lean": 25.0,  "r_shoulder": 35.0,  "r_elbow": 10.0, "r_arm_out": 5.0,  "r_wpn_yaw": 0.0, "r_wpn_pitch": -30.0, "bob": -0.09 }),
+        (t: 0.55, pose: { "lean": 6.0,   "r_shoulder": 20.0,  "r_elbow": 35.0, "r_arm_out": 15.0, "r_wpn_yaw": 20.0, "r_wpn_pitch": -45.0, "bob": -0.03 }),
+    ],
+    events: [ (t: 0.2, name: "hit_start"), (t: 0.34, name: "hit_end"), (t: 0.4, name: "cancel_open"), (t: 0.55, name: "cancel_close") ],
+)

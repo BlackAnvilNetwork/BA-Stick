@@ -1,0 +1,21 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+
+// Spin slash: the torso winds right, then sweeps a full arc with the arm
+// held out, then recover.
+(
+    name: "swing_spin",
+    duration: 0.6,
+    looping: false,
+    mask: Full,
+    base: { "l_hip": 25.0, "l_knee": 30.0, "r_hip": -25.0, "r_knee": 25.0, "l_shoulder": 10.0, "l_elbow": 40.0, "l_arm_out": 50.0 },
+    keys: [
+        (t: 0.0,  pose: { "twist": 0.0,    "lean": 5.0,  "r_shoulder": 20.0, "r_elbow": 40.0, "r_arm_out": 20.0, "r_wpn_yaw": 30.0,  "r_wpn_pitch": -40.0 }),
+        (t: 0.14, pose: { "twist": -80.0,  "lean": 8.0,  "r_shoulder": 70.0, "r_elbow": 30.0, "r_arm_out": 85.0, "r_wpn_yaw": -90.0, "r_wpn_pitch": 0.0,  "bob": -0.06 }),
+        (t: 0.3,  pose: { "twist": 60.0,   "lean": 12.0, "r_shoulder": 85.0, "r_elbow": 5.0,  "r_arm_out": 90.0, "r_wpn_yaw": 0.0,   "r_wpn_pitch": 0.0,  "bob": -0.1 }),
+        (t: 0.42, pose: { "twist": 140.0,  "lean": 10.0, "r_shoulder": 80.0, "r_elbow": 5.0,  "r_arm_out": 85.0, "r_wpn_yaw": 90.0,  "r_wpn_pitch": 0.0,  "bob": -0.08 }),
+        (t: 0.6,  pose: { "twist": 0.0,    "lean": 5.0,  "r_shoulder": 20.0, "r_elbow": 35.0, "r_arm_out": 15.0, "r_wpn_yaw": 30.0,  "r_wpn_pitch": -45.0, "bob": -0.03 }),
+    ],
+    events: [ (t: 0.16, name: "hit_start"), (t: 0.44, name: "hit_end"), (t: 0.48, name: "cancel_open"), (t: 0.6, name: "cancel_close") ],
+)
