@@ -483,18 +483,47 @@ export function forestBasinProps(): Prop[] {
   // Set pieces that read from their names (rock walls, falls, forges).
   const wall = (x: number, z: number, yaw: number, len: number, hgt: number, y: number, v = 0) =>
     out.push({ kind: K.rockWall, v, x, z, y, yaw, s: len, w: 0.9, h: hgt, d: 0 });
-  // Sinks: a ring of bare rock faces down to the silt floor, open where a stair comes down.
+  // Around each sink, the same way the wood is scattered: a jittered grid, and the
+  // hash picks a cliff course on the steep wall, or a cairn or upright stone on the grass.
   for (const k of FB_SINKS) {
-    // the pit wall itself is the steep rock-faced terrain; only a low broken lip of stone sits on the rim
-    const rr = k.r * 0.95;
-    const n = Math.ceil((Math.PI * 2 * rr) / 2.6);
-    for (let i = 0; i < n; i++) {
-      if (i % 4 === 3) continue;
-      const a = (i / n) * Math.PI * 2;
-      const px = k.x + Math.cos(a) * rr, pz = k.z + Math.sin(a) * rr;
-      const asc = fbAscentAt(px, pz);
-      if (asc && asc.dist < asc.ascent.halfWidth + 1.2) continue;
-      at(i % 3 ? K.pebble : K.stone, px, pz, a * 3.1, 0.6 + 0.5 * hash2(px, pz)); // crumbled lip stones
+    const reach = k.r * 2.3;
+    const step = 2.7;
+    for (let z = k.z - reach; z <= k.z + reach; z += step) {
+      for (let x = k.x - reach; x <= k.x + reach; x += step) {
+        const jx = x + (hash2(x, z + k.x) - 0.5) * step * 0.85;
+        const jz = z + (hash2(z, x + k.z) - 0.5) * step * 0.85;
+        const d = Math.hypot(jx - k.x, jz - k.z);
+        if (d > reach || d < k.r * 0.28) continue;
+        if (fbDesignWater(jx, jz) || forestBasinOnTrail(jx, jz) || nearGate(jx, jz)) continue;
+        if (anchors.some((a) => Math.hypot(a.x - jx, a.z - jz) < 2.4)) continue;
+        const asc = fbAscentAt(jx, jz);
+        if (asc && asc.dist < asc.ascent.halfWidth + 0.8) continue;
+        const gx = (forestBasinGroundY(jx + 0.75, jz) - forestBasinGroundY(jx - 0.75, jz)) / 1.5;
+        const gz = (forestBasinGroundY(jx, jz + 0.75) - forestBasinGroundY(jx, jz - 0.75)) / 1.5;
+        const g = Math.hypot(gx, gz);
+        const h = hash2(Math.floor(jx * 2), Math.floor(jz * 2));
+        const h2 = hash2(Math.floor(jz * 3), Math.floor(jx * 3));
+        if (g > 0.85 && d < k.r * 1.15 && d > k.r * 0.45) {
+          if (h < 0.55) continue;
+          const ux = -gx / g, uz = -gz / g;
+          const span = k.r * 0.42;
+          const fx = jx + ux * span, fz = jz + uz * span;
+          const lo = forestBasinGroundY(fx, fz);
+          const hi = forestBasinGroundY(jx - ux * span, jz - uz * span);
+          if (hi - lo < 2) continue;
+          wall(fx, fz, Math.atan2(ux, uz), 2.2 + h2 * 1.8, Math.min(hi - lo, 6.5), lo, 2);
+          continue;
+        }
+        if (!firm(jx, jz) || g > 0.55 || h < 0.55) continue;
+        const outside = d > k.r * 0.95;
+        if (!outside) {
+          if (h > 0.78) at(K.cairn, jx, jz, h * 6.28, 0.55 + h * 0.3);
+          continue;
+        }
+        if (h2 > 0.6) at(K.cairn, jx, jz, h * 6.28, h > 0.82 ? 1.8 + h * 0.6 : 0.9 + h * 0.55);
+        else if (h2 > 0.25) out.push({ kind: K.stone, v: 2, x: jx, z: jz, y: forestBasinStandHeight(jx, jz), yaw: h * 6.28, s: 0.85 + h * 0.9, w: 0, h: 0, d: 0 });
+        else if (h > 0.8) at(K.bloom, jx, jz, h * 6.28, 0.55 + h2);
+      }
     }
   }
   // Cut faces of the Graven Cuts and the walls of Rook's Throat: rock where the ground steps.

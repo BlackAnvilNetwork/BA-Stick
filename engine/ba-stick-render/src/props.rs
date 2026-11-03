@@ -196,7 +196,7 @@ pub fn footprint(p: &Prop) -> Option<f32> {
         kind::CRATE => p.w.max(p.d) * 0.75,
         kind::CHEST => 0.6,
         kind::LEAN_TO | kind::SHACK => 1.6,
-        kind::CAIRN => 0.7,
+        kind::CAIRN => p.s * 0.55,
         kind::TRAINER => 0.7,
         kind::STALL => 1.15,
         kind::WEAPON_RACK => 0.6,
@@ -836,30 +836,55 @@ fn draw_shelter(c: &mut Ctx, def: &crate::structure::ShelterDef) {
     }
 }
 
-fn draw_cairn(c: &mut Ctx) {
-    const STEPS: usize = 8;
-    for tier in &crate::structure::cairn().tiers {
-        let mut rings = Vec::with_capacity(2);
-        let mut flat = Vec::with_capacity(2);
-        for (y, rad) in [(tier.y0, tier.r), (tier.y1, tier.r * 0.08)] {
-            let mut ring = Vec::with_capacity(STEPS);
-            let mut xz = Vec::with_capacity(STEPS);
-            for i in 0..STEPS {
-                let a = i as f32 / STEPS as f32 * std::f32::consts::TAU;
-                let rx = a.cos() * rad;
-                let fz = a.sin() * rad;
-                ring.push(c.p(rx, y, fz));
-                xz.push((rx, fz));
-            }
-            rings.push(ring);
-            flat.push(xz);
-        }
-        for i in 0..STEPS {
-            let j = (i + 1) % STEPS;
-            let (rx, fz) = flat[0][i];
-            let col = foliage(sun_of(c, rx, fz), ROCK_D, ROCK, ROCK_L);
-            c.quad(rings[0][i], rings[0][j], rings[1][j], rings[1][i], col);
-        }
+/// One course of a stack: a faceted drum, wider than it is tall, with a pale top.
+fn drum(c: &mut Ctx, ox: f32, oz: f32, y0: f32, y1: f32, r0: f32, r1: f32, side: u8, top: u8) {
+    const N: usize = 7;
+    let mut lo = [P2::new(0.0, 0.0, 0.0); N];
+    let mut hi = [P2::new(0.0, 0.0, 0.0); N];
+    for i in 0..N {
+        let a = i as f32 / N as f32 * std::f32::consts::TAU;
+        lo[i] = c.p(ox + a.cos() * r0, y0, oz + a.sin() * r0);
+        hi[i] = c.p(ox + a.cos() * r1, y1, oz + a.sin() * r1);
+    }
+    let cap = c.p(ox, y1, oz);
+    for i in 0..N {
+        let j = (i + 1) % N;
+        let col = if i % 2 == 0 { side } else { face_dark(side) };
+        c.quad(lo[i], lo[j], hi[j], hi[i], col);
+        tri(c.fb, hi[i], hi[j], cap, top);
+        c.edge_col(hi[i], hi[j], face_dark(side));
+    }
+}
+
+/// Stacked fieldstones. Six drums, each a little smaller and a little off-centre,
+/// so the pile reads as stones and not as a cone or a stepped block.
+fn draw_cairn(c: &mut Ctx, p: &Prop) {
+    let s = p.s.max(0.45);
+    const COURSES: usize = 6;
+    for i in 0..COURSES {
+        let t = i as f32 / COURSES as f32;
+        let h = s * 0.2;
+        let rad = s * (0.4 - 0.24 * t);
+        let jx = hash(p.x + i as f32 * 1.7, p.z);
+        let jz = hash(p.z + i as f32 * 2.3, p.x);
+        let (side, top) = if i + 1 == COURSES {
+            (ROCK, ROCK_L)
+        } else if i % 2 == 0 {
+            (ROCK, ROCK)
+        } else {
+            (ROCK_D, ROCK)
+        };
+        drum(
+            c,
+            (jx - 0.5) * rad * 0.4,
+            (jz - 0.5) * rad * 0.4,
+            s * 1.05 * t,
+            s * 1.05 * t + h,
+            rad,
+            rad * 0.84,
+            side,
+            top,
+        );
     }
 }
 
@@ -1179,6 +1204,7 @@ pub fn draw(
         let tall = match p.kind {
             kind::BRIDGE => 120.0 + p.s * 16.0,
             kind::HOLLOW_OAK | kind::FALLS | kind::ROCK_WALL => (p.s + p.h) * HEIGHT_PX + 40.0,
+            kind::CAIRN => p.s * 1.3 * HEIGHT_PX + 30.0,
             kind::PEAK => p.h * HEIGHT_PX + 40.0,
             0..=4 => p.s * HEIGHT_PX + 20.0,
             _ => 120.0,
@@ -1425,6 +1451,13 @@ fn draw_one(c: &mut Ctx, p: &Prop, time: f32) {
             let fill = canopy_disc_col(c, ASH, ASH_L, s * 0.75, s * 0.8, hash(p.x, p.z));
             c.fb.disc(q, s * 6.0, fill, Some(C_OUTLINE));
         }
+        kind::STONE if p.var == 2 => {
+            // Upright fieldstone: a tall drum, narrower at the crown.
+            let h = s.max(0.45);
+            let r = h * (0.16 + 0.05 * hash(p.x, p.z));
+            drum(c, 0.0, 0.0, 0.0, h * 0.72, r, r * 0.9, ROCK, ROCK);
+            drum(c, 0.0, 0.0, h * 0.66, h, r * 0.72, r * 0.4, ROCK, ROCK_L);
+        }
         kind::ROCK | kind::STONE | kind::PEBBLE => {
             let col = if p.var == 1 { ROCK_D } else { ROCK };
             let rr = s * 0.5;
@@ -1597,7 +1630,7 @@ fn draw_one(c: &mut Ctx, p: &Prop, time: f32) {
         }
         kind::LEAN_TO => draw_shelter(c, crate::structure::lean_to()),
         kind::SHACK => draw_shelter(c, crate::structure::shack()),
-        kind::CAIRN => draw_cairn(c),
+        kind::CAIRN => draw_cairn(c, p),
         kind::TRAINER => {
             c.boxy(0.0, 0.34, 0.0, 1.15, 0.08, 0.48, WOOD_L, WOOD, WOOD_D);
             for (x, zz) in [(-0.45, -0.15), (0.45, -0.15), (-0.45, 0.15), (0.45, 0.15)] {
@@ -1878,6 +1911,13 @@ fn draw_one(c: &mut Ctx, p: &Prop, time: f32) {
                     // a quarry cut: one dark sheer face, and a pale dressed bench top running back from its lip
                     c.boxy(cx, -0.4, 0.0, bw + 0.15, hgt + 0.4, th, ROCK_D, ROCK_D, C_OUTLINE);
                     c.boxy(cx, hgt - 0.05, -0.9, bw + 0.15, 0.12, 1.8, ROCK_L, ROCK_L, ROCK);
+                    continue;
+                }
+                if p.var == 2 {
+                    // a sink face: dark courses and a thin lighter lip
+                    c.boxy(cx, -0.25, back, bw + 0.12, hh * 0.62 + 0.25, th, ROCK_D, C_OUTLINE, C_OUTLINE);
+                    c.boxy(cx + (jit(k, 5.7) - 0.5) * 0.15, hh * 0.55, back - 0.1, bw * 0.8, hh * 0.28, th * 0.8, ROCK, ROCK_D, C_OUTLINE);
+                    c.boxy(cx, hh * 0.8, back - 0.2, bw * 0.62, hh * 0.14, th * 0.55, ROCK, ROCK, ROCK_D);
                     continue;
                 }
                 c.boxy(cx, -0.4, back, bw + 0.1, hh * 0.65 + 0.4, th, ROCK, ROCK_D, ROCK_D);
