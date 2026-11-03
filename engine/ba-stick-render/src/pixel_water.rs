@@ -36,16 +36,16 @@ impl Mode {
     pub fn params(self) -> Params {
         match self {
             Mode::Still => Params {
-                speed: 1.2, stretch: 1.0, warp: 0.55, scale: 2.6, foam: 0.0, glint: 0.35, contrast: 0.85, veins: 0.0, shore: 0.4,
+                speed: 1.2, stretch: 1.0, warp: 0.3, scale: 2.6, foam: 0.0, glint: 0.35, contrast: 0.85, veins: 0.0, shore: 0.4,
             },
             Mode::Stream => Params {
-                speed: 4.0, stretch: 2.4, warp: 0.8, scale: 2.6, foam: 0.25, glint: 0.3, contrast: 1.0, veins: 0.6, shore: 0.7,
+                speed: 4.0, stretch: 5.0, warp: 0.25, scale: 2.6, foam: 0.25, glint: 0.3, contrast: 1.0, veins: 0.6, shore: 0.7,
             },
             Mode::Rush => Params {
-                speed: 12.0, stretch: 5.5, warp: 1.1, scale: 2.3, foam: 0.7, glint: 0.5, contrast: 1.25, veins: 1.0, shore: 1.0,
+                speed: 12.0, stretch: 8.0, warp: 0.35, scale: 2.3, foam: 0.7, glint: 0.5, contrast: 1.25, veins: 1.0, shore: 1.0,
             },
             Mode::Buffet => Params {
-                speed: 6.0, stretch: 1.3, warp: 2.4, scale: 1.9, foam: 0.5, glint: 0.5, contrast: 1.15, veins: 0.4, shore: 1.0,
+                speed: 6.0, stretch: 1.3, warp: 1.4, scale: 1.9, foam: 0.5, glint: 0.5, contrast: 1.15, veins: 0.4, shore: 1.0,
             },
         }
     }
@@ -266,67 +266,6 @@ impl WaterLayout {
     }
 }
 
-/// Downstream current at (x, z) from the authored river spines.
-///
-/// The baked spine is a coarse polyline whose segments zig-zag (east, then
-/// south-east, then east ...) around the real course. Taking only the nearest
-/// segment's tangent made the current snap 45 degrees in bands across the
-/// channel, so the surface slid sideways over the river. Instead blend every
-/// nearby segment that runs the same way as the nearest one, Gaussian-weighted
-/// by distance, which follows the smoothed course through bends.
-fn spine_flow(layout: &WaterLayout, x: f32, z: f32) -> Option<[f32; 2]> {
-    const REACH: f32 = 16.0;
-    const BLEND: f32 = 16.0;
-    const SIGMA: f32 = 8.0;
-    let mut near: Vec<(f32, [f32; 2], f32)> = Vec::new();
-    let mut best = (REACH, usize::MAX);
-    for s in &layout.segs {
-        let (ax, az, ay, bx, bz, by) = (s[0], s[1], s[2], s[3], s[4], s[5]);
-        let (vx, vz) = (bx - ax, bz - az);
-        let l2 = vx * vx + vz * vz;
-        if l2 < 1e-6 {
-            continue;
-        }
-        let t = (((x - ax) * vx + (z - az) * vz) / l2).clamp(0.0, 1.0);
-        let d = (x - (ax + vx * t)).hypot(z - (az + vz * t));
-        if d >= BLEND {
-            continue;
-        }
-        let run = l2.sqrt();
-        // Segments are written upstream to downstream; flip any that climb.
-        let sg = if by > ay { -1.0 } else { 1.0 };
-        let grade = (ay - by).abs() / run;
-        if d < best.0 {
-            best = (d, near.len());
-        }
-        near.push((d, [vx / run * sg, vz / run * sg], grade));
-    }
-    if best.1 == usize::MAX {
-        return None;
-    }
-    let d0 = near[best.1].1;
-    let (mut fx, mut fz, mut g, mut wsum) = (0.0f32, 0.0f32, 0.0f32, 0.0f32);
-    for (d, dir, grade) in &near {
-        // Same channel only: skip a reach running the other way (meander
-        // doubling back, the far side of a junction).
-        if dir[0] * d0[0] + dir[1] * d0[1] < 0.2 {
-            continue;
-        }
-        let w = (-(d / SIGMA) * (d / SIGMA)).exp();
-        fx += dir[0] * w;
-        fz += dir[1] * w;
-        g += grade * w;
-        wsum += w;
-    }
-    let m = fx.hypot(fz).max(1e-5);
-    let grade = g / wsum.max(1e-5);
-    if grade < 0.0008 {
-        return Some([0.0, 0.0]);
-    }
-    let str = (grade / 0.04).clamp(0.08, 1.6);
-    Some([fx / m * str, fz / m * str])
-}
-
 #[derive(Clone, Copy)]
 pub struct Sample {
     pub ground: f32,
@@ -487,6 +426,205 @@ fn detect_falls(zone: &Zone, water: &[bool]) -> Vec<FallSpan> {
     out
 }
 
+/// Current from water connectivity, not from the bed.
+///
+/// Every water cell gets its geodesic distance (through water cells only, 8-way,
+/// bed height ignored so falls just connect) to the nearest outlet: the
+/// downstream ends of the authored river spines. The current runs down that
+/// distance field, is relaxed over water neighbours so adjacent cells agree
+/// through bends and junctions, and its strength follows mass conservation:
+/// speed ~ 1 / channel width, so narrows run fast and lakes barely drift from
+/// inlet to outlet. Water with no outlet stays still.
+fn connected_flow(
+    zone: &Zone,
+    layout: Option<&WaterLayout>,
+    water: &[bool],
+    sd: &[f32],
+    w: usize,
+    h: usize,
+    res: f32,
+) -> Vec<[f32; 2]> {
+    use std::cmp::Reverse;
+    use std::collections::BinaryHeap;
+    let mut flow = vec![[0.0f32; 2]; w * h];
+    let cell = 1.0 / res;
+    // Label connected water bodies (8-way, bed height ignored).
+    let mut comp = vec![u32::MAX; w * h];
+    let mut ncomp = 0u32;
+    for k0 in 0..w * h {
+        if !water[k0] || comp[k0] != u32::MAX {
+            continue;
+        }
+        let mut stack = vec![k0];
+        comp[k0] = ncomp;
+        while let Some(k) = stack.pop() {
+            let (i, j) = ((k % w) as i32, (k / w) as i32);
+            for (di, dj) in DIRS {
+                let (ni, nj) = (i + di, j + dj);
+                if ni < 0 || nj < 0 || ni >= w as i32 || nj >= h as i32 {
+                    continue;
+                }
+                let nk = nj as usize * w + ni as usize;
+                if water[nk] && comp[nk] == u32::MAX {
+                    comp[nk] = ncomp;
+                    stack.push(nk);
+                }
+            }
+        }
+        ncomp += 1;
+    }
+    // Outlet per body: the lowest spine end that no segment continues from
+    // (a tributary ending in a river is a junction, not an outlet).
+    let mut outlet: Vec<Option<(f32, f32, f32)>> = vec![None; ncomp as usize];
+    if let Some(lay) = layout {
+        for s in &lay.segs {
+            let (ex, ez, ey) = (s[3], s[4], s[5]);
+            if lay.segs.iter().any(|t| (t[0] - ex).abs() < 0.05 && (t[1] - ez).abs() < 0.05) {
+                continue;
+            }
+            let (ci, cj) = (((ex - zone.min_x) * res) as i32, ((ez - zone.min_z) * res) as i32);
+            let r = (4.0 * res) as i32;
+            let mut c = None;
+            'find: for rr in 0..=r {
+                for dj in -rr..=rr {
+                    for di in -rr..=rr {
+                        let (i, j) = (ci + di, cj + dj);
+                        if i >= 0 && j >= 0 && (i as usize) < w && (j as usize) < h && water[j as usize * w + i as usize] {
+                            c = Some(comp[j as usize * w + i as usize]);
+                            break 'find;
+                        }
+                    }
+                }
+            }
+            if let Some(c) = c {
+                let o = &mut outlet[c as usize];
+                if o.map_or(true, |o| ey < o.2) {
+                    *o = Some((ex, ez, ey));
+                }
+            }
+        }
+    }
+    let mut seeds: Vec<usize> = Vec::new();
+    for (c, o) in outlet.iter().enumerate() {
+        let Some((ex, ez, _)) = *o else { continue };
+        let (ci, cj) = (((ex - zone.min_x) * res) as i32, ((ez - zone.min_z) * res) as i32);
+        let r = (4.0 * res) as i32;
+        for dj in -r..=r {
+            for di in -r..=r {
+                let (i, j) = (ci + di, cj + dj);
+                if i >= 0 && j >= 0 && (i as usize) < w && (j as usize) < h {
+                    let k = j as usize * w + i as usize;
+                    if water[k] && comp[k] == c as u32 {
+                        seeds.push(k);
+                    }
+                }
+            }
+        }
+    }
+    if seeds.is_empty() {
+        return flow;
+    }
+    // Geodesic distance to outlet over water only (Dijkstra, 8-neighbour).
+    let mut dist = vec![f32::INFINITY; w * h];
+    let mut heap = BinaryHeap::new();
+    for &k in &seeds {
+        dist[k] = 0.0;
+        heap.push(Reverse((0u32, k)));
+    }
+    while let Some(Reverse((dq, k))) = heap.pop() {
+        let d = dq as f32 / 1000.0;
+        if d > dist[k] + 1e-4 {
+            continue;
+        }
+        let (i, j) = ((k % w) as i32, (k / w) as i32);
+        for (di, dj) in DIRS {
+            let (ni, nj) = (i + di, j + dj);
+            if ni < 0 || nj < 0 || ni >= w as i32 || nj >= h as i32 {
+                continue;
+            }
+            let nk = nj as usize * w + ni as usize;
+            if !water[nk] {
+                continue;
+            }
+            let nd = d + if di != 0 && dj != 0 { 1.4142 } else { 1.0 } * cell;
+            if nd < dist[nk] {
+                dist[nk] = nd;
+                heap.push(Reverse(((nd * 1000.0) as u32, nk)));
+            }
+        }
+    }
+    // Downhill direction of the distance field (central differences where the
+    // neighbour is reachable water, one-sided otherwise).
+    let mut fx = vec![0.0f32; w * h];
+    let mut fz = vec![0.0f32; w * h];
+    for j in 1..h - 1 {
+        for i in 1..w - 1 {
+            let k = j * w + i;
+            if !dist[k].is_finite() {
+                continue;
+            }
+            let d = |kk: usize| if dist[kk].is_finite() { dist[kk] } else { dist[k] };
+            let gx = d(k + 1) - d(k - 1);
+            let gz = d(k + w) - d(k - w);
+            let m = gx.hypot(gz);
+            if m > 1e-5 {
+                fx[k] = -gx / m;
+                fz[k] = -gz / m;
+            }
+        }
+    }
+    // Relax the unit directions over water neighbours so the current is one
+    // continuous sheet (no per-cell 45-degree jitter, smooth round bends).
+    let reach: Vec<bool> = dist.iter().map(|d| d.is_finite()).collect();
+    for _ in 0..12 {
+        blur_water(&mut fx, &reach, w, h);
+        blur_water(&mut fz, &reach, w, h);
+        for k in 0..w * h {
+            let m = fx[k].hypot(fz[k]);
+            if m > 1e-5 {
+                fx[k] /= m;
+                fz[k] /= m;
+            }
+        }
+    }
+    // Channel width: twice the deepest bank distance nearby (a few max passes
+    // spread the centre-line value out to the banks).
+    let mut half: Vec<f32> = (0..w * h).map(|k| if water[k] { sd[k].max(0.25) } else { 0.0 }).collect();
+    let pass = (14.0 * res).max(1.0) as usize;
+    for _ in 0..pass {
+        let src = half.clone();
+        for j in 1..h - 1 {
+            for i in 1..w - 1 {
+                let k = j * w + i;
+                if !water[k] {
+                    continue;
+                }
+                let mut m = src[k];
+                for kk in [k - 1, k + 1, k - w, k + w] {
+                    if water[kk] {
+                        m = m.max(src[kk]);
+                    }
+                }
+                half[k] = m;
+            }
+        }
+    }
+    const REF_WIDTH: f32 = 8.0; // m; a channel this wide runs at strength 1
+    for k in 0..w * h {
+        if !reach[k] {
+            continue;
+        }
+        let width = 2.0 * half[k];
+        let mut s = (REF_WIDTH / width.max(0.5)).clamp(0.0, 1.6);
+        // Lakes: a faint drift toward the outlet, effectively still.
+        s *= 1.0 - 0.88 * sstep(14.0, 28.0, width);
+        // Slight drag at the very edge.
+        s *= 0.6 + 0.4 * sstep(0.0, 1.5, sd[k]);
+        flow[k] = [fx[k] * s, fz[k] * s];
+    }
+    flow
+}
+
 fn wet_cell(zone: &Zone, i: i32, j: i32) -> bool {
     if i < 0 || j < 0 || i >= zone.w as i32 || j >= zone.h as i32 {
         return false;
@@ -507,74 +645,8 @@ impl WaterField {
                 water[k] = wet_cell(zone, i as i32, j as i32);
             }
         }
-        // Smooth the water surface, then take its gradient so current follows
-        // the river instead of orbiting every spit (local 8-neigh downhill).
-        let mut hs = g.clone();
-        let mut src = hs.clone();
-        for _ in 0..4 {
-            src.copy_from_slice(&hs);
-            for j in 0..h {
-                for i in 0..w {
-                    let k = j * w + i;
-                    if !water[k] {
-                        continue;
-                    }
-                    let mut s = src[k];
-                    let mut n = 1.0;
-                    for (di, dj) in DIRS {
-                        let (ni, nj) = (i as i32 + di, j as i32 + dj);
-                        if ni < 0 || nj < 0 || ni >= w as i32 || nj >= h as i32 {
-                            continue;
-                        }
-                        let nk = nj as usize * w + ni as usize;
-                        if water[nk] && (src[nk] - src[k]).abs() < FALL_DROP {
-                            s += src[nk];
-                            n += 1.0;
-                        }
-                    }
-                    hs[k] = s / n;
-                }
-            }
-        }
-        let mut fx = vec![0.0f32; w * h];
-        let mut fz = vec![0.0f32; w * h];
-        for j in 1..h - 1 {
-            for i in 1..w - 1 {
-                let k = j * w + i;
-                if !water[k] {
-                    continue;
-                }
-                let x = zone.min_x + (i as f32 + 0.5) / res;
-                let z = zone.min_z + (j as f32 + 0.5) / res;
-                if let Some(lay) = layout {
-                    if let Some(f) = spine_flow(lay, x, z) {
-                        fx[k] = f[0];
-                        fz[k] = f[1];
-                        continue;
-                    }
-                }
-                let mut hx = 0.0;
-                let mut hz = 0.0;
-                let mut nh = 0.0;
-                if water[k - 1] && water[k + 1] {
-                    hx = hs[k - 1] - hs[k + 1];
-                    nh += 1.0;
-                }
-                if water[k - w] && water[k + w] {
-                    hz = hs[k - w] - hs[k + w];
-                    nh += 1.0;
-                }
-                let mag = (hx * hx + hz * hz).sqrt();
-                // One-axis differences point the current straight along x or z
-                // regardless of the channel; only trust a full 2-axis gradient.
-                if mag < 0.002 || nh < 2.0 {
-                    continue;
-                }
-                let s = (mag / 0.04).clamp(0.08, 1.6);
-                fx[k] = hx / mag.max(1e-5) * s;
-                fz[k] = hz / mag.max(1e-5) * s;
-            }
-        }
+        // Signed bank distance (m): positive in water. Used for the shore
+        // shading and to read channel width, never for current direction.
         let land: Vec<bool> = water.iter().map(|&b| !b).collect();
         let d_land = chamfer(&land, w, h);
         let d_water = chamfer(&water, w, h);
@@ -585,33 +657,7 @@ impl WaterField {
         for v in sd.iter_mut() {
             *v /= res;
         }
-        for _ in 0..2 {
-            blur_water(&mut fx, &water, w, h);
-            blur_water(&mut fz, &water, w, h);
-        }
-        let mut flow_out = vec![[0.0f32; 2]; w * h];
-        for j in 1..h - 1 {
-            for i in 1..w - 1 {
-                let k = j * w + i;
-                if !water[k] {
-                    continue;
-                }
-                let gx = sd[j * w + i + 1] - sd[j * w + i - 1];
-                let gz = sd[(j + 1) * w + i] - sd[(j - 1) * w + i];
-                let gl = (gx * gx + gz * gz).sqrt().max(1e-5);
-                let (nx, nz) = (gx / gl, gz / gl);
-                let mut f = [fx[k], fz[k]];
-                // Slide along the bank; do not invent orbit around a spit.
-                let near = 1.0 - sstep(0.0, 2.5, sd[k]);
-                let vn = f[0] * nx + f[1] * nz;
-                if vn < 0.0 {
-                    f[0] -= nx * vn * near;
-                    f[1] -= nz * vn * near;
-                }
-                let slow = 0.35 + 0.65 * sstep(0.0, 3.0, sd[k]);
-                flow_out[k] = [f[0] * slow, f[1] * slow];
-            }
-        }
+        let flow_out = connected_flow(zone, layout, &water, &sd, w, h, res);
         let (zx1, zz1) = (zone.min_x + w as f32 * zone.cell, zone.min_z + h as f32 * zone.cell);
         let mut falls: Vec<FallSpan> = layout
             .map(|l| {
@@ -729,14 +775,14 @@ impl WaterField {
         let across = -x * dir[1] + z * dir[0];
         let nx = across / p.scale;
         let ny = along / (p.scale * p.stretch);
-        let wx = fbm2(nx * 0.9, ny * 0.9 - t * 0.07, seed ^ 11);
-        let wy = fbm2(nx * 0.9 + 9.1, ny * 0.9 - t * 0.05, seed ^ 23);
+        let wx = fbm2(nx * 0.9, ny * 0.9 - t * 0.02, seed ^ 11);
+        let wy = fbm2(nx * 0.9 + 9.1, ny * 0.9 - t * 0.015, seed ^ 23);
         let qx = nx + p.warp * (wx - 0.5);
         let qy = ny + p.warp * (wy - 0.5) / p.stretch.max(1.0).sqrt();
         let base = fbm2(qx, qy, seed);
         let detail = vnoise(
             across / (p.scale * 0.45) + (wx - 0.5) * p.warp,
-            along / (p.scale * p.stretch * 0.45) + (wy - 0.5) * p.warp * 0.5 - t * 0.12,
+            along / (p.scale * p.stretch * 0.45) + (wy - 0.5) * p.warp * 0.5,
             seed ^ 5,
         );
         base * 0.7 + detail * 0.3
@@ -771,7 +817,9 @@ impl WaterField {
         // Still water (no current) gets no drift at all; moving water a slow
         // downstream creep on top of the flow-map advection below.
         let t_half = if fl > 0.02 { t * 0.5 } else { 0.0 };
-        let cycle = 1.8;
+        // Long cycle: the pattern mostly translates; the crossfade that hides
+        // the reset is slow enough not to read as pulsing/morphing.
+        let cycle = 5.0;
         let ph0 = (t / cycle).fract();
         let w0 = 1.0 - (2.0 * ph0 - 1.0).abs();
         let w1 = 1.0 - w0;
@@ -841,8 +889,8 @@ impl WaterField {
             let along = x * dir[0] + z * dir[1] - t * speed;
             let across = -x * dir[1] + z * dir[0];
             let r = (fbm2(
-                across / p.scale * 0.8 + along / (p.scale * p.stretch) * 0.5,
-                along / (p.scale * p.stretch) * 0.8,
+                across / p.scale * 0.8,
+                along / (p.scale * p.stretch * 2.0),
                 seed ^ 303,
             ) - 0.5)
                 .abs();
@@ -1230,30 +1278,5 @@ mod tests {
         eprintln!("drift cells (across x, along z) = ({}, {})", best.1, best.2);
         assert!(best.2 >= 0, "pattern runs upstream");
         assert!(best.1.abs() <= best.2.abs().max(0), "pattern slides across the channel");
-    }
-
-    /// A zig-zag (east, south-east, east ...) spine gives one smooth current
-    /// along the overall course, not 45-degree bands.
-    #[test]
-    fn staircase_spine_blends() {
-        let mut segs = Vec::new();
-        let (mut x, mut z, mut y) = (0.0f32, 0.0f32, 10.0f32);
-        for k in 0..12 {
-            let (dx, dz) = if k % 2 == 0 { (5.0, 0.0) } else { (4.0, -4.0) };
-            segs.push([x, z, y, x + dx, z + dz, y - 0.2]);
-            x += dx;
-            z += dz;
-            y -= 0.2;
-        }
-        let lay = WaterLayout { segs, falls: vec![] };
-        let mut angs = Vec::new();
-        for s in 0..40 {
-            let px = 10.0 + s as f32 * 0.5;
-            let pz = -px * 4.0 / 9.0;
-            let f = spine_flow(&lay, px, pz).expect("on spine");
-            angs.push(f[1].atan2(f[0]).to_degrees());
-        }
-        let (lo, hi) = angs.iter().fold((f32::MAX, f32::MIN), |a, &v| (a.0.min(v), a.1.max(v)));
-        assert!(lo > -40.0 && hi < -5.0, "current snaps: {lo}..{hi}");
     }
 }
