@@ -941,6 +941,34 @@ pub(crate) fn draw_zone_in(
                     }
                 }
                 }
+                // Zone border: hang a rock skirt off the outer edge so the
+                // world ends in a cliff instead of a sliver of sky below it.
+                {
+                    let last_i = zone.w as i32 - 2;
+                    let last_j = zone.h as i32 - 2;
+                    if i == 0 || j == 0 || i == last_i || j == last_j {
+                        let drop = |p: P2, ii: i32, jj: i32| {
+                            let q = cam.project(v3(
+                                zone.min_x + ii as f32 * c,
+                                shore_height(zone, ii, jj) - cam_y - EDGE_SKIRT_M,
+                                zone.min_z + jj as f32 * c,
+                            ));
+                            (p, q)
+                        };
+                        let mut edges: [Option<((P2, P2), (P2, P2))>; 4] = [None; 4];
+                        if i == last_i { edges[0] = Some((drop(p10, i + 1, j), drop(p11, i + 1, j + 1))); }
+                        if j == last_j { edges[1] = Some((drop(p01, i, j + 1), drop(p11, i + 1, j + 1))); }
+                        if i == 0 { edges[2] = Some((drop(p00, i, j), drop(p01, i, j + 1))); }
+                        if j == 0 { edges[3] = Some((drop(p00, i, j), drop(p10, i + 1, j))); }
+                        for ((a, a2), (b, b2)) in edges.into_iter().flatten() {
+                            if a2.culled() || b2.culled() {
+                                continue;
+                            }
+                            fill_tri(fb, a, b, b2, crate::palette::ROCK_D);
+                            fill_tri(fb, a, b2, a2, crate::palette::ROCK_D);
+                        }
+                    }
+                }
                 // Shore lip: the smooth water edge spills onto this bank cell,
                 // drawn in the same far-to-near order so nearer ground covers it.
                 if let Some(field) = water {
@@ -1054,6 +1082,9 @@ fn shore_height(z: &Zone, i: i32, j: i32) -> f32 {
 /// Biggest surface step (m) that still counts as one sheet of water when
 /// vertices are shared; anything taller is a fall and keeps its own level.
 const SHEET_STEP: f32 = 0.6;
+
+/// Depth of the rock skirt hung off the zone border (m).
+const EDGE_SKIRT_M: f32 = 30.0;
 
 /// Open water for shore shaping. (Deep water and fall faces both carry
 /// F_BLOCKED, so the flag cannot tell them apart; levels are clustered by
