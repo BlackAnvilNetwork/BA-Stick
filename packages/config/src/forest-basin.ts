@@ -25,6 +25,7 @@ import {
   FB_WARP_SITES,
   fbBridgeAt,
   fbDesignWater,
+  fbOnFallFace,
   fbBridgeDeckY,
   fbBridgeT,
   fbTrailDist,
@@ -175,6 +176,7 @@ export function forestBasinWalkable(x: number, z: number): boolean {
   for (const g of FB_GATES) {
     if (g.blocked && inRect(x, z, g)) return false;
   }
+  if (fbOnFallFace(x, z)) return false;
   if (forestBasinOnBridge(x, z)) return true;
   const w = fbDesignWater(x, z);
   if (w) return w.depth <= FB_WADE_DEPTH;
@@ -201,11 +203,15 @@ export type ForestBasinBiome = "grass" | "meadow" | "mountain" | "river" | "rive
 
 export function forestBasinBiome(x: number, z: number): ForestBasinBiome {
   if (forestBasinOnBridge(x, z)) return "bridge";
+  if (fbOnFallFace(x, z)) return "river";
   if (fbDesignWater(x, z)) return "river";
   if (!inPad(x, z)) return "mountain";
   const f = cellFlags(x, z) & 3;
   if (f === 3) return "mountain";
-  for (const [dx, dz] of [[2, 0], [-2, 0], [0, 2], [0, -2]] as const) {
+  for (const [dx, dz] of [
+    [3, 0], [-3, 0], [0, 3], [0, -3],
+    [2.2, 2.2], [2.2, -2.2], [-2.2, 2.2], [-2.2, -2.2],
+  ] as const) {
     if (fbDesignWater(x + dx, z + dz)) return "riverbank";
   }
   if (f === 2) return "meadow";

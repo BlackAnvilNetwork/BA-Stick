@@ -481,7 +481,7 @@ export const FB_PLACES: readonly FbPlace[] = [
     x: -72,
     z: -72,
     kind: "cult",
-    story: "Cultists of the Seven keep a makers' stele here and whitewash it every dawn. Brother Scour leads the Whitening; Lime-Hand and Sister Pumice carry the buckets. Under the lime the stele still lists the seven houses.",
+    story: "Cultists of the Seven keep a makers' stele here and whitewash it every dawn. Brother Whitewash leads the work; Brother Lime, Sister Chalk and Sister Pumice carry the buckets. Under the lime the stele still lists the seven houses.",
   },
   {
     id: "stacked-pass",
@@ -538,11 +538,108 @@ function segProject(px: number, pz: number, ax: number, az: number, bx: number, 
 export function fbWobble(x: number, z: number, amp = 1): number {
   return (
     amp *
-    (0.55 * Math.sin(x * 0.21 + z * 0.13) + 0.3 * Math.sin(x * 0.07 - z * 0.29 + 1.7) + 0.15 * Math.sin(x * 0.53 + z * 0.41))
+    (0.65 * Math.sin(x * 0.21 + z * 0.13) + 0.35 * Math.sin(x * 0.07 - z * 0.29 + 1.7))
   );
 }
 
 export type RiverHit = { river: FbRiver; surface: number; halfWidth: number; centreDepth: number; dist: number };
+
+/** A pour: lip and pool in world metres. Not ground water — a sheet over the scarp. */
+export type FbFallSpan = {
+  lipX: number;
+  lipZ: number;
+  lipY: number;
+  lipW: number;
+  poolX: number;
+  poolZ: number;
+  poolY: number;
+  poolW: number;
+};
+
+/** Grade (rise / run) and drop that count as a fall, not a sloped water ramp. */
+const FALL_GRADE = 0.55;
+const FALL_DROP = 1.2;
+
+export function fbSegIsFall(a: RiverPoint, b: RiverPoint): boolean {
+  const run = Math.hypot(b.x - a.x, b.z - a.z);
+  const drop = Math.abs(b.y - a.y);
+  return drop >= FALL_DROP && drop / Math.max(run, 0.01) >= FALL_GRADE;
+}
+
+/** Merged steep spans. Lip is the higher end. */
+export function fbFallSpans(): FbFallSpan[] {
+  const out: FbFallSpan[] = [];
+  for (const r of FB_RIVERS) {
+    const p = r.points;
+    let i = 0;
+    while (i < p.length - 1) {
+      if (!fbSegIsFall(p[i]!, p[i + 1]!)) {
+        i++;
+        continue;
+      }
+      const start = i;
+      while (i < p.length - 1 && fbSegIsFall(p[i]!, p[i + 1]!)) i++;
+      const a = p[start]!;
+      const b = p[i]!;
+      const lip = a.y >= b.y ? a : b;
+      const pool = a.y >= b.y ? b : a;
+      out.push({
+        lipX: lip.x,
+        lipZ: lip.z,
+        lipY: lip.y,
+        lipW: lip.w,
+        poolX: pool.x,
+        poolZ: pool.z,
+        poolY: pool.y,
+        poolW: pool.w,
+      });
+    }
+  }
+  return out;
+}
+
+/** Interior of a fall corridor (not the lip or pool). */
+export function fbOnFallFace(x: number, z: number): FbFallSpan | null {
+  for (const f of fbFallSpans()) {
+    const { t, d } = segProject(x, z, f.lipX, f.lipZ, f.poolX, f.poolZ);
+    const w = f.lipW + (f.poolW - f.lipW) * t + fbWobble(x, z, 0.4) + 1.2;
+    if (d <= w && t > 0.02 && t < 0.98) return f;
+  }
+  return null;
+}
+
+/** Water-surface Y on a fall face. Stay at the lip so iso does not drop the
+ *  corridor toward the camera; the sheet carries the drop. Unwalkable. */
+export function fbFallSurfaceY(x: number, z: number): number | null {
+  const f = fbOnFallFace(x, z);
+  return f ? f.lipY : null;
+}
+
+/** Down-channel unit tangent and grade at a river cell, or null on still water. */
+export function fbRiverFlowAt(x: number, z: number): { dx: number; dz: number; grade: number } | null {
+  const hit = fbRiverAt(x, z);
+  if (!hit) return null;
+  const p = hit.river.points;
+  let best = { dx: 0, dz: 1, grade: 0, d: Infinity };
+  for (let i = 0; i < p.length - 1; i++) {
+    const a = p[i]!;
+    const b = p[i + 1]!;
+    if (fbSegIsFall(a, b)) continue;
+    const { t, d } = segProject(x, z, a.x, a.z, b.x, b.z);
+    const w = a.w + (b.w - a.w) * t + fbWobble(x, z, 0.6);
+    if (d > w + 1.2 || d >= best.d) continue;
+    let dx = b.x - a.x;
+    let dz = b.z - a.z;
+    const run = Math.hypot(dx, dz) || 1;
+    if (b.y > a.y) {
+      dx = -dx;
+      dz = -dz;
+    }
+    best = { dx: dx / run, dz: dz / run, grade: Math.abs(b.y - a.y) / run, d };
+  }
+  if (best.d === Infinity) return null;
+  return { dx: best.dx, dz: best.dz, grade: best.grade };
+}
 
 /** Nearest river reach containing (x,z), with interpolated surface/width/depth. */
 export function fbRiverAt(x: number, z: number): RiverHit | null {
@@ -552,6 +649,7 @@ export function fbRiverAt(x: number, z: number): RiverHit | null {
     for (let i = 0; i < p.length - 1; i++) {
       const a = p[i]!;
       const b = p[i + 1]!;
+      if (fbSegIsFall(a, b)) continue;
       const { t, d } = segProject(x, z, a.x, a.z, b.x, b.z);
       const w = a.w + (b.w - a.w) * t + fbWobble(x, z, 0.6);
       if (d > w) continue;
@@ -584,7 +682,7 @@ function distToPoly(x: number, z: number, poly: readonly { x: number; z: number 
 export function fbLakeSigned(x: number, z: number): number {
   const d = distToPoly(x, z, FB_STILLMERE.outline);
   const inside = pointInPoly(x, z, FB_STILLMERE.outline);
-  return (inside ? d : -d) + fbWobble(x * 1.3, z * 1.3, 1.4);
+  return (inside ? d : -d) + fbWobble(x * 1.3, z * 1.3, 0.7);
 }
 
 export function fbLakeInset(x: number, z: number): number | null {
@@ -592,8 +690,44 @@ export function fbLakeInset(x: number, z: number): number | null {
   return inset > 0 ? inset : null;
 }
 
+/** Packed river spines + fall spans for the renderer (`WFL1`). */
+export function encodeFbWaterLayout(): Uint8Array {
+  const segs: number[] = [];
+  for (const r of FB_RIVERS) {
+    const p = r.points;
+    for (let i = 0; i < p.length - 1; i++) {
+      const a = p[i]!;
+      const b = p[i + 1]!;
+      if (fbSegIsFall(a, b)) continue;
+      segs.push(a.x, a.z, a.y, b.x, b.z, b.y);
+    }
+  }
+  const falls = fbFallSpans();
+  const buf = new Uint8Array(8 + segs.length * 4 + falls.length * 32);
+  const v = new DataView(buf.buffer);
+  buf[0] = 0x57; // W
+  buf[1] = 0x46; // F
+  buf[2] = 0x4c; // L
+  buf[3] = 0x31; // 1
+  v.setUint16(4, segs.length / 6, true);
+  v.setUint16(6, falls.length, true);
+  let o = 8;
+  for (const n of segs) {
+    v.setFloat32(o, n, true);
+    o += 4;
+  }
+  for (const f of falls) {
+    for (const n of [f.lipX, f.lipZ, f.lipY, f.lipW, f.poolX, f.poolZ, f.poolY, f.poolW]) {
+      v.setFloat32(o, n, true);
+      o += 4;
+    }
+  }
+  return buf;
+}
+
 /** Water depth below the surface at (x,z) by design (0 = dry). */
 export function fbDesignWater(x: number, z: number): { surface: number; depth: number; tier: WaterTier } | null {
+  if (fbOnFallFace(x, z)) return null;
   const inset = fbLakeInset(x, z);
   if (inset != null) {
     if (fbIslandAt(x, z)) return null;

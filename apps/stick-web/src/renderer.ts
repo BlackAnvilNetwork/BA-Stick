@@ -90,6 +90,7 @@ export function bakedZoneFor(zoneId: string | undefined): string | null {
 export async function placeAllZones(r: {
   placeZone(bytes: Uint8Array, ox: number, oz: number): void;
   placeProps(bytes: Uint8Array, ox: number, oz: number): number;
+  setWaterLayout?(bytes: Uint8Array, ox: number, oz: number): void;
 }): Promise<void> {
   const jobs = new Map(WORLD_ZONE_IDS.map((id) => [id, Promise.all([fetchZone(id), fetchProps(id)] as const)]));
   const place = async (id: string) => {
@@ -98,6 +99,14 @@ export async function placeAllZones(r: {
       const o = zoneOrigin(id);
       r.placeZone(baz, o.x, o.z);
       if (bap) r.placeProps(bap, o.x, o.z);
+      if (id === "forest_basin" && r.setWaterLayout) {
+        try {
+          const res = await fetch(`${import.meta.env.BASE_URL}zones/forest_basin.wfl`);
+          if (res.ok) r.setWaterLayout(new Uint8Array(await res.arrayBuffer()), o.x, o.z);
+        } catch (err) {
+          console.warn("forest basin water layout stayed offline", err);
+        }
+      }
     } catch (err) {
       console.warn(`zone ${id} stayed offline`, err);
     }

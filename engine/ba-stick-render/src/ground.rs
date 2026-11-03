@@ -398,18 +398,11 @@ pub(crate) fn cell_hash(i: i32, j: i32) -> u32 {
     h ^ (h >> 12)
 }
 
-fn cell_color(z: &Zone, i: i32, j: i32, time: f32, shade: u8) -> u8 {
+fn cell_color(z: &Zone, i: i32, j: i32, _time: f32, shade: u8) -> u8 {
     let k = z.idx(i, j);
     let f = z.flags[k];
     if f & F_WATER != 0 {
-        // W1: calm channel — deep center, lighter ripples; no harsh checker.
-        let ph = swell_phase(i, j);
-        let swell = ((i + j) as f32 * (std::f32::consts::TAU / 8.0) + ph - time * 0.85).sin();
-        let shore = land(z, i - 1, j) || land(z, i + 1, j) || land(z, i, j - 1) || land(z, i, j + 1);
-        if shore {
-            return if swell > 0.35 { WATER_BODY } else { WATER_DEEP };
-        }
-        return if swell > 0.12 { WATER_BODY } else { WATER_DEEP };
+        return WATER_BODY;
     }
     if f & F_BRIDGE != 0 {
         return TRAIL_STONE + shade;
@@ -529,9 +522,45 @@ fn value_noise(x: f32, z: f32) -> f32 {
         + v11 * fx * fz
 }
 
-/// 0..6 along the meadow ramp. A broad octave sets the patch, a finer one
-/// drifts it, and a slow pocket pulls the top of the ramp into blue-green.
-#[inline(always)]
+fn wet_world(zone: &Zone, x: f32, z: f32) -> bool {
+    let i = ((x - zone.min_x) / zone.cell).floor() as i32;
+    let j = ((z - zone.min_z) / zone.cell).floor() as i32;
+    wet(zone, i, j)
+}
+
+fn grass_cell(zone: &Zone, i: i32, j: i32) -> bool {
+    if i < 0 || j < 0 || i >= zone.w as i32 || j >= zone.h as i32 {
+        return false;
+    }
+    let k = zone.idx(i, j);
+    if !GREEN_GROUND.contains(&zone.biome[k]) {
+        return false;
+    }
+    if zone.flags[k] & (F_WATER | F_BRIDGE | F_TRAIL) != 0 {
+        return false;
+    }
+    if grass_steep(zone, i, j) {
+        return false;
+    }
+    for (di, dj) in DIRS_8 {
+        if wet(zone, i + di, j + dj) {
+            return false;
+        }
+    }
+    true
+}
+
+const DIRS_8: [(i32, i32); 8] = [
+    (-1, 0),
+    (1, 0),
+    (0, -1),
+    (0, 1),
+    (-1, -1),
+    (1, -1),
+    (-1, 1),
+    (1, 1),
+];
+
 /// True where the ground is a cut face or cliff (rise over a cell beside it > 0.9 per m).
 fn grass_steep(zone: &Zone, i: i32, j: i32) -> bool {
     let h = |a: i32, b: i32| zone.height[zone.idx(a.clamp(0, zone.w as i32 - 1), b.clamp(0, zone.h as i32 - 1))];
@@ -540,6 +569,9 @@ fn grass_steep(zone: &Zone, i: i32, j: i32) -> bool {
     m > 0.9 * zone.cell
 }
 
+/// 0..6 along the meadow ramp. A broad octave sets the patch, a finer one
+/// drifts it, and a slow pocket pulls the top of the ramp into blue-green.
+#[inline(always)]
 fn grass_field(i: i32, j: i32) -> f32 {
     let x = i as f32 / 12.0;
     let z = j as f32 / 12.0;
@@ -573,7 +605,7 @@ pub fn draw_forge_ambient(
     zone: &Zone,
     cam_y: f32,
     time: f32,
-    lights: &mut Vec<crate::atmosphere::Light>,
+    lights: &mut Vec<crate::lighting::ScreenLight>,
 ) {
     let Some((i0, j0, i1, j1)) = view_cells(fb, cam, zone) else {
         return;
@@ -611,7 +643,7 @@ pub fn draw_forge_ambient(
             fb.plot(p.x as i32, p.y as i32, p.d - 0.35, col);
             if biome == FORGE_LAVA && (h & 31) == 0 && life < 0.2 {
                 let flick = 1.0 + 0.08 * (time * 9.0 + x).sin();
-                lights.push(crate::atmosphere::Light {
+                lights.push(crate::lighting::ScreenLight {
                     x: p.x,
                     y: p.y,
                     r: 120.0 * flick,
@@ -649,16 +681,8 @@ pub fn draw_meadow_grass(
     for j in j0..=j1 {
         for i in i0..=i1 {
             let k = zone.idx(i, j);
-            let biome = zone.biome[k];
-            if !GREEN_GROUND.contains(&biome) {
+            if !grass_cell(zone, i, j) {
                 continue;
-            }
-            let f = zone.flags[k];
-            if f & (F_WATER | F_BRIDGE | F_TRAIL) != 0 {
-                continue;
-            }
-            if grass_steep(zone, i, j) {
-                continue; // cut faces and cliffs stay bare rock
             }
             let h = cell_hash(i, j);
             let x = zone.min_x + i as f32 * cell;
@@ -673,6 +697,9 @@ pub fn draw_meadow_grass(
                 let lean = ((hb >> 16) & 255) as f32 / 255.0 - 0.5;
                 let ox = (u - 0.15) * cell;
                 let oz = (v - 0.15) * cell;
+                if wet_world(zone, x + ox, z + oz) {
+                    continue;
+                }
                 let ht = 0.14 + 0.2 * (((hb >> 4) & 255) as f32 / 255.0);
                 let shiver = (time * 2.4 + x * 1.7 + b as f32).sin() * 0.012 * breeze;
                 let sway = shiver + gust * wave * (0.07 + 0.05 * (hb & 1) as f32);
@@ -725,10 +752,7 @@ pub fn draw_meadow_grass_view(
     for j in j0..=j1 {
         for i in i0..=i1 {
             let k = zone.idx(i, j);
-            if !GREEN_GROUND.contains(&zone.biome[k]) {
-                continue;
-            }
-            if zone.flags[k] & (F_WATER | F_BRIDGE | F_TRAIL) != 0 {
+            if !grass_cell(zone, i, j) {
                 continue;
             }
             let x = zone.min_x + i as f32 * cell;
@@ -771,6 +795,9 @@ pub fn draw_meadow_grass_view(
                 let lean = ((hb >> 16) & 255) as f32 / 255.0 - 0.5;
                 let ox = (u - 0.15) * cell;
                 let oz = (vv - 0.15) * cell;
+                if wet_world(zone, x + ox, z + oz) {
+                    continue;
+                }
                 let ht = 0.14 + 0.2 * (((hb >> 4) & 255) as f32 / 255.0);
                 let shiver = (time * 2.4 + x * 1.7 + b as f32).sin() * 0.012 * breeze;
                 let sway = shiver + gust * wave * (0.07 + 0.05 * (hb & 1) as f32);
@@ -794,13 +821,30 @@ const GRASS_HALF_M: f32 = 16.0;
 
 /// Draw the zone. `cam_y` is subtracted from all heights so the camera's
 /// reference height sits at the screen centre line.
-pub fn draw_zone(fb: &mut Framebuffer, cam: &Camera, zone: &Zone, cam_y: f32, time: f32) {
-    draw_zone_in(fb, cam, zone, cam_y, time, true);
+pub fn draw_zone(
+    fb: &mut Framebuffer,
+    cam: &Camera,
+    zone: &Zone,
+    cam_y: f32,
+    time: f32,
+    water: Option<&crate::pixel_water::WaterField>,
+    ripples: &[crate::pixel_water::Ripple],
+) {
+    draw_zone_in(fb, cam, zone, cam_y, time, true, water, ripples);
 }
 
 /// `clear` fills the framebuffer with sky first. Concurrent zones pass false
 /// so a later zone does not erase one already drawn.
-pub(crate) fn draw_zone_in(fb: &mut Framebuffer, cam: &Camera, zone: &Zone, cam_y: f32, time: f32, clear: bool) {
+pub(crate) fn draw_zone_in(
+    fb: &mut Framebuffer,
+    cam: &Camera,
+    zone: &Zone,
+    cam_y: f32,
+    time: f32,
+    clear: bool,
+    water: Option<&crate::pixel_water::WaterField>,
+    ripples: &[crate::pixel_water::Ripple],
+) {
     if clear {
         fb.color.fill(crate::atmosphere::SKY);
     }
@@ -815,8 +859,11 @@ pub(crate) fn draw_zone_in(fb: &mut Framebuffer, cam: &Camera, zone: &Zone, cam_
     let o = cam.project(v3(zone.min_x, -cam_y, zone.min_z));
     let org = (o.x.round() as i32, o.y.round() as i32);
     let pt = |i: i32, j: i32| {
-        let h = zone.height[zone.idx(i, j)] - cam_y;
-        cam.project(v3(zone.min_x + i as f32 * c, h, zone.min_z + j as f32 * c))
+        cam.project(v3(
+            zone.min_x + i as f32 * c,
+            shore_height(zone, i, j) - cam_y,
+            zone.min_z + j as f32 * c,
+        ))
     };
     // One slope_shade per visible block, cached for this frame (cells plus a
     // one-cell rim for neighbour lookups).
@@ -837,7 +884,12 @@ pub(crate) fn draw_zone_in(fb: &mut Framebuffer, cam: &Camera, zone: &Zone, cam_
         // straddle the near plane; clip it instead of dropping it (a hole).
         (@straddle iso, $i:ident, $j:ident) => {};
         (@straddle view, $i:ident, $j:ident) => {{
-            let wp = |i: i32, j: i32| v3(zone.min_x + i as f32 * c, zone.height[zone.idx(i, j)] - cam_y, zone.min_z + j as f32 * c);
+            let yw = zone.height[zone.idx($i, $j)] - cam_y;
+            let water = zone.flags[zone.idx($i, $j)] & (F_WATER | F_BRIDGE) == F_WATER;
+            let wp = |i: i32, j: i32| {
+                let y = if water { yw } else { shore_height(zone, i, j) - cam_y };
+                v3(zone.min_x + i as f32 * c, y, zone.min_z + j as f32 * c)
+            };
             let col = cell_color(zone, $i, $j, time, sh($i, $j));
             fill_quad_near_clipped(fb, cam, [wp($i, $j), wp($i + 1, $j), wp($i + 1, $j + 1), wp($i, $j + 1)], col);
         }};
@@ -857,26 +909,33 @@ pub(crate) fn draw_zone_in(fb: &mut Framebuffer, cam: &Camera, zone: &Zone, cam_
         }};
         ($i:expr, $j:expr, $view:tt) => {{
             let (i, j) = ($i, $j);
-                let (p00, p10, p01, p11) = (pt(i, j), pt(i + 1, j), pt(i, j + 1), pt(i + 1, j + 1));
+                let (p00, p10, p01, p11) = if zone.flags[zone.idx(i, j)] & (F_WATER | F_BRIDGE) == F_WATER {
+                    let yw = zone.height[zone.idx(i, j)] - cam_y;
+                    let pw = |ii: i32, jj: i32| {
+                        cam.project(v3(zone.min_x + ii as f32 * c, yw, zone.min_z + jj as f32 * c))
+                    };
+                    (pw(i, j), pw(i + 1, j), pw(i, j + 1), pw(i + 1, j + 1))
+                } else {
+                    (pt(i, j), pt(i + 1, j), pt(i, j + 1), pt(i + 1, j + 1))
+                };
                 if p00.culled() || p10.culled() || p01.culled() || p11.culled() {
                     draw_cell!(@straddle $view, i, j);
                     continue;
                 }
                 draw_cell!(@onscreen $view, p00, p10, p01, p11);
-                let col = cell_color(zone, i, j, time, sh(i, j));
-                // W2/W3: water next to land. Banks on the SE (downstream of the NW
-                // sun) get a dithered foam line; banks on the NW side shade the water.
                 if zone.flags[zone.idx(i, j)] & (F_WATER | F_BRIDGE) == F_WATER {
-                    let side = |di: i32, dj: i32, c: u8| land(zone, i + di, j + dj).then_some(c);
-                    let nb = [side(-1, 0, WATER_DEEP), side(1, 0, WATER_FOAM), side(0, -1, WATER_DEEP), side(0, 1, WATER_FOAM)];
-                    if nb.iter().any(|x| x.is_some()) {
-                        // Foam flickers by shifting the dither origin twice a second.
-                        let o2 = (org.0 + ((time * 2.0) as i32 & 1) * 2, org.1);
-                        fill_tri_edge(fb, p00, p10, p11, (0.0, 0.0), (1.0, 0.0), (1.0, 1.0), col, nb, o2, SHORE_BAND);
-                        fill_tri_edge(fb, p00, p11, p01, (0.0, 0.0), (1.0, 1.0), (0.0, 1.0), col, nb, o2, SHORE_BAND);
+                    paint_water_cell(fb, zone, i, j, time, p00, p10, p01, p11, water, ripples);
+                    continue;
+                }
+                {
+                    let cx = zone.min_x + (i as f32 + 0.5) * c;
+                    let cz = zone.min_z + (j as f32 + 0.5) * c;
+                    if let Some(flow) = water.and_then(|f| f.fall_flow_at(cx, cz)) {
+                        paint_fall_cell(fb, zone, i, j, time, p00, p10, p01, p11, water, ripples, flow);
                         continue;
                     }
                 }
+                let col = cell_color(zone, i, j, time, sh(i, j));
                 // B1: dither toward differing neighbour biomes (same shade step).
                 if let Some(b) = plain_biome(zone, i, j) {
                     let shade = col - (BIOME0 + b * 3);
@@ -969,6 +1028,311 @@ pub(crate) fn draw_zone_in(fb: &mut Framebuffer, cam: &Camera, zone: &Zone, cam_
             }
         }
     }
+    if let Some(field) = water {
+        paint_wet_lips(fb, cam, zone, cam_y, time, field, ripples, i0, j0, i1, j1);
+    }
+}
+
+fn paint_wet_lips(
+    fb: &mut Framebuffer,
+    cam: &Camera,
+    zone: &Zone,
+    cam_y: f32,
+    time: f32,
+    field: &crate::pixel_water::WaterField,
+    ripples: &[crate::pixel_water::Ripple],
+    i0: i32,
+    j0: i32,
+    i1: i32,
+    j1: i32,
+) {
+    let c = zone.cell;
+    let pt = |i: i32, j: i32| {
+        cam.project(v3(
+            zone.min_x + i as f32 * c,
+            shore_height(zone, i, j) - cam_y,
+            zone.min_z + j as f32 * c,
+        ))
+    };
+    for j in j0..=j1 {
+        for i in i0..=i1 {
+            if wet(zone, i, j) {
+                continue;
+            }
+            if !DIRS_8.into_iter().any(|(di, dj)| wet(zone, i + di, j + dj)) {
+                continue;
+            }
+            let (p00, p10, p01, p11) = (pt(i, j), pt(i + 1, j), pt(i, j + 1), pt(i + 1, j + 1));
+            if p00.culled() || p10.culled() || p01.culled() || p11.culled() {
+                continue;
+            }
+            let ox = zone.min_x + i as f32 * c;
+            let oz = zone.min_z + j as f32 * c;
+            let land = cell_color(zone, i, j, 0.0, slope_shade(zone, i, j));
+            crate::pixel_water::fill_wet_lip(
+                fb, p00, p10, p11, (0.0, 0.0), (1.0, 0.0), (1.0, 1.0), ox, oz, c, time, field, ripples, land,
+            );
+            crate::pixel_water::fill_wet_lip(
+                fb, p00, p11, p01, (0.0, 0.0), (1.0, 1.0), (0.0, 1.0), ox, oz, c, time, field, ripples, land,
+            );
+        }
+    }
+}
+
+/// Open water (not a bridge deck). Out of bounds is dry.
+#[inline]
+fn wet(z: &Zone, i: i32, j: i32) -> bool {
+    if i < 0 || j < 0 || i >= z.w as i32 || j >= z.h as i32 {
+        return false;
+    }
+    z.flags[z.idx(i, j)] & (F_WATER | F_BRIDGE) == F_WATER
+}
+
+/// Land next to water stays a low bank. A high vertex beside a water-height
+/// corner is an iso pyramid; only a real hinterland cliff keeps its rise.
+fn shore_height(z: &Zone, i: i32, j: i32) -> f32 {
+    let i = i.clamp(0, z.w as i32 - 1);
+    let j = j.clamp(0, z.h as i32 - 1);
+    let y = z.height[z.idx(i, j)];
+    if wet(z, i, j) {
+        return y;
+    }
+    let mut wy = 0.0;
+    let mut n = 0u32;
+    let mut hinterland = 0u32;
+    for r in 1..=2i32 {
+        for (di, dj) in DIRS_8 {
+            let (ni, nj) = (i + di * r, j + dj * r);
+            if wet(z, ni, nj) {
+                wy += z.height[z.idx(ni, nj)];
+                n += 1;
+                continue;
+            }
+            if r != 1 || ni < 0 || nj < 0 || ni >= z.w as i32 || nj >= z.h as i32 {
+                continue;
+            }
+            let near = DIRS_8.iter().any(|&(ei, ej)| wet(z, ni + ei, nj + ej));
+            if !near && z.height[z.idx(ni, nj)] > y - 0.35 {
+                hinterland += 1;
+            }
+        }
+    }
+    if n == 0 {
+        return y;
+    }
+    wy /= n as f32;
+    if y - wy > 1.8 && hinterland >= 2 {
+        return y;
+    }
+    y.min(wy + 0.4)
+}
+
+const FLOW_DIRS: [(i32, i32); 8] = [
+    (-1, 0),
+    (1, 0),
+    (0, -1),
+    (0, 1),
+    (-1, -1),
+    (1, -1),
+    (-1, 1),
+    (1, 1),
+];
+
+/// Downhill on water, then a wider search so flat pools still drain toward
+/// an outlet and a lip can see the water below a drop.
+fn water_drive(zone: &Zone, i: i32, j: i32) -> Option<(f32, f32, f32, Option<(f32, f32, f32)>)> {
+    if !wet(zone, i, j) {
+        return None;
+    }
+    let h0 = zone.height[zone.idx(i, j)];
+    let mut best = (0.0f32, 0.0f32, 0.0f32);
+    for (di, dj) in FLOW_DIRS {
+        let (ni, nj) = (i + di, j + dj);
+        if !wet(zone, ni, nj) {
+            continue;
+        }
+        let drop = h0 - zone.height[zone.idx(ni, nj)];
+        if drop > best.2 {
+            best = (di as f32, dj as f32, drop);
+        }
+    }
+    let mut pour = None;
+    let mut far = (0.0f32, 0.0f32, 0.0f32);
+    if best.2 < 0.008 {
+        for r in 2..=14 {
+            for (di, dj) in FLOW_DIRS {
+                let (ni, nj) = (i + di * r, j + dj * r);
+                if !wet(zone, ni, nj) {
+                    continue;
+                }
+                let drop = h0 - zone.height[zone.idx(ni, nj)];
+                if drop > far.2 {
+                    far = (di as f32, dj as f32, drop);
+                    if drop > 1.2 {
+                        let c = zone.cell;
+                        pour = Some((
+                            zone.min_x + (ni as f32 + 0.5) * c,
+                            zone.min_z + (nj as f32 + 0.5) * c,
+                            zone.height[zone.idx(ni, nj)],
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    let (mut fx, mut fz, drop) = if best.2 >= 0.002 {
+        best
+    } else if far.2 >= 0.01 || pour.is_some() {
+        far
+    } else {
+        return None;
+    };
+    // Stay in the channel: ease away from banks.
+    let mut bx = 0.0;
+    let mut bz = 0.0;
+    for (di, dj) in [(-1, 0), (1, 0), (0, -1), (0, 1)] {
+        if !wet(zone, i + di, j + dj) {
+            bx -= di as f32;
+            bz -= dj as f32;
+        }
+    }
+    fx += bx * 0.35;
+    fz += bz * 0.35;
+    let len = (fx * fx + fz * fz).sqrt();
+    if len < 1e-4 {
+        return None;
+    }
+    Some((fx / len, fz / len, drop, pour))
+}
+
+/// True when much higher water sits nearby — the plunge of a fall.
+fn incoming_fall(zone: &Zone, i: i32, j: i32) -> bool {
+    if !wet(zone, i, j) {
+        return false;
+    }
+    let h0 = zone.height[zone.idx(i, j)];
+    for r in 2..=12 {
+        for (di, dj) in FLOW_DIRS {
+            let (ni, nj) = (i + di * r, j + dj * r);
+            if wet(zone, ni, nj) && zone.height[zone.idx(ni, nj)] - h0 > 1.2 {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+fn paint_fall_cell(
+    fb: &mut Framebuffer,
+    zone: &Zone,
+    i: i32,
+    j: i32,
+    time: f32,
+    p00: P2,
+    p10: P2,
+    p01: P2,
+    p11: P2,
+    field: Option<&crate::pixel_water::WaterField>,
+    ripples: &[crate::pixel_water::Ripple],
+    flow: [f32; 2],
+) {
+    let c = zone.cell;
+    let ox = zone.min_x + i as f32 * c;
+    let oz = zone.min_z + j as f32 * c;
+    let p = crate::pixel_water::Mode::Rush.params_iso();
+    crate::pixel_water::fill_tri_xz(
+        fb, p00, p10, p11, (ox, oz), (ox + c, oz), (ox + c, oz + c), time, p, field, ripples, true, flow,
+    );
+    crate::pixel_water::fill_tri_xz(
+        fb, p00, p11, p01, (ox, oz), (ox + c, oz + c), (ox, oz + c), time, p, field, ripples, true, flow,
+    );
+}
+
+fn paint_water_cell(
+    fb: &mut Framebuffer,
+    zone: &Zone,
+    i: i32,
+    j: i32,
+    time: f32,
+    p00: P2,
+    p10: P2,
+    p01: P2,
+    p11: P2,
+    field: Option<&crate::pixel_water::WaterField>,
+    ripples: &[crate::pixel_water::Ripple],
+) {
+    let c = zone.cell;
+    let ox = zone.min_x + i as f32 * c;
+    let oz = zone.min_z + j as f32 * c;
+    let p = if let Some(f) = field {
+        let on_fall = f.fall_flow_at(ox + c * 0.5, oz + c * 0.5).is_some();
+        let s = f.sample(ox + c * 0.5, oz + c * 0.5);
+        let fl = (s.flow[0] * s.flow[0] + s.flow[1] * s.flow[1]).sqrt();
+        crate::pixel_water::mode_from_flow(fl, on_fall).params_iso()
+    } else {
+        let (drop, pour) = match water_drive(zone, i, j) {
+            Some((_, _, drop, p)) => (drop, p.is_some()),
+            None => (0.0, false),
+        };
+        crate::pixel_water::mode_from_grade(drop, pour, incoming_fall(zone, i, j)).params_iso()
+    };
+    let land = shore_land(zone, i, j);
+    crate::pixel_water::fill_tri(
+        fb, p00, p10, p11, (0.0, 0.0), (1.0, 0.0), (1.0, 1.0), ox, oz, c, time, p, field, ripples, land,
+    );
+    crate::pixel_water::fill_tri(
+        fb, p00, p11, p01, (0.0, 0.0), (1.0, 1.0), (0.0, 1.0), ox, oz, c, time, p, field, ripples, land,
+    );
+}
+
+fn shore_land(zone: &Zone, i: i32, j: i32) -> u8 {
+    for (di, dj) in [(0, -1), (0, 1), (-1, 0), (1, 0)] {
+        let (ni, nj) = (i + di, j + dj);
+        if !wet(zone, ni, nj) && ni >= 0 && nj >= 0 && ni < zone.w as i32 - 1 && nj < zone.h as i32 - 1 {
+            return cell_color(zone, ni, nj, 0.0, slope_shade(zone, ni, nj));
+        }
+    }
+    BIOME0 + 4 * 3 + 1
+}
+
+/// Air-gap sheets: same pixel-water shade as the river, rushing downhill.
+/// Drawn after meadow grass so the drop is not painted over by blades.
+pub(crate) fn draw_fall_sheets(
+    fb: &mut Framebuffer,
+    cam: &Camera,
+    cam_y: f32,
+    time: f32,
+    field: &crate::pixel_water::WaterField,
+    _ripples: &[crate::pixel_water::Ripple],
+) {
+    let p = crate::pixel_water::Mode::Buffet.params_iso();
+    let eye = cam.view.and_then(|v| v.eye());
+    for f in &field.falls {
+        let (dx, dz) = (f.pool[0] - f.lip[0], f.pool[1] - f.lip[1]);
+        let len = (dx * dx + dz * dz).sqrt();
+        if len < 0.2 {
+            continue;
+        }
+        let (ux, uz) = (dx / len, dz / len);
+        // The face is only visible when it faces the camera. Iso looks from +x +z.
+        let facing = match eye {
+            Some(e) => (e.x - f.lip[0]) * ux + (e.z - f.lip[1]) * uz > 0.0,
+            None => ux + uz > -0.1,
+        };
+        if !facing {
+            continue;
+        }
+        let (px, pz) = (-uz, ux);
+        let (hw0, hw1) = (f.lip_w, f.pool_w);
+        let a = cam.project(v3(f.lip[0] - px * hw0, f.lip[2] - cam_y, f.lip[1] - pz * hw0));
+        let b = cam.project(v3(f.lip[0] + px * hw0, f.lip[2] - cam_y, f.lip[1] + pz * hw0));
+        let c = cam.project(v3(f.pool[0] + px * hw1, f.pool[2] - cam_y, f.pool[1] + pz * hw1));
+        let d = cam.project(v3(f.pool[0] - px * hw1, f.pool[2] - cam_y, f.pool[1] - pz * hw1));
+        if a.culled() || b.culled() || c.culled() || d.culled() || quad_off_screen(fb, a, b, c, d) {
+            continue;
+        }
+        crate::pixel_water::fill_fall_quad(fb, a, b, c, d, f, time, p);
+    }
 }
 
 /// Cells per side of one far-ground block (2 m at 0.5 m cells).
@@ -1001,7 +1365,7 @@ fn draw_zone_far(fb: &mut Framebuffer, cam: &Camera, zone: &Zone, cam_y: f32, ti
     let fwd = v.fwd();
     let pt = |i: i32, j: i32| {
         let (i, j) = (i.min(last_i), j.min(last_j));
-        let y = zone.height[zone.idx(i, j)] - cam_y;
+        let y = shore_height(zone, i, j) - cam_y;
         cam.project(v3(zone.min_x + i as f32 * c, y, zone.min_z + j as f32 * c))
     };
     sweep_far_to_near((bi0, bj0, bi1, bj1), fwd, |bi, bj| {
