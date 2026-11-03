@@ -1,6 +1,7 @@
 # name x z facing cam [phase]  water review: banks, fords, pools, meanders
 fenstone-pool-iso -90 110 0.3 iso
 fenstone-pool-night -90 110 0.3 iso 0.02
+fenstone-veil-tp -93.5 109 0 tp
 wrights-veil-tp -86 106 2.3 tp
 hartstep-ford-iso -71 98 0.6 iso
 hartstep-ford-night -71 98 0.6 iso 0.02
