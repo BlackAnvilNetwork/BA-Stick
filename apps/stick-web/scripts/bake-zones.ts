@@ -51,6 +51,7 @@ import {
   paleHollowWaterSurfaceY,
   PH_TRAIL_WIDTH,
   ZONE_FIELDS,
+  shoreFillGrid,
 } from "@bellgrave/config";
 
 export const BIOMES = [
@@ -79,6 +80,8 @@ type BakeFns = {
   trailWidth: number;
   /** Fall-face surface Y: water flag + blocked, height follows the drop. */
   fallFace?: (x: number, z: number) => number | null;
+  /** Config already floods juts and thin bars (shared with the server). */
+  sharedShore?: boolean;
 };
 
 export function bakeZoneGrid(spec: BakeFns, cell = 0.5): Buffer {
@@ -167,8 +170,7 @@ export function bakeZoneGrid(spec: BakeFns, cell = 0.5): Buffer {
       buf.writeUInt8(Math.max(0, BIOMES.indexOf(e as (typeof BIOMES)[number])), bio + k);
     }
   }
-  smoothWaterNotches(buf, w, h, bio, flg, hgt);
-  floodThinShores(buf, w, h, bio, flg, hgt, minX, minZ, cell);
+  if (!spec.sharedShore) shoreCleanup(buf, w, h, bio, flg, hgt);
   bankShoreHeights(buf, w, h, bio, flg, hgt);
   return buf;
 }
@@ -178,122 +180,41 @@ const AROUND = [
   [-1, -1], [1, -1], [-1, 1], [1, 1],
 ] as const;
 
-/** Fill one-cell land juts into water so iso shores are not diamond teeth. */
-function smoothWaterNotches(buf: Buffer, w: number, h: number, bio: number, flg: number, hgt: number) {
+/**
+ * Fill one-cell land juts and thin land bars (meander spikes) with water.
+ * Zones whose config owns the cleanup (Forest Basin: `fbShoreFillAt`) skip
+ * this, since their spec water already includes it and the server agrees.
+ * Same rule as the config: the lowest adjacent water level, keep bridges and
+ * real banks. Biome, flags and heights all update together after the pass.
+ */
+function shoreCleanup(buf: Buffer, w: number, h: number, bio: number, flg: number, hgt: number) {
   const river = BIOMES.indexOf("river");
-  const open = (i: number, j: number) => {
-    if (i < 0 || j < 0 || i >= w || j >= h) return false;
-    const f = buf.readUInt8(flg + j * w + i);
-    return (f & 1) !== 0 && (f & 4) === 0;
-  };
-  for (let pass = 0; pass < 4; pass++) {
-    const next = Buffer.from(buf.subarray(flg, flg + w * h));
-    for (let j = 1; j < h - 1; j++) {
-      for (let i = 1; i < w - 1; i++) {
-        const k = j * w + i;
-        const f = buf.readUInt8(flg + k);
-        if ((f & 1) !== 0 || (f & 4) !== 0) continue;
-        let card = 0;
-        let all = 0;
-        let hi = 0;
-        let got = false;
-        let left = false;
-        let right = false;
-        let up = false;
-        let down = false;
-        for (const [di, dj] of AROUND) {
-          if (!open(i + di, j + dj)) continue;
-          all++;
-          const y = buf.readInt16LE(hgt + ((j + dj) * w + (i + di)) * 2);
-          if (di === 0 || dj === 0) {
-            card++;
-            hi = y;
-            got = true;
-            if (di < 0) left = true;
-            if (di > 0) right = true;
-            if (dj < 0) up = true;
-            if (dj > 0) down = true;
-          } else if (!got) {
-            hi = y;
-            got = true;
-          }
-        }
-        const pinch = (left && right) || (up && down);
-        if (!pinch && card < 3 && !(card >= 2 && all >= 4) && all < 5) continue;
-        next.writeUInt8(f | 1, k);
-        buf.writeUInt8(river, bio + k);
-        buf.writeInt16LE(hi, hgt + k * 2);
-      }
-    }
-    next.copy(buf, flg);
+  const NONE = -32768;
+  const surf = new Int16Array(w * h).fill(NONE);
+  const ground = new Int16Array(w * h);
+  const keep = new Uint8Array(w * h);
+  for (let k = 0; k < w * h; k++) {
+    const f = buf.readUInt8(flg + k);
+    const y = buf.readInt16LE(hgt + k * 2);
+    if (f & 4) keep[k] = 1;
+    else if (f & 1) surf[k] = y;
+    else ground[k] = y;
   }
-}
-
-/** Eat thin land bars between water (meander spikes) without chewing islands or shoals. */
-function floodThinShores(
-  buf: Buffer, w: number, h: number, bio: number, flg: number, hgt: number,
-  minX: number, minZ: number, cell: number,
-) {
-  const river = BIOMES.indexOf("river");
-  const open = (i: number, j: number) => {
-    if (i < 0 || j < 0 || i >= w || j >= h) return false;
-    const f = buf.readUInt8(flg + j * w + i);
-    return (f & 1) !== 0 && (f & 4) === 0;
-  };
-  const walk = (i: number, j: number, di: number, dj: number, max: number) => {
-    for (let s = 1; s <= max; s++) {
-      if (open(i + di * s, j + dj * s)) return s;
-    }
-    return max + 1;
-  };
-  const max = 16;
-  for (let pass = 0; pass < 4; pass++) {
-    const next = Buffer.from(buf.subarray(flg, flg + w * h));
-    for (let j = 1; j < h - 1; j++) {
-      for (let i = 1; i < w - 1; i++) {
-        const k = j * w + i;
-        const f = buf.readUInt8(flg + k);
-        if ((f & 1) !== 0 || (f & 4) !== 0) continue;
-        const x = minX + i * cell;
-        const z = minZ + j * cell;
-        if (onProtectedBar(x, z)) continue;
-        const pinch =
-          walk(i, j, -1, 0, max) + walk(i, j, 1, 0, max) <= max ||
-          walk(i, j, 0, -1, max) + walk(i, j, 0, 1, max) <= max ||
-          walk(i, j, -1, -1, max) + walk(i, j, 1, 1, max) <= max ||
-          walk(i, j, -1, 1, max) + walk(i, j, 1, -1, max) <= max;
-        if (!pinch) continue;
-        let hi = 0;
-        for (const [di, dj] of AROUND) {
-          if (open(i + di, j + dj)) {
-            hi = buf.readInt16LE(hgt + ((j + dj) * w + (i + di)) * 2);
-            break;
-          }
-        }
-        next.writeUInt8(f | 1, k);
-        buf.writeUInt8(river, bio + k);
-        buf.writeInt16LE(hi, hgt + k * 2);
-      }
-    }
-    next.copy(buf, flg);
+  const out = shoreFillGrid(w, h, surf, ground, keep);
+  for (let k = 0; k < w * h; k++) {
+    if (surf[k] !== NONE || out[k] === NONE) continue;
+    buf.writeUInt8(buf.readUInt8(flg + k) | 1, flg + k);
+    buf.writeUInt8(river, bio + k);
+    buf.writeInt16LE(out[k]!, hgt + k * 2);
   }
-}
-
-function onProtectedBar(x: number, z: number): boolean {
-  if (Math.hypot(x - 85, z - 30) < 8 || Math.hypot(x - 70, z - 13) < 6) return true;
-  for (const b of [
-    { ax: 64, az: 3, bx: 69, bz: 10, w: 1.6 },
-    { ax: 72, az: 15, bx: 81, bz: 26, w: 1.4 },
-  ] as const) {
-    if (segDist(x, z, { ax: b.ax, az: b.az, bx: b.bx, bz: b.bz, stone: false }) <= b.w + 0.6) {
-      return true;
-    }
-  }
-  return false;
 }
 
 /** Flatten shore spikes. Hinterland cliffs (high land that stays high inland) stay. */
-function bankShoreHeights(buf: Buffer, w: number, h: number, _bio: number, flg: number, hgt: number) {
+function bankShoreHeights(buf: Buffer, w: number, h: number, _bio: number, flg: number, hgtOut: number) {
+  // Read from a snapshot so the result does not depend on scan order.
+  const snap = Buffer.from(buf.subarray(0, hgtOut + w * h * 2));
+  const hgt = hgtOut;
+  const src = snap;
   const open = (i: number, j: number) => {
     if (i < 0 || j < 0 || i >= w || j >= h) return false;
     const f = buf.readUInt8(flg + j * w + i);
@@ -310,7 +231,7 @@ function bankShoreHeights(buf: Buffer, w: number, h: number, _bio: number, flg: 
       let hinterland = 0;
       for (const [di, dj] of AROUND) {
         if (open(i + di, j + dj)) {
-          wy += buf.readInt16LE(hgt + ((j + dj) * w + (i + di)) * 2);
+          wy += src.readInt16LE(hgt + ((j + dj) * w + (i + di)) * 2);
           n++;
           continue;
         }
@@ -318,20 +239,20 @@ function bankShoreHeights(buf: Buffer, w: number, h: number, _bio: number, flg: 
         const nj = j + dj;
         if (ni < 1 || nj < 1 || ni >= w - 1 || nj >= h - 1) continue;
         if ((buf.readUInt8(flg + nj * w + ni) & 4) !== 0) continue;
-        if (!nearWater(ni, nj) && buf.readInt16LE(hgt + (nj * w + ni) * 2) > buf.readInt16LE(hgt + k * 2) - 35) {
+        if (!nearWater(ni, nj) && src.readInt16LE(hgt + (nj * w + ni) * 2) > src.readInt16LE(hgt + k * 2) - 35) {
           hinterland++;
         }
       }
       if (n === 0) {
         for (const [di, dj] of AROUND) {
           if (!open(i + di * 2, j + dj * 2)) continue;
-          wy += buf.readInt16LE(hgt + ((j + dj * 2) * w + (i + di * 2)) * 2);
+          wy += src.readInt16LE(hgt + ((j + dj * 2) * w + (i + di * 2)) * 2);
           n++;
         }
       }
       if (n === 0) continue;
       wy /= n;
-      const ly = buf.readInt16LE(hgt + k * 2);
+      const ly = src.readInt16LE(hgt + k * 2);
       if (ly - wy > 180 && hinterland >= 2) continue;
       if (ly > wy + 40) buf.writeInt16LE(Math.round(wy + 40), hgt + k * 2);
       else if (ly < wy - 40) buf.writeInt16LE(Math.round(wy + 20), hgt + k * 2);
@@ -379,6 +300,7 @@ export function bakeForestBasin(cell = 0.5): Buffer {
     trails: forestBasinTrails(),
     trailWidth: FB_TRAIL_WIDTH,
     fallFace: fbFallSurfaceY,
+    sharedShore: true,
   }, cell);
 }
 

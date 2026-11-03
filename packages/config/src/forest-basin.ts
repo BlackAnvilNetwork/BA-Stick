@@ -14,6 +14,7 @@
  * North is +z.
  */
 
+import { fbShoreFillAt } from "./forest-basin-shore";
 import { zoneLink } from "./zone-links";
 import {
   FB_BRIDGES,
@@ -157,13 +158,18 @@ export function forestBasinRiverX(z: number): number {
   return best.x;
 }
 
+/** Shore cleanup (juts, thin bars) flooded at this point; shared with the bake. */
+function shoreFill(x: number, z: number): number | null {
+  return fbShoreFillAt(x, z, FOREST_BASIN_BOUNDS, forestBasinGroundY);
+}
+
 export function forestBasinOnBridge(x: number, z: number): boolean {
   return fbBridgeAt(x, z) != null;
 }
 
 /** Any water not under a bridge, fords included, so wading water still reads as water. */
 export function forestBasinInOpenWater(x: number, z: number): boolean {
-  return fbDesignWater(x, z) != null && !forestBasinOnBridge(x, z);
+  return (fbDesignWater(x, z) != null || shoreFill(x, z) != null) && !forestBasinOnBridge(x, z);
 }
 
 export function forestBasinBridgeCenter(): { x: number; z: number } {
@@ -180,13 +186,16 @@ export function forestBasinWalkable(x: number, z: number): boolean {
   if (forestBasinOnBridge(x, z)) return true;
   const w = fbDesignWater(x, z);
   if (w) return w.depth <= FB_WADE_DEPTH;
+  // Shore cells the cleanup flooded: wade if the bed is shallow enough.
+  const sf = shoreFill(x, z);
+  if (sf != null) return sf - forestBasinGroundY(x, z) <= FB_WADE_DEPTH;
   const f = cellFlags(x, z);
   if (f & 8) return true;
   return (f & 4) === 0;
 }
 
 export function forestBasinWaterSurfaceY(x: number, z: number): number | null {
-  return fbDesignWater(x, z)?.surface ?? null;
+  return fbDesignWater(x, z)?.surface ?? shoreFill(x, z);
 }
 
 export function forestBasinStandHeight(x: number, z: number): number {

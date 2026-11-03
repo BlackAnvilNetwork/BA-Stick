@@ -612,7 +612,14 @@ export function fbOnFallFace(x: number, z: number): FbFallSpan | null {
  *  corridor toward the camera; the sheet carries the drop. Unwalkable. */
 export function fbFallSurfaceY(x: number, z: number): number | null {
   const f = fbOnFallFace(x, z);
-  return f ? f.lipY : null;
+  if (!f) return null;
+  // The face slopes from lip to pool (a short brink, then the curtain), so
+  // the sheet is drawn as a surface the camera can see, not a shelf held at
+  // lip level that ends in an unseen vertical step.
+  const { t } = segProject(x, z, f.lipX, f.lipZ, f.poolX, f.poolZ);
+  const u = Math.min(1, Math.max(0, t));
+  const k = u * u * (3 - 2 * u);
+  return f.lipY + (f.poolY - f.lipY) * k;
 }
 
 /** Down-channel unit tangent and grade at a river cell, or null on still water. */

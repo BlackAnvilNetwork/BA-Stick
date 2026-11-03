@@ -642,3 +642,4 @@ export * from "./forest-basin-features";
 export * from "./forest-basin-content";
 export * from "./forest-basin-population";
 export * from "./natural-shore";
+export * from "./forest-basin-shore";
