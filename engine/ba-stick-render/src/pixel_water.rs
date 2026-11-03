@@ -266,42 +266,65 @@ impl WaterLayout {
     }
 }
 
+/// Downstream current at (x, z) from the authored river spines.
+///
+/// The baked spine is a coarse polyline whose segments zig-zag (east, then
+/// south-east, then east ...) around the real course. Taking only the nearest
+/// segment's tangent made the current snap 45 degrees in bands across the
+/// channel, so the surface slid sideways over the river. Instead blend every
+/// nearby segment that runs the same way as the nearest one, Gaussian-weighted
+/// by distance, which follows the smoothed course through bends.
 fn spine_flow(layout: &WaterLayout, x: f32, z: f32) -> Option<[f32; 2]> {
-    let mut best_d = 8.0f32;
-    let mut out = None;
+    const REACH: f32 = 16.0;
+    const BLEND: f32 = 16.0;
+    const SIGMA: f32 = 8.0;
+    let mut near: Vec<(f32, [f32; 2], f32)> = Vec::new();
+    let mut best = (REACH, usize::MAX);
     for s in &layout.segs {
         let (ax, az, ay, bx, bz, by) = (s[0], s[1], s[2], s[3], s[4], s[5]);
-        let vx = bx - ax;
-        let vz = bz - az;
+        let (vx, vz) = (bx - ax, bz - az);
         let l2 = vx * vx + vz * vz;
         if l2 < 1e-6 {
             continue;
         }
-        let t = ((x - ax) * vx + (z - az) * vz) / l2;
-        let t = t.clamp(0.0, 1.0);
-        let px = ax + vx * t;
-        let pz = az + vz * t;
-        let d = (x - px).hypot(z - pz);
-        if d >= best_d {
+        let t = (((x - ax) * vx + (z - az) * vz) / l2).clamp(0.0, 1.0);
+        let d = (x - (ax + vx * t)).hypot(z - (az + vz * t));
+        if d >= BLEND {
             continue;
         }
         let run = l2.sqrt();
-        let mut dx = vx / run;
-        let mut dz = vz / run;
-        if by > ay {
-            dx = -dx;
-            dz = -dz;
-        }
+        // Segments are written upstream to downstream; flip any that climb.
+        let sg = if by > ay { -1.0 } else { 1.0 };
         let grade = (ay - by).abs() / run;
-        best_d = d;
-        if grade < 0.0008 {
-            out = Some([0.0, 0.0]);
-        } else {
-            let str = (grade / 0.04).clamp(0.08, 1.6);
-            out = Some([dx * str, dz * str]);
+        if d < best.0 {
+            best = (d, near.len());
         }
+        near.push((d, [vx / run * sg, vz / run * sg], grade));
     }
-    out
+    if best.1 == usize::MAX {
+        return None;
+    }
+    let d0 = near[best.1].1;
+    let (mut fx, mut fz, mut g, mut wsum) = (0.0f32, 0.0f32, 0.0f32, 0.0f32);
+    for (d, dir, grade) in &near {
+        // Same channel only: skip a reach running the other way (meander
+        // doubling back, the far side of a junction).
+        if dir[0] * d0[0] + dir[1] * d0[1] < 0.2 {
+            continue;
+        }
+        let w = (-(d / SIGMA) * (d / SIGMA)).exp();
+        fx += dir[0] * w;
+        fz += dir[1] * w;
+        g += grade * w;
+        wsum += w;
+    }
+    let m = fx.hypot(fz).max(1e-5);
+    let grade = g / wsum.max(1e-5);
+    if grade < 0.0008 {
+        return Some([0.0, 0.0]);
+    }
+    let str = (grade / 0.04).clamp(0.08, 1.6);
+    Some([fx / m * str, fz / m * str])
 }
 
 #[derive(Clone, Copy)]
@@ -542,7 +565,9 @@ impl WaterField {
                     nh += 1.0;
                 }
                 let mag = (hx * hx + hz * hz).sqrt();
-                if mag < 0.002 || nh < 1.0 {
+                // One-axis differences point the current straight along x or z
+                // regardless of the channel; only trust a full 2-axis gradient.
+                if mag < 0.002 || nh < 2.0 {
                     continue;
                 }
                 let s = (mag / 0.04).clamp(0.08, 1.6);
@@ -697,18 +722,21 @@ impl WaterField {
     }
 
     fn surf(&self, x: f32, z: f32, dir: [f32; 2], p: &Params, t: f32, seed: u32) -> f32 {
+        // Time only ever moves the pattern downstream (+along). Any time term on
+        // the across axis reads as water sliding side to side over the channel.
+        // `t` here is already scaled by the local current (0 in still water).
         let along = x * dir[0] + z * dir[1];
         let across = -x * dir[1] + z * dir[0];
         let nx = across / p.scale;
         let ny = along / (p.scale * p.stretch);
-        let wx = fbm2(nx * 0.9 + t * 0.07, ny * 0.9, seed ^ 11);
+        let wx = fbm2(nx * 0.9, ny * 0.9 - t * 0.07, seed ^ 11);
         let wy = fbm2(nx * 0.9 + 9.1, ny * 0.9 - t * 0.05, seed ^ 23);
         let qx = nx + p.warp * (wx - 0.5);
         let qy = ny + p.warp * (wy - 0.5) / p.stretch.max(1.0).sqrt();
         let base = fbm2(qx, qy, seed);
         let detail = vnoise(
-            across / (p.scale * 0.45) + (wx - 0.5) * p.warp + t * 0.12,
-            along / (p.scale * p.stretch * 0.45) + (wy - 0.5) * p.warp * 0.5,
+            across / (p.scale * 0.45) + (wx - 0.5) * p.warp,
+            along / (p.scale * p.stretch * 0.45) + (wy - 0.5) * p.warp * 0.5 - t * 0.12,
             seed ^ 5,
         );
         base * 0.7 + detail * 0.3
@@ -740,7 +768,9 @@ impl WaterField {
         let dir = if fl > 0.02 { [s.flow[0] / fl, s.flow[1] / fl] } else { [0.0, 1.0] };
         let speed = p.speed * fl;
         let still = p.veins <= 0.01 && p.foam <= 0.01;
-        let t_half = t * 0.5;
+        // Still water (no current) gets no drift at all; moving water a slow
+        // downstream creep on top of the flow-map advection below.
+        let t_half = if fl > 0.02 { t * 0.5 } else { 0.0 };
         let cycle = 1.8;
         let ph0 = (t / cycle).fract();
         let w0 = 1.0 - (2.0 * ph0 - 1.0).abs();
@@ -801,7 +831,7 @@ impl WaterField {
         if !still {
             let sh = 1.0 - dn;
             if sh > 0.15 {
-                let c = fbm2((x + t * 0.4) / (u * 0.9), (z + t * 0.3) / (u * 0.9), seed ^ 7);
+                let c = fbm2((x - dir[0] * t * speed * 0.5) / (u * 0.9), (z - dir[1] * t * speed * 0.5) / (u * 0.9), seed ^ 7);
                 if (c - 0.5).abs() < 0.028 * sh {
                     base = (base + 1.0).min(5.99);
                 }
@@ -1153,5 +1183,77 @@ mod tests {
         let f = field.fall_flow_at(-93.25, 116.5).expect("veil face");
         assert!(f[1] < 0.0, "downhill is south");
         assert!(field.fall_flow_at(-93.0, 118.4).is_none(), "lip is not the face");
+    }
+
+    /// The surface pattern must drift downstream (+flow), not across it.
+    #[test]
+    fn pattern_drifts_downstream() {
+        let field = WaterField {
+            cfg: FieldCfg { x0: -160.0, z0: -160.0, w: 2, h: 2, res: 2.0 },
+            ground: vec![0.0; 4],
+            sdist: vec![5.0; 4],
+            flow: vec![[0.0, 0.0]; 4],
+            fall_box: falls_box(&[]),
+            falls: vec![],
+        };
+        let p = Mode::Stream.params();
+        let n = 48;
+        let step = 0.25;
+        let img = |t: f32| -> Vec<f32> {
+            let mut v = Vec::with_capacity(n * n);
+            for j in 0..n {
+                for i in 0..n {
+                    let (x, z) = (10.0 + i as f32 * step, 10.0 + j as f32 * step);
+                    let s = Sample { ground: 0.0, sdist: 5.0, flow: [0.0, 0.8] };
+                    // h only (pre-quantise): shade base before the vein overlay
+                    v.push(field.tone(x, z, t, &p, &[], LIGHT, 7, s, false).base);
+                }
+            }
+            v
+        };
+        let (a, b) = (img(0.2), img(0.5));
+        let mut best = (f32::MAX, 0i32, 0i32);
+        for dj in -6i32..=6 {
+            for di in -6i32..=6 {
+                let mut e = 0.0;
+                for j in 8..n as i32 - 8 {
+                    for i in 8..n as i32 - 8 {
+                        let d = b[((j + dj) * n as i32 + i + di) as usize] - a[(j * n as i32 + i) as usize];
+                        e += d * d;
+                    }
+                }
+                if e < best.0 {
+                    best = (e, di, dj);
+                }
+            }
+        }
+        eprintln!("drift cells (across x, along z) = ({}, {})", best.1, best.2);
+        assert!(best.2 >= 0, "pattern runs upstream");
+        assert!(best.1.abs() <= best.2.abs().max(0), "pattern slides across the channel");
+    }
+
+    /// A zig-zag (east, south-east, east ...) spine gives one smooth current
+    /// along the overall course, not 45-degree bands.
+    #[test]
+    fn staircase_spine_blends() {
+        let mut segs = Vec::new();
+        let (mut x, mut z, mut y) = (0.0f32, 0.0f32, 10.0f32);
+        for k in 0..12 {
+            let (dx, dz) = if k % 2 == 0 { (5.0, 0.0) } else { (4.0, -4.0) };
+            segs.push([x, z, y, x + dx, z + dz, y - 0.2]);
+            x += dx;
+            z += dz;
+            y -= 0.2;
+        }
+        let lay = WaterLayout { segs, falls: vec![] };
+        let mut angs = Vec::new();
+        for s in 0..40 {
+            let px = 10.0 + s as f32 * 0.5;
+            let pz = -px * 4.0 / 9.0;
+            let f = spine_flow(&lay, px, pz).expect("on spine");
+            angs.push(f[1].atan2(f[0]).to_degrees());
+        }
+        let (lo, hi) = angs.iter().fold((f32::MAX, f32::MIN), |a, &v| (a.0.min(v), a.1.max(v)));
+        assert!(lo > -40.0 && hi < -5.0, "current snaps: {lo}..{hi}");
     }
 }
