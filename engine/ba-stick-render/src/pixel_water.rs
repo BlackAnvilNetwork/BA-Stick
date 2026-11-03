@@ -908,28 +908,23 @@ impl WaterField {
             vv -= 0.10;
         }
         let mut base = (vv * 6.0).clamp(0.0, 5.99);
-        if p.veins > 0.01 && fl > 0.02 {
-            let ia = (along / 1.35).floor() as i32 as u32;
-            let ic = (across / 0.85).floor() as i32 as u32;
+        if p.veins > 0.01 && fl > 0.18 && s.sdist < 6.0 {
+            // Fine sheared lattice — coarse along/across bins were ice-floe diamonds
+            // and iso-horizontal scanlines (Shallows / Crossing).
+            let ia = (along * 4.2 + across * 1.6).floor() as i32 as u32;
+            let ic = (across * 4.2 + along * 1.6).floor() as i32 as u32;
             let n = hash(ia, ic, seed ^ 303);
-            let nxt = hash(ia.wrapping_add(1), ic, seed ^ 303);
-            if n > 0.91 {
-                base = base.max(4.0).min(5.4);
-                if n > 0.965 { base = base.max(4.8).min(5.8); }
-            }
-            if n > 0.91 && nxt > 0.88 {
-                base = base.max(4.2).min(5.5);
-            }
-        }
-        if !still && s.sdist < 2.4 {
-            let ia = (along / 1.7).floor() as i32 as u32;
-            let ic = (across / 1.1).floor() as i32 as u32;
-            let n = hash(ia, ic, seed ^ 707);
-            let side = hash(ia, ic.wrapping_add(1), seed ^ 707);
-            if n > 0.86 { base = base.max(3.8).min(5.2); }
-            if n > 0.94 && side > 0.80 { base = base.max(4.3).min(5.5); }
-            if s.sdist < 0.85 && hash(ia.wrapping_mul(3), ic, seed ^ 19) > 0.78 {
-                base = base.max(4.0).min(5.0);
+            let iso_row = (dir[0] - dir[1]).abs() > 1.15;
+            let thr = if iso_row || s.sdist > 3.2 { 0.988 } else { 0.94 };
+            if n > thr {
+                base = base.max(4.0).min(5.2);
+                if n > 0.993 && !iso_row {
+                    base = base.max(4.5).min(5.4);
+                    let nxt = hash(ia.wrapping_add(1), ic, seed ^ 303);
+                    if nxt > 0.92 {
+                        base = base.max(4.15).min(5.3);
+                    }
+                }
             }
         }
         let mut hi = 0u8;
@@ -988,13 +983,12 @@ impl WaterField {
         }
         if still {
             hi = 0;
-            let ix = x.floor() as i32 as u32;
-            let iz = z.floor() as i32 as u32;
+            // Rotated lattice — floor(x),floor(z) is the iso diamond tile.
+            let ix = (x * 18.0 + z * 7.0).floor() as i32 as u32;
+            let iz = (x * -7.0 + z * 18.0).floor() as i32 as u32;
             let tick = (t * 0.45).floor() as i32 as u32;
-            let g = hash(ix, iz, seed ^ 17);
-            base = (base + (g - 0.5) * 0.22).clamp(0.0, 3.8);
-            if hash(ix, iz, seed ^ tick) > 0.984 {
-                base = 4.15; // WATER+1 only
+            if hash(ix, iz, seed ^ tick) > 0.996 {
+                base = 4.15;
             }
         }
         if hi > 0 && base < 4.0 {
@@ -1094,7 +1088,7 @@ pub fn fill_tri(
             }
         }
         fb.color[y as usize * w + x as usize] =
-            to_ramp(quantize(field.tone(wx, wz, time, &p, ripples, LIGHT, 7, sm, false), x, y, 0.32));
+            to_ramp(quantize(field.tone(wx, wz, time, &p, ripples, LIGHT, 7, sm, false), x, y, 0.10));
     });
 }
 
@@ -1141,7 +1135,7 @@ pub fn fill_wet_lip(
             let fl = (sm.flow[0] * sm.flow[0] + sm.flow[1] * sm.flow[1]).sqrt();
             let p = mode_from_flow(fl, false).params_iso();
             fb.color[y as usize * w + x as usize] =
-                to_ramp(quantize(field.tone(wx, wz, time, &p, ripples, LIGHT, 7, sm, false), x, y, 0.32));
+                to_ramp(quantize(field.tone(wx, wz, time, &p, ripples, LIGHT, 7, sm, false), x, y, 0.10));
             return;
         }
         if sm.sdist < -2.0 {
@@ -1195,7 +1189,7 @@ pub fn fill_tri_xz(
             }
             field.tone(wx, wz, time, &p, ripples, LIGHT, 7, sm, false)
         };
-        fb.color[y as usize * w + x as usize] = to_ramp(quantize(s, x, y, 0.32));
+        fb.color[y as usize * w + x as usize] = to_ramp(quantize(s, x, y, 0.10));
     });
 }
 
@@ -1248,7 +1242,7 @@ pub fn fill_fall_quad(fb: &mut Framebuffer, a: P2, b: P2, c: P2, d: P2, span: &F
                 }
             }
             let s = shade_fall_uv((u - 0.5) * width, v * drop_h, v, time, &p, 7);
-            fb.color[y as usize * fw + x as usize] = to_ramp(quantize(s, x, y, 0.32));
+            fb.color[y as usize * fw + x as usize] = to_ramp(quantize(s, x, y, 0.10));
         });
     }
 }
