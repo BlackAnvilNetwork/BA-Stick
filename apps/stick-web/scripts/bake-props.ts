@@ -536,12 +536,8 @@ export function forestBasinProps(): Prop[] {
     }
   }
   void face; // gorge walls are shaped rock in the terrain now
-  // The Wright's Veil: the Briarwater pours off the Veil Scarp into Fenstone Pool.
-  {
-    const lip = FB_RIVERS.find((r) => r.id === "briarwater")!.points.find((p) => p.y >= 15.5 && p.z < 119)!;
-    const pool = forestBasinWaterSurfaceY(-93.3, 114.2) ?? 10.4;
-    out.push({ kind: K.falls, v: 0, x: -93.3, z: 116.6, y: pool, yaw: Math.PI, s: 1, w: 3.4, h: lip.y - pool, d: 0 });
-  }
+  // The Wright's Veil is drawn by the engine from the .wfl fall layout; a
+  // falls prop here doubled it as a striped pillar in front of the sheet.
   // The Cold Forges: three dead hearths, each with a broken chimney stack.
   for (const [dx, dz] of [[-3.5, -2], [3, -2.5], [0, 3.5]] as const) {
     const px = -56 + dx, pz = 77.5 + dz;
