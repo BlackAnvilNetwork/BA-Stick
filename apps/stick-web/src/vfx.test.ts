@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import type { UnitSnapshot } from "@bellgrave/protocol";
 import { KNIGHT_ABILITY_IDS } from "../../../packages/combat/src/knight-kit.ts";
 import * as kits from "../../../packages/combat/src/abilities.ts";
+import { isMapBuilderAbilityId } from "../../../packages/combat/src/map-builder-kit.ts";
 import { VFX, VfxDirector, colorOf, playSteps, stepsFor } from "./vfx.ts";
 
 const allIds = (): string[] => {
@@ -17,7 +18,9 @@ test("every ability in the kits has a VFX entry", () => {
   const ids = allIds();
   assert.ok(ids.length > 250, `found ${ids.length} ids`);
   assert.ok(KNIGHT_ABILITY_IDS.length > 0);
-  const missing = ids.filter((id) => !(id in VFX.abilities));
+  // Map-tab spells are terrain editing tools for the map builder, not
+  // combat: they reshape the zone and draw no spell effect.
+  const missing = ids.filter((id) => !isMapBuilderAbilityId(id) && !(id in VFX.abilities));
   assert.deepEqual(missing, []);
   for (const [id, steps] of Object.entries(VFX.abilities)) {
     for (const s of steps) {

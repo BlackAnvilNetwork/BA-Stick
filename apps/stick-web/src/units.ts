@@ -44,6 +44,8 @@ export function animFor(u: UnitWithCraft, now: number): string {
   if (u.dashTo) return "dash";
   switch (u.anim) {
     case "melee":
+      // The server names the swing (slash / overhead / spin); each has a clip.
+      return now < u.animUntil ? `melee_${u.meleeSwing ?? "slash"}` : "idle";
     case "cast":
       return now < u.animUntil ? u.anim : "idle";
     case "walk":
