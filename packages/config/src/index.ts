@@ -245,6 +245,7 @@ export {
   forestBasinBridgeCenter,
   forestBasinOnBridge,
   forestBasinWalkable,
+  forestBasinPrebuildShore,
   forestBasinClamp,
   forestBasinClampMove,
   forestBasinWaterSurfaceY,

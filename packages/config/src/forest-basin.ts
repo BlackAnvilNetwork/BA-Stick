@@ -163,6 +163,11 @@ function shoreFill(x: number, z: number): number | null {
   return fbShoreFillAt(x, z, FOREST_BASIN_BOUNDS, forestBasinGroundY);
 }
 
+/** Build the shore grid now (about 2 s) so the first walk check does not stall. */
+export function forestBasinPrebuildShore(): void {
+  shoreFill(FOREST_BASIN_BOUNDS.minX, FOREST_BASIN_BOUNDS.minZ);
+}
+
 export function forestBasinOnBridge(x: number, z: number): boolean {
   return fbBridgeAt(x, z) != null;
 }
