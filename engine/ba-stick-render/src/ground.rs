@@ -828,8 +828,9 @@ pub(crate) fn draw_zone_in(
         (@straddle view, $i:ident, $j:ident) => {{
             let yw = zone.height[zone.idx($i, $j)];
             let water = zone.flags[zone.idx($i, $j)] & (F_WATER | F_BRIDGE) == F_WATER;
+            let fall = water && fall_face_cell(zone, $i, $j);
             let wp = |i: i32, j: i32| {
-                let y = if water { water_corner(zone, yw, i, j) - cam_y } else { shore_height(zone, i, j) - cam_y };
+                let y = if fall { fall_corner(zone, yw, i, j) - cam_y } else if water { water_corner(zone, yw, i, j) - cam_y } else { shore_height(zone, i, j) - cam_y };
                 v3(zone.min_x + i as f32 * c, y, zone.min_z + j as f32 * c)
             };
             let col = cell_color(zone, $i, $j, time, sh($i, $j));
@@ -853,8 +854,9 @@ pub(crate) fn draw_zone_in(
             let (i, j) = ($i, $j);
                 let (p00, p10, p01, p11) = if zone.flags[zone.idx(i, j)] & (F_WATER | F_BRIDGE) == F_WATER {
                     let yw = zone.height[zone.idx(i, j)];
+                    let fall = fall_face_cell(zone, i, j);
                     let pw = |ii: i32, jj: i32| {
-                        let y = water_corner(zone, yw, ii, jj) - cam_y;
+                        let y = if fall { fall_corner(zone, yw, ii, jj) } else { water_corner(zone, yw, ii, jj) } - cam_y;
                         cam.project(v3(zone.min_x + ii as f32 * c, y, zone.min_z + jj as f32 * c))
                     };
                     (pw(i, j), pw(i + 1, j), pw(i, j + 1), pw(i + 1, j + 1))
@@ -1155,6 +1157,40 @@ pub fn refresh_vertex_heights(z: &mut Zone, i: i32, j: i32, r: i32) {
     }
 }
 
+/// A cell inside a fall face: blocked water with wet water both well above and
+/// well below it. Such cells draw as one sloped sheet from lip to pool instead
+/// of flat per-cell terraces (which read as stairs, not a waterfall).
+fn fall_face_cell(z: &Zone, i: i32, j: i32) -> bool {
+    let k = z.idx(i, j);
+    if z.flags[k] & (F_WATER | F_BLOCKED | F_BRIDGE) != F_WATER | F_BLOCKED {
+        return false;
+    }
+    let y = z.height[k];
+    let (mut up, mut down) = (false, false);
+    for (di, dj) in DIRS_8 {
+        let (ni, nj) = (i + di, j + dj);
+        if !wet(z, ni, nj) {
+            continue;
+        }
+        let d = z.height[z.idx(ni, nj)] - y;
+        up |= d > 0.3;
+        down |= d < -0.3;
+    }
+    up && down
+}
+
+/// Corner of a fall-face quad: mean of every water cell at the vertex.
+fn fall_corner(z: &Zone, own: f32, i: i32, j: i32) -> f32 {
+    let (mut s, mut n) = (0.0f32, 0u32);
+    for (di, dj) in [(-1, -1), (0, -1), (-1, 0), (0, 0)] {
+        if wet(z, i + di, j + dj) {
+            s += z.height[z.idx(i + di, j + dj)];
+            n += 1;
+        }
+    }
+    if n == 0 { own } else { s / n as f32 }
+}
+
 /// Corner height of a water quad: the shared vertex when it is on this
 /// cell's sheet, else the cell's own level (a fall keeps its step).
 #[inline]
@@ -1300,8 +1336,14 @@ fn paint_water_cell(
     let c = zone.cell;
     let ox = zone.min_x + i as f32 * c;
     let oz = zone.min_z + j as f32 * c;
+    // A water cell on a fall face is the curtain itself: draw the sheet
+    // (shore distance would otherwise paint it as bank, hiding the falls).
+    if let Some(flow) = field.and_then(|f| f.fall_flow_at(ox + c * 0.5, oz + c * 0.5)) {
+        paint_fall_cell(fb, zone, i, j, time, p00, p10, p01, p11, field, ripples, flow);
+        return;
+    }
     let p = if let Some(f) = field {
-        let on_fall = f.fall_flow_at(ox + c * 0.5, oz + c * 0.5).is_some();
+        let on_fall = false;
         let s = f.sample(ox + c * 0.5, oz + c * 0.5);
         let fl = (s.flow[0] * s.flow[0] + s.flow[1] * s.flow[1]).sqrt();
         crate::pixel_water::mode_from_flow(fl, on_fall).params_iso()

@@ -184,6 +184,23 @@ pub struct WaterField {
     sdist: Vec<f32>,
     flow: Vec<[f32; 2]>,
     pub falls: Vec<FallSpan>,
+    /// Union bounding box of every fall face (x0, z0, x1, z1), so the
+    /// per-land-cell fall test rejects almost every cell in one compare.
+    fall_box: [f32; 4],
+}
+
+fn falls_box(falls: &[FallSpan]) -> [f32; 4] {
+    let mut b = [f32::MAX, f32::MAX, f32::MIN, f32::MIN];
+    for f in falls {
+        let r = f.lip_w.max(f.pool_w) + 1.0;
+        for p in [f.lip, f.pool] {
+            b[0] = b[0].min(p[0] - r);
+            b[1] = b[1].min(p[1] - r);
+            b[2] = b[2].max(p[0] + r);
+            b[3] = b[3].max(p[1] + r);
+        }
+    }
+    b
 }
 
 #[derive(Clone, Copy)]
@@ -588,12 +605,17 @@ impl WaterField {
             ground: g,
             sdist: sd,
             flow: flow_out,
+            fall_box: falls_box(&falls),
             falls,
         }
     }
 
     /// Downhill unit flow if (x, z) is on a punched fall face (not the lip/pool).
     pub fn fall_flow_at(&self, x: f32, z: f32) -> Option<[f32; 2]> {
+        let b = &self.fall_box;
+        if x < b[0] || z < b[1] || x > b[2] || z > b[3] {
+            return None;
+        }
         for f in &self.falls {
             let (dx, dz) = (f.pool[0] - f.lip[0], f.pool[1] - f.lip[1]);
             let len2 = dx * dx + dz * dz;
@@ -1125,6 +1147,7 @@ mod tests {
             ground: vec![0.0; 4],
             sdist: vec![-1.0; 4],
             flow: vec![[0.0, 0.0]; 4],
+            fall_box: falls_box(&l.falls),
             falls: l.falls,
         };
         let f = field.fall_flow_at(-93.25, 116.5).expect("veil face");
