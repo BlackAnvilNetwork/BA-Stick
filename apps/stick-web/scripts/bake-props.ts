@@ -483,15 +483,24 @@ export function forestBasinProps(): Prop[] {
   // Set pieces that read from their names (rock walls, falls, forges).
   const wall = (x: number, z: number, yaw: number, len: number, hgt: number, y: number, v = 0) =>
     out.push({ kind: K.rockWall, v, x, z, y, yaw, s: len, w: 0.9, h: hgt, d: 0 });
-  // Around each sink, the same way the wood is scattered: a jittered grid, and the
-  // hash picks a cliff course on the steep wall, or a cairn or upright stone on the grass.
+  // Around each sink, the same way the wood is scattered. Steep ground takes a cliff
+  // course. Cairns cluster on the stair approach. Short lip stones ring the outside.
+  const lip = (x: number, z: number, s: number, yaw: number) =>
+    out.push({ kind: K.stone, v: 2, x, z, y: forestBasinStandHeight(x, z), yaw, s, w: 0, h: 0, d: 0 });
   for (const k of FB_SINKS) {
+    let ax = 0, az = 1, best = Infinity;
+    for (const a of FB_ASCENTS) for (const q of a.points) {
+      const dd = Math.hypot(q.x - k.x, q.z - k.z);
+      if (dd < best && dd < k.r * 2.2) { best = dd; ax = q.x - k.x; az = q.z - k.z; }
+    }
+    const al = Math.hypot(ax, az) || 1;
+    ax /= al; az /= al;
     const reach = k.r * 2.3;
-    const step = 2.7;
+    const step = 2.3;
     for (let z = k.z - reach; z <= k.z + reach; z += step) {
       for (let x = k.x - reach; x <= k.x + reach; x += step) {
-        const jx = x + (hash2(x, z + k.x) - 0.5) * step * 0.85;
-        const jz = z + (hash2(z, x + k.z) - 0.5) * step * 0.85;
+        const jx = x + (hash2(x, z + k.x) - 0.5) * step * 0.9;
+        const jz = z + (hash2(z, x + k.z) - 0.5) * step * 0.9;
         const d = Math.hypot(jx - k.x, jz - k.z);
         if (d > reach || d < k.r * 0.28) continue;
         if (fbDesignWater(jx, jz) || forestBasinOnTrail(jx, jz) || nearGate(jx, jz)) continue;
@@ -503,26 +512,26 @@ export function forestBasinProps(): Prop[] {
         const g = Math.hypot(gx, gz);
         const h = hash2(Math.floor(jx * 2), Math.floor(jz * 2));
         const h2 = hash2(Math.floor(jz * 3), Math.floor(jx * 3));
-        if (g > 0.85 && d < k.r * 1.15 && d > k.r * 0.45) {
-          if (h < 0.55) continue;
-          const ux = -gx / g, uz = -gz / g;
-          const span = k.r * 0.42;
-          const fx = jx + ux * span, fz = jz + uz * span;
-          const lo = forestBasinGroundY(fx, fz);
-          const hi = forestBasinGroundY(jx - ux * span, jz - uz * span);
-          if (hi - lo < 2) continue;
-          wall(fx, fz, Math.atan2(ux, uz), 2.2 + h2 * 1.8, Math.min(hi - lo, 6.5), lo, 2);
+        const toward = ((jx - k.x) * ax + (jz - k.z) * az) / Math.max(d, 0.1);
+        // The pit wall is the ground itself. Props stay on the gentler grass and floor.
+        if (g > 0.7) continue;
+        if (!firm(jx, jz)) continue;
+        const approach = toward > 0.05 && d > k.r * 0.75 && d < k.r * 1.65;
+        const outer = d > k.r * 1.5;
+        if (outer) {
+          if (h < 0.5) continue;
+          lip(jx, jz, 0.38 + h * 0.32, (h2 - 0.5) * 0.8);
           continue;
         }
-        if (!firm(jx, jz) || g > 0.55 || h < 0.55) continue;
-        const outside = d > k.r * 0.95;
-        if (!outside) {
-          if (h > 0.78) at(K.cairn, jx, jz, h * 6.28, 0.55 + h * 0.3);
+        if (!approach) {
+          if (h < 0.74) continue;
+          if (h2 > 0.55) at(K.cairn, jx, jz, h * 6.28, 0.7 + h * 0.35);
+          else lip(jx, jz, 0.4 + h * 0.25, h * 6.28);
           continue;
         }
-        if (h2 > 0.6) at(K.cairn, jx, jz, h * 6.28, h > 0.82 ? 1.8 + h * 0.6 : 0.9 + h * 0.55);
-        else if (h2 > 0.25) out.push({ kind: K.stone, v: 2, x: jx, z: jz, y: forestBasinStandHeight(jx, jz), yaw: h * 6.28, s: 0.85 + h * 0.9, w: 0, h: 0, d: 0 });
-        else if (h > 0.8) at(K.bloom, jx, jz, h * 6.28, 0.55 + h2);
+        if (h < 0.42) continue;
+        if (h2 > 0.45) at(K.cairn, jx, jz, h * 6.28, h > 0.84 ? 1.35 + h * 0.55 : 0.75 + h * 0.4);
+        else lip(jx, jz, 0.48 + h * 0.28, h * 6.28);
       }
     }
   }

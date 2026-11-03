@@ -836,55 +836,103 @@ fn draw_shelter(c: &mut Ctx, def: &crate::structure::ShelterDef) {
     }
 }
 
-/// One course of a stack: a faceted drum, wider than it is tall, with a pale top.
-fn drum(c: &mut Ctx, ox: f32, oz: f32, y0: f32, y1: f32, r0: f32, r1: f32, side: u8, top: u8) {
-    const N: usize = 7;
+/// One river stone: a lumpy drum. `lx`/`lz` shift the crown so a stack can lean.
+fn drum(
+    c: &mut Ctx,
+    ox: f32,
+    oz: f32,
+    y0: f32,
+    y1: f32,
+    r0: f32,
+    r1: f32,
+    lx: f32,
+    lz: f32,
+    side: u8,
+    top: u8,
+) {
+    const N: usize = 8;
     let mut lo = [P2::new(0.0, 0.0, 0.0); N];
     let mut hi = [P2::new(0.0, 0.0, 0.0); N];
     for i in 0..N {
-        let a = i as f32 / N as f32 * std::f32::consts::TAU;
-        lo[i] = c.p(ox + a.cos() * r0, y0, oz + a.sin() * r0);
-        hi[i] = c.p(ox + a.cos() * r1, y1, oz + a.sin() * r1);
+        let a = i as f32 / N as f32 * std::f32::consts::TAU + 0.35;
+        let jb = 0.72 + 0.5 * hash(ox * 3.1 + i as f32, oz + y0 * 2.0);
+        let jt = 0.75 + 0.42 * hash(ox + y1, oz * 2.7 + i as f32);
+        lo[i] = c.p(ox + a.cos() * r0 * jb, y0, oz + a.sin() * r0 * jb);
+        hi[i] = c.p(
+            ox + lx + a.cos() * r1 * jt,
+            y1,
+            oz + lz + a.sin() * r1 * jt,
+        );
     }
-    let cap = c.p(ox, y1, oz);
+    let cap = c.p(ox + lx, y1 + (y1 - y0) * 0.12, oz + lz);
     for i in 0..N {
         let j = (i + 1) % N;
         let col = if i % 2 == 0 { side } else { face_dark(side) };
         c.quad(lo[i], lo[j], hi[j], hi[i], col);
         tri(c.fb, hi[i], hi[j], cap, top);
-        c.edge_col(hi[i], hi[j], face_dark(side));
+        c.edge_col(hi[i], hi[j], ROCK_D);
     }
 }
 
-/// Stacked fieldstones. Six drums, each a little smaller and a little off-centre,
-/// so the pile reads as stones and not as a cone or a stepped block.
+/// A weathered, rounded-top headstone sunk into the ground, leaned, with moss at the foot.
+fn draw_headstone(c: &mut Ctx, p: &Prop) {
+    let h = p.s.clamp(0.45, 1.1);
+    let width = h * 0.75;
+    let thickness = h * 0.35;
+    let seed = hash(p.x, p.z);
+    let lean_x = (seed - 0.5) * h * 0.35;
+    let lean_z = (hash(p.z, p.x) - 0.5) * h * 0.2;
+    const N: usize = 6;
+    let mut lo = [P2::new(0.0, 0.0, 0.0); N];
+    let mut hi = [P2::new(0.0, 0.0, 0.0); N];
+    let y0 = -0.15 * h;
+    let y1 = h * 0.75;
+    for i in 0..N {
+        let angle = i as f32 / N as f32 * std::f32::consts::TAU;
+        let rx = angle.cos() * width * 0.5;
+        let rz = angle.sin() * thickness * 0.5;
+        lo[i] = c.p(rx, y0, rz);
+        hi[i] = c.p(rx * 0.85 + lean_x, y1, rz * 0.85 + lean_z);
+    }
+    for i in 0..N {
+        let j = (i + 1) % N;
+        let col = if i % 2 == 0 { ROCK } else { ROCK_D };
+        c.quad(lo[i], lo[j], hi[j], hi[i], col);
+        c.edge_col(hi[i], hi[j], C_OUTLINE);
+    }
+    let apex = c.p(lean_x, h, lean_z);
+    for i in 0..N {
+        let j = (i + 1) % N;
+        tri(c.fb, hi[i], hi[j], apex, ROCK_L);
+        c.edge(hi[i], apex);
+    }
+    let moss_q = c.p(lean_x * 0.3, 0.0, lean_z * 0.3);
+    c.fb.disc(P2 { d: moss_q.d - 0.1, ..moss_q }, width * 12.0, MOSS_C, None);
+}
+
+/// Hand-stacked river rocks. Each course is squat, smaller than the one under it,
+/// and shifted, and the foot sits below the ground line.
 fn draw_cairn(c: &mut Ctx, p: &Prop) {
     let s = p.s.max(0.45);
-    const COURSES: usize = 6;
+    const COURSES: usize = 5;
+    let mut y = -0.14 * s;
     for i in 0..COURSES {
-        let t = i as f32 / COURSES as f32;
-        let h = s * 0.2;
-        let rad = s * (0.4 - 0.24 * t);
-        let jx = hash(p.x + i as f32 * 1.7, p.z);
-        let jz = hash(p.z + i as f32 * 2.3, p.x);
-        let (side, top) = if i + 1 == COURSES {
+        let t = i as f32 / (COURSES - 1) as f32;
+        let wobble = 0.85 + 0.3 * hash(p.x + i as f32 * 1.9, p.z + i as f32);
+        let rad = s * (0.58 - 0.36 * t) * wobble;
+        let h = rad * (0.28 + 0.12 * hash(p.z + i as f32, p.x));
+        let ox = (hash(p.x + i as f32 * 2.2, p.z) - 0.5) * s * 0.22 * (0.4 + t);
+        let oz = (hash(p.z + i as f32 * 1.4, p.x) - 0.5) * s * 0.22 * (0.4 + t);
+        let lean = (hash(p.x, p.z + i as f32) - 0.5) * rad * 0.18;
+        let (side, topc) = if i + 1 == COURSES {
             (ROCK, ROCK_L)
         } else if i % 2 == 0 {
             (ROCK, ROCK)
         } else {
             (ROCK_D, ROCK)
         };
-        drum(
-            c,
-            (jx - 0.5) * rad * 0.4,
-            (jz - 0.5) * rad * 0.4,
-            s * 1.05 * t,
-            s * 1.05 * t + h,
-            rad,
-            rad * 0.84,
-            side,
-            top,
-        );
+        drum(c, ox, oz, y, y + h, rad, rad * 0.88, lean, lean * 0.4, side, topc);
+        y += h * 0.62;
     }
 }
 
@@ -1451,27 +1499,18 @@ fn draw_one(c: &mut Ctx, p: &Prop, time: f32) {
             let fill = canopy_disc_col(c, ASH, ASH_L, s * 0.75, s * 0.8, hash(p.x, p.z));
             c.fb.disc(q, s * 6.0, fill, Some(C_OUTLINE));
         }
-        kind::STONE if p.var == 2 => {
-            // Upright fieldstone: a tall drum, narrower at the crown.
-            let h = s.max(0.45);
-            let r = h * (0.16 + 0.05 * hash(p.x, p.z));
-            drum(c, 0.0, 0.0, 0.0, h * 0.72, r, r * 0.9, ROCK, ROCK);
-            drum(c, 0.0, 0.0, h * 0.66, h, r * 0.72, r * 0.4, ROCK, ROCK_L);
+        kind::STONE | kind::ROCK => {
+            if p.var == 2 || p.s > 0.4 {
+                draw_headstone(c, p);
+            } else {
+                let col = if p.var == 1 { ROCK_D } else { ROCK };
+                let rr = s * 0.4;
+                drum(c, 0.0, 0.0, -0.05, rr * 0.6, rr, rr * 0.7, 0.0, 0.0, col, ROCK_L);
+            }
         }
-        kind::ROCK | kind::STONE | kind::PEBBLE => {
-            let col = if p.var == 1 { ROCK_D } else { ROCK };
-            let rr = s * 0.5;
-            c.boxy(
-                0.0,
-                0.0,
-                0.0,
-                rr * 1.4,
-                rr * 0.8,
-                rr * 1.1,
-                ROCK_L,
-                col,
-                ROCK_D,
-            );
+        kind::PEBBLE => {
+            let q = c.p(0.0, 0.05, 0.0);
+            c.fb.disc(q, s * 4.0, ROCK_D, None);
         }
         kind::WALL_BLOCK => {
             let (top, lit, dark) = if p.var == 1 {
