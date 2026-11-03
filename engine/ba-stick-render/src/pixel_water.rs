@@ -39,10 +39,10 @@ impl Mode {
                 speed: 1.2, stretch: 1.0, warp: 0.3, scale: 2.6, foam: 0.0, glint: 0.08, contrast: 0.70, veins: 0.0, shore: 0.25,
             },
             Mode::Stream => Params {
-                speed: 4.0, stretch: 9.0, warp: 0.18, scale: 2.6, foam: 0.10, glint: 0.12, contrast: 0.90, veins: 0.9, shore: 0.55,
+                speed: 4.0, stretch: 6.2, warp: 0.18, scale: 2.6, foam: 0.05, glint: 0.12, contrast: 0.90, veins: 0.40, shore: 0.55,
             },
             Mode::Rush => Params {
-                speed: 12.0, stretch: 10.0, warp: 0.28, scale: 2.3, foam: 0.40, glint: 0.22, contrast: 1.10, veins: 1.0, shore: 0.85,
+                speed: 12.0, stretch: 7.0, warp: 0.28, scale: 2.3, foam: 0.22, glint: 0.22, contrast: 1.10, veins: 0.55, shore: 0.85,
             },
             Mode::Buffet => Params {
                 speed: 6.0, stretch: 2.2, warp: 1.1, scale: 1.9, foam: 0.32, glint: 0.22, contrast: 1.05, veins: 0.45, shore: 0.85,
@@ -775,22 +775,25 @@ impl WaterField {
         // Time only ever moves the pattern downstream (+along). Any time term on
         // the across axis reads as water sliding side to side over the channel.
         // `t` here is already scaled by the local current (0 in still water).
+        // Cap stretch so east-west rivers cannot flatten into full-width scanlines;
+        // a little across-grain stays so streaks break instead of banding.
+        let st = p.stretch.min(6.5);
         let along = x * dir[0] + z * dir[1];
         let across = -x * dir[1] + z * dir[0];
         let nx = across / p.scale;
-        let ny = along / (p.scale * p.stretch);
+        let ny = along / (p.scale * st);
         let wx = fbm2(nx * 0.9, ny * 0.9 - t * 0.02, seed ^ 11);
         let wy = fbm2(nx * 0.9 + 9.1, ny * 0.9 - t * 0.015, seed ^ 23);
         let qx = nx + p.warp * (wx - 0.5);
-        let qy = ny + p.warp * (wy - 0.5) / p.stretch.max(1.0).sqrt();
+        let qy = ny + p.warp * (wy - 0.5) / st.max(1.0).sqrt();
         let base = fbm2(qx, qy, seed);
         // Stretch detail with the current so short across-grain cannot salt the iso pixel.
         let detail = vnoise(
             across / (p.scale * 0.70) + (wx - 0.5) * p.warp,
-            along / (p.scale * p.stretch * 1.15) + (wy - 0.5) * p.warp * 0.5,
+            along / (p.scale * st * 1.15) + (wy - 0.5) * p.warp * 0.5,
             seed ^ 5,
         );
-        let dwt = if p.stretch > 2.0 { 0.14 } else { 0.28 };
+        let dwt = if st > 2.0 { 0.14 } else { 0.28 };
         base * (1.0 - dwt) + detail * dwt
     }
 
@@ -910,15 +913,15 @@ impl WaterField {
         if p.veins > 0.01 && fl > 0.02 {
             let ridge = (fbm2(
                 across / p.scale * 0.55,
-                along / (p.scale * p.stretch * 3.2),
+                along / (p.scale * p.stretch * 2.0),
                 seed ^ 303,
             ) - 0.5)
                 .abs();
             let dash = vnoise(along / (p.scale * 1.8), across / (p.scale * 2.4), seed ^ 311);
-            let w = 0.034 + 0.028 * p.veins;
-            if ridge < w && dash > 0.38 {
+            let w = 0.014 + 0.012 * p.veins;
+            if ridge < w && dash > 0.52 {
                 // WATER+2 core, WATER+1 halo — pale sits on cyan, never lone white.
-                base = base.max(if ridge < w * 0.45 { 5.2 } else { 4.1 }).min(5.99);
+                base = base.max(if ridge < w * 0.45 { 4.8 } else { 3.9 }).min(5.99);
             }
         }
         let mut hi = 0u8;
@@ -956,8 +959,8 @@ impl WaterField {
                 hi = 6;
             }
         } else {
-            if foam > 0.42 {
-                base = base.max(4.4).min(5.99);
+            if foam > 0.70 {
+                base = base.max(4.2).min(5.99);
             }
             if foam > 0.88 && fl > 0.35 {
                 hi = hi.max(6);
