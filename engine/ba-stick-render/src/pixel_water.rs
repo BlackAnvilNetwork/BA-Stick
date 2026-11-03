@@ -36,16 +36,16 @@ impl Mode {
     pub fn params(self) -> Params {
         match self {
             Mode::Still => Params {
-                speed: 1.2, stretch: 1.0, warp: 0.3, scale: 2.6, foam: 0.0, glint: 0.35, contrast: 0.85, veins: 0.0, shore: 0.4,
+                speed: 1.2, stretch: 1.0, warp: 0.3, scale: 2.6, foam: 0.0, glint: 0.08, contrast: 0.70, veins: 0.0, shore: 0.25,
             },
             Mode::Stream => Params {
-                speed: 4.0, stretch: 5.0, warp: 0.25, scale: 2.6, foam: 0.25, glint: 0.3, contrast: 1.0, veins: 0.6, shore: 0.7,
+                speed: 4.0, stretch: 9.0, warp: 0.18, scale: 2.6, foam: 0.10, glint: 0.12, contrast: 0.90, veins: 0.9, shore: 0.55,
             },
             Mode::Rush => Params {
-                speed: 12.0, stretch: 8.0, warp: 0.35, scale: 2.3, foam: 0.7, glint: 0.5, contrast: 1.25, veins: 1.0, shore: 1.0,
+                speed: 12.0, stretch: 10.0, warp: 0.28, scale: 2.3, foam: 0.40, glint: 0.22, contrast: 1.10, veins: 1.0, shore: 0.85,
             },
             Mode::Buffet => Params {
-                speed: 6.0, stretch: 1.3, warp: 1.4, scale: 1.9, foam: 0.5, glint: 0.5, contrast: 1.15, veins: 0.4, shore: 1.0,
+                speed: 6.0, stretch: 2.2, warp: 1.1, scale: 1.9, foam: 0.32, glint: 0.22, contrast: 1.05, veins: 0.45, shore: 0.85,
             },
         }
     }
@@ -72,7 +72,7 @@ pub fn mode_from_flow(fl: f32, fall: bool) -> Mode {
         Mode::Buffet
     } else if fl >= 0.85 {
         Mode::Rush
-    } else if fl >= 0.18 {
+    } else if fl >= 0.10 {
         Mode::Stream
     } else {
         Mode::Still
@@ -576,7 +576,7 @@ fn connected_flow(
     // Relax the unit directions over water neighbours so the current is one
     // continuous sheet (no per-cell 45-degree jitter, smooth round bends).
     let reach: Vec<bool> = dist.iter().map(|d| d.is_finite()).collect();
-    for _ in 0..12 {
+    for _ in 0..20 {
         blur_water(&mut fx, &reach, w, h);
         blur_water(&mut fz, &reach, w, h);
         for k in 0..w * h {
@@ -616,9 +616,13 @@ fn connected_flow(
         }
         let width = 2.0 * half[k];
         let mut s = (REF_WIDTH / width.max(0.5)).clamp(0.0, 1.6);
-        // Lakes: a faint drift toward the outlet, effectively still.
-        s *= 1.0 - 0.88 * sstep(14.0, 28.0, width);
-        // Slight drag at the very edge.
+        // Aspect: long geodesic to outlet = river, even when the sheet is wide.
+        // Closed meres have no outlet (`reach` false) and stay still above.
+        let aspect = dist[k] / width.max(1.0);
+        let river = sstep(2.0, 5.5, aspect);
+        let lake_damp = 0.88 * sstep(14.0, 28.0, width);
+        let river_damp = 0.28 * sstep(28.0, 48.0, width);
+        s *= 1.0 - lerp(lake_damp, river_damp, river);
         s *= 0.6 + 0.4 * sstep(0.0, 1.5, sd[k]);
         flow[k] = [fx[k] * s, fz[k] * s];
     }
@@ -780,12 +784,14 @@ impl WaterField {
         let qx = nx + p.warp * (wx - 0.5);
         let qy = ny + p.warp * (wy - 0.5) / p.stretch.max(1.0).sqrt();
         let base = fbm2(qx, qy, seed);
+        // Stretch detail with the current so short across-grain cannot salt the iso pixel.
         let detail = vnoise(
-            across / (p.scale * 0.45) + (wx - 0.5) * p.warp,
-            along / (p.scale * p.stretch * 0.45) + (wy - 0.5) * p.warp * 0.5,
+            across / (p.scale * 0.70) + (wx - 0.5) * p.warp,
+            along / (p.scale * p.stretch * 1.15) + (wy - 0.5) * p.warp * 0.5,
             seed ^ 5,
         );
-        base * 0.7 + detail * 0.3
+        let dwt = if p.stretch > 2.0 { 0.14 } else { 0.28 };
+        base * (1.0 - dwt) + detail * dwt
     }
 
     pub fn shade(&self, x: f32, z: f32, t: f32, p: &Params, ripples: &[Ripple], light: [f32; 2], seed: u32) -> Option<Shade> {
@@ -811,9 +817,25 @@ impl WaterField {
         let u = p.scale / 2.6;
         let depth = (s.sdist * 0.2 + 0.35).max(0.0);
         let fl = (s.flow[0] * s.flow[0] + s.flow[1] * s.flow[1]).sqrt();
-        let dir = if fl > 0.02 { [s.flow[0] / fl, s.flow[1] / fl] } else { [0.0, 1.0] };
+        let dir = if fl > 0.02 {
+            let up = self.sample(x - s.flow[0] / fl * 1.4, z - s.flow[1] / fl * 1.4);
+            let [ax, az] = [s.flow[0] + up.flow[0], s.flow[1] + up.flow[1]];
+            let am = ax.hypot(az);
+            if am > 1e-5 {
+                [ax / am, az / am]
+            } else {
+                [s.flow[0] / fl, s.flow[1] / fl]
+            }
+        } else {
+            [0.0, 1.0]
+        };
         let speed = p.speed * fl;
         let still = p.veins <= 0.01 && p.foam <= 0.01;
+        // River UV: across the channel, along the current. Overlay rides this,
+        // never world-x or the light axis (those read as rain/static).
+        let along0 = x * dir[0] + z * dir[1];
+        let across = -x * dir[1] + z * dir[0];
+        let along = along0 - t * speed;
         // Still water (no current) gets no drift at all; moving water a slow
         // downstream creep on top of the flow-map advection below.
         let t_half = if fl > 0.02 { t * 0.5 } else { 0.0 };
@@ -886,40 +908,41 @@ impl WaterField {
             }
         }
         if p.veins > 0.01 && fl > 0.02 {
-            let along = x * dir[0] + z * dir[1] - t * speed;
-            let across = -x * dir[1] + z * dir[0];
-            let r = (fbm2(
-                across / p.scale * 0.8,
-                along / (p.scale * p.stretch * 2.0),
+            let ridge = (fbm2(
+                across / p.scale * 0.55,
+                along / (p.scale * p.stretch * 3.2),
                 seed ^ 303,
             ) - 0.5)
                 .abs();
-            let w = 0.010 + 0.012 * p.veins;
-            if r < w {
-                base = base.max(if r < w * 0.4 { 6.0 } else { 5.0 }).min(5.99);
+            let dash = vnoise(along / (p.scale * 1.8), across / (p.scale * 2.4), seed ^ 311);
+            let w = 0.034 + 0.028 * p.veins;
+            if ridge < w && dash > 0.38 {
+                // WATER+2 core, WATER+1 halo — pale sits on cyan, never lone white.
+                base = base.max(if ridge < w * 0.45 { 5.2 } else { 4.1 }).min(5.99);
             }
         }
         let mut hi = 0u8;
-        let tw = (t * 2.5 + hash((x * 7.0 / u) as i32 as u32, (z * 7.0 / u) as i32 as u32, seed ^ 4242) * 6.28).sin();
-        let thr = 1.55 - 0.7 * p.glint + 0.25 * tw;
-        if !shadow {
+        // Pale foam only on an already-lit mid (WATER+2), never on navy.
+        // Hash is 1-D along flow so survivors are dashes, not salt.
+        let tw = (t * 1.1 + hash((along0 / (u * 1.6)) as i32 as u32, seed ^ 4242, seed ^ 7) * 6.28).sin();
+        let thr = 2.35 - 0.45 * p.glint + 0.12 * tw;
+        if !shadow && !still && base >= 4.0 {
             if lit > thr {
-                hi = 6;
+                base = base.max(4.6).min(5.99);
             }
-            if lit > thr + 0.55 {
-                hi = 7;
+            if lit > thr + 0.85 && p.glint > 0.2 {
+                hi = 6;
             }
         }
         if p.foam > 0.01 && !fall {
-            foam += ((h - 0.60) * 6.0).max(0.0)
+            let foam_along = along0 - t * speed * 0.35;
+            foam += ((h - 0.68) * 5.0).max(0.0)
                 * p.foam
-                * (0.4 + 1.1 * vnoise(x / (u * 0.9), z / (u * 0.9) - t * speed * 0.2, seed ^ 19))
-                * (0.3 + 0.7 * fl);
+                * (0.25 + 1.0 * vnoise(across / (u * 1.1), foam_along / (u * p.stretch.max(1.0) * 1.4), seed ^ 19))
+                * (0.15 + 0.85 * fl);
         }
         if fall {
             // Streaks stay on the navy→mid ramp. Foam is specks, never a white sheet.
-            let along = x * dir[0] + z * dir[1] - t * speed;
-            let across = -x * dir[1] + z * dir[0];
             let streak = fbm2(across / (p.scale * 0.28), along / (p.scale * p.stretch * 0.65), seed ^ 71);
             if streak > 0.50 {
                 base = (base + 1.15).min(4.5);
@@ -933,26 +956,30 @@ impl WaterField {
                 hi = 6;
             }
         } else {
-            if foam > 0.30 {
+            if foam > 0.42 {
+                base = base.max(4.4).min(5.99);
+            }
+            if foam > 0.88 && fl > 0.35 {
                 hi = hi.max(6);
             }
-            if foam > 0.65 {
-                hi = hi.max(7);
-            }
-            if foam > 1.05 {
-                hi = 8;
-            }
-            // Lap is a few broken pixels, not a white rim that traces the cell diamonds.
-            let lap = (t * (1.0 + speed * 0.15) * 1.6 + (x + z) * 0.9 / u + vnoise(x / u * 0.5, z / u * 0.5, seed ^ 3) * 3.0).sin()
+            // Lap is broken WATER+2, not a white rim that traces the cell diamonds.
+            let lap = (t * (1.0 + speed * 0.15) * 1.2 + along0 * 0.55 / u + vnoise(x / u * 0.5, z / u * 0.5, seed ^ 3) * 2.2).sin()
                 * 0.5
                 + 0.5;
-            let reach = (0.05 + 0.12 * lap) * u * p.shore;
-            let broken = vnoise(x / (u * 0.35) + t * 0.3, z / (u * 0.35), seed ^ 29);
-            if s.sdist < reach && broken > 0.78 {
-                hi = hi.max(6);
-            } else if s.sdist < reach + 0.4 * u {
-                base = base.max(4.0).min(5.99);
+            let reach = (0.04 + 0.10 * lap) * u * p.shore;
+            let broken = vnoise(along0 / (u * 0.55) + t * 0.2, across / (u * 0.45), seed ^ 29);
+            if s.sdist < reach && broken > 0.82 {
+                base = base.max(4.2).min(5.99);
+            } else if s.sdist < reach + 0.35 * u {
+                base = base.max(3.6).min(5.99);
             }
+        }
+        if still {
+            hi = 0;
+        }
+        if hi > 0 && base < 4.0 {
+            hi = 0;
+            base = base.max(4.3);
         }
         Shade { base, hi }
     }
@@ -1278,5 +1305,52 @@ mod tests {
         eprintln!("drift cells (across x, along z) = ({}, {})", best.1, best.2);
         assert!(best.2 >= 0, "pattern runs upstream");
         assert!(best.1.abs() <= best.2.abs().max(0), "pattern slides across the channel");
+    }
+
+    fn dummy_field() -> WaterField {
+        WaterField {
+            cfg: FieldCfg { x0: -160.0, z0: -160.0, w: 2, h: 2, res: 2.0 },
+            ground: vec![0.0; 4],
+            sdist: vec![8.0; 4],
+            flow: vec![[0.0, 0.0]; 4],
+            fall_box: falls_box(&[]),
+            falls: vec![],
+        }
+    }
+
+    #[test]
+    fn still_never_emits_water_plus_3() {
+        let field = dummy_field();
+        let p = Mode::Still.params();
+        let n = 48;
+        let mut hi = 0usize;
+        for j in 0..n {
+            for i in 0..n {
+                let s = Sample { ground: 0.0, sdist: 12.0, flow: [0.0, 0.0] };
+                let sh = field.tone(8.0 + i as f32 * 0.3, 8.0 + j as f32 * 0.3, 1.4, &p, &[], LIGHT, 7, s, false);
+                if sh.hi > 0 {
+                    hi += 1;
+                }
+            }
+        }
+        assert_eq!(hi, 0, "still lake emitted WATER+3 ({hi} hi pixels)");
+    }
+
+    #[test]
+    fn highlight_sits_on_mid_not_navy() {
+        let field = dummy_field();
+        let p = Mode::Stream.params();
+        let n = 48;
+        for j in 0..n {
+            for i in 0..n {
+                let s = Sample { ground: 0.0, sdist: 5.0, flow: [0.0, 0.8] };
+                let sh = field.tone(8.0 + i as f32 * 0.3, 8.0 + j as f32 * 0.3, 0.9, &p, &[], LIGHT, 7, s, false);
+                if sh.hi > 0 {
+                    assert!(sh.base >= 4.0, "isolated hi on navy (base {})", sh.base);
+                }
+            }
+        }
+        assert!(mode_from_flow(0.10, false) == Mode::Stream);
+        assert!(mode_from_flow(0.09, false) == Mode::Still);
     }
 }
