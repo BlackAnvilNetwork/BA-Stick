@@ -36,10 +36,10 @@ impl Mode {
     pub fn params(self) -> Params {
         match self {
             Mode::Still => Params {
-                speed: 1.2, stretch: 1.0, warp: 0.3, scale: 2.6, foam: 0.0, glint: 0.08, contrast: 0.70, veins: 0.0, shore: 0.25,
+                speed: 1.2, stretch: 1.0, warp: 0.3, scale: 2.6, foam: 0.0, glint: 0.08, contrast: 0.18, veins: 0.0, shore: 0.25,
             },
             Mode::Stream => Params {
-                speed: 4.0, stretch: 6.2, warp: 0.18, scale: 2.6, foam: 0.05, glint: 0.12, contrast: 0.90, veins: 0.40, shore: 0.55,
+                speed: 4.0, stretch: 6.2, warp: 0.18, scale: 2.6, foam: 0.05, glint: 0.12, contrast: 0.55, veins: 0.40, shore: 0.55,
             },
             Mode::Rush => Params {
                 speed: 12.0, stretch: 7.0, warp: 0.28, scale: 2.3, foam: 0.22, glint: 0.22, contrast: 1.10, veins: 0.55, shore: 0.85,
@@ -72,7 +72,7 @@ pub fn mode_from_flow(fl: f32, fall: bool) -> Mode {
         Mode::Buffet
     } else if fl >= 0.85 {
         Mode::Rush
-    } else if fl >= 0.10 {
+    } else if fl >= 0.28 {
         Mode::Stream
     } else {
         Mode::Still
@@ -775,9 +775,9 @@ impl WaterField {
         // Time only ever moves the pattern downstream (+along). Any time term on
         // the across axis reads as water sliding side to side over the channel.
         // `t` here is already scaled by the local current (0 in still water).
-        // Cap stretch so east-west rivers cannot flatten into full-width scanlines;
-        // a little across-grain stays so streaks break instead of banding.
-        let st = p.stretch.min(6.5);
+        // Body field stays nearly isotropic. Any real stretch turns fbm into
+        // full-width iso scanlines on east-west rivers; flow read is the lane overlay.
+        let st = p.stretch.min(1.0);
         let along = x * dir[0] + z * dir[1];
         let across = -x * dir[1] + z * dir[0];
         let nx = across / p.scale;
@@ -894,34 +894,31 @@ impl WaterField {
         let (lx, lz) = (light[0] * inv_ll, light[1] * inv_ll);
         let eps = p.scale * 0.1;
         let lit = (sample_h(lx * eps, lz * eps) - h) / eps * p.scale * 2.4 * p.contrast;
+        // Depth must stay inside one palette step or a stone/island paints
+        // concentric sdist rings (Hartstep). Surf contrast stays low so a
+        // quantized fbm cannot close into C-islands (Stillmere / Shallows).
         let dn = sstep(0.0, 1.0, (s.sdist / (14.0 * u)).min(depth / (3.0 * u) + 0.0001).clamp(0.0, 1.0));
-        let mut vv = lerp(0.60, 0.30, dn) + (h - 0.5) * 0.55 * p.contrast + lit * 0.10;
+        let mut vv = if still {
+            lerp(0.38, 0.32, dn) + (h - 0.5) * 0.06 * p.contrast
+        } else {
+            lerp(0.50, 0.38, dn) + (h - 0.5) * 0.38 * p.contrast + lit * 0.08
+        };
         let shadow = !still && self.shadowed(x, z, s.ground, 1.3);
         if shadow {
-            vv -= 0.14;
+            vv -= 0.10;
         }
         let mut base = (vv * 6.0).clamp(0.0, 5.99);
-        if !still {
-            let sh = 1.0 - dn;
-            if sh > 0.15 {
-                let c = fbm2((x - dir[0] * t * speed * 0.5) / (u * 0.9), (z - dir[1] * t * speed * 0.5) / (u * 0.9), seed ^ 7);
-                if (c - 0.5).abs() < 0.028 * sh {
-                    base = (base + 1.0).min(5.99);
-                }
-            }
-        }
-        if p.veins > 0.01 && fl > 0.02 {
-            let ridge = (fbm2(
-                across / p.scale * 0.55,
-                along / (p.scale * p.stretch * 2.0),
-                seed ^ 303,
-            ) - 0.5)
-                .abs();
-            let dash = vnoise(along / (p.scale * 1.8), across / (p.scale * 2.4), seed ^ 311);
-            let w = 0.014 + 0.012 * p.veins;
-            if ridge < w && dash > 0.52 {
-                // WATER+2 core, WATER+1 halo — pale sits on cyan, never lone white.
-                base = base.max(if ridge < w * 0.45 { 4.8 } else { 3.9 }).min(5.99);
+        if p.veins > 0.01 && fl > 0.18 && s.sdist < 4.0 {
+            // Parallel meander lanes, not fbm ridges — ridge < w is a closed isoline.
+            // Wide meres (high sdist) stay unmarked even when connected_flow is nonzero.
+            let meander = fbm2(along / (p.scale * 4.0), across / (p.scale * 5.0), seed ^ 303);
+            let lane = (across / (p.scale * 0.90) + (meander - 0.5) * 0.55).rem_euclid(1.0);
+            let half = 0.030 + 0.018 * p.veins;
+            let in_lane = (lane - 0.5).abs() < half;
+            // Short, dim along-dashes. Bright WATER+2 rulers read as iso scanlines.
+            let dash = vnoise(along / (p.scale * 0.35), across / (p.scale * 2.8), seed ^ 311);
+            if in_lane && dash > 0.72 {
+                base = base.max(3.6).min(5.99);
             }
         }
         let mut hi = 0u8;
@@ -938,11 +935,12 @@ impl WaterField {
             }
         }
         if p.foam > 0.01 && !fall {
+            // Specks along the current. Thresholding h made closed foam ovals.
             let foam_along = along0 - t * speed * 0.35;
-            foam += ((h - 0.68) * 5.0).max(0.0)
-                * p.foam
-                * (0.25 + 1.0 * vnoise(across / (u * 1.1), foam_along / (u * p.stretch.max(1.0) * 1.4), seed ^ 19))
-                * (0.15 + 0.85 * fl);
+            let speck = vnoise(across / (u * 0.7), foam_along / (u * 1.1), seed ^ 19);
+            if speck > 0.78 {
+                foam += p.foam * fl;
+            }
         }
         if fall {
             // Streaks stay on the navy→mid ramp. Foam is specks, never a white sheet.
@@ -1353,7 +1351,7 @@ mod tests {
                 }
             }
         }
-        assert!(mode_from_flow(0.10, false) == Mode::Stream);
-        assert!(mode_from_flow(0.09, false) == Mode::Still);
+        assert!(mode_from_flow(0.28, false) == Mode::Stream);
+        assert!(mode_from_flow(0.27, false) == Mode::Still);
     }
 }
