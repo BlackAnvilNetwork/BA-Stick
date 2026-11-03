@@ -36,7 +36,7 @@ impl Mode {
     pub fn params(self) -> Params {
         match self {
             Mode::Still => Params {
-                speed: 1.2, stretch: 1.0, warp: 0.3, scale: 2.6, foam: 0.0, glint: 0.08, contrast: 0.18, veins: 0.0, shore: 0.25,
+                speed: 1.2, stretch: 1.0, warp: 0.3, scale: 2.6, foam: 0.0, glint: 0.08, contrast: 0.28, veins: 0.0, shore: 0.25,
             },
             Mode::Stream => Params {
                 speed: 4.0, stretch: 6.2, warp: 0.18, scale: 2.6, foam: 0.05, glint: 0.12, contrast: 0.55, veins: 0.40, shore: 0.55,
@@ -849,7 +849,7 @@ impl WaterField {
         let w0 = 1.0 - (2.0 * ph0 - 1.0).abs();
         let w1 = 1.0 - w0;
         let o0 = ph0 * speed * cycle;
-        let dual = speed >= 0.12;
+        let dual = speed >= 0.45;
         let sample_h = |dx: f32, dz: f32| {
             let a = self.surf(x + dx - dir[0] * o0, z + dz - dir[1] * o0, dir, p, t_half, seed);
             if !dual {
@@ -908,17 +908,28 @@ impl WaterField {
             vv -= 0.10;
         }
         let mut base = (vv * 6.0).clamp(0.0, 5.99);
-        if p.veins > 0.01 && fl > 0.18 && s.sdist < 4.0 {
-            // Parallel meander lanes, not fbm ridges — ridge < w is a closed isoline.
-            // Wide meres (high sdist) stay unmarked even when connected_flow is nonzero.
-            let meander = fbm2(along / (p.scale * 4.0), across / (p.scale * 5.0), seed ^ 303);
-            let lane = (across / (p.scale * 0.90) + (meander - 0.5) * 0.55).rem_euclid(1.0);
-            let half = 0.030 + 0.018 * p.veins;
-            let in_lane = (lane - 0.5).abs() < half;
-            // Short, dim along-dashes. Bright WATER+2 rulers read as iso scanlines.
-            let dash = vnoise(along / (p.scale * 0.35), across / (p.scale * 2.8), seed ^ 311);
-            if in_lane && dash > 0.72 {
-                base = base.max(3.6).min(5.99);
+        if p.veins > 0.01 && fl > 0.02 {
+            let ia = (along / 1.35).floor() as i32 as u32;
+            let ic = (across / 0.85).floor() as i32 as u32;
+            let n = hash(ia, ic, seed ^ 303);
+            let nxt = hash(ia.wrapping_add(1), ic, seed ^ 303);
+            if n > 0.91 {
+                base = base.max(4.0).min(5.4);
+                if n > 0.965 { base = base.max(4.8).min(5.8); }
+            }
+            if n > 0.91 && nxt > 0.88 {
+                base = base.max(4.2).min(5.5);
+            }
+        }
+        if !still && s.sdist < 2.4 {
+            let ia = (along / 1.7).floor() as i32 as u32;
+            let ic = (across / 1.1).floor() as i32 as u32;
+            let n = hash(ia, ic, seed ^ 707);
+            let side = hash(ia, ic.wrapping_add(1), seed ^ 707);
+            if n > 0.86 { base = base.max(3.8).min(5.2); }
+            if n > 0.94 && side > 0.80 { base = base.max(4.3).min(5.5); }
+            if s.sdist < 0.85 && hash(ia.wrapping_mul(3), ic, seed ^ 19) > 0.78 {
+                base = base.max(4.0).min(5.0);
             }
         }
         let mut hi = 0u8;
@@ -977,6 +988,14 @@ impl WaterField {
         }
         if still {
             hi = 0;
+            let ix = x.floor() as i32 as u32;
+            let iz = z.floor() as i32 as u32;
+            let tick = (t * 0.45).floor() as i32 as u32;
+            let g = hash(ix, iz, seed ^ 17);
+            base = (base + (g - 0.5) * 0.22).clamp(0.0, 3.8);
+            if hash(ix, iz, seed ^ tick) > 0.984 {
+                base = 4.15; // WATER+1 only
+            }
         }
         if hi > 0 && base < 4.0 {
             hi = 0;
