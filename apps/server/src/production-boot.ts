@@ -10,8 +10,18 @@ import { characterMintEnvConfigured } from "./lok-vault";
 import { assertPublicRpcSafe } from "./public-rpc";
 import { envSettlementChainId } from "./settlement-chain";
 
-/** Pinned production LISTING EOA (docs/gnosis-launch.md). */
+/**
+ * Abandoned 2026-10-13 EOA-direct listing pin. Official ignition does not
+ * accept this as a listing signer: Listing Safe holds the roles; LOK_LISTING_KEY
+ * is an owner of that Safe. Other modules still import this address.
+ */
 export const PINNED_GNOSIS_LISTING_ADDRESS = "0xbfa29a6ee3d1188aa0a9e0c783e5da620b859e76";
+/** Official Listing Safe (deployments/gnosis.json listingRole). Admin is 0x9f26…6c34. */
+export const PINNED_GNOSIS_LISTING_SAFE = "0xe10520c6122c01edd91403d98da9578c0ce5002b";
+
+/** Same shape listingRoleKey accepts — 0x + 32-byte hex. */
+const LISTING_KEY_HEX = /^0x[0-9a-fA-F]{64}$/;
+const ADDRESS_HEX = /^0x[0-9a-fA-F]{40}$/;
 
 export type ProductionBootResult =
   | { ok: true }
@@ -52,9 +62,98 @@ export function assertPvpProductionClaimDelay(delay: bigint): ProductionBootResu
   return { ok: true };
 }
 const FACTORY_ABI = parseAbi(["function mintFee() view returns (uint256)"]);
+const SAFE_OWNERS_ABI = parseAbi(["function getOwners() view returns (address[])"]);
+
+function namedNetwork(env: NodeJS.ProcessEnv): string {
+  return (env.NETWORK ?? env.LOK_NETWORK)?.trim().toLowerCase() ?? "";
+}
+
+function chainIsGnosis(env: NodeJS.ProcessEnv = process.env, chainId = envSettlementChainId(env)): boolean {
+  return namedNetwork(env) === "gnosis" || chainId === 100;
+}
+
+/** Operator RPC: LOK_CHAIN_RPC, else first LOK_CHAIN_RPC_URLS entry, else public. */
+function firstOperatorRpc(env: NodeJS.ProcessEnv = process.env): string {
+  const primary = env.LOK_CHAIN_RPC?.trim() ?? "";
+  if (primary) return primary;
+  const raw = env.LOK_CHAIN_RPC_URLS?.trim() ?? "";
+  if (raw) {
+    for (const part of raw.split(",")) {
+      const url = part.trim();
+      if (url) return url;
+    }
+  }
+  return env.LOK_PUBLIC_RPC?.trim() ?? "";
+}
+
+function envForMintShape(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  if (env.LOK_CHAIN_RPC?.trim()) return env;
+  const rpc = firstOperatorRpc(env);
+  if (!rpc) return env;
+  return { ...env, LOK_CHAIN_RPC: rpc };
+}
+
+/**
+ * On Gnosis the listing key must be an owner of LOK_LISTING_SAFE, and that Safe
+ * must be the official Listing Safe that holds LISTING / OPERATOR. The abandoned
+ * EOA pin is not a fallback when the Safe is unset.
+ */
+export function gnosisListingSignerOk(args: {
+  chainIsGnosis: boolean;
+  keyAddress: string;
+  keyHasListingRole: boolean;
+  keyHasOperatorRole: boolean;
+  listingSafe?: string;
+  safeHasListingRole?: boolean;
+  safeHasOperatorRole?: boolean;
+  safeOwners?: readonly string[];
+}): ProductionBootResult {
+  const key = args.keyAddress.toLowerCase();
+  const safe = args.listingSafe?.trim().toLowerCase() ?? "";
+  if (args.chainIsGnosis && !safe) {
+    return {
+      ok: false,
+      error:
+        "production Gnosis requires LOK_LISTING_SAFE (official Listing Safe " +
+        PINNED_GNOSIS_LISTING_SAFE +
+        ") — abandoned EOA pin " +
+        PINNED_GNOSIS_LISTING_ADDRESS +
+        " is not accepted",
+    };
+  }
+  if (safe) {
+    if (args.chainIsGnosis && safe !== PINNED_GNOSIS_LISTING_SAFE) {
+      return {
+        ok: false,
+        error: "LOK_LISTING_SAFE " + safe + " != pinned official Listing Safe " + PINNED_GNOSIS_LISTING_SAFE,
+      };
+    }
+    if (!args.safeHasListingRole) {
+      return { ok: false, error: "Listing Safe " + safe + " lacks LISTING_ROLE on AhEscrow" };
+    }
+    if (!args.safeHasOperatorRole) {
+      return { ok: false, error: "Listing Safe " + safe + " lacks OPERATOR_ROLE on PvpBounty" };
+    }
+    const owners = (args.safeOwners ?? []).map((owner) => owner.toLowerCase());
+    if (!owners.includes(key)) {
+      return {
+        ok: false,
+        error: "LOK_LISTING_KEY address " + args.keyAddress + " is not an owner of Listing Safe " + safe,
+      };
+    }
+    return { ok: true };
+  }
+  if (!args.keyHasListingRole) {
+    return { ok: false, error: "LOK_LISTING_KEY address " + args.keyAddress + " lacks LISTING_ROLE on AhEscrow" };
+  }
+  if (!args.keyHasOperatorRole) {
+    return { ok: false, error: "LOK_LISTING_KEY address " + args.keyAddress + " lacks OPERATOR_ROLE on PvpBounty" };
+  }
+  return { ok: true };
+}
 
 export function isProductionSettlementChain(env: NodeJS.ProcessEnv = process.env): boolean {
-  const named = (env.NETWORK ?? env.LOK_NETWORK)?.trim().toLowerCase();
+  const named = namedNetwork(env);
   if (named === "gnosis" || named === "chiado") return true;
   const id = envSettlementChainId(env);
   return id === 100 || id === 10200;
@@ -80,10 +179,12 @@ export function assertProductionEnvShape(env: NodeJS.ProcessEnv = process.env): 
   const nft = env.LOK_NFT?.trim();
   const factory = env.LOK_FACTORY?.trim();
   const escrow = env.LOK_AH_ESCROW?.trim() || ahEscrowAddress(env);
-  const rpc = env.LOK_CHAIN_RPC?.trim() || env.LOK_PUBLIC_RPC?.trim();
-  const listingKey = env.LOK_LISTING_KEY?.trim() || listingRoleKey(env);
+  const rpc = firstOperatorRpc(env);
+  const listingKeyRaw = env.LOK_LISTING_KEY?.trim() || "";
   const statusToken = env.LOK_OPS_STATUS_TOKEN?.trim();
   const pvpBounty = env.LOK_PVP_BOUNTY?.trim() || "";
+  const listingSafe = env.LOK_LISTING_SAFE?.trim() || "";
+  const gnosis = chainIsGnosis(env);
 
   // Admin / deployer keys must never sit on a production host. LISTING covers
   // AhEscrow LISTING_ROLE + PvpBounty OPERATOR_ROLE.
@@ -108,9 +209,10 @@ export function assertProductionEnvShape(env: NodeJS.ProcessEnv = process.env): 
   if (!escrow) missing.push("LOK_AH_ESCROW");
   if (!rpc) missing.push("LOK_CHAIN_RPC");
   // LISTING EOA only — never put admin/owner keys on the server for AhEscrow or PvpBounty.
-  if (!listingKey) missing.push("LOK_LISTING_KEY");
+  if (!listingKeyRaw) missing.push("LOK_LISTING_KEY");
   if (!statusToken) missing.push("LOK_OPS_STATUS_TOKEN");
-  if (!/^0x[0-9a-fA-F]{40}$/.test(pvpBounty)) missing.push("LOK_PVP_BOUNTY");
+  if (!ADDRESS_HEX.test(pvpBounty)) missing.push("LOK_PVP_BOUNTY");
+  if (gnosis && !ADDRESS_HEX.test(listingSafe)) missing.push("LOK_LISTING_SAFE");
   if (missing.length) {
     return {
       ok: false,
@@ -120,7 +222,29 @@ export function assertProductionEnvShape(env: NodeJS.ProcessEnv = process.env): 
         " (mint must not fail open). Dry-run deploy JSON is not used for auto-fill.",
     };
   }
-  if (!characterMintEnvConfigured(env)) {
+  if (listingKeyRaw && !LISTING_KEY_HEX.test(listingKeyRaw)) {
+    return {
+      ok: false,
+      error: "LOK_LISTING_KEY must be a 0x-prefixed 64-hex private key",
+    };
+  }
+  if (!listingRoleKey(env)) {
+    return {
+      ok: false,
+      error: "LOK_LISTING_KEY must be a 0x-prefixed 64-hex private key",
+    };
+  }
+  if (gnosis && listingSafe.toLowerCase() !== PINNED_GNOSIS_LISTING_SAFE) {
+    return {
+      ok: false,
+      error:
+        "LOK_LISTING_SAFE " +
+        listingSafe +
+        " != pinned official Listing Safe " +
+        PINNED_GNOSIS_LISTING_SAFE,
+    };
+  }
+  if (!characterMintEnvConfigured(envForMintShape(env))) {
     return { ok: false, error: "character mint env incomplete on production chain" };
   }
   // #272: snapshots must never embed keyed operator RPCs.
@@ -131,7 +255,7 @@ export function assertProductionEnvShape(env: NodeJS.ProcessEnv = process.env): 
 
 /**
  * On-chain smoke: bytecode present, mintFee > 0, escrow.characterNft == NFT,
- * LISTING key holds LISTING_ROLE when readable.
+ * LISTING / OPERATOR held by Listing Safe (Gnosis) or the listing key (Chiado).
  */
 export async function assertProductionContractsLive(
   env: NodeJS.ProcessEnv = process.env,
@@ -143,7 +267,7 @@ export async function assertProductionContractsLive(
   const nft = env.LOK_NFT!.trim() as `0x${string}`;
   const factory = env.LOK_FACTORY!.trim() as `0x${string}`;
   const escrow = (env.LOK_AH_ESCROW?.trim() || ahEscrowAddress(env)) as `0x${string}`;
-  const rpc = (env.LOK_CHAIN_RPC?.trim() || env.LOK_PUBLIC_RPC!.trim()) as string;
+  const rpc = firstOperatorRpc(env);
   const listing = listingRoleKey(env);
   const chainId = envSettlementChainId(env);
 
@@ -208,67 +332,85 @@ export async function assertProductionContractsLive(
         error: "AhEscrow.characterNft (" + escrowNft + ") != LOK_NFT (" + nft.toLowerCase() + ")",
       };
     }
-    if (listing) {
-      try {
-        const role = await pub.readContract({
-          address: escrow,
-          abi: ESCROW_ABI,
-          functionName: "LISTING_ROLE",
+    if (!listing) {
+      return { ok: false, error: "LOK_LISTING_KEY must be a 0x-prefixed 64-hex private key" };
+    }
+    try {
+      const role = await pub.readContract({
+        address: escrow,
+        abi: ESCROW_ABI,
+        functionName: "LISTING_ROLE",
+      });
+      const acct = privateKeyToAccount(
+        (listing.startsWith("0x") ? listing : "0x" + listing) as `0x${string}`,
+      );
+      const gnosis = chainIsGnosis(env, chainId);
+      const opRole = await pub.readContract({
+        address: bounty,
+        abi: PVP_BOUNTY_ABI,
+        functionName: "OPERATOR_ROLE",
+      });
+      const listingSafeRaw = env.LOK_LISTING_SAFE?.trim() ?? "";
+      if (ADDRESS_HEX.test(listingSafeRaw)) {
+        const safe = listingSafeRaw as `0x${string}`;
+        const [safeHasListingRole, safeHasOperatorRole, safeOwners] = await Promise.all([
+          pub.readContract({
+            address: escrow,
+            abi: ESCROW_ABI,
+            functionName: "hasRole",
+            args: [role, safe],
+          }),
+          pub.readContract({
+            address: bounty,
+            abi: PVP_BOUNTY_ABI,
+            functionName: "hasRole",
+            args: [opRole, safe],
+          }),
+          pub.readContract({
+            address: safe,
+            abi: SAFE_OWNERS_ABI,
+            functionName: "getOwners",
+          }),
+        ]);
+        const decision = gnosisListingSignerOk({
+          chainIsGnosis: gnosis,
+          keyAddress: acct.address,
+          keyHasListingRole: false,
+          keyHasOperatorRole: false,
+          listingSafe: safe,
+          safeHasListingRole,
+          safeHasOperatorRole,
+          safeOwners,
         });
-        const acct = privateKeyToAccount(
-          (listing.startsWith("0x") ? listing : "0x" + listing) as `0x${string}`,
-        );
-        const named = (env.NETWORK ?? env.LOK_NETWORK)?.trim().toLowerCase();
-        if (
-          (named === "gnosis" || chainId === 100) &&
-          acct.address.toLowerCase() !== PINNED_GNOSIS_LISTING_ADDRESS
-        ) {
-          return {
-            ok: false,
-            error:
-              "LOK_LISTING_KEY address " +
-              acct.address +
-              " != pinned Gnosis LISTING " +
-              PINNED_GNOSIS_LISTING_ADDRESS,
-          };
-        }
-        const ok = await pub.readContract({
+        if (!decision.ok) return decision;
+      } else {
+        const keyHasListingRole = await pub.readContract({
           address: escrow,
           abi: ESCROW_ABI,
           functionName: "hasRole",
           args: [role, acct.address],
         });
-        if (!ok) {
-          return {
-            ok: false,
-            error: "LOK_LISTING_KEY address " + acct.address + " lacks LISTING_ROLE on AhEscrow",
-          };
-        }
-        const opRole = await pub.readContract({
-          address: bounty,
-          abi: PVP_BOUNTY_ABI,
-          functionName: "OPERATOR_ROLE",
-        });
-        const isOp = await pub.readContract({
+        const keyHasOperatorRole = await pub.readContract({
           address: bounty,
           abi: PVP_BOUNTY_ABI,
           functionName: "hasRole",
           args: [opRole, acct.address],
         });
-        if (!isOp) {
-          return {
-            ok: false,
-            error: "LOK_LISTING_KEY address " + acct.address + " lacks OPERATOR_ROLE on PvpBounty",
-          };
-        }
-      } catch (err) {
-        return {
-          ok: false,
-          error:
-            "LISTING_ROLE check failed: " +
-            (err instanceof Error ? err.message : String(err)),
-        };
+        const decision = gnosisListingSignerOk({
+          chainIsGnosis: gnosis,
+          keyAddress: acct.address,
+          keyHasListingRole,
+          keyHasOperatorRole,
+        });
+        if (!decision.ok) return decision;
       }
+    } catch (err) {
+      return {
+        ok: false,
+        error:
+          "LISTING_ROLE check failed: " +
+          (err instanceof Error ? err.message : String(err)),
+      };
     }
     return { ok: true };
   } catch (err) {
