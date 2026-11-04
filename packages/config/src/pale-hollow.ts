@@ -1192,6 +1192,8 @@ export function paleHollowInRiverWall(x: number, z: number): boolean {
 export function paleHollowWalkable(x: number, z: number): boolean {
   if (paleHollowInHubRearWall(x, z)) return false;
   if (paleHollowOnBridge(x, z)) return true;
+  // Trails are built with this function; skip the corridor until the cache exists.
+  if (paleHollowTrailCache && paleHollowOnTrail(x, z)) return true;
   if (paleHollowInOpenWater(x, z)) return false;
   if (paleHollowInRiverWall(x, z)) return false;
   if (paleHollowBiomeCore(x, z) === "river") return false;

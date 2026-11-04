@@ -14,6 +14,8 @@
  * North is +z.
  */
 
+import { fbShoreFillAt } from "./forest-basin-shore";
+import { gradedCorridorY } from "./trail-geom";
 import { zoneLink } from "./zone-links";
 import {
   FB_BRIDGES,
@@ -25,6 +27,7 @@ import {
   FB_WARP_SITES,
   fbBridgeAt,
   fbDesignWater,
+  fbOnFallFace,
   fbBridgeDeckY,
   fbBridgeT,
   fbTrailDist,
@@ -156,13 +159,26 @@ export function forestBasinRiverX(z: number): number {
   return best.x;
 }
 
+/** Shore cleanup (juts, thin bars) flooded at this point; shared with the bake. */
+function shoreFill(x: number, z: number): number | null {
+  return fbShoreFillAt(x, z, FOREST_BASIN_BOUNDS, forestBasinGroundY);
+}
+
+/** Build the shore grid now (about 2 s) so the first walk check does not stall. */
+export function forestBasinPrebuildShore(): void {
+  shoreFill(FOREST_BASIN_BOUNDS.minX, FOREST_BASIN_BOUNDS.minZ);
+}
+
 export function forestBasinOnBridge(x: number, z: number): boolean {
   return fbBridgeAt(x, z) != null;
 }
 
 /** Any water not under a bridge, fords included, so wading water still reads as water. */
 export function forestBasinInOpenWater(x: number, z: number): boolean {
-  return fbDesignWater(x, z) != null && !forestBasinOnBridge(x, z);
+  if (forestBasinOnBridge(x, z)) return false;
+  if (fbDesignWater(x, z) != null) return true;
+  if (forestBasinOnTrail(x, z)) return false;
+  return shoreFill(x, z) != null;
 }
 
 export function forestBasinBridgeCenter(): { x: number; z: number } {
@@ -176,20 +192,52 @@ export function forestBasinWalkable(x: number, z: number): boolean {
     if (g.blocked && inRect(x, z, g)) return false;
   }
   if (forestBasinOnBridge(x, z)) return true;
+  if (fbOnFallFace(x, z)) return false;
+  // Painted street wins over a river hem: the corridor is the road, even when
+  // design water clips the edge. Open-water still reports true for VFX/mobs.
+  if (forestBasinOnTrail(x, z)) return true;
   const w = fbDesignWater(x, z);
   if (w) return w.depth <= FB_WADE_DEPTH;
+  const sf = shoreFill(x, z);
+  if (sf != null) return sf - forestBasinGroundY(x, z) <= FB_WADE_DEPTH;
   const f = cellFlags(x, z);
   if (f & 8) return true;
   return (f & 4) === 0;
 }
 
 export function forestBasinWaterSurfaceY(x: number, z: number): number | null {
-  return fbDesignWater(x, z)?.surface ?? null;
+  return fbDesignWater(x, z)?.surface ?? shoreFill(x, z);
+}
+
+/** Spine samples skip water so the 8 m filter does not sag into a river. The last 8 m eases to the deck so the road does not cliff into the abutment. */
+function trailBedY(x: number, z: number): number {
+  if (forestBasinInOpenWater(x, z) || fbDesignWater(x, z) != null) return Number.NaN;
+  const g = forestBasinGroundY(x, z);
+  let pin: number | null = null;
+  let pinD = Infinity;
+  for (const b of FB_BRIDGES) {
+    const da = Math.hypot(x - b.a.x, z - b.a.z);
+    const db = Math.hypot(x - b.b.x, z - b.b.z);
+    if (da < 8 && da < pinD) {
+      pin = b.yA;
+      pinD = da;
+    }
+    if (db < 8 && db < pinD) {
+      pin = b.yB;
+      pinD = db;
+    }
+  }
+  if (pin == null) return g;
+  if (pinD < 4) return pin;
+  const k = 1 - (pinD - 4) / 4;
+  return g + (pin - g) * k;
 }
 
 export function forestBasinStandHeight(x: number, z: number): number {
   const b = fbBridgeAt(x, z);
   if (b) return fbBridgeDeckY(b, fbBridgeT(b, x, z));
+  const grade = gradedCorridorY(x, z, FB_TRAIL_DEFS, FB_TRAIL_WIDTH / 2, trailBedY);
+  if (grade != null) return grade;
   return forestBasinGroundY(x, z);
 }
 
@@ -201,11 +249,15 @@ export type ForestBasinBiome = "grass" | "meadow" | "mountain" | "river" | "rive
 
 export function forestBasinBiome(x: number, z: number): ForestBasinBiome {
   if (forestBasinOnBridge(x, z)) return "bridge";
+  if (fbOnFallFace(x, z)) return "river";
   if (fbDesignWater(x, z)) return "river";
   if (!inPad(x, z)) return "mountain";
   const f = cellFlags(x, z) & 3;
   if (f === 3) return "mountain";
-  for (const [dx, dz] of [[2, 0], [-2, 0], [0, 2], [0, -2]] as const) {
+  for (const [dx, dz] of [
+    [3, 0], [-3, 0], [0, 3], [0, -3],
+    [2.2, 2.2], [2.2, -2.2], [-2.2, 2.2], [-2.2, -2.2],
+  ] as const) {
     if (fbDesignWater(x + dx, z + dz)) return "riverbank";
   }
   if (f === 2) return "meadow";

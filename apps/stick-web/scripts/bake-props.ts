@@ -10,10 +10,14 @@ import {
   PALE_HOLLOW_BOUNDS,
   PH_CAMP_SHIFT_X,
   FB_BRIDGES,
+  FB_AQUEDUCT_BAY,
+  FB_AQUEDUCT_WIDTH,
+  fbAqueductBays,
+  fbAqueductDist,
+  fbAqueductRiverLift,
   forestBasinGroundY,
   forestBasinWaterSurfaceY,
   fbAscentAt,
-  FB_RIVERS,
   FB_GORGES,
   FB_QUARRY,
   FB_SINKS,
@@ -36,6 +40,7 @@ import {
   forestBasinBridgeCenter,
   forestBasinStandHeight,
   forestBasinWalkable,
+  forestBasinInOpenWater,
   PH_CAMP_SHIFT_Z,
   PH_HUB,
   PH_MOUNTAINS,
@@ -70,8 +75,8 @@ export const K = {
   wallBlock: 30, moss: 31, firePit: 32, tent: 33, bedroll: 34, crate: 35, chest: 36, leanTo: 37, trainer: 38, stall: 39,
   weaponRack: 40, firewood: 41, barrel: 42, banner: 43, stone: 44, pebble: 45, peak: 46, riverWall: 47, bridge: 48,
   shack: 49, cairn: 50,
-  // Forest Basin set pieces (engine props.rs 60-66)
-  fallenLog: 60, mushrooms: 61, falls: 62, rockWall: 63, thorn: 64, ruinArch: 65, hollowOak: 66,
+  // Forest Basin set pieces (engine props.rs 60-67)
+  fallenLog: 60, mushrooms: 61, falls: 62, rockWall: 63, thorn: 64, ruinArch: 65, hollowOak: 66, waterLift: 67,
 } as const;
 
 export type Prop = { kind: number; v: number; x: number; z: number; y: number; yaw: number; s: number; w: number; h: number; d: number };
@@ -325,10 +330,34 @@ function riverBanks(out: Prop[]): void {
 export function forestBasinProps(): Prop[] {
   const out: Prop[] = [];
   const anchors = [...forestBasinNpcs(), ...forestBasinMobs(), FB_SPAWN, ...ZONE_LINKS.filter((l) => l.to === "forest_basin").map((l) => l.spawn)];
-  const firm = (x: number, z: number) => [[0, 0], [0.5, 0], [-0.5, 0], [0, 0.5], [0, -0.5]].every(([dx, dz]) => forestBasinWalkable(x + dx!, z + dz!));
+  const firm = (x: number, z: number) =>
+    !forestBasinInOpenWater(x, z) && !fbDesignWater(x, z) &&
+    [[0, 0], [0.5, 0], [-0.5, 0], [0, 0.5], [0, -0.5]].every(([dx, dz]) => forestBasinWalkable(x + dx!, z + dz!) && !forestBasinInOpenWater(x + dx!, z + dz!));
   const nearGate = (x: number, z: number) => FB_GATES.some((g) => x > g.minX - 1 && x < g.maxX + 1 && z > g.minZ - 1 && z < g.maxZ + 1);
-  const at = (kind: number, x: number, z: number, yaw = 0, s = 1) =>
+  const bankClear = (px: number, pz: number) => {
+    if (!firm(px, pz) || fbDesignWater(px, pz) || forestBasinInOpenWater(px, pz)) return false;
+    for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++) {
+      if (dx * dx + dz * dz > 5) continue;
+      if (fbDesignWater(px + dx, pz + dz) || forestBasinInOpenWater(px + dx, pz + dz)) return false;
+    }
+    return true;
+  };
+  const snapBank = (x: number, z: number, maxR = 10) => {
+    if (bankClear(x, z)) return { x, z };
+    for (let r = 1; r <= maxR; r++) {
+      for (let k = 0; k < 16; k++) {
+        const a = (k / 16) * Math.PI * 2;
+        const px = x + Math.cos(a) * r, pz = z + Math.sin(a) * r;
+        if (bankClear(px, pz)) return { x: px, z: pz };
+      }
+    }
+    return null;
+  };
+  const KEEP_DRY = new Set([K.firePit, K.tent, K.bedroll, K.crate, K.chest, K.leanTo, K.shack, K.cairn, K.stall, K.firewood]);
+  const at = (kind: number, x: number, z: number, yaw = 0, s = 1) => {
+    if (KEEP_DRY.has(kind) && (fbDesignWater(x, z) || forestBasinInOpenWater(x, z) || !firm(x, z))) return;
     out.push({ kind, v: 0, x, z, y: forestBasinStandHeight(x, z), yaw, s, w: 0, h: 0, d: 0 });
+  };
   // Bridges (deck spans from a to b).
   for (const b of FB_BRIDGES) {
     const dx = b.b.x - b.a.x, dz = b.b.z - b.a.z;
@@ -355,13 +384,13 @@ export function forestBasinProps(): Prop[] {
       const a = hash2(k, p.x) * Math.PI * 2;
       const r = 3 + hash2(p.z, k) * 4;
       const bx = p.x + Math.cos(a) * r, bz = p.z + Math.sin(a) * r;
-      if (!firm(bx, bz) || fbDesignWater(bx, bz)) continue;
+      if (!firm(bx, bz) || fbDesignWater(bx, bz) || forestBasinInOpenWater(bx, bz)) continue;
       at(k % 3 === 2 ? K.moss : K.wallBlock, bx, bz, a, 0.8 + hash2(k, k) * 0.6);
     }
   }
   // Cairns mark the ascent routes.
   for (const a of FB_ASCENTS) for (const q of a.points) {
-    const side = [a.halfWidth + 0.8, -(a.halfWidth + 0.8)].find((o) => firm(q.x + o, q.z) && !fbDesignWater(q.x + o, q.z) && !anchors.some((m) => Math.hypot(m.x - q.x - o, m.z - q.z) < 3.2));
+    const side = [a.halfWidth + 0.8, -(a.halfWidth + 0.8)].find((o) => firm(q.x + o, q.z) && !fbDesignWater(q.x + o, q.z) && !forestBasinInOpenWater(q.x + o, q.z) && !anchors.some((m) => Math.hypot(m.x - q.x - o, m.z - q.z) < 3.2));
     if (side != null) at(K.cairn, q.x + side, q.z, 0, 0.8);
   }
   // Kettle Hollow camp.
@@ -369,8 +398,9 @@ export function forestBasinProps(): Prop[] {
     [K.tent, -6, 3, 0.4], [K.tent, 5, 4, -0.3], [K.firePit, -6, -4, 0], [K.leanTo, 6, -4, 0.2],
     [K.crate, -3, -6, 0.5], [K.firewood, -8, -2, 0.1], [K.sapling, 3, 8, 0], [K.sapling, -2, 9, 0],
   ] as const;
+  const campOrigin = snapBank(FB_CAMP.x, FB_CAMP.z) ?? FB_CAMP;
   for (const [kind, dx, dz, yaw] of camp) {
-    const cx = FB_CAMP.x + dx, cz = FB_CAMP.z + dz;
+    const cx = campOrigin.x + dx, cz = campOrigin.z + dz;
     if (FB_WARP_SITES.some((w) => Math.hypot(cx - w.x, cz - w.z) < w.r + 1)) continue;
     at(kind, cx, cz, yaw);
   }
@@ -386,7 +416,7 @@ export function forestBasinProps(): Prop[] {
         f(x + Math.cos(a) * rr, z + Math.sin(a) * rr, a, k);
       }
     };
-    const dry = (px: number, pz: number) => !fbDesignWater(px, pz) && !forestBasinOnTrail(px, pz) && firm(px, pz) && fbTrailDist(px, pz) > 2.2 && !anchors.some((a) => Math.hypot(a.x - px, a.z - pz) < 3.2);
+    const dry = (px: number, pz: number) => !fbDesignWater(px, pz) && !forestBasinInOpenWater(px, pz) && !forestBasinOnTrail(px, pz) && firm(px, pz) && fbTrailDist(px, pz) > 5.2 && !anchors.some((a) => Math.hypot(a.x - px, a.z - pz) < 3.2);
     const put = (kind: number, px: number, pz: number, yaw = 0, sc = 1) => { if (dry(px, pz)) at(kind, px, pz, yaw, sc); };
     // thickets are blocked ground on purpose: thorns only keep off water, trails and units
     const soft = (px: number, pz: number) => !fbDesignWater(px, pz) && fbTrailDist(px, pz) > 1.8 && !anchors.some((a) => Math.hypot(a.x - px, a.z - pz) < 3);
@@ -420,27 +450,45 @@ export function forestBasinProps(): Prop[] {
         out.push({ kind: K.fallenLog, v: 0, x, z: lz, y: Math.min(...ys) + 0.1, yaw: Math.PI / 2, s: 24, w: 1.5, h: 5.5, d: 0 });
         ring(7, 13, (px, pz, a) => put(K.fern, px, pz, a, 1.2)); put(K.moss, x + 6, z - 1.2); clear = 13; break;
       }
-      case "forge": ring(3, 2.5, (px, pz, a) => put(K.wallBlock, px, pz, a, 1.2)); put(K.firePit, x, z); put(K.weaponRack, x + 2, z - 1, 0.8); put(K.barrel, x - 2, z + 1.5); put(K.moss, x + 1, z + 2.5); break;
+      case "forge": {
+        const o = snapBank(x, z) ?? { x, z };
+        ring(3, 2.5, (px, pz, a) => put(K.wallBlock, px, pz, a, 1.2)); put(K.firePit, o.x, o.z); put(K.weaponRack, o.x + 2, o.z - 1, 0.8); put(K.barrel, o.x - 2, o.z + 1.5); put(K.moss, o.x + 1, o.z + 2.5); break;
+      }
       case "statue": put(K.stone, x, z, 1.2, 2.2); put(K.wallBlock, x + 1.8, z + 0.6, 0.3, 1.4); put(K.cairn, x - 1.6, z - 0.8, 0, 0.7); put(K.moss, x + 0.6, z - 1.4); break;
       case "vault": for (let k = -2; k <= 2; k++) put(K.wallBlock, x + k * 1.1, z - 1.5, 0, 1.3); put(K.stone, x, z - 1.2, 0, 1.6); put(K.crate, x + 2.5, z + 1, 0.4); break;
       case "aqueduct":
-        // a broken run of arches stepping across the slope (arch spans lie along the run)
         {
-          // seven bays stride the hollow; the channel stays level, so the piers grow in the dip
-          const bays = [-3, -2, -1, 0, 1, 2, 3].map((k) => ({ k, px: -57 + k * 5 * 0.8, pz: 88 + k * 5 * 0.6 })) // centred on the hollow;
-          const rise = 5 * 0.42;
-          const top = Math.max(...bays.map((b) => forestBasinGroundY(b.px, b.pz))) + 1.6 + rise + 0.25;
+          const bays = fbAqueductBays();
+          const rise = FB_AQUEDUCT_BAY * 0.42;
+          // one level for the whole run, high enough to clear the highest ground
+          const top = Math.max(...bays.map((b) => forestBasinGroundY(b.x, b.z))) + 1.6 + rise + 0.25;
+          const deck = top - rise - 0.25;
           for (const b of bays) {
-            // bays in the stream keep their piers: a continuous arcade, as built
-            const g = forestBasinGroundY(b.px, b.pz);
-            if (b.k === 2) { out.push({ kind: K.ruinArch, v: 1, x: b.px - 2, z: b.pz - 1.5, y: g - 0.1, yaw: 0.3, s: (top - g) * 0.8, w: 0, h: 0, d: 0 }); continue; } // the fallen bay
-            out.push({ kind: K.ruinArch, v: 2, x: b.px, z: b.pz, y: g, yaw: -Math.atan2(3, 4), s: top - rise - 0.25 - g, w: 5, h: 0, d: 0 });
+            const g = forestBasinGroundY(b.x, b.z);
+            // one fallen bay on the old east arcade, as built
+            if (Math.hypot(b.x + 49, b.z - 94) < 3) {
+              out.push({ kind: K.ruinArch, v: 1, x: b.x - 2, z: b.z - 1.5, y: g - 0.1, yaw: 0.3, s: (top - g) * 0.8, w: 0, h: 0, d: 0 });
+              continue;
+            }
+            const s = Math.max(1, deck - g);
+            out.push({ kind: K.ruinArch, v: 2, x: b.x, z: b.z, y: g, yaw: b.yaw, s, w: FB_AQUEDUCT_BAY, h: 0, d: FB_AQUEDUCT_WIDTH });
+          }
+          const lift = fbAqueductRiverLift();
+          if (lift) {
+            const waterY = forestBasinWaterSurfaceY(lift.x, lift.z) ?? forestBasinGroundY(lift.x, lift.z);
+            out.push({
+              kind: K.waterLift, v: 0, x: lift.x, z: lift.z, y: waterY,
+              yaw: lift.yaw, s: Math.max(4, top - waterY), w: 3.6, h: lift.depth, d: 2.4,
+            });
           }
         }
         clear = 9; break;
       case "waystone": put(K.stone, x, z, rnd(1) * 6, 1.2); put(K.pebble, x + 0.9, z + 0.5); clear = 3; break;
       case "edict": put(K.stone, x, z, 0, 1.6); put(K.banner, x + 0.8, z + 0.2, 0); put(K.wallBlock, x - 1.4, z + 0.3, 0.4, 1.1); clear = 3; break;
-      case "village": ring(8, 9, (px, pz, a, k) => put(k % 4 === 3 ? K.moss : K.wallBlock, px, pz, a, 1 + rnd(k) * 0.6)); ring(3, 5, (px, pz, a) => put(K.sapling, px, pz, a)); put(K.firePit, x, z); clear = 11; break;
+      case "village": {
+        const o = snapBank(x, z) ?? { x, z };
+        ring(8, 9, (px, pz, a, k) => put(k % 4 === 3 ? K.moss : K.wallBlock, px, pz, a, 1 + rnd(k) * 0.6)); ring(3, 5, (px, pz, a) => put(K.sapling, px, pz, a)); put(K.firePit, o.x, o.z); clear = 11; break;
+      }
       case "sunken": {
         // a drowned hall: an arch and broken pillars standing up out of the lake
         const rise = (px: number, pz: number) => { const s = forestBasinWaterSurfaceY(px, pz); return (s ?? forestBasinGroundY(px, pz)) - forestBasinGroundY(px, pz); };
@@ -464,13 +512,31 @@ export function forestBasinProps(): Prop[] {
         clear = 7; break;
       }
       case "charcoal": ring(3, 4, (px, pz) => put(K.cairn, px, pz, 0, 1.4)); put(K.leanTo, x + 5, z + 3, 0.6); put(K.firewood, x - 4, z + 4); put(K.firewood, x - 5, z + 2.5, 0.8); put(K.barrel, x + 3, z - 4); put(K.bedroll, x + 6, z + 1, 0.2); clear = 8; break;
-      case "hermit": put(K.shack, x, z, 2.4); put(K.firePit, x + 3, z + 1); put(K.firewood, x - 2.5, z + 2); put(K.barrel, x + 2, z - 2); break;
-      case "shrine": put(K.cairn, x, z, 0, 1.2); ring(6, 1.4, (px, pz, a) => put(K.pebble, px, pz, a)); put(K.bloom, x + 1.8, z); put(K.bloom, x - 1.6, z + 0.8); clear = 4; break;
-      case "cult": put(K.tent, x, z, 0.4); put(K.tent, x + 4, z + 2, -0.5); put(K.banner, x - 2, z - 2); put(K.banner, x + 6, z - 1); put(K.firePit, x + 2, z - 3); put(K.crate, x - 3, z + 2.5, 0.3); clear = 8; break;
+      case "hermit": {
+        const o = snapBank(x, z) ?? { x, z };
+        const fire = snapBank(o.x + 3, o.z + 1) ?? { x: o.x + 3, z: o.z + 1 };
+        put(K.shack, o.x, o.z, 2.4); put(K.firePit, fire.x, fire.z); put(K.firewood, o.x - 2.5, o.z + 2); put(K.barrel, o.x + 2, o.z - 2); break;
+      }
+      case "shrine": {
+        const o = snapBank(x, z) ?? { x, z };
+        put(K.cairn, o.x, o.z, 0, 1.2); ring(6, 1.4, (px, pz, a) => put(K.pebble, px, pz, a)); put(K.bloom, o.x + 1.8, o.z); put(K.bloom, o.x - 1.6, o.z + 0.8); clear = 4; break;
+      }
+      case "cult": {
+        const o = snapBank(x, z) ?? { x, z };
+        const fire = snapBank(o.x + 2, o.z - 3) ?? { x: o.x + 2, z: o.z - 3 };
+        put(K.tent, o.x, o.z, 0.4); put(K.tent, o.x + 4, o.z + 2, -0.5); put(K.banner, o.x - 2, o.z - 2); put(K.banner, o.x + 6, o.z - 1); put(K.firePit, fire.x, fire.z); put(K.crate, o.x - 3, o.z + 2.5, 0.3); clear = 8; break;
+      }
       case "den": ring(5, 2.4, (px, pz, a, k) => put(k % 2 ? K.rock : K.bush, px, pz, a, 1.2)); put(K.pebble, x, z); clear = 4; break;
-      case "vista": put(K.cairn, x, z, 0, 1); put(K.tuft, x + 1, z + 1); clear = 3; break;
+      case "vista": {
+        const o = snapBank(x, z) ?? { x, z };
+        put(K.cairn, o.x, o.z, 0, 1); put(K.tuft, o.x + 1, o.z + 1); clear = 3; break;
+      }
       case "cache": put(K.chest, x, z, rnd(2) * 6); clear = 2; break;
-      case "camp": put(K.tent, x, z, 0.3); put(K.firePit, x + 3, z - 1); put(K.crate, x - 2, z + 2, 0.4); put(K.stall, x + 4, z + 3, -0.4); clear = 7; break;
+      case "camp": {
+        const o = snapBank(x, z) ?? { x, z };
+        const fire = snapBank(o.x + 3, o.z - 1) ?? { x: o.x + 3, z: o.z - 1 };
+        put(K.tent, o.x, o.z, 0.3); put(K.firePit, fire.x, fire.z); put(K.crate, o.x - 2, o.z + 2, 0.4); put(K.stall, o.x + 4, o.z + 3, -0.4); clear = 7; break;
+      }
       case "falls": ring(6, 3, (px, pz, a, k) => put(k % 2 ? K.rock : K.fern, px, pz, a, 1.4)); break;
       case "quarry": put(K.crate, x, z, 0.3); put(K.wallBlock, x + 2, z + 1, 0, 1.3); put(K.wallBlock, x + 3.2, z + 1.1, 0.1, 1.3); put(K.leanTo, x - 3, z + 2, 0.4); break;
       case "sink": ring(5, 3, (px, pz, a) => put(K.fern, px, pz, a, 0.9)); clear = 7; break;
@@ -575,18 +641,18 @@ export function forestBasinProps(): Prop[] {
     }
   }
   void face; // gorge walls are shaped rock in the terrain now
-  // The Wright's Veil: the Briarwater pours off the Veil Scarp into Fenstone Pool.
-  {
-    const lip = FB_RIVERS.find((r) => r.id === "briarwater")!.points.find((p) => p.y >= 15.5 && p.z < 119)!;
-    const pool = forestBasinWaterSurfaceY(-93.3, 114.2) ?? 10.4;
-    out.push({ kind: K.falls, v: 0, x: -93.3, z: 116.6, y: pool, yaw: Math.PI, s: 1, w: 3.4, h: lip.y - pool, d: 0 });
-  }
-  // The Cold Forges: three dead hearths, each with a broken chimney stack.
+  // The Wright's Veil is drawn by the engine from the .wfl fall layout; a
+  // falls prop here doubled it as a striped pillar in front of the sheet.
+  // The Cold Forges: three dead hearths on the south bank with the scavengers.
+  const forges = FB_POIS.find((p) => p.id === "cold-forges") ?? { x: -56, z: 72 };
   for (const [dx, dz] of [[-3.5, -2], [3, -2.5], [0, 3.5]] as const) {
-    const px = -56 + dx, pz = 77.5 + dz;
-    if (anchors.some((m) => Math.hypot(m.x - px, m.z - pz) < 2.5) || fbDesignWater(px, pz)) continue;
+    const px = forges.x + dx, pz = forges.z + dz;
+    const fx = px + 1.1, fz = pz + 0.4;
+    if (anchors.some((m) => Math.hypot(m.x - px, m.z - pz) < 2.5)) continue;
+    if (!firm(px, pz) || fbDesignWater(px, pz) || forestBasinInOpenWater(px, pz)) continue;
+    if (!firm(fx, fz) || fbDesignWater(fx, fz) || forestBasinInOpenWater(fx, fz)) continue;
     out.push({ kind: K.ruinArch, v: 1, x: px, z: pz, y: forestBasinStandHeight(px, pz) - 0.45, yaw: dx + 0.3 * hash2(px, pz), s: 3.6, w: 0, h: 0, d: 0 });
-    at(K.firePit, px + 1.1, pz + 0.4);
+    at(K.firePit, fx, fz);
   }
   // The wood, plus reeds on the banks.
   const { minX, maxX, minZ, maxZ } = FOREST_BASIN_BOUNDS;
@@ -608,7 +674,7 @@ export function forestBasinProps(): Prop[] {
       if (FB_SINKS.some((k) => Math.hypot(jx - k.x, jz - k.z) < k.r * 1.7)) continue; // bare pit and rim
       if (FB_WARP_SITES.some((w) => Math.hypot(jx - w.x, jz - w.z) < w.r + 3)) continue;
       if (near.some((q) => Math.hypot(jx - q.x, jz - q.z) < q.r)) continue;
-      if (fbTrailDist(jx, jz) < 2.6 || anchors.some((a) => Math.hypot(a.x - jx, a.z - jz) < 3.2)) continue;
+      if (fbTrailDist(jx, jz) < 5.5 || fbAqueductDist(jx, jz) < 7.5 || anchors.some((a) => Math.hypot(a.x - jx, a.z - jz) < 3.2)) continue;
       if (b === "meadow") {
         if (h > 0.8) at(K.bloom, jx, jz, h * 6.28, 1);
         else if (h > 0.6) at(K.bush, jx, jz, h * 6.28, 1);

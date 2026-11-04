@@ -26,7 +26,11 @@ import {
   FB_GORGES,
   FB_SINKS,
   FB_QUARRY,
+  FB_AQUEDUCT,
+  FB_AQUEDUCT_WIDTH,
   FB_POIS,
+  fbAqueductBays,
+  fbAqueductDist,
   fbRiverAt,
   fbTrailDist,
 } from "@bellgrave/config";
@@ -170,12 +174,18 @@ export function planHeight(x: number, z: number): number {
     if (d > 0.95 && d < 1.3) h += 0.6 * Math.sin(((d - 0.95) / 0.35) * Math.PI); // rim berm
     if (d < 1) h -= k.depth * (d < 0.62 ? 1 : d < 0.85 ? 1 - 0.8 * smooth(0.62, 0.85, d) : 0.2 * (1 - smooth(0.85, 1, d)));
   }
-  // The dip the Ashlin Aqueduct strides across: a dry hollow under the arches.
+  // The dip the Ashlin Aqueduct strides across: a dry hollow under the old arcade,
+  // then a shallower trough along the west run to the rim.
   {
-    const ax = -57, az = 88, ux = 0.8, uz = 0.6; // run direction
-    const along = (x - ax) * ux + (z - az) * uz, across = -(x - ax) * uz + (z - az) * ux;
-    const r = Math.hypot(along / 9, across / 14) * (1 + 0.12 * fbm(x / 5, z / 5));
-    if (r < 1) h -= 2.6 * (1 - smooth(0, 1, r));
+    const d = fbAqueductDist(x, z);
+    const alongEast = Math.hypot(x + 57, z - 88);
+    const old = alongEast < 16 && d < 14;
+    if (old) {
+      const r = (d / 14) * (1 + 0.12 * fbm(x / 5, z / 5));
+      if (r < 1) h -= 2.6 * (1 - smooth(0, 1, r));
+    } else if (d < 7) {
+      h -= 1.2 * (1 - smooth(0, 7, d)) * (1 + 0.08 * fbm(x / 5, z / 5));
+    }
   }
   // Built things settled into the land: a terrace cut for the Cold Forges with a bank behind,
   // footing mounds under the aqueduct piers and banked abutments at its ends, and earth
@@ -186,11 +196,14 @@ export function planHeight(x: number, z: number): number {
     if (d < 9) h = h + (pad - h) * (1 - smooth(6, 9, d));
     if (d > 5.5 && d < 8) h += 0.5 * Math.sin(((d - 5.5) / 2.5) * Math.PI); // berm round the terrace
   }
-  for (let k = -3; k <= 3; k++) for (const side of [-1, 1]) {
-    const px = -57 + k * 4 + side * 2.5 * 0.8, pz = 88 + k * 3 + side * 2.5 * 0.6;
-    h += 0.7 * gauss(x, z, px, pz, 1.6);
+  for (const b of fbAqueductBays()) {
+    const ux = Math.cos(-b.yaw), uz = Math.sin(-b.yaw);
+    for (const side of [-1, 1]) {
+      h += 0.55 * gauss(x, z, b.x + side * (FB_AQUEDUCT_WIDTH * 0.5) * -uz, b.z + side * (FB_AQUEDUCT_WIDTH * 0.5) * ux, 1.5);
+    }
   }
-  for (const k of [-3.9, 3.9]) h += 1.6 * gauss(x, z, -57 + k * 4, 88 + k * 3, 3.2);
+  const ends = [FB_AQUEDUCT[0]!, FB_AQUEDUCT[FB_AQUEDUCT.length - 1]!];
+  for (const e of ends) h += 1.4 * gauss(x, z, e.x, e.z, 3.2);
   // rock cheeks either side of the Wright's Veil, standing out of the scarp
   h += 2.6 * gauss(x, z, -97.6, 117.6, 2.0) + 2.0 * gauss(x, z, -89.4, 117.0, 1.8);
   for (const r of FB_POIS) {

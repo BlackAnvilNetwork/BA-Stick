@@ -39,7 +39,7 @@ export function supportJobActive(
   level: number,
   sub: JobId | null | undefined,
 ): sub is JobId {
-  return !!sub && sub !== main && level >= SUBJOB_UNLOCK_LEVEL;
+  return !!sub && sub !== main && sub !== "druid" && level >= SUBJOB_UNLOCK_LEVEL;
 }
 
 /** Effective support level, or 0 when no support job is active. */

@@ -63,6 +63,19 @@ test("bank walls stay continuous through bridge crossings", async () => {
   }
 });
 
+test("forest basin campfires, cairns and camps stay out of the water", async () => {
+  const { forestBasinInOpenWater, fbDesignWater } = await import("@bellgrave/config");
+  const { forestBasinProps, K } = await import("../scripts/bake-props");
+  const dry = new Set([K.firePit, K.tent, K.bedroll, K.leanTo, K.shack, K.cairn, K.chest, K.stall, K.wallBlock]);
+  for (const p of forestBasinProps()) {
+    if (!dry.has(p.kind)) continue;
+    assert.ok(
+      !fbDesignWater(p.x, p.z) && !forestBasinInOpenWater(p.x, p.z),
+      `kind ${p.kind} at ${p.x.toFixed(1)},${p.z.toFixed(1)} is in water`,
+    );
+  }
+});
+
 test("walk height has no step getting on or off any bridge", async () => {
   const { PH_BRIDGE_SITES, paleHollowBridgeGeom, paleHollowStandHeight } = await import("@bellgrave/config");
   for (const site of PH_BRIDGE_SITES) {

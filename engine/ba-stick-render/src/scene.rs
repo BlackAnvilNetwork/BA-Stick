@@ -33,6 +33,7 @@ fn patch_zone_cell(zone: &mut Zone, x: f32, z: f32, biome: u8, flags: u8, height
     zone.biome[k] = biome;
     zone.flags[k] = flags;
     zone.height[k] = height;
+    crate::ground::refresh_vertex_heights(zone, i, j, 3);
     true
 }
 
@@ -180,6 +181,10 @@ pub struct Scene {
     /// ~15 hides the step without visible lag.
     pub smoothing: f32,
     zone: Option<Zone>,
+    water_field: Option<crate::pixel_water::WaterField>,
+    world_water: Vec<Option<crate::pixel_water::WaterField>>,
+    water_layout: Option<crate::pixel_water::WaterLayout>,
+    water_dirty: bool,
     props: Vec<props::Prop>,
     /// Every zone drawn together, already shifted into world coordinates.
     /// The minimap zone above stays in that zone's local coordinates.
@@ -257,6 +262,10 @@ impl Scene {
             follow: None,
             smoothing: 15.0,
             zone: None,
+            water_field: None,
+            world_water: Vec::new(),
+            water_layout: None,
+            water_dirty: false,
             props: Vec::new(),
             world: Vec::new(),
             world_props: Vec::new(),
@@ -307,6 +316,7 @@ impl Scene {
         self.follow = None;
         self.buffs.clear();
         self.world.clear();
+        self.world_water.clear();
         self.world_props.clear();
         self.set_cam_mode("iso");
         self.look_yaw = 0.0;
@@ -384,12 +394,16 @@ impl Scene {
     /// Load a baked zone (BAZ1). Replaces any previous zone.
     pub fn load_zone(&mut self, bytes: &[u8]) -> Result<(), String> {
         self.zone = Some(Zone::parse(bytes)?);
+        self.water_dirty = true;
         self.minimap.invalidate();
         Ok(())
     }
 
     pub fn clear_zone(&mut self) {
         self.zone = None;
+        self.water_field = None;
+        self.water_layout = None;
+        self.water_dirty = false;
         self.props.clear();
         self.rebuild_static_lights();
         self.minimap.clear();
@@ -413,6 +427,16 @@ impl Scene {
         zone.min_x += ox;
         zone.min_z += oz;
         self.world.push(zone);
+        self.water_dirty = true;
+        Ok(())
+    }
+
+    /// River spines + fall spans (`WFL1`), shifted by the same origin as `place_zone`.
+    pub fn load_water_layout(&mut self, bytes: &[u8], ox: f32, oz: f32) -> Result<(), String> {
+        let mut layout = crate::pixel_water::WaterLayout::parse(bytes)?;
+        layout.offset(ox, oz);
+        self.water_layout = Some(layout);
+        self.water_dirty = true;
         Ok(())
     }
 
@@ -434,6 +458,7 @@ impl Scene {
             }
         }
         if ok {
+            self.water_dirty = true;
             self.minimap.invalidate();
         }
         ok
@@ -467,7 +492,10 @@ impl Scene {
     }
 
     #[cfg(test)]
-    pub(crate) fn set_zone_for_test(&mut self, z: Zone) { self.zone = Some(z); }
+    pub(crate) fn set_zone_for_test(&mut self, z: Zone) {
+        self.zone = Some(z);
+        self.water_dirty = true;
+    }
 
     /// Stand height from the zone (0 without a zone).
     pub fn zone_height(&self, x: f32, z: f32) -> f32 {
@@ -1155,6 +1183,53 @@ impl Scene {
         }
     }
 
+    fn ensure_water_fields(&mut self) {
+        if self.water_dirty {
+            if self.world.is_empty() {
+                self.water_field = self.zone.as_ref().map(|z| {
+                    crate::pixel_water::WaterField::from_zone(z, self.water_layout.as_ref())
+                });
+            } else {
+                self.water_field = None;
+            }
+            self.world_water.clear();
+            self.world_water.resize_with(self.world.len(), || None);
+            self.water_dirty = false;
+        } else if self.world_water.len() != self.world.len() {
+            self.world_water.resize_with(self.world.len(), || None);
+        }
+    }
+
+    fn bake_visible_world_water(&mut self, x0: f32, z0: f32, x1: f32, z1: f32) {
+        self.ensure_water_fields();
+        for i in 0..self.world.len() {
+            if self.world_water[i].is_some() {
+                continue;
+            }
+            if !ground::zone_overlaps_world_rect(&self.world[i], x0, z0, x1, z1) {
+                continue;
+            }
+            self.world_water[i] = Some(crate::pixel_water::WaterField::from_zone(
+                &self.world[i],
+                self.water_layout.as_ref(),
+            ));
+        }
+    }
+
+    fn water_ripples(&self) -> Vec<crate::pixel_water::Ripple> {
+        self.units
+            .values()
+            .filter(|u| self.wading(u) && u.moving > 0.12)
+            .map(|u| crate::pixel_water::Ripple {
+                x: u.pos.x,
+                z: u.pos.z,
+                vx: u.yaw.sin() * u.moving,
+                vz: u.yaw.cos() * u.moving,
+                radius: 0.22,
+            })
+            .collect()
+    }
+
     /// True when a unit stands in open water (not on a bridge deck).
     fn wading(&self, u: &Unit) -> bool {
         if matches!(u.preset.body, Body::Node { .. }) {
@@ -1214,19 +1289,50 @@ impl Scene {
             if self.backdrop {
                 self.fb.color.fill(BACKDROP);
             } else if self.world.is_empty() {
+                self.ensure_water_fields();
+                let ripples = self.water_ripples();
+                let breeze = self.grass_breeze();
+                // Blades are drawn inside the ground pass and write depth.
+                self.fb.clear_depth();
                 match &self.zone {
-                    Some(z) => ground::draw_zone(&mut self.fb, &self.cam, z, self.cam_y, self.time),
+                    Some(z) => ground::draw_zone_in(
+                        &mut self.fb,
+                        &self.cam,
+                        z,
+                        self.cam_y,
+                        self.time,
+                        true,
+                        self.water_field.as_ref(),
+                        &ripples,
+                        Some(breeze),
+                    ),
                     None => draw_ground(&mut self.fb, &self.cam),
                 }
             } else {
                 self.fb.color.fill(crate::atmosphere::SKY);
                 let foot = ground::view_world_rect(&self.fb, &self.cam);
+                self.bake_visible_world_water(foot.0, foot.1, foot.2, foot.3);
+                let ripples = self.water_ripples();
+                let breeze = self.grass_breeze();
+                self.fb.clear_depth();
                 // North first, so a nearer southern zone paints over it.
-                for z in self.world.iter().rev() {
+                for i in (0..self.world.len()).rev() {
+                    let z = &self.world[i];
                     if !ground::zone_overlaps_world_rect(z, foot.0, foot.1, foot.2, foot.3) {
                         continue;
                     }
-                    ground::draw_zone_in(&mut self.fb, &self.cam, z, self.cam_y, self.time, false);
+                    let field = self.world_water.get(i).and_then(|f| f.as_ref());
+                    ground::draw_zone_in(
+                        &mut self.fb,
+                        &self.cam,
+                        z,
+                        self.cam_y,
+                        self.time,
+                        false,
+                        field,
+                        &ripples,
+                        Some(breeze),
+                    );
                 }
             }
         }
@@ -1235,35 +1341,15 @@ impl Scene {
             self.fb.color.fill(BACKDROP);
             self.fb.clear_depth();
         } else if !self.backdrop {
-            self.fb.clear_depth();
+            // Ground and grass already drew; depth was cleared before them.
             let melting = crate::weather::snow_melting(
                 self.weather_snow,
                 self.weather_snow_target,
                 self.weather_kind_to,
             );
             let snow = crate::weather::snow_cover_display(self.weather_snow, melting);
-            let grass_breeze = self.grass_breeze();
             if self.world.is_empty() {
                 if let Some(z) = &self.zone {
-                    if self.cam.view.is_some() {
-                        ground::draw_meadow_grass_view(
-                            &mut self.fb,
-                            &self.cam,
-                            z,
-                            self.cam_y,
-                            self.time,
-                            grass_breeze,
-                        );
-                    } else {
-                        ground::draw_meadow_grass(
-                            &mut self.fb,
-                            &self.cam,
-                            z,
-                            self.cam_y,
-                            self.time,
-                            grass_breeze,
-                        );
-                    }
                     if snow > 0.0 {
                         crate::weather::draw_snow_ground(&mut self.fb, &self.cam, z, self.cam_y, snow, melting);
                     }
@@ -1274,28 +1360,24 @@ impl Scene {
                     if !ground::zone_overlaps_world_rect(z, foot.0, foot.1, foot.2, foot.3) {
                         continue;
                     }
-                    if self.cam.view.is_some() {
-                        ground::draw_meadow_grass_view(
-                            &mut self.fb,
-                            &self.cam,
-                            z,
-                            self.cam_y,
-                            self.time,
-                            grass_breeze,
-                        );
-                    } else {
-                        ground::draw_meadow_grass(
-                            &mut self.fb,
-                            &self.cam,
-                            z,
-                            self.cam_y,
-                            self.time,
-                            grass_breeze,
-                        );
-                    }
                     if snow > 0.0 {
                         crate::weather::draw_snow_ground(&mut self.fb, &self.cam, z, self.cam_y, snow, melting);
                     }
+                }
+            }
+        }
+        if !self.boot_menu && !self.backdrop {
+            let ripples = self.water_ripples();
+            if self.world.is_empty() {
+                if let Some(f) = self.water_field.as_ref() {
+                    ground::draw_fall_sheets(&mut self.fb, &self.cam, self.cam_y, self.time, f, &ripples);
+                }
+            } else {
+                for i in (0..self.world.len()).rev() {
+                    let Some(f) = self.world_water.get(i).and_then(|f| f.as_ref()) else {
+                        continue;
+                    };
+                    ground::draw_fall_sheets(&mut self.fb, &self.cam, self.cam_y, self.time, f, &ripples);
                 }
             }
         }
@@ -1510,7 +1592,9 @@ impl Scene {
                 let depth = if matches!(u.preset.body, Body::Biped) { WADE_DEPTH } else { 0.1 };
                 let wl = cam.project(base + v3(0.0, depth, 0.0)).y.round() as usize;
                 bb.restore_below(&mut self.fb, &saved, wl);
-                ripple(&mut self.fb, feet.x, wl as f32, body_radius(&u.preset.body), t);
+                if u.moving > 0.12 {
+                    ripple(&mut self.fb, feet.x, wl as f32, body_radius(&u.preset.body), t);
+                }
             }
             let tint = if u.fx.flags & (FX_PETRIFIED | FX_DEPLETED) != 0 || u.anim == AnimState::Dead {
                 Some(TINT_STONE)
@@ -2171,6 +2255,9 @@ fn body_radius(b: &Body) -> f32 {
         Body::Blob { size, .. } => 0.35 + 0.25 * size,
         Body::Canine { size } => 0.4 + 0.3 * size,
         Body::Node { .. } => 0.45,
+        Body::StickForm { kind: 3, size } => 0.28 + 0.22 * size,
+        Body::StickForm { kind: 0, size } => 0.42 + 0.32 * size,
+        Body::StickForm { size, .. } => 0.34 + 0.28 * size,
     }
 }
 

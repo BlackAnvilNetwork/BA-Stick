@@ -6,6 +6,7 @@ declare module "ba-stick-render" {
     constructor(canvas: HTMLCanvasElement, width: number, height: number);
     loadZone(bytes: Uint8Array): void;
     placeZone(bytes: Uint8Array, ox: number, oz: number): void;
+    setWaterLayout(bytes: Uint8Array, ox: number, oz: number): void;
     patchZoneCell(x: number, z: number, biome: number, flags: number, height: number): boolean;
     placeProps(bytes: Uint8Array, ox: number, oz: number): number;
     setMapOrigin(ox: number, oz: number): void;

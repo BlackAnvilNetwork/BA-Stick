@@ -1,4 +1,4 @@
-import { swordSwingRendererAnim } from "@bellgrave/combat";
+import { DRUID_FORM_PRESET, isDruidForm, swordSwingRendererAnim } from "@bellgrave/combat";
 import { gatherInteractMs, gatherMethod } from "./gather";
 import type { UnitSnapshot } from "@bellgrave/protocol";
 
@@ -13,6 +13,12 @@ export function presetFor(u: UnitSnapshot): string {
   if (u.gatherNode) return `gather:${gatherMethod(u)}`;
   if (u.kind === "npc") return `npc:${u.npcRole ?? "guide"}`;
   if (u.kind === "mob") return `mob:${u.archetype ?? "mob"}`;
+  if (u.job === "druid") {
+    const form = isDruidForm(u.buffs?.druidForm ?? 0) ? u.buffs!.druidForm : 0;
+    const key = DRUID_FORM_PRESET[form];
+    if (form === 0) return `${key}/${u.gender ?? "male"}`;
+    return key;
+  }
   return `${u.job ?? "fighter"}/${u.gender ?? "male"}`;
 }
 

@@ -175,6 +175,16 @@ export const JOB_GRADES: Record<JobId, JobGrades> = {
     int: "B",
     mnd: "C",
   },
+  druid: {
+    hp: "C+",
+    mp: "B",
+    str: "D",
+    dex: "C",
+    vit: "C",
+    agi: "C",
+    int: "C",
+    mnd: "B",
+  },
 };
 
 /** Exact L1 seeds (TIM matches prior TIM_L1 / createPlayer vitals). */
@@ -186,6 +196,7 @@ const JOB_L1_STATS: Partial<Record<JobId, AttrStats>> = {
   fighter: { str: 14, dex: 10, vit: 10, agi: 8, int: 5, mnd: 5 },
   battle_mage: { str: 9, dex: 9, vit: 8, agi: 8, int: 11, mnd: 10 },
   cleric: { str: 7, dex: 6, vit: 10, agi: 6, int: 7, mnd: 15 },
+  druid: { str: 8, dex: 9, vit: 11, agi: 10, int: 9, mnd: 12 },
 };
 
 const JOB_L1_VITALS: Partial<Record<JobId, { maxHp: number; maxMp: number }>> = {
@@ -196,6 +207,7 @@ const JOB_L1_VITALS: Partial<Record<JobId, { maxHp: number; maxMp: number }>> = 
   fighter: { maxHp: 140, maxMp: 0 },
   battle_mage: { maxHp: 115, maxMp: 72 },
   cleric: { maxHp: 95, maxMp: 95 },
+  druid: { maxHp: 122, maxMp: 88 },
 };
 
 function clampLevel(level: number): number {
