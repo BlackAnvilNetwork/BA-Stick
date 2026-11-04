@@ -215,7 +215,29 @@ export {
 
 import { SHARED_ABILITY_ICON } from "./shared-icons";
 
+/**
+ * Map-builder kit lives on PR #139, not this checkout. Keep the protocol ids
+ * and a local predicate so silence / AbilityId checks do not throw.
+ */
+export const MAP_BUILDER_ABILITY_IDS = [
+  "map_enter",
+  "map_undo",
+  "map_raise",
+  "map_lower",
+  "map_flat",
+  "map_smooth",
+  "map_biome_grass",
+  "map_biome_meadow",
+  "map_biome_mountain",
+  "map_walk",
+  "map_block",
+] as const;
 
+export type MapBuilderAbilityId = (typeof MAP_BUILDER_ABILITY_IDS)[number];
+
+export function isMapBuilderAbilityId(id: string): id is MapBuilderAbilityId {
+  return (MAP_BUILDER_ABILITY_IDS as readonly string[]).includes(id);
+}
 
 /** Unique ability id list (rest appears in multiple kits once). */
 
@@ -241,6 +263,8 @@ export const ALL_ABILITY_IDS = Array.from(
 
     ...WEAPON_TP_ABILITY_IDS,
 
+    ...MAP_BUILDER_ABILITY_IDS,
+
 
   ]),
 
@@ -263,7 +287,8 @@ export type AbilityId =
   | ClericAbilityId
   | BattleMageAbilityId
   | DruidAbilityId
-  | WeaponTpAbilityId;
+  | WeaponTpAbilityId
+  | MapBuilderAbilityId;
 
 
 
@@ -285,7 +310,8 @@ export function isAbilityId(id: string): id is AbilityId {
     isBattleMageAbilityId(id) ||
     isDruidAbilityId(id) ||
 
-    isWeaponTpAbilityId(id)
+    isWeaponTpAbilityId(id) ||
+    isMapBuilderAbilityId(id)
   );
 }
 
@@ -669,7 +695,18 @@ export function abilityCategory(id: AbilityId): AbilityUiCategory {
 
 }
 
+/** Job abilities, stances, Rest, and weapon skills are not spells. */
+const SILENCE_IMMUNE_CATEGORIES = new Set(["ja", "stance", "utility", "weapon"]);
 
+/**
+ * Silence stops spells for every job. Rest is utility and shared across kits,
+ * so kit membership must not be the gate — that blocked Rest on Knight, Rogue,
+ * and Fighter whenever a caster kit also listed the id.
+ */
+export function abilityBlockedBySilence(id: AbilityId): boolean {
+  if (isMapBuilderAbilityId(id)) return false;
+  return !SILENCE_IMMUNE_CATEGORIES.has(abilityCategory(id));
+}
 
 export function categoryTabsForJob(job: JobId): { id: string; label: string }[] {
 
