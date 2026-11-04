@@ -173,7 +173,8 @@ test("camp, open gates, and spawn are walkable; fieldNav steps toward them from 
   assert.ok(navPh, "pale_hollow fieldNav");
   const phSteps: { id: string; to: { x: number; z: number }; from: { x: number; z: number } }[] = [
     { id: "hub-spawn", to: { x: PH_HUB_SPAWN.x, z: PH_HUB_SPAWN.z }, from: { x: PH_HUB_SPAWN.x + 12, z: PH_HUB_SPAWN.z } },
-    { id: "warp-spawn", to: { x: PH_START_SPAWN.x, z: PH_START_SPAWN.z }, from: { x: -55, z: 320 } },
+    // The Hollow Steps Road bends west around a stream pocket above the spawn; start on its straight below the bend.
+    { id: "warp-spawn", to: { x: PH_START_SPAWN.x, z: PH_START_SPAWN.z }, from: { x: -53, z: 313 } },
     { id: "ash-road", to: { x: (PH_ASH_ROAD.minX + PH_ASH_ROAD.maxX) / 2, z: (PH_ASH_ROAD.minZ + PH_ASH_ROAD.maxZ) / 2 }, from: { x: 0, z: 468 } },
   ];
   for (const row of phSteps) {
