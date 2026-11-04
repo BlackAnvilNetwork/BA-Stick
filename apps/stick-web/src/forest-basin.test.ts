@@ -12,6 +12,7 @@ import {
   fbFallSpans,
   fbOnFallFace,
   forestBasinOnBridge,
+  forestBasinOnTrail,
   FB_SPAWN,
   forestBasinGroundY,
   FOREST_BASIN_BOUNDS,
@@ -39,7 +40,11 @@ test("forest basin water runs downhill and wades only at fords", () => {
       const w = fbDesignWater(x, z);
       if (!w || forestBasinOnBridge(x, z)) continue;
       assert.equal(forestBasinInOpenWater(x, z), true);
-      assert.equal(forestBasinWalkable(x, z), w.depth <= 0.5, `${x},${z} depth ${w.depth}`);
+      assert.equal(
+        forestBasinWalkable(x, z),
+        w.depth <= 0.5 || forestBasinOnTrail(x, z),
+        `${x},${z} depth ${w.depth}`,
+      );
       if (w.depth <= 0.5) ford++;
       else deep++;
     }
