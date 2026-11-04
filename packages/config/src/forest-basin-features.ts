@@ -171,6 +171,105 @@ export const FB_BRIDGES: readonly FbBridge[] = [
   { id: "mere-causeway", name: "the Reedwalk", a: { x: 51.1, z: 19.5 }, b: { x: 59.2, z: 42.9 }, halfWidth: 1.7, deckY: 2.7, yA: 2.2, yB: 2.0 },
 ];
 
+/** Ashlin Aqueduct: old arcade, then west to the rim. Bay spacing matches the ruin-arch span. */
+export const FB_AQUEDUCT_BAY = 5;
+/** Channel / pier thickness across the run (metres). */
+export const FB_AQUEDUCT_WIDTH = 2.8;
+
+export const FB_AQUEDUCT: readonly { x: number; z: number }[] = [
+  { x: -45, z: 97 },
+  { x: -57, z: 88 },
+  { x: -73, z: 76.5 },
+  { x: -110.5, z: 44.8 },
+  { x: -155, z: 42 },
+];
+
+export type FbAqueductBay = { x: number; z: number; yaw: number; s: number };
+
+/** Bay centres every `FB_AQUEDUCT_BAY` metres, yaw along the local run. */
+export function fbAqueductBays(): FbAqueductBay[] {
+  const out: FbAqueductBay[] = [];
+  let acc = 0;
+  for (let i = 0; i < FB_AQUEDUCT.length - 1; i++) {
+    const a = FB_AQUEDUCT[i]!;
+    const b = FB_AQUEDUCT[i + 1]!;
+    const dx = b.x - a.x;
+    const dz = b.z - a.z;
+    const len = Math.hypot(dx, dz) || 1;
+    const n = Math.max(1, Math.round(len / FB_AQUEDUCT_BAY));
+    const yaw = -Math.atan2(dz, dx);
+    for (let k = 0; k < n; k++) {
+      const t = k / n;
+      out.push({ x: a.x + dx * t, z: a.z + dz * t, yaw, s: acc + t * len });
+    }
+    acc += len;
+  }
+  const last = FB_AQUEDUCT[FB_AQUEDUCT.length - 1]!;
+  const prev = FB_AQUEDUCT[FB_AQUEDUCT.length - 2]!;
+  out.push({
+    x: last.x,
+    z: last.z,
+    yaw: -Math.atan2(last.z - prev.z, last.x - prev.x),
+    s: acc,
+  });
+  return out;
+}
+
+export function fbAqueductDist(x: number, z: number): number {
+  let d = Infinity;
+  for (let i = 0; i < FB_AQUEDUCT.length - 1; i++) {
+    const a = FB_AQUEDUCT[i]!;
+    const b = FB_AQUEDUCT[i + 1]!;
+    d = Math.min(d, segProject(x, z, a.x, a.z, b.x, b.z).d);
+  }
+  return d;
+}
+
+export type FbAqueductLift = { x: number; z: number; yaw: number; depth: number };
+
+/** River under the arcade: sit in an arch opening, not on a pier. */
+export function fbAqueductRiverLift(): FbAqueductLift | null {
+  let best: { x: number; z: number; yaw: number; d: number } | null = null;
+  for (let i = 0; i < FB_AQUEDUCT.length - 1; i++) {
+    const a = FB_AQUEDUCT[i]!;
+    const b = FB_AQUEDUCT[i + 1]!;
+    const dx = b.x - a.x;
+    const dz = b.z - a.z;
+    const len = Math.hypot(dx, dz) || 1;
+    const yaw = -Math.atan2(dz, dx);
+    const n = Math.max(2, Math.round(len));
+    for (let k = 0; k <= n; k++) {
+      const t = k / n;
+      const x = a.x + dx * t;
+      const z = a.z + dz * t;
+      const hit = fbRiverAt(x, z);
+      if (!hit) continue;
+      if (best && hit.dist >= best.d) continue;
+      best = { x, z, yaw, d: hit.dist };
+    }
+  }
+  if (!best || best.d > 6) return null;
+  const pier = fbAqueductBays().reduce((m, b) => {
+    const d = Math.hypot(b.x - best!.x, b.z - best!.z);
+    return d < m.d ? { x: b.x, z: b.z, yaw: b.yaw, d } : m;
+  }, { x: best.x, z: best.z, yaw: best.yaw, d: Infinity });
+  if (pier.d < FB_AQUEDUCT_BAY * 0.35) {
+    const ux = Math.cos(-best.yaw);
+    const uz = Math.sin(-best.yaw);
+    const step = FB_AQUEDUCT_BAY * 0.5;
+    for (const sign of [1, -1]) {
+      const x = best.x + ux * step * sign;
+      const z = best.z + uz * step * sign;
+      if (fbRiverAt(x, z)) {
+        best = { x, z, yaw: best.yaw, d: best.d };
+        break;
+      }
+    }
+  }
+  const hit = fbRiverAt(best.x, best.z);
+  return { x: best.x, z: best.z, yaw: best.yaw, depth: Math.max(0.85, hit?.centreDepth ?? 0.85) };
+}
+
 export type FbTrail = { id: string; name: string; surface: "dirt" | "stone"; points: readonly { x: number; z: number }[] };
 
 /** Trails meander; no long straight runs. */
@@ -198,7 +297,7 @@ const TRAIL_SPINES: readonly FbTrail[] = [
     name: "the Wrights' Road",
     surface: "stone",
     points: [
-      { x: -18, z: 4 }, { x: -23, z: 21 }, { x: -21, z: 38 }, { x: -27, z: 50 }, { x: -31.3, z: 57 },
+      { x: -18, z: 4 }, { x: -23, z: 21 }, { x: -21, z: 38 }, { x: -27, z: 50 }, { x: -32, z: 55.6 },
       { x: -24.6, z: 71.2 }, { x: -36, z: 78 }, { x: -44, z: 82 }, { x: -58, z: 90 }, { x: -71, z: 99 }, { x: -78, z: 110 },
     ],
   },
@@ -234,10 +333,47 @@ const TRAIL_SPINES: readonly FbTrail[] = [
   },
 ];
 
-/** Trails meander; no long straight runs. Spine points (bridge ends, gates) stay put. */
+/** True when a trail chord is the crossing (or within a metre of the deck). */
+function trailChordOnBridge(ax: number, az: number, bx: number, bz: number): boolean {
+  const mx = (ax + bx) / 2;
+  const mz = (az + bz) / 2;
+  for (const br of FB_BRIDGES) {
+    const vx = br.b.x - br.a.x;
+    const vz = br.b.z - br.a.z;
+    const l2 = vx * vx + vz * vz || 1;
+    const t = Math.max(0, Math.min(1, ((mx - br.a.x) * vx + (mz - br.a.z) * vz) / l2));
+    const d = Math.hypot(mx - (br.a.x + vx * t), mz - (br.a.z + vz * t));
+    if (d <= br.halfWidth + 1.2) return true;
+  }
+  return false;
+}
+
+function nearBridgeAbutment(x: number, z: number): boolean {
+  for (const br of FB_BRIDGES) {
+    if (Math.hypot(x - br.a.x, z - br.a.z) < 6 || Math.hypot(x - br.b.x, z - br.b.z) < 6) return true;
+  }
+  return false;
+}
+
+function snapTrailToBridgeEnds<P extends { x: number; z: number }>(pts: readonly P[]): P[] {
+  return pts.map((p) => {
+    for (const br of FB_BRIDGES) {
+      if (Math.hypot(p.x - br.a.x, p.z - br.a.z) < 2.2) return { ...p, x: br.a.x, z: br.a.z };
+      if (Math.hypot(p.x - br.b.x, p.z - br.b.z) < 2.2) return { ...p, x: br.b.x, z: br.b.z };
+    }
+    return p;
+  });
+}
+
+/** Trails meander; no long straight runs. Bridge spans and the last 6 m of each approach stay on the deck line. */
 export const FB_TRAIL_DEFS: readonly FbTrail[] = TRAIL_SPINES.map((t, ti) => ({
   ...t,
-  points: meander(t.points, 1.6, ti * 3 + 2, (_a, _b, _t, x, z) => ({ x, z })),
+  points: meander(snapTrailToBridgeEnds(t.points), 1.6, ti * 3 + 2, (a, b, t, x, z) => {
+    const ox = a.x + (b.x - a.x) * t;
+    const oz = a.z + (b.z - a.z) * t;
+    if (trailChordOnBridge(a.x, a.z, b.x, b.z) || nearBridgeAbutment(ox, oz)) return { x: ox, z: oz };
+    return { x, z };
+  }),
 }));
 
 /**
@@ -538,11 +674,115 @@ function segProject(px: number, pz: number, ax: number, az: number, bx: number, 
 export function fbWobble(x: number, z: number, amp = 1): number {
   return (
     amp *
-    (0.55 * Math.sin(x * 0.21 + z * 0.13) + 0.3 * Math.sin(x * 0.07 - z * 0.29 + 1.7) + 0.15 * Math.sin(x * 0.53 + z * 0.41))
+    (0.65 * Math.sin(x * 0.21 + z * 0.13) + 0.35 * Math.sin(x * 0.07 - z * 0.29 + 1.7))
   );
 }
 
 export type RiverHit = { river: FbRiver; surface: number; halfWidth: number; centreDepth: number; dist: number };
+
+/** A pour: lip and pool in world metres. Not ground water — a sheet over the scarp. */
+export type FbFallSpan = {
+  lipX: number;
+  lipZ: number;
+  lipY: number;
+  lipW: number;
+  poolX: number;
+  poolZ: number;
+  poolY: number;
+  poolW: number;
+};
+
+/** Grade (rise / run) and drop that count as a fall, not a sloped water ramp. */
+const FALL_GRADE = 0.55;
+const FALL_DROP = 1.2;
+
+export function fbSegIsFall(a: RiverPoint, b: RiverPoint): boolean {
+  const run = Math.hypot(b.x - a.x, b.z - a.z);
+  const drop = Math.abs(b.y - a.y);
+  return drop >= FALL_DROP && drop / Math.max(run, 0.01) >= FALL_GRADE;
+}
+
+/** Merged steep spans. Lip is the higher end. */
+export function fbFallSpans(): FbFallSpan[] {
+  const out: FbFallSpan[] = [];
+  for (const r of FB_RIVERS) {
+    const p = r.points;
+    let i = 0;
+    while (i < p.length - 1) {
+      if (!fbSegIsFall(p[i]!, p[i + 1]!)) {
+        i++;
+        continue;
+      }
+      const start = i;
+      while (i < p.length - 1 && fbSegIsFall(p[i]!, p[i + 1]!)) i++;
+      const a = p[start]!;
+      const b = p[i]!;
+      const lip = a.y >= b.y ? a : b;
+      const pool = a.y >= b.y ? b : a;
+      out.push({
+        lipX: lip.x,
+        lipZ: lip.z,
+        lipY: lip.y,
+        lipW: lip.w,
+        poolX: pool.x,
+        poolZ: pool.z,
+        poolY: pool.y,
+        poolW: pool.w,
+      });
+    }
+  }
+  return out;
+}
+
+/** Interior of a fall corridor (not the lip or pool). */
+export function fbOnFallFace(x: number, z: number): FbFallSpan | null {
+  for (const f of fbFallSpans()) {
+    const { t, d } = segProject(x, z, f.lipX, f.lipZ, f.poolX, f.poolZ);
+    const w = f.lipW + (f.poolW - f.lipW) * t + fbWobble(x, z, 0.4) + 1.2;
+    if (d <= w && t > 0.02 && t < 0.98) return f;
+  }
+  return null;
+}
+
+/** Water-surface Y on a fall face. Stay at the lip so iso does not drop the
+ *  corridor toward the camera; the sheet carries the drop. Unwalkable. */
+export function fbFallSurfaceY(x: number, z: number): number | null {
+  const f = fbOnFallFace(x, z);
+  if (!f) return null;
+  // The face slopes from lip to pool (a short brink, then the curtain), so
+  // the sheet is drawn as a surface the camera can see, not a shelf held at
+  // lip level that ends in an unseen vertical step.
+  const { t } = segProject(x, z, f.lipX, f.lipZ, f.poolX, f.poolZ);
+  const u = Math.min(1, Math.max(0, t));
+  const k = u * u * (3 - 2 * u);
+  return f.lipY + (f.poolY - f.lipY) * k;
+}
+
+/** Down-channel unit tangent and grade at a river cell, or null on still water. */
+export function fbRiverFlowAt(x: number, z: number): { dx: number; dz: number; grade: number } | null {
+  const hit = fbRiverAt(x, z);
+  if (!hit) return null;
+  const p = hit.river.points;
+  let best = { dx: 0, dz: 1, grade: 0, d: Infinity };
+  for (let i = 0; i < p.length - 1; i++) {
+    const a = p[i]!;
+    const b = p[i + 1]!;
+    if (fbSegIsFall(a, b)) continue;
+    const { t, d } = segProject(x, z, a.x, a.z, b.x, b.z);
+    const w = a.w + (b.w - a.w) * t + fbWobble(x, z, 0.6);
+    if (d > w + 1.2 || d >= best.d) continue;
+    let dx = b.x - a.x;
+    let dz = b.z - a.z;
+    const run = Math.hypot(dx, dz) || 1;
+    if (b.y > a.y) {
+      dx = -dx;
+      dz = -dz;
+    }
+    best = { dx: dx / run, dz: dz / run, grade: Math.abs(b.y - a.y) / run, d };
+  }
+  if (best.d === Infinity) return null;
+  return { dx: best.dx, dz: best.dz, grade: best.grade };
+}
 
 /** Nearest river reach containing (x,z), with interpolated surface/width/depth. */
 export function fbRiverAt(x: number, z: number): RiverHit | null {
@@ -552,6 +792,7 @@ export function fbRiverAt(x: number, z: number): RiverHit | null {
     for (let i = 0; i < p.length - 1; i++) {
       const a = p[i]!;
       const b = p[i + 1]!;
+      if (fbSegIsFall(a, b)) continue;
       const { t, d } = segProject(x, z, a.x, a.z, b.x, b.z);
       const w = a.w + (b.w - a.w) * t + fbWobble(x, z, 0.6);
       if (d > w) continue;
@@ -584,7 +825,7 @@ function distToPoly(x: number, z: number, poly: readonly { x: number; z: number 
 export function fbLakeSigned(x: number, z: number): number {
   const d = distToPoly(x, z, FB_STILLMERE.outline);
   const inside = pointInPoly(x, z, FB_STILLMERE.outline);
-  return (inside ? d : -d) + fbWobble(x * 1.3, z * 1.3, 1.4);
+  return (inside ? d : -d) + fbWobble(x * 1.3, z * 1.3, 0.7);
 }
 
 export function fbLakeInset(x: number, z: number): number | null {
@@ -592,8 +833,44 @@ export function fbLakeInset(x: number, z: number): number | null {
   return inset > 0 ? inset : null;
 }
 
+/** Packed river spines + fall spans for the renderer (`WFL1`). */
+export function encodeFbWaterLayout(): Uint8Array {
+  const segs: number[] = [];
+  for (const r of FB_RIVERS) {
+    const p = r.points;
+    for (let i = 0; i < p.length - 1; i++) {
+      const a = p[i]!;
+      const b = p[i + 1]!;
+      if (fbSegIsFall(a, b)) continue;
+      segs.push(a.x, a.z, a.y, b.x, b.z, b.y);
+    }
+  }
+  const falls = fbFallSpans();
+  const buf = new Uint8Array(8 + segs.length * 4 + falls.length * 32);
+  const v = new DataView(buf.buffer);
+  buf[0] = 0x57; // W
+  buf[1] = 0x46; // F
+  buf[2] = 0x4c; // L
+  buf[3] = 0x31; // 1
+  v.setUint16(4, segs.length / 6, true);
+  v.setUint16(6, falls.length, true);
+  let o = 8;
+  for (const n of segs) {
+    v.setFloat32(o, n, true);
+    o += 4;
+  }
+  for (const f of falls) {
+    for (const n of [f.lipX, f.lipZ, f.lipY, f.lipW, f.poolX, f.poolZ, f.poolY, f.poolW]) {
+      v.setFloat32(o, n, true);
+      o += 4;
+    }
+  }
+  return buf;
+}
+
 /** Water depth below the surface at (x,z) by design (0 = dry). */
 export function fbDesignWater(x: number, z: number): { surface: number; depth: number; tier: WaterTier } | null {
+  if (fbOnFallFace(x, z)) return null;
   const inset = fbLakeInset(x, z);
   if (inset != null) {
     if (fbIslandAt(x, z)) return null;

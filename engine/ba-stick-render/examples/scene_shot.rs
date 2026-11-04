@@ -16,6 +16,15 @@ fn main() {
     let mut s = Scene::new(w, h);
     if a[1] != "-" {
         s.load_zone(&std::fs::read(&a[1]).unwrap()).unwrap();
+        let wfl = std::path::Path::new(&a[1]).with_extension("wfl");
+        match std::fs::read(&wfl) {
+            Ok(bytes) => {
+                if let Err(e) = s.load_water_layout(&bytes, 0.0, 0.0) {
+                    eprintln!("wfl {}: {e}", wfl.display());
+                }
+            }
+            Err(e) => eprintln!("wfl {}: {e}", wfl.display()),
+        }
     }
     if a[2] != "-" {
         s.load_props(&std::fs::read(&a[2]).unwrap()).unwrap();
@@ -52,7 +61,9 @@ fn main() {
     if let Some(p) = std::env::var("SHOT_PHASE").ok().and_then(|p| p.parse().ok()) {
         s.set_time_of_day(p);
     }
-    for _ in 0..120 {
+    // `SHOT_TICKS` (default 120) steps the clock, for frame sequences.
+    let ticks: u32 = std::env::var("SHOT_TICKS").ok().and_then(|v| v.parse().ok()).unwrap_or(120);
+    for _ in 0..ticks {
         s.tick(1.0 / 60.0);
     }
     // A spell flash at the followed unit for the effect-light shot (`SHOT_FLASH=1`).

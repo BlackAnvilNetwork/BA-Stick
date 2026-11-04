@@ -104,6 +104,11 @@ test("forest basin quests: two kill tasks and two fetches", () => {
         assert.equal(forestBasinWalkable(site.x, site.z), true, site.name);
         bag = forestBasinQuestVisit(bag, site.x, site.z).state;
       }
+      if (quest.id === "fb-pilgrims-pack") {
+        const cache = FB_POIS.find((p) => p.id === "rooks-cache");
+        const site = quest.sites![0]!;
+        assert.ok(cache && Math.hypot(site.x - cache.x, site.z - cache.z) <= site.r, "pack credits at Rook's Cache");
+      }
     } else {
       assert.equal(quest.mobIds.length, quest.need);
       for (const id of quest.mobIds) assert.ok(mobs.has(id), id);

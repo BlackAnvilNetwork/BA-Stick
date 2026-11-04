@@ -9,7 +9,10 @@ import {
   FB_RIVERS,
   FB_WARP_SITES,
   fbDesignWater,
+  fbFallSpans,
+  fbOnFallFace,
   forestBasinOnBridge,
+  forestBasinOnTrail,
   FB_SPAWN,
   forestBasinGroundY,
   FOREST_BASIN_BOUNDS,
@@ -37,7 +40,11 @@ test("forest basin water runs downhill and wades only at fords", () => {
       const w = fbDesignWater(x, z);
       if (!w || forestBasinOnBridge(x, z)) continue;
       assert.equal(forestBasinInOpenWater(x, z), true);
-      assert.equal(forestBasinWalkable(x, z), w.depth <= 0.5, `${x},${z} depth ${w.depth}`);
+      assert.equal(
+        forestBasinWalkable(x, z),
+        w.depth <= 0.5 || forestBasinOnTrail(x, z),
+        `${x},${z} depth ${w.depth}`,
+      );
       if (w.depth <= 0.5) ford++;
       else deep++;
     }
@@ -52,6 +59,18 @@ test("forest basin water runs downhill and wades only at fords", () => {
     if (w) assert.ok(w.depth > 0.5, `${b.id} spans deep water`);
     else assert.ok(b.deckY - forestBasinGroundY(mx, mz) > 3, `${b.id} spans a drop`);
   }
+});
+
+test("forest basin veil face is a fall, not a water ramp", () => {
+  const spans = fbFallSpans();
+  assert.ok(spans.length >= 1, "veil span");
+  const mid = { x: -93.25, z: 116.5 };
+  assert.ok(fbOnFallFace(mid.x, mid.z), "mid-veil is the scarp");
+  assert.equal(fbDesignWater(mid.x, mid.z), null);
+  assert.equal(forestBasinWalkable(mid.x, mid.z), false);
+  assert.equal(forestBasinInOpenWater(mid.x, mid.z), false);
+  assert.ok(fbDesignWater(-93, 118.4), "lip stays water");
+  assert.ok(fbDesignWater(-93.5, 114.6), "pool stays water");
 });
 
 test("forest basin most of the bowl is walkable", () => {

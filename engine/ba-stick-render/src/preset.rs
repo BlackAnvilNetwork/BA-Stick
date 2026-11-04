@@ -132,6 +132,11 @@ pub enum Body {
     Node {
         method: u8,
     },
+    /// Druid stick-sculpture forms. kind: 0 Stick Bear, 1 Stick Deer, 2 Stick Lion, 3 Racerunner.
+    StickForm {
+        kind: u8,
+        size: f32,
+    },
 }
 
 /// What a biped holds (`JOB_WEAPON` in packages/combat).
@@ -241,6 +246,44 @@ impl RigPreset {
                 l.accent = C_GOLD;
                 l.body = C_TRAIL;
             })),
+            "druid" => staff(with(|p, l| {
+                p.limb_px = 2.1;
+                p.sword = 0.0;
+                l.accent = C_GOLD;
+                l.body = C_DUST;
+            })),
+            "druid:stickbear" => RigPreset {
+                body: Body::StickForm {
+                    kind: 0,
+                    size: 1.48,
+                },
+                weapon: Weapon::None,
+                ..with(|_, _| {})
+            },
+            "druid:stickdeer" => RigPreset {
+                body: Body::StickForm {
+                    kind: 1,
+                    size: 1.22,
+                },
+                weapon: Weapon::None,
+                ..with(|_, _| {})
+            },
+            "druid:sticklion" => RigPreset {
+                body: Body::StickForm {
+                    kind: 2,
+                    size: 1.32,
+                },
+                weapon: Weapon::None,
+                ..with(|_, _| {})
+            },
+            "druid:racerunner" => RigPreset {
+                body: Body::StickForm {
+                    kind: 3,
+                    size: 0.95,
+                },
+                weapon: Weapon::None,
+                ..with(|_, _| {})
+            },
             b if b.starts_with("npc:") => npc(&b[4..]),
             b if b.starts_with("mob:") => mob(&b[4..]),
             b if b.starts_with("gather:") => {

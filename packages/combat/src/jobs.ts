@@ -1,4 +1,4 @@
-/** Black Anvil jobs — all seven are playable at create + Job Master (Gnosis setStartingJob 0–6). */
+/** Black Anvil jobs — seven live plus Druid (append-only; Gnosis setStartingJob 0–7). */
 
 export const JOB_IDS = [
   "time_mage",
@@ -8,6 +8,7 @@ export const JOB_IDS = [
   "sorcerer",
   "fighter",
   "battle_mage",
+  "druid",
 ] as const;
 
 export type JobId = (typeof JOB_IDS)[number];
@@ -63,6 +64,12 @@ export const JOBS: Record<JobId, JobDef> = {
     playable: true,
     blurb: "Hybrid blade and en-spells — teal runes between casts, Refresh support.",
   },
+  druid: {
+    id: "druid",
+    name: "Druid",
+    playable: true,
+    blurb: "Ring-Walker — Stick Bear, Stick Deer, Stick Lion, Racerunner. One borrowed song at a time.",
+  },
 };
 
 export function isJobId(v: string): v is JobId {
@@ -80,4 +87,5 @@ export const JOB_WEAPON: Record<JobId, JobWeapon> = {
   rogue: "sword",
   fighter: "sword",
   battle_mage: "sword",
+  druid: "staff",
 };

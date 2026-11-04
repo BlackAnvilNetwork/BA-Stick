@@ -798,6 +798,7 @@ mod tests {
             biome: vec![13; w * h],
             flags,
             height: vec![0.0; w * h],
+            vy: Vec::new(),
         }
     }
 
