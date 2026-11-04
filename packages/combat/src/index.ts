@@ -126,6 +126,20 @@ export function hitChance(acc: number, eva: number): number {
   return Math.min(0.95, Math.max(0.2, 0.75 + (acc - eva) / 200));
 }
 
+/** Lengthen a swing when Slow's penalty is actually running. A zero penalty leaves the delay alone. */
+export function slowedSwingDelay(delayMs: number, penalty: number): number {
+  if (!(penalty > 0)) return delayMs;
+  return Math.max(1, Math.floor(delayMs * (1 + penalty)));
+}
+
+/**
+ * Distract lowers the afflicted unit's accuracy and opens them up.
+ * `selfPenalty` is your own Distract. `targetOpening` is the target's.
+ */
+export function accuracyWithDistract(acc: number, selfPenalty: number, targetOpening: number): number {
+  return acc - Math.max(0, selfPenalty) + Math.max(0, targetOpening);
+}
+
 export function physicalDamage(
   att: number,
   def: number,

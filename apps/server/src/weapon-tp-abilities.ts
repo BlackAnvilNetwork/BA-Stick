@@ -17,6 +17,8 @@ import {
   type JobId,
 } from "@bellgrave/combat";
 import { takeMobHit, type MobEnhanceHost } from "./mob-enhances";
+import { isPvpVictim, veiledByGhostStep } from "./pvp-foe";
+import { fighterAttackMul as fighterAttackMulFromKit } from "./fighter-abilities";
 
 export type WeaponTpPlayer = {
   wallet: string;
@@ -129,6 +131,10 @@ export function resolveWeaponTpAbility(
     ctx.pushLog(p, "Too far for a weapon skill.");
     return;
   }
+  if (veiledByGhostStep(mob, now)) {
+    ctx.pushLog(p, `${def.label} — violet smoke. The strike finds no one.`);
+    return;
+  }
 
   ctx.stopRest(p, "weapon skill");
   p.facing = ctx.facingTo(p.x, p.z, mob.x, mob.z);
@@ -145,8 +151,14 @@ export function resolveWeaponTpAbility(
   let att = attackFromStats(stats, "none", ctx.playerWeaponBonus(p), { physical: true });
   // Skill-tree atk (mirrors autos). Dedicated per-weapon combat skill levels: deferred (#106).
   att += ctx.playerTreeAtk(p);
-  const mobStats = jobStatsAtLevel(mob.job, mob.level);
-  let defStat = defenseFromVit(mobStats.vit);
+  att = Math.max(1, Math.floor(att * fighterAttackMulFromKit(p as never, now)));
+  const pvp = isPvpVictim(mob);
+  const mobStats = pvp
+    ? { vit: (mob as { pvpVit?: number }).pvpVit ?? 1 }
+    : jobStatsAtLevel(mob.job, mob.level);
+  let defStat = pvp
+    ? ((mob as { pvpDef?: number }).pvpDef ?? 1)
+    : defenseFromVit(mobStats.vit);
   if (now < mob.diaUntil) defStat = Math.max(1, Math.floor(defStat * 0.7));
 
   const hits = Math.max(1, def.hits);

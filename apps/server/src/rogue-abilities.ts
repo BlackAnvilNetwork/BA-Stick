@@ -13,6 +13,7 @@ import {
 } from "@bellgrave/combat";
 import { signatureWeaponEquipped } from "./starter-kit";
 import { takeMobHit } from "./mob-enhances";
+import { veiledByGhostStep } from "./pvp-foe";
 import { kitLevel } from "./support-job";
 import type { AbilityId } from "@bellgrave/protocol";
 import { rollIndex } from "./game-roll";
@@ -207,6 +208,10 @@ export function resolveRogueAbility(
       hooks.pushLog(p, "Too far.");
       return true;
     }
+    if (veiledByGhostStep(m, now)) {
+      hooks.pushLog(p, "Violet smoke — the strike finds no one.");
+      return true;
+    }
     spend();
     p.facing = hooks.facingTo(p.x, p.z, m.x, m.z);
     const stolen = 8 + rollIndex("rogue.purse-cut", 13);
@@ -226,6 +231,10 @@ export function resolveRogueAbility(
     }
     if (hooks.dist(p.x, p.z, m.x, m.z) > (def.range ?? 3)) {
       hooks.pushLog(p, "Too far.");
+      return true;
+    }
+    if (veiledByGhostStep(m, now)) {
+      hooks.pushLog(p, "Violet smoke — the strike finds no one.");
       return true;
     }
     spend();
@@ -257,6 +266,10 @@ export function resolveRogueAbility(
     }
     if (hooks.dist(p.x, p.z, m.x, m.z) > (def.range ?? 8)) {
       hooks.pushLog(p, "Too far.");
+      return true;
+    }
+    if (veiledByGhostStep(m, now)) {
+      hooks.pushLog(p, "Violet smoke — the spell finds no one.");
       return true;
     }
     spend();

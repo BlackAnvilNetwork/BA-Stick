@@ -957,7 +957,7 @@ export const CATALOG: ItemDef[] = [
       "materialsText": "Giant Femur×1, Fine Leather×1, Bone Hilt×1, Slag Dust×1"
     },
     "stats": {
-      "atk": 22,
+      "atk": 30,
       "dex": 8
     },
     "delayMs": 1800,

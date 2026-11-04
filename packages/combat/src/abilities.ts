@@ -630,7 +630,18 @@ export function abilityCategory(id: AbilityId): AbilityUiCategory {
 
 }
 
+/** Job abilities, stances, Rest, and weapon skills are not spells. */
+const SILENCE_IMMUNE_CATEGORIES = new Set(["ja", "stance", "utility", "weapon"]);
 
+/**
+ * Silence stops spells for every job. Rest is utility and shared across kits,
+ * so kit membership must not be the gate — that blocked Rest on Knight, Rogue,
+ * and Fighter whenever a caster kit also listed the id.
+ */
+export function abilityBlockedBySilence(id: AbilityId): boolean {
+  if (isMapBuilderAbilityId(id)) return false;
+  return !SILENCE_IMMUNE_CATEGORIES.has(abilityCategory(id));
+}
 
 export function categoryTabsForJob(job: JobId): { id: string; label: string }[] {
 
@@ -735,6 +746,11 @@ export function abilityUnlockLevel(id: AbilityId): number {
   if (isClericAbilityId(id)) return CLERIC_ABILITIES[id].unlockLevel;
   if (isBattleMageAbilityId(id)) return BATTLEMAGE_ABILITIES[id].unlockLevel;
   return 1;
+}
+
+/** True when an area's effective level is below this weapon skill's unlock. */
+export function weaponSkillSealedByLevel(id: AbilityId, effectiveLevel: number): boolean {
+  return isWeaponTpAbilityId(id) && abilityUnlockLevel(id) > effectiveLevel;
 }
 
 /** All ability ids belonging to a job kit (excludes weapon skills). */

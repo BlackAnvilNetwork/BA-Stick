@@ -10,8 +10,10 @@ import {
   SKILL_PRESTIGE_CAP,
   SKILL_NODES,
   abilitiesUnlockedDual,
+  abilityBlockedBySilence,
   abilityLabel,
   abilityUnlockLevel,
+  weaponSkillSealedByLevel,
   trainerAbilityGoldCost,
   trainerOffersForJobs,
   canTrainAbility,
@@ -31,8 +33,10 @@ import {
   freeStatsSpent,
   fStr,
   meleeUsesWeaponAttack,
+  accuracyWithDistract,
   hitChance,
   initialUnlockedForJob,
+  slowedSwingDelay,
   isJobId,
   isClericAbilityId,
   isFighterAbilityId,
@@ -279,6 +283,7 @@ import {
 } from "./auto-attack-traits";
 import { pickDotKillCredit } from "./dot-credit";
 import { pendingHitDtMul, physDtMul } from "./incoming-dt";
+import { isPvpVictim, pvpFoeView, type PvpVictimStats } from "./pvp-foe";
 import { loadLokEnv } from "./lok-env";
 import { applySettlementDeployFile } from "./settlement-deploy";
 import {
@@ -520,6 +525,26 @@ type Player = {
   diseaseUntil: number;
   petrifyUntil: number;
   curseUntil: number;
+  bindUntil: number;
+  stunUntil: number;
+  sleepUntil: number;
+  gravityUntil: number;
+  gravityPct: number;
+  swingPenalty: number;
+  distractUntil: number;
+  distractAcc: number;
+  diaUntil: number;
+  bioUntil: number;
+  bioTick: number;
+  bioSourceWallet: string | null;
+  falseGuardUntil: number;
+  frazzleUntil: number;
+  addleUntil: number;
+  tdImpactUntil: number;
+  scImpactUntil: number;
+  scImpactElement: import("@bellgrave/combat").SorcererElement | null;
+  atkDownUntil: number;
+  atkDownMul: number;
   spellbladeUntil: number;
   spellbladeFlashUntil: number;
   focusWeave: boolean;
@@ -3013,7 +3038,6 @@ function playerBuffs(p: Player): UnitSnapshot["buffs"] {
     timeSealUntil: p.timeSealUntil,
     overclockUntil: p.overclockUntil,
     perpetualUntil: p.perpetualUntil,
-    tdImpactUntil: 0,
     bulwarkUntil: p.bulwarkUntil,
     sentinelUntil: p.sentinelUntil,
     rampartUntil: p.rampartUntil,
@@ -3065,7 +3089,21 @@ function playerBuffs(p: Player): UnitSnapshot["buffs"] {
     silenceUntil: p.silenceUntil,
     paraUntil: p.paraUntil,
     petrifyUntil: p.petrifyUntil,
-    bioUntil: p.poisonUntil,
+    bioUntil: p.bioUntil || p.poisonUntil,
+    bindUntil: p.bindUntil,
+    stunUntil: p.stunUntil,
+    sleepUntil: p.sleepUntil,
+    gravityUntil: p.gravityUntil,
+    gravityPct: now < p.gravityUntil ? p.gravityPct : 0,
+    distractUntil: p.distractUntil,
+    frazzleUntil: p.frazzleUntil,
+    addleUntil: p.addleUntil,
+    tdImpactUntil: p.tdImpactUntil,
+    falseGuardUntil: p.falseGuardUntil,
+    diaUntil: p.diaUntil,
+    scImpactUntil: p.scImpactUntil,
+    atkDownUntil: p.atkDownUntil,
+    atkDownMul: now < p.atkDownUntil ? p.atkDownMul : 1,
   };
 }
 
@@ -3646,6 +3684,26 @@ function createPlayer(
     diseaseUntil: 0,
     petrifyUntil: 0,
     curseUntil: 0,
+    bindUntil: 0,
+    stunUntil: 0,
+    sleepUntil: 0,
+    gravityUntil: 0,
+    gravityPct: 0,
+    swingPenalty: 0,
+    distractUntil: 0,
+    distractAcc: 0,
+    diaUntil: 0,
+    bioUntil: 0,
+    bioTick: 0,
+    bioSourceWallet: null,
+    falseGuardUntil: 0,
+    frazzleUntil: 0,
+    addleUntil: 0,
+    tdImpactUntil: 0,
+    scImpactUntil: 0,
+    scImpactElement: null,
+    atkDownUntil: 0,
+    atkDownMul: 1,
     nextSwingAt: 0,
     animUntil: 0,
     walkUntil: 0,
@@ -4474,6 +4532,58 @@ function playerWeaponBonus(p: Player): number {
   return meleeAtkBonus(p);
 }
 
+function pvpVictimStats(foe: Player): PvpVictimStats {
+  const stats = playerCombatStats(foe);
+  const tree = playerTreeBonuses(foe);
+  return {
+    pvpVit: stats.vit,
+    pvpDef: playerDefense(stats.vit, playerEquipmentStats(foe).def ?? 0),
+    pvpMagDef: playerMagicDefense(stats.mnd, playerEquipmentStats(foe).mdb ?? 0),
+    pvpTreePhys: tree.physDt ?? 0,
+    pvpTreeMag: tree.magDt ?? 0,
+  };
+}
+
+/** Mob in this zone, or a bounty fighter the attacker is allowed to hit. */
+function combatFind(p: Player, id: string | null | undefined): Mob | null {
+  const mob = findMobIn(p.zoneId, id ?? null);
+  if (mob) return mob;
+  if (!id) return null;
+  const foe = players.get(id.toLowerCase()) ?? playerByIdOrName(id);
+  if (!foe || foe.wallet === p.wallet || foe.hp <= 0) return null;
+  if (pvpStrikeBlock(p, foe)) return null;
+  return pvpFoeView(foe, pvpVictimStats(foe)) as unknown as Mob;
+}
+
+/** Zone mobs, plus hostile players when the caster is standing in a PvP area. */
+function combatMobs(p: Player): Mob[] {
+  const list: Mob[] = mobsIn(p.zoneId).slice();
+  if (!areaAtPlayer(p.x, p.z)) return list;
+  for (const foe of players.values()) {
+    if (foe.wallet === p.wallet || foe.hp <= 0) continue;
+    if (pvpStrikeBlock(p, foe)) continue;
+    list.push(pvpFoeView(foe, pvpVictimStats(foe)) as unknown as Mob);
+  }
+  return list;
+}
+
+function noteCombatKill(attacker: Player, target: { id: string }, now: number) {
+  if (isPvpVictim(target)) {
+    const foe = players.get(String(target.id).toLowerCase()) ?? playerByIdOrName(String(target.id));
+    if (!foe || foe.hp > 0) return;
+    const area = areaAtPlayer(attacker.x, attacker.z);
+    if (area) handlePvpSlay(attacker, foe, area.id);
+    else downPlayer(foe, now);
+    return;
+  }
+  const mob = findMob(target.id);
+  if (mob) rewardMobKill(attacker, mob, now);
+}
+
+function playerIsRooted(p: Player, now: number): boolean {
+  return now < p.bindUntil || now < p.petrifyUntil || now < p.sleepUntil || now < p.stunUntil;
+}
+
 function handleAbility(p: Player, id: AbilityId, targetId?: string) {
   const now = Date.now();
   if (p.hp <= 0 && now < p.fallenUntil) {
@@ -4482,6 +4592,18 @@ function handleAbility(p: Player, id: AbilityId, targetId?: string) {
   }
   if (now < p.petrifyUntil) {
     pushLog(p, "You are petrified.");
+    return;
+  }
+  if (now < p.sleepUntil) {
+    pushLog(p, "You are asleep.");
+    return;
+  }
+  if (now < p.stunUntil) {
+    pushLog(p, "You are stunned.");
+    return;
+  }
+  if (p.anim === "cast" && now < p.animUntil) {
+    pushLog(p, "You are still casting.");
     return;
   }
   const pvpArea = areaAtPlayer(p.x, p.z);
@@ -4502,14 +4624,17 @@ function handleAbility(p: Player, id: AbilityId, targetId?: string) {
     }
   }
   if (isWeaponTpAbilityId(id)) {
+    if (pvpArea && weaponSkillSealedByLevel(id, effectivePvpMainLevel(p.level, pvpArea))) {
+      pushLog(p, `${abilityLabel(id)} is sealed by the ${pvpArea.name} level cap.`);
+      return;
+    }
     resolveWeaponTpAbility(p, id as WeaponTpAbilityId, targetId, now, {
       pushLog: (pl, msg) => pushLog(pl as Player, msg),
       stopRest: (pl, reason) => stopRest(pl as Player, reason),
       facingTo,
-      findMob: (tid) => findMobIn(p.zoneId, tid ?? null) ?? null,
+      findMob: (tid) => combatFind(p, tid),
       onMobKill: (pl, m) => {
-        const mob = findMob(m.id);
-        if (mob) rewardMobKill(pl as Player, mob, now);
+        noteCombatKill(pl as Player, m, now);
       },
       dist,
       meleeRange: MELEE_RANGE,
@@ -4526,11 +4651,8 @@ function handleAbility(p: Player, id: AbilityId, targetId?: string) {
       return;
     }
   }
-    // Dispatch by kit ownership — main or support job may grant the ability
-  if (
-    now < p.silenceUntil &&
-    (isSorcererAbilityId(id) || isClericAbilityId(id) || isTimAbilityId(id) || isBattleMageAbilityId(id))
-  ) {
+  // Spells only. Rest, job abilities, and stances stay usable while silenced.
+  if (now < p.silenceUntil && abilityBlockedBySilence(id)) {
     pushLog(p, "You are silenced.");
     return;
   }
@@ -4539,11 +4661,10 @@ function handleAbility(p: Player, id: AbilityId, targetId?: string) {
       pushLog: (pl, msg) => pushLog(pl as Player, msg),
       stopRest: (pl, reason) => stopRest(pl as Player, reason),
       facingTo,
-      findMob: (tid) => findMobIn(p.zoneId, tid ?? null) ?? null,
-      allMobs: () => mobsIn(p.zoneId),
+      findMob: (tid) => combatFind(p, tid),
+      allMobs: () => combatMobs(p),
       onMobKill: (pl, m) => {
-        const mob = findMob(m.id);
-        if (mob) rewardMobKill(pl as Player, mob, now);
+        noteCombatKill(pl as Player, m, now);
       },
       dist,
       playerCombatStats: (pl) => playerCombatStats(pl as Player),
@@ -4556,12 +4677,11 @@ function handleAbility(p: Player, id: AbilityId, targetId?: string) {
       pushLog: (pl, msg) => pushLog(pl as Player, msg),
       stopRest: (pl, reason) => stopRest(pl as Player, reason),
       facingTo,
-      findMob: (tid) => findMobIn(p.zoneId, tid ?? null) ?? null,
-      allMobs: () => mobsIn(p.zoneId),
+      findMob: (tid) => combatFind(p, tid),
+      allMobs: () => combatMobs(p),
       allPlayers: () => partyAllies(p),
       onMobKill: (pl, m) => {
-        const mob = findMob(m.id);
-        if (mob) rewardMobKill(pl as Player, mob, now);
+        noteCombatKill(pl as Player, m, now);
       },
       dist,
       playerCombatStats: (pl) => playerCombatStats(pl as Player),
@@ -4573,7 +4693,7 @@ function handleAbility(p: Player, id: AbilityId, targetId?: string) {
       pushLog: (pl, msg) => pushLog(pl as Player, msg),
       stopRest: (pl, reason) => stopRest(pl as Player, reason),
       facingTo,
-      findMob: (tid) => findMobIn(p.zoneId, tid ?? null) ?? null,
+      findMob: (tid) => combatFind(p, tid),
       allPlayers: () => partyAllies(p),
       dist,
     });
@@ -4584,11 +4704,10 @@ function handleAbility(p: Player, id: AbilityId, targetId?: string) {
       pushLog: (pl, msg) => pushLog(pl as Player, msg),
       stopRest: (pl, reason) => stopRest(pl as Player, reason),
       facingTo,
-      findMob: (tid) => (findMobIn(p.zoneId, tid ?? null) ?? null) as import("./sorcerer-abilities").SorcererMob | null,
-      allMobs: () => mobsIn(p.zoneId) as import("./sorcerer-abilities").SorcererMob[],
+      findMob: (tid) => combatFind(p, tid) as import("./sorcerer-abilities").SorcererMob | null,
+      allMobs: () => combatMobs(p) as import("./sorcerer-abilities").SorcererMob[],
       onMobKill: (pl, m) => {
-        const mob = findMob(m.id);
-        if (mob) rewardMobKill(pl as Player, mob, now);
+        noteCombatKill(pl as Player, m, now);
       },
       dist,
       playerCombatStats: (pl) => playerCombatStats(pl as Player),
@@ -4600,12 +4719,11 @@ function handleAbility(p: Player, id: AbilityId, targetId?: string) {
       pushLog: (pl, msg) => pushLog(pl as Player, msg),
       stopRest: (pl, reason) => stopRest(pl as Player, reason),
       facingTo,
-      findMob: (tid) => findMobIn(p.zoneId, tid ?? null) ?? null,
-      allMobs: () => mobsIn(p.zoneId),
+      findMob: (tid) => combatFind(p, tid),
+      allMobs: () => combatMobs(p),
       allPlayers: () => partyAllies(p),
       onMobKill: (pl, m) => {
-        const mob = findMob(m.id);
-        if (mob) rewardMobKill(pl as Player, mob, now);
+        noteCombatKill(pl as Player, m, now);
       },
       dist,
       playerCombatStats: (pl) => playerCombatStats(pl as Player),
@@ -4620,12 +4738,11 @@ function handleAbility(p: Player, id: AbilityId, targetId?: string) {
         pushLog: (pl, msg) => pushLog(pl as unknown as Player, msg),
         stopRest: (pl, reason) => stopRest(pl as unknown as Player, reason),
         facingTo,
-        findMob: (tid) => findMobIn(p.zoneId, tid ?? null) ?? null,
-        allMobs: () => mobsIn(p.zoneId),
+        findMob: (tid) => combatFind(p, tid),
+        allMobs: () => combatMobs(p),
         allPlayers: () => partyAllies(p),
         onMobKill: (pl, m) => {
-          const mob = findMob(m.id);
-          if (mob) rewardMobKill(pl as unknown as Player, mob, now);
+          noteCombatKill(pl as unknown as Player, m, now);
         },
         dist,
         playerCombatStats: (pl) => playerCombatStats(pl as unknown as Player),
@@ -4634,13 +4751,12 @@ function handleAbility(p: Player, id: AbilityId, targetId?: string) {
     return;
   }
   if (isTimAbilityId(id) && playerHasJob(p, "time_mage")) {
-    resolveTimAbility(p, id, targetId, mobsIn(p.zoneId), now, {
+    resolveTimAbility(p, id, targetId, combatMobs(p), now, {
       pushLog: (msg) => pushLog(p, msg),
       stopRest: (reason) => stopRest(p, reason),
       facingTo,
       onMobKill: (m) => {
-        const mob = findMob(m.id);
-        if (mob) rewardMobKill(p, mob, now);
+        noteCombatKill(p, m, now);
       },
       allPlayers: () => partyAllies(p),
       dist,
@@ -5289,18 +5405,29 @@ function playerSwingPvp(p: Player, foe: Player, now: number) {
   const d = dist(p.x, p.z, foe.x, foe.z);
   if (d > MELEE_RANGE) return;
   if (now < p.nextSwingAt) return;
+  if (now < p.paraUntil && rollUnit("combat.player.para") < 0.35) {
+    p.nextSwingAt = now + 800;
+    pushLog(p, "You seize up (Paralyze).");
+    return;
+  }
 
   const haste = playerHastePct(p, now);
   const weaponDelay = p.equip.main ? getItem(p.equip.main)?.delayMs : undefined;
   let delay = resolveSwingDelayMs(weaponDelay, haste);
   if (now < p.slowUntil) {
-    const slowAmt = now < p.moveUntil && p.movePct < 0 ? -p.movePct : 0.22;
-    delay = Math.floor(delay * (1 + slowAmt));
+    const slowAmt =
+      p.swingPenalty > 0 ? p.swingPenalty : now < p.moveUntil && p.movePct < 0 ? -p.movePct : 0.22;
+    delay = slowedSwingDelay(delay, slowAmt);
   }
   p.nextSwingAt = now + delay;
   p.facing = facingTo(p.x, p.z, foe.x, foe.z);
   p.anim = "melee";
   p.animUntil = now + Math.max(160, Math.min(delay * 0.9, 520));
+  if (now < foe.ghostStepUntil) {
+    pushLog(p, "Your swing passes through violet smoke.");
+    pushLog(foe, `${p.name}'s swing passes through violet smoke.`);
+    return;
+  }
 
   const stance = playerStance(p);
   const stats = playerCombatStats(p);
@@ -5315,10 +5442,18 @@ function playerSwingPvp(p: Player, foe: Player, now: number) {
   if (physical || playerHasJob(p, "fighter")) {
     att = Math.max(1, Math.floor(att * autoAttackFighterAttackMul(p, now, physical)));
   }
+  if (now < p.atkDownUntil) att = Math.max(1, Math.floor(att * (p.atkDownMul || 1)));
   let def = playerDefense(foeStats.vit, playerEquipmentStats(foe).def ?? 0);
+  if (now < foe.diaUntil) def = Math.max(1, Math.floor(def * 0.7));
   let acc = stats.dex + 40 + tree.acc + (playerEquipmentStats(p).acc ?? 0);
   acc += autoAttackFighterAccBonus(p, now);
-  const eva = evasionFromAgi(Math.max(0, foeStats.agi - fighterEvaPenalty(foe, now)));
+  acc = accuracyWithDistract(
+    acc,
+    now < p.distractUntil ? p.distractAcc : 0,
+    now < foe.distractUntil ? foe.distractAcc : 0,
+  );
+  let eva = evasionFromAgi(Math.max(0, foeStats.agi - fighterEvaPenalty(foe, now)));
+  if (now < foe.falseGuardUntil) eva = Math.max(0, eva - 18);
   let critChance = physical ? 0.08 : stance === "flux" ? 0.12 : 0.05;
   critChance += critFromAgi(stats.agi) + fighterCritBonus(p, now) + tree.crit;
   const rolled = rollPvpAutoAttack({
@@ -5335,13 +5470,24 @@ function playerSwingPvp(p: Player, foe: Player, now: number) {
     pushLog(foe, `${p.name} misses you.`);
     return;
   }
-  const crit = rolled.crit;
+  const backbladeReady = now < p.backbladeUntil;
+  const killEdgeReady = now < p.killEdgeUntil;
+  const stormReady = playerHasJob(p, "fighter") && fighterKillingStorm(p, now);
+  const crit = rolled.crit || backbladeReady || killEdgeReady || stormReady;
   let dmg = physicalDamage(
     att,
     def,
     autoAttackFStr(p, stats, foeStats.vit, stance),
     crit,
   );
+  if (backbladeReady) {
+    p.backbladeUntil = 0;
+    dmg += Math.floor(stats.dex * 0.6);
+  }
+  if (killEdgeReady) {
+    p.killEdgeUntil = 0;
+    p.tp = Math.min(3000, p.tp + 300);
+  }
   if (now < p.perpetualUntil) dmg = Math.floor(dmg * 1.15);
   if (playerHasJob(p, "battle_mage")) {
     dmg += battleMageEnSpellBonus(p, now, playerCombatStats(p).int);
@@ -5356,12 +5502,24 @@ function playerSwingPvp(p: Player, foe: Player, now: number) {
     pushLog(p, `${foe.name} shrugs off your blow.`);
     return;
   }
+  if (dmg > 0 && now < foe.sleepUntil) foe.sleepUntil = 0;
   foe.hp -= dmg;
   const tpGain = Math.floor(80 * (playerHasJob(p, "fighter") ? fighterTpGainMul(p, now) : 1));
   p.tp = Math.min(3000, p.tp + tpGain);
-  const hitNote = crit ? " (Critical!)" : "";
+  let hitNote = crit ? " (Critical!)" : "";
+  if (stormReady && crit) hitNote += " (Killing Storm!)";
+  if (backbladeReady) hitNote += " (Backblade!)";
+  if (killEdgeReady) hitNote += " (Kill Edge!)";
   pushLog(p, `You hit ${foe.name} for ${dmg}${hitNote}.`);
   pushLog(foe, `${p.name} hits you for ${dmg}${hitNote}.`);
+  const doubleChance = playerHasJob(p, "fighter") ? fighterDoubleAttackChance(p, now) : 0;
+  if (foe.hp > 0 && doubleChance > 0 && rollUnit("combat.player.double") < doubleChance) {
+    const dmg2 = Math.max(1, Math.floor(dmg * 0.85));
+    foe.hp -= dmg2;
+    p.tp = Math.min(3000, p.tp + Math.floor(tpGain * 0.6));
+    pushLog(p, `Double attack! ${dmg2} on ${foe.name}.`);
+    pushLog(foe, `${p.name} double attacks you for ${dmg2}.`);
+  }
 
   if (foe.hp <= 0) {
     foe.reraiseUntil = 0;
@@ -5372,6 +5530,10 @@ function playerSwingPvp(p: Player, foe: Player, now: number) {
 function playerSwing(p: Player, now: number) {
   if (p.anim === "rest") return;
   if (p.aether) return;
+  if (playerIsRooted(p, now)) {
+    p.nextSwingAt = now + 800;
+    return;
+  }
   const foe =
     (p.targetId ? players.get(p.targetId.toLowerCase()) : undefined) ??
     (p.targetId ? playerByIdOrName(p.targetId) : undefined);
@@ -5401,8 +5563,8 @@ function playerSwing(p: Player, now: number) {
   // Enemy Slow: swingDelayMs clamps haste>=0, so apply attack-speed drag here.
   if (now < p.slowUntil) {
     const slowAmt =
-      now < p.moveUntil && p.movePct < 0 ? -p.movePct : 0.22;
-    delay = Math.floor(delay * (1 + slowAmt));
+      p.swingPenalty > 0 ? p.swingPenalty : now < p.moveUntil && p.movePct < 0 ? -p.movePct : 0.22;
+    delay = slowedSwingDelay(delay, slowAmt);
   }
   p.nextSwingAt = now + delay;
   p.facing = facingTo(p.x, p.z, mob.x, mob.z);
@@ -5434,7 +5596,11 @@ function playerSwing(p: Player, now: number) {
   const mobStats = jobStatsAtLevel(mob.job, mob.level);
   let def = defenseFromVit(mobStats.vit);
   if (now < mob.diaUntil) def = Math.max(1, Math.floor(def * 0.7));
-  let acc = stats.dex + 40 + tree.acc + (playerEquipmentStats(p).acc ?? 0) - (now < mob.distractUntil ? mob.distractAcc : 0);
+  let acc = accuracyWithDistract(
+    stats.dex + 40 + tree.acc + (playerEquipmentStats(p).acc ?? 0),
+    now < p.distractUntil ? p.distractAcc : 0,
+    now < mob.distractUntil ? mob.distractAcc : 0,
+  );
   acc += autoAttackFighterAccBonus(p, now);
   let eva = evasionFromAgi(mobStats.agi);
   if (now < mob.falseGuardUntil) eva = Math.max(0, eva - 18);
@@ -5614,6 +5780,7 @@ function applyPendingMobDamage(
   }
   if (now < mob.addleUntil) dmg = Math.max(1, Math.floor(dmg * 0.65));
   dmg = curseTaken(dmg, target.curseUntil, now);
+  if (dmg > 0 && now < target.sleepUntil) target.sleepUntil = 0;
   target.hp = Math.max(0, target.hp - dmg);
   if (target.miseryRite) {
     target.miseryEmpowerUntil = now + 15_000;
@@ -5914,7 +6081,9 @@ function mobSwing(mob: Mob, now: number) {
     if (ability.pending) scheduleMobPendingCast(mob, now, nearest.wallet, ability.pending);
   } else {
     const haste = now < mob.hasteUntil ? mob.hastePct : 0;
-    mob.nextSwingAt = now + swingDelayMs(2400, haste);
+    const baseDelay = swingDelayMs(2400, haste);
+    const slowPenalty = now < mob.slowUntil ? mob.swingPenalty : 0;
+    mob.nextSwingAt = now + slowedSwingDelay(baseDelay, slowPenalty);
     // Picked once per swing and resolved straight on the Knight (their own
     // evasion, armor and DT incl. Interpose's 0.75) — never re-redirected.
     guard = mobAutoIsMagic(mob, now) ? null : findInterposeGuard(nearest, players.values(), now, dist);
@@ -6148,6 +6317,21 @@ function tickSimBody() {
     // Regain TP while Flux
     if (p.flux && tick % 20 === 0) p.tp = Math.min(3000, p.tp + 5);
 
+    if (now >= p.slowUntil) p.swingPenalty = 0;
+    if (now >= p.gravityUntil) p.gravityPct = 0;
+    if (now < p.bioUntil && p.bioTick > 0 && tick % TICK_HZ === 0) {
+      p.hp = Math.max(0, p.hp - p.bioTick);
+      if (p.hp <= 0 && p.bioSourceWallet) {
+        const src = players.get(p.bioSourceWallet);
+        const area = src ? areaAtPlayer(p.x, p.z) : undefined;
+        if (src && area) handlePvpSlay(src, p, area.id);
+        else if (pvpReraiseBlocked(p)) {
+          p.reraiseUntil = 0;
+          respawnAtHub(p, "The rot takes you… you wake in the Shard Dwellings.");
+        } else downPlayer(p, now);
+      }
+    }
+
     if (now < p.poisonUntil && p.poisonTick > 0 && tick % TICK_HZ === 0) {
       p.hp = Math.max(0, p.hp - p.poisonTick);
       if (p.hp <= 0) {
@@ -6166,7 +6350,11 @@ function tickSimBody() {
     // Gather channel (#67): grant only after interactMs, break on move/damage/engage
     tickGathering(p, now);
 
-    if (p.dash) {
+    if (playerIsRooted(p, now)) {
+      p.moveTo = null;
+      p.movePath = [];
+      p.dash = null;
+    } else if (p.dash) {
       const at = dashPos(p.dash, now);
       p.x = at.x;
       p.z = at.z;
@@ -6259,7 +6447,7 @@ function tickSimBody() {
         const tickMp = Math.max(1, p.refreshTick || 4);
         p.mp = Math.min(p.maxMp, p.mp + tickMp);
       }
-      if (now < p.regenUntil && p.regenTick > 0) {
+      if (now < p.regenUntil && p.regenTick > 0 && tick % (TICK_HZ * 3) === 0) {
         const tickHp = diseasedHeal(p.regenTick, p.diseaseUntil, now);
         p.hp = Math.min(p.maxHp, p.hp + tickHp);
       }

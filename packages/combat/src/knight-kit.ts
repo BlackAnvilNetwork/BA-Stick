@@ -5,6 +5,7 @@
  */
 
 import { SHARED_ABILITY_ICON } from "./shared-icons";
+import { pickHotbarLines } from "./hotbar-lines";
 import { isTrainerFreeAbility } from "./trainer";
 
 export const KNIGHT_ABILITY_IDS = [
@@ -85,7 +86,7 @@ export const KNIGHT_ABILITIES: Record<KnightAbilityId, KnightAbilityDef> = {
     recastMs: 2 * 60 * 60 * 1000,
     category: "ja",
     durationMs: 30_000,
-    physDt: 0,
+    physDt: 0.4,
   },
   provoke: {
     id: "provoke",
@@ -184,7 +185,7 @@ export const KNIGHT_ABILITIES: Record<KnightAbilityId, KnightAbilityDef> = {
     glyph: "Am",
     unlockLevel: 5,
     mp: 8,
-    recastMs: 0,
+    recastMs: 8_000,
     category: "heal",
     heal: 45,
     range: 12,
@@ -196,7 +197,7 @@ export const KNIGHT_ABILITIES: Record<KnightAbilityId, KnightAbilityDef> = {
     glyph: "Al",
     unlockLevel: 7,
     mp: 12,
-    recastMs: 0,
+    recastMs: 8_000,
     category: "divine",
     potency: 55,
     range: 12,
@@ -208,7 +209,7 @@ export const KNIGHT_ABILITIES: Record<KnightAbilityId, KnightAbilityDef> = {
     glyph: "Pw",
     unlockLevel: 17,
     mp: 10,
-    recastMs: 0,
+    recastMs: 10_000,
     category: "enhance",
     durationMs: 180_000,
     physDt: 0.9,
@@ -233,7 +234,7 @@ export const KNIGHT_ABILITIES: Record<KnightAbilityId, KnightAbilityDef> = {
     glyph: "A2",
     unlockLevel: 30,
     mp: 18,
-    recastMs: 0,
+    recastMs: 8_000,
     category: "heal",
     heal: 95,
     range: 12,
@@ -245,7 +246,7 @@ export const KNIGHT_ABILITIES: Record<KnightAbilityId, KnightAbilityDef> = {
     glyph: "Sp",
     unlockLevel: 34,
     mp: 12,
-    recastMs: 0,
+    recastMs: 10_000,
     category: "enhance",
     durationMs: 180_000,
     magDt: 0.9,
@@ -258,7 +259,7 @@ export const KNIGHT_ABILITIES: Record<KnightAbilityId, KnightAbilityDef> = {
     glyph: "W2",
     unlockLevel: 37,
     mp: 22,
-    recastMs: 0,
+    recastMs: 10_000,
     category: "enhance",
     durationMs: 180_000,
     physDt: 0.82,
@@ -271,7 +272,7 @@ export const KNIGHT_ABILITIES: Record<KnightAbilityId, KnightAbilityDef> = {
     glyph: "A3",
     unlockLevel: 45,
     mp: 36,
-    recastMs: 0,
+    recastMs: 8_000,
     category: "heal",
     heal: 180,
     range: 12,
@@ -283,7 +284,7 @@ export const KNIGHT_ABILITIES: Record<KnightAbilityId, KnightAbilityDef> = {
     glyph: "P2",
     unlockLevel: 47,
     mp: 24,
-    recastMs: 0,
+    recastMs: 10_000,
     category: "enhance",
     durationMs: 180_000,
     magDt: 0.82,
@@ -296,7 +297,7 @@ export const KNIGHT_ABILITIES: Record<KnightAbilityId, KnightAbilityDef> = {
     glyph: "W3",
     unlockLevel: 55,
     mp: 40,
-    recastMs: 0,
+    recastMs: 10_000,
     category: "enhance",
     durationMs: 180_000,
     physDt: 0.72,
@@ -309,7 +310,7 @@ export const KNIGHT_ABILITIES: Record<KnightAbilityId, KnightAbilityDef> = {
     glyph: "P3",
     unlockLevel: 57,
     mp: 42,
-    recastMs: 0,
+    recastMs: 10_000,
     category: "enhance",
     durationMs: 180_000,
     magDt: 0.72,
@@ -322,7 +323,7 @@ export const KNIGHT_ABILITIES: Record<KnightAbilityId, KnightAbilityDef> = {
     glyph: "A4",
     unlockLevel: 65,
     mp: 55,
-    recastMs: 0,
+    recastMs: 8_000,
     category: "heal",
     heal: 320,
     range: 12,
@@ -334,7 +335,7 @@ export const KNIGHT_ABILITIES: Record<KnightAbilityId, KnightAbilityDef> = {
     glyph: "L2",
     unlockLevel: 70,
     mp: 48,
-    recastMs: 0,
+    recastMs: 8_000,
     category: "divine",
     potency: 140,
     range: 12,
@@ -356,7 +357,7 @@ export const KNIGHT_ABILITIES: Record<KnightAbilityId, KnightAbilityDef> = {
 
 export const KNIGHT_ABILITY_BLURBS: Record<KnightAbilityId, string> = {
   rest: "Kneel to recover HP and MP. Breaks on damage or move.",
-  bulwark: "2-hour: shrug off all physical damage for 30s. Magic still bites.",
+  bulwark: "2-hour: heavy ward — physical hits land at 40% for 30s. Magic still bites.",
   provoke: "Sound the horn — force the foe to face you.",
   shield_bash: "Crash the buckler: damage and a short stun.",
   cover: "Step in — take the blow yourself.",
@@ -415,32 +416,23 @@ export function knightAbilitiesUnlocked(
 
 /** Preferred hotbar order — hate tools and DT first. */
 export function knightHotbarOrder(unlocked: readonly KnightAbilityId[]): KnightAbilityId[] {
-  const prefer: KnightAbilityId[] = [
-    "provoke",
-    "kn_flash",
-    "shield_bash",
-    "bulwark",
-    "sentinel",
-    "rampart",
-    "cover",
-    "kn_protect",
-    "kn_cure",
-    "kn_banish",
-    "fealty",
-    "chivalry",
-    "guardian",
-    "kn_holy",
-  ];
-  const set = new Set(unlocked);
-  const out: KnightAbilityId[] = [];
-  for (const id of prefer) {
-    if (set.has(id) && id !== "rest") out.push(id);
-  }
-  for (const id of unlocked) {
-    if (id === "rest") continue;
-    if (!out.includes(id)) out.push(id);
-  }
-  return out;
+  return pickHotbarLines(unlocked, [
+    ["provoke"],
+    ["kn_flash"],
+    ["shield_bash"],
+    ["bulwark"],
+    ["sentinel"],
+    ["rampart"],
+    ["cover"],
+    ["kn_cure_iv", "kn_cure_iii", "kn_cure_ii", "kn_cure"],
+    ["kn_protect_iii", "kn_protect_ii", "kn_protect"],
+    ["kn_shell_iii", "kn_shell_ii", "kn_shell"],
+    ["kn_holy"],
+    ["kn_banish_ii", "kn_banish"],
+    ["fealty"],
+    ["chivalry"],
+    ["guardian"],
+  ]);
 }
 
 export function knightAbilityTooltip(id: KnightAbilityId): {
