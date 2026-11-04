@@ -4,6 +4,7 @@ import {
   abilityNeedsTarget,
   abilityTargetFaction,
 } from "./abilities";
+import { encodeGroundTarget } from "./map-builder-kit";
 
 /** Matches server `ENGAGE_MAX_RANGE` — tab-select and engage. */
 export const TAB_HOSTILE_RANGE = 30;
@@ -112,10 +113,7 @@ export function resolveAbilityTargetId(
   const picked = selected ? units.find((u) => u.id === selected) : undefined;
 
   if (faction === "ground") {
-    if (ground) {
-      const { encodeGroundTarget } = require("./map-builder-kit") as typeof import("./map-builder-kit");
-      return encodeGroundTarget(ground.x, ground.z);
-    }
+    if (ground) return encodeGroundTarget(ground.x, ground.z);
     return undefined;
   }
 

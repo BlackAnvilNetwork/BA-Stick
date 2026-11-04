@@ -20,6 +20,7 @@ export const STARTER_WEAPON: Record<JobId, { tokenId: number; name: string; craf
   cleric: { tokenId: 183, name: "Ashbeam Club", craftLevel: 12 },
   battle_mage: { tokenId: 102, name: "Bronze Sword", craftLevel: 5 },
   knight: { tokenId: 102, name: "Bronze Sword", craftLevel: 5 },
+  druid: { tokenId: ITEM.STAFF_ASHBEAM, name: "Ashbeam Staff", craftLevel: 6 },
 };
 
 export const STARTER_POTION_ID = ITEM.POTION;
@@ -38,6 +39,7 @@ export const SIGNATURE_WEAPON_FAMILIES: Record<JobId, readonly WeaponFamily[]> =
   knight: ["sword"],
   // Ashbeam Rod is staff; bronze/iron swords stay valid.
   battle_mage: ["sword", "staff"],
+  druid: ["staff", "club"],
 };
 
 export function signatureWeaponEquipped(

@@ -52,6 +52,19 @@ import {
 
 } from "./cleric-kit";
 
+import {
+  DRUID_ABILITIES,
+  DRUID_ABILITY_IDS,
+  DRUID_CATEGORY_TABS,
+  isDruidAbilityId,
+  druidAbilitiesUnlocked,
+  druidAbilityIconUrl,
+  druidAbilityTooltip,
+  druidHotbarOrder,
+  type DruidAbilityId,
+  type DruidForm,
+} from "./druid-kit";
+
 
 
 import {
@@ -232,6 +245,8 @@ export const ALL_ABILITY_IDS = Array.from(
 
     ...CLERIC_ABILITY_IDS,
 
+    ...DRUID_ABILITY_IDS,
+
     ...WEAPON_TP_ABILITY_IDS,
 
     ...MAP_BUILDER_ABILITY_IDS,
@@ -256,6 +271,7 @@ export type AbilityId =
 
   | ClericAbilityId
   | BattleMageAbilityId
+  | DruidAbilityId
   | WeaponTpAbilityId
   | MapBuilderAbilityId;
 
@@ -277,6 +293,7 @@ export function isAbilityId(id: string): id is AbilityId {
 
     isClericAbilityId(id) ||
     isBattleMageAbilityId(id) ||
+    isDruidAbilityId(id) ||
 
     isWeaponTpAbilityId(id) ||
     isMapBuilderAbilityId(id)
@@ -300,6 +317,7 @@ export {
 
   isFighterAbilityId,
   isBattleMageAbilityId,
+  isDruidAbilityId,
 };
 
 export { SHARED_ABILITY_ICON, SHARED_SPELL_ICON_CONCEPTS } from "./shared-icons";
@@ -314,6 +332,7 @@ export function abilityIconUrl(id: AbilityId | string): string {
 
 
 
+  if (isDruidAbilityId(id)) return druidAbilityIconUrl(id);
   if (isBattleMageAbilityId(id)) return battleMageAbilityIconUrl(id);
   if (isClericAbilityId(id)) return clericAbilityIconUrl(id);
 
@@ -356,6 +375,7 @@ export function abilityLabel(id: AbilityId): string {
 
   if (isClericAbilityId(id)) return CLERIC_ABILITIES[id].label;
   if (isBattleMageAbilityId(id)) return BATTLEMAGE_ABILITIES[id].label;
+  if (isDruidAbilityId(id)) return DRUID_ABILITIES[id].label;
   if (isMapBuilderAbilityId(id)) return MAP_BUILDER_ABILITIES[id].label;
   return id;
 
@@ -378,6 +398,7 @@ export function abilityGlyph(id: AbilityId): string {
 
   if (isClericAbilityId(id)) return CLERIC_ABILITIES[id].glyph;
   if (isBattleMageAbilityId(id)) return BATTLEMAGE_ABILITIES[id].glyph;
+  if (isDruidAbilityId(id)) return DRUID_ABILITIES[id].glyph;
   if (isMapBuilderAbilityId(id)) return MAP_BUILDER_ABILITIES[id].glyph;
   return "?";
 
@@ -400,12 +421,18 @@ export function abilityTooltip(id: AbilityId): AbilityTooltip | string {
 
   if (isClericAbilityId(id)) return clericAbilityTooltip(id);
   if (isBattleMageAbilityId(id)) return battleMageAbilityTooltip(id);
+  if (isDruidAbilityId(id)) return druidAbilityTooltip(id);
   if (isMapBuilderAbilityId(id)) return mapBuilderAbilityTooltip(id);
+  return id;
 }
 
 
 
-export function hotbarOrderForJob(job: JobId, unlocked: readonly AbilityId[]): AbilityId[] {
+export function hotbarOrderForJob(
+  job: JobId,
+  unlocked: readonly AbilityId[],
+  form: DruidForm = 0,
+): AbilityId[] {
 
   if (job === "time_mage") return timHotbarOrder(unlocked as TimAbilityId[]);
 
@@ -419,6 +446,7 @@ export function hotbarOrderForJob(job: JobId, unlocked: readonly AbilityId[]): A
 
   if (job === "cleric") return clericHotbarOrder(unlocked as ClericAbilityId[]);
   if (job === "battle_mage") return battleMageHotbarOrder(unlocked as BattleMageAbilityId[]);
+  if (job === "druid") return druidHotbarOrder(unlocked as DruidAbilityId[], form);
   return [];
 
 }
@@ -428,8 +456,9 @@ export function hotbarOrderDual(
   main: JobId,
   sub: JobId | null | undefined,
   unlocked: readonly AbilityId[],
+  form: DruidForm = 0,
 ): AbilityId[] {
-  const primary = hotbarOrderForJob(main, unlocked);
+  const primary = hotbarOrderForJob(main, unlocked, form);
   const seen = new Set(primary);
   const out: AbilityId[] = [...primary];
   if (sub && sub !== main) {
@@ -461,6 +490,7 @@ export function abilitiesUnlockedForJob(
   if (job === "fighter") return fighterAbilitiesUnlocked(level, learned);
   if (job === "cleric") return clericAbilitiesUnlocked(level, learned);
   if (job === "battle_mage") return battleMageAbilitiesUnlocked(level, learned);
+  if (job === "druid") return druidAbilitiesUnlocked(level, learned);
   return [];
 }
 
@@ -469,7 +499,7 @@ export function abilitiesUnlockedForJob(
 export function abilityNeedsTarget(id: AbilityId): boolean {
   if (isWeaponTpAbilityId(id)) return true;
 
-  if (isMapBuilderAbilityId(id)) return id !== "map_undo";
+  if (isMapBuilderAbilityId(id)) return id !== "map_undo" && id !== "map_enter";
   if (isTimAbilityId(id)) {
 
     const def = TIM_ABILITIES[id];
@@ -513,6 +543,10 @@ export function abilityNeedsTarget(id: AbilityId): boolean {
 
   if (isClericAbilityId(id)) {
     const def = CLERIC_ABILITIES[id];
+    return !!(def.needsTarget || def.allyTarget);
+  }
+  if (isDruidAbilityId(id)) {
+    const def = DRUID_ABILITIES[id];
     return !!(def.needsTarget || def.allyTarget);
   }
   if (isBattleMageAbilityId(id)) {
@@ -574,6 +608,12 @@ export function abilityTargetFaction(id: AbilityId): "enemy" | "ally" | "ground"
   if (isRogueAbilityId(id) && ROGUE_ABILITIES[id].needsTarget) return "enemy";
   if (isSorcererAbilityId(id) && SORCERER_ABILITIES[id].needsTarget) return "enemy";
   if (isFighterAbilityId(id) && FIGHTER_ABILITIES[id].needsTarget) return "enemy";
+  if (isDruidAbilityId(id)) {
+    const def = DRUID_ABILITIES[id];
+    if (def.allyTarget) return "ally";
+    if (def.needsTarget) return "enemy";
+    return null;
+  }
   return null;
 }
 
@@ -594,6 +634,7 @@ export function abilityMp(id: AbilityId): number {
 
   if (isClericAbilityId(id)) return CLERIC_ABILITIES[id].mp;
   if (isBattleMageAbilityId(id)) return BATTLEMAGE_ABILITIES[id].mp;
+  if (isDruidAbilityId(id)) return DRUID_ABILITIES[id].mp;
   return 0;
 
 }
@@ -615,6 +656,7 @@ export function abilityRecastMs(id: AbilityId): number {
 
   if (isClericAbilityId(id)) return CLERIC_ABILITIES[id].recastMs;
   if (isBattleMageAbilityId(id)) return BATTLEMAGE_ABILITIES[id].recastMs;
+  if (isDruidAbilityId(id)) return DRUID_ABILITIES[id].recastMs;
   if (isMapBuilderAbilityId(id)) return MAP_BUILDER_ABILITIES[id].recastMs;
   return 0;
 
@@ -641,6 +683,7 @@ export function abilityCategory(id: AbilityId): AbilityUiCategory {
 
   if (isClericAbilityId(id)) return CLERIC_ABILITIES[id].category;
   if (isBattleMageAbilityId(id)) return BATTLEMAGE_ABILITIES[id].category;
+  if (isDruidAbilityId(id)) return DRUID_ABILITIES[id].category;
   if (isMapBuilderAbilityId(id)) return MAP_BUILDER_CATEGORY_TAB.id;
   return "utility";
 
@@ -716,6 +759,12 @@ export function categoryTabsForJob(job: JobId): { id: string; label: string }[] 
       label: t.label,
     }));
   }
+  if (job === "druid") {
+    return DRUID_CATEGORY_TABS.filter((t) => t.id !== "all").map((t) => ({
+      id: t.id,
+      label: t.label,
+    }));
+  }
   return [];
 }
 
@@ -754,6 +803,7 @@ export function abilityUnlockLevel(id: AbilityId): number {
   if (isFighterAbilityId(id)) return FIGHTER_ABILITIES[id].unlockLevel;
   if (isClericAbilityId(id)) return CLERIC_ABILITIES[id].unlockLevel;
   if (isBattleMageAbilityId(id)) return BATTLEMAGE_ABILITIES[id].unlockLevel;
+  if (isDruidAbilityId(id)) return DRUID_ABILITIES[id].unlockLevel;
   if (isMapBuilderAbilityId(id)) return 1;
   return 1;
 }
@@ -767,6 +817,7 @@ export function abilityIdsForJob(job: JobId): AbilityId[] {
   if (job === "fighter") return [...FIGHTER_ABILITY_IDS];
   if (job === "cleric") return [...CLERIC_ABILITY_IDS];
   if (job === "battle_mage") return [...BATTLEMAGE_ABILITY_IDS];
+  if (job === "druid") return [...DRUID_ABILITY_IDS];
   return [];
 }
 

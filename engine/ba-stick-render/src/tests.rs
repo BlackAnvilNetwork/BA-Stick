@@ -160,6 +160,24 @@ fn presets_resolve() {
     assert!(pep.props.head_r > RigPreset::resolve("cleric").props.head_r);
     let _ = RigPreset::resolve("npc:vendor");
     let _ = RigPreset::resolve("unknown-thing");
+    assert!(matches!(
+        RigPreset::resolve("druid:stickbear").body,
+        crate::preset::Body::StickForm { kind: 0, .. }
+    ));
+    assert!(matches!(
+        RigPreset::resolve("druid:stickdeer").body,
+        crate::preset::Body::StickForm { kind: 1, .. }
+    ));
+    assert!(matches!(
+        RigPreset::resolve("druid:sticklion").body,
+        crate::preset::Body::StickForm { kind: 2, .. }
+    ));
+    assert!(matches!(
+        RigPreset::resolve("druid:racerunner").body,
+        crate::preset::Body::StickForm { kind: 3, .. }
+    ));
+    assert!(matches!(RigPreset::resolve("druid").body, crate::preset::Body::Biped));
+    assert!(matches!(RigPreset::resolve("druid").weapon, crate::preset::Weapon::Staff));
 }
 
 fn tiny_zone(w: u32, h: u32, f: impl Fn(u32, u32) -> (u8, u8, i16)) -> Vec<u8> {
@@ -240,7 +258,7 @@ fn zone_draws_biome_colours_and_units_stand_on_it() {
     s.draw();
     let grass = palette::BIOME0 + 13 * 3 + 1;
     assert!(s.fb.color.iter().filter(|&&c| c == grass).count() > 1000);
-    // Trails render as cobbles now (no flat TRAIL_DIRT fill); they must still show up.
+    // Dirt trails are a worn mid fill (not cobble); they must still show up.
     let mut plain = Scene::new(320, 180);
     plain.load_zone(&tiny_zone(40, 40, |_, _| (13, 0, 300))).unwrap();
     plain.upsert_unit("me", UnitInput { x: 5.0, y: 3.0, z: 5.0, facing: 0.0, anim: AnimState::Idle, preset: "knight".into() });
@@ -260,7 +278,7 @@ fn every_archetype_and_role_draws() {
     use crate::preset::{MOB_ARCHETYPES, NPC_ROLES};
     let keys: Vec<String> = MOB_ARCHETYPES.iter().map(|a| format!("mob:{a}"))
         .chain(NPC_ROLES.iter().map(|r| format!("npc:{r}")))
-        .chain(["knight", "fighter", "rogue", "cleric", "sorcerer", "time_mage", "battle_mage"].iter().map(|j| j.to_string()))
+        .chain(["knight", "fighter", "rogue", "cleric", "sorcerer", "time_mage", "battle_mage", "druid", "druid:stickbear", "druid:stickdeer", "druid:sticklion", "druid:racerunner"].iter().map(|j| j.to_string()))
         .collect();
     for key in &keys {
         for anim in ["idle", "walk", "melee", "cast", "dead"] {
@@ -639,7 +657,7 @@ fn bridge_deck_is_one_continuous_ribbon() {
         let y = crate::props::bridge_curve(&p, t);
         let q = cam.project(v3(0.0, y + 0.01, -5.0 + 10.0 * t));
         let c = fb.color[q.y as usize * fb.w + q.x as usize];
-        if c != TRAIL_STONE {
+        if !(TRAIL_STONE..TRAIL_STONE + 3).contains(&c) {
             seams += 1;
         }
     }
@@ -651,7 +669,7 @@ fn bridge_deck_is_one_continuous_ribbon() {
 fn l1_slope_shade_follows_sun() {
     use crate::zone::Zone;
     let (w, h) = (8usize, 8usize);
-    let mut z = Zone { min_x: 0.0, min_z: 0.0, cell: 0.5, w, h, biome: vec![0; w * h], flags: vec![0; w * h], height: vec![0.0; w * h] };
+    let mut z = Zone { min_x: 0.0, min_z: 0.0, cell: 0.5, w, h, biome: vec![0; w * h], flags: vec![0; w * h], height: vec![0.0; w * h], vy: Vec::new() };
     assert_eq!(crate::ground::slope_shade(&z, 1, 1), 1, "flat = mid");
     // Rise toward +x: face tilts toward -x (NW sun) => lit.
     for j in 0..z.h { for i in 0..z.w { let k = z.idx(i as i32, j as i32); z.height[k] = i as f32 * 0.4; } }
@@ -671,7 +689,6 @@ fn l2_keylight_warms_lit_cools_shadow() {
             &[c],
             1,
             1,
-            &[],
             &PALE_HOLLOW,
             0.0,
             key,
@@ -764,7 +781,7 @@ fn clear_map_data_drops_the_title() {
 
 fn raised_zone(h: f32) -> crate::zone::Zone {
     let (w, d) = (120, 120);
-    crate::zone::Zone { min_x: -30.0, min_z: -30.0, cell: 0.5, w, h: d, biome: vec![13; w * d], flags: vec![0; w * d], height: vec![h; w * d] }
+    crate::zone::Zone { min_x: -30.0, min_z: -30.0, cell: 0.5, w, h: d, biome: vec![13; w * d], flags: vec![0; w * d], height: vec![h; w * d], vy: Vec::new() }
 }
 
 #[test]
@@ -1338,7 +1355,7 @@ fn meadow_follows_ambient_without_sky() {
         p.ambient = [amb; 3];
         p.vignette = 0.0;
         let mut out = vec![0u8; w * h * 4];
-        crate::atmosphere::write_rgba_key(&pal, &color, w, h, &[], &p, 0.0, false, crate::atmosphere::Extra::NONE, &mut out);
+        crate::atmosphere::write_rgba_key(&pal, &color, w, h, &p, 0.0, false, crate::atmosphere::Extra::NONE, &mut out);
         let px = |i: usize| out[i * 4 + 1] as f32;
         (px(w * 16 + 8), px(w * 16 + 24))
     };
@@ -1346,4 +1363,65 @@ fn meadow_follows_ambient_without_sky() {
     let (g_lo, m_lo) = luma(0.3);
     let (rg, rm) = (g_lo / g_hi, m_lo / m_hi);
     assert!((rg - rm).abs() < 0.12, "ground x{rg:.2} vs grass x{rm:.2} when ambient drops");
+}
+fn one_prop(kind: u8, x: f32, z: f32) -> Vec<u8> {
+    let mut b = b"BAP1".to_vec();
+    b.extend_from_slice(&1u32.to_le_bytes());
+    b.push(kind);
+    b.push(0);
+    for v in [x, z, 0.0f32, 0.0, 1.0, 1.0, 1.0, 1.0] {
+        b.extend_from_slice(&v.to_le_bytes());
+    }
+    b
+}
+
+/// Lighting overhaul: a dark mood darkens the ground, the fire pit from map
+/// data lights a pool around itself, and a bright mood skips the light pass.
+#[test]
+fn light_pass_is_local_and_skipped_when_bright() {
+    use crate::lighting::Mood;
+    let zone = tiny_zone(80, 80, |_, _| (13, 0, 0));
+    let mut s = Scene::new(320, 180);
+    s.load_zone(&zone).unwrap();
+    s.load_props(&one_prop(crate::props::kind::FIRE_PIT, 14.0, 14.0)).unwrap();
+    assert_eq!(s.lighting.statics.len(), 1, "fire pit becomes a static light");
+    s.upsert_unit("me", unit(14.0, 14.0, "idle", "knight"));
+    s.follow(Some("me"));
+    s.tick(1.0 / 60.0);
+    s.set_light_mood(Mood::DAYLIGHT, true);
+    s.draw();
+    let mut day = vec![0u8; 320 * 180 * 4];
+    s.write_rgba(&mut day);
+    assert_eq!(s.lighting.layer.allocs, 0, "bright mood never builds the layer");
+    let dark = Mood { ambient: [0.25, 0.25, 0.3], player_r: 0.0, player_k: 0.0, glow: 0.0, ..Mood::DAYLIGHT };
+    s.set_light_mood(dark, true);
+    s.draw();
+    let mut night = vec![0u8; 320 * 180 * 4];
+    s.write_rgba(&mut night);
+    assert_eq!(s.lighting.layer.allocs, 1);
+    assert!(!s.lighting.stamps.is_empty(), "fire pit is on screen");
+    let st = s.lighting.stamps[0];
+    let lum = |b: &[u8], x: i32, y: i32| {
+        let i = ((y as usize) * 320 + x as usize) * 4;
+        b[i] as u32 + b[i + 1] as u32 + b[i + 2] as u32
+    };
+    // Far corner: darkened by the ambient.
+    assert!(lum(&night, 2, 178) * 2 < lum(&day, 2, 178), "dark mood darkens the ground");
+    // Inside the pool, halfway out, brighter than the same spot's ambient-only ratio.
+    let (px, py) = (st.x + st.rx / 2, st.y);
+    let ratio_pool = lum(&night, px, py) as f32 / lum(&day, px, py).max(1) as f32;
+    assert!(ratio_pool > 0.5, "the fire lights its pool: {ratio_pool}");
+    // Night: with a zone mood set, iso ground dims too and a carried light comes up.
+    s.set_light_mood(Mood::DAYLIGHT, true);
+    s.set_time_of_day(0.0);
+    s.draw();
+    let mut midnight = vec![0u8; 320 * 180 * 4];
+    s.write_rgba(&mut midnight);
+    assert!(lum(&midnight, 2, 178) * 10 < lum(&day, 2, 178) * 7, "night dims the daylight mood");
+    s.set_time_of_day(0.5);
+    s.set_light_mood(dark, true);
+    // A second frame reuses the buffer.
+    s.draw();
+    s.write_rgba(&mut night);
+    assert_eq!(s.lighting.layer.allocs, 1);
 }

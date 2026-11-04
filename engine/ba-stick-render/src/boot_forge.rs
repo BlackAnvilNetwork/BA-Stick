@@ -8,7 +8,7 @@ use stick_engine::camera::{Camera, P2};
 use stick_engine::math::{v3, Vec3};
 use stick_engine::raster::Framebuffer;
 
-use crate::atmosphere::Light;
+use crate::lighting::ScreenLight as Light;
 use crate::palette::*;
 
 const VOID: u8 = crate::atmosphere::SKY;

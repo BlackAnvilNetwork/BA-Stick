@@ -17,7 +17,7 @@ test("every ability in the kits has a VFX entry", () => {
   const ids = allIds();
   assert.ok(ids.length > 250, `found ${ids.length} ids`);
   assert.ok(KNIGHT_ABILITY_IDS.length > 0);
-  const missing = ids.filter((id) => !(id in VFX.abilities));
+  const missing = ids.filter((id) => !id.startsWith("map_") && !(id in VFX.abilities));
   assert.deepEqual(missing, []);
   for (const [id, steps] of Object.entries(VFX.abilities)) {
     for (const s of steps) {

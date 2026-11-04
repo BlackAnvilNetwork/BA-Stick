@@ -258,6 +258,7 @@ export * from "./sorcerer-kit";
 export * from "./fighter-kit";
 export * from "./battlemage-kit";
 export * from "./cleric-kit";
+export * from "./druid-kit";
 export * from "./shared-icons";
 export * from "./dual-job";
 export * from "./skill-tree";

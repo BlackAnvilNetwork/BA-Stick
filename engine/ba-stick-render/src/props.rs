@@ -74,6 +74,25 @@ pub mod kind {
     pub const SHACK: u8 = 49;
     /// Stone stack from `ba_cairn.ron`.
     pub const CAIRN: u8 = 50;
+    /// Street lantern. Same kind number as main, so a baked lantern becomes a light.
+    pub const LANTERN: u8 = 51;
+    /// Fallen giant tree: s = length along yaw, w = trunk radius, h = root-plate height.
+    pub const FALLEN_LOG: u8 = 60;
+    /// Mushroom cluster: s = cap height, var = 1 for glowing caps.
+    pub const MUSHROOMS: u8 = 61;
+    /// Falling-water sheet: w = width across, h = drop (prop y = foot of the falls).
+    pub const FALLS: u8 = 62;
+    /// Rock wall / cliff face: s = length across, h = height, w = thickness.
+    pub const ROCK_WALL: u8 = 63;
+    /// Thorn bush (blackthorn / bramble tangle): s = size.
+    pub const THORN: u8 = 64;
+    /// Ruined masonry: var 0 = broken arch (s = height, w = span), var 1 = lone pillar.
+    pub const RUIN_ARCH: u8 = 65;
+    /// Hollow giant oak: s = height, w = trunk radius.
+    pub const HOLLOW_OAK: u8 = 66;
+    /// Water elevator: noria and bucket-chain from a river up to an aqueduct.
+    /// s = lift height, w / d = shaft plan, y = river surface, h = dip into the river.
+    pub const WATER_LIFT: u8 = 67;
 }
 
 pub fn parse(bytes: &[u8]) -> Result<Vec<Prop>, String> {
@@ -106,6 +125,8 @@ pub fn parse(bytes: &[u8]) -> Result<Vec<Prop>, String> {
         .collect::<Vec<_>>())
     .map(|mut v| {
         link_walls(&mut v);
+        let n = v.iter().filter(|p| p.kind == kind::CAIRN).count();
+        eprintln!("cairns in BAP1: {n} of {}", v.len());
         v
     })
 }
@@ -180,7 +201,7 @@ pub fn footprint(p: &Prop) -> Option<f32> {
         kind::CRATE => p.w.max(p.d) * 0.75,
         kind::CHEST => 0.6,
         kind::LEAN_TO | kind::SHACK => 1.6,
-        kind::CAIRN => 0.7,
+        kind::CAIRN => p.s * 0.55,
         kind::TRAINER => 0.7,
         kind::STALL => 1.15,
         kind::WEAPON_RACK => 0.6,
@@ -279,6 +300,10 @@ fn reach(p: &Prop) -> f32 {
         kind::WALL_BLOCK => p.w.max(p.d),
         kind::RIVER_WALL => p.s,
         kind::BRIDGE => p.s * 0.5 + 1.0,
+        kind::FALLEN_LOG | kind::ROCK_WALL => p.s * 0.5 + 2.0,
+        kind::HOLLOW_OAK => p.s,
+        kind::FALLS => p.w + p.h,
+        kind::WATER_LIFT => p.s + 3.0,
         _ => 2.0,
     }
 }
@@ -689,6 +714,79 @@ impl Ctx<'_> {
             self.edge(ll[i], rl[i]);
         }
     }
+    /// Deck ribbon: same mesh as `ribbon`, but the walk surface is one
+    /// along-span grain (plank / masonry joints), never cross-span slabs.
+    #[allow(clippy::too_many_arguments)]
+    fn deck_ribbon(&mut self, rx: f32, hw: f32, st: &[(f32, f32, f32)], span: f32) {
+        if st.len() < 2 {
+            return;
+        }
+        let at = |c: &Self, side: f32, y: f32, fz: f32| c.p(rx + side * hw, y, fz);
+        let ll: Vec<P2> = st.iter().map(|&(fz, lo, _)| at(self, -1.0, lo, fz)).collect();
+        let lh: Vec<P2> = st.iter().map(|&(fz, _, hi)| at(self, -1.0, hi, fz)).collect();
+        let rl: Vec<P2> = st.iter().map(|&(fz, lo, _)| at(self, 1.0, lo, fz)).collect();
+        let rh: Vec<P2> = st.iter().map(|&(fz, _, hi)| at(self, 1.0, hi, fz)).collect();
+        let right_lit = rh[st.len() / 2].x >= lh[st.len() / 2].x;
+        let (lc, rc) = if right_lit { (BANK_D, BANK) } else { (BANK, BANK_D) };
+        let along = |fz: f32| (fz + span * 0.5) / span.max(1e-3);
+        for i in 0..st.len() - 1 {
+            let j = i + 1;
+            self.quad(ll[i], ll[j], lh[j], lh[i], lc);
+            self.quad(rl[i], rl[j], rh[j], rh[i], rc);
+            let (a0, a1) = (along(st[i].0), along(st[j].0));
+            self.deck_tri(lh[i], rh[i], rh[j], (-1.0, a0), (1.0, a0), (1.0, a1));
+            self.deck_tri(lh[i], rh[j], lh[j], (-1.0, a0), (1.0, a1), (-1.0, a1));
+        }
+        let k = st.len() - 1;
+        self.quad(ll[0], rl[0], rh[0], lh[0], BANK_D);
+        self.quad(ll[k], rl[k], rh[k], lh[k], BANK_D);
+        // Long edges follow the stations (the curve); no cross-span seams.
+        for i in 0..k {
+            self.edge(lh[i], lh[i + 1]);
+            self.edge(rh[i], rh[i + 1]);
+        }
+        for i in [0, k] {
+            self.edge(lh[i], rh[i]);
+            self.edge(ll[i], lh[i]);
+            self.edge(rl[i], rh[i]);
+            self.edge(ll[i], rl[i]);
+        }
+    }
+    /// Depth-tested deck fill. `u` is across (−1..1), `v` is along the span (0..1).
+    fn deck_tri(&mut self, a: P2, b: P2, c: P2, ua: (f32, f32), ub: (f32, f32), uc: (f32, f32)) {
+        let fb = &mut *self.fb;
+        let min_x = a.x.min(b.x).min(c.x).floor().max(0.0) as i32;
+        let max_x = a.x.max(b.x).max(c.x).ceil().min(fb.w as f32 - 1.0) as i32;
+        let min_y = a.y.min(b.y).min(c.y).floor().max(0.0) as i32;
+        let max_y = a.y.max(b.y).max(c.y).ceil().min(fb.h as f32 - 1.0) as i32;
+        if min_x > max_x || min_y > max_y {
+            return;
+        }
+        let area = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+        if area.abs() < 1e-4 {
+            return;
+        }
+        let inv = 1.0 / area;
+        for y in min_y..=max_y {
+            let py = y as f32 + 0.5;
+            let (x0, x1) = match tri_row_span(a, b, c, inv, py, min_x, max_x) {
+                Some(r) => r,
+                None => continue,
+            };
+            for x in x0..=x1 {
+                let px = x as f32 + 0.5;
+                let w0 = ((b.x - px) * (c.y - py) - (b.y - py) * (c.x - px)) * inv;
+                let w1 = ((c.x - px) * (a.y - py) - (c.y - py) * (a.x - px)) * inv;
+                let w2 = 1.0 - w0 - w1;
+                if w0 >= 0.0 && w1 >= 0.0 && w2 >= 0.0 {
+                    let u = w0 * ua.0 + w1 * ub.0 + w2 * uc.0;
+                    let v = w0 * ua.1 + w1 * ub.1 + w2 * uc.1;
+                    let d = a.d * w0 + b.d * w1 + c.d * w2;
+                    fb.plot(x, y, d, deck_px(u, v));
+                }
+            }
+        }
+    }
     fn cap(&mut self, a: P2, b: P2, r: f32, col: u8) {
         self.fb.capsule(a, b, r, col, Some(C_OUTLINE));
     }
@@ -817,30 +915,82 @@ fn draw_shelter(c: &mut Ctx, def: &crate::structure::ShelterDef) {
     }
 }
 
-fn draw_cairn(c: &mut Ctx) {
-    const STEPS: usize = 8;
-    for tier in &crate::structure::cairn().tiers {
-        let mut rings = Vec::with_capacity(2);
-        let mut flat = Vec::with_capacity(2);
-        for (y, rad) in [(tier.y0, tier.r), (tier.y1, tier.r * 0.08)] {
-            let mut ring = Vec::with_capacity(STEPS);
-            let mut xz = Vec::with_capacity(STEPS);
-            for i in 0..STEPS {
-                let a = i as f32 / STEPS as f32 * std::f32::consts::TAU;
-                let rx = a.cos() * rad;
-                let fz = a.sin() * rad;
-                ring.push(c.p(rx, y, fz));
-                xz.push((rx, fz));
-            }
-            rings.push(ring);
-            flat.push(xz);
-        }
-        for i in 0..STEPS {
-            let j = (i + 1) % STEPS;
-            let (rx, fz) = flat[0][i];
-            let col = foliage(sun_of(c, rx, fz), ROCK_D, ROCK, ROCK_L);
-            c.quad(rings[0][i], rings[0][j], rings[1][j], rings[1][i], col);
-        }
+/// One river stone: a lumpy drum. `lx`/`lz` shift the crown so a stack can lean.
+fn drum(
+    c: &mut Ctx,
+    ox: f32,
+    oz: f32,
+    y0: f32,
+    y1: f32,
+    r0: f32,
+    r1: f32,
+    lx: f32,
+    lz: f32,
+    side: u8,
+    top: u8,
+) {
+    const N: usize = 8;
+    let mut lo = [P2::new(0.0, 0.0, 0.0); N];
+    let mut hi = [P2::new(0.0, 0.0, 0.0); N];
+    for i in 0..N {
+        let a = i as f32 / N as f32 * std::f32::consts::TAU + 0.35;
+        let jb = 0.72 + 0.5 * hash(ox * 3.1 + i as f32, oz + y0 * 2.0);
+        let jt = 0.75 + 0.42 * hash(ox + y1, oz * 2.7 + i as f32);
+        lo[i] = c.p(ox + a.cos() * r0 * jb, y0, oz + a.sin() * r0 * jb);
+        hi[i] = c.p(
+            ox + lx + a.cos() * r1 * jt,
+            y1,
+            oz + lz + a.sin() * r1 * jt,
+        );
+    }
+    let cap = c.p(ox + lx, y1 + (y1 - y0) * 0.12, oz + lz);
+    for i in 0..N {
+        let j = (i + 1) % N;
+        let col = if i % 2 == 0 { side } else { face_dark(side) };
+        c.quad(lo[i], lo[j], hi[j], hi[i], col);
+        tri(c.fb, hi[i], hi[j], cap, top);
+        c.edge_col(hi[i], hi[j], ROCK_D);
+    }
+}
+
+/// Flat-faced slab with squared shoulders and a stepped top. Prop yaw turns it.
+fn draw_headstone(c: &mut Ctx, p: &Prop) {
+    let h = p.s.clamp(0.45, 1.1);
+    let w = h * 0.7;
+    let t = h * 0.18; // thin slab
+    // body, sunk into the ground
+    c.boxy(0.0, -0.15 * h, 0.0, w, h * 0.85, t, ROCK_L, ROCK, ROCK_D);
+    // stepped, rounded-looking shoulders
+    c.boxy(0.0, h * 0.62, 0.0, w * 0.82, h * 0.16, t, ROCK_L, ROCK, ROCK_D);
+    c.boxy(0.0, h * 0.76, 0.0, w * 0.55, h * 0.12, t, ROCK_L, ROCK, ROCK_D);
+    // moss at the foot
+    let moss_q = c.p(0.0, 0.0, 0.0);
+    c.fb.disc(P2 { d: moss_q.d - 0.1, ..moss_q }, w * 14.0, MOSS_C, None);
+}
+
+/// Hand-stacked river rocks. Each course is squat, smaller than the one under it,
+/// and shifted, and the foot sits below the ground line.
+fn draw_cairn(c: &mut Ctx, p: &Prop) {
+    let s = p.s.max(0.45);
+    const COURSES: usize = 5;
+    let mut y = -0.14 * s;
+    for i in 0..COURSES {
+        let t = i as f32 / (COURSES - 1) as f32;
+        let wobble = 0.85 + 0.3 * hash(p.x + i as f32 * 1.9, p.z + i as f32);
+        let rad = s * (0.58 - 0.36 * t) * wobble;
+        let h = rad * (0.28 + 0.12 * hash(p.z + i as f32, p.x));
+        let ox = (hash(p.x + i as f32 * 2.2, p.z) - 0.5) * s * 0.22 * (0.4 + t);
+        let oz = (hash(p.z + i as f32 * 1.4, p.x) - 0.5) * s * 0.22 * (0.4 + t);
+        let lean = (hash(p.x, p.z + i as f32) - 0.5) * rad * 0.18;
+        let (side, topc) = if i + 1 == COURSES {
+            (ROCK, ROCK_L)
+        } else if i % 2 == 0 {
+            (ROCK, ROCK)
+        } else {
+            (ROCK_D, ROCK)
+        };
+        drum(c, ox, oz, y, y + h, rad, rad * 0.88, lean, lean * 0.4, side, topc);
+        y += h * 0.62;
     }
 }
 
@@ -1116,6 +1266,21 @@ fn hash(a: f32, b: f32) -> f32 {
     s - s.floor()
 }
 
+/// Along-span plank / masonry marks. Joints sit off the centre line so the
+/// walkway test still sees TRAIL_STONE; grain never runs as screen scanlines.
+fn deck_px(across: f32, along: f32) -> u8 {
+    let lane = across * 3.0 + 0.5;
+    let joint = (lane - lane.round()).abs() < 0.07;
+    let h = hash(along * 9.0, lane.round());
+    if joint && h > 0.28 {
+        TRAIL_STONE + 2
+    } else if h < 0.07 {
+        TRAIL_STONE + 1
+    } else {
+        TRAIL_STONE
+    }
+}
+
 /// Ramp fraction of a bridge prop: `var` carries it in 1/200 steps (the bake
 /// quantises `paleHollowBridgeGeom().ramp` the same way); 0 = default 0.3.
 pub fn bridge_ramp(p: &Prop) -> f32 {
@@ -1159,6 +1324,8 @@ pub fn draw(
         let pad = reach(p) * 40.0 + 40.0;
         let tall = match p.kind {
             kind::BRIDGE => 120.0 + p.s * 16.0,
+            kind::HOLLOW_OAK | kind::FALLS | kind::ROCK_WALL | kind::WATER_LIFT => (p.s + p.h) * HEIGHT_PX + 40.0,
+            kind::CAIRN => p.s * 1.3 * HEIGHT_PX + 30.0,
             kind::PEAK => p.h * HEIGHT_PX + 40.0,
             0..=4 => p.s * HEIGHT_PX + 20.0,
             _ => 120.0,
@@ -1188,7 +1355,125 @@ pub fn draw(
             eye_y: eye.as_ref().map_or(0.0, |e| e.eye.y - base.y),
         };
         draw_one(&mut c, p, time);
+        weather(&mut c, p);
     }
+}
+
+/// Age on built stone: an earth skirt where it meets the ground, moss and grass
+/// creeping up the lower course, and rubble fallen at its feet. Seeded by position.
+fn weather(c: &mut Ctx, p: &Prop) {
+    let (hw, hd, var_ok) = match p.kind {
+        kind::RUIN_ARCH if p.var == 2 => (p.w.max(1.5) * 0.5 + 0.4, p.d.max(1.2) * 0.5, true),
+        kind::WATER_LIFT => (p.w.max(2.0) * 0.5, p.d.max(1.6) * 0.5, true),
+        kind::RUIN_ARCH if p.var == 1 => (0.4, 0.4, true),
+        kind::RUIN_ARCH => (p.w.max(1.5) * 0.5 + 0.35, 0.4, true),
+        kind::WALL_BLOCK => (p.w * 0.5, p.d * 0.5, true),
+        kind::ROCK_WALL => (p.s.max(1.0) * 0.5, p.w.max(0.4) * 0.5, true),
+        _ => (0.0, 0.0, false),
+    };
+    if !var_ok {
+        return;
+    }
+    let r = |k: f32| ((p.x * 12.9898 + p.z * 78.233 + k * 37.719).sin() * 43758.547).fract().abs();
+    // the skirt: a low flared bank of earth, ground colours, hiding the hard contact line
+    if p.kind == kind::RUIN_ARCH && p.var == 2 {
+        // aqueduct piers stand on stepped stone footings (they may be in the stream)
+        for sd in [-1.0f32, 1.0] {
+            c.boxy(sd * (hw - 0.4), -0.4, 0.0, 1.5, 0.7, hd * 2.0 + 0.5, WALL, WALL_D, ROCK_D);
+        }
+    } else if p.kind == kind::WATER_LIFT {
+        let dip = p.h.max(0.7);
+        c.boxy(0.0, -dip - 0.15, 0.0, hw * 2.0 + 0.9, 0.7, hd * 2.0 + 0.9, WALL, WALL_D, ROCK_D);
+    } else {
+        c.boxy(0.0, -0.35, 0.0, hw * 2.0 + 0.6, 0.5, hd * 2.0 + 0.6, GRASS, GRASS_D, GRASS_D);
+    }
+    if p.kind != kind::RUIN_ARCH || p.var != 2 {
+        if p.kind != kind::WATER_LIFT {
+            c.boxy(0.0, -0.3, 0.0, hw * 2.0 + 1.1, 0.3, hd * 2.0 + 1.1, GRASS_D, GRASS_D, GRASS_D);
+        }
+    }
+    // moss and grass creeping onto the lower course, in ragged patches
+    let n = ((hw * 2.0) / 0.7).ceil().max(1.0) as i32;
+    for k in 0..n {
+        if r(k as f32) < 0.35 {
+            continue;
+        }
+        let x = -hw + (k as f32 + 0.5) * (hw * 2.0 / n as f32);
+        let ht = 0.25 + 0.55 * r(k as f32 + 9.0);
+        let col = if r(k as f32 + 3.0) > 0.5 { MOSS_C } else { GRASS_L };
+        c.boxy(x, 0.1, 0.0, hw * 2.0 / n as f32 * 0.9, ht, hd * 2.0 + 0.08, col, col, GRASS_D);
+    }
+    // rubble fallen at the feet
+    for k in 0..6 {
+        let a = r(k as f32 + 20.0) * std::f32::consts::TAU;
+        let dist = 1.0 + 0.9 * r(k as f32 + 30.0);
+        let (x, z) = (a.cos() * (hw + 0.3) * dist, a.sin() * (hd + 0.3) * dist + a.sin() * 0.6);
+        let sz = 0.18 + 0.3 * r(k as f32 + 40.0);
+        let (lit, dark) = if p.kind == kind::ROCK_WALL { (ROCK, ROCK_D) } else { (WALL, WALL_D) };
+        c.boxy(x, -0.08, z, sz * 1.3, sz, sz, if p.kind == kind::ROCK_WALL { ROCK_L } else { WALL_L }, lit, dark);
+    }
+}
+
+/// Noria dipped in the river; buckets climb to the aqueduct trough.
+fn draw_water_lift(c: &mut Ctx, p: &Prop, time: f32) {
+    let h = p.s.max(6.0);
+    let dip = p.h.max(0.7).min(1.8);
+    let hw = p.w.max(2.4) * 0.5;
+    let hd = p.d.max(1.8) * 0.5;
+    let t = time * 0.65;
+    // posts stand on the river bed
+    for sx in [-1.0f32, 1.0] {
+        for sz in [-1.0f32, 1.0] {
+            c.boxy(sx * (hw - 0.22), -dip, sz * (hd - 0.22), 0.55, h + dip, 0.55, WALL_L, WALL, WALL_D);
+        }
+    }
+    let nb = ((h / 3.4).floor() as i32).max(2);
+    for k in 1..=nb {
+        let y = h * k as f32 / (nb + 1) as f32;
+        c.boxy(0.0, y, 0.0, hw * 2.0 - 0.2, 0.26, 0.28, WALL, WALL, WALL_D);
+        c.boxy(0.0, y, 0.0, 0.28, 0.26, hd * 2.0 - 0.2, WALL, WALL, WALL_D);
+    }
+    // wheel axle above the water; the rim reaches the bed
+    let wr = 2.7;
+    let axle = wr - dip;
+    c.boxy(0.0, axle, 0.0, hw * 2.0 + 0.4, 0.3, 0.3, WOOD_D, WOOD, WOOD_D);
+    for k in 0..14 {
+        let a = t * 0.55 + k as f32 * std::f32::consts::TAU / 14.0;
+        let y = axle + a.sin() * wr;
+        let z = a.cos() * wr;
+        c.boxy(0.0, y, z, 0.85, 0.3, 0.4, WOOD_L, WOOD, WOOD_D);
+        // fill in the river; keep the load on the rising side up to the trough
+        let rising = a.cos() > 0.0;
+        if y < 0.25 || (rising && y < h - 1.2) {
+            let ph = ((t * 2.0 + k as f32) as i32).rem_euclid(3) as u8;
+            c.boxy(0.0, y + 0.16, z, 0.55, 0.24, 0.32, WATER + ph, WATER, WATER + 2);
+        }
+    }
+    // scoop in the river itself
+    let ph0 = ((t * 2.2) as i32).rem_euclid(3) as u8;
+    c.boxy(0.0, -dip * 0.45, 0.0, 1.1, dip * 0.7, wr * 0.7, WATER + ph0, WATER, WATER + 1);
+    // bucket chain from the river up the shaft into the channel
+    let n = ((h + dip) / 1.05).ceil().max(8.0) as i32;
+    let phase = (t * 0.38).rem_euclid(1.0);
+    for k in 0..n {
+        let y = -dip * 0.4 + ((k as f32 + phase) / n as f32) * (h + 0.2 + dip * 0.4);
+        let ph = ((t * 2.0 + k as f32) as i32).rem_euclid(3) as u8;
+        c.boxy(0.0, y, 0.0, 0.48, 0.32, 0.36, WOOD, WOOD, WOOD_D);
+        c.boxy(0.0, y + 0.14, 0.0, 0.4, 0.22, 0.28, WATER + ph, WATER, WATER + 1);
+    }
+    // head tank sitting in the aqueduct channel
+    c.boxy(0.0, h - 0.15, 0.0, hw * 2.0 + 0.4, 0.7, hd * 2.0 + 0.2, WALL_L, WALL, WALL_D);
+    let ph = ((t * 2.4) as i32).rem_euclid(3) as u8;
+    // stone flume along the run, pouring into the channel
+    c.boxy(0.0, h + 0.22, 0.0, 5.2, 0.28, 1.15, WALL_L, WALL, WALL_D);
+    c.boxy(0.0, h + 0.38, 0.0, 4.8, 0.2, 0.72, WATER + ph, WATER, WATER + 1);
+    let q = [
+        c.p(-2.5, h + 0.48, -0.38),
+        c.p(2.5, h + 0.48, -0.38),
+        c.p(2.5, h + 0.48, 0.38),
+        c.p(-2.5, h + 0.48, 0.38),
+    ];
+    c.quad(q[0], q[1], q[2], q[3], WATER + ph);
 }
 
 fn draw_one(c: &mut Ctx, p: &Prop, time: f32) {
@@ -1207,15 +1492,19 @@ fn draw_one(c: &mut Ctx, p: &Prop, time: f32) {
             // walk height). The ramps sit on solid abutments that meet each bank.
             let r = bridge_ramp(p);
             let curve = |t: f32| bridge_curve(p, t);
-            let ts = [0.0, r, 1.0 - r, 1.0];
+            let n = ((p.s / 0.85).ceil() as i32).clamp(8, 16);
+            let mut ts: Vec<f32> = (0..=n).map(|i| i as f32 / n as f32).collect();
+            ts.push(r);
+            ts.push((1.0 - r).max(r));
+            ts.sort_by(|a, b| a.total_cmp(b));
+            ts.dedup_by(|a, b| (*a - *b).abs() < 1e-4);
             let st = |lo: f32, hi: f32| -> Vec<(f32, f32, f32)> {
                 ts.iter()
                     .map(|&t| (-p.s * 0.5 + p.s * t, curve(t) + lo, curve(t) + hi))
                     .collect()
             };
-            // deck top in the stone-trail colour: walkable surfaces share the trail palette,
-            // so it reads apart from the (blocked) wall copings and parapets
-            c.ribbon(0.0, p.w * 0.5, &st(-0.22, 0.0), TRAIL_STONE, BANK, BANK_D);
+            // One continuous walk surface — along-span grain, no station slabs.
+            c.deck_ribbon(0.0, p.w * 0.5, &st(-0.22, 0.0), p.s);
             for side in [-1.0f32, 1.0] {
                 c.ribbon(
                     side * (p.w * 0.5 - 0.12),
@@ -1355,20 +1644,18 @@ fn draw_one(c: &mut Ctx, p: &Prop, time: f32) {
             let fill = canopy_disc_col(c, ASH, ASH_L, s * 0.75, s * 0.8, hash(p.x, p.z));
             c.fb.disc(q, s * 6.0, fill, Some(C_OUTLINE));
         }
-        kind::ROCK | kind::STONE | kind::PEBBLE => {
-            let col = if p.var == 1 { ROCK_D } else { ROCK };
-            let rr = s * 0.5;
-            c.boxy(
-                0.0,
-                0.0,
-                0.0,
-                rr * 1.4,
-                rr * 0.8,
-                rr * 1.1,
-                ROCK_L,
-                col,
-                ROCK_D,
-            );
+        kind::STONE | kind::ROCK => {
+            if p.var == 2 {
+                draw_headstone(c, p);
+            } else {
+                let col = if p.var == 1 { ROCK_D } else { ROCK };
+                let rr = s * 0.4;
+                drum(c, 0.0, 0.0, -0.05, rr * 0.6, rr, rr * 0.7, 0.0, 0.0, col, ROCK_L);
+            }
+        }
+        kind::PEBBLE => {
+            let q = c.p(0.0, 0.05, 0.0);
+            c.fb.disc(q, s * 4.0, ROCK_D, None);
         }
         kind::WALL_BLOCK => {
             let (top, lit, dark) = if p.var == 1 {
@@ -1527,7 +1814,7 @@ fn draw_one(c: &mut Ctx, p: &Prop, time: f32) {
         }
         kind::LEAN_TO => draw_shelter(c, crate::structure::lean_to()),
         kind::SHACK => draw_shelter(c, crate::structure::shack()),
-        kind::CAIRN => draw_cairn(c),
+        kind::CAIRN => draw_cairn(c, p),
         kind::TRAINER => {
             c.boxy(0.0, 0.34, 0.0, 1.15, 0.08, 0.48, WOOD_L, WOOD, WOOD_D);
             for (x, zz) in [(-0.45, -0.15), (0.45, -0.15), (-0.45, 0.15), (0.45, 0.15)] {
@@ -1632,6 +1919,265 @@ fn draw_one(c: &mut Ctx, p: &Prop, time: f32) {
             }
             let top = up(c, 2.25);
             c.fb.disc(top, 1.8, C_GOLD, Some(C_OUTLINE));
+        }
+        kind::FALLEN_LOG => {
+            let (l, r) = (s.max(2.0), p.w.max(0.3));
+            let hl = l * 0.5;
+            const SIDES: usize = 8;
+            const BANDS: usize = 8;
+            // a round trunk lying along its length, sunk a little into the ground
+            let ring = |c: &Ctx, b: usize| -> Vec<(P2, f32, f32)> {
+                let u = b as f32 / BANDS as f32;
+                let rr = r * (1.0 - 0.3 * u) * (1.0 + 0.06 * (u * 17.0 + p.x).sin());
+                let fz = -hl + l * u;
+                (0..SIDES)
+                    .map(|i| {
+                        let a = i as f32 / SIDES as f32 * std::f32::consts::TAU;
+                        (c.p(a.cos() * rr, r * 0.85 + a.sin() * rr, fz), a.cos(), a.sin())
+                    })
+                    .collect()
+            };
+            let rings: Vec<_> = (0..=BANDS).map(|b| ring(c, b)).collect();
+            for b in 0..BANDS {
+                for i in 0..SIDES {
+                    let j = (i + 1) % SIDES;
+                    let (nx, ny) = ((rings[b][i].1 + rings[b][j].1) * 0.5, (rings[b][i].2 + rings[b][j].2) * 0.5);
+                    let col = if ny > 0.6 && b % 3 == 1 {
+                        GRASS_L // moss along the top
+                    } else if ny > 0.35 {
+                        WOOD_L
+                    } else if ny < -0.4 {
+                        WOOD_D
+                    } else {
+                        foliage(sun_of(c, nx, 0.0), WOOD_D, GEAR_LEATHER, WOOD)
+                    };
+                    let cull = c.cull_back;
+                    c.quad_tube(rings[b][i].0, rings[b][j].0, rings[b + 1][j].0, rings[b + 1][i].0, col, cull);
+                }
+            }
+            // outline the silhouette, and bark splits between the bands
+            for b in 0..BANDS {
+                c.edge(rings[b][2].0, rings[b + 1][2].0);
+                c.edge(rings[b][6].0, rings[b + 1][6].0);
+                for i in [0usize, 7] {
+                    let (a, z) = (rings[b][i].0, rings[b + 1][i].0);
+                    c.edge_col(a, P2 { x: a.x + (z.x - a.x) * 0.6, y: a.y + (z.y - a.y) * 0.6, d: a.d, ..a }, WOOD_D);
+                }
+            }
+            // snapped crown end: pale heartwood and splinters
+            let e = c.p(0.0, r * 0.85, hl + 0.02);
+            let e1 = c.p(r * 0.7, r * 0.85, hl + 0.02);
+            let px = ((e1.x - e.x).powi(2) + (e1.y - e.y).powi(2)).sqrt().max(1.5);
+            c.fb.disc(e, px, GEAR_BONE, Some(C_OUTLINE));
+            for k in 0..4 {
+                let a = 0.4 + k as f32 * 0.8;
+                let o = c.p(a.cos() * r * 0.4, r * 0.85 + a.sin() * r * 0.4, hl);
+                let t = c.p(a.cos() * r * 0.6, r * 0.85 + a.sin() * r * 0.9, hl + r * 1.1);
+                c.cap(o, t, 1.2, WOOD_L);
+            }
+            // torn-up root plate standing on end at the butt: earth disc and roots
+            let rh = p.h.max(r * 2.6);
+            let ctr = c.p(0.0, rh * 0.5, -hl - 0.3);
+            let ed = c.p(rh * 0.5, rh * 0.5, -hl - 0.3);
+            let pr = ((ed.x - ctr.x).powi(2) + (ed.y - ctr.y).powi(2)).sqrt().max(3.0);
+            // ragged earth plate with the roots torn through it
+            for k in 0..7 {
+                let a = k as f32 / 7.0 * std::f32::consts::TAU;
+                let o = P2 { x: ctr.x + a.cos() * pr * 0.35, y: ctr.y + a.sin() * pr * 0.35, ..ctr };
+                c.fb.disc(o, pr * (0.62 + 0.12 * ((k * 5) % 3) as f32), GEAR_LEATHER, Some(C_OUTLINE));
+            }
+            c.fb.disc(P2 { d: ctr.d - 0.05, ..ctr }, pr * 0.7, WOOD_D, None);
+            for k in 0..11 {
+                let a = k as f32 / 11.0 * std::f32::consts::TAU + 0.3;
+                let o = c.p(a.cos() * rh * 0.12, rh * 0.5 + a.sin() * rh * 0.12, -hl - 0.4);
+                let t = c.p(a.cos() * rh * 0.55, (rh * 0.5 + a.sin() * rh * 0.55).max(0.1), -hl - 0.5);
+                c.cap(P2 { d: o.d - 0.1, ..o }, P2 { d: t.d - 0.1, ..t }, 1.4, WOOD_L);
+            }
+        }
+        kind::MUSHROOMS => {
+            let glow = p.var == 1;
+            let hh = s.max(0.3);
+            // back to front so near caps overlap far ones
+            let mut caps: Vec<(f32, f32, f32)> = (0..5)
+                .map(|k| {
+                    let a = k as f32 * 2.4 + p.x;
+                    let rad = if k == 0 { 0.0 } else { hh * 0.6 };
+                    let ht = hh * (if k == 0 { 1.0 } else { 0.5 + 0.12 * (k % 3) as f32 });
+                    (a.cos() * rad, a.sin() * rad, ht)
+                })
+                .collect();
+            caps.sort_by(|a, b| c.p(b.0, 0.0, b.1).d.partial_cmp(&c.p(a.0, 0.0, a.1).d).unwrap_or(std::cmp::Ordering::Equal));
+            for (ox, oz, ht) in caps {
+                let b = c.p(ox, 0.0, oz);
+                let t = c.p(ox, ht, oz);
+                c.cap(b, t, (ht * 2.2).clamp(1.2, 4.0), GEAR_BONE);
+                let cr = ht * 0.6;
+                let e0 = c.p(ox - cr, ht, oz);
+                let e1 = c.p(ox + cr, ht, oz);
+                let px = (((e1.x - e0.x).powi(2) + (e1.y - e0.y).powi(2)).sqrt() * 0.5).max(2.0);
+                // dome: a fan of triangles over a flat gill line
+                let (cap_c, rim) = if glow { (FX_LEVEL, GEAR_BRONZE) } else { (FX_TELL, WOOD_D) };
+                let d = t.d - 0.08;
+                let n = 8;
+                let pt = |i: usize| {
+                    let a = std::f32::consts::PI * i as f32 / n as f32;
+                    P2 { x: t.x - a.cos() * px, y: t.y - a.sin() * px * 0.75, d, ..t }
+                };
+                for i in 0..n {
+                    tri(c.fb, P2 { d, ..t }, pt(i), pt(i + 1), cap_c);
+                }
+                for i in 0..n {
+                    c.fb.line(pt(i), pt(i + 1), C_OUTLINE);
+                }
+                c.fb.line(P2 { x: t.x - px, y: t.y + 1.0, d, ..t }, P2 { x: t.x + px, y: t.y + 1.0, d, ..t }, rim);
+                c.fb.line(P2 { x: t.x - px, d, ..t }, P2 { x: t.x + px, d, ..t }, C_OUTLINE);
+                // pale spots
+                c.fb.disc(P2 { x: t.x - px * 0.35, y: t.y - px * 0.4, d: d - 0.02, ..t }, (px * 0.16).max(0.8), GEAR_BONE, None);
+                c.fb.disc(P2 { x: t.x + px * 0.3, y: t.y - px * 0.3, d: d - 0.02, ..t }, (px * 0.12).max(0.7), GEAR_BONE, None);
+            }
+        }
+        kind::FALLS => {}
+        kind::ROCK_WALL => {
+            let (l, hgt, th) = (s.max(1.0), p.h.max(0.5), p.w.max(0.4));
+            let n = (l / 0.8).ceil().max(1.0) as i32;
+            let jit = |k: i32, m: f32| (p.x * 3.1 + p.z * 1.7 + k as f32 * m).sin() * 0.5 + 0.5;
+            let mut x = -l * 0.5;
+            for k in 0..n {
+                let bw = (l / n as f32) * (0.75 + 0.5 * jit(k, 1.3));
+                let cx = (x + bw * 0.5).min(l * 0.5 - 0.2);
+                x += l / n as f32;
+                let hh = hgt * (0.7 + 0.3 * jit(k, 2.3));
+                let back = jit(k, 4.1) * 0.45;
+                // lower course, then a narrower stepped crown set back
+                if p.var == 1 {
+                    // a quarry cut: one dark sheer face, and a pale dressed bench top running back from its lip
+                    c.boxy(cx, -0.4, 0.0, bw + 0.15, hgt + 0.4, th, ROCK_D, ROCK_D, C_OUTLINE);
+                    c.boxy(cx, hgt - 0.05, -0.9, bw + 0.15, 0.12, 1.8, ROCK_L, ROCK_L, ROCK);
+                    continue;
+                }
+                if p.var == 2 {
+                    // a sink face: dark courses and a thin lighter lip
+                    c.boxy(cx, -0.25, back, bw + 0.12, hh * 0.62 + 0.25, th, ROCK_D, C_OUTLINE, C_OUTLINE);
+                    c.boxy(cx + (jit(k, 5.7) - 0.5) * 0.15, hh * 0.55, back - 0.1, bw * 0.8, hh * 0.28, th * 0.8, ROCK, ROCK_D, C_OUTLINE);
+                    c.boxy(cx, hh * 0.8, back - 0.2, bw * 0.62, hh * 0.14, th * 0.55, ROCK, ROCK, ROCK_D);
+                    continue;
+                }
+                c.boxy(cx, -0.4, back, bw + 0.1, hh * 0.65 + 0.4, th, ROCK, ROCK_D, ROCK_D);
+                c.boxy(cx + (jit(k, 5.7) - 0.5) * 0.3, hh * 0.6, back - 0.25, bw * 0.75, hh * 0.4, th * 0.8, ROCK_L, ROCK, ROCK_D);
+            }
+        }
+        kind::THORN => {
+            let sz = s.max(0.5);
+            // dark tangle mass, then thorny canes arching out of it
+            let m = c.p(0.0, sz * 0.45, 0.0);
+            let e = c.p(sz * 0.6, sz * 0.45, 0.0);
+            let px = ((e.x - m.x).powi(2) + (e.y - m.y).powi(2)).sqrt();
+            c.fb.disc(m, px.max(2.0), PINE_D, Some(C_OUTLINE));
+            for k in 0..9 {
+                let a = k as f32 * 0.7 + p.x;
+                let r0 = c.p(0.0, 0.1, 0.0);
+                let tip = c.p(a.cos() * sz * 0.9, sz * (0.5 + 0.5 * ((k % 3) as f32 / 2.0)), a.sin() * sz * 0.9);
+                c.cap(r0, tip, 0.8, WOOD_D);
+                for t in [0.4f32, 0.7] {
+                    let q = P2 { x: r0.x + (tip.x - r0.x) * t, y: r0.y + (tip.y - r0.y) * t, d: tip.d - 0.05, ..tip };
+                    c.fb.line(q, P2 { x: q.x + 2.0, y: q.y - 2.0, d: q.d, ..q }, GEAR_BONE);
+                }
+                if k % 3 == 0 {
+                    c.fb.disc(P2 { d: tip.d - 0.06, ..tip }, 1.3, BLOOM_C, None);
+                }
+            }
+        }
+        kind::RUIN_ARCH => {
+            let hgt = s.max(1.0);
+            if p.var == 2 {
+                // one bay of an aqueduct: piers, a round arch, and the water channel on top
+                let span = p.w.max(1.5);
+                let across = p.d.max(1.2);
+                let rise = span * 0.42;
+                for side in [-1.0f32, 1.0] {
+                    c.boxy(side * span * 0.5, -0.3, 0.0, 0.9, hgt + 0.3, across * 0.92, WALL_L, WALL, WALL_D);
+                }
+                // a true half-round: small voussoirs on the opening's radius, dark soffit inside
+                let ro = rise - 0.55;
+                for k in 0..13 {
+                    let a = std::f32::consts::PI * (1.0 - (k as f32 + 0.5) / 13.0);
+                    c.boxy(a.cos() * (ro + 0.2), hgt + a.sin() * (ro + 0.2) - 0.2, 0.0, 0.42, 0.4, across + 0.15, WALL_D, WALL_D, ROCK_D);
+                }
+                let top = hgt + rise + 0.25;
+                let l = span * 0.5 + 0.4;
+                // the wall above the arch in narrow strips whose feet follow the half-round, so the opening reads round
+                let ns = 14;
+                for k in 0..ns {
+                    let x0 = -l + 2.0 * l * (k as f32 + 0.5) / ns as f32;
+                    let foot = if x0.abs() < ro + 0.4 { hgt + ((ro + 0.4).powi(2) - x0 * x0).max(0.0).sqrt() } else { hgt };
+                    if top - foot > 0.05 {
+                        c.boxy(x0, foot, 0.0, 2.0 * l / ns as f32 + 0.02, top - foot, across, WALL, WALL, WALL_D);
+                    }
+                }
+                c.boxy(0.0, top - 0.45, 0.0, l * 2.0, 0.45, across + 0.1, WALL, WALL, WALL_D);
+                let lip = across * 0.42;
+                for zz in [-lip, lip] {
+                    c.boxy(0.0, top, zz, l * 2.0, 0.45, 0.28, WALL_L, WALL, WALL_D);
+                }
+                let ph = ((time * 3.0) as i32).rem_euclid(3) as u8;
+                let zw = across * 0.34;
+                let q = [c.p(-l, top + 0.3, -zw), c.p(l, top + 0.3, -zw), c.p(l, top + 0.3, zw), c.p(-l, top + 0.3, zw)];
+                c.quad(q[0], q[1], q[2], q[3], WATER + ph);
+            } else if p.var == 1 {
+                c.boxy(0.0, -0.2, 0.0, 0.8, hgt * 0.9, 0.8, WALL_L, WALL, WALL_D);
+                // broken, irregular top: a leaning upper drum and a chipped stub, set by position
+                let j = ((p.x * 3.7 + p.z * 5.3).sin() * 0.5 + 0.5, (p.x * 1.9 - p.z * 4.1).cos() * 0.5 + 0.5);
+                c.boxy(0.15 + 0.2 * (j.0 - 0.5), hgt * 0.7, 0.1 * (j.1 - 0.5), 0.55, hgt * (0.12 + 0.2 * j.0), 0.6, WALL_L, WALL, WALL_D);
+                c.boxy(-0.2, hgt * 0.84, 0.15, 0.3, hgt * 0.1 * j.1 + 0.1, 0.3, WALL_L, WALL, WALL_D);
+                c.boxy(0.0, -0.2, 0.0, 1.1, 0.35, 1.1, WALL, WALL_D, ROCK_D);
+            } else {
+                let span = p.w.max(1.5);
+                for side in [-1.0f32, 1.0] {
+                    let h2 = if side < 0.0 { hgt } else { hgt * 0.7 }; // one jamb broken lower
+                    c.boxy(side * span * 0.5, -0.2, 0.0, 0.7, h2, 0.8, WALL_L, WALL, WALL_D);
+                }
+                // surviving voussoirs springing from the tall jamb
+                for k in 0..4 {
+                    let a = std::f32::consts::PI * (1.0 - k as f32 / 6.0);
+                    let x = a.cos() * span * 0.5;
+                    let y = hgt - 0.5 + a.sin() * span * 0.35;
+                    c.boxy(x, y, 0.0, 0.6, 0.5, 0.8, WALL_L, WALL, WALL_D);
+                }
+                c.boxy(span * 0.35, -0.2, 0.9, 0.9, 0.4, 0.7, WALL, WALL_D, ROCK_D);
+            }
+        }
+        kind::WATER_LIFT => draw_water_lift(c, p, time),
+        kind::HOLLOW_OAK => {
+            let hgt = s.max(3.0);
+            let r = p.w.max(0.6);
+            let seed = p.x * 0.37 + p.z * 0.11;
+            let top = hgt * 0.55;
+            // great limbs first (behind the crown edge)
+            for k in 0..6 {
+                let a = k as f32 * 1.05 + 0.4;
+                let o = c.p(0.0, top * 0.9, 0.0);
+                let e = c.p(a.cos() * r * 3.4, top + hgt * 0.15, a.sin() * r * 3.4);
+                c.cap(o, e, 3.0, WOOD_D);
+            }
+            draw_trunk(c, seed, (0.0, 0.0), top, r);
+            // the hollow: a tall dark split in the trunk's face
+            {
+                let q = |rx: f32, y: f32| { let v = c.p(rx * r, y * r, r * 1.15); P2 { d: v.d - 0.4, ..v } };
+                let (a, b, cc, d, e) = (q(-0.45, 0.0), q(0.45, 0.0), q(0.3, 1.6), q(0.0, 2.6), q(-0.3, 1.7));
+                tri(c.fb, a, b, cc, C_OUTLINE);
+                tri(c.fb, a, cc, e, C_OUTLINE);
+                tri(c.fb, e, cc, d, C_OUTLINE);
+            }
+            // broad crown in clumps
+            for k in 0..9 {
+                let a = k as f32 * 0.7;
+                let rad = if k == 0 { 0.0 } else { r * (2.2 + 0.8 * (k % 2) as f32) };
+                let ctr = c.p(a.cos() * rad, hgt * (0.72 + 0.1 * (k % 3) as f32), a.sin() * rad);
+                let ed = c.p(a.cos() * rad + r * 2.1, hgt * 0.75, a.sin() * rad);
+                let px = ((ed.x - ctr.x).powi(2) + (ed.y - ctr.y).powi(2)).sqrt().max(3.0);
+                let col = foliage(sun_of(c, a.cos() * rad, a.sin() * rad), ASH_D, ASH, ASH_L);
+                c.fb.disc(ctr, px, col, Some(C_OUTLINE));
+            }
         }
         kind::PEAK => {
             let sc = p.s;
@@ -1830,6 +2376,39 @@ mod tests {
         assert!(wood > 30 && lit_bark > 0, "the trunk has a shaded face, wood {wood}");
         assert!(wx1 - wx0 > 6, "the trunk is wider than a twig");
         assert!(x1 - x0 > 12, "the crown is wider than a line");
+    }
+
+    #[test]
+    fn water_lift_draws_rising_water() {
+        use crate::palette::WATER;
+        use stick_engine::camera::Camera;
+        use stick_engine::raster::Framebuffer;
+        let mut fb = Framebuffer::new(280, 240);
+        let cam = Camera::new(280, 240);
+        draw(
+            &mut fb,
+            &cam,
+            &[Prop {
+                kind: kind::WATER_LIFT,
+                var: 0,
+                x: 0.0,
+                z: 0.0,
+                y: 0.0,
+                yaw: 0.4,
+                s: 12.0,
+                w: 3.4,
+                h: 1.1,
+                d: 2.2,
+                j: [0.0; 6],
+            }],
+            0.0,
+            1.6,
+            0.0,
+            0.0,
+            false,
+        );
+        let water = fb.color.iter().filter(|&&c| (WATER..WATER + 4).contains(&c)).count();
+        assert!(water > 40, "bucket-lift shows water, got {water}");
     }
 
     #[test]

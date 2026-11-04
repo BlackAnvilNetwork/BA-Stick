@@ -1,4 +1,4 @@
-import { DASH_COOLDOWN_MS, dashPos, planDash, type DashRun } from "@bellgrave/config";
+import { DASH_COOLDOWN_MS, dashPos, forestBasinPrebuildShore, planDash, type DashRun } from "@bellgrave/config";
 import {
   JOBS,
   JOB_IDS,
@@ -21,6 +21,8 @@ import {
   canUnlockSkillNode,
   combinedJobVitals,
   deriveCharacterAttributes,
+  druidFormHp,
+  druidMoveMul,
   defenseFromVit,
   playerDefense,
   playerMagicDefense,
@@ -35,6 +37,7 @@ import {
   initialUnlockedForJob,
   isJobId,
   isClericAbilityId,
+  isDruidAbilityId,
   isFighterAbilityId,
   isBattleMageAbilityId,
   isKnightAbilityId,
@@ -104,6 +107,13 @@ import {
   paleHollowQuestCredit,
   paleHollowQuestLogEntries,
   paleHollowQuestTalk,
+  forestBasinQuestById,
+  forestBasinQuestByNpc,
+  forestBasinQuestCredit,
+  forestBasinQuestLogEntries,
+  forestBasinQuestTalk,
+  forestBasinQuestVisit,
+  warpCircleById,
   ZONES,
   applyTravel,
   fieldById,
@@ -116,6 +126,7 @@ import {
   fieldNpcDefs,
   PVP_BOUNTY_WEI,
   allForestBasinPatchCells,
+  FB_SPAWN,
   type ForestBasinPatchCell,
 } from "@bellgrave/config";
 import { paleHollowFindPath } from "./nav-grid";
@@ -267,6 +278,7 @@ import {
 import { resolveWeaponTpAbility } from "./weapon-tp-abilities";
 import { clearSorcererBuffs, resolveSorcererAbility } from "./sorcerer-abilities";
 import { clearClericBuffs, absorbHealShield, resolveClericAbility, resolveLethal } from "./cleric-abilities";
+import { absorbMereVeil, clearDruidBuffs, consumeDruidMane, dropDruidForm, druidManeMul, druidPhysDt, resolveDruidAbility, tickDruidAntlerHum } from "./druid-abilities";
 import { gearHealPotency, gearRegen, meleeAtkBonus } from "./gear-combat";
 import {
   absorbStoneskin,
@@ -408,7 +420,7 @@ type Player = {
   xp: number;
   dust: number;
   /** Pale Hollow kill tasks — several may be active. Old saves used a single `active`. */
-  hollowQuest: { active: { id: string; kills: number }[]; done: string[] };
+  hollowQuest: { active: { id: string; kills: number; seen?: string[] }[]; done: string[] };
   /** Rings walked into. The server is the only writer. */
   warpUnlocked: string[];
   /** Death home. `hub` keeps older characters at the Scout Gate. */
@@ -516,6 +528,30 @@ type Player = {
   healAbsorbUntil: number;
   healAbsorbHp: number;
   sacredLightUntil: number;
+  druidForm: import("@bellgrave/combat").DruidForm;
+  druidFormUntil: number;
+  druidRingwakeUntil: number;
+  druidAshBraceUntil: number;
+  druidAshBraceMul: number;
+  druidBundleThickenUntil: number;
+  druidBundleThickenMul: number;
+  druidBrackenRootUntil: number;
+  druidAntlerHumUntil: number;
+  druidAntlerHumTick: number;
+  druidAntlerHumNext: number;
+  druidMereVeilUntil: number;
+  druidMereVeilHp: number;
+  druidManeDustUntil: number;
+  druidManeRakeMul: number;
+  druidManeDustLeft: number;
+  druidEmberTailUntil: number;
+  druidRunMul: number;
+  druidChalkWardUntil: number;
+  druidChalkWardMul: number;
+  druidSourHumUntil: number;
+  druidBleedUntil: number;
+  druidBleedPot: number;
+  druidRingSplitUntil: number;
   blindUntil: number;
   poisonUntil: number;
   poisonTick: number;
@@ -675,6 +711,10 @@ type Mob = {
   shinySummoned: boolean;
   /** Wallets that damaged this mob (party kill credit). */
   hitBy: Set<string>;
+  druidSourHumUntil: number;
+  druidSourHumMul: number;
+  druidBleedUntil: number;
+  druidBleedPot: number;
 };
 
 const PORT = Number(process.env.PORT ?? 8787);
@@ -1041,7 +1081,8 @@ function applySaved(p: Player, saved: PlayerProgress) {
   p.freeStatPoints = saved.freeStatPoints;
   p.claimedStarter = saved.claimedStarter;
   p.dust = saved.dust;
-  if (saved.subjob && isJobId(saved.subjob)) p.subjob = saved.subjob;
+  if (saved.subjob && isJobId(saved.subjob) && saved.subjob !== "druid") p.subjob = saved.subjob;
+  else if (saved.subjob === "druid") p.subjob = null;
   if (saved.hollowQuest !== undefined) {
     const norm = normalizePaleHollowQuestState(saved.hollowQuest);
     p.hollowQuest = { active: [...norm.active], done: [...norm.done] };
@@ -2103,6 +2144,10 @@ function emptyCombatFields() {
     scImpactElement: null as import("@bellgrave/combat").SorcererElement | null,
     atkDownUntil: 0,
     atkDownMul: 1,
+    druidSourHumUntil: 0,
+    druidSourHumMul: 1,
+    druidBleedUntil: 0,
+    druidBleedPot: 0,
     nextSwingAt: 0,
     animUntil: 0,
     alive: true,
@@ -2880,9 +2925,20 @@ function clearRoute(p: Player) {
 
 /** Click, gather, and blocked chase all share this. The path stops at the closest reachable cell. */
 function assignRoute(p: Player, x: number, z: number) {
-  const path = paleHollowFindPath(p.x, p.z, x, z, fieldNav(p.zoneId));
   p.navGoal = { x, z };
   p.navHold = false;
+  // A short walkable step (WASD along a road) must not A* around the corridor.
+  const field = fieldById(p.zoneId);
+  const slide = field?.clampMove ?? (p.zoneId === "pale_hollow" ? paleHollowClampMove : undefined);
+  if (slide) {
+    const hit = slide(p.x, p.z, x, z);
+    if (Math.hypot(hit.x - x, hit.z - z) < 0.2) {
+      p.moveTo = hit;
+      p.movePath = [];
+      return;
+    }
+  }
+  const path = paleHollowFindPath(p.x, p.z, x, z, fieldNav(p.zoneId));
   if (path.length === 0) {
     p.moveTo = null;
     p.movePath = [];
@@ -3096,6 +3152,23 @@ function playerBuffs(p: Player): UnitSnapshot["buffs"] {
     healAbsorbUntil: p.healAbsorbUntil,
     healAbsorbHp: now < p.healAbsorbUntil ? p.healAbsorbHp : 0,
     regenUntil: p.regenUntil,
+    druidForm: p.druidForm,
+    druidFormUntil: p.druidFormUntil,
+    druidRingwakeUntil: p.druidRingwakeUntil,
+    druidAshBraceUntil: p.druidAshBraceUntil,
+    druidBundleThickenUntil: p.druidBundleThickenUntil,
+    druidBrackenRootUntil: p.druidBrackenRootUntil,
+    druidAntlerHumUntil: p.druidAntlerHumUntil,
+    druidMereVeilUntil: p.druidMereVeilUntil,
+    druidMereVeilHp: now < p.druidMereVeilUntil ? p.druidMereVeilHp : 0,
+    druidManeDustUntil: p.druidManeDustUntil,
+    druidEmberTailUntil: p.druidEmberTailUntil,
+    druidChalkWardUntil: p.druidChalkWardUntil,
+    druidChalkWardMul: now < p.druidChalkWardUntil ? p.druidChalkWardMul : 1,
+    druidSourHumUntil: p.druidSourHumUntil,
+    druidBleedUntil: p.druidBleedUntil,
+    druidBleedPot: p.druidBleedPot,
+    druidRingSplitUntil: p.druidRingSplitUntil,
     blindUntil: p.blindUntil,
     silenceUntil: p.silenceUntil,
     paraUntil: p.paraUntil,
@@ -3405,10 +3478,17 @@ function snapshotFor(p: Player): SnapshotMessage {
       skillPrestige: p.skillPrestige,
       freeStatPoints: p.freeStatPoints,
       freeStats: { ...p.freeStats },
-      questLog: paleHollowQuestLogEntries({
-        zoneId: "pale_hollow",
-        active: p.hollowQuest.active,
-        done: p.hollowQuest.done,
+      questLog: [
+        ...paleHollowQuestLogEntries({
+          zoneId: "pale_hollow",
+          active: p.hollowQuest.active,
+          done: p.hollowQuest.done,
+        }).filter((entry) => paleHollowQuestById(entry.id)),
+        ...forestBasinQuestLogEntries(p.hollowQuest),
+      ],
+      warpRings: p.warpUnlocked.flatMap((id) => {
+        const ring = warpCircleById(id);
+        return ring ? [{ id: ring.id, name: ring.name, zoneId: ring.zoneId }] : [];
       }),
       lok: (() => {
         const view = lok.view(lokToken(p));
@@ -3679,6 +3759,30 @@ function createPlayer(
     healAbsorbUntil: 0,
     healAbsorbHp: 0,
     sacredLightUntil: 0,
+    druidForm: 0,
+    druidFormUntil: 0,
+    druidRingwakeUntil: 0,
+    druidAshBraceUntil: 0,
+    druidAshBraceMul: 1,
+    druidBundleThickenUntil: 0,
+    druidBundleThickenMul: 1,
+    druidBrackenRootUntil: 0,
+    druidAntlerHumUntil: 0,
+    druidAntlerHumTick: 0,
+    druidAntlerHumNext: 0,
+    druidMereVeilUntil: 0,
+    druidMereVeilHp: 0,
+    druidManeDustUntil: 0,
+    druidManeRakeMul: 1,
+    druidManeDustLeft: 0,
+    druidEmberTailUntil: 0,
+    druidRunMul: 1.5,
+    druidChalkWardUntil: 0,
+    druidChalkWardMul: 1,
+    druidSourHumUntil: 0,
+    druidBleedUntil: 0,
+    druidBleedPot: 0,
+    druidRingSplitUntil: 0,
     blindUntil: 0,
     poisonUntil: 0,
     poisonTick: 0,
@@ -3729,6 +3833,10 @@ function syncVitals(p: Player, refill = true) {
   const tree = aggregateSkillBonuses(p.skillUnlocked);
   const gear = playerEquipmentStats(p);
   p.maxHp = v.maxHp + tree.maxHp + (gear.hp ?? 0);
+  if (p.job === "druid") {
+    const knightHp = combinedJobVitals("knight", level, null).maxHp + tree.maxHp + (gear.hp ?? 0);
+    p.maxHp = druidFormHp(p.maxHp, p.druidForm ?? 0, knightHp);
+  }
   p.maxMp = v.maxMp === 0 ? 0 : v.maxMp + tree.maxMp + (gear.mp ?? 0);
   if (refill) {
     p.hp = p.maxHp;
@@ -3941,17 +4049,17 @@ function rewardMobKill(p: Player, mob: Mob, now: number) {
   }
   rememberPlayer(p);
   // Pale Hollow tasks count Pale Hollow kills only (field mobs share coordinates, not ids).
-  if (p.zoneId === "pale_hollow" && mob.zoneId === "pale_hollow" && p.hollowQuest.active.length > 0) {
+  if (p.zoneId === mob.zoneId && p.hollowQuest.active.length > 0 && (p.zoneId === "pale_hollow" || p.zoneId === "forest_basin")) {
     const prev = p.hollowQuest.active;
-    const next = paleHollowQuestCredit(
-      { zoneId: "pale_hollow", active: prev, done: p.hollowQuest.done },
-      mob.id,
-    );
+    const bag = { active: prev, done: p.hollowQuest.done };
+    const next = p.zoneId === "forest_basin"
+      ? forestBasinQuestCredit(bag, mob.id)
+      : paleHollowQuestCredit({ zoneId: "pale_hollow", ...bag }, mob.id);
     if (next.active !== prev) {
       for (const row of next.active) {
         const was = prev.find((a) => a.id === row.id);
         if (was && row.kills > was.kills) {
-          const def = paleHollowQuestById(row.id);
+          const def = p.zoneId === "forest_basin" ? forestBasinQuestById(row.id) : paleHollowQuestById(row.id);
           pushLog(p, def ? `${def.title}: ${row.kills}/${def.need}.` : `Task: ${row.kills} down.`);
         }
       }
@@ -4026,6 +4134,9 @@ function downPlayer(p: Player, now: number): "reraise" | "fallen" | "already" {
     p.targetId = null;
     p.anim = "dead";
     p.animUntil = 0;
+    if (p.job === "druid" && p.druidForm !== 0) {
+      dropDruidForm(p, { pushLog, syncVitals }, "Death lets the song go.");
+    }
     pushLog(p, "You fall. A cleric can recall you.");
   }
   return outcome;
@@ -4049,18 +4160,34 @@ function placeEnteredZone(p: Player, msg: { zone?: string; x?: number; z?: numbe
   dropZoneHate(p);
 }
 
+function touchBasinQuests(p: Player) {
+  if (p.zoneId !== "forest_basin" || p.hollowQuest.active.length === 0) return;
+  const next = forestBasinQuestVisit(
+    { active: p.hollowQuest.active, done: p.hollowQuest.done },
+    p.x,
+    p.z,
+  );
+  if (!next.found.length) return;
+  p.hollowQuest = { active: next.state.active, done: p.hollowQuest.done };
+  for (const site of next.found) pushLog(p, site.line);
+  rememberPlayer(p);
+}
+
 function touchWarps(p: Player) {
-  if (p.zoneId !== "pale_hollow" || !Array.isArray(p.warpUnlocked)) return;
-  const next = reachWarp(p.warpUnlocked, p.x, p.z);
+  if ((p.zoneId !== "pale_hollow" && p.zoneId !== "forest_basin") || !Array.isArray(p.warpUnlocked)) return;
+  const next = reachWarp(p.warpUnlocked, p.x, p.z, p.zoneId);
   if (!next.added) return;
   p.warpUnlocked = next.unlocked;
-  const ring = next.unlocked.includes("warp-mayflower") ? "Mayflower Ring" : next.added;
-  pushLog(p, `The ${ring} opens for you.`);
+  const ring = warpCircleById(next.added);
+  pushLog(p, ring ? `The ${ring.name} opens for you.` : "A ring opens for you.");
   rememberPlayer(p);
 }
 
 function respawnAtHub(p: Player, reason?: string) {
   stopRest(p);
+  if (p.job === "druid" && p.druidForm !== 0) {
+    dropDruidForm(p, { pushLog, syncVitals }, "Death lets the song go.");
+  }
   clearJobBuffs(p);
   p.fallenUntil = 0;
   p.hp = Math.max(1, Math.floor(p.maxHp * 0.3));
@@ -4502,12 +4629,13 @@ function clearJobBuffs(p: Player) {
   clearSorcererBuffs(p as import("./sorcerer-abilities").SorcererPlayer);
   clearClericBuffs(p as import("./cleric-abilities").ClericPlayer);
   clearBattleMageBuffs(p);
+  clearDruidBuffs(p);
   clearAilments(p, Date.now());
 }
 
 function playerPhysDtMul(p: Player, now: number): number {
   // Bulwark / Sentinel / Cover / Rampart / Guardian / Protect / Phalanx + tree physDt.
-  return physDtMul(p, now, playerTreeBonuses(p).physDt ?? 0);
+  return physDtMul(p, now, playerTreeBonuses(p).physDt ?? 0) * druidPhysDt(p, now);
 }
 
 /** Mana Wall — pay remaining damage with MP instead of HP. */
@@ -4585,6 +4713,22 @@ function handleAbility(p: Player, id: AbilityId, targetId?: string) {
   ) {
     pushLog(p, "You are silenced.");
     return;
+  }
+  // Map builder strokes. This branch used to sit after the silence return, so it never ran.
+  if (id === "map_enter") {
+    if (p.zoneId !== "forest_basin") {
+      dropZoneHate(p);
+      clearRoute(p);
+      p.zoneId = "forest_basin";
+      p.x = FB_SPAWN.x;
+      p.z = FB_SPAWN.z;
+      p.facing = FB_SPAWN.facing;
+      syncUnitY(p);
+      pushLog(p, "You step into Forest Basin.");
+      sendForestBasinOverlay(p);
+    } else pushLog(p, "You are already in Forest Basin.");
+    return;
+  }
   if (isMapBuilderAbility(id)) {
     resolveMapBuilderAbility(p, id, targetId, now, {
       pushLog: (pl, line) => pushLog(pl as Player, line),
@@ -4592,7 +4736,6 @@ function handleAbility(p: Player, id: AbilityId, targetId?: string) {
     });
     syncUnitY(p);
     return;
-  }
   }
   if (isRogueAbilityId(id) && playerHasJob(p, "rogue")) {
     resolveRogueAbility(p, id, targetId, now, {
@@ -4693,6 +4836,32 @@ function handleAbility(p: Player, id: AbilityId, targetId?: string) {
     }
     return;
   }
+  if (isDruidAbilityId(id) && p.job === "druid") {
+    resolveDruidAbility(p, id, targetId, now, {
+      pushLog: (pl, msg) => pushLog(pl as Player, msg),
+      stopRest: (pl, reason) => stopRest(pl as Player, reason),
+      facingTo,
+      findMob: (tid) => findMobIn(p.zoneId, tid ?? null) ?? null,
+      allMobs: () => mobsIn(p.zoneId),
+      allPlayers: () => partyAllies(p),
+      onMobKill: (pl, m) => {
+        const mob = findMob(m.id);
+        if (mob) rewardMobKill(pl as Player, mob, now);
+      },
+      dist,
+      playerCombatStats: (pl) => playerCombatStats(pl as Player),
+      syncVitals: (pl, refill) => syncVitals(pl as Player, refill),
+      dashToward: (pl, range, at) => {
+        const dir = { dx: Math.sin(pl.facing) * range, dz: Math.cos(pl.facing) * range };
+        const plan = planDash(pl as Player, dir, (fx, fz, tx, tz) => clampPlayerMove(fx, fz, tx, tz, (pl as Player).zoneId), at, 0);
+        if (plan.ok) {
+          (pl as Player).dash = plan.run;
+          (pl as Player).facing = plan.facing;
+        }
+      },
+    });
+    return;
+  }
   if (isTimAbilityId(id) && playerHasJob(p, "time_mage")) {
     resolveTimAbility(p, id, targetId, mobsIn(p.zoneId), now, {
       pushLog: (msg) => pushLog(p, msg),
@@ -4746,6 +4915,21 @@ function speakFieldNpc(p: Player, npcId: string): boolean {
     return true;
   }
   p.facing = facingTo(p.x, p.z, npc.x, npc.z);
+  if (npc.role === "quest_giver" && forestBasinQuestByNpc(npc.id)) {
+    ensureHollowQuest(p);
+    const result = forestBasinQuestTalk(
+      { active: p.hollowQuest.active, done: p.hollowQuest.done },
+      npc.id,
+    );
+    p.hollowQuest = { active: result.state.active, done: result.state.done };
+    rememberPlayer(p);
+    if (result.gold > 0) {
+      earnLogGold(p, "quest", result.gold);
+      pushLog(p, `${result.title} complete. +${result.gold} gold.`);
+    }
+    send(p.ws, { type: "npc/dialog", npcId: npc.id, title: result.title, body: result.body });
+    return true;
+  }
   send(p.ws, { type: "npc/dialog", npcId: npc.id, title: npc.name, body: npc.lines ?? "…" });
   return true;
 }
@@ -4774,8 +4958,8 @@ function handleNpcInteract(p: Player, npcId: string) {
       return;
     }
     p.facing = facingTo(p.x, p.z, JOB_MASTER.x, JOB_MASTER.z);
-    const playable = (Object.keys(JOBS) as JobId[]).filter((j) => JOBS[j].playable);
     const canSub = p.level >= SUBJOB_UNLOCK_LEVEL;
+    const playable = (Object.keys(JOBS) as JobId[]).filter((j) => JOBS[j].playable);
     send(p.ws, {
       type: "npc/dialog",
       npcId: JOB_MASTER.id,
@@ -5056,6 +5240,9 @@ function handleJobChange(p: Player, job: JobId) {
     return;
   }
   stopRest(p);
+  if (p.job === "druid" && p.druidForm !== 0) {
+    dropDruidForm(p, { pushLog, syncVitals }, "A new job sets the song down.");
+  }
   clearJobBuffs(p);
   if (p.subjob === job) p.subjob = null;
   // Keep skillUnlocked as-is — main swap never strips nodes; new main heart is granted free.
@@ -5077,7 +5264,7 @@ function handleJobChange(p: Player, job: JobId) {
     if (invAmount(p.inventory, ITEM.SCALE_HARNESS) <= 0) addItem(p.inventory, ITEM.SCALE_HARNESS, 1);
     p.equip.main = ITEM.GREATSWORD_IRON;
     p.equip.body = ITEM.SCALE_HARNESS;
-  } else if (job === "time_mage" || job === "sorcerer" || job === "cleric") {
+  } else if (job === "time_mage" || job === "sorcerer" || job === "cleric" || job === "druid") {
     if (invAmount(p.inventory, ITEM.STAFF_ASHBEAM) <= 0) addItem(p.inventory, ITEM.STAFF_ASHBEAM, 1);
     if (invAmount(p.inventory, ITEM.ROBE_LINEN) <= 0) addItem(p.inventory, ITEM.ROBE_LINEN, 1);
     p.equip.main = ITEM.STAFF_ASHBEAM;
@@ -5121,6 +5308,10 @@ function handleSubjob(p: Player, job: JobId | null) {
   }
   if (!JOBS[job].playable) {
     pushLog(p, `${JOBS[job].name} is not ready yet.`);
+    return;
+  }
+  if (job === "druid") {
+    pushLog(p, "Druid cannot be a support job.");
     return;
   }
   if (job === p.job) {
@@ -5291,6 +5482,10 @@ function playerHastePct(p: Player, now: number): number {
 
 function playerMoveSpeed(p: Player, now: number): number {
   let speed = p.flux ? PLAYER_SPEED_FLUX : PLAYER_SPEED;
+  if (p.job === "druid") {
+    speed *= druidMoveMul(p.druidForm ?? 0, p.druidEmberTailUntil ?? 0, now, p.druidRunMul || 1.5);
+    if (now < (p.druidBrackenRootUntil ?? 0)) speed *= 0.85;
+  }
   // Haste buffs use positive movePct; enemy Slow writes negative movePct (+ moveUntil).
   if (now < p.moveUntil && p.movePct !== 0) {
     speed *= Math.max(0.2, 1 + p.movePct);
@@ -5401,6 +5596,7 @@ function playerSwingPvp(p: Player, foe: Player, now: number) {
   dmg = Math.max(0, Math.floor(dmg * playerPhysDtMul(foe, now)));
   dmg = absorbStoneskin(foe, now, dmg);
   dmg = absorbHealShield(foe, now, dmg);
+  dmg = absorbMereVeil(foe, now, dmg);
   dmg = Math.max(0, Math.floor(dmg * fighterDefenseMul(foe, now)));
   const wall = absorbManaWall(foe, now, dmg);
   dmg = wall.dmg;
@@ -5409,6 +5605,9 @@ function playerSwingPvp(p: Player, foe: Player, now: number) {
     return;
   }
   foe.hp -= dmg;
+  if (foe.job === "druid" && foe.druidForm === 4) {
+    dropDruidForm(foe, { pushLog, syncVitals }, "A blow startles the racerunner. The song breaks.");
+  }
   const tpGain = Math.floor(80 * (playerHasJob(p, "fighter") ? fighterTpGainMul(p, now) : 1));
   p.tp = Math.min(3000, p.tp + tpGain);
   const hitNote = crit ? " (Critical!)" : "";
@@ -5424,6 +5623,7 @@ function playerSwingPvp(p: Player, foe: Player, now: number) {
 function playerSwing(p: Player, now: number) {
   if (p.anim === "rest") return;
   if (p.aether) return;
+  if (p.job === "druid" && p.druidForm === 4) return;
   const foe =
     (p.targetId ? players.get(p.targetId.toLowerCase()) : undefined) ??
     (p.targetId ? playerByIdOrName(p.targetId) : undefined);
@@ -5534,6 +5734,11 @@ function playerSwing(p: Player, now: number) {
     }
   }
   if (now < p.perpetualUntil) dmg = Math.floor(dmg * 1.15);
+  const mane = druidManeMul(p, now);
+  if (mane > 1) {
+    dmg = Math.max(1, Math.floor(dmg * mane));
+    consumeDruidMane(p, now);
+  }
   if (playerHasJob(p, "battle_mage")) {
     dmg += battleMageEnSpellBonus(p, now, playerCombatStats(p).int);
   }
@@ -5660,6 +5865,7 @@ function applyPendingMobDamage(
   dmg = absorbStoneskin(target, now, dmg);
   const beforeShield = target.healAbsorbHp;
   dmg = absorbHealShield(target, now, dmg);
+  dmg = absorbMereVeil(target, now, dmg);
   const soaked = Math.max(0, beforeShield - target.healAbsorbHp);
   dmg = Math.max(0, Math.floor(dmg * fighterDefenseMul(target, now)));
   const wall = absorbManaWall(target, now, dmg);
@@ -5678,6 +5884,9 @@ function applyPendingMobDamage(
   if (now < mob.addleUntil) dmg = Math.max(1, Math.floor(dmg * 0.65));
   dmg = curseTaken(dmg, target.curseUntil, now);
   target.hp = Math.max(0, target.hp - dmg);
+  if (target.job === "druid" && target.druidForm === 4) {
+    dropDruidForm(target, { pushLog, syncVitals }, "A blow startles the racerunner. The song breaks.");
+  }
   if (target.miseryRite) {
     target.miseryEmpowerUntil = now + 15_000;
   }
@@ -5926,6 +6135,7 @@ function mobSwing(mob: Mob, now: number) {
     dmg = absorbStoneskin(victim, now, dmg);
     const beforeShield = victim.healAbsorbHp;
     dmg = absorbHealShield(victim, now, dmg);
+    dmg = absorbMereVeil(victim, now, dmg);
     const soaked = Math.max(0, beforeShield - victim.healAbsorbHp);
     dmg = Math.max(0, Math.floor(dmg * fighterDefenseMul(victim, now)));
     const wall = absorbManaWall(victim, now, dmg);
@@ -5944,6 +6154,9 @@ function mobSwing(mob: Mob, now: number) {
     if (now < mob.addleUntil) dmg = Math.max(1, Math.floor(dmg * 0.65));
     dmg = curseTaken(dmg, victim.curseUntil, now);
     victim.hp = Math.max(0, victim.hp - dmg);
+    if (victim.job === "druid" && victim.druidForm === 4) {
+      dropDruidForm(victim, { pushLog, syncVitals }, "A blow startles the racerunner. The song breaks.");
+    }
     if (victim.miseryRite) {
       victim.miseryEmpowerUntil = now + 15_000;
     }
@@ -6176,6 +6389,21 @@ function tickSimBody() {
     }
     if (now >= mob.slowUntil) mob.swingPenalty = 0;
     if (now >= mob.gravityUntil) mob.gravityPct = 0;
+    if (mob.alive && now < mob.druidBleedUntil && mob.druidBleedPot > 0 && tick % TICK_HZ === 0) {
+      interruptCastOnDamage(mob, now, mob.druidBleedPot);
+      mob.hp = Math.max(0, mob.hp - mob.druidBleedPot);
+      if (mob.hp <= 0) {
+        const credited = pickDotKillCredit(null, mob.hitBy, players.values());
+        if (credited) rewardMobKill(credited, mob, now);
+        else {
+          mob.alive = false;
+          mob.anim = "dead";
+          mob.deathAt = now;
+          mob.respawnAt = now + MOB_DEATH_FADE_MS + MOB_RESPAWN_MS;
+          mob.targetId = null;
+        }
+      }
+    }
     if (mob.alive && now < mob.bioUntil && mob.bioTick > 0 && tick % TICK_HZ === 0) {
       interruptCastOnDamage(mob, now, mob.bioTick);
       mob.hp = Math.max(0, mob.hp - mob.bioTick);
@@ -6211,8 +6439,15 @@ function tickSimBody() {
     // Regain TP while Flux
     if (p.flux && tick % 20 === 0) p.tp = Math.min(3000, p.tp + 5);
 
+    if (p.job === "druid" && p.druidForm === 4 && now < (p.druidEmberTailUntil ?? 0)) {
+      const hunted = mobsIn(p.zoneId).some((m) => m.alive && m.targetId === p.wallet);
+      if (hunted) dropDruidForm(p, { pushLog, syncVitals }, "Something looks at you. The ember-run breaks.");
+    }
     if (now < p.poisonUntil && p.poisonTick > 0 && tick % TICK_HZ === 0) {
       p.hp = Math.max(0, p.hp - p.poisonTick);
+      if (p.job === "druid" && p.druidForm === 4 && p.poisonTick > 0) {
+        dropDruidForm(p, { pushLog, syncVitals }, "A blow startles the racerunner. The song breaks.");
+      }
       if (p.hp <= 0) {
         if (pvpReraiseBlocked(p)) {
           p.reraiseUntil = 0;
@@ -6292,6 +6527,7 @@ function tickSimBody() {
       }
     }
     touchWarps(p);
+    touchBasinQuests(p);
 
     if (p.anim === "rest") {
       // Once per second: recover HP/MP, bleed TP
@@ -6331,6 +6567,10 @@ function tickSimBody() {
       if (gearHp > 0 && p.hp < p.maxHp) {
         p.hp = Math.min(p.maxHp, p.hp + gearHp);
       }
+    }
+    const antler = tickDruidAntlerHum(p, now);
+    if (antler > 0) {
+      p.hp = Math.min(p.maxHp, p.hp + diseasedHeal(antler, p.diseaseUntil, now));
     }
 
     playerSwing(p, now);
@@ -7237,7 +7477,8 @@ function onMessage(ws: WebSocket, data: string) {
       stopRest(p);
       clearRoute(p);
       p.targetId = null;
-      p.zoneId = "pale_hollow";
+      if (p.zoneId !== used.zoneId) dropZoneHate(p);
+      p.zoneId = used.zoneId;
       p.x = used.x;
       p.z = used.z;
       p.facing = used.facing;
@@ -7563,4 +7804,7 @@ httpServer.listen(PORT, () => {
   console.log(
     `[bellgrave] ops probes http://localhost:${PORT}/health|/ready|/status`,
   );
+  const t0 = Date.now();
+  forestBasinPrebuildShore();
+  console.log(`[bellgrave] forest basin shore grid ready in ${Date.now() - t0} ms`);
 });

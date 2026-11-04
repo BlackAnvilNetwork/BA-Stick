@@ -23,11 +23,26 @@ export function loadForestBasinEditsFromDisk(): void {
   }
 }
 
+let saveTimer: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * Debounced: a scripted builder casts many strokes a second, and the overlay
+ * can hold hundreds of thousands of cells. Write at most once a second.
+ */
 export function saveForestBasinEditsToDisk(): void {
+  if (saveTimer) return;
+  saveTimer = setTimeout(() => {
+    saveTimer = null;
+    saveForestBasinEditsNow();
+  }, 1000);
+  saveTimer.unref?.();
+}
+
+export function saveForestBasinEditsNow(): void {
   const p = path();
   try {
     mkdirSync(dirname(p), { recursive: true });
-    writeFileSync(p, JSON.stringify(serializeForestBasinOverlay(), null, 2), "utf8");
+    writeFileSync(p, JSON.stringify(serializeForestBasinOverlay()), "utf8");
   } catch (err) {
     console.warn("forest basin edits: could not save", err);
   }

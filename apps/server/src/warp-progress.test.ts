@@ -35,6 +35,18 @@ test("a ring stays shut until the body walks into it, then it can be used", () =
   if (!used.ok) return;
   assert.equal(used.x, 174);
   assert.equal(used.z, 191.5);
+  assert.equal(used.zoneId, "pale_hollow");
+});
+
+test("an opened Basin ring can be used from another zone", () => {
+  const closed = tryUseWarp("fb-ring-kettle", []);
+  assert.equal(closed.ok, false);
+  const used = tryUseWarp("fb-ring-kettle", ["fb-ring-kettle"]);
+  assert.equal(used.ok, true);
+  if (!used.ok) return;
+  assert.equal(used.zoneId, "forest_basin");
+  assert.equal(used.x, 20);
+  assert.equal(used.z, -94);
 });
 
 test("Mayflower respawn waits on the ring; Emberwatch does not; old saves stay at the Scout Gate", () => {

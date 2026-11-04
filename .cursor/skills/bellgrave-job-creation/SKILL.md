@@ -39,6 +39,8 @@ Do **not** use trademarked game names in prompts, UI, or comments.
 | **Battle Mage** | Sword + en-spell hybrid | STR, INT | Mid nukes / enfeebles / enhance / cure | **Spellblade** |
 | **Time Mage** | Tempo + Flux MND staff | MND, AGI, INT | Time / enhance / enfeeble / light cure | **Temporal Distortion** |
 
+**8th job (planned, append-only):** Druid — Ring-Walker. Forms: **Stick Bear** (tank), **Stick Deer** (healer), **Stick Lion** (DPS), **Racerunner** (travel). Looks: [stick-bear.png](stick-bear.png), [stick-deer.png](stick-deer.png), [stick-lion.png](stick-lion.png), [racerunner.jpg](racerunner.jpg). Full lock: [jobs-from-plan.md](jobs-from-plan.md) §4.8.
+
 Cap **75**. Party niches must stay distinct — see role chart in `jobs-from-plan.md`. TIM owns tempo haste + chrona enfeeble AoEs; Cleric owns Raise/-na; Sorcerer owns heavy nukes; etc.
 
 ---

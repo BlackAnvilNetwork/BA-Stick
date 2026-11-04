@@ -6,6 +6,7 @@ declare module "ba-stick-render" {
     constructor(canvas: HTMLCanvasElement, width: number, height: number);
     loadZone(bytes: Uint8Array): void;
     placeZone(bytes: Uint8Array, ox: number, oz: number): void;
+    setWaterLayout(bytes: Uint8Array, ox: number, oz: number): void;
     patchZoneCell(x: number, z: number, biome: number, flags: number, height: number): boolean;
     placeProps(bytes: Uint8Array, ox: number, oz: number): number;
     setMapOrigin(ox: number, oz: number): void;
@@ -40,6 +41,11 @@ declare module "ba-stick-render" {
     /** Legacy: true = third person, false = isometric. */
     setView3d(on: boolean): void;
     setKeylight(on: boolean): void;
+    setLights(on: boolean): void;
+    setLightMood(r: number, g: number, b: number, playerR: number, playerK: number, glow: number, night: number, snap: boolean): void;
+    addMoodArea(x: number, z: number, radius: number, feather: number, r: number, g: number, b: number, playerR: number, playerK: number, glow: number, night: number): void;
+    addLight(x: number, y: number, z: number, kind: number, radius: number, color: number): void;
+    clearLighting(): void;
     setBackdrop(on: boolean): void;
     setBootMenu(on: boolean): void;
     spawnVfx(prim: number, from: string, to: string, color: number, count: number, radius: number, flags: number): boolean;

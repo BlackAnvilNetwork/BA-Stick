@@ -44,7 +44,7 @@ export type PaleHollowQuestDef = {
   mobIds: readonly string[];
 };
 
-export type PaleHollowQuestProgress = { id: string; kills: number };
+export type PaleHollowQuestProgress = { id: string; kills: number; seen?: string[] };
 
 export type PaleHollowQuestState = {
   zoneId: "pale_hollow";
@@ -488,9 +488,10 @@ export function normalizePaleHollowQuestState(raw: unknown): PaleHollowQuestStat
     const active: PaleHollowQuestProgress[] = [];
     for (const item of row.active) {
       if (!item || typeof item !== "object") continue;
-      const e = item as { id?: unknown; kills?: unknown };
+      const e = item as { id?: unknown; kills?: unknown; seen?: unknown };
       if (typeof e.id !== "string" || !Number.isInteger(e.kills) || (e.kills as number) < 0) continue;
-      active.push({ id: e.id, kills: e.kills as number });
+      const seen = Array.isArray(e.seen) ? e.seen.filter((id): id is string => typeof id === "string") : [];
+      active.push({ id: e.id, kills: e.kills as number, ...(seen.length ? { seen } : {}) });
     }
     return { zoneId: "pale_hollow", active, done };
   }

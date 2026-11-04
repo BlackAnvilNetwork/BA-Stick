@@ -13,8 +13,9 @@ import { staticAt } from "./statics";
 import { CombatFloaters } from "./floaters";
 import { GatherIcons, loadIconAtlas, type IconAtlas } from "./gather";
 import { craftActFor, gatherActFor, presentCraft, presentGather, syncUnits, type CraftAct, type GatherAct } from "./units";
-import { engageHeadingGoal, getMoveKeys, headingEase, headingStep, headingTarget, headingToward, moveKeyFromCode, shouldResend, stopTarget, wasdTarget, DASH_KEY_CODE, DashClock, dashDirection } from "./input";
+import { engageHeadingGoal, getMoveKeys, headingEase, headingStep, headingTarget, headingToward, isoScreenPick, moveKeyFromCode, shouldResend, stopTarget, wasdTarget, DASH_KEY_CODE, DashClock, dashDirection } from "./input";
 import { atmosphereFor, isCoarsePointer, keylightFor } from "./mobile";
+import { applyWorldLighting, applyZoneMood, lightsFor } from "./lighting";
 import { CastClock, sameId, unitFx } from "./fx";
 import { routeUnitClick } from "./clicks";
 import { Labels, labelFor } from "./labels";
@@ -65,7 +66,11 @@ export function StickWorld() {
       renderer = r;
       // Dev/test hook for headless checks (fb→client mapping lives in renderer.ts).
       if (import.meta.env.DEV) Object.assign(window, { __stick: { r, canvas, fromFramebuffer, send } });
-      void placeAllZones(r);
+      // Lighting overhaul: moods, mood areas and map lights once the terrain is placed.
+      void placeAllZones(r).then(() => {
+        if (alive) applyWorldLighting(r, useGame.getState().snapshot?.you.zoneId);
+      });
+      r.setLights(lightsFor(location.search));
       // Phones: atmosphere pass costs ~1/3 of the frame; drop it to hold 30+ fps (#18).
       if (!atmosphereFor(isCoarsePointer(), location.search)) r.setAtmosphere(false);
       // L2 key light: on by default on desktop, off on touch; `?keylight=0` kills it.
@@ -150,7 +155,7 @@ export function StickWorld() {
         const now = performance.now();
         if (!me || me.hp <= 0 || !dashClock.ready(now)) return;
         const keys = getMoveKeys();
-        const isoKey = heading === null ? wasdTarget(keys, me, pick, [FB_W / 2, FB_H / 2], clampMoveHere) : null;
+        const isoKey = heading === null ? wasdTarget(keys, me, isoScreenPick, [FB_W / 2, FB_H / 2], clampMoveHere) : null;
         const cursor = heading === null && cursorFb ? pickHit(cursorFb[0], cursorFb[1]) : null;
         const dir = dashDirection(keys, me, heading, isoKey, cursor);
         send({ type: "dash", dx: dir.dx, dz: dir.dz });
@@ -401,6 +406,7 @@ export function StickWorld() {
           followed = undefined;
           floats.reset();
           if (!zc.first) fade(fadeRef.current);
+          applyZoneMood(r, zid, zc.first);
           const want = bakedZoneFor(zid);
           if (want !== zoneLoaded) {
             zoneLoaded = want;
@@ -432,7 +438,17 @@ export function StickWorld() {
           });
           syncUnits(
             {
-              upsertUnit: (id, x, y, z, facing, anim, preset) => r.upsertUnit(id, x + origin.x, y, z + origin.z, facing, anim, preset),
+              upsertUnit: (id, x, y, z, facing, anim, preset) => {
+                const wx = x + origin.x;
+                const wz = z + origin.z;
+                // Live server y can be the blank-pad floor while this client
+                // draws the sculpted bake. Sitting under the mesh looks upside
+                // down (sky / inside of the heightfield). Snap to the bake.
+                const ground = r.zoneHeight(wx, wz);
+                const fy =
+                  zoneLoaded && Number.isFinite(ground) && Math.abs(ground - y) > 1.25 ? ground : y;
+                r.upsertUnit(id, wx, fy, wz, facing, anim, preset);
+              },
               removeUnit: (id) => r.removeUnit(id),
             },
             units,
@@ -500,7 +516,7 @@ export function StickWorld() {
           wasdAccum = 0;
           const moveClamp = (ax: number, az: number, bx: number, bz: number) => fieldClampMove(activeZone, ax, az, bx, bz) ?? paleHollowClampMove(ax, az, bx, bz);
           if (heading === null) {
-            const t = wasdTarget(keys, me, pick, [FB_W / 2, FB_H / 2], moveClamp);
+            const t = wasdTarget(keys, me, isoScreenPick, [FB_W / 2, FB_H / 2], moveClamp);
             const keyStr = `${keys.w ? "w" : ""}${keys.a ? "a" : ""}${keys.s ? "s" : ""}${keys.d ? "d" : ""}`;
             const at = performance.now();
             const dir = t ? Math.atan2(t.x - me.x, t.z - me.z) : 0;

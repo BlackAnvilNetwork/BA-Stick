@@ -352,6 +352,24 @@ export type BuffState = {
   healAbsorbHp: number;
   /** Cleric regen */
   regenUntil: number;
+  /** Druid form: 0 Ring-Walker, 1 Stick Bear, 2 Stick Deer, 3 Stick Lion, 4 Racerunner */
+  druidForm: 0 | 1 | 2 | 3 | 4;
+  druidFormUntil: number;
+  druidRingwakeUntil: number;
+  druidAshBraceUntil: number;
+  druidBundleThickenUntil: number;
+  druidBrackenRootUntil: number;
+  druidAntlerHumUntil: number;
+  druidMereVeilUntil: number;
+  druidMereVeilHp: number;
+  druidManeDustUntil: number;
+  druidEmberTailUntil: number;
+  druidChalkWardUntil: number;
+  druidChalkWardMul: number;
+  druidSourHumUntil: number;
+  druidBleedUntil: number;
+  druidBleedPot: number;
+  druidRingSplitUntil: number;
 };
 
 export type UnitSnapshot = {
@@ -681,7 +699,9 @@ export type SnapshotMessage = {
     freeStats: { str: number; dex: number; vit: number; agi: number; int: number; mnd: number };
     /** Hash-chained lok balances. Settlement Key::Kek is historical; new AH pays on-chain. */
     lok?: LokSnapshot;
-    /** Pale Hollow kill tasks — multiple may be active. */
+    /** Rings this character has walked into. */
+    warpRings?: { id: string; name: string; zoneId: string }[];
+    /** Kill tasks — Pale Hollow and Forest Basin. Multiple may be active. */
     questLog?: {
       id: string;
       title: string;
@@ -941,6 +961,23 @@ export function emptyBuffs(): BuffState {
     healAbsorbUntil: 0,
     healAbsorbHp: 0,
     regenUntil: 0,
+    druidForm: 0,
+    druidFormUntil: 0,
+    druidRingwakeUntil: 0,
+    druidAshBraceUntil: 0,
+    druidBundleThickenUntil: 0,
+    druidBrackenRootUntil: 0,
+    druidAntlerHumUntil: 0,
+    druidMereVeilUntil: 0,
+    druidMereVeilHp: 0,
+    druidManeDustUntil: 0,
+    druidEmberTailUntil: 0,
+    druidChalkWardUntil: 0,
+    druidChalkWardMul: 1,
+    druidSourHumUntil: 0,
+    druidBleedUntil: 0,
+    druidBleedPot: 0,
+    druidRingSplitUntil: 0,
   };
 }
 

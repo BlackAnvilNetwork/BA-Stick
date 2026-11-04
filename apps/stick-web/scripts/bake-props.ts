@@ -9,15 +9,38 @@
 import {
   PALE_HOLLOW_BOUNDS,
   PH_CAMP_SHIFT_X,
-  FB_BRIDGE,
+  FB_BRIDGES,
+  FB_AQUEDUCT_BAY,
+  FB_AQUEDUCT_WIDTH,
+  fbAqueductBays,
+  fbAqueductDist,
+  fbAqueductRiverLift,
+  forestBasinGroundY,
+  forestBasinWaterSurfaceY,
+  fbAscentAt,
+  FB_GORGES,
+  FB_QUARRY,
+  FB_SINKS,
+  FB_BRIDGE_RAMP,
+  FB_PLACES,
+  FB_POIS,
+  ZONE_LINKS,
+  FB_SPAWN,
+  FB_GATES,
+  forestBasinNpcs,
+  forestBasinMobs,
+  fbTrailDist,
+  FB_WARP_SITES,
+  FB_ASCENTS,
+  fbDesignWater,
   FB_BRIDGE_DECK_W,
   FB_CAMP,
-  FB_MOUNTAINS,
   FOREST_BASIN_BOUNDS,
   forestBasinBiome,
   forestBasinBridgeCenter,
   forestBasinStandHeight,
   forestBasinWalkable,
+  forestBasinInOpenWater,
   PH_CAMP_SHIFT_Z,
   PH_HUB,
   PH_MOUNTAINS,
@@ -52,6 +75,8 @@ export const K = {
   wallBlock: 30, moss: 31, firePit: 32, tent: 33, bedroll: 34, crate: 35, chest: 36, leanTo: 37, trainer: 38, stall: 39,
   weaponRack: 40, firewood: 41, barrel: 42, banner: 43, stone: 44, pebble: 45, peak: 46, riverWall: 47, bridge: 48,
   shack: 49, cairn: 50,
+  // Forest Basin set pieces (engine props.rs 60-67)
+  fallenLog: 60, mushrooms: 61, falls: 62, rockWall: 63, thorn: 64, ruinArch: 65, hollowOak: 66, waterLift: 67,
 } as const;
 
 export type Prop = { kind: number; v: number; x: number; z: number; y: number; yaw: number; s: number; w: number; h: number; d: number };
@@ -304,47 +329,362 @@ function riverBanks(out: Prop[]): void {
 
 export function forestBasinProps(): Prop[] {
   const out: Prop[] = [];
-  const c = forestBasinBridgeCenter();
-  const deck = forestBasinStandHeight(c.x, c.z);
-  const span = FB_BRIDGE.halfSpan * 2;
-  out.push({
-    kind: K.bridge, v: Math.round(0.22 * 200), x: c.x, z: c.z, y: deck, yaw: Math.atan2(1, 0),
-    s: span, w: FB_BRIDGE_DECK_W, h: 0.35, d: deck,
-  });
-  for (const m of FB_MOUNTAINS) {
+  const anchors = [...forestBasinNpcs(), ...forestBasinMobs(), FB_SPAWN, ...ZONE_LINKS.filter((l) => l.to === "forest_basin").map((l) => l.spawn)];
+  const firm = (x: number, z: number) =>
+    !forestBasinInOpenWater(x, z) && !fbDesignWater(x, z) &&
+    [[0, 0], [0.5, 0], [-0.5, 0], [0, 0.5], [0, -0.5]].every(([dx, dz]) => forestBasinWalkable(x + dx!, z + dz!) && !forestBasinInOpenWater(x + dx!, z + dz!));
+  const nearGate = (x: number, z: number) => FB_GATES.some((g) => x > g.minX - 1 && x < g.maxX + 1 && z > g.minZ - 1 && z < g.maxZ + 1);
+  const bankClear = (px: number, pz: number) => {
+    if (!firm(px, pz) || fbDesignWater(px, pz) || forestBasinInOpenWater(px, pz)) return false;
+    for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++) {
+      if (dx * dx + dz * dz > 5) continue;
+      if (fbDesignWater(px + dx, pz + dz) || forestBasinInOpenWater(px + dx, pz + dz)) return false;
+    }
+    return true;
+  };
+  const snapBank = (x: number, z: number, maxR = 10) => {
+    if (bankClear(x, z)) return { x, z };
+    for (let r = 1; r <= maxR; r++) {
+      for (let k = 0; k < 16; k++) {
+        const a = (k / 16) * Math.PI * 2;
+        const px = x + Math.cos(a) * r, pz = z + Math.sin(a) * r;
+        if (bankClear(px, pz)) return { x: px, z: pz };
+      }
+    }
+    return null;
+  };
+  const KEEP_DRY = new Set<number>([K.firePit, K.tent, K.bedroll, K.crate, K.chest, K.leanTo, K.shack, K.cairn, K.stall, K.firewood]);
+  const at = (kind: number, x: number, z: number, yaw = 0, s = 1) => {
+    if (KEEP_DRY.has(kind) && (fbDesignWater(x, z) || forestBasinInOpenWater(x, z) || !firm(x, z))) return;
+    out.push({ kind, v: 0, x, z, y: forestBasinStandHeight(x, z), yaw, s, w: 0, h: 0, d: 0 });
+  };
+  // Bridges (deck spans from a to b).
+  for (const b of FB_BRIDGES) {
+    const dx = b.b.x - b.a.x, dz = b.b.z - b.a.z;
     out.push({
-      kind: K.peak, v: 0, x: m.x, z: m.z, y: forestBasinStandHeight(m.x, m.z),
-      yaw: 0, s: Math.max(0.7, m.h / 8), w: 0, h: m.h, d: 0,
+      // y/d are the bank heights at a/b; h lifts mid-span to deckY (same trapezoid as fbBridgeDeckY)
+      kind: K.bridge, v: Math.round(FB_BRIDGE_RAMP * 200), x: (b.a.x + b.b.x) / 2, z: (b.a.z + b.b.z) / 2, y: b.yA,
+      yaw: Math.atan2(dx, dz), s: Math.hypot(dx, dz), w: Math.min(FB_BRIDGE_DECK_W, b.halfWidth * 2), h: Math.max(0, b.deckY - (b.yA + b.yB) / 2), d: b.yB,
     });
   }
+  // Warp rings: standing stones around each circle.
+  for (const w of FB_WARP_SITES) {
+    const n = w.id === "scraped-ring" ? 7 : 8;
+    for (let k = 0; k < n; k++) {
+      const a = (k / n) * Math.PI * 2 + 0.3;
+      // The Scraped Stones: six re-cut faces, the seventh left uncut (a cairn).
+      at(w.id === "scraped-ring" && k === 6 ? K.cairn : K.stone, w.x + Math.cos(a) * w.r, w.z + Math.sin(a) * w.r, a, 1.3);
+    }
+  }
+  // Ruins and heights: broken walls, mossy blocks.
+  for (const p of FB_PLACES) {
+    if (p.kind !== "ruin" && p.kind !== "height" && p.kind !== "cult") continue;
+    const n = p.kind === "height" ? 4 : 7;
+    for (let k = 0; k < n; k++) {
+      const a = hash2(k, p.x) * Math.PI * 2;
+      const r = 3 + hash2(p.z, k) * 4;
+      const bx = p.x + Math.cos(a) * r, bz = p.z + Math.sin(a) * r;
+      if (!firm(bx, bz) || fbDesignWater(bx, bz) || forestBasinInOpenWater(bx, bz)) continue;
+      at(k % 3 === 2 ? K.moss : K.wallBlock, bx, bz, a, 0.8 + hash2(k, k) * 0.6);
+    }
+  }
+  // Cairns mark the ascent routes.
+  for (const a of FB_ASCENTS) for (const q of a.points) {
+    const side = [a.halfWidth + 0.8, -(a.halfWidth + 0.8)].find((o) => firm(q.x + o, q.z) && !fbDesignWater(q.x + o, q.z) && !forestBasinInOpenWater(q.x + o, q.z) && !anchors.some((m) => Math.hypot(m.x - q.x - o, m.z - q.z) < 3.2));
+    if (side != null) at(K.cairn, q.x + side, q.z, 0, 0.8);
+  }
+  // Kettle Hollow camp.
   const camp = [
-    [K.tent, -6, 3, 0.4],
-    [K.tent, 5, 2, -0.3],
-    [K.firePit, 0, -1, 0],
-    [K.leanTo, 4, -4, 0.2],
-    [K.crate, -3, -3, 0.5],
+    [K.tent, -6, 3, 0.4], [K.tent, 5, 4, -0.3], [K.firePit, -6, -4, 0], [K.leanTo, 6, -4, 0.2],
+    [K.crate, -3, -6, 0.5], [K.firewood, -8, -2, 0.1], [K.sapling, 3, 8, 0], [K.sapling, -2, 9, 0],
   ] as const;
+  const campOrigin = snapBank(FB_CAMP.x, FB_CAMP.z) ?? FB_CAMP;
   for (const [kind, dx, dz, yaw] of camp) {
-    out.push({
-      kind, v: 0, x: FB_CAMP.x + dx, z: FB_CAMP.z + dz, y: FB_CAMP.floorY,
-      yaw, s: 1, w: 0, h: 0, d: 0,
-    });
+    const cx = campOrigin.x + dx, cz = campOrigin.z + dz;
+    if (FB_WARP_SITES.some((w) => Math.hypot(cx - w.x, cz - w.z) < w.r + 1)) continue;
+    at(kind, cx, cz, yaw);
   }
+  // Points of interest: one small recipe per kind (kept clear of NPCs and mobs).
+  const near: { x: number; z: number; r: number }[] = [];
+  for (const poi of FB_POIS) {
+    const { x, z } = poi;
+    const rnd = (k: number) => hash2(x * 7.1 + k, z * 3.3 - k);
+    const ring = (n: number, r: number, f: (px: number, pz: number, a: number, k: number) => void) => {
+      for (let k = 0; k < n; k++) {
+        const a = (k / n) * Math.PI * 2 + rnd(k) * 0.6;
+        const rr = r * (0.8 + rnd(k + 9) * 0.4);
+        f(x + Math.cos(a) * rr, z + Math.sin(a) * rr, a, k);
+      }
+    };
+    const dry = (px: number, pz: number) => !fbDesignWater(px, pz) && !forestBasinInOpenWater(px, pz) && !forestBasinOnTrail(px, pz) && firm(px, pz) && fbTrailDist(px, pz) > 5.2 && !anchors.some((a) => Math.hypot(a.x - px, a.z - pz) < 3.2);
+    const put = (kind: number, px: number, pz: number, yaw = 0, sc = 1) => { if (dry(px, pz)) at(kind, px, pz, yaw, sc); };
+    // thickets are blocked ground on purpose: thorns only keep off water, trails and units
+    const soft = (px: number, pz: number) => !fbDesignWater(px, pz) && fbTrailDist(px, pz) > 1.8 && !anchors.some((a) => Math.hypot(a.x - px, a.z - pz) < 3);
+    const thorn = (px: number, pz: number, a: number, sc: number) => { if (soft(px, pz)) at(K.thorn, px, pz, a, sc); };
+    let clear = 5;
+    switch (poi.kind) {
+      case "grove": ring(9, 7, (px, pz, a, k) => put(k % 3 ? K.spruce : K.pine, px, pz, a, 6 + rnd(k) * 2.5)); ring(6, 3, (px, pz, a) => put(K.fern, px, pz, a)); clear = 9; break;
+      case "glade": ring(10, 9, (px, pz, a, k) => put(k % 2 ? K.tallPatch : K.bloom, px, pz, a)); ring(5, 4, (px, pz, a) => put(K.longGrass, px, pz, a)); clear = 10; break;
+      case "thicket": ring(18, 5.5, (px, pz, a, k) => thorn(px, pz, a, 1.5 + rnd(k) * 0.9)); ring(9, 3, (px, pz, a, k) => thorn(px, pz, a, 1.9 + rnd(k + 3) * 0.6)); ring(7, 7.5, (px, pz, a) => thorn(px, pz, a, 1.2)); thorn(x, z, 0, 2.2); clear = 9; break;
+      case "fungus":
+        if (poi.id === "ninefold-ring") {
+          // nine caps in a true fairy ring, the floor inside left bare
+          // centre nudged off the Hollow Way so all nine stand
+          const offs = [[0, 0], [2, 0], [3, 1.5], [3, -1.5], [4, 0], [2, 2.5]].map(([ox, oz]) => {
+            let ok = 0; for (let k = 0; k < 9; k++) { const a = (k / 9) * Math.PI * 2; if (soft(x + ox! + Math.cos(a) * 4.2, z + oz! + Math.sin(a) * 4.2)) ok++; }
+            return { ox: ox!, oz: oz!, ok };
+          });
+          const best = offs.reduce((p, q) => (q.ok > p.ok ? q : p));
+          for (let k = 0; k < 9; k++) { const a = (k / 9) * Math.PI * 2; const px = x + best.ox + Math.cos(a) * 4.2, pz = z + best.oz + Math.sin(a) * 4.2; if (soft(px, pz)) out.push({ kind: K.mushrooms, v: 0, x: px, z: pz, y: forestBasinStandHeight(px, pz), yaw: a, s: 0.9 + rnd(k) * 0.4, w: 0, h: 0, d: 0 }); }
+        } else {
+          // the Lantern Caps: glowing caps, one giant at the heart
+          ring(8, 3.2, (px, pz, a, k) => { if (soft(px, pz)) out.push({ kind: K.mushrooms, v: 1, x: px, z: pz, y: forestBasinStandHeight(px, pz), yaw: a, s: 0.9 + rnd(k) * 0.8, w: 0, h: 0, d: 0 }); });
+          if (soft(x + 1.6, z - 1.2)) out.push({ kind: K.mushrooms, v: 1, x: x + 1.6, z: z - 1.2, y: forestBasinStandHeight(x + 1.6, z - 1.2), yaw: 0, s: 2.2, w: 0, h: 0, d: 0 });
+        }
+        put(K.moss, x, z); clear = 6; break;
+      case "hollow-tree": { const ox = x - 1.2, oz = z - 2.6; if (dry(ox, oz)) out.push({ kind: K.hollowOak, v: 0, x: ox, z: oz, y: forestBasinStandHeight(ox, oz) - 0.2, yaw: 0, s: 11, w: 1.5, h: 0, d: 0 }); ring(5, 4.5, (px, pz, a) => put(K.moss, px, pz, a, 1.2)); put(K.chest, x + 1.2, z + 0.4, 1); clear = 7; break; }
+      case "fallen-giant": {
+        // one giant trunk lying east-west beside the path, root plate at the west end
+        const lz = z + 2.6;
+        const ys = [-11, -5, 0, 5, 11].map((dx) => forestBasinGroundY(x + dx, lz));
+        out.push({ kind: K.fallenLog, v: 0, x, z: lz, y: Math.min(...ys) + 0.1, yaw: Math.PI / 2, s: 24, w: 1.5, h: 5.5, d: 0 });
+        ring(7, 13, (px, pz, a) => put(K.fern, px, pz, a, 1.2)); put(K.moss, x + 6, z - 1.2); clear = 13; break;
+      }
+      case "forge": {
+        const o = snapBank(x, z) ?? { x, z };
+        ring(3, 2.5, (px, pz, a) => put(K.wallBlock, px, pz, a, 1.2)); put(K.firePit, o.x, o.z); put(K.weaponRack, o.x + 2, o.z - 1, 0.8); put(K.barrel, o.x - 2, o.z + 1.5); put(K.moss, o.x + 1, o.z + 2.5); break;
+      }
+      case "statue": put(K.stone, x, z, 1.2, 2.2); put(K.wallBlock, x + 1.8, z + 0.6, 0.3, 1.4); put(K.cairn, x - 1.6, z - 0.8, 0, 0.7); put(K.moss, x + 0.6, z - 1.4); break;
+      case "vault": for (let k = -2; k <= 2; k++) put(K.wallBlock, x + k * 1.1, z - 1.5, 0, 1.3); put(K.stone, x, z - 1.2, 0, 1.6); put(K.crate, x + 2.5, z + 1, 0.4); break;
+      case "aqueduct":
+        {
+          const bays = fbAqueductBays();
+          const rise = FB_AQUEDUCT_BAY * 0.42;
+          // one level for the whole run, high enough to clear the highest ground
+          const top = Math.max(...bays.map((b) => forestBasinGroundY(b.x, b.z))) + 1.6 + rise + 0.25;
+          const deck = top - rise - 0.25;
+          for (const b of bays) {
+            const g = forestBasinGroundY(b.x, b.z);
+            // one fallen bay on the old east arcade, as built
+            if (Math.hypot(b.x + 49, b.z - 94) < 3) {
+              out.push({ kind: K.ruinArch, v: 1, x: b.x - 2, z: b.z - 1.5, y: g - 0.1, yaw: 0.3, s: (top - g) * 0.8, w: 0, h: 0, d: 0 });
+              continue;
+            }
+            const s = Math.max(1, deck - g);
+            out.push({ kind: K.ruinArch, v: 2, x: b.x, z: b.z, y: g, yaw: b.yaw, s, w: FB_AQUEDUCT_BAY, h: 0, d: FB_AQUEDUCT_WIDTH });
+          }
+          const lift = fbAqueductRiverLift();
+          if (lift) {
+            const waterY = forestBasinWaterSurfaceY(lift.x, lift.z) ?? forestBasinGroundY(lift.x, lift.z);
+            out.push({
+              kind: K.waterLift, v: 0, x: lift.x, z: lift.z, y: waterY,
+              yaw: lift.yaw, s: Math.max(4, top - waterY), w: 3.6, h: lift.depth, d: 2.4,
+            });
+          }
+        }
+        clear = 9; break;
+      case "waystone": put(K.stone, x, z, rnd(1) * 6, 1.2); put(K.pebble, x + 0.9, z + 0.5); clear = 3; break;
+      case "edict": put(K.stone, x, z, 0, 1.6); put(K.banner, x + 0.8, z + 0.2, 0); put(K.wallBlock, x - 1.4, z + 0.3, 0.4, 1.1); clear = 3; break;
+      case "village": {
+        const o = snapBank(x, z) ?? { x, z };
+        ring(8, 9, (px, pz, a, k) => put(k % 4 === 3 ? K.moss : K.wallBlock, px, pz, a, 1 + rnd(k) * 0.6)); ring(3, 5, (px, pz, a) => put(K.sapling, px, pz, a)); put(K.firePit, o.x, o.z); clear = 11; break;
+      }
+      case "sunken": {
+        // a drowned hall: an arch and broken pillars standing up out of the lake
+        const rise = (px: number, pz: number) => { const s = forestBasinWaterSurfaceY(px, pz); return (s ?? forestBasinGroundY(px, pz)) - forestBasinGroundY(px, pz); };
+        // the hall stands where the shelf is about a metre deep, its doorway toward the shore
+        let hx = x, hz = z, best = 1e9;
+        for (let dz = -16; dz <= 16; dz += 1) for (let dx = -16; dx <= 16; dx += 1) {
+          const r0 = rise(x + dx, z + dz);
+          const sc = Math.abs(r0 - 1.1) * 6 + Math.hypot(dx, dz) * 0.15;
+          if (r0 > 0.5 && sc < best) { best = sc; hx = x + dx; hz = z + dz; }
+        }
+        const ax = (x - hx) / (Math.hypot(x - hx, z - hz) || 1), az = (z - hz) / (Math.hypot(x - hx, z - hz) || 1);
+        const P = (al: number, ac: number) => ({ px: hx + ax * al - az * ac, pz: hz + az * al + ax * ac });
+        const door = P(3.6, 0);
+        out.push({ kind: K.ruinArch, v: 0, x: door.px, z: door.pz, y: forestBasinGroundY(door.px, door.pz) - 0.2, yaw: Math.atan2(ax, az), s: rise(door.px, door.pz) + 2.8, w: 3.4, h: 0, d: 0 });
+        let k = 0;
+        for (const al of [-4.5, -1.5, 1.5]) for (const ac of [-2.4, 2.4]) {
+          const q = P(al, ac); k++;
+          if (rise(q.px, q.pz) < 0.3) continue;
+          out.push({ kind: K.ruinArch, v: 1, x: q.px, z: q.pz, y: forestBasinGroundY(q.px, q.pz) - 0.5, yaw: al + 0.4 * hash2(q.px, q.pz), s: rise(q.px, q.pz) + 0.8 + rnd(k) * 2, w: 0, h: 0, d: 0 });
+        }
+        clear = 7; break;
+      }
+      case "charcoal": ring(3, 4, (px, pz) => put(K.cairn, px, pz, 0, 1.4)); put(K.leanTo, x + 5, z + 3, 0.6); put(K.firewood, x - 4, z + 4); put(K.firewood, x - 5, z + 2.5, 0.8); put(K.barrel, x + 3, z - 4); put(K.bedroll, x + 6, z + 1, 0.2); clear = 8; break;
+      case "hermit": {
+        const o = snapBank(x, z) ?? { x, z };
+        const fire = snapBank(o.x + 3, o.z + 1) ?? { x: o.x + 3, z: o.z + 1 };
+        put(K.shack, o.x, o.z, 2.4); put(K.firePit, fire.x, fire.z); put(K.firewood, o.x - 2.5, o.z + 2); put(K.barrel, o.x + 2, o.z - 2); break;
+      }
+      case "shrine": {
+        const o = snapBank(x, z) ?? { x, z };
+        put(K.cairn, o.x, o.z, 0, 1.2); ring(6, 1.4, (px, pz, a) => put(K.pebble, px, pz, a)); put(K.bloom, o.x + 1.8, o.z); put(K.bloom, o.x - 1.6, o.z + 0.8); clear = 4; break;
+      }
+      case "cult": {
+        const o = snapBank(x, z) ?? { x, z };
+        const fire = snapBank(o.x + 2, o.z - 3) ?? { x: o.x + 2, z: o.z - 3 };
+        put(K.tent, o.x, o.z, 0.4); put(K.tent, o.x + 4, o.z + 2, -0.5); put(K.banner, o.x - 2, o.z - 2); put(K.banner, o.x + 6, o.z - 1); put(K.firePit, fire.x, fire.z); put(K.crate, o.x - 3, o.z + 2.5, 0.3); clear = 8; break;
+      }
+      case "den": ring(5, 2.4, (px, pz, a, k) => put(k % 2 ? K.rock : K.bush, px, pz, a, 1.2)); put(K.pebble, x, z); clear = 4; break;
+      case "vista": {
+        const o = snapBank(x, z) ?? { x, z };
+        put(K.cairn, o.x, o.z, 0, 1); put(K.tuft, o.x + 1, o.z + 1); clear = 3; break;
+      }
+      case "cache": put(K.chest, x, z, rnd(2) * 6); clear = 2; break;
+      case "camp": {
+        const o = snapBank(x, z) ?? { x, z };
+        const fire = snapBank(o.x + 3, o.z - 1) ?? { x: o.x + 3, z: o.z - 1 };
+        put(K.tent, o.x, o.z, 0.3); put(K.firePit, fire.x, fire.z); put(K.crate, o.x - 2, o.z + 2, 0.4); put(K.stall, o.x + 4, o.z + 3, -0.4); clear = 7; break;
+      }
+      case "falls": ring(6, 3, (px, pz, a, k) => put(k % 2 ? K.rock : K.fern, px, pz, a, 1.4)); break;
+      case "quarry": put(K.crate, x, z, 0.3); put(K.wallBlock, x + 2, z + 1, 0, 1.3); put(K.wallBlock, x + 3.2, z + 1.1, 0.1, 1.3); put(K.leanTo, x - 3, z + 2, 0.4); break;
+      case "sink": ring(5, 3, (px, pz, a) => put(K.fern, px, pz, a, 0.9)); clear = 7; break;
+      case "gorge": ring(6, 6, (px, pz, a) => put(K.rock, px, pz, a, 1.6)); clear = 0; break;
+      case "ruin": ring(6, 3.5, (px, pz, a, k) => put(k % 3 ? K.wallBlock : K.moss, px, pz, a, 1.1)); put(K.stone, x, z, 0.5, 1); clear = 6; break;
+      case "isle": ring(6, 2.5, (px, pz, a) => put(K.reed, px, pz, a)); put(K.stone, x, z, 0, 1.3); clear = 4; break;
+    }
+    if (clear) near.push({ x, z, r: clear });
+  }
+  // Set pieces that read from their names (rock walls, falls, forges).
+  const wall = (x: number, z: number, yaw: number, len: number, hgt: number, y: number, v = 0) =>
+    out.push({ kind: K.rockWall, v, x, z, y, yaw, s: len, w: 0.9, h: hgt, d: 0 });
+  // Around each sink, the same way the wood is scattered. Steep ground takes a cliff
+  // course. Cairns cluster on the stair approach. Short lip stones ring the outside.
+  const lip = (x: number, z: number, s: number, yaw: number) =>
+    out.push({ kind: K.stone, v: 2, x, z, y: forestBasinStandHeight(x, z), yaw, s, w: 0, h: 0, d: 0 });
+  for (const k of FB_SINKS) {
+    let ax = 0, az = 1, best = Infinity;
+    for (const a of FB_ASCENTS) for (const q of a.points) {
+      const dd = Math.hypot(q.x - k.x, q.z - k.z);
+      if (dd < best && dd < k.r * 2.2) { best = dd; ax = q.x - k.x; az = q.z - k.z; }
+    }
+    const al = Math.hypot(ax, az) || 1;
+    ax /= al; az /= al;
+    const reach = k.r * 2.3;
+    const step = 2.3;
+    for (let z = k.z - reach; z <= k.z + reach; z += step) {
+      for (let x = k.x - reach; x <= k.x + reach; x += step) {
+        const jx = x + (hash2(x, z + k.x) - 0.5) * step * 0.9;
+        const jz = z + (hash2(z, x + k.z) - 0.5) * step * 0.9;
+        const d = Math.hypot(jx - k.x, jz - k.z);
+        if (d > reach || d < k.r * 0.28) continue;
+        if (fbDesignWater(jx, jz) || forestBasinOnTrail(jx, jz) || nearGate(jx, jz)) continue;
+        if (anchors.some((a) => Math.hypot(a.x - jx, a.z - jz) < 2.4)) continue;
+        const asc = fbAscentAt(jx, jz);
+        if (asc && asc.dist < asc.ascent.halfWidth + 0.8) continue;
+        const gx = (forestBasinGroundY(jx + 0.75, jz) - forestBasinGroundY(jx - 0.75, jz)) / 1.5;
+        const gz = (forestBasinGroundY(jx, jz + 0.75) - forestBasinGroundY(jx, jz - 0.75)) / 1.5;
+        const g = Math.hypot(gx, gz);
+        const h = hash2(Math.floor(jx * 2), Math.floor(jz * 2));
+        const h2 = hash2(Math.floor(jz * 3), Math.floor(jx * 3));
+        const toward = ((jx - k.x) * ax + (jz - k.z) * az) / Math.max(d, 0.1);
+        // The pit wall is the ground itself. Props stay on the gentler grass and floor.
+        if (g > 0.7) continue;
+        if (!firm(jx, jz)) continue;
+        const approach = toward > 0.05 && d > k.r * 0.75 && d < k.r * 1.65;
+        const outer = d > k.r * 1.5;
+        if (outer) {
+          if (h < 0.5) continue;
+          lip(jx, jz, 0.38 + h * 0.32, (h2 - 0.5) * 0.8);
+          continue;
+        }
+        if (!approach) {
+          if (h < 0.74) continue;
+          if (h2 > 0.55) at(K.cairn, jx, jz, h * 6.28, 0.7 + h * 0.35);
+          else lip(jx, jz, 0.4 + h * 0.25, h * 6.28);
+          continue;
+        }
+        if (h < 0.42) continue;
+        if (h2 > 0.45) at(K.cairn, jx, jz, h * 6.28, h > 0.84 ? 1.35 + h * 0.55 : 0.75 + h * 0.4);
+        else lip(jx, jz, 0.48 + h * 0.28, h * 6.28);
+      }
+    }
+  }
+  // Cut faces of the Graven Cuts and the walls of Rook's Throat: rock where the ground steps.
+  const face = (cx: number, cz: number, r: number) => {
+    for (let z = cz - r; z <= cz + r; z += 2.5) for (let x = cx - r; x <= cx + r; x += 2.5) {
+      if (Math.hypot(x - cx, z - cz) > r || fbDesignWater(x, z)) continue;
+      const gx = (forestBasinGroundY(x + 0.75, z) - forestBasinGroundY(x - 0.75, z)) / 1.5;
+      const gz = (forestBasinGroundY(x, z + 0.75) - forestBasinGroundY(x, z - 0.75)) / 1.5;
+      const g = Math.hypot(gx, gz);
+      if (g < 1.1) continue;
+      const asc = fbAscentAt(x, z);
+      if ((asc && asc.dist < asc.ascent.halfWidth + 0.8) || fbTrailDist(x, z) < 2 || anchors.some((m) => Math.hypot(m.x - x, m.z - z) < 2.5)) continue;
+      // face looks downhill; base at the foot of the step
+      const ux = -gx / g, uz = -gz / g;
+      const lo = forestBasinGroundY(x + ux * 1.2, z + uz * 1.2), hi = forestBasinGroundY(x - ux * 1.2, z - uz * 1.2);
+      if (hi - lo < 1) continue;
+      wall(x + ux * 0.3, z + uz * 0.3, Math.atan2(ux, uz), 2.8, hi - lo + 0.1, lo);
+    }
+  };
+  // The Graven Cuts: a cut face wherever one bench drops to the next, so the faces follow the tiers.
+  {
+    const q = FB_QUARRY, st = 1.6;
+    const bench = (x: number, z: number) => Math.round((forestBasinGroundY(x, z) - 0.15) / q.bench);
+    for (let z = q.z - q.r; z <= q.z + q.r; z += st) for (let x = q.x - q.r; x <= q.x + q.r; x += st) {
+      if (Math.hypot(x - q.x, z - q.z) > q.r - 3) continue;
+      for (const [nx, nz] of [[x + st, z], [x, z + st]] as const) {
+        const b0 = bench(x, z), b1 = bench(nx, nz);
+        if (b0 === b1) continue;
+        const mx = (x + nx) / 2, mz = (z + nz) / 2;
+        if (fbDesignWater(mx, mz) || fbTrailDist(mx, mz) < 2 || anchors.some((m) => Math.hypot(m.x - mx, m.z - mz) < 2.5)) continue;
+        const asc = fbAscentAt(mx, mz);
+        if (asc && asc.dist < asc.ascent.halfWidth + 0.8) continue;
+        const lo = Math.min(forestBasinGroundY(x, z), forestBasinGroundY(nx, nz)), hi = Math.max(forestBasinGroundY(x, z), forestBasinGroundY(nx, nz));
+        if (hi - lo < 1) continue;
+        // face looks toward the lower bench
+        const ux = (b0 < b1 ? x - nx : nx - x) / st, uz = (b0 < b1 ? z - nz : nz - z) / st;
+        // the face itself is cut rock in the ground; only spoil lies at its foot
+        if (hash2(mx * 3, mz * 3) > 0.55) at(K.stone, mx + ux * 1.1, mz + uz * 1.1, hash2(mz, mx) * 6.28, 0.5 + hash2(mx, mz) * 0.5);
+      }
+    }
+  }
+  void face; // gorge walls are shaped rock in the terrain now
+  // The Wright's Veil is drawn by the engine from the .wfl fall layout; a
+  // falls prop here doubled it as a striped pillar in front of the sheet.
+  // The Cold Forges: three dead hearths on the south bank with the scavengers.
+  const forges = FB_POIS.find((p) => p.id === "cold-forges") ?? { x: -56, z: 72 };
+  for (const [dx, dz] of [[-3.5, -2], [3, -2.5], [0, 3.5]] as const) {
+    const px = forges.x + dx, pz = forges.z + dz;
+    const fx = px + 1.1, fz = pz + 0.4;
+    if (anchors.some((m) => Math.hypot(m.x - px, m.z - pz) < 2.5)) continue;
+    if (!firm(px, pz) || fbDesignWater(px, pz) || forestBasinInOpenWater(px, pz)) continue;
+    if (!firm(fx, fz) || fbDesignWater(fx, fz) || forestBasinInOpenWater(fx, fz)) continue;
+    out.push({ kind: K.ruinArch, v: 1, x: px, z: pz, y: forestBasinStandHeight(px, pz) - 0.45, yaw: dx + 0.3 * hash2(px, pz), s: 3.6, w: 0, h: 0, d: 0 });
+    at(K.firePit, fx, fz);
+  }
+  // The wood, plus reeds on the banks.
   const { minX, maxX, minZ, maxZ } = FOREST_BASIN_BOUNDS;
-  for (let iz = minZ + 8; iz <= maxZ - 8; iz += 6.8) {
-    for (let ix = minX + 8; ix <= maxX - 8; ix += 6.2) {
+  for (let iz = minZ + 8; iz <= maxZ - 8; iz += 5.6) {
+    for (let ix = minX + 8; ix <= maxX - 8; ix += 5.2) {
       const jx = ix + (hash2(ix, iz) - 0.5) * 4;
       const jz = iz + (hash2(iz, ix) - 0.5) * 4;
-      if (!forestBasinWalkable(jx, jz)) continue;
-      if (forestBasinOnTrail(jx, jz)) continue;
+      if (forestBasinOnTrail(jx, jz) || fbDesignWater(jx, jz)) continue;
       const b = forestBasinBiome(jx, jz);
-      if (b === "hub_indoor" || b === "river" || b === "bridge" || b === "mountain") continue;
       const h = hash2(Math.floor(jx * 2), Math.floor(jz * 2));
-      if (h < 0.45) continue;
-      const kind = h > 0.72 ? K.pine : K.spruce;
+      if (nearGate(jx, jz) || anchors.some((a) => Math.hypot(a.x - jx, a.z - jz) < 3.2)) continue;
+      if (b === "riverbank") {
+        if (h > 0.4) at(K.reed, jx, jz, h * 6.28, 1);
+        continue;
+      }
+      if (!firm(jx, jz) || b === "bridge" || b === "mountain") continue;
+      if (Math.hypot(jx - FB_CAMP.x, jz - FB_CAMP.z) < FB_CAMP.r + 3) continue;
+      if (Math.hypot(jx - FB_QUARRY.x, jz - FB_QUARRY.z) < FB_QUARRY.r - 2) continue; // bare cut rock
+      if (FB_SINKS.some((k) => Math.hypot(jx - k.x, jz - k.z) < k.r * 1.7)) continue; // bare pit and rim
+      if (FB_WARP_SITES.some((w) => Math.hypot(jx - w.x, jz - w.z) < w.r + 3)) continue;
+      if (near.some((q) => Math.hypot(jx - q.x, jz - q.z) < q.r)) continue;
+      if (fbTrailDist(jx, jz) < 5.5 || fbAqueductDist(jx, jz) < 7.5 || anchors.some((a) => Math.hypot(a.x - jx, a.z - jz) < 3.2)) continue;
+      if (b === "meadow") {
+        if (h > 0.8) at(K.bloom, jx, jz, h * 6.28, 1);
+        else if (h > 0.6) at(K.bush, jx, jz, h * 6.28, 1);
+        continue;
+      }
+      if (h < 0.3) continue;
+      const kind = h > 0.7 ? K.pine : h > 0.4 ? K.spruce : K.fern;
       out.push({
         kind, v: 0, x: jx, z: jz, y: forestBasinStandHeight(jx, jz),
-        yaw: h * 6.28, s: 3.2 + h * 1.4, w: 0, h: 0, d: 0,
+        yaw: h * 6.28, s: kind === K.fern ? 1 : 3.2 + h * 1.4, w: 0, h: 0, d: 0,
       });
     }
   }

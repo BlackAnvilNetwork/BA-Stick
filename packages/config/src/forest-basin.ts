@@ -1,21 +1,38 @@
 /**
- * Forest Basin — blank map canvas (terrain reset).
+ * Forest Basin: a wooded bowl sculpted with the map-builder Map tab.
  *
  * Area sheet
- * 1. Bounds: x -160..160, z -160..160. 102_400 m², about 455 screens.
- *    Grid 641×641 at 0.5 m. Bake 24 + 4×641×641 = 1_643_548 B.
- * 2. Walkable mask: flat meadow pad inset 4 m from the box edge.
- *    Outside the pad is blocked highland (mountain). ~100% of the pad is walkable.
- * 3. Relief: flat 2.0 m across the pad. Hard cap 2.0 m.
- * 4. No rivers, trails, or bridges until authored here.
- * 5. Exits: south lip (Hollow Road) and southeast gap (Spur Road) stay wired.
- *    Other lips remain blocked placeholders.
- * 6. Landmarks: `FB_MAP_LABELS` (canvas label only).
+ * 1. Bounds: x -160..160, z -160..160. Grid 641x641 at 0.5 m when baked.
+ * 2. Ground: `forest-basin-terrain.ts`, folded from the builder overlay by
+ *    `tools/map-builder/fold.ts`. Never hand-edit; sculpt and fold again.
+ * 3. Water, bridges, trails, ascents, warp rings and places:
+ *    `forest-basin-features.ts`. The Briarwater and Coldrun fall from the
+ *    Graven Fells into the Stillmere; the Sinkwater drains it east to the Swallow.
+ *    Water at or under 0.5 m is a ford (wadeable); deeper water needs a bridge.
+ * 4. Exits: south lip (Hollow Road) and southeast gap (Spur Road). Other lips stay blocked.
  *
  * North is +z.
  */
 
+import { fbShoreFillAt } from "./forest-basin-shore";
+import { gradedCorridorY } from "./trail-geom";
 import { zoneLink } from "./zone-links";
+import {
+  FB_BRIDGES,
+  FB_PLACES,
+  FB_RIVERS,
+  FB_STILLMERE,
+  FB_TRAIL_DEFS,
+  FB_WADE_DEPTH,
+  FB_WARP_SITES,
+  fbBridgeAt,
+  fbDesignWater,
+  fbOnFallFace,
+  fbBridgeDeckY,
+  fbBridgeT,
+  fbTrailDist,
+} from "./forest-basin-features";
+import { FB_TERRAIN_B64, FB_TERRAIN_N } from "./forest-basin-terrain";
 
 export const FOREST_BASIN_BOUNDS = {
   minX: -160,
@@ -27,16 +44,14 @@ export const FOREST_BASIN_BOUNDS = {
 export const FB_TRAIL_WIDTH = 3.3;
 export const FB_BRIDGE_DECK_W = 3.9;
 
-/** Legacy exports — unused on the blank canvas; kept for importers. */
-export const FB_LAKE = { x: 0, z: 115, r: 0, surface: 2.0 } as const;
-export const FB_CAMP = { x: 0, z: 0, r: 0, floorY: 2.0 } as const;
-export const FB_MOUNTAINS: readonly { x: number; z: number; r: number; h: number }[] = [];
-export const FB_BRIDGE = { id: "valley-cross", z: 75, halfSpan: 0, halfDeck: 0 } as const;
+/** Kettle Hollow, the camp and hub. */
+export const FB_CAMP = { x: 14, z: -100, r: 9, floorY: 3.2 } as const;
+/** The Stillmere (legacy single-lake export; the shore is `FB_STILLMERE.outline`). */
+export const FB_LAKE = { x: 78, z: 22, r: 0, surface: FB_STILLMERE.surface } as const;
 
-export const FB_SPAWN = { x: 0, z: 0, facing: 0 } as const;
+export const FB_SPAWN = { x: 12, z: -100, facing: 0 } as const;
 
 const PAD = 4;
-const FLOOR_Y = 2.0;
 
 export type ForestBasinGate = {
   id: string;
@@ -97,20 +112,78 @@ export function forestBasinMaskDist(x: number, z: number): number {
   return Math.hypot(dx, dz);
 }
 
-export function forestBasinRiverX(_z: number): number {
-  return 0;
+let terrain: Uint8Array | null = null;
+function grid(): Uint8Array {
+  if (!terrain) {
+    const bin = atob(FB_TERRAIN_B64);
+    terrain = new Uint8Array(bin.length);
+    for (let k = 0; k < bin.length; k++) terrain[k] = bin.charCodeAt(k);
+  }
+  return terrain;
+}
+function cellIndex(x: number, z: number): number {
+  const i = Math.max(0, Math.min(FB_TERRAIN_N - 1, Math.round(x - FOREST_BASIN_BOUNDS.minX)));
+  const j = Math.max(0, Math.min(FB_TERRAIN_N - 1, Math.round(z - FOREST_BASIN_BOUNDS.minZ)));
+  return j * FB_TERRAIN_N + i;
+}
+function cm(i: number, j: number): number {
+  const g = grid();
+  const ii = Math.max(0, Math.min(FB_TERRAIN_N - 1, i));
+  const jj = Math.max(0, Math.min(FB_TERRAIN_N - 1, j));
+  const o = (jj * FB_TERRAIN_N + ii) * 3;
+  const v = g[o]! | (g[o + 1]! << 8);
+  return v & 0x8000 ? v - 0x10000 : v;
+}
+function cellFlags(x: number, z: number): number {
+  return grid()[cellIndex(x, z) * 3 + 2]!;
 }
 
-export function forestBasinInOpenWater(_x: number, _z: number): boolean {
-  return false;
+/** Sculpted ground (bed under water), bilinear over the 1 m grid. */
+export function forestBasinGroundY(x: number, z: number): number {
+  const fx = x - FOREST_BASIN_BOUNDS.minX;
+  const fz = z - FOREST_BASIN_BOUNDS.minZ;
+  const i = Math.floor(fx);
+  const j = Math.floor(fz);
+  const tx = fx - i;
+  const tz = fz - j;
+  const a = cm(i, j) + (cm(i + 1, j) - cm(i, j)) * tx;
+  const b = cm(i, j + 1) + (cm(i + 1, j + 1) - cm(i, j + 1)) * tx;
+  return (a + (b - a) * tz) / 100;
+}
+
+/** Legacy: x of the Briarwater nearest z (first river). */
+export function forestBasinRiverX(z: number): number {
+  const p = FB_RIVERS[0]!.points;
+  let best = p[0]!;
+  for (const q of p) if (Math.abs(q.z - z) < Math.abs(best.z - z)) best = q;
+  return best.x;
+}
+
+/** Shore cleanup (juts, thin bars) flooded at this point; shared with the bake. */
+function shoreFill(x: number, z: number): number | null {
+  return fbShoreFillAt(x, z, FOREST_BASIN_BOUNDS, forestBasinGroundY);
+}
+
+/** Build the shore grid now (about 2 s) so the first walk check does not stall. */
+export function forestBasinPrebuildShore(): void {
+  shoreFill(FOREST_BASIN_BOUNDS.minX, FOREST_BASIN_BOUNDS.minZ);
+}
+
+export function forestBasinOnBridge(x: number, z: number): boolean {
+  return fbBridgeAt(x, z) != null;
+}
+
+/** Any water not under a bridge, fords included, so wading water still reads as water. */
+export function forestBasinInOpenWater(x: number, z: number): boolean {
+  if (forestBasinOnBridge(x, z)) return false;
+  if (fbDesignWater(x, z) != null) return true;
+  if (forestBasinOnTrail(x, z)) return false;
+  return shoreFill(x, z) != null;
 }
 
 export function forestBasinBridgeCenter(): { x: number; z: number } {
-  return { x: 0, z: 0 };
-}
-
-export function forestBasinOnBridge(_x: number, _z: number): boolean {
-  return false;
+  const b = FB_BRIDGES[0]!;
+  return { x: (b.a.x + b.b.x) / 2, z: (b.a.z + b.b.z) / 2 };
 }
 
 export function forestBasinWalkable(x: number, z: number): boolean {
@@ -118,26 +191,77 @@ export function forestBasinWalkable(x: number, z: number): boolean {
   for (const g of FB_GATES) {
     if (g.blocked && inRect(x, z, g)) return false;
   }
-  return true;
+  if (forestBasinOnBridge(x, z)) return true;
+  if (fbOnFallFace(x, z)) return false;
+  // Painted street wins over a river hem: the corridor is the road, even when
+  // design water clips the edge. Open-water still reports true for VFX/mobs.
+  if (forestBasinOnTrail(x, z)) return true;
+  const w = fbDesignWater(x, z);
+  if (w) return w.depth <= FB_WADE_DEPTH;
+  const sf = shoreFill(x, z);
+  if (sf != null) return sf - forestBasinGroundY(x, z) <= FB_WADE_DEPTH;
+  const f = cellFlags(x, z);
+  if (f & 8) return true;
+  return (f & 4) === 0;
 }
 
-export function forestBasinWaterSurfaceY(_x: number, _z: number): number | null {
-  return null;
+export function forestBasinWaterSurfaceY(x: number, z: number): number | null {
+  return fbDesignWater(x, z)?.surface ?? shoreFill(x, z);
 }
 
-export function forestBasinStandHeight(_x: number, _z: number): number {
-  return FLOOR_Y;
+/** Spine samples skip water so the 8 m filter does not sag into a river. The last 8 m eases to the deck so the road does not cliff into the abutment. */
+function trailBedY(x: number, z: number): number {
+  if (forestBasinInOpenWater(x, z) || fbDesignWater(x, z) != null) return Number.NaN;
+  const g = forestBasinGroundY(x, z);
+  let pin: number | null = null;
+  let pinD = Infinity;
+  for (const b of FB_BRIDGES) {
+    const da = Math.hypot(x - b.a.x, z - b.a.z);
+    const db = Math.hypot(x - b.b.x, z - b.b.z);
+    if (da < 8 && da < pinD) {
+      pin = b.yA;
+      pinD = da;
+    }
+    if (db < 8 && db < pinD) {
+      pin = b.yB;
+      pinD = db;
+    }
+  }
+  if (pin == null) return g;
+  if (pinD < 4) return pin;
+  const k = 1 - (pinD - 4) / 4;
+  return g + (pin - g) * k;
+}
+
+export function forestBasinStandHeight(x: number, z: number): number {
+  const b = fbBridgeAt(x, z);
+  if (b) return fbBridgeDeckY(b, fbBridgeT(b, x, z));
+  const grade = gradedCorridorY(x, z, FB_TRAIL_DEFS, FB_TRAIL_WIDTH / 2, trailBedY);
+  if (grade != null) return grade;
+  return forestBasinGroundY(x, z);
 }
 
 export function forestBasinHeight(x: number, z: number): number {
   return forestBasinStandHeight(x, z);
 }
 
-export type ForestBasinBiome = "grass" | "meadow" | "mountain";
+export type ForestBasinBiome = "grass" | "meadow" | "mountain" | "river" | "riverbank" | "bridge";
 
 export function forestBasinBiome(x: number, z: number): ForestBasinBiome {
-  if (!inPad(x, z) || !forestBasinWalkable(x, z)) return "mountain";
-  return "meadow";
+  if (forestBasinOnBridge(x, z)) return "bridge";
+  if (fbOnFallFace(x, z)) return "river";
+  if (fbDesignWater(x, z)) return "river";
+  if (!inPad(x, z)) return "mountain";
+  const f = cellFlags(x, z) & 3;
+  if (f === 3) return "mountain";
+  for (const [dx, dz] of [
+    [3, 0], [-3, 0], [0, 3], [0, -3],
+    [2.2, 2.2], [2.2, -2.2], [-2.2, 2.2], [-2.2, -2.2],
+  ] as const) {
+    if (fbDesignWater(x + dx, z + dz)) return "riverbank";
+  }
+  if (f === 2) return "meadow";
+  return "grass";
 }
 
 export type ForestBasinTrail = {
@@ -147,19 +271,32 @@ export type ForestBasinTrail = {
 };
 
 export function forestBasinTrails(): ForestBasinTrail[] {
-  return [];
+  return FB_TRAIL_DEFS.map((t) => ({ id: t.id, surface: t.surface, points: t.points.map((p) => ({ x: p.x, z: p.z })) }));
 }
 
-export function forestBasinOnTrail(_x: number, _z: number): boolean {
-  return false;
+export function forestBasinOnTrail(x: number, z: number): boolean {
+  return fbTrailDist(x, z) <= FB_TRAIL_WIDTH / 2;
 }
 
-export const FB_ROAD_NAMES: Readonly<Record<string, string>> = {};
+export const FB_ROAD_NAMES: Readonly<Record<string, string>> = Object.fromEntries(FB_TRAIL_DEFS.map((t) => [t.id, t.name]));
 
 export type ForestBasinLabelKind = "area" | "camp" | "landmark" | "water";
 
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
 export const FB_MAP_LABELS: readonly { text: string; x: number; z: number; kind: ForestBasinLabelKind }[] = [
-  { text: "Forest Basin", x: 0, z: 0, kind: "area" },
+  { text: "Forest Basin", x: -40, z: -20, kind: "area" },
+  ...FB_PLACES.map((p) => ({
+    text: cap(p.name),
+    x: p.x,
+    z: p.z,
+    kind: (p.kind === "camp" ? "camp" : p.kind === "water" ? "water" : "landmark") as ForestBasinLabelKind,
+  })),
+  ...FB_WARP_SITES.map((w) => ({ text: cap(w.name), x: w.x, z: w.z + 4, kind: "landmark" as ForestBasinLabelKind })),
+  ...FB_RIVERS.map((r) => {
+    const p = r.points[Math.floor(r.points.length / 3)]!;
+    return { text: cap(r.name), x: p.x, z: p.z, kind: "water" as ForestBasinLabelKind };
+  }),
 ];
 
 export function forestBasinClamp(x: number, z: number): { x: number; z: number } {
