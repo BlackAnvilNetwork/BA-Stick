@@ -7840,12 +7840,15 @@ const SAVE_INTERVAL_MS = 15_000;
 setInterval(() => {
   for (const p of players.values()) rememberPlayer(p);
 }, SAVE_INTERVAL_MS);
+{
+  // Forest Basin shore grid: build before accepting players, not on the first step.
+  const t0 = Date.now();
+  forestBasinPrebuildShore();
+  console.log(`[bellgrave] forest basin shore grid ready in ${Date.now() - t0} ms`);
+}
 httpServer.listen(PORT, () => {
   console.log(`[bellgrave] game server on ws://localhost:${PORT}`);
   console.log(
     `[bellgrave] ops probes http://localhost:${PORT}/health|/ready|/status`,
   );
-  const t0 = Date.now();
-  forestBasinPrebuildShore();
-  console.log(`[bellgrave] forest basin shore grid ready in ${Date.now() - t0} ms`);
 });

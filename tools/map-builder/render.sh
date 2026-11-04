@@ -9,7 +9,7 @@ ENGINE="${ENGINE:-/workspace/wt-lighting/engine}"
 EX="$ENGINE/target/release/examples"
 mkdir -p "$OUT"
 cd "$ROOT/apps/stick-web"
-NODE_PATH="$ROOT/apps/server/node_modules" "$ROOT/apps/server/node_modules/.bin/tsx" scripts/bake-zones.ts forest_basin
+[ -n "${SKIP_BAKE:-}" ] || NODE_PATH="$ROOT/apps/server/node_modules" "$ROOT/apps/server/node_modules/.bin/tsx" scripts/bake-zones.ts forest_basin
 BAZ="$ROOT/apps/stick-web/public/zones/forest_basin.baz"
 BAP="$ROOT/apps/stick-web/public/zones/forest_basin.bap"
 LIGHTS="$(NODE_PATH="$ROOT/apps/server/node_modules" "$ROOT/apps/server/node_modules/.bin/tsx" "$ROOT/tools/map-builder/lights-arg.ts")"
