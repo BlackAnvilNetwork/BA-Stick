@@ -1,5 +1,5 @@
 {
- "$comment": "Ability VFX table (#13). Keyed by AbilityId; each entry is a list of steps. 'generic' = default self-cast burst. [] = no effect (rest). Colours are RGB hex, used additively.",
+ "$comment": "Ability VFX table (#13). Keyed by AbilityId; each entry is a list of steps. 'generic' = default self-cast burst. [] = no effect (rest). Colours are RGB hex, used additively. Signature moves keep each job's motif: silver/crimson ward, violet smoke, sky/gold light, elemental lances, iron/oxblood shock, teal/bronze runes, chrona ash on time only.",
  "colors": {
   "fire": "ff8a2a",
   "ice": "a6e8ff",
@@ -13,7 +13,14 @@
   "time": "5fe0f0",
   "physical": "ffe2a8",
   "enfeeble": "c070ff",
-  "protect": "9fc8ff"
+  "protect": "9fc8ff",
+  "silver": "e4eef8",
+  "crimson": "ff4d5c",
+  "iron": "c6ced8",
+  "oxblood": "ff2a32",
+  "teal": "3ecfa0",
+  "bronze": "e8a24a",
+  "ash": "ddd6c8"
  },
  "generic": [
   {
@@ -37,7 +44,22 @@
  "abilities": {
   "rest": [],
   "bulwark": [
-   "generic"
+   {
+    "prim": "ring",
+    "at": "self",
+    "color": "silver",
+    "count": 24,
+    "radius": 1.1,
+    "rise": true
+   },
+   {
+    "prim": "burst",
+    "at": "self",
+    "color": "crimson",
+    "count": 12,
+    "radius": 0.32,
+    "rise": true
+   }
   ],
   "provoke": [
    {
@@ -50,11 +72,17 @@
   ],
   "shield_bash": [
    {
+    "prim": "line",
+    "at": "target",
+    "color": "silver",
+    "count": 14
+   },
+   {
     "prim": "burst",
     "at": "target",
-    "color": "physical",
-    "count": 28,
-    "radius": 0.5
+    "color": "crimson",
+    "count": 18,
+    "radius": 0.42
    }
   ],
   "cover": [
@@ -246,11 +274,27 @@
   ],
   "sacred_mercy": [
    {
+    "prim": "line",
+    "at": "self",
+    "from": "sky",
+    "color": "holy",
+    "count": 22
+   },
+   {
     "prim": "ring",
     "at": "self",
-    "color": "physical",
-    "count": 112,
-    "radius": 14
+    "color": "protect",
+    "count": 40,
+    "radius": 2.6,
+    "rise": true
+   },
+   {
+    "prim": "burst",
+    "at": "self",
+    "color": "holy",
+    "count": 18,
+    "radius": 0.55,
+    "rise": true
    }
   ],
   "divine_seal": [
@@ -279,11 +323,19 @@
   ],
   "cl_cure": [
    {
+    "prim": "ring",
+    "at": "target",
+    "color": "protect",
+    "count": 16,
+    "radius": 0.6,
+    "rise": true
+   },
+   {
     "prim": "burst",
     "at": "target",
-    "color": "heal",
-    "count": 40,
-    "radius": 0.5,
+    "color": "holy",
+    "count": 14,
+    "radius": 0.35,
     "rise": true
    }
   ],
@@ -666,7 +718,21 @@
    }
   ],
   "ghost_step": [
-   "generic"
+   {
+    "prim": "burst",
+    "at": "self",
+    "color": "dark",
+    "count": 22,
+    "radius": 0.55,
+    "rise": true
+   },
+   {
+    "prim": "burst",
+    "at": "self",
+    "color": "dark",
+    "count": 8,
+    "radius": 0.22
+   }
   ],
   "purse_cut": [
    {
@@ -678,7 +744,19 @@
    }
   ],
   "backblade": [
-   "generic"
+   {
+    "prim": "line",
+    "at": "target",
+    "color": "dark",
+    "count": 12
+   },
+   {
+    "prim": "burst",
+    "at": "target",
+    "color": "dark",
+    "count": 8,
+    "radius": 0.25
+   }
   ],
   "dust_runner": [
    "generic"
@@ -711,7 +789,21 @@
    }
   ],
   "arcane_flood": [
-   "generic"
+   {
+    "prim": "ring",
+    "at": "self",
+    "color": "dark",
+    "count": 36,
+    "radius": 1.7
+   },
+   {
+    "prim": "burst",
+    "at": "self",
+    "color": "water",
+    "count": 18,
+    "radius": 0.55,
+    "rise": true
+   }
   ],
   "elemental_seal": [
    "generic"
@@ -736,7 +828,15 @@
     "prim": "projectile",
     "at": "target",
     "color": "fire",
-    "count": 24
+    "count": 18
+   },
+   {
+    "prim": "burst",
+    "at": "target",
+    "color": "fire",
+    "count": 10,
+    "radius": 0.35,
+    "rise": true
    }
   ],
   "sc_ember_lance_ii": [
@@ -744,7 +844,15 @@
     "prim": "projectile",
     "at": "target",
     "color": "fire",
-    "count": 24
+    "count": 22
+   },
+   {
+    "prim": "burst",
+    "at": "target",
+    "color": "fire",
+    "count": 12,
+    "radius": 0.4,
+    "rise": true
    }
   ],
   "sc_ember_lance_iii": [
@@ -752,7 +860,15 @@
     "prim": "projectile",
     "at": "target",
     "color": "fire",
-    "count": 24
+    "count": 26
+   },
+   {
+    "prim": "burst",
+    "at": "target",
+    "color": "fire",
+    "count": 14,
+    "radius": 0.45,
+    "rise": true
    }
   ],
   "sc_ember_lance_iv": [
@@ -760,7 +876,15 @@
     "prim": "projectile",
     "at": "target",
     "color": "fire",
-    "count": 24
+    "count": 30
+   },
+   {
+    "prim": "burst",
+    "at": "target",
+    "color": "fire",
+    "count": 16,
+    "radius": 0.5,
+    "rise": true
    }
   ],
   "sc_ember_rain": [
@@ -825,34 +949,62 @@
   ],
   "sc_gravel_shard": [
    {
-    "prim": "projectile",
+    "prim": "line",
     "at": "target",
     "color": "stone",
-    "count": 24
+    "count": 8
+   },
+   {
+    "prim": "burst",
+    "at": "target",
+    "color": "stone",
+    "count": 14,
+    "radius": 0.5
    }
   ],
   "sc_gravel_shard_ii": [
    {
-    "prim": "projectile",
+    "prim": "line",
     "at": "target",
     "color": "stone",
-    "count": 24
+    "count": 10
+   },
+   {
+    "prim": "burst",
+    "at": "target",
+    "color": "stone",
+    "count": 16,
+    "radius": 0.55
    }
   ],
   "sc_gravel_shard_iii": [
    {
-    "prim": "projectile",
+    "prim": "line",
     "at": "target",
     "color": "stone",
-    "count": 24
+    "count": 12
+   },
+   {
+    "prim": "burst",
+    "at": "target",
+    "color": "stone",
+    "count": 18,
+    "radius": 0.6
    }
   ],
   "sc_gravel_shard_iv": [
    {
-    "prim": "projectile",
+    "prim": "line",
     "at": "target",
     "color": "stone",
-    "count": 24
+    "count": 14
+   },
+   {
+    "prim": "burst",
+    "at": "target",
+    "color": "stone",
+    "count": 22,
+    "radius": 0.65
    }
   ],
   "sc_gravel_storm": [
@@ -920,7 +1072,14 @@
     "prim": "projectile",
     "at": "target",
     "color": "water",
-    "count": 24
+    "count": 16
+   },
+   {
+    "prim": "ring",
+    "at": "target",
+    "color": "water",
+    "count": 18,
+    "radius": 1.05
    }
   ],
   "sc_tidebreak_ii": [
@@ -928,7 +1087,14 @@
     "prim": "projectile",
     "at": "target",
     "color": "water",
-    "count": 24
+    "count": 18
+   },
+   {
+    "prim": "ring",
+    "at": "target",
+    "color": "water",
+    "count": 22,
+    "radius": 1.15
    }
   ],
   "sc_tidebreak_iii": [
@@ -936,7 +1102,14 @@
     "prim": "projectile",
     "at": "target",
     "color": "water",
-    "count": 24
+    "count": 20
+   },
+   {
+    "prim": "ring",
+    "at": "target",
+    "color": "water",
+    "count": 24,
+    "radius": 1.25
    }
   ],
   "sc_tidebreak_iv": [
@@ -944,7 +1117,14 @@
     "prim": "projectile",
     "at": "target",
     "color": "water",
-    "count": 24
+    "count": 22
+   },
+   {
+    "prim": "ring",
+    "at": "target",
+    "color": "water",
+    "count": 28,
+    "radius": 1.35
    }
   ],
   "sc_tide_surge": [
@@ -1012,7 +1192,15 @@
     "prim": "projectile",
     "at": "target",
     "color": "wind",
-    "count": 24
+    "count": 14
+   },
+   {
+    "prim": "ring",
+    "at": "target",
+    "color": "wind",
+    "count": 20,
+    "radius": 1.9,
+    "rise": true
    }
   ],
   "sc_gale_cut_ii": [
@@ -1020,7 +1208,15 @@
     "prim": "projectile",
     "at": "target",
     "color": "wind",
-    "count": 24
+    "count": 16
+   },
+   {
+    "prim": "ring",
+    "at": "target",
+    "color": "wind",
+    "count": 24,
+    "radius": 2.1,
+    "rise": true
    }
   ],
   "sc_gale_cut_iii": [
@@ -1028,7 +1224,15 @@
     "prim": "projectile",
     "at": "target",
     "color": "wind",
-    "count": 24
+    "count": 18
+   },
+   {
+    "prim": "ring",
+    "at": "target",
+    "color": "wind",
+    "count": 28,
+    "radius": 2.3,
+    "rise": true
    }
   ],
   "sc_gale_cut_iv": [
@@ -1036,7 +1240,15 @@
     "prim": "projectile",
     "at": "target",
     "color": "wind",
-    "count": 24
+    "count": 20
+   },
+   {
+    "prim": "ring",
+    "at": "target",
+    "color": "wind",
+    "count": 32,
+    "radius": 2.5,
+    "rise": true
    }
   ],
   "sc_gale_front": [
@@ -1101,34 +1313,62 @@
   ],
   "sc_rime_needle": [
    {
-    "prim": "projectile",
+    "prim": "line",
     "at": "target",
     "color": "ice",
-    "count": 24
+    "count": 16
+   },
+   {
+    "prim": "burst",
+    "at": "target",
+    "color": "ice",
+    "count": 6,
+    "radius": 0.2
    }
   ],
   "sc_rime_needle_ii": [
    {
-    "prim": "projectile",
+    "prim": "line",
     "at": "target",
     "color": "ice",
-    "count": 24
+    "count": 20
+   },
+   {
+    "prim": "burst",
+    "at": "target",
+    "color": "ice",
+    "count": 8,
+    "radius": 0.22
    }
   ],
   "sc_rime_needle_iii": [
    {
-    "prim": "projectile",
+    "prim": "line",
     "at": "target",
     "color": "ice",
     "count": 24
+   },
+   {
+    "prim": "burst",
+    "at": "target",
+    "color": "ice",
+    "count": 10,
+    "radius": 0.24
    }
   ],
   "sc_rime_needle_iv": [
    {
-    "prim": "projectile",
+    "prim": "line",
     "at": "target",
     "color": "ice",
-    "count": 24
+    "count": 28
+   },
+   {
+    "prim": "burst",
+    "at": "target",
+    "color": "ice",
+    "count": 12,
+    "radius": 0.26
    }
   ],
   "sc_rime_squall": [
@@ -1196,7 +1436,15 @@
     "prim": "line",
     "at": "target",
     "color": "volt",
-    "count": 40
+    "count": 28
+   },
+   {
+    "prim": "burst",
+    "at": "target",
+    "color": "volt",
+    "count": 12,
+    "radius": 0.38,
+    "rise": true
    }
   ],
   "sc_volt_arc_ii": [
@@ -1204,7 +1452,15 @@
     "prim": "line",
     "at": "target",
     "color": "volt",
-    "count": 40
+    "count": 34
+   },
+   {
+    "prim": "burst",
+    "at": "target",
+    "color": "volt",
+    "count": 14,
+    "radius": 0.42,
+    "rise": true
    }
   ],
   "sc_volt_arc_iii": [
@@ -1213,6 +1469,14 @@
     "at": "target",
     "color": "volt",
     "count": 40
+   },
+   {
+    "prim": "burst",
+    "at": "target",
+    "color": "volt",
+    "count": 16,
+    "radius": 0.46,
+    "rise": true
    }
   ],
   "sc_volt_arc_iv": [
@@ -1220,7 +1484,15 @@
     "prim": "line",
     "at": "target",
     "color": "volt",
-    "count": 40
+    "count": 46
+   },
+   {
+    "prim": "burst",
+    "at": "target",
+    "color": "volt",
+    "count": 18,
+    "radius": 0.5,
+    "rise": true
    }
   ],
   "sc_volt_chain": [
@@ -1369,10 +1641,37 @@
    }
   ],
   "killing_storm": [
-   "generic"
+   {
+    "prim": "ring",
+    "at": "self",
+    "color": "iron",
+    "count": 20,
+    "radius": 1.35
+   },
+   {
+    "prim": "burst",
+    "at": "self",
+    "color": "oxblood",
+    "count": 16,
+    "radius": 0.45
+   }
   ],
   "berserk": [
-   "generic"
+   {
+    "prim": "burst",
+    "at": "self",
+    "color": "oxblood",
+    "count": 18,
+    "radius": 0.4,
+    "rise": true
+   },
+   {
+    "prim": "burst",
+    "at": "self",
+    "color": "iron",
+    "count": 12,
+    "radius": 0.7
+   }
   ],
   "warcry": [
    {
@@ -1414,7 +1713,22 @@
    "generic"
   ],
   "spellblade": [
-   "generic"
+   {
+    "prim": "ring",
+    "at": "self",
+    "color": "teal",
+    "count": 24,
+    "radius": 0.85,
+    "rise": true
+   },
+   {
+    "prim": "burst",
+    "at": "self",
+    "color": "bronze",
+    "count": 14,
+    "radius": 0.32,
+    "rise": true
+   }
   ],
   "convert": [
    "generic"
@@ -1447,9 +1761,25 @@
    {
     "prim": "ring",
     "at": "self",
+    "color": "bronze",
+    "count": 14,
+    "radius": 0.5,
+    "rise": true
+   },
+   {
+    "prim": "burst",
+    "at": "self",
     "color": "fire",
-    "count": 28,
-    "radius": 0.7,
+    "count": 12,
+    "radius": 0.28,
+    "rise": true
+   },
+   {
+    "prim": "burst",
+    "at": "self",
+    "color": "teal",
+    "count": 8,
+    "radius": 0.18,
     "rise": true
    }
   ],
@@ -1793,9 +2123,24 @@
     "prim": "ring",
     "at": "target",
     "color": "time",
-    "count": 30,
-    "radius": 0.8,
+    "count": 20,
+    "radius": 0.7,
     "rise": true
+   },
+   {
+    "prim": "burst",
+    "at": "target",
+    "color": "ash",
+    "count": 8,
+    "radius": 0.28,
+    "rise": true
+   },
+   {
+    "prim": "burst",
+    "at": "target",
+    "color": "holy",
+    "count": 6,
+    "radius": 0.16
    }
   ],
   "quicken_ii": [
@@ -1803,9 +2148,24 @@
     "prim": "ring",
     "at": "target",
     "color": "time",
-    "count": 30,
-    "radius": 0.8,
+    "count": 26,
+    "radius": 0.85,
     "rise": true
+   },
+   {
+    "prim": "burst",
+    "at": "target",
+    "color": "ash",
+    "count": 10,
+    "radius": 0.32,
+    "rise": true
+   },
+   {
+    "prim": "burst",
+    "at": "target",
+    "color": "holy",
+    "count": 8,
+    "radius": 0.18
    }
   ],
   "tempo": [
@@ -2047,15 +2407,23 @@
     "prim": "ring",
     "at": "self",
     "color": "time",
-    "count": 140,
-    "radius": 15
+    "count": 56,
+    "radius": 3.8
+   },
+   {
+    "prim": "ring",
+    "at": "self",
+    "color": "ash",
+    "count": 28,
+    "radius": 2.1
    },
    {
     "prim": "burst",
     "at": "self",
-    "color": "time",
-    "count": 50,
-    "radius": 1.0
+    "color": "holy",
+    "count": 16,
+    "radius": 0.5,
+    "rise": true
    }
   ],
   "metronome": [
@@ -2648,6 +3016,16 @@
     "count": 36,
     "radius": 0.6
    }
-  ]
+  ],
+  "map_undo": [],
+  "map_raise": [],
+  "map_lower": [],
+  "map_flat": [],
+  "map_smooth": [],
+  "map_biome_grass": [],
+  "map_biome_meadow": [],
+  "map_biome_mountain": [],
+  "map_walk": [],
+  "map_block": []
  }
 }

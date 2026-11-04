@@ -9,6 +9,7 @@ import {
   defenseFromVit,
   evasionFromAgi,
   fStr,
+  accuracyWithDistract,
   hitChance,
   jobStatsAtLevel,
   jobVitalsAtLevel,
@@ -60,6 +61,8 @@ export type MobJobCombatant = {
   silenceUntil: number;
   slowUntil: number;
   swingPenalty: number;
+  distractUntil?: number;
+  distractAcc?: number;
 };
 
 /** Live player ref — abilities may write CC fields. */
@@ -498,7 +501,11 @@ export function mobAutoAttackRoll(
   // Silenced casters still swing — mute magic autos only.
   const magic = mobAutoIsMagic(mob, now);
   const atkMul = (now < mob.atkBuffUntil ? mob.atkBuffMul || 1 : 1) * (now < mob.atkDownUntil ? mob.atkDownMul || 1 : 1);
-  const mobAcc = stats.dex + 40;
+  const mobAcc = accuracyWithDistract(
+    stats.dex + 40,
+    now < (mob.distractUntil ?? 0) ? (mob.distractAcc ?? 0) : 0,
+    0,
+  );
   const playerEva = evasionFromAgi(target.agi);
   if (rollUnit("mob.ai.auto-hit") > hitChance(mobAcc, playerEva)) {
     return { hit: false, dmg: 0, anim: magic ? "cast" : "melee" };

@@ -96,7 +96,8 @@ export function App() {
       const keyIdx = hotbarIndexFromCode(e.code);
       if (keyIdx != null) {
         e.preventDefault();
-        const id = hotbarAbilityAt(keyIdx, e.shiftKey ? 1 : 0);
+        const row = e.altKey ? 2 : e.shiftKey ? 1 : 0;
+        const id = hotbarAbilityAt(keyIdx, row);
         if (id) castAbility(id);
         return;
       }

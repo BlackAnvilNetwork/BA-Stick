@@ -13,6 +13,7 @@ import { withGearMab, withHealPotency } from "./gear-combat";
 import type { AbilityId } from "@bellgrave/protocol";
 import { rollUnit } from "./game-roll";
 import { activeMobEnhances, stripMobEnhances, takeMobHit } from "./mob-enhances";
+import { veiledByGhostStep } from "./pvp-foe";
 
 export type BattleMagePlayer = {
   wallet: string;
@@ -188,7 +189,7 @@ export function resolveBattleMageAbility(
     return true;
   }
 
-  const spellblade = now < p.spellbladeUntil;
+  const spellblade = id !== "spellblade" && now < p.spellbladeUntil;
   const readyAt = p.recasts[id] ?? 0;
   if (!spellblade && now < readyAt) {
     hooks.pushLog(p, `${def.label} not ready.`);
@@ -302,6 +303,10 @@ export function resolveBattleMageAbility(
     }
     if (hooks.dist(p.x, p.z, m.x, m.z) > (def.range ?? 12)) {
       hooks.pushLog(p, "Too far.");
+      return true;
+    }
+    if (veiledByGhostStep(m, now)) {
+      hooks.pushLog(p, "Violet smoke — the spell finds no one.");
       return true;
     }
     if (now >= p.enSpellUntil) {
@@ -492,6 +497,10 @@ export function resolveBattleMageAbility(
     hooks.pushLog(p, "Too far.");
     return true;
   }
+  if (veiledByGhostStep(m, now)) {
+    hooks.pushLog(p, "Violet smoke — the spell finds no one.");
+    return true;
+  }
 
   p.facing = hooks.facingTo(p.x, p.z, m.x, m.z);
 
@@ -509,6 +518,7 @@ export function resolveBattleMageAbility(
       let total = 0;
       for (const hit of hooks.allMobs()) {
         if (!hit.alive) continue;
+        if (veiledByGhostStep(hit, now)) continue;
         if (hooks.dist(m.x, m.z, hit.x, hit.z) > r) continue;
         const d = takeMobHit(hit, Math.max(1, Math.floor(dmg * (hit.id === m.id ? 1 : 0.75))), "magic", now);
         hit.hp -= d;

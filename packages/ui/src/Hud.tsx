@@ -84,6 +84,39 @@ import { useGame } from "@bellgrave/client-core/state";
 
 const HOTBAR_KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"] as const;
 const HOTBAR_SHIFT_KEYS = ["S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8", "S9", "S0"] as const;
+const HOTBAR_ALT_KEYS = ["A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A9", "A0"] as const;
+
+/** Framed hotbar art is 1024×533. Wells are inner pixels: slots 1–10, Rest, Potion. */
+const HUD_FRAME = { w: 1024, h: 533 } as const;
+const HUD_WELLS: readonly (readonly [number, number, number, number])[] = [
+  [144, 422, 195, 476],
+  [206, 422, 257, 476],
+  [268, 422, 319, 476],
+  [329, 422, 381, 476],
+  [391, 422, 444, 476],
+  [453, 422, 506, 476],
+  [515, 422, 568, 476],
+  [578, 422, 628, 476],
+  [639, 422, 690, 476],
+  [699, 422, 748, 476],
+  [761, 422, 811, 476],
+  [823, 422, 875, 476],
+];
+
+function hudWellStyle(index: number): {
+  left: string;
+  top: string;
+  width: string;
+  height: string;
+} {
+  const [x0, y0, x1, y1] = HUD_WELLS[index]!;
+  return {
+    left: `${(x0 / HUD_FRAME.w) * 100}%`,
+    top: `${(y0 / HUD_FRAME.h) * 100}%`,
+    width: `${((x1 - x0) / HUD_FRAME.w) * 100}%`,
+    height: `${((y1 - y0) / HUD_FRAME.h) * 100}%`,
+  };
+}
 
 /** Live slots for keybinds (updated by Hud). */
 let liveHotbarSlots: HotbarSlots = Array.from({ length: HOTBAR_SLOT_COUNT }, () => null);
@@ -281,6 +314,7 @@ function SkillButton({
   draggable = true,
   hotbarIndex,
   onHotbarDrop,
+  appearance = "default",
 }: {
   id: CombatAbilityId;
   keyLabel?: string;
@@ -293,6 +327,8 @@ function SkillButton({
   /** When set, this button is a hotbar slot (drop target + optional rearrange). */
   hotbarIndex?: number;
   onHotbarDrop?: (slotIndex: number, abilityId: CombatAbilityId | null, fromSlot: number | null) => void;
+  /** `well` is an icon in the framed bar. `mark` is a clear hit target over baked art (Rest). */
+  appearance?: "default" | "well" | "mark";
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const tip = hudAbilityTip(id);
@@ -365,6 +401,8 @@ function SkillButton({
           hasteOn ? "quicken-on" : "",
           onCd ? "on-cd" : "",
           hotbarIndex != null ? "hotbar-slot" : "",
+          appearance === "well" ? "frame-well" : "",
+          appearance === "mark" ? "frame-mark" : "",
         ]
           .filter(Boolean)
           .join(" ")}
@@ -386,9 +424,9 @@ function SkillButton({
         onDragOver={onDragOver}
         onDrop={onDrop}
       >
-        {keyLabel != null && <span className="skill-key">{keyLabel}</span>}
-        <AbilityIcon id={id} />
-        <span className="skill-name">{abilityLabel(id)}</span>
+        {appearance === "default" && keyLabel != null && <span className="skill-key">{keyLabel}</span>}
+        {appearance !== "mark" && <AbilityIcon id={id} />}
+        {appearance === "default" && <span className="skill-name">{abilityLabel(id)}</span>}
         {onCd && (
           <span className="skill-cd" style={{ ["--cd" as string]: String(cdPct) }} aria-label={`${cdSec}s cooldown`}>
             <span className="skill-cd-veil" />
@@ -517,10 +555,13 @@ function EmptyHotbarSlot({
   keyLabel,
   slotIndex,
   onHotbarDrop,
+  appearance = "default",
 }: {
   keyLabel: string;
   slotIndex: number;
   onHotbarDrop: (slotIndex: number, abilityId: CombatAbilityId | null, fromSlot: number | null) => void;
+  /** `well` leaves the baked numeral visible. */
+  appearance?: "default" | "well";
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const dismissTip = () => {
@@ -541,7 +582,7 @@ function EmptyHotbarSlot({
     >
       <button
         type="button"
-        className="skill-slot hotbar-slot empty"
+        className={`skill-slot hotbar-slot empty${appearance === "well" ? " frame-well" : ""}`}
         aria-label={`Empty hotbar slot ${keyLabel}. Drop an ability here.`}
         onClick={dismissTip}
         onDragOver={(e) => {
@@ -563,8 +604,12 @@ function EmptyHotbarSlot({
           dismissTip();
         }}
       >
-        <span className="skill-key">{keyLabel}</span>
-        <span className="skill-glyph empty-glyph">·</span>
+        {appearance === "default" && (
+          <>
+            <span className="skill-key">{keyLabel}</span>
+            <span className="skill-glyph empty-glyph">·</span>
+          </>
+        )}
       </button>
       <div className="skill-tip" role="tooltip">
         <div className="skill-tip-title">Empty slot</div>
@@ -747,7 +792,8 @@ export function Hud() {
   };
 
   const hotbarRow1 = hotbarSlots.slice(0, HOTBAR_ROW_LEN);
-  const hotbarRow2 = hotbarSlots.slice(HOTBAR_ROW_LEN, HOTBAR_SLOT_COUNT);
+  const hotbarRow2 = hotbarSlots.slice(HOTBAR_ROW_LEN, HOTBAR_ROW_LEN * 2);
+  const hotbarRow3 = hotbarSlots.slice(HOTBAR_ROW_LEN * 2, HOTBAR_SLOT_COUNT);
   const restUnlocked = (snapshot?.you.unlocked ?? []).includes("rest");
 
   const bookByCategory = useMemo(() => {
@@ -845,24 +891,28 @@ export function Hud() {
             <span className="wallet">{shortWallet}</span>
           </div>
           <div className="hud-vitals">
-            <div className="vital">
-              <span className="vital-label">HP</span>
-              <div className="vital-bar hp">
-                <i style={{ width: `${hpPct}%` }} />
-              </div>
-              <span className="vital-num">
-                {me.hp}/{me.maxHp}
-              </span>
-            </div>
-            <div className="vital">
-              <span className="vital-label">MP</span>
-              <div className="vital-bar mp">
-                <i style={{ width: `${mpPct}%` }} />
-              </div>
-              <span className="vital-num">
-                {me.mp}/{me.maxMp}
-              </span>
-            </div>
+            {mobileLayout && (
+              <>
+                <div className="vital">
+                  <span className="vital-label">HP</span>
+                  <div className="vital-bar hp">
+                    <i style={{ width: `${hpPct}%` }} />
+                  </div>
+                  <span className="vital-num">
+                    {me.hp}/{me.maxHp}
+                  </span>
+                </div>
+                <div className="vital">
+                  <span className="vital-label">MP</span>
+                  <div className="vital-bar mp">
+                    <i style={{ width: `${mpPct}%` }} />
+                  </div>
+                  <span className="vital-num">
+                    {me.mp}/{me.maxMp}
+                  </span>
+                </div>
+              </>
+            )}
             <div className="vital">
               <span className="vital-label">TP</span>
               <div className="vital-bar tp">
@@ -1329,36 +1379,135 @@ export function Hud() {
             onPotion={() => send({ type: "item/use", tokenId: ITEM.POTION })}
           />
         ) : (
-          <div className="hud-hotbar-stack">
-            {hotbarRow1.map((id, i) =>
-              id ? (
+          <div className="hud-action-plate">
+            <img className="hud-action-frame" src="/ui/hud/hotbar.png" alt="" draggable={false} />
+            <img
+              className="hud-action-fill hp"
+              src="/ui/hud/health.png"
+              alt=""
+              draggable={false}
+              style={{ ["--p" as string]: String(Math.max(0, Math.min(1, me.maxHp ? me.hp / me.maxHp : 0))) }}
+            />
+            <img
+              className="hud-action-fill mp"
+              src="/ui/hud/mana.png"
+              alt=""
+              draggable={false}
+              style={{ ["--p" as string]: String(Math.max(0, Math.min(1, me.maxMp ? me.mp / me.maxMp : 0))) }}
+            />
+            <div
+              className="hud-crescent-read hp"
+              role="meter"
+              aria-label="Health"
+              aria-valuemin={0}
+              aria-valuemax={me.maxHp}
+              aria-valuenow={me.hp}
+            >
+              <span className="hud-crescent-k">HP</span>
+              <span className="hud-crescent-n">{me.hp}</span>
+              <span className="hud-crescent-m">/ {me.maxHp}</span>
+            </div>
+            <div
+              className="hud-crescent-read mp"
+              role="meter"
+              aria-label="Mana"
+              aria-valuemin={0}
+              aria-valuemax={me.maxMp}
+              aria-valuenow={me.mp}
+            >
+              <span className="hud-crescent-k">MP</span>
+              <span className="hud-crescent-n">{me.mp}</span>
+              <span className="hud-crescent-m">/ {me.maxMp}</span>
+            </div>
+            <div className="hud-aux-rows">
+              <div className="hud-aux-row" aria-label="Alt hotbar">
+                {hotbarRow3.map((id, i) => {
+                  const slotIndex = HOTBAR_ROW_LEN * 2 + i;
+                  return id ? (
+                    <SkillButton
+                      key={`r2-${i}`}
+                      id={id}
+                      keyLabel={HOTBAR_ALT_KEYS[i]}
+                      now={now}
+                      recasts={recasts}
+                      me={me}
+                      hotbarIndex={slotIndex}
+                      onHotbarDrop={handleHotbarDrop}
+                    />
+                  ) : (
+                    <EmptyHotbarSlot
+                      key={`r2-${i}`}
+                      keyLabel={HOTBAR_ALT_KEYS[i]!}
+                      slotIndex={slotIndex}
+                      onHotbarDrop={handleHotbarDrop}
+                    />
+                  );
+                })}
+              </div>
+              <div className="hud-aux-row" aria-label="Shift hotbar">
+                {hotbarRow2.map((id, i) => {
+                  const slotIndex = HOTBAR_ROW_LEN + i;
+                  return id ? (
+                    <SkillButton
+                      key={`r1-${i}`}
+                      id={id}
+                      keyLabel={HOTBAR_SHIFT_KEYS[i]}
+                      now={now}
+                      recasts={recasts}
+                      me={me}
+                      hotbarIndex={slotIndex}
+                      onHotbarDrop={handleHotbarDrop}
+                    />
+                  ) : (
+                    <EmptyHotbarSlot
+                      key={`r1-${i}`}
+                      keyLabel={HOTBAR_SHIFT_KEYS[i]!}
+                      slotIndex={slotIndex}
+                      onHotbarDrop={handleHotbarDrop}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+            {hotbarRow1.map((id, i) => (
+              <div key={`r0-${i}`} className="hud-action-well" style={hudWellStyle(i)}>
+                {id ? (
+                  <SkillButton
+                    id={id}
+                    keyLabel={HOTBAR_KEYS[i]}
+                    now={now}
+                    recasts={recasts}
+                    me={me}
+                    hotbarIndex={i}
+                    onHotbarDrop={handleHotbarDrop}
+                    appearance="well"
+                  />
+                ) : (
+                  <EmptyHotbarSlot
+                    keyLabel={HOTBAR_KEYS[i]!}
+                    slotIndex={i}
+                    onHotbarDrop={handleHotbarDrop}
+                    appearance="well"
+                  />
+                )}
+              </div>
+            ))}
+            <div className="hud-action-well" style={hudWellStyle(10)}>
+              {restUnlocked ? (
                 <SkillButton
-                  key={`r0-${i}`}
-                  id={id}
-                  keyLabel={HOTBAR_KEYS[i]}
+                  id="rest"
+                  keyLabel="R"
                   now={now}
                   recasts={recasts}
                   me={me}
-                  hotbarIndex={i}
-                  onHotbarDrop={handleHotbarDrop}
+                  draggable={false}
+                  appearance="mark"
                 />
               ) : (
-                <EmptyHotbarSlot
-                  key={`r0-${i}`}
-                  keyLabel={HOTBAR_KEYS[i]!}
-                  slotIndex={i}
-                  onHotbarDrop={handleHotbarDrop}
-                />
-              ),
-            )}
-            <div className="hud-hotbar-utility">
-              {restUnlocked ? (
-                <SkillButton id="rest" keyLabel="R" now={now} recasts={recasts} me={me} draggable={false} />
-              ) : (
-                <div className="skill-wrap" aria-hidden>
-                  <div className="skill-slot empty" style={{ visibility: "hidden" }} />
-                </div>
+                <div className="frame-locked" title="Rest is locked" />
               )}
+            </div>
+            <div className="hud-action-well" style={hudWellStyle(11)}>
               <div
                 className="skill-wrap tip-above"
                 onPointerLeave={(e) => e.currentTarget.classList.remove("tip-dismissed")}
@@ -1366,17 +1515,15 @@ export function Hud() {
               >
                 <button
                   type="button"
-                  className="skill-slot potion"
-                  aria-label="Potion. Restore HP. Key Q."
+                  className="skill-slot frame-mark frame-potion"
+                  aria-label={`Potion. Restore HP. Key Q. ${potions} left.`}
                   onClick={(e) => {
                     send({ type: "item/use", tokenId: ITEM.POTION });
                     e.currentTarget.closest(".skill-wrap")?.classList.add("tip-dismissed");
                     e.currentTarget.blur();
                   }}
                 >
-                    <span className="skill-key">Q</span>
-                    <AbilityIcon id="potion" />
-                    <span className="skill-name">Potion×{potions}</span>
+                  <span className="frame-potion-count">{potions}</span>
                 </button>
                 <div className="skill-tip" role="tooltip">
                   <div className="skill-tip-title">Potion</div>
@@ -1385,36 +1532,6 @@ export function Hud() {
                   </div>
                   <div className="skill-tip-meta">Item · Key Q · ×{potions}</div>
                 </div>
-              </div>
-            </div>
-            {hotbarRow2.map((id, i) => {
-              const slotIndex = HOTBAR_ROW_LEN + i;
-              return id ? (
-                <SkillButton
-                  key={`r1-${i}`}
-                  id={id}
-                  keyLabel={HOTBAR_SHIFT_KEYS[i]}
-                  now={now}
-                  recasts={recasts}
-                  me={me}
-                  hotbarIndex={slotIndex}
-                  onHotbarDrop={handleHotbarDrop}
-                />
-              ) : (
-                <EmptyHotbarSlot
-                  key={`r1-${i}`}
-                  keyLabel={HOTBAR_SHIFT_KEYS[i]!}
-                  slotIndex={slotIndex}
-                  onHotbarDrop={handleHotbarDrop}
-                />
-              );
-            })}
-            <div className="hud-hotbar-utility hud-hotbar-utility-spacer" aria-hidden>
-              <div className="skill-wrap">
-                <div className="skill-slot" />
-              </div>
-              <div className="skill-wrap">
-                <div className="skill-slot" />
               </div>
             </div>
           </div>
@@ -1426,7 +1543,7 @@ export function Hud() {
             <span className="hud-log-hints">
               {mobileLayout
                 ? "Sticks · Face 1–8 · Flick Skills stick · R Rest · Q Potion · K Book · B Character"
-                : "WASD · Drag book→bar · 1–0 · Shift+1–0 · R Rest · Q Potion · K Book · B Character · C Craft"}
+                : "WASD · Drag book→bar · 1–0 · Shift+1–0 · Alt+1–0 · R Rest · Q Potion · K Book · B Character · C Craft"}
             </span>
           </div>
           <div className="hud-log-body mmo-scroll">
@@ -1921,7 +2038,7 @@ function CreatePanel() {
   );
 }
 
-/** Exported for App keybinds — row 0 = 1–0, row 1 = Shift+1–0. */
+/** Exported for App keybinds — row 0 = 1–0, row 1 = Shift+1–0, row 2 = Alt+1–0. */
 export function hotbarAbilityAt(index: number, row = 0): AbilityId | null {
   return liveHotbarSlots[row * HOTBAR_ROW_LEN + index] ?? null;
 }

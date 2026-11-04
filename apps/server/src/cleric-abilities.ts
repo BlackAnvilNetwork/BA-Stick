@@ -13,6 +13,7 @@ import { gearHealPotency, withGearMab, withHealPotency } from "./gear-combat";
 import type { AbilityId } from "@bellgrave/protocol";
 import { ailmentLabel, clearAilments, diseasedHeal, naTargets } from "./player-ailments";
 import { takeMobHit, type MobEnhanceHost } from "./mob-enhances";
+import { veiledByGhostStep } from "./pvp-foe";
 
 export type ClericPlayer = {
   level: number;
@@ -556,6 +557,7 @@ export function resolveClericAbility(
     let hit = 0;
     for (const m of hooks.allMobs()) {
       if (!m.alive) continue;
+      if (veiledByGhostStep(m, now)) continue;
       if (hooks.dist(p.x, p.z, m.x, m.z) > r) continue;
       m.blindUntil = now + (def.durationMs ?? 12_000);
       hit++;
@@ -576,6 +578,10 @@ export function resolveClericAbility(
     }
     if (hooks.dist(p.x, p.z, m.x, m.z) > (def.range ?? 12)) {
       hooks.pushLog(p, "Too far.");
+      return true;
+    }
+    if (veiledByGhostStep(m, now)) {
+      hooks.pushLog(p, "Violet smoke — the spell finds no one.");
       return true;
     }
     spend();
@@ -600,6 +606,10 @@ export function resolveClericAbility(
     }
     if (hooks.dist(p.x, p.z, m.x, m.z) > (def.range ?? 12)) {
       hooks.pushLog(p, "Too far.");
+      return true;
+    }
+    if (veiledByGhostStep(m, now)) {
+      hooks.pushLog(p, "Violet smoke — the spell finds no one.");
       return true;
     }
     spend();

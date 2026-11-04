@@ -480,8 +480,8 @@ export const TIM_ABILITIES: Record<TimAbilityId, TimAbilityDef> = {
     glyph: "TD",
     unlockLevel: 1,
     mp: 0,
-    /** TEMP: 20s for playtest — restore 2h for ship. */
-    recastMs: 20_000,
+    /** Two-hour. A 20s recast let the 60s petrify be refreshed before it ended. */
+    recastMs: 2 * 60 * 60 * 1000,
     category: "ja",
     aoe: 15,
     range: 15,
@@ -612,8 +612,8 @@ export function timSpellsForSale(level: number, learned: readonly string[]): Tim
 }
 
 /**
- * Default hotbar priority — one pick per combat role, then lower-tier fallbacks.
- * UI slices to ~10 keys; full kit lives in the spellbook tabs.
+ * Default hotbar — one spell per line, best unlocked first.
+ * Lower tiers and area copies stay in the spellbook.
  */
 export function timHotbarOrder(unlocked: readonly TimAbilityId[]): TimAbilityId[] {
   const set = new Set(unlocked);
@@ -652,12 +652,6 @@ export function timHotbarOrder(unlocked: readonly TimAbilityId[]): TimAbilityId[
     "distract",
     "frazzle",
     "addle",
-    "slowga",
-    "bindga",
-    "paralyga",
-    "silencega",
-    "gravityga",
-    "dispelga",
   ];
 
   // Prefer a single ability from each "line" so L75 doesn't fill the bar with every haste tier.

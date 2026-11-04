@@ -30,6 +30,43 @@ test("Unravel strips enhancements and leaves the list empty", () => {
   assert.equal(host.stoneskinAbsorb, 0);
 });
 
+test("dispel strips player wards that are not mob enhancements", () => {
+  const host = {
+    ...emptyMobEnhances(),
+    bulwarkUntil: NOW + 5_000,
+    berserkUntil: NOW + 5_000,
+    asylumUntil: NOW + 5_000,
+    phalanxUntil: NOW + 5_000,
+    phalanxPhysMul: 0.7,
+  };
+  const names = stripMobEnhances(host, NOW);
+  assert.deepEqual(names, ["Bulwark", "Asylum", "Phalanx", "Berserk"]);
+  assert.equal(host.bulwarkUntil, 0);
+  assert.equal(host.phalanxPhysMul, 1);
+  assert.deepEqual(stripMobEnhances(host, NOW), []);
+});
+
+test("a pvp victim's Bulwark cuts a physical hit and damage breaks sleep", () => {
+  const warded = {
+    ...emptyMobEnhances(),
+    pvpVictim: true,
+    bulwarkUntil: NOW + 1_000,
+    mp: 20,
+    sleepUntil: NOW + 5_000,
+  };
+  assert.equal(takeMobHit(warded, 40, "physical", NOW), 16);
+  assert.equal(warded.sleepUntil, 0);
+  const sleeping = {
+    ...emptyMobEnhances(),
+    pvpVictim: true,
+    mp: 20,
+    sleepUntil: NOW + 5_000,
+  };
+  const dealt = takeMobHit(sleeping, 40, "magic", NOW);
+  assert.ok(dealt > 0);
+  assert.equal(sleeping.sleepUntil, 0);
+});
+
 test("Protect, Shell, and Stoneskin change the hit that lands", () => {
   const protect = { ...emptyMobEnhances(), protectUntil: NOW + 1, protectPhysMul: 0.75 };
   assert.equal(takeMobHit(protect, 20, "physical", NOW), 15);

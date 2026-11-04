@@ -1,5 +1,5 @@
 /**
- * Customizable two-row hotbar (10 + 10). Persists per wallet+main+sub in localStorage.
+ * Customizable three-row hotbar (10 + 10 + 10). Persists per wallet+main+sub in localStorage.
  * Rest/Potion stay pinned off-bar; spellbook drag assigns slots.
  */
 import {
@@ -10,7 +10,7 @@ import {
 } from "@bellgrave/combat";
 
 export const HOTBAR_ROW_LEN = 10;
-export const HOTBAR_ROWS = 2;
+export const HOTBAR_ROWS = 3;
 export const HOTBAR_SLOT_COUNT = HOTBAR_ROW_LEN * HOTBAR_ROWS;
 
 export const HOTBAR_DRAG_MIME = "application/x-bellgrave-ability";
@@ -19,7 +19,7 @@ export const HOTBAR_SLOT_MIME = "application/x-bellgrave-hotbar-slot";
 export type HotbarSlots = (AbilityId | null)[];
 
 function storageKey(wallet: string, job: string, sub: string | null): string {
-  return `bellgrave-hotbar-v2:${wallet.toLowerCase()}:${job}:${sub ?? "-"}`;
+  return `bellgrave-hotbar-v3:${wallet.toLowerCase()}:${job}:${sub ?? "-"}`;
 }
 
 function emptySlots(): HotbarSlots {
