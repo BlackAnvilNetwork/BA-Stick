@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { FB_WARP_SITES } from "./forest-basin-features";
+import { PH_HUB_SPAWN, PH_OUTDOOR_SPAWN } from "./pale-hollow";
 import {
   PH_WARP_CIRCLES,
   PH_WARP_HUB_EXCEPTIONS,
@@ -24,6 +25,14 @@ describe("warp circles and the Scout Gate room", () => {
     }
     assert.equal(overlaps, 1);
     assert.equal(warpCircleHitsHub(warpCircleById("warp-mayflower")!), true);
+  });
+
+  it("keeps the Mayflower Ring clear of the Scout Gate spawn and other spawns (exception rationale)", () => {
+    const ring = warpCircleById("warp-mayflower")!;
+    for (const [id, p] of [["hub-spawn", PH_HUB_SPAWN], ["out-spawn", PH_OUTDOOR_SPAWN]] as const) {
+      const d = Math.hypot(p.x - ring.x, p.z - ring.z);
+      assert.ok(d >= ring.r + 1.5, `${id} is ${d.toFixed(2)} m from the Mayflower Ring`);
+    }
   });
 
   it("opens the Kettle, Scraped and Spurgate rings only inside Forest Basin", () => {

@@ -58,6 +58,13 @@ export const SHINY_LOOT_BY_ARCHETYPE: Record<PaleHollowArchetype, readonly strin
   seam_golem: ["iron-ore", "darksteel-ore", "mythril-ore", "orichalcum-ore", "metal-scrap"],
   // Wights / undead → elite bone + spectral precursors
   shard_wight: ["giant-femur", "skull-plate", "echo-extract", "parchment", "ash-dust"],
+  // Seam Country
+  crown_soldier: ["iron-ore", "tin-ore", "parchment", "shade-cotton", "metal-scrap"],
+  stag: ["desiccated-hide", "horn", "giant-femur", "shade-cotton", "bark-strip"],
+  drowned_one: ["skull-plate", "giant-femur", "slime-oil", "river-sand", "parchment"],
+  lamprey: ["stone-scale", "scale-hide", "poison-sac", "slime-oil", "river-sand"],
+  seam_drover: ["shade-cotton", "silk-thread", "desiccated-hide", "copper-ore", "tin-ore"],
+  penitent: ["parchment", "ink-salt", "skull-plate", "limestone", "ash-dust"],
 };
 
 export function shinyLootTable(archetype: string): readonly string[] {

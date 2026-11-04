@@ -128,7 +128,7 @@ Map placement follows §4 of the terrain worker's fields report. The eight field
 | Field | Land [generated terrain] | Ruin and contradiction [generated terrain hooks] |
 |---|---|---|
 | Hollow Road | Seam Ridge's north flank | Dressed-stone road shoulders: the pass was cut, not found. Seven "mile posts" form a ring. |
-| Forest Basin | Wooded basin north of the Hollow Road: Kettle Hollow, the Stillmere, the Graven Cuts and the sinks | The Crown burned the old wood and replanted it. A hall lies under the Stillmere with its name scraped off. Three rings: the Kettle Ring, the Scraped Ring, the Spurgate Ring. |
+| Forest Basin | Coil Gap rain basin, with North Mere / Ash-tarn and **West Ridge Cave** | A spoke trail dead-ends at a pond where royal maps show a village. The Counting Ring's trees are all one age (replanted). |
 | Spur Road | East Spur | Boundary stones the Crown's charters never mention |
 | Ring Ward | East Spur, with a walled ring-town and wharf basin | A paving circle older than the walls; the walls bend around it |
 | Islet Fords | The Seam Water's braided strait and islets | The river moved; the ring did not |

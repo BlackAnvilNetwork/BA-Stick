@@ -11,6 +11,8 @@ export interface UnitSink {
 /** Rig preset key: "<job|npc:role|mob:archetype>/<gender>". */
 export function presetFor(u: UnitSnapshot): string {
   if (u.gatherNode) return `gather:${gatherMethod(u)}`;
+  // Seam Country landmarks: a readable standing stone (click → npc/interact reads it).
+  if (u.kind === "npc" && u.archetype === "landmark") return "landmark";
   if (u.kind === "npc") return `npc:${u.npcRole ?? "guide"}`;
   if (u.kind === "mob") return `mob:${u.archetype ?? "mob"}`;
   if (u.job === "druid") {

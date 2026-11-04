@@ -17,7 +17,9 @@ import { ringWardProps } from "./zone-props/ring-ward";
 import { hollowRoadProps } from "./zone-props/hollow-road";
 import { spurRoadProps } from "./zone-props/spur-road";
 import { bootForgeMenuProps } from "./zone-props/boot-forge-menu";
+import { withSeamCamps } from "./zone-props/seam-country-camps";
 import { dirname, resolve } from "node:path";
+import { ecoMosaic, naturalBiome, trailVerge } from "./natural-edges";
 import { fileURLToPath } from "node:url";
 import {
   BOOT_FORGE_MENU_BOUNDS,
@@ -103,11 +105,15 @@ export function bakeZoneGrid(spec: BakeFns, cell = 0.5): Buffer {
   buf.writeUInt32LE(w, 16);
   buf.writeUInt32LE(h, 20);
   const bio = header, flg = header + w * h, hgt = header + w * h * 2;
+  const ownB = new Int16Array(w * h), trailD = new Float32Array(w * h);
+  let lo = Infinity, hi = -Infinity;
+  const natBiome = naturalBiome(spec.biome, (x, z) => spec.water(x, z) != null && (spec.openWater(x, z) || spec.onBridge(x, z)));
   for (let j = 0; j < h; j++) {
     for (let i = 0; i < w; i++) {
       const x = minX + i * cell, z = minZ + j * cell;
       const k = j * w + i;
-      const biome = spec.biome(x, z);
+      const biome = natBiome(x, z);
+      ownB[k] = BIOMES.indexOf(spec.biome(x, z) as (typeof BIOMES)[number]);
       let flags = 0;
       let y = spec.stand(x, z);
       const water = spec.water(x, z);
@@ -133,16 +139,35 @@ export function bakeZoneGrid(spec: BakeFns, cell = 0.5): Buffer {
       }
       if (!spec.walkable(x, z)) flags |= 8;
       if (!(flags & 5)) {
+        let td = Infinity;
         for (const s of segs) {
-          if (segDist(x, z, s) <= half) {
-            flags |= 2 | (s.stone ? 16 : 0);
-            break;
-          }
+          const d = segDist(x, z, s);
+          if (d < td) td = d;
+          if (!(flags & 2) && d <= trailVerge(x, z, half)) flags |= 2 | (s.stone ? 16 : 0);
         }
-      }
+        trailD[k] = td;
+      } else trailD[k] = Infinity;
       buf.writeUInt8(Math.max(0, BIOMES.indexOf(biome as (typeof BIOMES)[number])), bio + k);
       buf.writeUInt8(flags, flg + k);
       buf.writeInt16LE(Math.max(-32768, Math.min(32767, Math.round(y * 100))), hgt + k * 2);
+      if (!(flags & 9)) { lo = Math.min(lo, y); hi = Math.max(hi, y); }
+    }
+  }
+  // Ecology pass (visual only): mosaic the warped classes using slope / elevation / trail distance.
+  const span = Math.max(1, hi - lo);
+  const hAt = (i: number, j: number) => buf.readInt16LE(hgt + (Math.min(h - 1, Math.max(0, j)) * w + Math.min(w - 1, Math.max(0, i))) * 2) / 100;
+  for (let j = 0; j < h; j++) {
+    for (let i = 0; i < w; i++) {
+      const k = j * w + i;
+      const f = buf.readUInt8(flg + k);
+      if (f & 5) continue;
+      const own = BIOMES[ownB[k]!] ?? "grass";
+      const cur = BIOMES[buf.readUInt8(bio + k)]!;
+      const y = hAt(i, j);
+      const slope = Math.max(Math.abs(hAt(i + 2, j) - hAt(i - 2, j)), Math.abs(hAt(i, j + 2) - hAt(i, j - 2))) / (4 * cell);
+      const x = minX + i * cell, z = minZ + j * cell;
+      const e = ecoMosaic(own, cur, spec.biome, x, z, { slope, elev: (y - lo) / span, trailD: trailD[k]!, trailHalf: half, blocked: (f & 8) !== 0 });
+      buf.writeUInt8(Math.max(0, BIOMES.indexOf(e as (typeof BIOMES)[number])), bio + k);
     }
   }
   if (!spec.sharedShore) shoreCleanup(buf, w, h, bio, flg, hgt);
@@ -324,7 +349,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1
       walkable: spec.walkable,
       trails: spec.trails(),
       trailWidth: spec.trailWidth,
-    }), props());
+    }), withSeamCamps(id, props()));
   }
   console.log(`done in ${Date.now() - t0} ms`);
 }

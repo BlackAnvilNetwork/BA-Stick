@@ -112,6 +112,11 @@ impl Minimap {
         !self.tex.is_empty()
     }
 
+    /// Baked map texels (row-major, tex_size()). Read-only; used by the offline review renderer.
+    pub fn texels(&self) -> &[[u8; 4]] {
+        &self.tex
+    }
+
     pub fn tex_size(&self) -> (usize, usize) {
         (self.tw, self.th)
     }

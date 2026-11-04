@@ -1,3 +1,4 @@
+import { naturalSample } from "../scripts/natural-edges";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { K } from "../scripts/bake-props";
@@ -180,7 +181,7 @@ test("islet fords props stay under the budget and on the right ground", () => {
     } else if (p.kind === K.pine) {
       pines++;
       assert.equal(isletFordsWalkable(p.x, p.z), true);
-      assert.equal(isletFordsBiome(p.x, p.z), "grass");
+      assert.equal(naturalSample(isletFordsBiome, p.x, p.z), "grass"); // warped ground biome
     } else if (p.kind === K.leanTo) {
       leans++;
       assert.equal(isletFordsWalkable(p.x, p.z), true);

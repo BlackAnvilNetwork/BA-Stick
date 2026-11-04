@@ -243,12 +243,12 @@ Between Seam Ridge and the Ember Crown foothills, with the Westwall on the west,
 - **Ford-wardens**: keep the raised stone fords and causeways of the islets. Families bury their own at the West Cairn with old ferry coins.
 - **Ring-towners**: Crown toll-town folk of Ring Ward, whose walls bend around a paving circle nobody dared cut.
 
-**The circles.** Every field zone has at least one sunken circle of rune-stones. Only one of them, the **Chalk Ring** (The Sheepfold), is one of the five great rings. The others are **lesser circles**: waystones that carried the great rings' song across the land. They're smaller, they never had their own Time Mage keepers, and they can't be woken on their own (§13). Forest Basin's three lesser circles are the Kettle Ring, the Scraped Ring and the Spurgate Ring.
+**The nine circles.** Every field zone has a sunken circle of rune-stones (the generated warp remnants). Only one of them, the **Chalk Ring** (The Sheepfold), is one of the five great rings. The other eight are **lesser circles**: waystones that carried the great rings' song across the land. They're smaller, they never had their own Time Mage keepers, and they can't be woken on their own (§13).
 
 | Zone | Places (POIs) | Lesser circle | What the land says |
 |---|---|---|---|
 | Hollow Road | First Milestone, **The Seven Posts**, Dressed Shoulder | The Seven Posts | The pass was cut, not found. "No road has seven miles." |
-| Forest Basin | Kettle Hollow, **the Kettle Ring**, the Scraped Ring, the Spurgate Ring, the Sunk Hall, the Stillmere, the Swallow, the Graven Cuts, the Cold Forges, the Whitewashed Chapel | the Kettle Ring | The old wood was burned and replanted. A hall lies under the Stillmere with its name scraped off. |
+| Forest Basin | **Counting Ring**, Drowned Spoke, Valley Cross Graves, West Ridge Top, High Ridge Corner, Sealed Pass Shrine | Counting Ring | The basin was laid out around the circle; the village of **Merewick** was drowned and kept on the tithe map. |
 | Spur Road | **Seven-Stone Bench**, Toll-Keeper's Cairn | Seven-Stone Bench | A free hold counted in sevens; older tolls were paid in labour. |
 | Ring Ward | **Older Paving**, West Canal Steps, Wharf Tallies | Older Paving | The circle is older than the walls; Crown Wharfwardens chiselled the wharf's old sevens off the stones and cut tens. |
 | Islet Fords | West Cairn, **Islet Ring**, Broken Causeway | Islet Ring | The river moved; the ring held. |
@@ -261,17 +261,13 @@ Between Seam Ridge and the Ember Crown foothills, with the Westwall on the west,
 **Who walks Seam Country.** The Crown holds the roads with camps and patrols; the land's own people keep to lean-tos, folds and graves.
 - **Crown camps:** the **Tithe Booth** on Hollow Road, where Tithe-Takers take one work in seven up the King's Way; the **Spur Watch Fire** on Spur Road; the **Wharfwarden's Post** in Ring Ward.
 - **Outlaw and cult camps:** the **Drover Camp** on a Coil Pass ledge, where bandit drovers under **Crook Maddoc, the Drover Chief**, hold a switchback toll the Kings forgot to collect; the **Penitents' Whitewash Camp** beside the Stele Field on the Broken Stair, the cult's first outriders.
-- **Friendly camps:** Wick's Lean-to, Kettle Hollow, the Freeholder's Hearth, the Lampman's Stoop, the **Ferry Stage**, the **Herders' Fold**, the Pilgrim Shelter and Wenlo's Cell.
+- **Friendly camps:** Wick's Lean-to, the Trapper's Lean-to and Grave-Lamp, the Freeholder's Hearth, the Lampman's Stoop, the **Ferry Stage**, the **Herders' Fold**, the Pilgrim Shelter and Wenlo's Cell.
 
 | Field | Figure | Who they are |
 |---|---|---|
 | Hollow Road | **Wick Tallow, the Roadside Hermit** | Lives beside the Seven Posts and knows why the seventh stone is broken on purpose. |
-| Forest Basin | **Oswy Fernhallow** | Meets travellers at Kettle Hollow and points them up the Hollow Way. |
-| Forest Basin | **Hild Coalhurst** | Keeps the charcoal. Someone is lighting a hearth at the Cold Forges with it. |
-| Forest Basin | **Abel Coalhurst** | Burns timber from Brannock Grove for the kilns. |
-| Forest Basin | **Tobin Reede** | Copies what the scrapers left. He pays for a rubbing from the Merrow Stone, the Gannet Stone and Aldric's Waystone. |
-| Forest Basin | **Old Corwin Ashdown** | Knows the wheel-lock on the vault by the Kiln Path. |
-| Forest Basin | **Sister Pumice** | Cult-given name. Sends you to fetch an unopened pilgrim's pack from the bottom of Rook's Throat. |
+| Forest Basin | **Sister Ondine of the Graves** | Keeps a lamp at the Valley Cross Graves for drowned Merewick, which the Crown still taxes. |
+| Forest Basin | **Gerd Halloway, the Basin Trapper** | Sells hides to Mayflower's halls. |
 | Spur Road | **Old Hesk, the Last Freeholder** | Named, his family says, for Hesk Tallowmere; the last of a free hold counted in sevens. |
 | Ring Ward | **Marrow Quaylan, the Wharf Lampman** | Lights the wharf lamps and remembers the lockkeeper who kept the old sevens cut. |
 | Islet Fords | **Ferryman Tobin Reed** | Poles folk across from the Ferry Stage only in May, when the snowmelt drowns the fords. The rest of the year he keeps the stage as a ford-keeper who knows the safe stones, and buries ferrymen at the West Cairn. |
@@ -279,7 +275,7 @@ Between Seam Ridge and the Ember Crown foothills, with the Westwall on the west,
 | Coil Pass | **Brother Lantern, the Pass Pilgrim** | Walks the switchbacks to the Crown Stones and prays to the beacon that no longer burns. |
 | Coil Ridge (the Broken Stair) | **Ashen Wenlo, the Stair Hermit** | Lives in a cell by the Scarp Cave and watches the Penitents whitewash the steles. |
 
-**Seam Country's tasks.** The Seventh Post, One in Seven, The Cold Hearth, The Last Stones, The Wheel-Lock, The Pilgrim's Pack, Bounded in Sevens, Under the Cairn, Older Than the Walls, Seven Courses, The Ring Held, Eels on the Causeway, The View of Seven, Strays of the Reach, Crown Stones, Contraband Hides, The Scriveners' Oath, Seven Hands and Whitewash. Forest Basin's four tasks are in the game. The fragment tasks follow the trail in order and end at a circle.
+**Seam Country's tasks.** The Seventh Post, One in Seven, The Drowned Spoke, Hides for the Halls, Bounded in Sevens, Under the Cairn, Older Than the Walls, Seven Courses, The Ring Held, Eels on the Causeway, The View of Seven, Strays of the Reach, Crown Stones, Contraband Hides, The Scriveners' Oath, Seven Hands and Whitewash. Each fragment task follows the trail in order and ends at its circle.
 
 **Physics note.** Fords here are raised stone causeways and decks; there is no walkable water. Write them as stone fords, not wading.
 
@@ -593,10 +589,10 @@ The Revision didn't just lie; it **unstruck** people. Under the Struck Faith, th
 |---|---|---|---|---|
 | Tithe-Taker | Hollow Road | 13–14 | Crown service. | Pikemen who take the Tithe of Hands at the road: one work in seven goes up the King's Way. |
 | Toll Hound | Hollow Road | 13 | Patrol dogs. | The tithe patrol's dogs. |
-| Dust Hare, Pale Slime, Ashbeam Boar, Clay Crab, Cliff Adder | Forest Basin | 8–11 | Basin wildlife. | Hares in the bracken, slimes by the Veil, boars in the thorn, crabs on the Stillmere, adders at the spur and in Rook's Throat. |
-| Hollow Scavenger, Ruin Dweller | Forest Basin | 10–12 | Squatters. | Scavengers lighting a hearth at the Cold Forges, and dwellers in the ash. |
-| Seam Golem, Shard Wight | Forest Basin | 11–12 | Old guardians. | The vault's guardian on the Kiln Path, a golem in the Graven Cuts, a wight in the sinks. |
-| Brother Lime, Sister Chalk, Brother Whitewash | Forest Basin | 11–12 | Chapel keepers. | Cult-given names. They whitewash the stele at the Whitewashed Chapel. |
+| Mere Wolf | Forest Basin | 14–15 | Wolves. | Basin wildlife hunting the replanted wood. |
+| Blightback Boar | Forest Basin | 14–15 | Game. | A boar that grazed on the burn scar; ash-grey, pale-spined. |
+| Rootsick Stag | Forest Basin | 15 | Sick deer. | Drinks from the Drowned Spoke and won't leave the mere. |
+| The Merewick Hart (elite) | Forest Basin | 16 | A great stag. | The stag drowned Merewick counted as its own. |
 | Crown Outrider | Spur Road | 15–16 | Road wardens. | Patrols the spur so the free hold's boundary stones stay "lost." |
 | Spur Adder | Spur Road | 15 | Snakes. | Nests under the Toll-Keeper's Cairn. |
 | Wharf Drowned | Ring Ward | 16–17 | Drowning spirits. | Wharf hands lost when the canal was cut; they climbed into the inner lanes. |
@@ -732,7 +728,7 @@ The in-game pixel sky (first- and third-person views; it follows the server's da
 No god-king. The holy figures are the **Smith** (who struck first and left the Hammer), the **Witness** (the moon, who remembers) and the **Keeper of the Glass** (the hourglasses, who keeps time in order). The faith's centre is the **Witness-rite**: every true deed, once struck, lives in the Anvil and is honoured by being remembered.
 - **Rites:** striking a family's names into stone; the knock (three short, one long); "keeping a song" (memorising your ancestors); the chalk circle drawn and rubbed out.
 - **Sacred texts:** none written; the stones themselves. The **Scriveners' Oath** (the Twelfth Fragment) is its holiest found text.
-- **Shrines:** the Whitewashed Chapel, Hollow Stair Top, Scarp Cave Shrine.
+- **Shrines:** Sealed Pass Shrine, Hollow Stair Top, Scarp Cave Shrine.
 
 ### 15.2 The Crown Rite (official)
 The Kings aren't called gods. They're **the Hands of Order**, chosen by "the Flame That Was Quenched." People worship *order itself*: obedience, the Toll, the corrected history. Rites: the Whitening, reading the Book of Crowns on rest-days, bell tolls for the dead. Clergy are licensed Clerics. Sacred text: the Book of Crowns, opening with the *Book of Ash*. Holy sign: the seven-pointed crown.
@@ -742,7 +738,7 @@ The Kings aren't called gods. They're **the Hands of Order**, chosen by "the Fla
 |---|---|---|---|
 | **St. Hesk the Unwritten** | Struck (secret) | The seventh Scrivener, who refused and left the Hammer open. | A hammer drawn crosswise and rubbed out. |
 | **The Keeper Who Stayed** | Struck | A Time Mage who sat in the Chalk Ring through the Glass Purge, holding its runes in her head, until the Crownwardens walled her into the Shard. | An hourglass with one grain stuck. |
-| **The Keeper of the Stillmere** | Struck (Seam Country) | Buried the sunk hall's dead facing the water so they could see home. | Graves turned toward water. |
+| **Mother Merewick** | Struck (Seam Country) | Buried Merewick's dead facing the mere so they could see home. | Graves turned toward water. |
 | **St. Corrin of the Clean Page** | Crown | The first Corrector, who "freed" the Shard of its "false carvings." | Whitewash brush. Patron of the Whitening. |
 | **St. Aubre the Measured** | Crown | First Inspector of the Filter. | A sieve. Patron of graders. |
 | **The Bell-Mother** | Crown (Bellmarsh) | Cast the first bell "to keep out the drowning." | A bell. Patron of the Keep. |
@@ -782,7 +778,7 @@ The Kings aren't called gods. They're **the Hands of Order**, chosen by "the Fla
 - **The Hammer Left Lying.** Hesk walked out with nothing; the Hammer is still on the Anvil, crosswise, under the Citadel, waiting for any hand.
 - **The Keeper Who Stayed** (see §15.3). Hollowfolk children are told the Chalk Ring hums when she's thinking.
 - **Lanternfall.** Obsidia's old name; the city once hung lanterns on every ring-stone so travellers could find the Mirror Ring at night.
-- **The Hall They Left Named.** A hall flooded under the Stillmere. The Kings scraped the name off the lintel and still send someone to collect from people who are not there.
+- **Merewick's Map.** A village drowned and kept on the tithe map, so the Crown still collects its tax from nobody, every year.
 - **The Bell That Wouldn't.** The Silent Bell cracked itself on the day of the Drowning rather than ring over the screams.
 - **The Seventh Seat.** Courtiers say anyone who sits in it is unwritten by morning.
 
@@ -835,7 +831,7 @@ The trail exists as world data on the worldgen branch and is not yet wired into 
 | 3 | the Third Fragment, *The Mill Census* | Dry Millrace (Pale Hollow) | "Cut-stone race lining and a millstone half-buried in the creek bed. Sacks of grain once paid tithe here, in a census the Kings burned." |
 | 4 | the Fourth Fragment, *The Saddle Ruts* | Old Saddle (Pale Hollow) | "Wheel ruts worn a hand deep run over the lowest crest — the natural way north, older than the toll gate." |
 | 5 | the Fifth Fragment, *The Seventh Post* | The Seven Posts (Hollow Road) | "Seven stones in a ring beside the camp; no road has seven miles. They are a warp circle's boundary stones, the seventh deliberately broken." |
-| 6 | the Sixth Fragment, *The Drowned Hall* | the Sunk Hall (Forest Basin) | "Roof-beams show under the Stillmere. The Kings flooded the hall and scraped the name off the lintel." |
+| 6 | the Sixth Fragment, *The Drowned Village* | Drowned Spoke (Forest Basin) | "The spoke runs into the mere. Roof-beams show under the water; the village was flooded and kept on the map to collect its tithe." |
 | 7 | the Seventh Fragment, *The Boundary of Seven* | Seven-Stone Bench (Spur Road) | "Seven stones on the bench mark a boundary no charter names — the edge of a free hold, counted in sevens like the moorings." |
 | 8 | the Eighth Fragment, *The Older Paving* | Older Paving (Ring Ward) | "The paving circle is older than the walls; the walls bend around it because the builders dared not cut it." |
 | 9 | the Ninth Fragment, *The Ring Held* | Islet Ring (Islet Fords) | "Stones stand above the flood line on a dry islet. The river has moved; the ring has not." |
@@ -847,7 +843,7 @@ The trail exists as world data on the worldgen branch and is not yet wired into 
 
 The endpoint is not placed yet: Throne Approach has no field. Chapters II–IV add their own fragments (§19); they don't exist in data yet.
 
-**Supporting POIs** (no fragment, same file): North Moorings, The Sheepfold, Westwatch, Old Adit, Twofold Barrows; First Milestone, Dressed Shoulder; the Kettle Ring, the Scraped Ring, the Spurgate Ring, the Stillmere, the Swallow, the Graven Cuts; Toll-Keeper's Cairn; West Canal Steps, Wharf Tallies; West Cairn, Broken Causeway; Ungrazed Ring, East Cap Ledge, Hollow Stair Top, South Point Barrow; Switchback Marker; Stele Field, Toppled Gatehouse, Mirror Tarn. Thirteen fragments. Forest Basin's walked places are the live field, not the old generated list.
+**Supporting POIs** (no fragment, same file): North Moorings, The Sheepfold, Westwatch, Old Adit, Twofold Barrows; First Milestone, Dressed Shoulder; Counting Ring, Valley Cross Graves, West Ridge Top, High Ridge Corner, Sealed Pass Shrine; Toll-Keeper's Cairn; West Canal Steps, Wharf Tallies; West Cairn, Broken Causeway; Ungrazed Ring, East Cap Ledge, Hollow Stair Top, South Point Barrow; Switchback Marker; Stele Field, Toppled Gatehouse, Mirror Tarn. Thirty-eight POIs in all, thirteen with fragments.
 
 ---
 
@@ -1029,12 +1025,12 @@ Tags: **[stone]** = struck (always true), **[ink]** = can lie, **[witness]** = t
 8. **The finale strike:** every job takes part; Time Mages lead by reading the cut runes.
 9. **Ring-waking and the sky:** the region's Sparks brighten. Lore only; no render commitment.
 10. **The Kings stay faceless,** before and after the finale.
-11. **Five great rings:** Chalk Ring (Pale Hollow; it is **The Sheepfold** POI at 84,216), Mirror Ring (Ashlands), Sieve Ring (Slagpits), Drowned Ring (Bellmarsh), Seven-Stone Ring (Throne Approach). The other generated circles in Seam Country (The Seven Posts, the Kettle Ring, the Scraped Ring, the Spurgate Ring, Seven-Stone Bench, Older Paving, Islet Ring, Ungrazed Ring, Crown Stones, Scarp Head Ring) are **lesser circles**. Forest Basin has three: the Kettle Ring at the camp, the Scraped Ring at the crossroads, and the Spurgate Ring at the spur gate. Scarp Head is not the Mirror Ring; it was glazed by the same flare.
+11. **Five great rings:** Chalk Ring (Pale Hollow; it is **The Sheepfold** POI at 84,216), Mirror Ring (Ashlands), Sieve Ring (Slagpits), Drowned Ring (Bellmarsh), Seven-Stone Ring (Throne Approach). The other eight generated circles in Seam Country (The Seven Posts, Counting Ring, Seven-Stone Bench, Older Paving, Islet Ring, Ungrazed Ring, Crown Stones, Scarp Head Ring) are **lesser circles**. Scarp Head is not the Mirror Ring; it was glazed by the same flare.
 12. **The Crown Cut.** The Coil Ridge stair is renamed the Crown Cut; "King's Stair" means only the Throne Approach ascent.
 13. **The Pale Hollow Trainer** is a hidden Time Mage hook: the Pale Hollow Trainer, Ilse Morrowglass, revealed in Chapter V.
 14. **Seam Country** is Pale Hollow's northern march, in lore and in the game, and the second half of Chapter I. Not a separate region.
 15. **Tolle Sound** is the Reach's only usable sea outlet; the Grey Sea behind the Westwall is cliff coast with no harbour.
-16. **Invented names accepted:** Hollowfolk, Saltwalkers, Graders, Undertoll, Seam drovers, ford-wardens, ink salt as Scriveners' ink, Lanternfall, Hesk Tallowmere, Anvilhold, the Glass Purge, the Great Sort (CR 112), the Drowning (CR 141). No clashes found. Later additions: Mayflower, the Eightfold, Scout Gate, Elder's Stair, Tally Row, the Jobhouse, the Turning Yard, the Strongroom, Carried Marks, Tithe of Hands, Levy of Smiths, the Withdrawal, Cultists of the Seven and their ranks, the Seat-Keepers, the Seventh Claimant, and the dungeon districts.
+16. **Invented names accepted:** Hollowfolk, Saltwalkers, Graders, Undertoll, Seam drovers, ford-wardens, ink salt as Scriveners' ink, Merewick, Lanternfall, Hesk Tallowmere, Anvilhold, the Glass Purge, the Great Sort (CR 112), the Drowning (CR 141). No clashes found. Later additions: Mayflower, the Eightfold, Scout Gate, Elder's Stair, Tally Row, the Jobhouse, the Turning Yard, the Strongroom, Carried Marks, Tithe of Hands, Levy of Smiths, the Withdrawal, Cultists of the Seven and their ranks, the Seat-Keepers, the Seventh Claimant, and the dungeon districts.
 17. **Dates.** Present day CR 300.
 18. **Time Magic in-game** is openly trained as Crown "Chronomancy," a hollowed-out battlefield version; the seeing is the heresy.
 

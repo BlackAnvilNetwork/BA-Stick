@@ -83,6 +83,7 @@ import {
   PH_HUB_NPCS,
   PH_FIELD_NPCS,
   PH_STORAGE_CHEST,
+  PH_TRAINER,
   PH_HUB_SPAWN,
   PH_START_SPAWN,
   reachWarp,
@@ -124,6 +125,14 @@ import {
   fieldMobDefs,
   fieldNpcById,
   fieldNpcDefs,
+  isLandmarkId,
+  isWorldQuestGiver,
+  landmarkById,
+  worldQuestById,
+  worldQuestCredit,
+  worldQuestLogEntries,
+  worldQuestRead,
+  worldQuestTalk,
   PVP_BOUNTY_WEI,
   allForestBasinPatchCells,
   FB_SPAWN,
@@ -2078,22 +2087,13 @@ function handleLokSettle(p: Player, listingId: string) {
 }
 
 
-const JOB_MASTER = {
-  id: "npc-ph-job-master",
-  name: "Job Master",
-  x: 3.5,
-  z: 2.5,
-  facing: -Math.PI / 2,
-} as const;
+const JOB_MASTER = (() => {
+  const n = PH_HUB_NPCS.find((q) => q.role === "job_master")!;
+  return { id: n.id, name: n.name, x: n.x, z: n.z, facing: n.facing } as const;
+})();
 
-/** Pale Hollow Trainer (stable id npc-ph-chronomancer — rename is player-facing). */
-const TRAINER = {
-  id: "npc-ph-chronomancer",
-  name: "Trainer",
-  x: -3.2,
-  z: 4.8,
-  facing: Math.PI,
-} as const;
+/** Pale Hollow Trainer (stable id npc-ph-chronomancer), in Mayflower's Turning Yard. */
+const TRAINER = PH_TRAINER;
 
 const NPC_INTERACT_RANGE = 3.5;
 
@@ -3367,6 +3367,7 @@ function snapshotFor(p: Player): SnapshotMessage {
         targetId: null,
         buffs: emptyBuffs(),
         npcRole: u.role,
+        archetype: isLandmarkId(u.id) ? "landmark" : undefined,
       });
     }
   }
@@ -3479,11 +3480,11 @@ function snapshotFor(p: Player): SnapshotMessage {
       freeStatPoints: p.freeStatPoints,
       freeStats: { ...p.freeStats },
       questLog: [
-        ...paleHollowQuestLogEntries({
+        ...worldQuestLogEntries({
           zoneId: "pale_hollow",
           active: p.hollowQuest.active,
           done: p.hollowQuest.done,
-        }).filter((entry) => paleHollowQuestById(entry.id)),
+        }),
         ...forestBasinQuestLogEntries(p.hollowQuest),
       ],
       warpRings: p.warpUnlocked.flatMap((id) => {
@@ -3799,7 +3800,7 @@ function createPlayer(
     unlockCacheKey: "",
     unlockCache: [],
     recasts: {},
-    lastLog: [],
+    lastLog: [`Welcome to Black Anvil, ${name}.`],
     ws,
   };
   if (existingCharId) {
@@ -4052,14 +4053,19 @@ function rewardMobKill(p: Player, mob: Mob, now: number) {
   if (p.zoneId === mob.zoneId && p.hollowQuest.active.length > 0 && (p.zoneId === "pale_hollow" || p.zoneId === "forest_basin")) {
     const prev = p.hollowQuest.active;
     const bag = { active: prev, done: p.hollowQuest.done };
+    const st = { zoneId: "pale_hollow" as const, ...bag };
     const next = p.zoneId === "forest_basin"
       ? forestBasinQuestCredit(bag, mob.id)
-      : paleHollowQuestCredit({ zoneId: "pale_hollow", ...bag }, mob.id);
+      : mob.zoneId === "pale_hollow"
+        ? (p.zoneId === "pale_hollow" ? paleHollowQuestCredit(st, mob.id) : st)
+        : worldQuestCredit(st, mob.id);
     if (next.active !== prev) {
       for (const row of next.active) {
         const was = prev.find((a) => a.id === row.id);
         if (was && row.kills > was.kills) {
-          const def = p.zoneId === "forest_basin" ? forestBasinQuestById(row.id) : paleHollowQuestById(row.id);
+          const def = p.zoneId === "forest_basin"
+            ? forestBasinQuestById(row.id)
+            : (paleHollowQuestById(row.id) ?? worldQuestById(row.id));
           pushLog(p, def ? `${def.title}: ${row.kills}/${def.need}.` : `Task: ${row.kills} down.`);
         }
       }
@@ -4889,10 +4895,9 @@ function speakHollowQuest(p: Player, npcId: string, nx: number, nz: number, name
   }
   p.facing = facingTo(p.x, p.z, nx, nz);
   ensureHollowQuest(p);
-  const result = paleHollowQuestTalk(
-    { zoneId: "pale_hollow", active: p.hollowQuest.active, done: p.hollowQuest.done },
-    npcId,
-  );
+  const state = { zoneId: "pale_hollow" as const, active: p.hollowQuest.active, done: p.hollowQuest.done };
+  // Pale Hollow givers keep their own talk; Seam Country givers chain through `requires`.
+  const result = zoneId === "pale_hollow" ? paleHollowQuestTalk(state, npcId) : worldQuestTalk(state, npcId);
   p.hollowQuest = { active: result.state.active, done: result.state.done };
   rememberPlayer(p);
   if (result.gold > 0) {
@@ -4902,12 +4907,48 @@ function speakHollowQuest(p: Player, npcId: string, nx: number, nz: number, name
   send(p.ws, { type: "npc/dialog", npcId, title: result.title, body: result.body });
 }
 
+/** Readable landmark (Seam Country): tells its story, and credits a quest step when one asks for it. */
+const LANDMARK_READ_RANGE = 4.5;
+
+function readLandmark(p: Player, landmarkId: string) {
+  const lm = landmarkById(landmarkId);
+  if (!lm || unitZone(p.zoneId) !== lm.zoneId) {
+    pushLog(p, "Nothing happens.");
+    return;
+  }
+  if (dist(p.x, p.z, lm.x, lm.z) > LANDMARK_READ_RANGE) {
+    pushLog(p, `Move closer to read ${lm.name}.`);
+    return;
+  }
+  p.facing = facingTo(p.x, p.z, lm.x, lm.z);
+  ensureHollowQuest(p);
+  const result = worldQuestRead(
+    { zoneId: "pale_hollow", active: p.hollowQuest.active, done: p.hollowQuest.done },
+    landmarkId,
+  );
+  if (result.credited.length > 0) {
+    p.hollowQuest = { active: result.state.active, done: result.state.done };
+    rememberPlayer(p);
+    pushLog(p, `You read ${lm.name}. The words stay with you.`);
+  }
+  send(p.ws, { type: "npc/dialog", npcId: landmarkId, title: result.title, body: result.body });
+}
+
 /** Field NPCs (field-population.ts): same zone and within reach, then they speak. */
 function speakFieldNpc(p: Player, npcId: string): boolean {
   const npc = fieldNpcById(npcId);
   if (!npc) return false;
   if (unitZone(p.zoneId) !== npc.zoneId) {
     pushLog(p, "Nothing happens.");
+    return true;
+  }
+  // Seam Country: reading a landmark on site is a quest step; givers chain their quests.
+  if (isLandmarkId(npc.id)) {
+    readLandmark(p, npc.id);
+    return true;
+  }
+  if (isWorldQuestGiver(npc.id)) {
+    speakHollowQuest(p, npc.id, npc.x, npc.z, npc.name, npc.zoneId);
     return true;
   }
   if (dist(p.x, p.z, npc.x, npc.z) > NPC_INTERACT_RANGE) {
@@ -4944,7 +4985,7 @@ function handleNpcInteract(p: Player, npcId: string) {
   // Party storage chest — stub until bank/storage inventory ships.
   if (npcId === PH_STORAGE_CHEST.id) {
     if (!canReachTownNpc(p.x, p.z, PH_STORAGE_CHEST.x, PH_STORAGE_CHEST.z)) {
-      pushLog(p, "Enter the camp to use the storage chest.");
+      pushLog(p, `Find ${PH_STORAGE_CHEST.name} in the Strongroom to use your storage.`);
       return;
     }
     p.facing = facingTo(p.x, p.z, PH_STORAGE_CHEST.x, PH_STORAGE_CHEST.z);
@@ -4954,7 +4995,7 @@ function handleNpcInteract(p: Player, npcId: string) {
 
   if (npcId === JOB_MASTER.id) {
     if (!canReachTownNpc(p.x, p.z, JOB_MASTER.x, JOB_MASTER.z)) {
-      pushLog(p, "Enter the camp to speak with the Job Master.");
+      pushLog(p, `Find ${JOB_MASTER.name} at the Jobhouse.`);
       return;
     }
     p.facing = facingTo(p.x, p.z, JOB_MASTER.x, JOB_MASTER.z);
@@ -4963,7 +5004,7 @@ function handleNpcInteract(p: Player, npcId: string) {
     send(p.ws, {
       type: "npc/dialog",
       npcId: JOB_MASTER.id,
-      title: canSub ? "Job Master — Support Job" : "Job Master",
+      title: canSub ? `${JOB_MASTER.name}, Job Master — Support Job` : `${JOB_MASTER.name}, Job Master`,
       body: canSub
         ? `Main: ${JOBS[p.job].name} L${p.level}. Pick a support job (effective L${subjobLevel(p.level)}), or change your main below. Sprite stays your main.`
         : `Change your main job. Support jobs unlock at level ${SUBJOB_UNLOCK_LEVEL} and stay available through max level.`,
@@ -4976,7 +5017,7 @@ function handleNpcInteract(p: Player, npcId: string) {
 
   if (npcId === TRAINER.id) {
     if (!canReachTownNpc(p.x, p.z, TRAINER.x, TRAINER.z)) {
-      pushLog(p, "Enter the camp to speak with the Trainer.");
+      pushLog(p, `Find ${TRAINER.name} in the Turning Yard.`);
       return;
     }
     p.facing = facingTo(p.x, p.z, TRAINER.x, TRAINER.z);
@@ -4989,7 +5030,7 @@ function handleNpcInteract(p: Player, npcId: string) {
     send(p.ws, {
       type: "npc/dialog",
       npcId: TRAINER.id,
-      title: "Trainer",
+      title: `${TRAINER.name}, Trainer`,
       body: `Buy job abilities with gold (${jobNote}). Main: up to your level; support: up to floor(level/2). Costs scale 500-10000 by unlock level. Starter kit (Rest + L1 signature) is free.`,
       spells: offers,
     });
@@ -4999,7 +5040,7 @@ function handleNpcInteract(p: Player, npcId: string) {
   const hub = PH_HUB_NPCS.find((n) => n.id === npcId);
   if (hub) {
     if (!canReachTownNpc(p.x, p.z, hub.x, hub.z)) {
-      pushLog(p, `Enter the camp to speak with ${hub.name}.`);
+      pushLog(p, `Walk over to ${hub.name} to speak with them.`);
       return;
     }
     p.facing = facingTo(p.x, p.z, hub.x, hub.z);
@@ -5017,7 +5058,7 @@ function handleNpcInteract(p: Player, npcId: string) {
       crafter:
         "Bring base mats from the field. Synth at my bench — I'll rank your crafts as you work.",
       vendor:
-        "The camp ledger is here. Send or list what the log already holds. Items enter only from field play — I cannot mint them, and this counter cannot.",
+        "Two sets of scales on this counter: the Crown's, and the honest ones. Yours go on the honest pair. Sell me what you've brought in from the field, or send it on to a friend. I only trade in what the field gives.",
     };
     send(p.ws, {
       type: "npc/dialog",
@@ -5041,7 +5082,7 @@ function handleNpcInteract(p: Player, npcId: string) {
 
 async function handleSpellBuy(p: Player, id: AbilityId) {
   if (!canReachTownNpc(p.x, p.z, TRAINER.x, TRAINER.z)) {
-    pushLog(p, "You must speak with the Trainer to buy abilities.");
+    pushLog(p, `You must speak with ${TRAINER.name} to buy abilities.`);
     return;
   }
   if (isTrainerFreeAbility(id)) {
@@ -6790,7 +6831,7 @@ function tickGathering(p: Player, now: number) {
 async function handleCraft(p: Player, itemId: number) {
   const crafter = PH_HUB_NPCS.find((n) => n.role === "crafter");
   if (!crafter || !canReachTownNpc(p.x, p.z, crafter.x, crafter.z)) {
-    pushLog(p, "You must be near the Craft Master to craft.");
+    pushLog(p, "You must be near Brann Coldiron in the Eightfold to craft.");
     return;
   }
   const def = getCraftableItem(itemId);

@@ -1232,7 +1232,7 @@ impl Scene {
 
     /// True when a unit stands in open water (not on a bridge deck).
     fn wading(&self, u: &Unit) -> bool {
-        if matches!(u.preset.body, Body::Node { .. }) {
+        if matches!(u.preset.body, Body::Node { .. } | Body::Landmark) {
             return false;
         }
         let Some(z) = self.zone_at(u.pos.x, u.pos.z) else { return false };
@@ -2052,7 +2052,7 @@ impl Scene {
         let (cx, cz, yaw) = me.map_or((self.cam.cx, self.cam.cz, 0.0), |u| (u.pos.x, u.pos.z, u.yaw));
         let mut marks = Vec::new();
         for (id, u) in &self.units {
-            if Some(id.as_str()) == self.follow.as_deref() || matches!(u.preset.body, Body::Node { .. }) || u.anim == AnimState::Dead {
+            if Some(id.as_str()) == self.follow.as_deref() || matches!(u.preset.body, Body::Node { .. } | Body::Landmark) || u.anim == AnimState::Dead {
                 continue;
             }
             if (u.pos.x - cx).abs() > 70.0 || (u.pos.z - cz).abs() > 70.0 {
@@ -2258,6 +2258,9 @@ fn body_radius(b: &Body) -> f32 {
         Body::StickForm { kind: 3, size } => 0.28 + 0.22 * size,
         Body::StickForm { kind: 0, size } => 0.42 + 0.32 * size,
         Body::StickForm { size, .. } => 0.34 + 0.28 * size,
+        Body::Landmark => 0.5,
+        Body::Stag { size, .. } => 0.35 + 0.35 * size,
+        Body::Lamprey { size } => 0.55 * size,
     }
 }
 

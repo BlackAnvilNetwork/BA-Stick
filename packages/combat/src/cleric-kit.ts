@@ -665,7 +665,7 @@ export const CLERIC_ABILITY_BLURBS: Record<ClericAbilityId, string> = {
   cl_cure_ii: "Stronger Ashmend.",
   cl_cure_iii: "Major Ashmend.",
   cl_cure_iv: "Grand Ashmend.",
-  cl_cure_v: "Peak Ashmend — best single-target mend in Bellgrave.",
+  cl_cure_v: "Peak Ashmend — best single-target mend in Black Anvil.",
   cl_curaga: "Radiant well — heal allies nearby.",
   cl_curaga_ii: "Greater Ashwell.",
   cl_curaga_iii: "Supreme Ashwell.",

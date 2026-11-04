@@ -1,8 +1,8 @@
 # @bellgrave/items
 
-Item catalog for Black Anvil (formerly Legend of Kek / Bellgrave): stats, descriptions, icon paths, craft metadata.
+Item catalog for Black Anvil (formerly Legend of KEK / Bellgrave): stats, descriptions, icon paths, craft metadata. 394 items; every recipe costs **gold** (`recipe.gold`) plus materials — no KEK.
 
-**Source of truth:** `docs/legend-of-kek-item-manifest.xlsx`
+**Source of truth:** `docs/legend-of-kek-item-manifest.xlsx` (file name kept) → `packages/items/src/catalog.json` → `catalog.generated.ts`. Note: `scripts/build-item-catalog.py` still writes `recipe.kek` for a few hand-added items; the checked-in catalog uses `recipe.gold`.
 
 ## On-chain ids (Gnosis Items.sol)
 

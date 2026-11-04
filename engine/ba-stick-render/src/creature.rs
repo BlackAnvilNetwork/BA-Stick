@@ -51,6 +51,9 @@ pub fn height_px(body: &Body) -> f32 {
         Body::StickForm { kind: 1, size } => 1.12 * size * HEIGHT_PX + 8.0,
         Body::StickForm { kind: 3, size } => 0.42 * size * HEIGHT_PX + 6.0,
         Body::StickForm { size, .. } => 0.92 * size * HEIGHT_PX + 8.0,
+        Body::Landmark => 30.0,
+        Body::Stag { size, antlers, .. } => (1.05 + if antlers { 0.3 } else { 0.0 }) * size * HEIGHT_PX + 6.0,
+        Body::Lamprey { size } => 0.3 * size * HEIGHT_PX + 6.0,
     }
 }
 
@@ -171,8 +174,11 @@ pub fn draw(fb: &mut Framebuffer, cam: &Camera, body: &Body, ps: &Pose) {
             }
         }
         Body::Node { method } => node(fb, cam, method, ps),
+        Body::Landmark => landmark(fb, cam, ps),
         Body::Canine { size: s } => canine(fb, cam, s, ps),
         Body::StickForm { kind, size } => stick_form(fb, cam, kind, size, ps),
+        Body::Stag { size: s, antlers, body: c, far } => stag(fb, cam, s, antlers, c, far, ps),
+        Body::Lamprey { size: s } => lamprey(fb, cam, s, ps),
         Body::Blob {
             size: s,
             body: c,
@@ -762,5 +768,129 @@ fn node(fb: &mut Framebuffer, cam: &Camera, method: u8, ps: &Pose) {
                 }
             }
         }
+    }
+}
+
+/// Stag / doe (Seam Country): long thin legs, a raised neck, a short tail
+/// and, for stags, branching antlers. Trot gait like the boar but higher.
+fn stag(fb: &mut Framebuffer, cam: &Camera, s: f32, antlers: bool, c: u8, far: u8, ps: &Pose) {
+    let f = v3(ps.yaw.sin(), 0.0, ps.yaw.cos());
+    let r = v3(ps.yaw.cos(), 0.0, -ps.yaw.sin());
+    let up = v3(0.0, 1.0, 0.0);
+    let o = Some(C_OUTLINE);
+    let p = |v: Vec3| cam.project(v);
+    let flat = 1.0 - ps.dead * 0.8;
+    let bob = (ps.phase * 2.0).sin().abs() * 0.03 * s * ps.moving;
+    let base = ps.pos + up * bob;
+    let hip = base - f * (0.36 * s) + up * (0.62 * s * flat);
+    let sh = base + f * (0.30 * s) + up * (0.66 * s * flat);
+    let graze = if ps.moving < 0.1 { ((ps.time * 0.4).sin() * 0.5 + 0.5).powi(4) } else { 0.0 };
+    let neck = sh + f * (0.10 * s) + up * ((0.34 - 0.5 * graze) * s * flat);
+    let head = neck + f * (0.16 * s) - up * (0.04 * s);
+    let limb = (1.3 + s * 0.9).max(1.2);
+    let legs: [(Vec3, f32, u8); 4] = [
+        (hip - r * (0.10 * s), 0.0, far),
+        (sh - r * (0.10 * s), std::f32::consts::PI, far),
+        (hip + r * (0.10 * s), std::f32::consts::PI, c),
+        (sh + r * (0.10 * s), 0.0, c),
+    ];
+    for (i, &(top, off, col)) in legs.iter().enumerate() {
+        if i == 2 {
+            fb.capsule(p(hip), p(sh), limb + 2.0 * s + 0.8, c, o);
+            fb.capsule(p(sh), p(neck), limb + 0.6, c, o);
+            let tail = hip - f * (0.08 * s) + up * (0.06 * s);
+            fb.capsule(p(hip), p(tail), 1.2, C_DUST, None);
+        }
+        let sw = (ps.phase + off).sin() * 0.2 * s * ps.moving;
+        let lift = (ps.phase + off).cos().max(0.0) * 0.1 * s * ps.moving;
+        let knee = v3(top.x, ps.pos.y + 0.3 * s * flat + lift, top.z) + f * (sw * 0.5);
+        let foot = v3(top.x, ps.pos.y + lift * 0.4, top.z) + f * sw;
+        let foot = foot + (top - foot) * (ps.dead * 0.6);
+        fb.capsule(p(top), p(knee), limb * 0.7, col, o);
+        fb.capsule(p(knee), p(foot), limb * 0.55, col, o);
+    }
+    fb.disc(p(head), (0.11 * s * HEIGHT_PX).max(2.5), c, o);
+    let snout = head + f * (0.12 * s) - up * (0.03 * s);
+    fb.capsule(p(head), p(snout), 1.6 + 0.6 * s, c, o);
+    for side in [-1.0f32, 1.0] {
+        let ear = head + r * (0.06 * side * s) + up * (0.05 * s);
+        fb.capsule(p(ear), p(ear + r * (0.07 * side * s) + up * (0.05 * s)), 1.0, c, None);
+        if antlers {
+            let a0 = head + r * (0.03 * side * s) + up * (0.07 * s);
+            let a1 = a0 + up * (0.22 * s * flat) + r * (0.08 * side * s) - f * (0.04 * s);
+            let a2 = a1 + up * (0.14 * s * flat) + r * (0.07 * side * s);
+            fb.capsule(p(a0), p(a1), 1.0, CR_TUSK, None);
+            fb.capsule(p(a1), p(a2), 0.9, CR_TUSK, None);
+            let t = a0 + (a1 - a0) * 0.55;
+            fb.capsule(p(t), p(t + f * (0.1 * s) + up * (0.08 * s)), 0.8, CR_TUSK, None);
+            let t2 = a1 + (a2 - a1) * 0.4;
+            fb.capsule(p(t2), p(t2 + f * (0.08 * s) + up * (0.06 * s)), 0.8, CR_TUSK, None);
+        }
+    }
+    let eye = p(head + f * (0.06 * s) + up * (0.02 * s));
+    fb.plot(eye.x as i32, eye.y as i32, eye.d - 0.5, C_OUTLINE);
+}
+
+/// Causeway Lamprey: a low, banded eel body hugging the ground, with a
+/// round tooth-ringed mouth that gapes when it strikes.
+/// Seam Country landmark: a weathered slab with a carved seven and a slow gold pulse.
+fn landmark(fb: &mut Framebuffer, cam: &Camera, ps: &Pose) {
+    let up = v3(0.0, 1.0, 0.0);
+    let o = Some(C_OUTLINE);
+    let p = |v: Vec3| cam.project(v);
+    let base = ps.pos;
+    // Slab: three stacked capsules, narrowing and leaning a touch.
+    let lean = v3(0.04, 0.0, 0.02);
+    let a = base;
+    let b = base + up * 0.55 + lean;
+    let c = base + up * 1.05 + lean * 1.6;
+    fb.capsule(p(a), p(b), 4.6, ROCK_D, o);
+    fb.capsule(p(b), p(c), 3.9, ROCK, o);
+    fb.disc(p(c), 3.6, ROCK_L, o);
+    // Carved seven: two short strokes on the face.
+    let face = |dy: f32, dx: f32| {
+        let q = p(base + up * dy + lean);
+        P2 { s: 1.0, x: q.x + dx, y: q.y, d: q.d - 0.2 }
+    };
+    let glow = 0.5 + 0.5 * (ps.time * 1.3 + base.x * 0.21).sin();
+    let rune = if glow > 0.55 { C_GOLD } else { CR_TUSK };
+    fb.line(face(0.82, -1.6), face(0.82, 1.6), rune);
+    fb.line(face(0.82, 1.6), face(0.48, -0.8), rune);
+    // Small cairn stones at the foot.
+    fb.disc(p(base + v3(0.32, 0.05, 0.12)), 1.8, ROCK_D, o);
+    fb.disc(p(base + v3(-0.28, 0.04, -0.1)), 1.5, ROCK, o);
+}
+
+fn lamprey(fb: &mut Framebuffer, cam: &Camera, s: f32, ps: &Pose) {
+    let f = v3(ps.yaw.sin(), 0.0, ps.yaw.cos());
+    let r = v3(ps.yaw.cos(), 0.0, -ps.yaw.sin());
+    let up = v3(0.0, 1.0, 0.0);
+    let o = Some(C_OUTLINE);
+    let p = |v: Vec3| cam.project(v);
+    let n = 12;
+    let lunge_k = (1.0 - ps.attack).clamp(0.0, 1.0) * (ps.attack < 1.0) as i32 as f32;
+    let raise = (1.0 - ps.dead) * (0.12 + 0.14 * lunge_k) * s;
+    let mut prev: Option<(Vec3, f32)> = None;
+    for i in 0..n {
+        let k = i as f32 / (n - 1) as f32;
+        let wave = (ps.phase * 1.8 - k * 6.5).sin() * 0.12 * s * (0.35 + 0.65 * ps.moving.max(0.2));
+        let along = 0.45 * s - k * 1.3 * s;
+        let y = if i == 0 { raise } else if i == 1 { raise * 0.4 } else { 0.05 * s };
+        let pt = ps.pos + f * along + r * (wave * k) + up * y;
+        let rad = 2.4 * s * (1.0 - k * 0.55) + 0.8;
+        if let Some((q, qr)) = prev {
+            let col = if i % 3 == 0 { CR_DOG_FAR } else { CR_DOG };
+            fb.capsule(p(q), p(pt), (rad + qr) * 0.5, col, o);
+        }
+        prev = Some((pt, rad));
+    }
+    let head = ps.pos + f * (0.5 * s) + up * raise;
+    let mouth = 2.0 * s + 1.0 + lunge_k * 1.2;
+    fb.disc(p(head), mouth + 0.8, CR_DOG, o);
+    fb.disc(p(head + f * (0.04 * s)), mouth * 0.6, CR_NOSE, None);
+    for t in 0..6 {
+        let a = t as f32 / 6.0 * std::f32::consts::TAU + ps.time * 0.5;
+        let q = p(head + f * (0.05 * s) + r * (a.cos() * 0.05 * s) + up * (a.sin() * 0.05 * s));
+        fb.plot(q.x as i32, q.y as i32, q.d - 1.0, CR_TEETH);
     }
 }

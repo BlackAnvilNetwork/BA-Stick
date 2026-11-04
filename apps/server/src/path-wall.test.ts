@@ -37,6 +37,8 @@ function segmentClear(ax: number, az: number, bx: number, bz: number): boolean {
   return Math.hypot(c.x - bx, c.z - bz) < 0.25 && paleHollowWalkable(bx, bz);
 }
 
+const GATE = { x: OX, z: 2 + OZ }; // the Scout Gate floor (old hub spawn)
+
 test("rear rock wall blocks its mesh and leaves side gaps (#121)", () => {
   for (const [x, z] of WALL_CENTERS) {
     const wx = x + OX;
@@ -44,7 +46,8 @@ test("rear rock wall blocks its mesh and leaves side gaps (#121)", () => {
     assert.equal(paleHollowWalkable(wx, wz), false, `wall center ${wx},${wz} should block`);
     assert.equal(paleHollowInHubRearWall(wx, wz), true);
   }
-  assert.equal(paleHollowWalkable(PH_HUB_SPAWN.x, PH_HUB_SPAWN.z), true, "camp spawn");
+  assert.equal(paleHollowWalkable(GATE.x, GATE.z), true, "gate floor");
+  assert.equal(paleHollowWalkable(PH_HUB_SPAWN.x, PH_HUB_SPAWN.z), true, "start-camp spawn");
   assert.equal(paleHollowWalkable(OX, 14 + OZ), true, "north of the cliff");
   // West and east of the cliff, still inside the hub pad.
   assert.equal(paleHollowWalkable(-12 + OX, 8.5 + OZ), true, "west gap");
@@ -118,10 +121,10 @@ test("unreachable click stops at the closest reachable cell (#120)", () => {
 });
 
 test("the camp stays enterable around the cliff (#121)", () => {
-  const into = paleHollowFindPath(OX, 16 + OZ, PH_HUB_SPAWN.x, PH_HUB_SPAWN.z);
+  const into = paleHollowFindPath(OX, 16 + OZ, GATE.x, GATE.z);
   const end = into[into.length - 1];
   assert.ok(end, "no path back into camp");
-  assert.ok(Math.hypot(end.x - PH_HUB_SPAWN.x, end.z - PH_HUB_SPAWN.z) < 1.25);
+  assert.ok(Math.hypot(end.x - GATE.x, end.z - GATE.z) < 1.25);
   let x = OX;
   let z = 16 + OZ;
   for (const g of into) {

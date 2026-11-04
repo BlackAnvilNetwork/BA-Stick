@@ -1,7 +1,7 @@
 /**
  * Sorcerer kit — elemental nuker (jobs-from-plan §4.4).
  * Feel: squishy backline; violet/blue cast windows; per-element nuke colors.
- * Original Bellgrave spell names — not trademark tier labels.
+ * Original Black Anvil spell names — not trademark tier labels.
  */
 
 import { SHARED_ABILITY_ICON } from "./shared-icons";

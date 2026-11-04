@@ -44,7 +44,8 @@ export type PaleHollowQuestDef = {
   mobIds: readonly string[];
 };
 
-export type PaleHollowQuestProgress = { id: string; kills: number; seen?: string[] };
+/** `read` = the on-site landmark step (world quests with `readPoi`). */
+export type PaleHollowQuestProgress = { id: string; kills: number; seen?: string[]; read?: boolean };
 
 export type PaleHollowQuestState = {
   zoneId: "pale_hollow";
@@ -290,7 +291,13 @@ const bowl = grid(-12, 70, 48, 136, 3, (x, z) => {
 const dwellers = takePairs(bowl, 10, 12, 12, placed, 6);
 
 const seam = grid(26, 48, 392, 430, 2, (x, z) => paleHollowBiome(x, z) === "ore_seam" && x >= 26);
-const golems = take(seam, 10, 10, placed, 9);
+// Pinned to the pre-shoreline positions so the irregular lake (Oct 2026) does not reshuffle ph-golem ids.
+const golems = [
+  { x: 36, z: 396 }, { x: 28, z: 428 }, { x: 42, z: 410 }, { x: 32, z: 416 }, { x: 28, z: 404 },
+  { x: 42, z: 422 }, { x: 46, z: 400 }, { x: 38, z: 430 }, { x: 36, z: 404 }, { x: 34, z: 424 },
+];
+void seam;
+for (const g of golems) placed.push(g);
 
 const crypt = grid(-42, 2, 412, 452, 2, (x, z) => paleHollowBiome(x, z) === "crypt");
 const wights = takePairs(crypt, 7, 12, 12, placed, 10);
@@ -370,8 +377,9 @@ export const PH_ALL_MOBS: PaleHollowMobDef[] = [
   {
     id: "ph-camp-dog",
     name: "Camp Dog",
-    x: -55,
-    z: 300,
+    // Lies beside the Emberwatch fire (about 2.9 m north-west of the pit at -55,300), not in it.
+    x: -56.5,
+    z: 302.5,
     level: 1,
     archetype: "hollow_scavenger",
     job: "rogue",
@@ -488,10 +496,15 @@ export function normalizePaleHollowQuestState(raw: unknown): PaleHollowQuestStat
     const active: PaleHollowQuestProgress[] = [];
     for (const item of row.active) {
       if (!item || typeof item !== "object") continue;
-      const e = item as { id?: unknown; kills?: unknown; seen?: unknown };
+      const e = item as { id?: unknown; kills?: unknown; seen?: unknown; read?: unknown };
       if (typeof e.id !== "string" || !Number.isInteger(e.kills) || (e.kills as number) < 0) continue;
       const seen = Array.isArray(e.seen) ? e.seen.filter((id): id is string => typeof id === "string") : [];
-      active.push({ id: e.id, kills: e.kills as number, ...(seen.length ? { seen } : {}) });
+      active.push({
+        id: e.id,
+        kills: e.kills as number,
+        ...(seen.length ? { seen } : {}),
+        ...(e.read === true ? { read: true } : {}),
+      });
     }
     return { zoneId: "pale_hollow", active, done };
   }

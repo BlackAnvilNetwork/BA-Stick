@@ -57,15 +57,20 @@ describe("zone lighting", () => {
     }
   });
 
-  it("lights the Mayflower Ring, travel gates and Forest Basin's named lights", () => {
+  it("lights forges, gates, warp circles, posts and Forest Basin's named lights", () => {
     const ph = zoneMapLights("pale_hollow");
+    assert.ok(ph.some((l) => l.kind === "forge"));
+    assert.ok(ph.some((l) => l.name.startsWith("Scout Gate")));
+    assert.ok(ph.some((l) => l.name.startsWith("Emberwatch")));
     assert.ok(ph.some((l) => l.name.startsWith("Seam Tunnel")));
     assert.ok(ph.some((l) => l.kind === "crystal"), "Mayflower Ring");
     for (const id of ["hollow_road", "spur_road", "ring_ward", "islet_fords", "green_reach", "coil_pass", "coil_ridge"]) {
       const v = zoneMapLights(id);
+      assert.ok(v.some((l) => l.kind === "crystal"), `${id} warp circle`);
       assert.ok(v.some((l) => l.kind === "brazier"), `${id} gate`);
       for (const l of v) assert.ok(Number.isFinite(l.x) && Number.isFinite(l.z) && l.kind in LIGHT_KIND, l.name);
     }
+    assert.ok(zoneMapLights("ring_ward").some((l) => l.kind === "torch"), "Lampman's Stoop");
     const basin = zoneMapLights("forest_basin");
     assert.ok(basin.some((l) => l.name.includes("Kettle Ring")));
     assert.ok(basin.some((l) => l.name.includes("Scraped Ring")));

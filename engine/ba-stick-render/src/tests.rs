@@ -1364,6 +1364,29 @@ fn meadow_follows_ambient_without_sky() {
     let (rg, rm) = (g_lo / g_hi, m_lo / m_hi);
     assert!((rg - rm).abs() < 0.12, "ground x{rg:.2} vs grass x{rm:.2} when ambient drops");
 }
+#[test]
+fn seam_country_rigs_are_their_own_models() {
+    // Each new Seam Country archetype resolves to an authored rig, not the
+    // unknown-key fallback, and no two of them share a body + look.
+    let fallback = RigPreset::resolve("mob:__unknown__");
+    let new = ["crown_soldier", "stag", "drowned_one", "lamprey", "seam_drover", "penitent"];
+    let mut seen = std::collections::HashSet::new();
+    for a in new {
+        let p = RigPreset::resolve(&format!("mob:{a}"));
+        let sig = format!("{:?}|{}|{}|{}|{}", p.body, p.look.body, p.look.accent, p.weapon as u8, p.props.limb_px);
+        let fb = format!("{:?}|{}|{}|{}|{}", fallback.body, fallback.look.body, fallback.look.accent, fallback.weapon as u8, fallback.props.limb_px);
+        assert_ne!(sig, fb, "{a} fell back to the default rig");
+        assert!(seen.insert(sig), "{a} duplicates another new rig");
+    }
+}
+
+#[test]
+fn landmark_preset_is_a_standing_stone() {
+    let p = RigPreset::resolve("landmark");
+    assert!(matches!(p.body, crate::preset::Body::Landmark));
+    assert!(crate::creature::height_px(&p.body) > 20.0);
+}
+
 fn one_prop(kind: u8, x: f32, z: f32) -> Vec<u8> {
     let mut b = b"BAP1".to_vec();
     b.extend_from_slice(&1u32.to_le_bytes());

@@ -56,7 +56,7 @@ Throne Approach (not yet visited). The Crown Massif, the roof of the Reach. One 
 
 Beyond the Hollow's north lip lie the open fields of the march, in the order a traveller meets them:
 - Hollow Road: a scrub track climbing out of the chalk.
-- Forest Basin: dark timber, cut stone and quiet water.
+- Forest Basin: dark timber and quiet clearings.
 - Spur Road: a ridge path along the eastern spur.
 - Ring Ward: grazing land around an old stone circle. Shepherds swear it sings on still nights; the wardens prefer you leave it alone.
 - Islet Fords: shallow crossings and reed islands.

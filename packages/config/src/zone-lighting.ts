@@ -19,7 +19,9 @@
  */
 import { FB_LIGHTS, FB_LIGHT_MOOD } from "./forest-basin-features";
 import { PH_SEAM_TUNNEL } from "./pale-hollow";
-import { PH_WARP_CIRCLES } from "./warp-unlocks";
+import { PH_START_CAMP, PH_WARP_CIRCLES } from "./pale-hollow-camp";
+import { MAYFLOWER_BBOX, MAYFLOWER_DISTRICTS } from "./pale-hollow-town";
+import { SEAM_COUNTRY_WARPS, SEAM_COUNTRY_ZONES, seamCountryCamps, type SeamCountryZone } from "./seam-country-field";
 import { ZONE_FIELDS } from "./zone-fields";
 
 export type LightMood = {
@@ -83,7 +85,7 @@ const SEAM = LIGHT_MOODS.seamCountry;
 /** The mood a zone starts in. Zones not listed have plain daylight. */
 export const ZONE_LIGHT_MOODS: Readonly<Record<string, LightMood>> = {
   pale_hollow: LIGHT_MOODS.daylight,
-  // The roads east of Pale Hollow share a cold overcast. Forest Basin has its own shade.
+  // Seam Country: the seven fields east of Pale Hollow. Forest Basin has its own shade.
   hollow_road: SEAM,
   spur_road: SEAM,
   ring_ward: SEAM,
@@ -103,15 +105,46 @@ export const ZONE_LIGHT_MOODS: Readonly<Record<string, LightMood>> = {
 };
 
 /** Places with their own mood inside a zone. */
-export const ZONE_MOOD_AREAS: Readonly<Record<string, readonly MoodArea[]>> = {};
+export const ZONE_MOOD_AREAS: Readonly<Record<string, readonly MoodArea[]>> = {
+  pale_hollow: [
+    { name: "Emberwatch", x: PH_START_CAMP.x, z: PH_START_CAMP.z, r: 22, feather: 18, mood: LIGHT_MOODS.emberwatch },
+    {
+      name: "Mayflower",
+      x: (MAYFLOWER_BBOX.minX + MAYFLOWER_BBOX.maxX) / 2,
+      z: (MAYFLOWER_BBOX.minZ + MAYFLOWER_BBOX.maxZ) / 2,
+      r: 60,
+      feather: 20,
+      mood: LIGHT_MOODS.mayflower,
+    },
+  ],
+};
+
+const EIGHTFOLD = MAYFLOWER_DISTRICTS.find((d) => d.id === "eightfold")!;
+
+const district = (id: string) => MAYFLOWER_DISTRICTS.find((d) => d.id === id)!;
+const CAMP = PH_START_CAMP;
 
 /**
- * Hand-placed lights the baked props do not carry. Fire pits and lanterns among
- * the props light themselves. Pale Hollow's town lights stay with the town
- * data on main; this branch has the Mayflower Ring and the Seam Tunnel.
+ * Hand-placed lights the baked props do not carry. Fire pits and lanterns are
+ * not repeated here. Mayflower's lights only show once dusk turns its light
+ * pass on; by day the town stays on the bright, free path.
  */
 export const ZONE_MAP_LIGHTS: Readonly<Record<string, readonly MapLight[]>> = {
   pale_hollow: [
+    // The Great Forge Hall's hearth glow, spilling out of its doors toward the
+    // anvil-stone (the hall stands at the Eightfold + (4.5, 0.5), 7 m wide).
+    // A light inside the hall would only wash its roof.
+    { name: "Great Forge Hall hearth", kind: "forge", x: EIGHTFOLD.x + 0.6, z: EIGHTFOLD.z - 0.6, radius: 7 },
+    { name: "Eightfold anvil-stone brazier", kind: "brazier", x: EIGHTFOLD.x - 2.5, z: EIGHTFOLD.z - 2.5 },
+    { name: "Scout Gate watch-fire", kind: "brazier", x: 181, z: 196 },
+    { name: "Scout Gate watch-fire", kind: "brazier", x: 181, z: 184 },
+    { name: "Tally Row torch", kind: "torch", x: district("tally_row").x - 3, z: district("tally_row").z - 3 },
+    { name: "Turning Yard torch", kind: "torch", x: district("turning_yard").x + 4, z: district("turning_yard").z + 3 },
+    { name: "Strongroom door torch", kind: "torch", x: district("strongroom").x - 2, z: district("strongroom").z - 1 },
+    { name: "Jobhouse yard torch", kind: "torch", x: district("jobhouse").x + 1, z: district("jobhouse").z - 3.5 },
+    { name: "Elder's Stair torch", kind: "torch", x: district("elders_stair").x - 1.5, z: district("elders_stair").z - 4 },
+    { name: "Emberwatch lookout torch", kind: "torch", x: CAMP.x + 7.5, z: CAMP.z - 5.5 },
+    { name: "Emberwatch trail torch", kind: "torch", x: CAMP.x + 5, z: CAMP.z + 4.5 },
     { name: "Seam Tunnel brazier", kind: "brazier", x: (PH_SEAM_TUNNEL.minX + PH_SEAM_TUNNEL.maxX) / 2, z: PH_SEAM_TUNNEL.minZ + 2 },
     ...PH_WARP_CIRCLES.map((c) => ({ name: `${c.name} glow`, kind: "crystal" as const, x: c.x, z: c.z, radius: 4.5 })),
   ],
@@ -121,16 +154,18 @@ function centre(g: { minX: number; maxX: number; minZ: number; maxZ: number }) {
   return { x: (g.minX + g.maxX) / 2, z: (g.minZ + g.maxZ) / 2 };
 }
 
-/** Travel zones between the fields. Forest Basin names its own lights. */
-const TRAVEL_ZONES = ["hollow_road", "spur_road", "ring_ward", "islet_fords", "green_reach", "coil_pass", "coil_ridge"] as const;
-
-/** A brazier on each open gate, so a road reads as a way through at dusk. */
-function travelGateLights(zoneId: string): MapLight[] {
-  if (!(TRAVEL_ZONES as readonly string[]).includes(zoneId)) return [];
+/** Seam Country lights from its own data: gates, warp circles and friendly posts. */
+function seamCountryLights(zone: SeamCountryZone): MapLight[] {
   const out: MapLight[] = [];
-  for (const g of ZONE_FIELDS[zoneId]?.gates ?? []) {
+  for (const g of ZONE_FIELDS[zone]?.gates ?? []) {
     if (g.blocked) continue;
     out.push({ name: "Gate brazier", kind: "brazier", ...centre(g) });
+  }
+  const w = SEAM_COUNTRY_WARPS[zone];
+  out.push({ name: "Warp circle glow", kind: "crystal", x: w.x, z: w.z, radius: 4.5 });
+  for (const c of seamCountryCamps(zone)) {
+    if (c.side !== "friendly") continue;
+    out.push({ name: `${c.name} torch`, kind: "torch", x: c.x + Math.cos(c.yaw) * 2.5, z: c.z - Math.sin(c.yaw) * 2.5 });
   }
   return out;
 }
@@ -138,14 +173,19 @@ function travelGateLights(zoneId: string): MapLight[] {
 const lightCache = new Map<string, readonly MapLight[]>();
 
 /**
- * Every map light for a zone: hand-placed lights, travel-gate braziers, and
- * Forest Basin's named lights. Built on first use.
+ * Every map light for a zone: hand-placed lights, Seam Country derived lights,
+ * and Forest Basin's named lights. Built on first use.
  */
 export function zoneMapLights(zoneId: string): readonly MapLight[] {
   let v = lightCache.get(zoneId);
   if (!v) {
+    const seam = (SEAM_COUNTRY_ZONES as readonly string[]).includes(zoneId);
     const basin = zoneId === "forest_basin" ? FB_LIGHTS : [];
-    v = [...(ZONE_MAP_LIGHTS[zoneId] ?? []), ...travelGateLights(zoneId), ...basin];
+    v = [
+      ...(ZONE_MAP_LIGHTS[zoneId] ?? []),
+      ...(seam ? seamCountryLights(zoneId as SeamCountryZone) : []),
+      ...basin,
+    ];
     lightCache.set(zoneId, v);
   }
   return v;

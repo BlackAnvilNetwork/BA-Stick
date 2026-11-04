@@ -4,7 +4,7 @@ _Author: New Bot. Sources: packages/config (branch feat/procedural-worldgen, loc
 
 ## 0. What the code says (constraints found)
 - **Levels.** `AREAS.pale_hollow.levelBand` is 1–20; Ashlands is 21–40. Pale Hollow's mobs run Lv 1–18 (the Lip dwellers by the Ash Road are 15–16). **The eight fields have no level band in code.** Their gates' `softLevel` values (6–15) are placeholders, not bands. **Flag:** the ramp in §1 is my proposal.
-- **Runtime.** Pale Hollow still has its own kill tasks. Forest Basin now uses the same pattern: Hild Coalhurst, Tobin Reede, Old Corwin Ashdown and Sister Pumice, credited only while the player and the creature are in Forest Basin. The other fields are not wired.
+- **Runtime.** The server spawns mobs, credits kills and runs quests **only for Pale Hollow** (`pale-hollow-world.ts`, and `zoneId === "pale_hollow"` checks in `apps/server/src/index.ts`). Field mobs and quests therefore need a small server change: run the same mob and quest loop per field zone, reading new config data. **This is beyond "data and config", so it needs Macks's approval before I build it.** The proposed change is to generalise the existing Pale Hollow loop by zone id, with no new rules.
 - **Quests are kill quests** (`need` kills from a fixed list of mob ids, gold on turn-in). "Read the fragment at the POI" is not wired anywhere (world-pois.ts is data only). Each fragment beat below is therefore a kill quest whose story ends at the POI, and the POI is the quest structure. A true "visit/read" objective would be a second server change; flagged.
 - **Models.** The renderer knows ten mob rigs (`MOB_ARCHETYPES` in engine/ba-stick-render/src/preset.rs). A new rig means a new preset there, plus a wasm rebuild.
 - **Mayflower** (Pale Hollow's eastern spur, where the six town givers live) is not on this branch yet. Its quests are written here and can be wired once it lands. Until then, every field quest has a field giver.
@@ -15,7 +15,7 @@ In zone-link order, overlapping by one level so each field hands off to the next
 | Field | Levels | Elite / named |
 |---|---|---|
 | Hollow Road | 13–14 | — |
-| Forest Basin | 8–12 | 12 |
+| Forest Basin | 14–15 | 16 |
 | Spur Road | 15–16 | — |
 | Ring Ward | 16–17 | 18 |
 | Islet Fords | 17–18 | — |
@@ -32,10 +32,10 @@ HP follows Pale Hollow's curve (about 12.5 × level: Lv 16 ≈ 200, Lv 18 ≈ 22
 |---|---|---|---|---|---|
 | Hollow Road | **Tithe-Taker** | 13–14 | sight, linked | **New: Crown Soldier** (tabard, pike) | Collects the Tithe of Hands at the road; one work in seven goes up the King's Way. |
 | Hollow Road | **Toll Hound** | 13 | sound | Reuse: canine (Hollow Scavenger rig), grey tint | The tithe patrol's dogs. |
-| Forest Basin | **Dust Hare, Pale Slime, Ashbeam Boar, Clay Crab, Cliff Adder** | 8–11 | mixed | Existing rigs | Hares in the bracken, slimes by the Wright's Veil, boars in the thorn, crabs on the Stillmere, adders at the spur and in Rook's Throat. |
-| Forest Basin | **Hollow Scavenger, Ruin Dweller** | 10–12 | sight | Existing rigs | Scavengers at the Cold Forges, dwellers in the ash. |
-| Forest Basin | **Seam Golem, Shard Wight** | 11–12 | sight | Existing rigs | The vault's guardian on the Kiln Path, a golem in the Graven Cuts, a wight in the sinks. |
-| Forest Basin | **Brother Lime, Sister Chalk, Brother Whitewash** | 11–12 | sight | Existing rigs | Cult-given names. They keep the Whitewashed Chapel with Sister Pumice. |
+| Forest Basin | **Mere Wolf** | 14–15 | sight, packs of 3 | Reuse: canine, dark tint, ×1.15 | Basin wildlife, hunting the replanted wood. |
+| Forest Basin | **Blightback Boar** | 14–15 | sound | Reuse: Ashbeam Boar, ash-grey with pale spines | A boar that grazed on the burn scar. |
+| Forest Basin | **Rootsick Stag** | 15 | proximity | **New: Stag** | Corrupted beast that drinks from the Drowned Spoke and won't leave the mere. |
+| Forest Basin (elite) | **The Merewick Hart** | 16 | sight | New Stag, ×1.4, antler glow | The stag the drowned village used to count as its own. |
 | Spur Road | **Crown Outrider** | 15–16 | sight, linked | New Crown Soldier (mounted look not needed; spear) | Patrols the spur so the free hold's boundary stones stay "lost". |
 | Spur Road | **Spur Adder** | 15 | proximity | Reuse: Cliff Adder, ochre | Nests under the Toll-Keeper's Cairn. |
 | Ring Ward | **Wharf Drowned** | 16–17 | proximity | **New: Drowned One** (bloated, weed-hung stick figure, slow) | Wharf hands lost when the canal was cut. |
@@ -65,11 +65,11 @@ Level-appropriate: Pale Hollow tier materials (tier 1) throughout, with Ashlands
 | Mob | Drops |
 |---|---|
 | Tithe-Taker, Crown Outrider, Crown Wharfwarden | linen scrap, metal scrap, dried ration scrap; **parchment** (Wharfwarden only) |
-| Toll Hound, Drover Mastiff | soft pelt, desiccated hide, horn |
+| Toll Hound, Mere Wolf, Drover Mastiff | soft pelt, desiccated hide, horn |
 | Ringblight Wolf | soft pelt, horn, **giant femur** |
-| Ashbeam Boar | horn, desiccated hide, pale dust |
-| Banded Grazer | soft pelt, horn, bark strip |
-| Old Banding | horn ×2 (fixed), soft pelt, **giant femur** |
+| Blightback Boar | horn, desiccated hide, pale dust |
+| Rootsick Stag, Banded Grazer | soft pelt, horn, bark strip |
+| The Merewick Hart, Old Banding | horn ×2 (fixed), soft pelt, **giant femur** |
 | Spur Adder, Cord Adder | poison sac, desiccated hide |
 | Wharf Drowned, Ford Drowned | bone chip, slime oil, linen scrap |
 | The Lockkeeper Drowned | bone chip, **parchment** ×2 (fixed) |
@@ -88,10 +88,8 @@ Each field's **fragment beat** (from the 13-fragment trail) uses its POI as the 
 |---|---|---|---|---|---|
 | Hollow Road | **The Seventh Post** (fragment 5) | Orrin Haltmark, via **Wick Tallow, Roadside Hermit** | Drive off 5 Tithe-Takers at the Seven Posts | 360 | The Seven Posts; the seventh stone is broken on purpose. |
 | Hollow Road | **One in Seven** | Maudry Saltpenny, via Wick | Kill 4 Toll Hounds harrying carts | 240 | **Tithe Booth** (Crown camp). |
-| Forest Basin | **The Cold Hearth** | **Hild Coalhurst** | Put down the scavengers at the Cold Forges | 24 | The Cold Forges. In the game. |
-| Forest Basin | **The Last Stones** | **Tobin Reede** | Take a rubbing from the Merrow Stone, the Gannet Stone and Aldric's Waystone | 18 | A fetch. Tobin Reede is the stone-copier at Reede's Camp, not the ferryman. In the game. |
-| Forest Basin | **The Wheel-Lock** | **Old Corwin Ashdown** | Put down the vault's guardian | 32 | The vault by the Kiln Path. Rubbings from Heron Isle, under the Wright's Veil, and the Sunk Hall. In the game. |
-| Forest Basin | **The Pilgrim's Pack** | **Sister Pumice** | Fetch the unopened pack from the bottom of Rook's Throat | 20 | A fetch. There is no escort task. In the game. |
+| Forest Basin | **The Drowned Spoke** (fragment 6) | Ilse Morrowglass, via **Sister Ondine of the Graves** | Lay down 3 Rootsick Stags and the Merewick Hart | 390 | Drowned Spoke; Merewick is still on the tithe map. |
+| Forest Basin | **Hides for the Halls** | Brann Coldiron, via **Gerd Halloway, Basin Trapper** | Kill 6 Mere Wolves | 260 | **Trapper's Lean-to**. |
 | Spur Road | **Bounded in Sevens** (fragment 7) | Orrin, via **Old Hesk, Last Freeholder** | Kill 5 Crown Outriders | 405 | Seven-Stone Bench. |
 | Spur Road | **Under the Cairn** | Maudry, via Hesk | Kill 4 Spur Adders | 280 | Toll-Keeper's Cairn; old tolls were paid in labour. |
 | Ring Ward | **Older Than the Walls** (fragment 8) | Ilse, via **Marrow Quaylan, Wharf Lampman** | Lay down 4 Wharf Drowned and the Lockkeeper Drowned | 435 | Older Paving. |
@@ -112,7 +110,7 @@ Fragment quests `require` the previous fragment quest, matching the trail order.
 - **Quest structures** are the existing POIs. I add no prop on top of a POI.
 - **New camps** (one or two per field) use the existing camp/yard prop kit (tent, fire, crates) and sit at least 10 m from any POI:
   - Tithe Booth (Hollow Road, in a scrub bay off the road, south of the Mid Camp)
-  - Kettle Hollow (Forest Basin, the camp by the Kettle Ring)
+  - Trapper's Lean-to (Forest Basin, a glade west of the Valley Cross Graves)
   - Spur Watch Fire (Spur Road, a side bay north of the spawn)
   - Wharfwarden's Post (Ring Ward, the far wharf shelf)
   - Ferry Stage (Islet Fords, beside the Broken Causeway; a spring-flood ferry, used only when the May snowmelt drowns the fords)
@@ -122,7 +120,7 @@ Fragment quests `require` the previous fragment quest, matching the trail order.
 - **Field givers** stand at their camp, 2–3 m from the fire.
 - **Placement rules** (enforced in code and tests, not by hand):
   - Walkable, BFS-reachable from the field spawn, never in water or on a bridge.
-  - At least 6 m from trail centrelines, 8 m from gates, 12 m from a warp circle, 10 m from POIs (camps) or 4 m (mobs), and outside an 8 m disc at each ascent mouth and summit lookout (the Cutters' Crown, Lantern Rock, the Unnamed Hall, White Caps Stair, East Cap Ledge, Hollow Stair Cave, Scarp Cave, Westwatch Climb).
+  - At least 6 m from trail centrelines, 8 m from gates, 12 m from the warp circle, 10 m from POIs (camps) or 4 m (mobs), and outside an 8 m disc at each ascent mouth and summit lookout (White Caps Stair, East Cap Ledge, Hollow Stair Cave, Scarp Cave, West Ridge Cave, Corner Stair, Westwatch Climb).
   - Pale Hollow is untouched, including its eastern spur (Mayflower).
   - Mobs sit on a deterministic grid inside per-family boxes (the same `stamp` and `take` approach as Pale Hollow), so moving a camp means editing one box.
 - **Validation:** check-anchors.ts runs over the new anchors (outputs go to /workspace/ba-anchor-audit only), plus a new repo test like world-pois.test.ts covering every spawn, NPC and camp.
@@ -141,20 +139,20 @@ Fragment quests `require` the previous fragment quest, matching the trail order.
 5. Map and World Builder: are the camp spots right, and which named Penitents should appear (I picked Hollow, Ashmouth, Sootkin)?
 
 ## 8. New names for Grok Bot (lore-bible.md)
-- **Mobs:** Tithe-Taker, Toll Hound, Crown Outrider, Spur Adder, Wharf Drowned, Canal Crab, Crown Wharfwarden, the Lockkeeper Drowned, Ford Drowned, Causeway Lamprey, Ford Crab, Banded Grazer, Ringblight Wolf, Cord Adder, Old Banding, Seam Drover, Drover Mastiff, Crook Maddoc (Drover Chief), Stair Haunt, Scarp Revenant. Forest Basin uses the existing hares, slimes, boars, crabs, adders, scavengers, dwellers, golems and wights, plus Brother Lime, Sister Chalk and Brother Whitewash. Penitent Whitener, Hollow, Ashmouth and Sootkin are already in the bible.
-- **Field figures:** Wick Tallow (Roadside Hermit), Oswy Fernhallow, Garth Underhill, Abel Coalhurst, Hild Coalhurst, Tobin Reede, Old Corwin Ashdown, Sister Pumice, Old Hesk (Last Freeholder), Marrow Quaylan (Wharf Lampman), Ferryman Tobin Reed, Drover-Widow Annet, Brother Lantern (Pass Pilgrim), Ashen Wenlo (Stair Hermit).
-- **Quests:** The Seventh Post, One in Seven, The Cold Hearth, The Last Stones, The Wheel-Lock, The Pilgrim's Pack, Bounded in Sevens, Under the Cairn, Older Than the Walls, Seven Courses, The Ring Held, Eels on the Causeway, The View of Seven, Strays of the Reach, Crown Stones, Contraband Hides, The Scriveners' Oath, Seven Hands, Whitewash.
-- **Structures:** Tithe Booth, Kettle Hollow, Spur Watch Fire, Wharfwarden's Post, Ferry Stage, Herders' Fold, Drover Camp, Penitents' Whitewash Camp.
+- **Mobs:** Tithe-Taker, Toll Hound, Mere Wolf, Blightback Boar, Rootsick Stag, the Merewick Hart, Crown Outrider, Spur Adder, Wharf Drowned, Canal Crab, Crown Wharfwarden, the Lockkeeper Drowned, Ford Drowned, Causeway Lamprey, Ford Crab, Banded Grazer, Ringblight Wolf, Cord Adder, Old Banding, Seam Drover, Drover Mastiff, Crook Maddoc (Drover Chief), Stair Haunt, Scarp Revenant. Penitent Whitener, Hollow, Ashmouth and Sootkin are already in the bible.
+- **Field figures:** Wick Tallow (Roadside Hermit), Sister Ondine of the Graves, Gerd Halloway (Basin Trapper), Old Hesk (Last Freeholder), Marrow Quaylan (Wharf Lampman), Ferryman Tobin Reed, Drover-Widow Annet, Brother Lantern (Pass Pilgrim), Ashen Wenlo (Stair Hermit).
+- **Quests:** The Seventh Post, One in Seven, The Drowned Spoke, Hides for the Halls, Bounded in Sevens, Under the Cairn, Older Than the Walls, Seven Courses, The Ring Held, Eels on the Causeway, The View of Seven, Strays of the Reach, Crown Stones, Contraband Hides, The Scriveners' Oath, Seven Hands, Whitewash.
+- **Structures:** Tithe Booth, Trapper's Lean-to, Spur Watch Fire, Wharfwarden's Post, Ferry Stage, Herders' Fold, Drover Camp, Penitents' Whitewash Camp.
 
 ## Appendix (internal ids only, not player-facing)
 New id prefixes follow the zone prefixes already used in world-pois.ts: hr-, fb-, sr-, rw-, if-, gr-, cp-, cr-. New archetypes: crown_soldier, stag, drowned_one, lamprey, seam_drover, penitent.
 
 ## Build notes (as implemented on populate-seam-country)
 
-- **Friendly camps (a giver stands there):** Wick's Lean-to (HR), Kettle Hollow (FB), Freeholder's Hearth (SR), Lampman's Stoop (RW), Ferry Stage (IF), Herders' Fold (GR), Pilgrim Shelter (CP), Wenlo's Cell (CR).
+- **Friendly camps (a giver stands there):** Wick's Lean-to (HR), Trapper's Lean-to and Grave-Lamp (FB), Freeholder's Hearth (SR), Lampman's Stoop (RW), Ferry Stage (IF), Herders' Fold (GR), Pilgrim Shelter (CP), Wenlo's Cell (CR).
 - **Hostile camps (mob dens):** Tithe Booth (HR), Spur Watch Fire (SR), Wharfwarden's Post (RW), Drover Camp (CP), Penitents' Whitewash Camp (CR).
 - **Ring Ward:** the wharf shelf is not walkable, so the drowned dens sit in the inner ring lanes; quest text says the drowned "climbed into the inner lanes" and the warden post is "in the south-west lanes".
-- **Reused rigs** (Toll Hound, Drover Mastiff and Ringblight Wolf use hollow_scavenger; Forest Basin's creatures use the existing hare, slime, boar, crab, adder, scavenger, dweller, golem and wight rigs) render as the existing model.
+- **Reused rigs** (Toll Hound, Mere Wolf, Drover Mastiff, Ringblight Wolf use hollow_scavenger; boars, adders, crabs, haunts, revenants likewise) render as the existing model with no tint or scale variant.
 - **Clearances (metres, mob / camp / NPC):** trail 6/6/3.5 (mob trail clearance 3.5 in Ring Ward, 4.5 in Coil Pass), gate 8, warp circle 12, POI 4/10/6, ascent ends 8, ascent path 3, spawn and arrivals 14/8/6; mobs keep 14 m from friendly camps, 4 m from hostile camps, 6.5 m from each other.
 - **Reading a landmark** is done on site (within 4.5 m); the stone tells its story and the step is remembered for any active quest that names it.
 - **No-crypto rule:** no ledgers, tallies-as-records, chains or networks in any quest, mob, NPC or camp string. History is erased by edict, fire and chisel; it is remembered by the land, songs and people.
