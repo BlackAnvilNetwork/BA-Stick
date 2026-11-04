@@ -7,12 +7,14 @@ import { keccak256, stringToHex } from "viem";
 import {
   ASK_FILLED_TOPIC,
   ahEscrowClientConfig,
+  ahEscrowListingRpcUrl,
   applyAskFilled,
   classifyAskFilledFailure,
   decodeAskFilled,
   fillKeyOf,
   scanAskFilled,
 } from "./ah-escrow";
+import { MirroredFills, askFilledMirroredPath } from "./lok-ask-filled-quarantine";
 import { LokWorld } from "./lok-world";
 
 describe("AhEscrow AskFilled mirror", () => {
@@ -141,6 +143,64 @@ describe("AhEscrow AskFilled mirror", () => {
       })?.currency.symbol,
       "xDAI",
     );
+  });
+
+  it("listing RPC prefers LOK_CHAIN_RPC while snapshots stay on public RPC", async () => {
+    const { setCachedSettlementChainId } = await import("./settlement-chain");
+    setCachedSettlementChainId(null);
+    const env = {
+      LOK_AH_ESCROW: "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707",
+      LOK_CHAIN_RPC: "https://operator.example/rpc",
+      LOK_PUBLIC_RPC: "https://public.example/rpc",
+      LOK_CHAIN_ID: "100",
+    };
+    assert.equal(ahEscrowListingRpcUrl(env), "https://operator.example/rpc");
+    assert.equal(ahEscrowClientConfig(env)?.rpcUrl, "https://public.example/rpc");
+    assert.equal(
+      ahEscrowListingRpcUrl({
+        LOK_CHAIN_RPC_URLS: "https://watcher-a.example, https://watcher-b.example",
+        LOK_PUBLIC_RPC: "https://public.example/rpc",
+      }),
+      "https://watcher-a.example",
+    );
+  });
+
+  it("stale mirrored cache still notes ChainFill when the log has none", () => {
+    const dir = mkdtempSync(join(tmpdir(), "lok-ah-mirrored-stale-"));
+    const lok = LokWorld.open(dir, undefined, {});
+    const seller = lok.spawn("seller", "Seller", 1);
+    const buyer = lok.spawn("buyer", "Buyer", 2);
+    assert.ok(seller.ok && buyer.ok);
+    if (!seller.ok || !buyer.ok) return;
+    lok.noteCustodyInbound({
+      kind: "importItem",
+      tokenId: seller.tokenId,
+      nonce: "1",
+      itemId: "111",
+      amount: "1",
+    });
+    assert.equal(lok.importItem(seller.tokenId, "111", "1", "1").ok, true);
+    const ask = lok.ask(seller.tokenId, "111", "1", "500", 1_700_000_000);
+    assert.ok(ask.ok && ask.listingId);
+    const fill = {
+      listingId: ask.listingId!,
+      buyer: "0x00000000000000000000000000000000000000bb",
+      buyerTokenId: buyer.tokenId,
+      sellerPayout: "0x00000000000000000000000000000000000000aa",
+      priceWei: "500",
+      feeWei: "5",
+      itemId: "111",
+      amount: "1",
+    };
+    const fillKey = "0xstale-0";
+    const mirrored = new MirroredFills(askFilledMirroredPath(dir));
+    mirrored.add(fillKey);
+    assert.equal(mirrored.has(fillKey), true);
+    assert.equal(lok.hasChainFill(fillKey), false);
+    const applied = applyAskFilled(lok, fill, fillKey, { mirrored });
+    assert.equal(applied.ok, true, applied.ok ? "" : applied.error);
+    assert.equal(applied.ok && applied.kind, "applied");
+    assert.equal(lok.hasChainFill(fillKey), true);
   });
 
   it("scanAskFilled applies confirmed logs and advances the cursor", async () => {
