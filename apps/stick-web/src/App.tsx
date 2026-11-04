@@ -73,16 +73,6 @@ export function App() {
       if (useGame.getState().phase !== "play") return;
       if (typing(e)) return;
 
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z" && !e.shiftKey) {
-        const snap = useGame.getState().snapshot;
-        const unlocked = snap?.you.unlocked ?? [];
-        if (snap?.you.zoneId === "forest_basin" && unlocked.includes("map_undo" as never)) {
-          e.preventDefault();
-          castAbility("map_undo" as never);
-          return;
-        }
-      }
-
       if (e.code === "Tab") {
         e.preventDefault();
         e.stopImmediatePropagation();

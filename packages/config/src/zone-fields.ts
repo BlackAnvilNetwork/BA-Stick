@@ -52,14 +52,8 @@ import {
   forestBasinTrails,
   forestBasinWalkable,
   forestBasinWaterSurfaceY,
-  forestBasinClampMoveUsing,
 } from "./forest-basin";
 import { nearTrailCorridor, type TrailPolyline } from "./trail-geom";
-import {
-  effectiveForestBasinBiome,
-  effectiveForestBasinHeight,
-  effectiveForestBasinWalkable,
-} from "./forest-basin-overlay";
 import {
   GR_BOUNDS,
   GR_GATES,
@@ -248,20 +242,19 @@ export const ZONE_FIELDS: Readonly<Record<string, ZoneField>> = {
     bounds: FOREST_BASIN_BOUNDS,
     trailWidth: FB_TRAIL_WIDTH,
     spawn: FB_SPAWN,
-    walkable: effectiveForestBasinWalkable,
-    stand: effectiveForestBasinHeight,
+    walkable: forestBasinWalkable,
+    stand: forestBasinStandHeight,
     water: forestBasinWaterSurfaceY,
     openWater: forestBasinInOpenWater,
     onBridge: forestBasinOnBridge,
-    biome: effectiveForestBasinBiome,
+    biome: forestBasinBiome,
     trails: forestBasinTrails,
     roadNames: FB_ROAD_NAMES,
     labels: FB_MAP_LABELS,
     gates: FB_GATES,
     gateSoftLevel: forestBasinGateSoftLevel,
     clamp: forestBasinClamp,
-    clampMove: (fx, fz, tx, tz) =>
-      forestBasinClampMoveUsing(effectiveForestBasinWalkable, fx, fz, tx, tz),
+    clampMove: forestBasinClampMove,
   }),
   spur_road: field({
     id: "spur_road",

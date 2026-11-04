@@ -197,14 +197,6 @@ import {
   type WeaponTpAbilityId,
 } from "./weapon-tp";
 
-import {
-  MAP_BUILDER_ABILITY_IDS,
-  MAP_BUILDER_ABILITIES,
-  MAP_BUILDER_CATEGORY_TAB,
-  isMapBuilderAbilityId,
-  mapBuilderAbilityTooltip,
-  type MapBuilderAbilityId,
-} from "./map-builder-kit";
 
 import type { JobId } from "./jobs";
 import {
@@ -249,7 +241,6 @@ export const ALL_ABILITY_IDS = Array.from(
 
     ...WEAPON_TP_ABILITY_IDS,
 
-    ...MAP_BUILDER_ABILITY_IDS,
 
   ]),
 
@@ -272,8 +263,7 @@ export type AbilityId =
   | ClericAbilityId
   | BattleMageAbilityId
   | DruidAbilityId
-  | WeaponTpAbilityId
-  | MapBuilderAbilityId;
+  | WeaponTpAbilityId;
 
 
 
@@ -295,13 +285,10 @@ export function isAbilityId(id: string): id is AbilityId {
     isBattleMageAbilityId(id) ||
     isDruidAbilityId(id) ||
 
-    isWeaponTpAbilityId(id) ||
-    isMapBuilderAbilityId(id)
+    isWeaponTpAbilityId(id)
   );
 }
 
-export { isMapBuilderAbilityId, MAP_BUILDER_ABILITY_IDS, MAP_BUILDER_CATEGORY_TAB } from "./map-builder-kit";
-export { encodeGroundTarget, parseGroundTarget } from "./map-builder-kit";
 
 
 
@@ -376,7 +363,6 @@ export function abilityLabel(id: AbilityId): string {
   if (isClericAbilityId(id)) return CLERIC_ABILITIES[id].label;
   if (isBattleMageAbilityId(id)) return BATTLEMAGE_ABILITIES[id].label;
   if (isDruidAbilityId(id)) return DRUID_ABILITIES[id].label;
-  if (isMapBuilderAbilityId(id)) return MAP_BUILDER_ABILITIES[id].label;
   return id;
 
 }
@@ -399,7 +385,6 @@ export function abilityGlyph(id: AbilityId): string {
   if (isClericAbilityId(id)) return CLERIC_ABILITIES[id].glyph;
   if (isBattleMageAbilityId(id)) return BATTLEMAGE_ABILITIES[id].glyph;
   if (isDruidAbilityId(id)) return DRUID_ABILITIES[id].glyph;
-  if (isMapBuilderAbilityId(id)) return MAP_BUILDER_ABILITIES[id].glyph;
   return "?";
 
 }
@@ -422,7 +407,6 @@ export function abilityTooltip(id: AbilityId): AbilityTooltip | string {
   if (isClericAbilityId(id)) return clericAbilityTooltip(id);
   if (isBattleMageAbilityId(id)) return battleMageAbilityTooltip(id);
   if (isDruidAbilityId(id)) return druidAbilityTooltip(id);
-  if (isMapBuilderAbilityId(id)) return mapBuilderAbilityTooltip(id);
   return id;
 }
 
@@ -499,7 +483,6 @@ export function abilitiesUnlockedForJob(
 export function abilityNeedsTarget(id: AbilityId): boolean {
   if (isWeaponTpAbilityId(id)) return true;
 
-  if (isMapBuilderAbilityId(id)) return id !== "map_undo" && id !== "map_enter";
   if (isTimAbilityId(id)) {
 
     const def = TIM_ABILITIES[id];
@@ -567,9 +550,8 @@ export function abilityNeedsTarget(id: AbilityId): boolean {
 }
 
 /** Who the player should tab-select / send as `targetId` for this ability. */
-export function abilityTargetFaction(id: AbilityId): "enemy" | "ally" | "ground" | null {
+export function abilityTargetFaction(id: AbilityId): "enemy" | "ally" | null {
   if (!abilityNeedsTarget(id)) return null;
-  if (isMapBuilderAbilityId(id)) return "ground";
   if (isClericAbilityId(id)) {
     const def = CLERIC_ABILITIES[id];
     if (def.allyTarget) return "ally";
@@ -657,7 +639,6 @@ export function abilityRecastMs(id: AbilityId): number {
   if (isClericAbilityId(id)) return CLERIC_ABILITIES[id].recastMs;
   if (isBattleMageAbilityId(id)) return BATTLEMAGE_ABILITIES[id].recastMs;
   if (isDruidAbilityId(id)) return DRUID_ABILITIES[id].recastMs;
-  if (isMapBuilderAbilityId(id)) return MAP_BUILDER_ABILITIES[id].recastMs;
   return 0;
 
 }
@@ -684,7 +665,6 @@ export function abilityCategory(id: AbilityId): AbilityUiCategory {
   if (isClericAbilityId(id)) return CLERIC_ABILITIES[id].category;
   if (isBattleMageAbilityId(id)) return BATTLEMAGE_ABILITIES[id].category;
   if (isDruidAbilityId(id)) return DRUID_ABILITIES[id].category;
-  if (isMapBuilderAbilityId(id)) return MAP_BUILDER_CATEGORY_TAB.id;
   return "utility";
 
 }
@@ -785,9 +765,6 @@ export function categoryTabsDual(
   if (!tabs.some((t) => t.id === WEAPON_TP_CATEGORY_TAB.id)) {
     tabs.push({ id: WEAPON_TP_CATEGORY_TAB.id, label: WEAPON_TP_CATEGORY_TAB.label });
   }
-  if (!tabs.some((t) => t.id === MAP_BUILDER_CATEGORY_TAB.id)) {
-    tabs.push({ id: MAP_BUILDER_CATEGORY_TAB.id, label: MAP_BUILDER_CATEGORY_TAB.label });
-  }
   return tabs;
 }
 
@@ -804,7 +781,6 @@ export function abilityUnlockLevel(id: AbilityId): number {
   if (isClericAbilityId(id)) return CLERIC_ABILITIES[id].unlockLevel;
   if (isBattleMageAbilityId(id)) return BATTLEMAGE_ABILITIES[id].unlockLevel;
   if (isDruidAbilityId(id)) return DRUID_ABILITIES[id].unlockLevel;
-  if (isMapBuilderAbilityId(id)) return 1;
   return 1;
 }
 

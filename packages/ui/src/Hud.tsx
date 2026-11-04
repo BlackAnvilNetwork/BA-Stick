@@ -113,7 +113,7 @@ function abilityTargetId(id: AbilityId, selected: string | null): string | undef
   if (!snap || !wallet) return undefined;
   const me = snap.units.find((u) => u.id.toLowerCase() === wallet.toLowerCase() && u.kind === "player");
   const combatTargetId = me?.targetId ?? null;
-  return resolveAbilityTargetId(id, selected, wallet, combatTargetId, snap.units, g.groundPick);
+  return resolveAbilityTargetId(id, selected, wallet, combatTargetId, snap.units);
 }
 
 function hudAbilityTip(id: CombatAbilityId): { title: string; body: string; meta: string } {

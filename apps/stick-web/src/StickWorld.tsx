@@ -24,7 +24,6 @@ import { ZONE_FADE_MS, ZoneTracker } from "./zones";
 import { ResonanceClock, buffVfx, statusIcons } from "./buffs";
 import { STATUS_ICON_FB, StatusColumns } from "./statusColumn";
 import { applyMapData } from "./minimap";
-import { applyForestBasinPatches } from "./map-builder-client";
 import type { StickRenderer } from "ba-stick-render";
 import { camModeFromDataset, cameraKey, lookAxes, type LookHeld } from "./camera";
 import { cycleView, toggleCamControl } from "@bellgrave/ui/uiSettings";
@@ -123,13 +122,6 @@ export function StickWorld() {
           if (me && steps) playSteps(r, steps, me.id, m.targetId ?? me.targetId);
         }),
       );
-      const onZoneEdit = (ev: Event) => {
-        const detail = (ev as CustomEvent<{ type: string; zone: string; cells: unknown[] }>).detail;
-        if (!detail || detail.zone !== "forest_basin") return;
-        applyForestBasinPatches(r, detail.cells as Parameters<typeof applyForestBasinPatches>[1]);
-      };
-      window.addEventListener("bellgrave:zone-edit", onZoneEdit);
-      cleanups.push(() => window.removeEventListener("bellgrave:zone-edit", onZoneEdit));
       const icons = new GatherIcons(labelsRef.current!, `${import.meta.env.BASE_URL}zones/icons.png`);
       let atlas: IconAtlas | null = null;
       void loadIconAtlas(import.meta.env.BASE_URL).then((a) => (atlas = a));
@@ -265,13 +257,6 @@ export function StickWorld() {
         }
         const [sx, sy] = toFramebuffer(canvas, e.clientX, e.clientY);
         cursorFb = [sx, sy];
-        const ground = pickHit(sx, sy);
-        if (ground) {
-          const origin = zoneOrigin(useGame.getState().snapshot?.you.zoneId);
-          useGame.getState().setGroundPick({ x: ground[0] - origin.x, z: ground[1] - origin.z });
-        } else {
-          useGame.getState().setGroundPick(null);
-        }
         if (r.minimapButton(sx, sy)) {
           hovered = null;
           canvas.style.cursor = "pointer";

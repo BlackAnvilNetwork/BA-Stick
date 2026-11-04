@@ -18,7 +18,6 @@ import {
   forestBasinStandHeight,
   forestBasinWalkable,
 } from "./forest-basin";
-import { effectiveForestBasinWalkable } from "./forest-basin-overlay";
 import { FB_AQUEDUCT, FB_BRIDGES, FB_TRAIL_DEFS, FB_WADE_DEPTH, fbAqueductBays, fbAqueductDist, fbAqueductRiverLift, fbDesignWater, fbOnFallFace, fbRiverAt } from "./forest-basin-features";
 import { gradedCorridorY, nearTrailCorridor } from "./trail-geom";
 import { PH_START_SPAWN } from "./warp-unlocks";
@@ -70,7 +69,6 @@ test("forest basin trail spines are walkable street", () => {
         street++;
         per.set(t.id, (per.get(t.id) ?? 0) + 1);
         assert.equal(forestBasinWalkable(x, z), true, `${t.id} walkable ${x.toFixed(1)},${z.toFixed(1)}`);
-        assert.equal(effectiveForestBasinWalkable(x, z), true, `${t.id} effective ${x.toFixed(1)},${z.toFixed(1)}`);
         const w = fbDesignWater(x, z);
         if (w && w.depth > FB_WADE_DEPTH) {
           assert.equal(forestBasinOnBridge(x, z), true, `${t.id} deep water needs a bridge at ${x.toFixed(1)},${z.toFixed(1)}`);
@@ -130,7 +128,6 @@ test("the painted trail hem stays walkable where the Briarwater clips Wrights' R
     assert.ok(w && w.depth > FB_WADE_DEPTH, `deep clip ${p.x},${p.z}`);
     assert.equal(forestBasinOnBridge(p.x, p.z), false);
     assert.equal(forestBasinWalkable(p.x, p.z), true, `walk street ${p.x},${p.z}`);
-    assert.equal(effectiveForestBasinWalkable(p.x, p.z), true, `effective ${p.x},${p.z}`);
   }
   const from = { x: -37.5, z: 78.2 };
   const to = { x: -42.0, z: 78.9 };

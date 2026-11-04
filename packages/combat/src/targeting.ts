@@ -4,7 +4,6 @@ import {
   abilityNeedsTarget,
   abilityTargetFaction,
 } from "./abilities";
-import { encodeGroundTarget } from "./map-builder-kit";
 
 /** Matches server `ENGAGE_MAX_RANGE` — tab-select and engage. */
 export const TAB_HOSTILE_RANGE = 30;
@@ -106,16 +105,10 @@ export function resolveAbilityTargetId(
   wallet: string,
   combatTargetId: string | null,
   units: readonly UnitSnapshot[],
-  ground: { x: number; z: number } | null = null,
 ): string | undefined {
   if (!abilityNeedsTarget(id)) return undefined;
   const faction = abilityTargetFaction(id);
   const picked = selected ? units.find((u) => u.id === selected) : undefined;
-
-  if (faction === "ground") {
-    if (ground) return encodeGroundTarget(ground.x, ground.z);
-    return undefined;
-  }
 
   if (faction === "ally") {
     if (picked && picked.kind === "player") return picked.id;

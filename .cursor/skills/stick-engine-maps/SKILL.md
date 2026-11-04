@@ -14,7 +14,7 @@ description: >-
 
 A map area is one zone. One TypeScript config module is the single source of truth. The server calls its functions for walkability and height. A bake script turns the same functions into two binary files the client draws. Nothing is hand-painted.
 
-Forest Basin can be sculpted in-game first. Use `.cursor/skills/bellgrave-map-builder/SKILL.md` for the Map spellbook, overlay persist, and promoting strokes into `forest-basin.ts`. Never commit `.env` files.
+Forest Basin can be sculpted in-game first. The map builder lives on its own branch and is not part of the game. Never commit `.env` files.
 
 ```
 packages/config/src/<zone>.ts   bounds, biome(), height(), walkable(), water, trails, bridges, gates, labels

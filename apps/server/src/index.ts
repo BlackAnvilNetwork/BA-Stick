@@ -66,7 +66,6 @@ import {
   weaponTpUnlocked,
   weaponTypeFromTokenId,
   isWeaponTpAbilityId,
-  MAP_BUILDER_ABILITY_IDS,
   xpToNextLevel,
   type AttrKey,
   type JobId,
@@ -134,14 +133,9 @@ import {
   worldQuestRead,
   worldQuestTalk,
   PVP_BOUNTY_WEI,
-  allForestBasinPatchCells,
   FB_SPAWN,
-  type ForestBasinPatchCell,
 } from "@bellgrave/config";
 import { paleHollowFindPath } from "./nav-grid";
-import { loadForestBasinEditsFromDisk } from "./forest-basin-builder-persist";
-import { isMapBuilderPlayer } from "./map-builder-auth";
-import { isMapBuilderAbility, resolveMapBuilderAbility } from "./map-builder-abilities";
 import {
   ASH_PIT as ASH_PIT_AREA,
   areaAtPlayer,
@@ -898,7 +892,6 @@ const lok: LokWorld = await (async (): Promise<LokWorld> => {
       if (!result.ok) console.warn("[bellgrave] mark online refused: " + result.error);
     });
     const world = LokWorld.open(defaultLokDir());
-    loadForestBasinEditsFromDisk();
     loadGameRoll(defaultLokDir());
     configureMintClaimNonceStore(pathJoin(defaultLokDir(), "mint-claim-nonces.json"));
     console.log(
@@ -2456,21 +2449,6 @@ function offPaleHollow(zoneId: string | undefined): boolean {
   return fieldById(zoneId) != null;
 }
 
-function broadcastForestBasinPatch(cells: ForestBasinPatchCell[]) {
-  if (cells.length === 0) return;
-  const msg = { type: "zone/patch" as const, zone: "forest_basin" as const, cells };
-  for (const pl of players.values()) {
-    if (pl.ws && unitZone(pl.zoneId) === "forest_basin") send(pl.ws, msg);
-  }
-}
-
-function sendForestBasinOverlay(p: Player) {
-  if (!p.ws) return;
-  const cells = allForestBasinPatchCells();
-  if (cells.length === 0) return;
-  send(p.ws, { type: "zone/overlay", zone: "forest_basin", cells });
-}
-
 function crossField(p: Player): boolean {
   const left = p.zoneId;
   if (!applyTravel(p)) return false;
@@ -2479,7 +2457,6 @@ function crossField(p: Player): boolean {
   if (left !== p.zoneId) dropZoneHate(p);
   const name = ZONES[p.zoneId as keyof typeof ZONES]?.name ?? p.zoneId;
   pushLog(p, `You enter ${name}.`);
-  if (p.zoneId === "forest_basin") sendForestBasinOverlay(p);
   return left !== p.zoneId;
 }
 
@@ -3219,15 +3196,14 @@ function mobBuffs(m: Mob): UnitSnapshot["buffs"] {
 /** Recompute / return unlocked abilities for a player (job + Trainer purchases + weapon skills). */
 function ensurePlayerUnlocked(p: Player): AbilityId[] {
   const learned = Array.isArray(p.learned) ? p.learned : [];
-  const unlockKey = `${p.job}|${p.subjob ?? ""}|${p.level}|${p.equip.main ?? ""}|${learned.length}|mb:${isMapBuilderPlayer(p) ? 1 : 0}`;
+  const unlockKey = `${p.job}|${p.subjob ?? ""}|${p.level}|${p.equip.main ?? ""}|${learned.length}`;
   if (p.unlockCacheKey !== unlockKey || !p.unlockCache) {
     const jobUnlocked = abilitiesUnlockedDual(p.job, p.level, p.subjob, learned) as AbilityId[];
     const wsUnlocked = weaponTpUnlocked(
       weaponTypeFromTokenId(p.equip.main),
       p.level,
     ) as AbilityId[];
-    const mapUnlocked = isMapBuilderPlayer(p) ? ([...MAP_BUILDER_ABILITY_IDS] as AbilityId[]) : [];
-    p.unlockCache = Array.from(new Set<AbilityId>([...jobUnlocked, ...wsUnlocked, ...mapUnlocked]));
+    p.unlockCache = Array.from(new Set<AbilityId>([...jobUnlocked, ...wsUnlocked]));
     p.unlockCacheKey = unlockKey;
   }
   return p.unlockCache;
@@ -3402,15 +3378,14 @@ function snapshotFor(p: Player): SnapshotMessage {
   }
 
   const learned = Array.isArray(p.learned) ? p.learned : [];
-  const unlockKey = `${p.job}|${p.subjob ?? ""}|${p.level}|${p.equip.main ?? ""}|${learned.length}|mb:${isMapBuilderPlayer(p) ? 1 : 0}`;
+  const unlockKey = `${p.job}|${p.subjob ?? ""}|${p.level}|${p.equip.main ?? ""}|${learned.length}`;
   if (p.unlockCacheKey !== unlockKey || !p.unlockCache) {
     const jobUnlocked = abilitiesUnlockedDual(p.job, p.level, p.subjob, learned) as AbilityId[];
     const wsUnlocked = weaponTpUnlocked(
       weaponTypeFromTokenId(p.equip.main),
       p.level,
     ) as AbilityId[];
-    const mapUnlocked = isMapBuilderPlayer(p) ? ([...MAP_BUILDER_ABILITY_IDS] as AbilityId[]) : [];
-    p.unlockCache = Array.from(new Set<AbilityId>([...jobUnlocked, ...wsUnlocked, ...mapUnlocked]));
+    p.unlockCache = Array.from(new Set<AbilityId>([...jobUnlocked, ...wsUnlocked]));
     p.unlockCacheKey = unlockKey;
   }
   const unlocked = p.unlockCache;
@@ -4718,29 +4693,6 @@ function handleAbility(p: Player, id: AbilityId, targetId?: string) {
     (isSorcererAbilityId(id) || isClericAbilityId(id) || isTimAbilityId(id) || isBattleMageAbilityId(id))
   ) {
     pushLog(p, "You are silenced.");
-    return;
-  }
-  // Map builder strokes. This branch used to sit after the silence return, so it never ran.
-  if (id === "map_enter") {
-    if (p.zoneId !== "forest_basin") {
-      dropZoneHate(p);
-      clearRoute(p);
-      p.zoneId = "forest_basin";
-      p.x = FB_SPAWN.x;
-      p.z = FB_SPAWN.z;
-      p.facing = FB_SPAWN.facing;
-      syncUnitY(p);
-      pushLog(p, "You step into Forest Basin.");
-      sendForestBasinOverlay(p);
-    } else pushLog(p, "You are already in Forest Basin.");
-    return;
-  }
-  if (isMapBuilderAbility(id)) {
-    resolveMapBuilderAbility(p, id, targetId, now, {
-      pushLog: (pl, line) => pushLog(pl as Player, line),
-      broadcastPatch: broadcastForestBasinPatch,
-    });
-    syncUnitY(p);
     return;
   }
   if (isRogueAbilityId(id) && playerHasJob(p, "rogue")) {

@@ -113,8 +113,6 @@ type GameState = {
   /** Client-side lines (errors, wallet prompts) kept across snapshots for LOCAL_LOG_MS. */
   localLogs: { m: string; t: number }[];
   selectedTarget: string | null;
-  /** Ground point under cursor (zone-local metres) for map-builder casts. */
-  groundPick: { x: number; z: number } | null;
   npcDialog: NpcDialog | null;
   explorer: ExplorerView | null;
   /** After a PvP bounty loss — show rejoin CTA until dismissed or joined. */
@@ -135,7 +133,6 @@ type GameState = {
   setSnapshot: (s: SnapshotMessage) => void;
   clearSnapshot: () => void;
   pushLog: (m: string) => void;
-  setGroundPick: (p: { x: number; z: number } | null) => void;
   setSelectedTarget: (id: string | null) => void;
   setNpcDialog: (d: NpcDialog | null) => void;
   setExplorer: (page: ExplorerView) => void;
@@ -161,7 +158,6 @@ export const useGame = create<GameState>((set, get) => ({
   logs: [],
   localLogs: [],
   selectedTarget: null,
-  groundPick: null,
   npcDialog: null,
   explorer: null,
   pvpSlainPrompt: null,
@@ -235,7 +231,6 @@ export const useGame = create<GameState>((set, get) => ({
       logs: [...s.logs.slice(-30), message],
       localLogs: [...s.localLogs.slice(-7), { m: message, t: Date.now() }],
     })),
-  setGroundPick: (groundPick) => set({ groundPick }),
   setSelectedTarget: (selectedTarget) => set({ selectedTarget }),
   setNpcDialog: (npcDialog) => set({ npcDialog }),
   setExplorer: (explorer) => set({ explorer }),

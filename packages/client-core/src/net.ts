@@ -630,10 +630,6 @@ export function connectSocket() {
         craftOpen: msg.craftOpen,
         lokOpen: msg.lokOpen,
       });
-    } else if (msg.type === "zone/patch" || msg.type === "zone/overlay") {
-      if (typeof window !== "undefined") {
-        window.dispatchEvent(new CustomEvent("bellgrave:zone-edit", { detail: msg }));
-      }
     }
   });
   return ws;

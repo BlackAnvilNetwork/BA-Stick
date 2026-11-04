@@ -852,28 +852,6 @@ export type ServerMessage =
       craftOpen?: boolean;
       /** Provisioner — client may open the lok exchange. */
       lokOpen?: boolean;
-    }
-  | {
-      type: "zone/patch";
-      zone: "forest_basin";
-      cells: {
-        i: number;
-        j: number;
-        heightCm?: number;
-        biome?: number;
-        flags?: number;
-      }[];
-    }
-  | {
-      type: "zone/overlay";
-      zone: "forest_basin";
-      cells: {
-        i: number;
-        j: number;
-        heightCm?: number;
-        biome?: number;
-        flags?: number;
-      }[];
     };
 
 export function parseClientMessage(raw: unknown): ClientMessage | null {
