@@ -353,7 +353,7 @@ export function forestBasinProps(): Prop[] {
     }
     return null;
   };
-  const KEEP_DRY = new Set([K.firePit, K.tent, K.bedroll, K.crate, K.chest, K.leanTo, K.shack, K.cairn, K.stall, K.firewood]);
+  const KEEP_DRY = new Set<number>([K.firePit, K.tent, K.bedroll, K.crate, K.chest, K.leanTo, K.shack, K.cairn, K.stall, K.firewood]);
   const at = (kind: number, x: number, z: number, yaw = 0, s = 1) => {
     if (KEEP_DRY.has(kind) && (fbDesignWater(x, z) || forestBasinInOpenWater(x, z) || !firm(x, z))) return;
     out.push({ kind, v: 0, x, z, y: forestBasinStandHeight(x, z), yaw, s, w: 0, h: 0, d: 0 });

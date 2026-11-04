@@ -66,7 +66,7 @@ test("bank walls stay continuous through bridge crossings", async () => {
 test("forest basin campfires, cairns and camps stay out of the water", async () => {
   const { forestBasinInOpenWater, fbDesignWater } = await import("@bellgrave/config");
   const { forestBasinProps, K } = await import("../scripts/bake-props");
-  const dry = new Set([K.firePit, K.tent, K.bedroll, K.leanTo, K.shack, K.cairn, K.chest, K.stall, K.wallBlock]);
+  const dry = new Set<number>([K.firePit, K.tent, K.bedroll, K.leanTo, K.shack, K.cairn, K.chest, K.stall, K.wallBlock]);
   for (const p of forestBasinProps()) {
     if (!dry.has(p.kind)) continue;
     assert.ok(

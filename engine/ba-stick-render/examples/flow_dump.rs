@@ -1,3 +1,7 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+
 use ba_stick_render::pixel_water::{WaterField, WaterLayout};
 use ba_stick_render::zone::Zone;
 fn main() {
