@@ -15,9 +15,9 @@
  * with the sky clock, caves do not.
  *
  * Coordinates are zone-local metres; the client adds the zone origin.
- * Forest Basin has no entry on purpose: it is the map builder's blank map and
- * keeps plain daylight until its maker gives it a mood.
+ * Forest Basin uses the woodland shade and the lights named in its features.
  */
+import { FB_LIGHTS, FB_LIGHT_MOOD } from "./forest-basin-features";
 import { PH_SEAM_TUNNEL } from "./pale-hollow";
 import { PH_START_CAMP, PH_WARP_CIRCLES } from "./pale-hollow-camp";
 import { MAYFLOWER_BBOX, MAYFLOWER_DISTRICTS } from "./pale-hollow-town";
@@ -76,6 +76,8 @@ export const LIGHT_MOODS = {
   citadel: { ambient: [0.42, 0.42, 0.54], playerRadius: 6, playerStrength: 0.55, glow: 0.5, night: 0.4 },
   /** Ash and slag country: red-brown murk over forge pits. */
   slag: { ambient: [0.56, 0.44, 0.42], playerRadius: 5, playerStrength: 0.4, glow: 0.6, night: 0.6 },
+  /** Forest Basin: green-grey shade under the replanted wood. */
+  forestBasin: FB_LIGHT_MOOD,
 } as const satisfies Record<string, LightMood>;
 
 const SEAM = LIGHT_MOODS.seamCountry;
@@ -83,7 +85,7 @@ const SEAM = LIGHT_MOODS.seamCountry;
 /** The mood a zone starts in. Zones not listed have plain daylight. */
 export const ZONE_LIGHT_MOODS: Readonly<Record<string, LightMood>> = {
   pale_hollow: LIGHT_MOODS.daylight,
-  // Seam Country: the seven fields east of Pale Hollow (Forest Basin excepted, see above).
+  // Seam Country: the seven fields east of Pale Hollow. Forest Basin has its own shade.
   hollow_road: SEAM,
   spur_road: SEAM,
   ring_ward: SEAM,
@@ -91,6 +93,7 @@ export const ZONE_LIGHT_MOODS: Readonly<Record<string, LightMood>> = {
   green_reach: SEAM,
   coil_pass: SEAM,
   coil_ridge: SEAM,
+  forest_basin: LIGHT_MOODS.forestBasin,
   // The Citadel of the Seven Seats and its hall.
   palace_hall: LIGHT_MOODS.citadel,
   citadel_of_kek: LIGHT_MOODS.citadel,
@@ -162,7 +165,6 @@ function seamCountryLights(zone: SeamCountryZone): MapLight[] {
   out.push({ name: "Warp circle glow", kind: "crystal", x: w.x, z: w.z, radius: 4.5 });
   for (const c of seamCountryCamps(zone)) {
     if (c.side !== "friendly") continue;
-    // Beside the post, not in its fire.
     out.push({ name: `${c.name} torch`, kind: "torch", x: c.x + Math.cos(c.yaw) * 2.5, z: c.z - Math.sin(c.yaw) * 2.5 });
   }
   return out;
@@ -171,15 +173,19 @@ function seamCountryLights(zone: SeamCountryZone): MapLight[] {
 const lightCache = new Map<string, readonly MapLight[]>();
 
 /**
- * Every map light for a zone: the hand-placed ones plus those derived from
- * Seam Country data. Built on first use (camp placement is not free).
- * Forest Basin gets none: the map builder's blank map is left alone.
+ * Every map light for a zone: hand-placed lights, Seam Country derived lights,
+ * and Forest Basin's named lights. Built on first use.
  */
 export function zoneMapLights(zoneId: string): readonly MapLight[] {
   let v = lightCache.get(zoneId);
   if (!v) {
     const seam = (SEAM_COUNTRY_ZONES as readonly string[]).includes(zoneId);
-    v = [...(ZONE_MAP_LIGHTS[zoneId] ?? []), ...(seam ? seamCountryLights(zoneId as SeamCountryZone) : [])];
+    const basin = zoneId === "forest_basin" ? FB_LIGHTS : [];
+    v = [
+      ...(ZONE_MAP_LIGHTS[zoneId] ?? []),
+      ...(seam ? seamCountryLights(zoneId as SeamCountryZone) : []),
+      ...basin,
+    ];
     lightCache.set(zoneId, v);
   }
   return v;

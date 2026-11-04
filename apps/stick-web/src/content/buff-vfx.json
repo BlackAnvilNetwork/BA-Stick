@@ -244,6 +244,61 @@
   },
   "regenUntil": {
    "vfx": "regen"
+  },
+  "druidForm": {
+   "vfx": "none",
+   "why": "body preset, not a status ring"
+  },
+  "druidFormUntil": {
+   "vfx": "flash"
+  },
+  "druidRingwakeUntil": {
+   "vfx": "ward"
+  },
+  "druidAshBraceUntil": {
+   "vfx": "protect"
+  },
+  "druidBundleThickenUntil": {
+   "vfx": "protect"
+  },
+  "druidBrackenRootUntil": {
+   "vfx": "bind"
+  },
+  "druidAntlerHumUntil": {
+   "vfx": "regen"
+  },
+  "druidMereVeilUntil": {
+   "vfx": "shell"
+  },
+  "druidMereVeilHp": {
+   "vfx": "none",
+   "why": "modifier"
+  },
+  "druidManeDustUntil": {
+   "vfx": "berserk"
+  },
+  "druidEmberTailUntil": {
+   "vfx": "haste"
+  },
+  "druidChalkWardUntil": {
+   "vfx": "protect"
+  },
+  "druidChalkWardMul": {
+   "vfx": "none",
+   "why": "modifier"
+  },
+  "druidSourHumUntil": {
+   "vfx": "enfeeble"
+  },
+  "druidBleedUntil": {
+   "vfx": "dot"
+  },
+  "druidBleedPot": {
+   "vfx": "none",
+   "why": "modifier"
+  },
+  "druidRingSplitUntil": {
+   "vfx": "ward"
   }
  }
 }

@@ -4,6 +4,20 @@ import { getMoveKeys } from "@bellgrave/ui/moveInput";
 /** WASD step length per send, in world units (matches the legacy client). */
 export const WASD_STEP = 4.5;
 
+/** Iso diamond (must match stick-engine ISO_X / ISO_Y). */
+export const ISO_X = 32;
+export const ISO_Y = 16;
+
+/**
+ * Screen pixel → world delta on a flat iso plane. `pickWorld` relief-corrects
+ * and veers toward adjacent hills, which walks a raised road off its path.
+ */
+export function isoScreenPick(sx: number, sy: number, center: [number, number] = [320, 180]): [number, number] {
+  const dsx = sx - center[0];
+  const dsy = sy - center[1];
+  return [dsx / (2 * ISO_X) + dsy / (2 * ISO_Y), dsy / (2 * ISO_Y) - dsx / (2 * ISO_X)];
+}
+
 /**
  * Screen-relative WASD → world direction. `pick` maps a framebuffer pixel to
  * ground (x, z), so this follows whatever projection the renderer uses.

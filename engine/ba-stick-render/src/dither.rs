@@ -164,3 +164,81 @@ mod tests {
         );
     }
 }
+
+/// One screen pixel in the wading-ripple language.
+pub fn foam_px(fb: &mut stick_engine::raster::Framebuffer, x: i32, y: i32, col: u8) {
+    if x < 0 || y < 0 || (x as usize) >= fb.w || (y as usize) >= fb.h {
+        return;
+    }
+    fb.color[y as usize * fb.w + x as usize] = col;
+}
+
+/// Dotted ellipse made of single pixels — the wading ripple, reusable for
+/// still shimmer, current, and mist puffs at a fall foot.
+pub fn foam_dots(
+    fb: &mut stick_engine::raster::Framebuffer,
+    cx: f32,
+    cy: f32,
+    t: f32,
+    size: f32,
+    col: u8,
+) {
+    let ph = t.fract();
+    if ph > 0.78 {
+        return;
+    }
+    let rx = (7.0 + ph * 9.0) * size;
+    let ry = (2.6 + ph * 3.4) * size;
+    let n = 40;
+    for i in 0..n {
+        if i % 4 == 0 {
+            continue;
+        }
+        let a = i as f32 / n as f32 * std::f32::consts::TAU;
+        foam_px(
+            fb,
+            (cx + a.cos() * rx) as i32,
+            (cy + a.sin() * ry) as i32,
+            col,
+        );
+    }
+}
+
+/// Expanding dotted ellipse — the same pixel language as a wading foot.
+/// `t` is 0..1 (born → fade). Iso water is diamond tops only; these rings
+/// are what reads as motion.
+pub fn ripple_ring(
+    fb: &mut stick_engine::raster::Framebuffer,
+    c: stick_engine::camera::P2,
+    t: f32,
+    size: f32,
+    col: u8,
+) {
+    if c.culled() {
+        return;
+    }
+    let ph = t.fract();
+    if ph > 0.82 {
+        return;
+    }
+    let rx = (7.0 + ph * 12.0) * size;
+    let ry = (2.8 + ph * 4.6) * size;
+    let n = 36;
+    for i in 0..n {
+        if i % 3 == 0 {
+            continue;
+        }
+        let a = i as f32 / n as f32 * std::f32::consts::TAU;
+        fb.disc(
+            stick_engine::camera::P2 {
+                x: c.x + a.cos() * rx,
+                y: c.y + a.sin() * ry,
+                d: c.d - 0.04,
+                ..c
+            },
+            0.9,
+            col,
+            None,
+        );
+    }
+}

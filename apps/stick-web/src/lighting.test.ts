@@ -40,11 +40,14 @@ describe("lighting wiring", () => {
     assert.equal(sent[2], forge.z + o.z);
   });
 
-  it("an unknown zone or the blank map gets daylight", () => {
-    const { r, calls } = fake();
-    applyZoneMood(r, "forest_basin", false);
-    applyZoneMood(r, undefined, false);
-    for (const c of calls) assert.deepEqual(c.args.slice(0, 5), [1, 1, 1, 0, 0]);
+  it("an unknown zone gets daylight; Forest Basin uses its woodland shade", () => {
+    const day = fake();
+    applyZoneMood(day.r, undefined, false);
+    assert.deepEqual(day.calls[0].args.slice(0, 5), [1, 1, 1, 0, 0]);
+    const basin = fake();
+    applyZoneMood(basin.r, "forest_basin", false);
+    assert.deepEqual(basin.calls[0].args.slice(0, 3), [...LIGHT_MOODS.forestBasin.ambient]);
+    assert.equal(basin.calls[0].args[6], LIGHT_MOODS.forestBasin.night);
   });
 
   it("?lights=0 turns the pass off", () => {

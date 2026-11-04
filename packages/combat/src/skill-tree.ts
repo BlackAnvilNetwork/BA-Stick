@@ -1,6 +1,6 @@
 /**
  * Master skill tree — shared web across all jobs.
- * 600 nodes: ~85 per job district (heart + core ring + pods + travel) + corridor gems.
+ * 685 nodes: 7 ring districts × 85 + center Henge (Druid) × 85 + 5 corridor gems.
  * Layout: spaced job islands with geometric pods and thin corridors between them.
  * Spend 1 point/level (75 at max) + up to 100 more from post-max EXP = 175 max spent.
  */
@@ -9,7 +9,7 @@ import { JOB_IDS, type JobId } from "./jobs";
 /** Keep in sync with MAX_LEVEL in index.ts */
 const TREE_MAX_LEVEL = 75;
 
-export const SKILL_TREE_NODE_COUNT = 600;
+export const SKILL_TREE_NODE_COUNT = 685;
 export const SKILL_POINTS_PER_LEVEL = 1;
 /** Extra points from post-max EXP (skill echoes). */
 export const SKILL_PRESTIGE_CAP = 100;
@@ -83,9 +83,10 @@ const JOB_FOCUS: Record<JobId, AttrKey[]> = {
   sorcerer: ["int", "mnd", "agi"],
   fighter: ["str", "vit", "dex"],
   battle_mage: ["int", "str", "mnd"],
+  druid: ["mnd", "vit", "agi"],
 };
 
-const JOB_LABEL: Record<JobId, string> = {
+export const JOB_LABEL: Record<JobId, string> = {
   time_mage: "Chrona",
   knight: "Bulwark",
   rogue: "Shade",
@@ -93,6 +94,7 @@ const JOB_LABEL: Record<JobId, string> = {
   sorcerer: "Neve",
   fighter: "Storm",
   battle_mage: "Rune",
+  druid: "Henge",
 };
 
 function emptyAgg(): AggregatedSkillBonuses {
@@ -253,8 +255,9 @@ function bonusFor(
 function buildTree(): { nodes: Record<string, SkillNode>; hubs: Record<JobId, string> } {
   const nodes: Record<string, SkillNode> = {};
   const hubs: Record<JobId, string> = {} as Record<JobId, string>;
-  const perJob = Math.floor(SKILL_TREE_NODE_COUNT / JOB_IDS.length); // 85
-  const remainder = SKILL_TREE_NODE_COUNT - perJob * JOB_IDS.length; // 5
+  const RING_JOBS: JobId[] = JOB_IDS.filter((j) => j !== "druid");
+  const perJob = 85; // do not reslice the seven when Druid is added
+  const remainder = SKILL_TREE_NODE_COUNT - perJob * JOB_IDS.length; // 5 gems
 
   const CORE_COUNT = 10;
   const POD_COUNT = 6;
@@ -268,10 +271,11 @@ function buildTree(): { nodes: Record<string, SkillNode>; hubs: Record<JobId, st
   >;
   // Wide ring — significant empty space between job islands
   const R = 1720;
-  JOB_IDS.forEach((job, i) => {
-    const a = (i / JOB_IDS.length) * Math.PI * 2 - Math.PI / 2;
+  RING_JOBS.forEach((job, i) => {
+    const a = (i / RING_JOBS.length) * Math.PI * 2 - Math.PI / 2;
     hubPos[job] = { x: Math.cos(a) * R, y: Math.sin(a) * R };
   });
+  hubPos.druid = { x: 0, y: 0 };
 
   const clusterIds: Record<JobId, string[]> = {} as Record<JobId, string[]>;
   /** Outermost travel node ids facing each adjacent neighbor (for corridor links). */
@@ -284,8 +288,9 @@ function buildTree(): { nodes: Record<string, SkillNode>; hubs: Record<JobId, st
     clusterIds[job] = [];
     travelOut[job] = { prev: [], next: [] };
     const origin = hubPos[job]!;
-    const jobIndex = JOB_IDS.indexOf(job);
-    const districtAng = (jobIndex / JOB_IDS.length) * Math.PI * 2 - Math.PI / 2;
+    const ringIndex = RING_JOBS.indexOf(job);
+    const districtAng =
+      job === "druid" ? 0 : (ringIndex / RING_JOBS.length) * Math.PI * 2 - Math.PI / 2;
 
     for (let i = 0; i < perJob; i++) {
       const id = `${job}_${i}`;
@@ -333,7 +338,10 @@ function buildTree(): { nodes: Record<string, SkillNode>; hubs: Record<JobId, st
         const step = towardPrev ? t : t - TRAVEL_COUNT / 2;
         const steps = TRAVEL_COUNT / 2; // 4
         const neighborOffset = towardPrev ? -1 : 1;
-        const nJob = JOB_IDS[(jobIndex + neighborOffset + JOB_IDS.length) % JOB_IDS.length]!;
+        const nJob =
+          job === "druid"
+            ? RING_JOBS[t % RING_JOBS.length]!
+            : RING_JOBS[(ringIndex + neighborOffset + RING_JOBS.length) % RING_JOBS.length]!;
         const target = hubPos[nJob]!;
         const dx = target.x - origin.x;
         const dy = target.y - origin.y;
@@ -372,8 +380,8 @@ function buildTree(): { nodes: Record<string, SkillNode>; hubs: Record<JobId, st
   // Remainder: bridge gems sit mid-corridor BETWEEN districts
   for (let i = 0; i < remainder; i++) {
     const id = `nexus_${i}`;
-    const jobA = JOB_IDS[i % JOB_IDS.length]!;
-    const jobB = JOB_IDS[(i + 1) % JOB_IDS.length]!;
+    const jobA = RING_JOBS[i % RING_JOBS.length]!;
+    const jobB = RING_JOBS[(i + 1) % RING_JOBS.length]!;
     const a = hubPos[jobA]!;
     const b = hubPos[jobB]!;
     nodes[id] = {
@@ -433,13 +441,15 @@ function buildTree(): { nodes: Record<string, SkillNode>; hubs: Record<JobId, st
     // Travel corridor nodes: chain from the pod facing each neighbor
     const travelStart = 1 + CORE_COUNT + POD_COUNT * POD_SIZE;
     const origin = hubPos[job]!;
-    const jobIndex = JOB_IDS.indexOf(job);
+    const ringIndex = RING_JOBS.indexOf(job);
     for (let t = 0; t < TRAVEL_COUNT; t++) {
       const id = ids[travelStart + t]!;
       const towardPrev = t < TRAVEL_COUNT / 2;
       const step = towardPrev ? t : t - TRAVEL_COUNT / 2;
       const nJob =
-        JOB_IDS[(jobIndex + (towardPrev ? -1 : 1) + JOB_IDS.length) % JOB_IDS.length]!;
+        job === "druid"
+          ? RING_JOBS[t % RING_JOBS.length]!
+          : RING_JOBS[(ringIndex + (towardPrev ? -1 : 1) + RING_JOBS.length) % RING_JOBS.length]!;
       const angTo = Math.atan2(hubPos[nJob]!.y - origin.y, hubPos[nJob]!.x - origin.x);
       let facingPod = 0;
       let best = Infinity;
@@ -466,9 +476,9 @@ function buildTree(): { nodes: Record<string, SkillNode>; hubs: Record<JobId, st
   }
 
   // Adjacent district bridges via travel tips + nexus (readable corridors)
-  for (let i = 0; i < JOB_IDS.length; i++) {
-    const a = JOB_IDS[i]!;
-    const b = JOB_IDS[(i + 1) % JOB_IDS.length]!;
+  for (let i = 0; i < RING_JOBS.length; i++) {
+    const a = RING_JOBS[i]!;
+    const b = RING_JOBS[(i + 1) % RING_JOBS.length]!;
     const nextA = travelOut[a]!.next;
     const prevB = travelOut[b]!.prev;
     // Connect outermost travel nodes across the gap (thin corridor edges)
@@ -500,12 +510,32 @@ function buildTree(): { nodes: Record<string, SkillNode>; hubs: Record<JobId, st
   // Nexus gems stitch corridor tips — not direct hub-to-hub lines
   for (let i = 0; i < remainder; i++) {
     const id = `nexus_${i}`;
-    const jobA = JOB_IDS[i % JOB_IDS.length]!;
-    const jobB = JOB_IDS[(i + 1) % JOB_IDS.length]!;
+    const jobA = RING_JOBS[i % RING_JOBS.length]!;
+    const jobB = RING_JOBS[(i + 1) % RING_JOBS.length]!;
     const nextA = travelOut[jobA]!.next;
     const prevB = travelOut[jobB]!.prev;
     for (const tip of nextA.slice(-2)) link(id, tip);
     for (const tip of prevB.slice(-2)) link(id, tip);
+  }
+
+  // Henge at the origin speaks to every ring district through inward edges.
+  const henge = clusterIds.druid!;
+  for (let i = 0; i < RING_JOBS.length; i++) {
+    const job = RING_JOBS[i]!;
+    const spoke = henge[1 + CORE_COUNT + (i % POD_COUNT) * POD_SIZE]!;
+    const travel = henge[1 + CORE_COUNT + POD_COUNT * POD_SIZE + (i % TRAVEL_COUNT)]!;
+    let inward = clusterIds[job]![0]!;
+    let best = Infinity;
+    for (const id of clusterIds[job]!) {
+      const n = nodes[id]!;
+      const d = n.x * n.x + n.y * n.y;
+      if (d < best) {
+        best = d;
+        inward = id;
+      }
+    }
+    link(spoke, inward);
+    link(travel, inward);
   }
 
   return { nodes, hubs };

@@ -27,6 +27,7 @@ const JOB_COLOR: Record<JobId, string> = {
   sorcerer: "#6a5aa8",
   fighter: "#a04838",
   battle_mage: "#4a8a7a",
+  druid: "#c4a05a",
 };
 
 const VIEW_W = 5200;

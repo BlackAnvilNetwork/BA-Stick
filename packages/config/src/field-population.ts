@@ -167,6 +167,10 @@ export const BASELINE_FIELD_PLANS: Readonly<Record<string, BaselinePlan>> = {
 export const BASELINE_CLEAR = { gate: 8, spawnMob: 24, spawnNpc: 5, npcMob: 10, packGap: 18, poi: 5 } as const;
 
 const ARCHETYPE_TEMPLATE = new Map<PaleHollowArchetype, PaleHollowMobDef>();
+export function fieldMobTemplate(a: PaleHollowArchetype): PaleHollowMobDef {
+  return template(a);
+}
+
 function template(a: PaleHollowArchetype): PaleHollowMobDef {
   if (ARCHETYPE_TEMPLATE.size === 0) {
     for (const d of PH_ALL_MOBS) if (!ARCHETYPE_TEMPLATE.has(d.archetype)) ARCHETYPE_TEMPLATE.set(d.archetype, d);

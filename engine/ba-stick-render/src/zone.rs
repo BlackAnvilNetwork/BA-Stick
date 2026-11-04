@@ -22,6 +22,9 @@ pub struct Zone {
     pub flags: Vec<u8>,
     /// Height in metres.
     pub height: Vec<f32>,
+    /// Render height per grid vertex (shore-aware, see `ground::vertex_heights`).
+    /// Empty until built; readers fall back to computing it on the fly.
+    pub vy: Vec<f32>,
 }
 
 impl Zone {
@@ -51,7 +54,15 @@ impl Zone {
             biome,
             flags,
             height,
-        })
+            vy: Vec::new(),
+        }
+        .with_render_heights())
+    }
+
+    /// Fill `vy` (render vertex heights) for the whole grid.
+    pub fn with_render_heights(mut self) -> Zone {
+        self.vy = crate::ground::vertex_heights(&self);
+        self
     }
 
     #[inline]
@@ -134,6 +145,7 @@ mod tests {
             biome: vec![0; w * h],
             flags,
             height: vec![0.0; w * h],
+            vy: Vec::new(),
         }
     }
 

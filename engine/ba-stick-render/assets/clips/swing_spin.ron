@@ -1,0 +1,22 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+
+// Whirlwind: low gather, rising turn, wide finish.
+(
+    name: "swing_spin",
+    duration: 0.52,
+    looping: false,
+    mask: Full,
+    base: { "l_hip": 34.0, "l_knee": 38.0, "r_hip": -34.0, "r_knee": 38.0, "l_shoulder": -15.0, "l_elbow": 72.0, "l_arm_out": 34.0 },
+    keys: [
+        (t: 0.0,  pose: { "twist": 0.0,    "lean": 12.0,  "r_shoulder": 38.0,  "r_elbow": 42.0,  "r_arm_out": 42.0,  "l_shoulder": -35.0, "l_arm_out": 38.0,  "r_wpn_yaw": -145.0, "r_wpn_pitch": -12.0, "bob": -0.05 }),
+        (t: 0.08, pose: { "twist": -55.0,  "lean": 16.0,  "r_shoulder": 52.0,  "r_elbow": 18.0,  "r_arm_out": 58.0,  "l_shoulder": -52.0, "l_arm_out": 52.0,  "r_wpn_yaw": -168.0, "r_wpn_pitch": 8.0,   "bob": -0.09, "l_knee": 48.0, "r_knee": 48.0 }),
+        (t: 0.18, pose: { "twist": -145.0, "lean": 20.0,  "r_shoulder": 72.0,  "r_elbow": 12.0,  "r_arm_out": 32.0,  "l_shoulder": -62.0, "l_arm_out": 48.0,  "r_wpn_yaw": 155.0,  "r_wpn_pitch": -28.0, "bob": -0.11 }),
+        (t: 0.28, pose: { "twist": 55.0,   "lean": 22.0,  "r_shoulder": 68.0,  "r_elbow": 14.0,  "r_arm_out": 6.0,   "l_shoulder": -48.0, "l_arm_out": 40.0,  "r_wpn_yaw": 125.0,  "r_wpn_pitch": -38.0, "bob": -0.10 }),
+        (t: 0.38, pose: { "twist": 165.0,  "lean": 18.0,  "r_shoulder": 52.0,  "r_elbow": 32.0,  "r_arm_out": 38.0,  "l_shoulder": -40.0, "l_arm_out": 32.0,  "r_wpn_yaw": -95.0,  "r_wpn_pitch": -18.0, "bob": -0.06, "l_hip": 28.0, "r_hip": -28.0 }),
+        (t: 0.46, pose: { "twist": 95.0,   "lean": 10.0,  "r_shoulder": 35.0,  "r_elbow": 40.0,  "r_arm_out": 28.0,  "l_shoulder": -28.0, "l_arm_out": 22.0,  "r_wpn_yaw": 20.0,   "r_wpn_pitch": -35.0, "bob": -0.02 }),
+        (t: 0.52, pose: { "twist": 0.0,    "lean": 8.0,   "r_shoulder": 22.0,  "r_elbow": 38.0,  "r_arm_out": 18.0,  "l_shoulder": -12.0, "l_arm_out": 16.0,  "r_wpn_yaw": 32.0,   "r_wpn_pitch": -48.0, "bob": -0.04 }),
+    ],
+    events: [ (t: 0.12, name: "hit_start"), (t: 0.41, name: "hit_end"), (t: 0.45, name: "cancel_open"), (t: 0.52, name: "cancel_close") ],
+)

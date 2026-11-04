@@ -42,11 +42,17 @@ export function trySetRespawn(
 export function tryUseWarp(
   id: string,
   unlocked: readonly string[],
-): { ok: true; x: number; z: number; facing: number } | { ok: false; reason: string } {
+): { ok: true; zoneId: string; x: number; z: number; facing: number } | { ok: false; reason: string } {
   const circle = warpCircleById(id);
   if (!circle) return { ok: false, reason: "There is no such ring." };
   if (!unlocked.includes(circle.id)) return { ok: false, reason: "That ring has not opened for you." };
-  return { ok: true, x: circle.x, z: circle.z, facing: respawnStand("hub", unlocked).facing };
+  return {
+    ok: true,
+    zoneId: circle.zoneId,
+    x: circle.x,
+    z: circle.z,
+    facing: respawnStand("hub", unlocked).facing,
+  };
 }
 
 export { reachWarp };

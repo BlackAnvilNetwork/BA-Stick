@@ -26,7 +26,7 @@ export type PlayerProgress = {
   dust: number;
   subjob: string | null;
   /** Pale Hollow kill tasks. Legacy saves used one nullable `active`. */
-  hollowQuest?: { active: { id: string; kills: number }[] | { id: string; kills: number } | null; done: string[] };
+  hollowQuest?: { active: { id: string; kills: number; seen?: string[] }[] | { id: string; kills: number } | null; done: string[] };
   /** Warp rings this character has walked into. Missing on older saves. */
   warpUnlocked?: string[];
   /** Where death returns them. Missing means the Scout Gate. */

@@ -1,3 +1,4 @@
+import { FB_WARP_SITES } from "./forest-basin-features";
 import { PH_HUB, PH_HUB_SPAWN, PH_OUTDOOR_SPAWN } from "./pale-hollow";
 
 /** New characters. East of the lake, facing east. The Scout Gate spawn stays put. */
@@ -10,6 +11,32 @@ export const PH_WARP_CIRCLES = [
 
 export type WarpCircle = (typeof PH_WARP_CIRCLES)[number];
 export type WarpCircleId = WarpCircle["id"];
+
+/** A ring a character can open by walking into it, in the zone it belongs to. */
+export type WarpRing = {
+  id: string;
+  name: string;
+  x: number;
+  z: number;
+  r: number;
+  zoneId: "pale_hollow" | "forest_basin";
+};
+
+function ringName(name: string): string {
+  return name.replace(/^the /i, "");
+}
+
+export const WARP_RINGS: readonly WarpRing[] = [
+  ...PH_WARP_CIRCLES.map((circle) => ({ ...circle, zoneId: "pale_hollow" as const })),
+  ...FB_WARP_SITES.map((site) => ({
+    id: site.id,
+    name: ringName(site.name),
+    x: site.x,
+    z: site.z,
+    r: site.r,
+    zoneId: "forest_basin" as const,
+  })),
+];
 
 /**
  * The Mayflower Ring sits inside the Scout Gate room on purpose: it is Mayflower's
@@ -35,12 +62,15 @@ export type RespawnHome = "emberwatch" | "mayflower" | "hub";
 
 export type RespawnStand = { x: number; z: number; facing: number; home: RespawnHome };
 
-export function warpCircleById(id: string): WarpCircle | undefined {
-  return PH_WARP_CIRCLES.find((circle) => circle.id === id);
+export function warpCircleById(id: string): WarpRing | undefined {
+  return WARP_RINGS.find((circle) => circle.id === id);
 }
 
-export function warpCircleAt(x: number, z: number): WarpCircle | undefined {
-  return PH_WARP_CIRCLES.find((circle) => Math.hypot(circle.x - x, circle.z - z) <= circle.r);
+/** Rings are zone-local. A stand in Pale Hollow never opens a Forest Basin ring. */
+export function warpCircleAt(x: number, z: number, zoneId = "pale_hollow"): WarpRing | undefined {
+  return WARP_RINGS.find(
+    (circle) => circle.zoneId === zoneId && Math.hypot(circle.x - x, circle.z - z) <= circle.r,
+  );
 }
 
 export function unlockWarp(unlocked: readonly string[], id: string): string[] {
@@ -64,8 +94,9 @@ export function reachWarp(
   unlocked: readonly string[],
   x: number,
   z: number,
+  zoneId = "pale_hollow",
 ): { unlocked: string[]; added: string | null } {
-  const hit = warpCircleAt(x, z);
+  const hit = warpCircleAt(x, z, zoneId);
   if (!hit || unlocked.includes(hit.id)) return { unlocked: [...unlocked], added: null };
   return { unlocked: unlockWarp(unlocked, hit.id), added: hit.id };
 }

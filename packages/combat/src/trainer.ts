@@ -42,6 +42,8 @@ export const TRAINER_FREE_ABILITY_IDS = [
   "killing_storm",
   "spellblade",
   "bm_cure",
+  "dr_ringwake",
+  "dr_stickbear",
 ] as const;
 
 const FREE_SET = new Set<string>(TRAINER_FREE_ABILITY_IDS);
