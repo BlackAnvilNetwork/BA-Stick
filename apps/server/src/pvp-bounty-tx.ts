@@ -2,8 +2,10 @@
  * On-chain PvpBounty txs — operator claim/cancel via listing/owner key;
  * read helpers for open status + receipt fields for log mirrors.
  */
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { ASH_PIT, PVP_BOUNTY_WEI } from "@bellgrave/config";
+import { durableWrite } from "./durable-write";
 import {
   createPublicClient,
   createWalletClient,
@@ -86,6 +88,17 @@ export const PVP_BOUNTY_ABI = [
     stateMutability: "view",
     inputs: [],
     outputs: [{ type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "pendingClaim",
+    stateMutability: "view",
+    inputs: [{ name: "tokenId", type: "uint256" }],
+    outputs: [
+      { name: "slayerTokenId", type: "uint256" },
+      { name: "payout", type: "address" },
+      { name: "readyAt", type: "uint64" },
+    ],
   },
   {
     type: "event",
@@ -295,13 +308,162 @@ export async function chainPvpCancel(
   }
 }
 
-export async function readCharacterOwner(
+export type CharacterOwnerRead =
+  | { ok: true; owner: string }
+  | { ok: false; reason: "unconfigured" | "read_failed" };
+
+/** Matches `PvpBounty` constructor cap. Propose is refused above this. */
+export const PVP_CLAIM_DELAY_CAP_SEC = 7n * 24n * 60n * 60n;
+
+const PENDING_CLAIMS_FILE = "pvp-bounty-pending-claims.json";
+
+export type PendingPvpClaim = {
+  victimTokenId: string;
+  slayerTokenId: string;
+  payout: string;
+  readyAt: number;
+};
+
+const inFlightClaims = new Set<string>();
+const scheduledResumes = new Set<string>();
+let pendingClaimsPath: string | null = null;
+let resumeEnv: NodeJS.ProcessEnv = process.env;
+
+export function configurePvpClaimResume(opts: { dataDir: string; env?: NodeJS.ProcessEnv }): void {
+  pendingClaimsPath = join(opts.dataDir, PENDING_CLAIMS_FILE);
+  if (opts.env) resumeEnv = opts.env;
+}
+
+export function resetPvpClaimResumeForTests(): void {
+  pendingClaimsPath = null;
+  resumeEnv = process.env;
+  inFlightClaims.clear();
+  scheduledResumes.clear();
+}
+
+export function loadPendingPvpClaims(): PendingPvpClaim[] {
+  if (!pendingClaimsPath || !existsSync(pendingClaimsPath)) return [];
+  try {
+    const parsed = JSON.parse(readFileSync(pendingClaimsPath, "utf8")) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((row): row is PendingPvpClaim => {
+      if (!row || typeof row !== "object") return false;
+      const c = row as PendingPvpClaim;
+      return (
+        typeof c.victimTokenId === "string" &&
+        typeof c.slayerTokenId === "string" &&
+        typeof c.payout === "string" &&
+        typeof c.readyAt === "number"
+      );
+    });
+  } catch {
+    return [];
+  }
+}
+
+export function rememberPendingPvpClaim(claim: PendingPvpClaim): void {
+  if (!pendingClaimsPath) return;
+  const all = loadPendingPvpClaims().filter((c) => c.victimTokenId !== claim.victimTokenId);
+  all.push(claim);
+  durableWrite(pendingClaimsPath, JSON.stringify(all, null, 2) + "\n");
+}
+
+export function forgetPendingPvpClaim(victimTokenId: string): void {
+  if (!pendingClaimsPath) return;
+  durableWrite(
+    pendingClaimsPath,
+    JSON.stringify(
+      loadPendingPvpClaims().filter((c) => c.victimTokenId !== victimTokenId),
+      null,
+      2,
+    ) + "\n",
+  );
+}
+
+export function pvpClaimWaitMs(
+  delay: bigint,
+): { ok: true; waitMs: number } | { ok: false; error: string } {
+  if (delay > PVP_CLAIM_DELAY_CAP_SEC) {
+    return { ok: false, error: "PvpBounty claimDelay is too long to wait in-process." };
+  }
+  const waitMs = Number(delay) * 1000 + 1500;
+  if (!Number.isFinite(waitMs) || waitMs < 0) {
+    return { ok: false, error: "PvpBounty claimDelay is too long to wait in-process." };
+  }
+  return { ok: true, waitMs };
+}
+
+export function executeClaimReceipt(receipt: TransactionReceipt): PvpChainReceipt {
+  return (
+    eventReceipt(receipt, "BountyClaimed") ?? {
+      txHash: receipt.transactionHash,
+      logIndex: Number(receipt.logs[0]?.logIndex ?? 0),
+    }
+  );
+}
+
+function claimProposedReadyAt(receipt: TransactionReceipt, delaySec: bigint): number {
+  for (const log of receipt.logs) {
+    try {
+      const decoded = decodeEventLog({
+        abi: PVP_BOUNTY_ABI,
+        data: log.data,
+        topics: log.topics,
+      });
+      if (decoded.eventName === "ClaimProposed") {
+        return Number((decoded.args as { readyAt: bigint }).readyAt);
+      }
+    } catch {
+      /* not our event */
+    }
+  }
+  return Math.floor(Date.now() / 1000) + Number(delaySec);
+}
+
+function scheduleClaimResume(claim: PendingPvpClaim): void {
+  if (inFlightClaims.has(claim.victimTokenId) || scheduledResumes.has(claim.victimTokenId)) return;
+  scheduledResumes.add(claim.victimTokenId);
+  const waitMs = Math.max(0, claim.readyAt * 1000 - Date.now() + 1500);
+  const capped = Number.isFinite(waitMs) ? Math.min(waitMs, 2_147_000_000) : 0;
+  setTimeout(() => {
+    scheduledResumes.delete(claim.victimTokenId);
+    if (inFlightClaims.has(claim.victimTokenId)) return;
+    void resumeExecuteClaim(claim);
+  }, capped);
+}
+
+async function resumeExecuteClaim(claim: PendingPvpClaim): Promise<void> {
+  try {
+    const result = await executePvpClaim(claim.victimTokenId, claim.slayerTokenId, claim.payout, resumeEnv);
+    if (result.ok || /NoPending|NotOpen|no open/i.test(result.error)) {
+      forgetPendingPvpClaim(claim.victimTokenId);
+      return;
+    }
+    opsAlert({
+      level: "warn",
+      event: "pvp_bounty_claim_resume_failed",
+      msg: "PvpBounty executeClaim resume victim=" + claim.victimTokenId + " " + result.error,
+      dedupeKey: "pvp-resume-" + claim.victimTokenId,
+    });
+  } catch (err) {
+    opsAlert({
+      level: "warn",
+      event: "pvp_bounty_claim_resume_failed",
+      msg: "PvpBounty executeClaim resume victim=" + claim.victimTokenId + " " + (err instanceof Error ? err.message : String(err)),
+      dedupeKey: "pvp-resume-" + claim.victimTokenId,
+    });
+  }
+}
+
+export async function readCharacterOwnerResult(
   tokenId: string,
   env: NodeJS.ProcessEnv = process.env,
-): Promise<string | null> {
+): Promise<CharacterOwnerRead> {
   const nft = env.LOK_NFT?.trim();
   const rpc = rpcUrl(env);
-  if (!nft || !rpc || !/^0x[0-9a-fA-F]{40}$/.test(nft)) return null;
+  if (!nft || !rpc || !/^0x[0-9a-fA-F]{40}$/.test(nft)) {
+    return { ok: false, reason: "unconfigured" };
+  }
   const client = createPublicClient({
     chain: anvilChain(settlementChainId(env)),
     transport: http(rpc),
@@ -313,10 +475,18 @@ export async function readCharacterOwner(
       functionName: "ownerOf",
       args: [BigInt(tokenId)],
     });
-    return owner.toLowerCase();
+    return { ok: true, owner: owner.toLowerCase() };
   } catch {
-    return null;
+    return { ok: false, reason: "read_failed" };
   }
+}
+
+export async function readCharacterOwner(
+  tokenId: string,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<string | null> {
+  const read = await readCharacterOwnerResult(tokenId, env);
+  return read.ok ? read.owner : null;
 }
 
 function sleep(ms: number): Promise<void> {
@@ -346,6 +516,69 @@ async function blockPaidAtMs(
  * The payout is admitted in the epoch where executeClaim pays, and refused
  * when that epoch would pass 10% of the slashable bonds posted then.
  */
+async function executePvpClaim(
+  victimTokenId: string,
+  slayerTokenId: string,
+  expectedSlayer: string,
+  env: NodeJS.ProcessEnv,
+): Promise<{ ok: true; receipt: PvpChainReceipt } | { ok: false; error: string }> {
+  const gate = chainBoundSendGate();
+  if (!gate.ok) return gate;
+  const bountyWei = BigInt(PVP_BOUNTY_WEI);
+  return withOwnerKeyQueue<{ ok: true; receipt: PvpChainReceipt } | { ok: false; error: string }>(
+    async () => {
+      return withOperatorWallet(env, async ({ wallet, public: pub, account, bounty }) => {
+        const predictAt = await blockPaidAtMs(pub, "latest");
+        const admitted = admitBountyPayout(bountyWei, predictAt);
+        if (!admitted.ok) return admitted;
+        let chargedEpoch = admitted.epoch;
+        const release = () => releaseEpochXdai(bountyWei, chargedEpoch);
+        try {
+          const hash = await wallet.writeContract({
+            address: bounty,
+            abi: PVP_BOUNTY_ABI,
+            functionName: "executeClaim",
+            args: [BigInt(victimTokenId)],
+            account,
+            chain: wallet.chain,
+          });
+          const conf = Number(settlementConfirmations(env));
+          const receipt = await pub.waitForTransactionReceipt({
+            hash,
+            confirmations: conf >= 1 ? conf : 1,
+          });
+          if (receipt.status !== "success") {
+            release();
+            return { ok: false, error: "PvpBounty.executeClaim reverted" };
+          }
+          const fields = executeClaimReceipt(receipt);
+          const paidAt = await blockPaidAtMs(pub, receipt.blockNumber);
+          if (paidAt != null) chargedEpoch = pinEpochCharge(bountyWei, admitted.epoch, paidAt, hash);
+          forgetPendingPvpClaim(victimTokenId);
+          opsAlert({
+            level: "alert",
+            event: "pvp_bounty_claimed",
+            msg:
+              "PvpBounty claimed victim=" +
+              victimTokenId +
+              " slayer=" +
+              slayerTokenId +
+              " payout=" +
+              expectedSlayer.toLowerCase() +
+              " tx=" +
+              fields.txHash,
+            dedupeKey: "pvp-claim-" + fields.txHash,
+          });
+          return { ok: true, receipt: fields };
+        } catch (err) {
+          release();
+          throw err;
+        }
+      });
+    },
+  );
+}
+
 export async function chainPvpClaim(
   victimTokenId: string,
   slayerTokenId: string,
@@ -357,17 +590,23 @@ export async function chainPvpClaim(
   }
   const gate = chainBoundSendGate();
   if (!gate.ok) return gate;
-  const bountyWei = BigInt(PVP_BOUNTY_WEI);
-  const owner = await readCharacterOwner(slayerTokenId, env);
-  if (!owner || owner !== expectedSlayer.toLowerCase()) {
+  const owned = await readCharacterOwnerResult(slayerTokenId, env);
+  if (!owned.ok) {
+    return {
+      ok: false,
+      error: "Could not verify slayer ownership — try the claim again.",
+    };
+  }
+  if (owned.owner !== expectedSlayer.toLowerCase()) {
     return {
       ok: false,
       error: "Slayer no longer owns that character — bounty will be refunded, not paid to the new owner.",
     };
   }
+  inFlightClaims.add(victimTokenId);
   try {
-    return await withOwnerKeyQueue<
-      { ok: true; receipt: PvpChainReceipt } | { ok: false; error: string }
+    const proposed = await withOwnerKeyQueue<
+      { ok: true; waitMs: number } | { ok: false; error: string }
     >(async () => {
       return withOperatorWallet(env, async ({ wallet, public: pub, account, bounty }) => {
         const delay = await pub.readContract({
@@ -375,6 +614,8 @@ export async function chainPvpClaim(
           abi: PVP_BOUNTY_ABI,
           functionName: "claimDelay",
         });
+        const wait = pvpClaimWaitMs(delay);
+        if (!wait.ok) return wait;
         opsAlert({
           level: "warn",
           event: "pvp_bounty_claim_proposed",
@@ -398,75 +639,30 @@ export async function chainPvpClaim(
           chain: wallet.chain,
         });
         const conf = Number(settlementConfirmations(env));
-        const proposed = await pub.waitForTransactionReceipt({
+        const mined = await pub.waitForTransactionReceipt({
           hash: proposedHash,
           confirmations: conf >= 1 ? conf : 1,
         });
-        if (proposed.status !== "success") return { ok: false, error: "PvpBounty.proposeClaim reverted" };
-        if (!eventReceipt(proposed, "ClaimProposed")) {
-          return { ok: false, error: "PvpBounty.proposeClaim missing ClaimProposed" };
-        }
-        if (delay > 0n) {
-          const waitMs = Number(delay) * 1000 + 1500;
-          if (!Number.isFinite(waitMs) || waitMs > 7 * 24 * 60 * 60 * 1000) {
-            return { ok: false, error: "PvpBounty claimDelay is too long to wait in-process." };
-          }
-          await sleep(waitMs);
-        }
-        const predictAt = await blockPaidAtMs(pub, "latest");
-        const admitted = admitBountyPayout(bountyWei, predictAt);
-        if (!admitted.ok) return admitted;
-        let chargedEpoch = admitted.epoch;
-        let claimSent = false;
-        const release = () => releaseEpochXdai(bountyWei, chargedEpoch);
-        try {
-          const hash = await wallet.writeContract({
-            address: bounty,
-            abi: PVP_BOUNTY_ABI,
-            functionName: "executeClaim",
-            args: [BigInt(victimTokenId)],
-            account,
-            chain: wallet.chain,
-          });
-          claimSent = true;
-          const receipt = await pub.waitForTransactionReceipt({
-            hash,
-            confirmations: conf >= 1 ? conf : 1,
-          });
-          if (receipt.status !== "success") {
-            release();
-            return { ok: false, error: "PvpBounty.executeClaim reverted" };
-          }
-          const fields = eventReceipt(receipt, "BountyClaimed");
-          if (!fields) {
-            release();
-            return { ok: false, error: "PvpBounty.executeClaim missing BountyClaimed" };
-          }
-          const paidAt = await blockPaidAtMs(pub, receipt.blockNumber);
-          if (paidAt != null) chargedEpoch = pinEpochCharge(bountyWei, admitted.epoch, paidAt, hash);
-          opsAlert({
-            level: "alert",
-            event: "pvp_bounty_claimed",
-            msg:
-              "PvpBounty claimed victim=" +
-              victimTokenId +
-              " slayer=" +
-              slayerTokenId +
-              " payout=" +
-              expectedSlayer.toLowerCase() +
-              " tx=" +
-              fields.txHash,
-            dedupeKey: "pvp-claim-" + fields.txHash,
-          });
-          return { ok: true, receipt: fields };
-        } catch (err) {
-          if (!claimSent) release();
-          throw err;
-        }
+        if (mined.status !== "success") return { ok: false, error: "PvpBounty.proposeClaim reverted" };
+        rememberPendingPvpClaim({
+          victimTokenId,
+          slayerTokenId,
+          payout: expectedSlayer.toLowerCase(),
+          readyAt: claimProposedReadyAt(mined, delay),
+        });
+        const waitMs = delay > 0n ? wait.waitMs : 0;
+        return { ok: true, waitMs };
       });
     });
+    if (!proposed.ok) return proposed;
+    if (proposed.waitMs > 0) await sleep(proposed.waitMs);
+    return await executePvpClaim(victimTokenId, slayerTokenId, expectedSlayer, env);
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  } finally {
+    inFlightClaims.delete(victimTokenId);
+    const still = loadPendingPvpClaims().find((c) => c.victimTokenId === victimTokenId);
+    if (still) scheduleClaimResume(still);
   }
 }
 
@@ -592,7 +788,7 @@ type PvpMirror = {
   ): LokResult;
 };
 
-function mirrorPvpLog(lok: PvpMirror, log: Log): void {
+export function mirrorPvpLog(lok: PvpMirror, log: Log): void {
   if (log.transactionHash == null || log.logIndex == null) return;
   let decoded: ReturnType<typeof decodeEventLog>;
   try {
@@ -620,10 +816,25 @@ function mirrorPvpLog(lok: PvpMirror, log: Log): void {
     }
     return;
   }
+  if (decoded.eventName === "ClaimProposed") {
+    const args = decoded.args as {
+      victimTokenId: bigint;
+      slayerTokenId: bigint;
+      payout: Hex;
+      readyAt: bigint;
+    };
+    rememberPendingPvpClaim({
+      victimTokenId: args.victimTokenId.toString(),
+      slayerTokenId: args.slayerTokenId.toString(),
+      payout: args.payout.toLowerCase(),
+      readyAt: Number(args.readyAt),
+    });
+    return;
+  }
   if (decoded.eventName === "BountyClaimed") {
     const args = decoded.args as { victimTokenId: bigint; slayerTokenId: bigint; amountWei: bigint };
-    if (args.amountWei.toString() !== PVP_BOUNTY_WEI) return;
     const victim = args.victimTokenId.toString();
+    forgetPendingPvpClaim(victim);
     const res = lok.pvpKill(
       victim,
       args.slayerTokenId.toString(),
@@ -647,6 +858,8 @@ export function startPvpBountyWatcher(
   const bounty = pvpBountyAddress(env);
   const rpc = rpcUrl(env);
   if (!bounty || !rpc || pvpSyntheticReceiptsAllowed(env)) return;
+  configurePvpClaimResume({ dataDir: opts?.dataDir ?? ".", env });
+  for (const claim of loadPendingPvpClaims()) scheduleClaimResume(claim);
   const chainId = settlementChainId(env);
   const confirmations = BigInt(Math.max(1, Number(settlementConfirmations(env)) || 1));
   const cursorPath = join(opts?.dataDir ?? ".", "pvp-bounty-watcher-cursor.json");
@@ -681,6 +894,7 @@ export function startPvpBountyWatcher(
         if (log.address.toLowerCase() !== bounty.toLowerCase()) continue;
         mirrorPvpLog(lok, log);
       }
+      for (const claim of loadPendingPvpClaims()) scheduleClaimResume(claim);
       cursor = to;
       writeWatcherCursor({ path: cursorPath, cursor, chainId, address: bounty });
     } catch (err) {
