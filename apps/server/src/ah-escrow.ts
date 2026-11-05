@@ -143,8 +143,9 @@ function parseLogIndex(fillKey: string, log?: RpcLog): string {
 
 /**
  * Mirror an AskFilled into the log. Replay when this fillKey is already in the
- * log (ChainFill tx+index) or in the optional mirrored-key cache. Unknown
- * listing / self-buy / not spawned / mismatch → quarantine. Transient → halt.
+ * log (ChainFill tx+index). The optional mirrored-key cache is not a replay
+ * source — a stale key must still noteChainFill. Unknown listing / self-buy /
+ * not spawned / mismatch → quarantine. Transient → halt.
  */
 export function applyAskFilled(
   lok: Pick<LokWorld, "noteChainFill" | "chainFill" | "listingOf" | "hasChainFill">,
@@ -157,7 +158,9 @@ export function applyAskFilled(
   },
 ): ApplyAskFilledResult {
   const mirrored = opts?.mirrored;
-  if (mirrored?.has(fillKey) || lok.hasChainFill(fillKey)) {
+  // mirrored.json is a cache. A stale key must not skip noteChainFill when the
+  // log has no ChainFill yet (restart / restored journal).
+  if (lok.hasChainFill(fillKey)) {
     mirrored?.add(fillKey);
     return { ok: true, kind: "replay" };
   }
@@ -218,6 +221,19 @@ export function classifyAskFilledFailure(error: string): "replay" | "quarantine"
 export function ahEscrowAddress(env: NodeJS.ProcessEnv = process.env): string | null {
   const addr = env.LOK_AH_ESCROW?.trim();
   return addr && /^0x[0-9a-fA-F]{40}$/.test(addr) ? addr : null;
+}
+
+/**
+ * Operator RPC for listing txs and asks() views. Prefer LOK_CHAIN_RPC so tip,
+ * nonce, and the AskFilled watcher (settlementRpc) agree. Snapshots stay on
+ * resolvePublicRpcUrl (#272).
+ */
+export function ahEscrowListingRpcUrl(env: NodeJS.ProcessEnv = process.env): string | null {
+  const chain = env.LOK_CHAIN_RPC?.trim().replace(/\/$/, "") ?? "";
+  if (chain && (/^https?:\/\//i.test(chain) || chain.startsWith("ws"))) return chain;
+  const first = env.LOK_CHAIN_RPC_URLS?.trim().split(",")[0]?.trim().replace(/\/$/, "") ?? "";
+  if (first && (/^https?:\/\//i.test(first) || first.startsWith("ws"))) return first;
+  return resolvePublicRpcUrl(env);
 }
 
 export function ahEscrowClientConfig(env: NodeJS.ProcessEnv = process.env): {

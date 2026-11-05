@@ -17,6 +17,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import {
   ahEscrowAddress,
   ahEscrowClientConfig,
+  ahEscrowListingRpcUrl,
   ASK_CANCELLED_TOPIC,
   listingRoleKey,
 } from "./ah-escrow";
@@ -80,6 +81,9 @@ export const ASK_CLOSED_SELECTOR = "0x756918b7";
 
 /** Finality wait for cancel must cover ~30 Gnosis blocks (~2.5m) + slack. */
 export const CANCEL_FINALITY_TIMEOUT_MS = 900_000;
+
+/** In-queue receipt wait. A hung RPC must not hold LISTING / mint / PvP forever. */
+export const LISTING_RECEIPT_TIMEOUT_MS = 120_000;
 
 function listingIdTopic(listingId: string): Hex {
   return ("0x" + BigInt(listingId).toString(16).padStart(64, "0")) as Hex;
@@ -148,14 +152,21 @@ function readClient(env: NodeJS.ProcessEnv = process.env) {
   }
   const escrow = ahEscrowAddress(env);
   if (!escrow) return { ok: false as const, error: "AhEscrow address missing." };
+  const rpcUrl = ahEscrowListingRpcUrl(env) ?? cfg.rpcUrl;
   const chain: Chain = {
     id: cfg.chainId,
     name: "settlement",
     nativeCurrency: { name: "xDAI", symbol: "xDAI", decimals: 18 },
-    rpcUrls: { default: { http: [cfg.rpcUrl] } },
+    rpcUrls: { default: { http: [rpcUrl] } },
   };
-  const pub = createPublicClient({ chain, transport: http(cfg.rpcUrl) });
-  return { ok: true as const, pub, escrow: escrow as `0x${string}`, cfg, chain };
+  const pub = createPublicClient({ chain, transport: http(rpcUrl) });
+  return {
+    ok: true as const,
+    pub,
+    escrow: escrow as `0x${string}`,
+    cfg: { ...cfg, rpcUrl },
+    chain,
+  };
 }
 
 function client(env: NodeJS.ProcessEnv = process.env) {
@@ -187,12 +198,12 @@ async function waitReceipt(
   pub: ReturnType<typeof createPublicClient>,
   hash: Hex,
   confirmations = 1,
-  timeoutMs?: number,
+  timeoutMs = LISTING_RECEIPT_TIMEOUT_MS,
 ): Promise<TransactionReceipt> {
   return pub.waitForTransactionReceipt({
     hash,
     confirmations: confirmations >= 1 ? confirmations : 1,
-    ...(timeoutMs != null ? { timeout: timeoutMs } : {}),
+    timeout: timeoutMs,
   });
 }
 
@@ -235,25 +246,42 @@ function isAskClosedError(msg: string): boolean {
   return /AskClosed|ask closed/i.test(msg) || msg.toLowerCase().includes(ASK_CLOSED_SELECTOR);
 }
 
-/**
- * Resolve a stuck openAsk pending record (reverted / replaced / dropped).
- * Returns neverOpened when the broadcast did not leave an open ask.
- */
-async function resolvePendingOpenAsk(opts: {
-  listingId: string;
-  env?: NodeJS.ProcessEnv;
-  dataDir?: string;
-  pub: ReturnType<typeof createPublicClient>;
-  listingAddress: `0x${string}`;
-}): Promise<
+export type ResolvePendingOpenAskResult =
   | { action: "neverOpened" }
   | { action: "alreadyClosed" }
   | { action: "open" }
-  | { action: "wait"; error: string }
-> {
+  | { action: "pending" }
+  | { action: "wait"; error: string };
+
+type PendingAskReader = (opts: {
+  listingId: string;
+  env?: NodeJS.ProcessEnv;
+}) => Promise<{ ok: true; ask: OnchainAsk } | { ok: false; error: string }>;
+
+/**
+ * Resolve a stuck openAsk pending record (reverted / replaced / dropped).
+ * Returns neverOpened when the broadcast did not leave an open ask.
+ * A later mined LISTING nonce without our receipt is `wait`, not neverOpened —
+ * the original openAsk may still be in flight or the receipt RPC may be lagging.
+ */
+export async function resolvePendingOpenAsk(opts: {
+  listingId: string;
+  env?: NodeJS.ProcessEnv;
+  dataDir?: string;
+  pub: {
+    getTransactionReceipt: (args: { hash: Hex }) => Promise<TransactionReceipt>;
+    getTransactionCount: (args: {
+      address: `0x${string}`;
+      blockTag?: "latest" | "pending";
+    }) => Promise<bigint>;
+  };
+  listingAddress: `0x${string}`;
+  readAsk?: PendingAskReader;
+}): Promise<ResolvePendingOpenAskResult> {
   const store = openAskPendingStore(opts.dataDir);
   const pending = store.get(opts.listingId);
   if (!pending) return { action: "neverOpened" };
+  const readAsk = opts.readAsk ?? readAskOnchain;
 
   let receipt: TransactionReceipt | null = null;
   try {
@@ -268,7 +296,7 @@ async function resolvePendingOpenAsk(opts: {
       return { action: "neverOpened" };
     }
     // Mined successfully — ask should be used/open (or already filled/cancelled).
-    const onchain = await readAskOnchain({ listingId: opts.listingId, env: opts.env });
+    const onchain = await readAsk({ listingId: opts.listingId, env: opts.env });
     if (!onchain.ok) return { action: "wait", error: onchain.error };
     store.clear(opts.listingId);
     if (onchain.ask.open) return { action: "open" };
@@ -276,18 +304,31 @@ async function resolvePendingOpenAsk(opts: {
     return { action: "neverOpened" };
   }
 
-  // No receipt yet — if the LISTING nonce has moved past the broadcast nonce, the tx was dropped/replaced.
+  // No receipt yet. A later mined nonce does not prove our hash was dropped —
+  // receipt fetch can lag, and cancel/reclaim must not undo the log while the
+  // original openAsk can still mine.
   try {
     const minedNonce = await opts.pub.getTransactionCount({
       address: opts.listingAddress,
       blockTag: "latest",
     });
     if (minedNonce > BigInt(pending.nonce)) {
-      store.clear(opts.listingId);
-      const onchain = await readAskOnchain({ listingId: opts.listingId, env: opts.env });
-      if (onchain.ok && onchain.ask.open) return { action: "open" };
-      if (onchain.ok && onchain.ask.used) return { action: "alreadyClosed" };
-      return { action: "neverOpened" };
+      const onchain = await readAsk({ listingId: opts.listingId, env: opts.env });
+      if (onchain.ok && onchain.ask.open) {
+        store.clear(opts.listingId);
+        return { action: "open" };
+      }
+      if (onchain.ok && onchain.ask.used) {
+        store.clear(opts.listingId);
+        return { action: "alreadyClosed" };
+      }
+      return {
+        action: "wait",
+        error:
+          "openAsk was broadcast (tx " +
+          pending.hash +
+          ") but has no receipt yet (listing nonce advanced); refuse reclaim/cancel until the tx is found or asks() shows the listing",
+      };
     }
   } catch (err) {
     return {
@@ -296,13 +337,7 @@ async function resolvePendingOpenAsk(opts: {
     };
   }
 
-  return {
-    action: "wait",
-    error:
-      "openAsk was broadcast (tx " +
-      pending.hash +
-      ") but is not mined yet; refuse reclaim/cancel until the nonce settles (ops: replace/cancel same nonce or wait)",
-  };
+  return { action: "pending" };
 }
 
 /**
@@ -332,6 +367,9 @@ export async function replacePendingOpenAsk(opts: {
     if (resolved.action === "alreadyClosed") {
       return { ok: true, hash: "0x" as Hex, cleared: true };
     }
+    if (resolved.action === "wait") {
+      return { ok: false, error: resolved.error };
+    }
     if (resolved.action === "open") {
       // Ask is open — cancel it (1 conf inside queue).
       const gate = chainBoundSendGate();
@@ -358,7 +396,10 @@ export async function replacePendingOpenAsk(opts: {
         return { ok: false, error: err instanceof Error ? err.message : String(err) };
       }
     }
-    // Still in mempool at the same nonce — replace with a fee-bumped 0-value self send.
+    if (resolved.action !== "pending") {
+      return { ok: false, error: "pending openAsk is not in a replaceable state" };
+    }
+    // Same nonce still pending — replace with a fee-bumped 0-value self send.
     const replaceGate = chainBoundSendGate();
     if (!replaceGate.ok) return replaceGate;
     try {
@@ -417,9 +458,8 @@ export async function openAskOnchain(opts: {
   env?: NodeJS.ProcessEnv;
   dataDir?: string;
 }): Promise<{ ok: true; hash: Hex } | { ok: false; error: string; chainOpen?: boolean }> {
-  const gate = chainBoundSendGate();
-  if (!gate.ok) return gate;
   // Opening an ask does not move xDAI. buyAsk admits the price before that transfer.
+  // Gate inside the queue so a later broadcast cannot fire after the gate now refuses.
   return withOwnerKeyQueue<
     { ok: true; hash: Hex } | { ok: false; error: string; chainOpen?: boolean }
   >(async () => {
@@ -433,6 +473,8 @@ export async function openAskOnchain(opts: {
         address: c.account.address,
         blockTag: "pending",
       });
+      const gate = chainBoundSendGate();
+      if (!gate.ok) return gate;
       hash = await c.wallet.writeContract({
         address: c.escrow,
         abi: AH_ABI,
@@ -748,6 +790,13 @@ async function cancelAskOnchainUnlocked(opts: {
       }
       if (resolved.action === "wait") {
         return { ok: false as const, error: resolved.error };
+      }
+      if (resolved.action === "pending") {
+        return {
+          ok: false as const,
+          error:
+            "openAsk was broadcast but is not mined yet; refuse reclaim/cancel until the nonce settles (ops: replace/cancel same nonce or wait)",
+        };
       }
       // open — fall through to cancel
       before = await readAskOnchain({ listingId: opts.listingId, env });

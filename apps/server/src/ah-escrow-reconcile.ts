@@ -12,6 +12,7 @@ import {
 } from "./ah-escrow";
 import { readAskOnchain } from "./ah-escrow-tx";
 import { defaultLokDir, type LokWorld } from "./lok-world";
+import { watcherStartBlock } from "./settlement-rpc";
 
 export { ASK_CANCELLED_TOPIC };
 
@@ -26,12 +27,18 @@ function listingTopic(listingId: string): string {
   return "0x" + BigInt(listingId).toString(16).padStart(64, "0");
 }
 
+function hexBlock(n: bigint): string {
+  return "0x" + n.toString(16);
+}
+
 export async function classifyClosedAsk(opts: {
   listingId: string;
   escrow: string;
   rpcCall: ReconcileRpc;
   quarantined: boolean;
   onchain: { open: boolean; used: boolean } | null;
+  /** First block to scan (deploy block). Genesis (`0x0`) is rejected by many Gnosis RPCs. */
+  fromBlock?: bigint;
 }): Promise<ReconcileDecision> {
   if (opts.quarantined) {
     return { action: "skip", reason: "quarantined AskFilled — do not return item to seller" };
@@ -43,11 +50,12 @@ export async function classifyClosedAsk(opts: {
     return { action: "skip", reason: "ask still open or never used" };
   }
 
+  const fromBlock = hexBlock(opts.fromBlock ?? watcherStartBlock());
   const topic1 = listingTopic(opts.listingId);
   const filled = (await opts.rpcCall("eth_getLogs", [
     {
       address: opts.escrow,
-      fromBlock: "0x0",
+      fromBlock,
       toBlock: "latest",
       topics: [ASK_FILLED_TOPIC, topic1],
     },
@@ -62,7 +70,7 @@ export async function classifyClosedAsk(opts: {
   const cancelled = (await opts.rpcCall("eth_getLogs", [
     {
       address: opts.escrow,
-      fromBlock: "0x0",
+      fromBlock,
       toBlock: "latest",
       topics: [ASK_CANCELLED_TOPIC, topic1],
     },
@@ -134,6 +142,7 @@ export async function reconcileOpenAsksFromChain(
       if (!r.ok) return r;
       return { ok: true as const, ask: { open: r.ask.open, used: r.ask.used } };
     });
+  const fromBlock = watcherStartBlock(env);
 
   for (const row of world.openBookListings()) {
     const onchain = await readAsk(row.id);
@@ -143,6 +152,7 @@ export async function reconcileOpenAsksFromChain(
       rpcCall,
       quarantined: quarantinedListingIds.has(row.id),
       onchain: onchain.ok ? { open: onchain.ask.open, used: onchain.ask.used } : null,
+      fromBlock,
     });
     if (decision.action === "wait-fill") {
       out.waitingFill.push(row.id);
