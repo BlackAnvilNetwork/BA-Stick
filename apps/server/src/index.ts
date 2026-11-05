@@ -66,6 +66,7 @@ import {
   weaponTpUnlocked,
   weaponTypeFromTokenId,
   isWeaponTpAbilityId,
+  abilityTargetFaction,
   xpToNextLevel,
   type AttrKey,
   type JobId,
@@ -280,7 +281,7 @@ import {
 } from "./fighter-abilities";
 import { resolveWeaponTpAbility } from "./weapon-tp-abilities";
 import { clearSorcererBuffs, resolveSorcererAbility } from "./sorcerer-abilities";
-import { clearClericBuffs, absorbHealShield, resolveClericAbility, resolveLethal } from "./cleric-abilities";
+import { clearClericBuffs, absorbHealShield, FALLEN_WINDOW_MS, resolveClericAbility, resolveLethal } from "./cleric-abilities";
 import { absorbMereVeil, clearDruidBuffs, consumeDruidMane, dropDruidForm, druidManeMul, druidPhysDt, resolveDruidAbility, tickDruidAntlerHum } from "./druid-abilities";
 import { gearHealPotency, gearRegen, meleeAtkBonus } from "./gear-combat";
 import {
@@ -528,6 +529,10 @@ type Player = {
   regenTick: number;
   reraiseUntil: number;
   fallenUntil: number;
+  /** Last PvP attacker wallet — DoT deaths in an arena claim through this slayer. */
+  lastPvpHitBy: string | null;
+  /** Player who applied poison / Bio when we have one (mobs leave this null). */
+  poisonSourceWallet: string | null;
   healAbsorbUntil: number;
   healAbsorbHp: number;
   sacredLightUntil: number;
@@ -3732,6 +3737,8 @@ function createPlayer(
     regenTick: 0,
     reraiseUntil: 0,
     fallenUntil: 0,
+    lastPvpHitBy: null,
+    poisonSourceWallet: null,
     healAbsorbUntil: 0,
     healAbsorbHp: 0,
     sacredLightUntil: 0,
@@ -3791,14 +3798,18 @@ function createPlayer(
   return p;
 }
 
-/** Equipment stats scaled by player level vs item level (#103). */
+/** Equipment stats scaled by combat level vs item level (#103). Ash Pit uses the cap. */
+function combatGearLevel(p: Player): number {
+  return effectivePvpMainLevel(p.level, areaAtPlayer(p.x, p.z));
+}
+
 function playerEquipmentStats(p: Player) {
   const hqSlots: Partial<Record<EquipSlot, true>> = {};
   for (const slot of EQUIP_SLOTS) {
     const id = p.equip[slot];
     if (id != null && p.equipHq[slot] && ownsQuality(p.inventory, id, true)) hqSlots[slot] = true;
   }
-  return aggregateEquipmentStatsScaled(p.equip, p.level, hqSlots);
+  return aggregateEquipmentStatsScaled(p.equip, combatGearLevel(p), hqSlots);
 }
 
 /** Recompute max HP/MP from job, skill-tree, and equipped catalog bonuses. */
@@ -4317,6 +4328,10 @@ function handlePvpJoin(p: Player, areaId = ASH_PIT_AREA.id, placeTxHash?: string
     return;
   }
   if (lok.hasPvpBounty(tokenId)) {
+    if (pvpAreaCancelInFlight.has(tokenId) || pvpSlayInFlight.has(tokenId)) {
+      pushLog(p, "Your mark is still settling. Wait a moment.");
+      return;
+    }
     warpIntoPit(p, pit, false);
     pushLog(p, `Already marked — returned to ${pit.name}.`);
     send(p.ws, snapshotFor(p));
@@ -4403,6 +4418,10 @@ function handlePvpLeave(p: Player) {
     pushLog(p, "Your character is not on the log yet.");
     return;
   }
+  if (pvpSlayInFlight.has(tokenId)) {
+    pushLog(p, "Your mark is being claimed.");
+    return;
+  }
   const open = lok.pvpBountyOf(tokenId);
   void (async () => {
     if (open) {
@@ -4445,8 +4464,51 @@ function handlePvpBountyCancel(p: Player) {
   handlePvpLeave(p);
 }
 
+/** In-flight PvP claims so DoT ticks cannot enqueue a second chainPvpClaim. */
+const pvpSlayInFlight = new Set<string>();
+
+function playerPvpSlayLocked(p: Player): boolean {
+  const tokenId = playerTokenId(p);
+  return !!tokenId && pvpSlayInFlight.has(tokenId);
+}
+
+function playerIsDown(p: Player, now = Date.now()): boolean {
+  return playerPvpSlayLocked(p) || (p.hp <= 0 && now < p.fallenUntil);
+}
+
+function beginPvpSlayLock(victim: Player, now = Date.now()) {
+  const tokenId = playerTokenId(victim);
+  if (tokenId) pvpSlayInFlight.add(tokenId);
+  victim.hp = 0;
+  victim.reraiseUntil = 0;
+  victim.fallenUntil = now + FALLEN_WINDOW_MS;
+  victim.poisonUntil = 0;
+  victim.poisonTick = 0;
+  victim.regenUntil = 0;
+  victim.regenTick = 0;
+  clearRoute(victim);
+  victim.targetId = null;
+  victim.anim = "dead";
+  victim.animUntil = 0;
+}
+
+function endPvpSlayLock(victim: Player) {
+  const tokenId = playerTokenId(victim);
+  if (tokenId) pvpSlayInFlight.delete(tokenId);
+}
+
+function resolvePvpDotSlayer(victim: Player): Player | null {
+  const wallet = victim.poisonSourceWallet ?? victim.lastPvpHitBy;
+  if (!wallet) return null;
+  const slayer = players.get(wallet.toLowerCase());
+  if (!slayer || slayer.wallet === victim.wallet || slayer.hp <= 0) return null;
+  if (pvpStrikeBlock(slayer, victim)) return null;
+  return slayer;
+}
+
 /**
- * PvP slay: on-chain claim → `pvpKill` → kick victim. Victim rejoins with a new place.
+ * PvP slay: lock the victim, then on-chain claim → `pvpKill` → kick.
+ * Victim rejoins with a new place.
  */
 function handlePvpSlay(slayer: Player, victim: Player, areaId: string) {
   const victimToken = playerTokenId(victim);
@@ -4455,12 +4517,14 @@ function handlePvpSlay(slayer: Player, victim: Player, areaId: string) {
     kickPvpLoser(victim, null, "You fall… and wake in the Shard Dwellings.");
     return;
   }
+  if (pvpSlayInFlight.has(victimToken)) return;
   const open = lok.pvpBountyOf(victimToken);
   if (!open || open.areaId !== areaId) {
     kickPvpLoser(victim, null, "You fall… and wake in the Shard Dwellings.");
     return;
   }
 
+  beginPvpSlayLock(victim);
   void (async () => {
     let txHash: string;
     let logIndex: number;
@@ -4533,6 +4597,9 @@ function kickPvpLoser(
     | null,
   reason: string,
 ) {
+  endPvpSlayLock(victim);
+  victim.lastPvpHitBy = null;
+  victim.poisonSourceWallet = null;
   respawnAtHub(victim, reason);
   syncVitals(victim, false);
   if (slain) {
@@ -4550,10 +4617,30 @@ const pvpAreaCancelInFlight = new Set<string>();
 /** One player-facing line while the cancel is held on the root / delay / epoch gate. */
 const pvpAreaCancelGateTold = new Set<string>();
 
+/** One outstanding AH epoch hold per authed wallet — pin/release must match the owner. */
+const ahFillHolds = new Map<string, { priceWei: bigint; epoch: number }>();
+
+function peekAhFillHold(wallet: string): string | null {
+  return ahFillHolds.has(wallet.toLowerCase()) ? "You already have an auction hold open." : null;
+}
+
+function noteAhFillHold(wallet: string, priceWei: bigint, epoch: number): void {
+  ahFillHolds.set(wallet.toLowerCase(), { priceWei, epoch });
+}
+
+function takeAhFillHold(wallet: string, priceWei: bigint, epoch: number): boolean {
+  const key = wallet.toLowerCase();
+  const row = ahFillHolds.get(key);
+  if (!row || row.priceWei !== priceWei || row.epoch !== epoch) return false;
+  ahFillHolds.delete(key);
+  return true;
+}
+
 /** Auto-cancel bounty when the marked player leaves the arena without a kill. */
 function tickPvpBountyArea(p: Player) {
   const tokenId = playerTokenId(p);
   if (!tokenId) return;
+  if (pvpSlayInFlight.has(tokenId)) return;
   const open = lok.pvpBountyOf(tokenId);
   if (!open) return;
   const area = areaAtPlayer(p.x, p.z);
@@ -4632,12 +4719,12 @@ function absorbManaWall(p: Player, now: number, raw: number): { dmg: number; ble
  * Casters with a no-Atk staff keep the 10 baseline; rings/mittens still add.
  */
 function playerWeaponBonus(p: Player): number {
-  return meleeAtkBonus(p);
+  return meleeAtkBonus({ equip: p.equip, level: combatGearLevel(p) });
 }
 
 function handleAbility(p: Player, id: AbilityId, targetId?: string) {
   const now = Date.now();
-  if (p.hp <= 0 && now < p.fallenUntil) {
+  if (playerIsDown(p, now)) {
     pushLog(p, "You are fallen.");
     return;
   }
@@ -4655,10 +4742,17 @@ function handleAbility(p: Player, id: AbilityId, targetId?: string) {
       players.get(targetId.toLowerCase()) ??
       playerByIdOrName(targetId);
     if (foe && foe.wallet !== p.wallet) {
-      const block = pvpStrikeBlock(p, foe);
-      if (block) {
-        pushLog(p, block);
-        return;
+      if (abilityTargetFaction(id) === "ally") {
+        if (playerPvpSlayLocked(foe) || (foe.hp <= 0 && areaAtPlayer(foe.x, foe.z))) {
+          pushLog(p, "They are beyond your reach.");
+          return;
+        }
+      } else {
+        const block = pvpStrikeBlock(p, foe);
+        if (block) {
+          pushLog(p, block);
+          return;
+        }
       }
     }
   }
@@ -4776,7 +4870,7 @@ function handleAbility(p: Player, id: AbilityId, targetId?: string) {
   if (isClericAbilityId(id) && playerHasJob(p, "cleric")) {
     {
       const cleric = p as import("./cleric-abilities").ClericPlayer;
-      cleric.gearHealPotency = gearHealPotency(p);
+      cleric.gearHealPotency = gearHealPotency({ equip: p.equip, level: combatGearLevel(p) });
       resolveClericAbility(cleric, id, targetId, now, {
         pushLog: (pl, msg) => pushLog(pl as unknown as Player, msg),
         stopRest: (pl, reason) => stopRest(pl as unknown as Player, reason),
@@ -5598,6 +5692,7 @@ function playerSwingPvp(p: Player, foe: Player, now: number) {
     return;
   }
   foe.hp -= dmg;
+  foe.lastPvpHitBy = p.wallet;
   if (foe.job === "druid" && foe.druidForm === 4) {
     dropDruidForm(foe, { pushLog, syncVitals }, "A blow startles the racerunner. The song breaks.");
   }
@@ -6419,6 +6514,13 @@ function tickSimBody() {
     // Catch overcapped XP (e.g. earned before leveling existed)
     tryLevelUp(p);
 
+    if (playerPvpSlayLocked(p)) {
+      p.hp = 0;
+      clearRoute(p);
+      p.targetId = null;
+      p.anim = "dead";
+      continue;
+    }
     if (p.fallenUntil > 0 && p.hp <= 0 && now >= p.fallenUntil) {
       respawnAtHub(p);
     }
@@ -6444,7 +6546,13 @@ function tickSimBody() {
       if (p.hp <= 0) {
         if (pvpReraiseBlocked(p)) {
           p.reraiseUntil = 0;
-          respawnAtHub(p, "The poison takes you… you wake in the Shard Dwellings.");
+          const area = areaAtPlayer(p.x, p.z);
+          const slayer = resolvePvpDotSlayer(p);
+          if (area && slayer) {
+            handlePvpSlay(slayer, p, area.id);
+          } else {
+            respawnAtHub(p, "The poison takes you… you wake in the Shard Dwellings.");
+          }
         } else {
           downPlayer(p, now);
         }
@@ -6556,7 +6664,7 @@ function tickSimBody() {
         p.hp = Math.min(p.maxHp, p.hp + tickHp);
       }
       // Passive gear regen (Heart Ring, etc.) — once per second, replay-safe (catalog only).
-      const gearHp = gearRegen(p);
+      const gearHp = gearRegen({ equip: p.equip, level: combatGearLevel(p) });
       if (gearHp > 0 && p.hp < p.maxHp) {
         p.hp = Math.min(p.maxHp, p.hp + gearHp);
       }
@@ -7074,22 +7182,36 @@ function onMessage(ws: WebSocket, data: string) {
   }
 
   if (msg.type === "ah/admitFill") {
+    const holdErr = peekAhFillHold(wallet);
+    if (holdErr) {
+      send(ws, { type: "ah/admitFill", req: msg.req, ok: false, error: holdErr });
+      return;
+    }
     const admitted = admitEscrowFill(BigInt(msg.priceWei));
     if (!admitted.ok) {
       send(ws, { type: "ah/admitFill", req: msg.req, ok: false, error: admitted.error });
       return;
     }
+    noteAhFillHold(wallet, BigInt(msg.priceWei), admitted.epoch);
     send(ws, { type: "ah/admitFill", req: msg.req, ok: true, epoch: admitted.epoch });
     return;
   }
 
   if (msg.type === "ah/pinFill") {
+    if (!takeAhFillHold(wallet, BigInt(msg.priceWei), msg.epoch)) {
+      send(ws, { type: "ah/pinFill", req: msg.req, ok: false, error: "No auction hold for this wallet." });
+      return;
+    }
     const epoch = pinEpochCharge(BigInt(msg.priceWei), msg.epoch, msg.paidAtMs, "client:" + msg.req + ":" + msg.priceWei);
     send(ws, { type: "ah/pinFill", req: msg.req, ok: true, epoch });
     return;
   }
 
   if (msg.type === "ah/releaseFill") {
+    if (!takeAhFillHold(wallet, BigInt(msg.priceWei), msg.epoch)) {
+      send(ws, { type: "ah/releaseFill", req: msg.req, ok: false, error: "No auction hold for this wallet." });
+      return;
+    }
     releaseEscrowReservation(BigInt(msg.priceWei), msg.epoch);
     send(ws, { type: "ah/releaseFill", req: msg.req, ok: true });
     return;
@@ -7448,7 +7570,7 @@ function onMessage(ws: WebSocket, data: string) {
       claimStarter(p);
       break;
     case "move":
-      if (p.hp <= 0 && Date.now() < p.fallenUntil) {
+      if (playerIsDown(p)) {
         pushLog(p, "You are fallen.");
         break;
       }
