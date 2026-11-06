@@ -25,6 +25,8 @@ fn upsert_and_remove() {
 #[test]
 fn anim_mapping() {
     assert_eq!(AnimState::parse("melee").clip(), "swing");
+    assert_eq!(AnimState::parse("melee_overhead").action_clip(), Some("swing_overhead"));
+    assert_eq!(AnimState::parse("melee_spin").action_clip(), Some("swing_spin"));
     assert_eq!(AnimState::parse("walk").clip(), "walk");
     assert_eq!(AnimState::parse("rest").action_clip(), Some("rest"));
     assert_eq!(AnimState::parse("bogus"), AnimState::Idle);
@@ -158,6 +160,24 @@ fn presets_resolve() {
     assert!(pep.props.head_r > RigPreset::resolve("cleric").props.head_r);
     let _ = RigPreset::resolve("npc:vendor");
     let _ = RigPreset::resolve("unknown-thing");
+    assert!(matches!(
+        RigPreset::resolve("druid:stickbear").body,
+        crate::preset::Body::StickForm { kind: 0, .. }
+    ));
+    assert!(matches!(
+        RigPreset::resolve("druid:stickdeer").body,
+        crate::preset::Body::StickForm { kind: 1, .. }
+    ));
+    assert!(matches!(
+        RigPreset::resolve("druid:sticklion").body,
+        crate::preset::Body::StickForm { kind: 2, .. }
+    ));
+    assert!(matches!(
+        RigPreset::resolve("druid:racerunner").body,
+        crate::preset::Body::StickForm { kind: 3, .. }
+    ));
+    assert!(matches!(RigPreset::resolve("druid").body, crate::preset::Body::Biped));
+    assert!(matches!(RigPreset::resolve("druid").weapon, crate::preset::Weapon::Staff));
 }
 
 fn tiny_zone(w: u32, h: u32, f: impl Fn(u32, u32) -> (u8, u8, i16)) -> Vec<u8> {
@@ -238,7 +258,7 @@ fn zone_draws_biome_colours_and_units_stand_on_it() {
     s.draw();
     let grass = palette::BIOME0 + 13 * 3 + 1;
     assert!(s.fb.color.iter().filter(|&&c| c == grass).count() > 1000);
-    // Trails render as cobbles now (no flat TRAIL_DIRT fill); they must still show up.
+    // Dirt trails are a worn mid fill (not cobble); they must still show up.
     let mut plain = Scene::new(320, 180);
     plain.load_zone(&tiny_zone(40, 40, |_, _| (13, 0, 300))).unwrap();
     plain.upsert_unit("me", UnitInput { x: 5.0, y: 3.0, z: 5.0, facing: 0.0, anim: AnimState::Idle, preset: "knight".into() });
@@ -258,7 +278,7 @@ fn every_archetype_and_role_draws() {
     use crate::preset::{MOB_ARCHETYPES, NPC_ROLES};
     let keys: Vec<String> = MOB_ARCHETYPES.iter().map(|a| format!("mob:{a}"))
         .chain(NPC_ROLES.iter().map(|r| format!("npc:{r}")))
-        .chain(["knight", "fighter", "rogue", "cleric", "sorcerer", "time_mage", "battle_mage"].iter().map(|j| j.to_string()))
+        .chain(["knight", "fighter", "rogue", "cleric", "sorcerer", "time_mage", "battle_mage", "druid", "druid:stickbear", "druid:stickdeer", "druid:sticklion", "druid:racerunner"].iter().map(|j| j.to_string()))
         .collect();
     for key in &keys {
         for anim in ["idle", "walk", "melee", "cast", "dead"] {
@@ -637,7 +657,7 @@ fn bridge_deck_is_one_continuous_ribbon() {
         let y = crate::props::bridge_curve(&p, t);
         let q = cam.project(v3(0.0, y + 0.01, -5.0 + 10.0 * t));
         let c = fb.color[q.y as usize * fb.w + q.x as usize];
-        if c != TRAIL_STONE {
+        if !(TRAIL_STONE..TRAIL_STONE + 3).contains(&c) {
             seams += 1;
         }
     }
@@ -649,7 +669,7 @@ fn bridge_deck_is_one_continuous_ribbon() {
 fn l1_slope_shade_follows_sun() {
     use crate::zone::Zone;
     let (w, h) = (8usize, 8usize);
-    let mut z = Zone { min_x: 0.0, min_z: 0.0, cell: 0.5, w, h, biome: vec![0; w * h], flags: vec![0; w * h], height: vec![0.0; w * h] };
+    let mut z = Zone { min_x: 0.0, min_z: 0.0, cell: 0.5, w, h, biome: vec![0; w * h], flags: vec![0; w * h], height: vec![0.0; w * h], vy: Vec::new() };
     assert_eq!(crate::ground::slope_shade(&z, 1, 1), 1, "flat = mid");
     // Rise toward +x: face tilts toward -x (NW sun) => lit.
     for j in 0..z.h { for i in 0..z.w { let k = z.idx(i as i32, j as i32); z.height[k] = i as f32 * 0.4; } }
@@ -761,7 +781,7 @@ fn clear_map_data_drops_the_title() {
 
 fn raised_zone(h: f32) -> crate::zone::Zone {
     let (w, d) = (120, 120);
-    crate::zone::Zone { min_x: -30.0, min_z: -30.0, cell: 0.5, w, h: d, biome: vec![13; w * d], flags: vec![0; w * d], height: vec![h; w * d] }
+    crate::zone::Zone { min_x: -30.0, min_z: -30.0, cell: 0.5, w, h: d, biome: vec![13; w * d], flags: vec![0; w * d], height: vec![h; w * d], vy: Vec::new() }
 }
 
 #[test]
@@ -1344,7 +1364,6 @@ fn meadow_follows_ambient_without_sky() {
     let (rg, rm) = (g_lo / g_hi, m_lo / m_hi);
     assert!((rg - rm).abs() < 0.12, "ground x{rg:.2} vs grass x{rm:.2} when ambient drops");
 }
-
 #[test]
 fn seam_country_rigs_are_their_own_models() {
     // Each new Seam Country archetype resolves to an authored rig, not the

@@ -4,12 +4,27 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { engageHeadingGoal, headingEase, headingStep, headingTarget, headingToward, shouldResend, DashClock, dashDirection, STOP_LEAD, stopTarget, TURN_RATE, WASD_STEP, wasdIntent, wasdTarget } from "./input";
+import { engageHeadingGoal, headingEase, headingStep, headingTarget, headingToward, isoScreenPick, shouldResend, DashClock, dashDirection, STOP_LEAD, stopTarget, TURN_RATE, WASD_STEP, wasdIntent, wasdTarget } from "./input";
 
 const none = { w: false, a: false, s: false, d: false };
 const free = (_ax: number, _az: number, x: number, z: number) => ({ x, z });
 // Fake iso: screen right = +x/-z, screen down = +x/+z.
 const pick = (sx: number, sy: number): [number, number] => [(sx / 32 + sy / 16) / 2, (sy / 16 - sx / 32) / 2];
+
+test("isoScreenPick is the flat iso inverse (no relief veer)", () => {
+  assert.deepEqual(isoScreenPick(320, 180), [0, 0]);
+  const origin = pick(320, 180);
+  for (const [sx, sy] of [[320, 116], [384, 180], [256, 244]] as const) {
+    const a = isoScreenPick(sx, sy);
+    const b = pick(sx, sy);
+    assert.ok(Math.abs(a[0] - (b[0] - origin[0])) < 1e-9 && Math.abs(a[1] - (b[1] - origin[1])) < 1e-9, `${sx},${sy}`);
+  }
+  const me = { x: 0, z: 40 };
+  const keys = { ...none, w: true };
+  const viaPick = wasdTarget(keys, me, pick, [320, 180], free)!;
+  const viaIso = wasdTarget(keys, me, isoScreenPick, [320, 180], free)!;
+  assert.ok(Math.abs(viaPick.x - viaIso.x) < 1e-9 && Math.abs(viaPick.z - viaIso.z) < 1e-9);
+});
 
 test("iso WASD intent is exactly the screen-relative wasdTarget, whatever the heading", () => {
   const combos = [none, { ...none, w: true }, { ...none, a: true }, { ...none, s: true }, { ...none, d: true }, { ...none, w: true, a: true }, { ...none, s: true, d: true }];

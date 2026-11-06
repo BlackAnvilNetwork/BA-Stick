@@ -26,8 +26,21 @@ test("presetFor maps job/gender, npc role and mob archetype", () => {
   assert.equal(presetFor(unit({ kind: "mob", archetype: "wolf" })), "mob:wolf");
 });
 
+test("presetFor maps Druid forms; gender only on Ring-Walker", () => {
+  const buffs = (form: 0 | 1 | 2 | 3 | 4) => ({ druidForm: form } as UnitSnapshot["buffs"]);
+  assert.equal(presetFor(unit({ job: "druid", gender: "female", buffs: buffs(0) })), "druid/female");
+  assert.equal(presetFor(unit({ job: "druid", gender: "male", buffs: buffs(1) })), "druid:stickbear");
+  assert.equal(presetFor(unit({ job: "druid", buffs: buffs(2) })), "druid:stickdeer");
+  assert.equal(presetFor(unit({ job: "druid", buffs: buffs(3) })), "druid:sticklion");
+  assert.equal(presetFor(unit({ job: "druid", gender: "pepeka", buffs: buffs(4) })), "druid:racerunner");
+});
+
 test("animFor holds melee/cast only until animUntil", () => {
-  assert.equal(animFor(unit({ anim: "melee", animUntil: 2000 }), 1000), "melee");
+  assert.equal(animFor(unit({ anim: "melee", animUntil: 2000 }), 1000), "melee_slash");
+  assert.equal(
+    animFor(unit({ anim: "melee", animUntil: 2000, meleeSwing: "spin" }), 1000),
+    "melee_spin",
+  );
   assert.equal(animFor(unit({ anim: "melee", animUntil: 2000 }), 3000), "idle");
   assert.equal(animFor(unit({ anim: "walk" }), 0), "walk");
   assert.equal(animFor(unit({ anim: "rest" }), 0), "rest");

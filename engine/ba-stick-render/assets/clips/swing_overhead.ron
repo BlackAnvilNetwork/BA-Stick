@@ -1,0 +1,21 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+
+// Overhead cut: sky draw, whole-body drop through the blade.
+(
+    name: "swing_overhead",
+    duration: 0.48,
+    looping: false,
+    mask: Full,
+    base: { "l_hip": 26.0, "l_knee": 24.0, "r_hip": -24.0, "r_knee": 20.0, "l_shoulder": -10.0, "l_elbow": 50.0, "l_arm_out": 16.0 },
+    keys: [
+        (t: 0.0,  pose: { "twist": -10.0, "lean": -6.0,  "r_shoulder": -25.0, "r_elbow": 88.0,  "r_arm_out": 32.0,  "l_shoulder": -22.0, "l_arm_out": 20.0,  "r_wpn_yaw": 15.0,   "r_wpn_pitch": -105.0, "bob": 0.03 }),
+        (t: 0.12, pose: { "twist": -32.0, "lean": -14.0, "r_shoulder": -48.0, "r_elbow": 118.0, "r_arm_out": 62.0,  "l_shoulder": -45.0, "l_arm_out": 44.0,  "r_wpn_yaw": -20.0,  "r_wpn_pitch": -125.0, "bob": 0.06, "l_hip": 18.0, "r_knee": 12.0 }),
+        (t: 0.18, pose: { "twist": -38.0, "lean": -16.0, "r_shoulder": -52.0, "r_elbow": 122.0, "r_arm_out": 68.0,  "l_shoulder": -50.0, "l_arm_out": 50.0,  "r_wpn_yaw": -25.0,  "r_wpn_pitch": -128.0, "bob": 0.07 }),
+        (t: 0.24, pose: { "twist": 8.0,   "lean": 28.0,  "r_shoulder": 62.0,  "r_elbow": 22.0,  "r_arm_out": 28.0,  "l_shoulder": -55.0, "l_arm_out": 36.0,  "r_wpn_yaw": 0.0,    "r_wpn_pitch": 62.0,   "bob": -0.11, "l_hip": 38.0, "l_knee": 42.0, "r_hip": -32.0 }),
+        (t: 0.33, pose: { "twist": 22.0,  "lean": 32.0,  "r_shoulder": 78.0,  "r_elbow": 14.0,  "r_arm_out": 10.0,  "l_shoulder": -38.0, "l_arm_out": 24.0,  "r_wpn_yaw": 42.0,   "r_wpn_pitch": 78.0,   "bob": -0.12 }),
+        (t: 0.48, pose: { "twist": 0.0,   "lean": 8.0,   "r_shoulder": 22.0,  "r_elbow": 38.0,  "r_arm_out": 18.0,  "l_shoulder": -12.0, "l_arm_out": 16.0,  "r_wpn_yaw": 32.0,   "r_wpn_pitch": -48.0, "bob": -0.04 }),
+    ],
+    events: [ (t: 0.16, name: "hit_start"), (t: 0.35, name: "hit_end"), (t: 0.39, name: "cancel_open"), (t: 0.48, name: "cancel_close") ],
+)

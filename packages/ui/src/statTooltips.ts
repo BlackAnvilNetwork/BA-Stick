@@ -61,6 +61,14 @@ export const STAT_TOOLTIPS: Record<JobId, Record<AttrKey, string>> = {
     int: "Intelligence powers elemental nukes, en-spell hits, Stoneskin Rune, Spore Thread, and Rune Collapse.",
     mnd: "Mind powers Threadmend healing.",
   },
+  druid: {
+    str: "Stick Bear mauls and human staff swings use Strength. Stick Lion prefers Dexterity claws.",
+    dex: "Dexterity is your chance to land a swing, and Stick Lion rakes take a share of it.",
+    vit: "Vitality is Defense. Stick Bear borrows more hit points, never more than a Knight.",
+    agi: "Agility is Evasion. Racerunner does not haste — it only runs.",
+    int: "Intelligence does not power the ring.",
+    mnd: "Mind powers Dustmend and Still Water. Both stay below a Cleric.",
+  },
 };
 
 export function statTooltip(job: JobId, attr: AttrKey): string {

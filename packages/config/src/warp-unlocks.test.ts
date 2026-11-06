@@ -1,7 +1,15 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { FB_WARP_SITES } from "./forest-basin-features";
 import { PH_HUB_SPAWN, PH_OUTDOOR_SPAWN } from "./pale-hollow";
-import { PH_WARP_CIRCLES, PH_WARP_HUB_EXCEPTIONS, warpCircleById, warpCircleHitsHub } from "./warp-unlocks";
+import {
+  PH_WARP_CIRCLES,
+  PH_WARP_HUB_EXCEPTIONS,
+  reachWarp,
+  warpCircleAt,
+  warpCircleById,
+  warpCircleHitsHub,
+} from "./warp-unlocks";
 
 describe("warp circles and the Scout Gate room", () => {
   it("allows only the named rings to sit inside the hub rectangle", () => {
@@ -24,6 +32,19 @@ describe("warp circles and the Scout Gate room", () => {
     for (const [id, p] of [["hub-spawn", PH_HUB_SPAWN], ["out-spawn", PH_OUTDOOR_SPAWN]] as const) {
       const d = Math.hypot(p.x - ring.x, p.z - ring.z);
       assert.ok(d >= ring.r + 1.5, `${id} is ${d.toFixed(2)} m from the Mayflower Ring`);
+    }
+  });
+
+  it("opens the Kettle, Scraped and Spurgate rings only inside Forest Basin", () => {
+    for (const site of FB_WARP_SITES) {
+      const ring = warpCircleById(site.id);
+      assert.ok(ring, site.id);
+      assert.equal(ring.zoneId, "forest_basin");
+      assert.equal(ring.name.startsWith("the "), false, ring.name);
+      assert.equal(warpCircleAt(site.x, site.z, "pale_hollow"), undefined);
+      const opened = reachWarp([], site.x, site.z, "forest_basin");
+      assert.equal(opened.added, site.id);
+      assert.equal(reachWarp([], site.x, site.z).added, null);
     }
   });
 });

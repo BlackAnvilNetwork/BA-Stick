@@ -260,7 +260,7 @@ pub fn palette() -> [u32; 256] {
         p[TRAIL_STONE as usize + s] = mul(0x8e8a80, m);
         p[BRIDGE as usize + s] = mul(0x8a6440, m);
     }
-    for (k, c) in [0x2c5d78u32, 0x336a86, 0x3b7792, 0x336a86]
+    for (k, c) in [0x0f1a38u32, 0x22407a, 0x6f9bcb, 0xf0f7fc]
         .iter()
         .enumerate()
     {

@@ -57,6 +57,8 @@ export type MobJobCombatant = {
   stoneskinAbsorb?: number;
   atkDownUntil: number;
   atkDownMul: number;
+  druidSourHumUntil?: number;
+  druidSourHumMul?: number;
   addleUntil: number;
   silenceUntil: number;
   slowUntil: number;
@@ -203,6 +205,10 @@ const JOB_ABILITIES: Record<JobId, AbilityPick[]> = {
     { id: "mob_stoneskin", label: "Stoneskin", mp: 14, recastMs: 18_000, minRange: 0, maxRange: ABILITY_RANGE },
     { id: "mob_arc_blade", label: "Arc Blade", mp: 6, recastMs: 7_000, minRange: 0, maxRange: MELEE_RANGE + 1.2 },
     { id: "mob_ember_bolt", label: "Rune Bolt", mp: 8, recastMs: 6_500, minRange: 2.5, maxRange: ABILITY_RANGE },
+  ],
+  druid: [
+    { id: "mob_protect", label: "Ash Brace", mp: 0, recastMs: 18_000, minRange: 0, maxRange: 14 },
+    { id: "mob_power_strike", label: "Stick Maul", mp: 0, recastMs: 8_000, minRange: 0, maxRange: MELEE_RANGE + 0.6 },
   ],
 };
 
@@ -507,7 +513,9 @@ export function mobAutoAttackRoll(
     0,
   );
   const playerEva = evasionFromAgi(target.agi);
-  if (rollUnit("mob.ai.auto-hit") > hitChance(mobAcc, playerEva)) {
+  let chance = hitChance(mobAcc, playerEva);
+  if (now < (mob.druidSourHumUntil ?? 0)) chance *= mob.druidSourHumMul ?? 1;
+  if (rollUnit("mob.ai.auto-hit") > chance) {
     return { hit: false, dmg: 0, anim: magic ? "cast" : "melee" };
   }
   if (magic) {

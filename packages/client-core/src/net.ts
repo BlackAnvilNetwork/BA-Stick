@@ -1,4 +1,4 @@
-﻿import type { ClientMessage, ServerMessage } from "@bellgrave/protocol";
+import type { ClientMessage, ServerMessage } from "@bellgrave/protocol";
 import { generatePrivateKey, privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
 import {
   appKitConfigured,

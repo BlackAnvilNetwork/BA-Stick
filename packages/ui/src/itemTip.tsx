@@ -21,6 +21,7 @@ const JOB_ABBR: Record<string, string> = {
   battlemage: "BMG",
   tim: "TM",
   time_mage: "TM",
+  druid: "DRU",
 };
 
 const PRIMARY_STAT_KEYS = [

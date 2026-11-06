@@ -13,8 +13,11 @@ import {
   abilityRecastMs,
   abilityTooltip,
   categoryTabsDual,
+  DRUID_FORM_LABEL,
   isAbilityId,
+  isDruidForm,
   isJobId,
+  type DruidForm,
   isTimAbilityId,
   type AbilityId as CombatAbilityId,
   type JobId,
@@ -127,6 +130,12 @@ export function hotbarIndexFromCode(code: string): number | null {
   if (!m) return null;
   const d = m[1]!;
   return d === "0" ? 9 : Number(d) - 1;
+}
+
+function unitDruidForm(job: JobId | undefined, buffs: { druidForm?: number } | undefined): DruidForm {
+  if (job !== "druid") return 0;
+  const n = buffs?.druidForm ?? 0;
+  return isDruidForm(n) ? n : 0;
 }
 
 function abilityTargetId(id: AbilityId, selected: string | null): string | undefined {
@@ -740,6 +749,7 @@ export function Hud() {
   const unlockKey = bookIds.join(",");
   const jobKey = snapshot?.you.job ?? "";
   const subKey = snapshot?.you.subjob ?? "";
+  const formKey = String(me && snapshot?.you.job === "druid" ? unitDruidForm(snapshot.you.job, me.buffs) : 0);
   useEffect(() => {
     if (!jobKey || !jobHasHotbar(jobKey)) {
       setHotbarSlots((prev) => {
@@ -754,13 +764,15 @@ export function Hud() {
     if (!snap) return;
     const unlocked = snap.you.unlocked as CombatAbilityId[];
     const sub = snap.you.subjob && isJobId(snap.you.subjob) ? snap.you.subjob : null;
-    const next = loadHotbar(wallet, snap.you.job, unlocked, sub);
+    const self = snap.units.find((u) => u.id.toLowerCase() === (wallet ?? "").toLowerCase() && u.kind === "player");
+    const form = unitDruidForm(snap.you.job, self?.buffs);
+    const next = loadHotbar(wallet, snap.you.job, unlocked, sub, form);
     setHotbarSlots((prev) => {
       if (prev.length === next.length && prev.every((v, i) => v === next[i])) return prev;
       liveHotbarSlots = next;
       return next;
     });
-  }, [wallet, jobKey, unlockKey, subKey]);
+  }, [wallet, jobKey, unlockKey, subKey, formKey]);
 
   useEffect(() => {
     liveHotbarSlots = hotbarSlots;
@@ -785,7 +797,8 @@ export function Hud() {
       } else {
         return prev;
       }
-      saveHotbar(wallet, snapshot.you.job, next, sub);
+      const form = unitDruidForm(snapshot.you.job, me?.buffs);
+      saveHotbar(wallet, snapshot.you.job, next, sub, form);
       liveHotbarSlots = next;
       return next;
     });
@@ -839,7 +852,11 @@ export function Hud() {
   const mpPct = me.maxMp ? (me.mp / me.maxMp) * 100 : 0;
   const tpPct = Math.min(100, (me.tp / 3000) * 100);
   const recasts = you.recasts ?? {};
-  const jobName = JOBS[you.job]?.name ?? you.job;
+  const form = unitDruidForm(you.job, me?.buffs);
+  const jobName =
+    you.job === "druid"
+      ? `${JOBS[you.job]?.name ?? you.job} · ${DRUID_FORM_LABEL[form]}`
+      : (JOBS[you.job]?.name ?? you.job);
   const subName =
     you.subjob && you.subLevel > 0
       ? ` / ${JOBS[you.subjob]?.name ?? you.subjob} L${you.subLevel}`
@@ -1323,9 +1340,20 @@ export function Hud() {
                 · drag onto hotbar
               </div>
             </div>
-            <button type="button" className="cmd-close-btn" onClick={() => setBookOpen(false)}>
-              Close
-            </button>
+            <div className="spellbook-head-actions">
+              {bookIds.includes("map_undo" as CombatAbilityId) && (
+                <button
+                  type="button"
+                  className="cmd-close-btn spellbook-undo-btn"
+                  onClick={() => castAbility("map_undo" as CombatAbilityId)}
+                >
+                  Undo
+                </button>
+              )}
+              <button type="button" className="cmd-close-btn" onClick={() => setBookOpen(false)}>
+                Close
+              </button>
+            </div>
           </div>
           {bookTabs.length > 0 && (
             <div className="spellbook-tabs" role="tablist" aria-label="Ability categories">

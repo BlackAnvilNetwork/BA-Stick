@@ -2124,6 +2124,16 @@ textarea {
   flex-shrink: 0;
   line-height: 1.15;
 }
+.spellbook-head-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+}
+.spellbook-undo-btn {
+  font-size: 13px;
+  font-weight: 600;
+}
 .spellbook-head .cmd-close-btn {
   font-style: normal;
   text-shadow: none;

@@ -20,7 +20,10 @@
   "oxblood": "ff2a32",
   "teal": "3ecfa0",
   "bronze": "e8a24a",
-  "ash": "ddd6c8"
+  "ash": "ddd6c8",
+  "ash_gold": "d9a441",
+  "dust": "c4b48a",
+  "muted_jewel": "8a3a42"
  },
  "generic": [
   {
@@ -2420,10 +2423,9 @@
    {
     "prim": "burst",
     "at": "self",
-    "color": "holy",
-    "count": 16,
-    "radius": 0.5,
-    "rise": true
+    "color": "time",
+    "count": 50,
+    "radius": 1
    }
   ],
   "metronome": [
@@ -3026,6 +3028,833 @@
   "map_biome_meadow": [],
   "map_biome_mountain": [],
   "map_walk": [],
-  "map_block": []
+  "map_block": [],
+  "dr_stickbear": [
+   {
+    "prim": "burst",
+    "at": "self",
+    "color": "dust",
+    "count": 22,
+    "radius": 0.55,
+    "rise": true
+   },
+   {
+    "prim": "ring",
+    "at": "self",
+    "color": "ash_gold",
+    "count": 7,
+    "radius": 1.15
+   }
+  ],
+  "dr_stickdeer": [
+   {
+    "prim": "burst",
+    "at": "self",
+    "color": "dust",
+    "count": 22,
+    "radius": 0.55,
+    "rise": true
+   },
+   {
+    "prim": "ring",
+    "at": "self",
+    "color": "ash_gold",
+    "count": 7,
+    "radius": 1.15
+   }
+  ],
+  "dr_sticklion": [
+   {
+    "prim": "burst",
+    "at": "self",
+    "color": "dust",
+    "count": 22,
+    "radius": 0.55,
+    "rise": true
+   },
+   {
+    "prim": "ring",
+    "at": "self",
+    "color": "ash_gold",
+    "count": 7,
+    "radius": 1.15
+   }
+  ],
+  "dr_racerunner": [
+   {
+    "prim": "burst",
+    "at": "self",
+    "color": "dust",
+    "count": 22,
+    "radius": 0.55,
+    "rise": true
+   },
+   {
+    "prim": "ring",
+    "at": "self",
+    "color": "ash_gold",
+    "count": 7,
+    "radius": 1.15
+   }
+  ],
+  "dr_ring_walk": [
+   {
+    "prim": "burst",
+    "at": "self",
+    "color": "dust",
+    "count": 22,
+    "radius": 0.55,
+    "rise": true
+   },
+   {
+    "prim": "ring",
+    "at": "self",
+    "color": "ash_gold",
+    "count": 7,
+    "radius": 1.15
+   }
+  ],
+  "dr_ringwake": [
+   {
+    "prim": "ring",
+    "at": "self",
+    "color": "ash_gold",
+    "count": 7,
+    "radius": 1.4
+   },
+   {
+    "prim": "burst",
+    "at": "self",
+    "color": "dust",
+    "count": 18,
+    "radius": 0.7,
+    "rise": true
+   }
+  ],
+  "dr_dustmend": [
+   {
+    "prim": "burst",
+    "at": "target",
+    "color": "dust",
+    "count": 20,
+    "radius": 0.45,
+    "rise": true
+   },
+   {
+    "prim": "ring",
+    "at": "target",
+    "color": "ash_gold",
+    "count": 7,
+    "radius": 0.85
+   }
+  ],
+  "dr_dustmend_ii": [
+   {
+    "prim": "burst",
+    "at": "target",
+    "color": "dust",
+    "count": 20,
+    "radius": 0.45,
+    "rise": true
+   },
+   {
+    "prim": "ring",
+    "at": "target",
+    "color": "ash_gold",
+    "count": 7,
+    "radius": 0.85
+   }
+  ],
+  "dr_still_water": [
+   {
+    "prim": "burst",
+    "at": "target",
+    "color": "dust",
+    "count": 20,
+    "radius": 0.45,
+    "rise": true
+   },
+   {
+    "prim": "ring",
+    "at": "target",
+    "color": "ash_gold",
+    "count": 7,
+    "radius": 0.85
+   }
+  ],
+  "dr_still_water_ii": [
+   {
+    "prim": "burst",
+    "at": "target",
+    "color": "dust",
+    "count": 20,
+    "radius": 0.45,
+    "rise": true
+   },
+   {
+    "prim": "ring",
+    "at": "target",
+    "color": "ash_gold",
+    "count": 7,
+    "radius": 0.85
+   }
+  ],
+  "dr_still_water_iii": [
+   {
+    "prim": "burst",
+    "at": "target",
+    "color": "dust",
+    "count": 20,
+    "radius": 0.45,
+    "rise": true
+   },
+   {
+    "prim": "ring",
+    "at": "target",
+    "color": "ash_gold",
+    "count": 7,
+    "radius": 0.85
+   }
+  ],
+  "dr_still_water_iv": [
+   {
+    "prim": "burst",
+    "at": "target",
+    "color": "dust",
+    "count": 20,
+    "radius": 0.45,
+    "rise": true
+   },
+   {
+    "prim": "ring",
+    "at": "target",
+    "color": "ash_gold",
+    "count": 7,
+    "radius": 0.85
+   }
+  ],
+  "dr_pair_mend": [
+   {
+    "prim": "burst",
+    "at": "target",
+    "color": "dust",
+    "count": 20,
+    "radius": 0.45,
+    "rise": true
+   },
+   {
+    "prim": "ring",
+    "at": "target",
+    "color": "ash_gold",
+    "count": 7,
+    "radius": 0.85
+   }
+  ],
+  "dr_pair_mend_ii": [
+   {
+    "prim": "burst",
+    "at": "target",
+    "color": "dust",
+    "count": 20,
+    "radius": 0.45,
+    "rise": true
+   },
+   {
+    "prim": "ring",
+    "at": "target",
+    "color": "ash_gold",
+    "count": 7,
+    "radius": 0.85
+   }
+  ],
+  "dr_heptad_hum": [
+   {
+    "prim": "burst",
+    "at": "target",
+    "color": "dust",
+    "count": 20,
+    "radius": 0.45,
+    "rise": true
+   },
+   {
+    "prim": "ring",
+    "at": "target",
+    "color": "ash_gold",
+    "count": 7,
+    "radius": 0.85
+   }
+  ],
+  "dr_antler_hum": [
+   {
+    "prim": "burst",
+    "at": "target",
+    "color": "dust",
+    "count": 20,
+    "radius": 0.45,
+    "rise": true
+   },
+   {
+    "prim": "ring",
+    "at": "target",
+    "color": "ash_gold",
+    "count": 7,
+    "radius": 0.85
+   }
+  ],
+  "dr_antler_hum_ii": [
+   {
+    "prim": "burst",
+    "at": "target",
+    "color": "dust",
+    "count": 20,
+    "radius": 0.45,
+    "rise": true
+   },
+   {
+    "prim": "ring",
+    "at": "target",
+    "color": "ash_gold",
+    "count": 7,
+    "radius": 0.85
+   }
+  ],
+  "dr_chalk_ward": [
+   {
+    "prim": "ring",
+    "at": "self",
+    "color": "dust",
+    "count": 18,
+    "radius": 0.9
+   },
+   {
+    "prim": "burst",
+    "at": "self",
+    "color": "ash_gold",
+    "count": 12,
+    "radius": 0.4
+   }
+  ],
+  "dr_chalk_ward_ii": [
+   {
+    "prim": "ring",
+    "at": "self",
+    "color": "dust",
+    "count": 18,
+    "radius": 0.9
+   },
+   {
+    "prim": "burst",
+    "at": "self",
+    "color": "ash_gold",
+    "count": 12,
+    "radius": 0.4
+   }
+  ],
+  "dr_mirror_glaze": [
+   {
+    "prim": "ring",
+    "at": "self",
+    "color": "dust",
+    "count": 18,
+    "radius": 0.9
+   },
+   {
+    "prim": "burst",
+    "at": "self",
+    "color": "ash_gold",
+    "count": 12,
+    "radius": 0.4
+   }
+  ],
+  "dr_ash_brace": [
+   {
+    "prim": "ring",
+    "at": "self",
+    "color": "dust",
+    "count": 18,
+    "radius": 0.9
+   },
+   {
+    "prim": "burst",
+    "at": "self",
+    "color": "ash_gold",
+    "count": 12,
+    "radius": 0.4
+   }
+  ],
+  "dr_ash_brace_ii": [
+   {
+    "prim": "ring",
+    "at": "self",
+    "color": "dust",
+    "count": 18,
+    "radius": 0.9
+   },
+   {
+    "prim": "burst",
+    "at": "self",
+    "color": "ash_gold",
+    "count": 12,
+    "radius": 0.4
+   }
+  ],
+  "dr_bundle_thicken": [
+   {
+    "prim": "ring",
+    "at": "self",
+    "color": "dust",
+    "count": 18,
+    "radius": 0.9
+   },
+   {
+    "prim": "burst",
+    "at": "self",
+    "color": "ash_gold",
+    "count": 12,
+    "radius": 0.4
+   }
+  ],
+  "dr_kiln_shoulder": [
+   {
+    "prim": "ring",
+    "at": "self",
+    "color": "dust",
+    "count": 18,
+    "radius": 0.9
+   },
+   {
+    "prim": "burst",
+    "at": "self",
+    "color": "ash_gold",
+    "count": 12,
+    "radius": 0.4
+   }
+  ],
+  "dr_mere_veil": [
+   {
+    "prim": "ring",
+    "at": "self",
+    "color": "dust",
+    "count": 18,
+    "radius": 0.9
+   },
+   {
+    "prim": "burst",
+    "at": "self",
+    "color": "ash_gold",
+    "count": 12,
+    "radius": 0.4
+   }
+  ],
+  "dr_mere_veil_ii": [
+   {
+    "prim": "ring",
+    "at": "self",
+    "color": "dust",
+    "count": 18,
+    "radius": 0.9
+   },
+   {
+    "prim": "burst",
+    "at": "self",
+    "color": "ash_gold",
+    "count": 12,
+    "radius": 0.4
+   }
+  ],
+  "dr_stick_clamour": [
+   {
+    "prim": "burst",
+    "at": "target",
+    "color": "dust",
+    "count": 28,
+    "radius": 0.55
+   },
+   {
+    "prim": "ring",
+    "at": "target",
+    "color": "ash_gold",
+    "count": 7,
+    "radius": 0.7
+   }
+  ],
+  "dr_stick_clamour_ii": [
+   {
+    "prim": "burst",
+    "at": "target",
+    "color": "dust",
+    "count": 28,
+    "radius": 0.55
+   },
+   {
+    "prim": "ring",
+    "at": "target",
+    "color": "ash_gold",
+    "count": 7,
+    "radius": 0.7
+   }
+  ],
+  "dr_ring_of_stakes": [
+   {
+    "prim": "burst",
+    "at": "target",
+    "color": "dust",
+    "count": 28,
+    "radius": 0.55
+   },
+   {
+    "prim": "ring",
+    "at": "target",
+    "color": "ash_gold",
+    "count": 7,
+    "radius": 0.7
+   }
+  ],
+  "dr_hollow_listen": [
+   {
+    "prim": "burst",
+    "at": "target",
+    "color": "dust",
+    "count": 28,
+    "radius": 0.55
+   },
+   {
+    "prim": "ring",
+    "at": "target",
+    "color": "ash_gold",
+    "count": 7,
+    "radius": 0.7
+   }
+  ],
+  "dr_stick_rake": [
+   {
+    "prim": "burst",
+    "at": "target",
+    "color": "muted_jewel",
+    "count": 16,
+    "radius": 0.35
+   },
+   {
+    "prim": "burst",
+    "at": "target",
+    "color": "dust",
+    "count": 14,
+    "radius": 0.5
+   }
+  ],
+  "dr_stick_rake_ii": [
+   {
+    "prim": "burst",
+    "at": "target",
+    "color": "muted_jewel",
+    "count": 16,
+    "radius": 0.35
+   },
+   {
+    "prim": "burst",
+    "at": "target",
+    "color": "dust",
+    "count": 14,
+    "radius": 0.5
+   }
+  ],
+  "dr_stick_rake_iii": [
+   {
+    "prim": "burst",
+    "at": "target",
+    "color": "muted_jewel",
+    "count": 16,
+    "radius": 0.35
+   },
+   {
+    "prim": "burst",
+    "at": "target",
+    "color": "dust",
+    "count": 14,
+    "radius": 0.5
+   }
+  ],
+  "dr_stick_maul": [
+   {
+    "prim": "burst",
+    "at": "target",
+    "color": "muted_jewel",
+    "count": 16,
+    "radius": 0.35
+   },
+   {
+    "prim": "burst",
+    "at": "target",
+    "color": "dust",
+    "count": 14,
+    "radius": 0.5
+   }
+  ],
+  "dr_stick_maul_ii": [
+   {
+    "prim": "burst",
+    "at": "target",
+    "color": "muted_jewel",
+    "count": 16,
+    "radius": 0.35
+   },
+   {
+    "prim": "burst",
+    "at": "target",
+    "color": "dust",
+    "count": 14,
+    "radius": 0.5
+   }
+  ],
+  "dr_stick_pounce": [
+   {
+    "prim": "burst",
+    "at": "target",
+    "color": "muted_jewel",
+    "count": 16,
+    "radius": 0.35
+   },
+   {
+    "prim": "burst",
+    "at": "target",
+    "color": "dust",
+    "count": 14,
+    "radius": 0.5
+   }
+  ],
+  "dr_long_pounce": [
+   {
+    "prim": "burst",
+    "at": "target",
+    "color": "muted_jewel",
+    "count": 16,
+    "radius": 0.35
+   },
+   {
+    "prim": "burst",
+    "at": "target",
+    "color": "dust",
+    "count": 14,
+    "radius": 0.5
+   }
+  ],
+  "dr_mane_dust": [
+   {
+    "prim": "burst",
+    "at": "target",
+    "color": "muted_jewel",
+    "count": 16,
+    "radius": 0.35
+   },
+   {
+    "prim": "burst",
+    "at": "target",
+    "color": "dust",
+    "count": 14,
+    "radius": 0.5
+   }
+  ],
+  "dr_mane_dust_ii": [
+   {
+    "prim": "burst",
+    "at": "target",
+    "color": "muted_jewel",
+    "count": 16,
+    "radius": 0.35
+   },
+   {
+    "prim": "burst",
+    "at": "target",
+    "color": "dust",
+    "count": 14,
+    "radius": 0.5
+   }
+  ],
+  "dr_mane_fury": [
+   {
+    "prim": "burst",
+    "at": "target",
+    "color": "muted_jewel",
+    "count": 16,
+    "radius": 0.35
+   },
+   {
+    "prim": "burst",
+    "at": "target",
+    "color": "dust",
+    "count": 14,
+    "radius": 0.5
+   }
+  ],
+  "dr_tail_dash": [
+   {
+    "prim": "burst",
+    "at": "self",
+    "color": "dust",
+    "count": 20,
+    "radius": 0.6,
+    "rise": true
+   },
+   {
+    "prim": "burst",
+    "at": "self",
+    "color": "ash_gold",
+    "count": 10,
+    "radius": 0.35,
+    "rise": true
+   }
+  ],
+  "dr_tail_dash_ii": [
+   {
+    "prim": "burst",
+    "at": "self",
+    "color": "dust",
+    "count": 20,
+    "radius": 0.6,
+    "rise": true
+   },
+   {
+    "prim": "burst",
+    "at": "self",
+    "color": "ash_gold",
+    "count": 10,
+    "radius": 0.35,
+    "rise": true
+   }
+  ],
+  "dr_ember_tail": [
+   {
+    "prim": "burst",
+    "at": "self",
+    "color": "dust",
+    "count": 20,
+    "radius": 0.6,
+    "rise": true
+   },
+   {
+    "prim": "burst",
+    "at": "self",
+    "color": "ash_gold",
+    "count": 10,
+    "radius": 0.35,
+    "rise": true
+   }
+  ],
+  "dr_long_run": [
+   {
+    "prim": "burst",
+    "at": "self",
+    "color": "dust",
+    "count": 20,
+    "radius": 0.6,
+    "rise": true
+   },
+   {
+    "prim": "burst",
+    "at": "self",
+    "color": "ash_gold",
+    "count": 10,
+    "radius": 0.35,
+    "rise": true
+   }
+  ],
+  "dr_ember_run": [
+   {
+    "prim": "burst",
+    "at": "self",
+    "color": "dust",
+    "count": 20,
+    "radius": 0.6,
+    "rise": true
+   },
+   {
+    "prim": "burst",
+    "at": "self",
+    "color": "ash_gold",
+    "count": 10,
+    "radius": 0.35,
+    "rise": true
+   }
+  ],
+  "dr_sour_hum": [
+   {
+    "prim": "ring",
+    "at": "target",
+    "color": "dust",
+    "count": 16,
+    "radius": 0.8
+   },
+   {
+    "prim": "burst",
+    "at": "target",
+    "color": "muted_jewel",
+    "count": 10,
+    "radius": 0.4
+   }
+  ],
+  "dr_sour_hum_ii": [
+   {
+    "prim": "ring",
+    "at": "target",
+    "color": "dust",
+    "count": 16,
+    "radius": 0.8
+   },
+   {
+    "prim": "burst",
+    "at": "target",
+    "color": "muted_jewel",
+    "count": 10,
+    "radius": 0.4
+   }
+  ],
+  "dr_unstruck_echo": [
+   {
+    "prim": "ring",
+    "at": "target",
+    "color": "dust",
+    "count": 16,
+    "radius": 0.8
+   },
+   {
+    "prim": "burst",
+    "at": "target",
+    "color": "muted_jewel",
+    "count": 10,
+    "radius": 0.4
+   }
+  ],
+  "dr_ring_split": [
+   {
+    "prim": "ring",
+    "at": "self",
+    "color": "ash_gold",
+    "count": 7,
+    "radius": 1
+   },
+   {
+    "prim": "burst",
+    "at": "self",
+    "color": "dust",
+    "count": 12,
+    "radius": 0.45
+   }
+  ],
+  "dr_bracken_root": [
+   {
+    "prim": "ring",
+    "at": "self",
+    "color": "ash_gold",
+    "count": 7,
+    "radius": 1
+   },
+   {
+    "prim": "burst",
+    "at": "self",
+    "color": "dust",
+    "count": 12,
+    "radius": 0.45
+   }
+  ]
  }
 }

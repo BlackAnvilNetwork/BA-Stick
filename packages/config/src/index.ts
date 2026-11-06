@@ -235,9 +235,8 @@ export {
   FB_LAKE,
   FB_CAMP,
   FB_SPAWN,
-  FB_MOUNTAINS,
   FB_GATES,
-  FB_BRIDGE,
+  forestBasinGroundY,
   FB_ROAD_NAMES,
   FB_MAP_LABELS,
   forestBasinMaskDist,
@@ -246,6 +245,7 @@ export {
   forestBasinBridgeCenter,
   forestBasinOnBridge,
   forestBasinWalkable,
+  forestBasinPrebuildShore,
   forestBasinClamp,
   forestBasinClampMove,
   forestBasinWaterSurfaceY,
@@ -259,7 +259,11 @@ export {
   type ForestBasinBiome,
   type ForestBasinTrail,
   type ForestBasinLabelKind,
+  forestBasinClampMoveUsing,
 } from "./forest-basin";
+
+export { BAZ_BIOME, BAZ_FLAG } from "./zone-biomes";
+
 
 export {
   HR_BOUNDS,
@@ -606,9 +610,15 @@ export {
   warpCircleAt,
   warpCircleById,
   warpCircleHitsHub,
+  WARP_RINGS,
   type RespawnHome,
   type RespawnStand,
   type WarpCircle,
   type WarpCircleId,
+  type WarpRing,
 } from "./warp-unlocks";
+export * from "./forest-basin-features";
+export * from "./forest-basin-content";
+export * from "./forest-basin-population";
+export * from "./forest-basin-shore";
 export * from "./natural-shore";

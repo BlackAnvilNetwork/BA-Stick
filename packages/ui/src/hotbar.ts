@@ -6,6 +6,7 @@ import {
   hotbarOrderDual,
   isAbilityId,
   type AbilityId,
+  type DruidForm,
   type JobId,
 } from "@bellgrave/combat";
 
@@ -18,8 +19,9 @@ export const HOTBAR_SLOT_MIME = "application/x-bellgrave-hotbar-slot";
 
 export type HotbarSlots = (AbilityId | null)[];
 
-function storageKey(wallet: string, job: string, sub: string | null): string {
-  return `bellgrave-hotbar-v3:${wallet.toLowerCase()}:${job}:${sub ?? "-"}`;
+function storageKey(wallet: string, job: string, sub: string | null, form: DruidForm = 0): string {
+  const formBit = job === "druid" ? `:${form}` : "";
+  return `bellgrave-hotbar-v3:${wallet.toLowerCase()}:${job}:${sub ?? "-"}${formBit}`;
 }
 
 function emptySlots(): HotbarSlots {
@@ -31,9 +33,10 @@ export function defaultHotbarSlots(
   job: JobId,
   unlocked: readonly AbilityId[],
   sub: JobId | null = null,
+  form: DruidForm = 0,
 ): HotbarSlots {
   const slots = emptySlots();
-  const ordered = hotbarOrderDual(job, sub, unlocked).filter((id) => id !== "rest");
+  const ordered = hotbarOrderDual(job, sub, unlocked, form).filter((id) => id !== "rest");
   for (let i = 0; i < Math.min(ordered.length, HOTBAR_SLOT_COUNT); i++) {
     slots[i] = ordered[i]!;
   }
@@ -56,17 +59,18 @@ export function loadHotbar(
   job: JobId,
   unlocked: readonly AbilityId[],
   sub: JobId | null = null,
+  form: DruidForm = 0,
 ): HotbarSlots {
   const unlockedSet = new Set(unlocked);
-  if (!wallet) return defaultHotbarSlots(job, unlocked, sub);
+  if (!wallet) return defaultHotbarSlots(job, unlocked, sub, form);
   try {
-    const raw = localStorage.getItem(storageKey(wallet, job, sub));
+    const raw = localStorage.getItem(storageKey(wallet, job, sub, form));
     if (raw) {
       const parsed = sanitize(JSON.parse(raw) as unknown, unlockedSet);
       if (parsed) {
         // Fill empty trailing slots with newly unlocked support abilities.
         const used = new Set(parsed.filter(Boolean) as AbilityId[]);
-        const extras = hotbarOrderDual(job, sub, unlocked).filter(
+        const extras = hotbarOrderDual(job, sub, unlocked, form).filter(
           (id) => id !== "rest" && !used.has(id),
         );
         const next = [...parsed] as HotbarSlots;
@@ -80,7 +84,7 @@ export function loadHotbar(
   } catch {
     /* ignore corrupt */
   }
-  return defaultHotbarSlots(job, unlocked, sub);
+  return defaultHotbarSlots(job, unlocked, sub, form);
 }
 
 export function saveHotbar(
@@ -88,10 +92,11 @@ export function saveHotbar(
   job: string,
   slots: HotbarSlots,
   sub: string | null = null,
+  form: DruidForm = 0,
 ): void {
   if (!wallet) return;
   try {
-    localStorage.setItem(storageKey(wallet, job, sub), JSON.stringify(slots));
+    localStorage.setItem(storageKey(wallet, job, sub, form), JSON.stringify(slots));
   } catch {
     /* quota */
   }

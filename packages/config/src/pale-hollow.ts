@@ -1262,6 +1262,8 @@ export function paleHollowWalkable(x: number, z: number): boolean {
     if (t && !t.walk) return false;
   }
   if (paleHollowOnBridge(x, z)) return true;
+  // Trails are built with this function; skip the corridor until the cache exists.
+  if (paleHollowTrailCache && paleHollowOnTrail(x, z)) return true;
   if (paleHollowInLakeShallows(x, z)) return true;
   if (paleHollowInOpenWater(x, z)) return false;
   if (paleHollowInRiverWall(x, z)) return false;

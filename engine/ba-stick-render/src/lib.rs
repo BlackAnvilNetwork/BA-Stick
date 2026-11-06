@@ -28,6 +28,7 @@ pub mod lighting;
 pub mod mapfont;
 pub mod minimap;
 pub mod palette;
+pub mod pixel_water;
 pub mod preset;
 pub mod props;
 pub mod scene;

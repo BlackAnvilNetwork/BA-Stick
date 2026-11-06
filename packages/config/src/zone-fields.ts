@@ -53,6 +53,7 @@ import {
   forestBasinWalkable,
   forestBasinWaterSurfaceY,
 } from "./forest-basin";
+import { nearTrailCorridor, type TrailPolyline } from "./trail-geom";
 import {
   GR_BOUNDS,
   GR_GATES,
@@ -135,7 +136,17 @@ import {
   hollowRoadWalkable,
   hollowRoadWaterSurfaceY,
 } from "./hollow-road";
-import { PH_ASH_ROAD, paleHollowWalkable } from "./pale-hollow";
+import {
+  PALE_HOLLOW_BOUNDS,
+  PH_ASH_ROAD,
+  PH_TRAIL_STONE_WIDTH,
+  PH_TRAIL_WIDTH,
+  clampPaleHollow,
+  paleHollowClampMove,
+  paleHollowOnBridge,
+  paleHollowTrails,
+  paleHollowWalkable,
+} from "./pale-hollow";
 import { zoneLink } from "./zone-links";
 
 export type ZoneGate = {
@@ -370,44 +381,80 @@ export function fieldClampMove(
   return field ? field.clampMove(fromX, fromZ, toX, toZ) : null;
 }
 
-export function fieldNav(zoneId: string | undefined): {
+type FieldNav = {
   bounds: ZoneField["bounds"];
   walkable: ZoneField["walkable"];
   clamp: ZoneField["clamp"];
   /** Straight walk with no sliding: every sample on the segment is walkable. */
   clampMove: ZoneField["clampMove"];
-} | undefined {
-  const field = fieldById(zoneId);
-  if (!field) return undefined;
+};
+
+function buildFieldNav(spec: {
+  bounds: ZoneField["bounds"];
+  walkable: ZoneField["walkable"];
+  clamp: ZoneField["clamp"];
+  onBridge: (x: number, z: number) => boolean;
+  trails: TrailPolyline[] | ReturnType<ZoneField["trails"]>;
+  trailWidth: number;
+  widthForTrail?: (t: TrailPolyline) => number;
+}): FieldNav {
+  const onCorridor = (x: number, z: number) =>
+    spec.onBridge(x, z) || nearTrailCorridor(x, z, spec.trails, spec.trailWidth, spec.widthForTrail);
   // Paths must keep a little clearance: a line that grazes a wall corner passes this check by a hair,
   // but a player stepping along it lands a hair the other way and stops against the wall.
+  // Roads and decks are the exception — side samples fall in water and used to shove the route off the path.
   const CLEAR = 0.35;
   const straight = (fx: number, fz: number, tx: number, tz: number) => {
     const dist = Math.hypot(tx - fx, tz - fz);
     const steps = Math.max(1, Math.ceil(dist / 0.25));
     const px = dist > 0 ? (-(tz - fz) / dist) * CLEAR : 0;
     const pz = dist > 0 ? ((tx - fx) / dist) * CLEAR : 0;
-    const startOpen = field.walkable(fx + px, fz + pz) && field.walkable(fx - px, fz - pz);
+    const startOpen = spec.walkable(fx + px, fz + pz) && spec.walkable(fx - px, fz - pz);
     let last = { x: fx, z: fz };
     for (let i = 1; i <= steps; i++) {
       const t = i / steps;
       const c = { x: fx + (tx - fx) * t, z: fz + (tz - fz) * t };
-      if (!field.walkable(c.x, c.z)) return last;
+      if (!spec.walkable(c.x, c.z)) return last;
       // Side clearance is only asked for away from the ends, so paths can still start or finish beside a wall.
       const nearEnd = !startOpen && t * dist < 1 || (1 - t) * dist < 1;
-      if (!nearEnd && (!field.walkable(c.x + px, c.z + pz) || !field.walkable(c.x - px, c.z - pz))) return last;
+      if (!nearEnd && !onCorridor(c.x, c.z) && (!spec.walkable(c.x + px, c.z + pz) || !spec.walkable(c.x - px, c.z - pz))) return last;
       last = c;
     }
     return last;
   };
   // Route cells keep the same clearance, so grid corners never cut a wall the walk would stop on.
   const roomy = (x: number, z: number) =>
-    field.walkable(x, z) &&
-    field.walkable(x + 0.5, z) &&
-    field.walkable(x - 0.5, z) &&
-    field.walkable(x, z + 0.5) &&
-    field.walkable(x, z - 0.5);
-  return { bounds: field.bounds, walkable: roomy, clamp: field.clamp, clampMove: straight };
+    spec.walkable(x, z) &&
+    (onCorridor(x, z) ||
+      (spec.walkable(x + 0.5, z) &&
+        spec.walkable(x - 0.5, z) &&
+        spec.walkable(x, z + 0.5) &&
+        spec.walkable(x, z - 0.5)));
+  return { bounds: spec.bounds, walkable: roomy, clamp: spec.clamp, clampMove: straight };
+}
+
+export function fieldNav(zoneId: string | undefined): FieldNav | undefined {
+  if (zoneId === "pale_hollow") {
+    return buildFieldNav({
+      bounds: PALE_HOLLOW_BOUNDS,
+      walkable: paleHollowWalkable,
+      clamp: clampPaleHollow,
+      onBridge: paleHollowOnBridge,
+      trails: paleHollowTrails(),
+      trailWidth: PH_TRAIL_WIDTH,
+      widthForTrail: (t) => (t.surface === "stone" ? PH_TRAIL_STONE_WIDTH : PH_TRAIL_WIDTH),
+    });
+  }
+  const field = fieldById(zoneId);
+  if (!field) return undefined;
+  return buildFieldNav({
+    bounds: field.bounds,
+    walkable: field.walkable,
+    clamp: field.clamp,
+    onBridge: field.onBridge,
+    trails: field.trails(),
+    trailWidth: field.trailWidth,
+  });
 }
 
 export function fieldGateSoftLevel(zoneId: string | undefined, x: number, z: number): number | null | undefined {
