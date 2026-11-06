@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { GearParseError, parseGear, parsePlate, solveIdle, solveWalk } from "./gear-ron.ts";
+import { GearParseError, gearFrame, parseGear, parsePlate, solveIdle, solveWalk } from "./gear-ron.ts";
 
 const gearDir = new URL("../../../engine/", import.meta.url);
 
@@ -32,6 +32,56 @@ test("iron cuirass parses as a chest plate", () => {
   assert.ok(paint.y0 < -0.36);
   assert.ok(paint.armTo > paint.armFrom);
   assert.equal(paint.rows[0]!.length, 15);
+  assert.ok(paint.rows.some((r) => r.includes("g")));
+  assert.ok(paint.rows.some((r) => r.includes("r")));
+  assert.ok(paint.z > 0);
+});
+
+test("iron mail reuses the iron cuirass recipe", () => {
+  const g = parseGear(read("ba-stick-render/assets/gear/ba_iron_mail.ron"));
+  assert.equal(g.id, "ba_iron_mail");
+  assert.equal(g.slot, "Chest");
+  assert.equal(g.attach, "chest");
+  assert.equal(g.material, "steel");
+  assert.equal(g.thicknessMul.spine, 1.72);
+  assert.equal(g.shapes.length, 11);
+  const steel = g.shapes.filter((s) => s.kind === "Capsule" && s.ramp === "Material");
+  assert.ok(steel.length >= 3, "chest and waist overlap into one plate");
+  const shoulder = g.shapes.find((s) => s.at === "l_shoulder" && s.ramp === "Material");
+  const stud = g.shapes.find((s) => s.at === "l_shoulder" && s.ramp === "Trim");
+  assert.ok(shoulder && stud && shoulder.r === 0.075 && stud.r === 0.028);
+  const paint = parsePlate(read("ba-stick-render/assets/gear/ba_iron_mail.plate.ron"));
+  assert.equal(paint.id, "ba_iron_mail");
+  assert.equal(paint.wrap, 0);
+  assert.equal(paint.flow, 0);
+  assert.equal(paint.rows.length, 18);
+  assert.equal(paint.rows[0]!.length, 15);
+  assert.ok(paint.rows.some((r) => r.includes(".")));
+  assert.ok(paint.rows.some((r) => r.includes("g")));
+  assert.ok(paint.rows.some((r) => r.includes("r")));
+  assert.ok(paint.z > 0);
+});
+
+test("bronze harness reuses the iron cuirass recipe", () => {
+  const g = parseGear(read("ba-stick-render/assets/gear/ba_bronze_harness.ron"));
+  assert.equal(g.id, "ba_bronze_harness");
+  assert.equal(g.slot, "Chest");
+  assert.equal(g.attach, "chest");
+  assert.equal(g.material, "steel");
+  assert.equal(g.thicknessMul.spine, 1.72);
+  assert.equal(g.shapes.length, 11);
+  const steel = g.shapes.filter((s) => s.kind === "Capsule" && s.ramp === "Material");
+  assert.ok(steel.length >= 3, "chest and waist overlap into one plate");
+  const shoulder = g.shapes.find((s) => s.at === "l_shoulder" && s.ramp === "Material");
+  const stud = g.shapes.find((s) => s.at === "l_shoulder" && s.ramp === "Trim");
+  assert.ok(shoulder && stud && shoulder.r === 0.075 && stud.r === 0.028);
+  const paint = parsePlate(read("ba-stick-render/assets/gear/ba_bronze_harness.plate.ron"));
+  assert.equal(paint.id, "ba_bronze_harness");
+  assert.equal(paint.wrap, 0);
+  assert.equal(paint.flow, 0);
+  assert.equal(paint.rows.length, 18);
+  assert.equal(paint.rows[0]!.length, 15);
+  assert.ok(paint.rows.some((r) => r.includes(".")));
   assert.ok(paint.rows.some((r) => r.includes("g")));
   assert.ok(paint.rows.some((r) => r.includes("r")));
   assert.ok(paint.z > 0);
@@ -75,6 +125,25 @@ test("wizard robe is a long cloth with a flowing hem", () => {
   assert.ok(paint.sleeveDrop > 0.2);
   assert.ok(paint.y0 < -1);
   assert.ok(paint.rows.every((row) => !row.includes(".")), "every robe pixel is painted");
+});
+
+test("linen robe keeps the wizard robe flow and a linen retint", () => {
+  const g = parseGear(read("ba-stick-render/assets/gear/ba_linen_robe.ron"));
+  assert.equal(g.id, "ba_linen_robe");
+  assert.equal(g.slot, "Chest");
+  assert.equal(g.material, "dust");
+  assert.equal(g.shapes.length, 14);
+  const hem = g.shapes.find((s) => s.kind === "Capsule" && s.to[1] < -1.1);
+  assert.ok(hem, "skirt reaches the ankles");
+  const paint = parsePlate(read("ba-stick-render/assets/gear/ba_linen_robe.plate.ron"));
+  assert.equal(paint.rows.length, 18);
+  assert.equal(paint.rows[0]!.length, 15);
+  assert.equal(paint.flow, 0.72);
+  assert.ok(paint.sleeveDrop > 0.2);
+  assert.ok(paint.y0 < -1);
+  assert.ok(paint.rows.every((row) => !row.includes(".")), "every robe pixel is painted");
+  assert.ok(paint.rows.every((row) => !row.includes("k")), "k reads as a hole");
+  assert.ok(paint.rows.every((row) => row.split("").every((cell) => "bmc".includes(cell))));
 });
 
 test("leather vest is a short mesh with shoulder straps", () => {
@@ -171,8 +240,6 @@ test("torque and circlet plates reskin the headband mesh", () => {
 
 test("bandana plates reskin the leather bandana mesh", () => {
   for (const [file, need] of [
-    ["ba_linen_helm.plate.ron", "l"],
-    ["ba_fine_jerkin_helm.plate.ron", "e"],
     ["ba_shade_leather_bandana.plate.ron", "k"],
     ["ba_skull_bandana.plate.ron", "h"],
   ] as const) {
@@ -224,6 +291,32 @@ test("iron shield is a faced plane with a grip", () => {
   assert.ok(paint.rows[paint.rows.length - 1]!.split("").every((cell) => cell === "g"));
 });
 
+test("bronze shield reuses the iron shield recipe", () => {
+  const g = parseGear(read("ba-stick-render/assets/gear/ba_bronze_shield.ron"));
+  const iron = parseGear(read("ba-stick-render/assets/gear/ba_iron_shield.ron"));
+  assert.equal(g.id, "ba_bronze_shield");
+  assert.equal(g.slot, "OffHand");
+  assert.equal(g.attach, "l_hand");
+  assert.equal(g.stance, "shield");
+  assert.equal(g.material, "steel");
+  assert.equal(g.shapes.length, 1);
+  assert.equal(g.shapes[0]!.kind, "Capsule");
+  assert.equal(g.slot, iron.slot);
+  assert.equal(g.attach, iron.attach);
+  assert.equal(g.stance, iron.stance);
+  assert.equal(g.material, iron.material);
+  const paint = parsePlate(read("ba-stick-render/assets/gear/ba_bronze_shield.plate.ron"));
+  const ironPaint = parsePlate(read("ba-stick-render/assets/gear/ba_iron_shield.plate.ron"));
+  assert.equal(paint.id, "ba_bronze_shield");
+  assert.equal(paint.flow, 0);
+  assert.equal(paint.wrap, 0);
+  assert.deepEqual(paint.rows, ironPaint.rows);
+  assert.ok(paint.rows.every((row) => row.length === paint.rows[0]!.length));
+  assert.ok(paint.rows.every((row) => !row.includes(".") && !row.includes("i") && !row.includes("k")));
+  assert.ok(paint.rows.some((row) => row.includes("e")));
+  assert.ok(paint.rows[paint.rows.length - 1]!.split("").every((cell) => cell === "g"));
+});
+
 test("kite shield is a pointed face with a grip", () => {
   const g = parseGear(read("ba-stick-render/assets/gear/ba_kite_shield.ron"));
   assert.equal(g.id, "ba_kite_shield");
@@ -238,6 +331,118 @@ test("kite shield is a pointed face with a grip", () => {
   assert.equal(paint.wrap, 0);
   assert.ok(paint.rows.every((row) => row.length === paint.rows[0]!.length));
   assert.ok(paint.rows.every((row) => row.split("").every((cell) => cell === "e")));
+});
+
+test("bronze sabatons are smaller steel feet plates", () => {
+  const bronze = parseGear(read("ba-stick-render/assets/gear/ba_bronze_sabatons.ron"));
+  const mythril = parseGear(read("ba-stick-render/assets/gear/ba_mythril_sabatons.ron"));
+  assert.equal(bronze.id, "ba_bronze_sabatons");
+  assert.equal(bronze.slot, "Feet");
+  assert.equal(bronze.attach, "pelvis");
+  assert.equal(bronze.material, "steel");
+  assert.ok(bronze.shapes.some((s) => s.at === "l_foot"));
+  assert.ok(bronze.shapes.some((s) => s.at === "r_foot"));
+  const extent = (g: ReturnType<typeof parseGear>) =>
+    Math.max(
+      ...g.shapes.filter((s) => s.kind === "Capsule").flatMap((s) => [s.from, s.to].flatMap((p) => [Math.abs(p[0]), Math.abs(p[2])])),
+    );
+  assert.ok(extent(bronze) < extent(mythril));
+});
+
+test("iron sabatons match mythril scale with an ankle cuff", () => {
+  const iron = parseGear(read("ba-stick-render/assets/gear/ba_iron_sabatons.ron"));
+  const mythril = parseGear(read("ba-stick-render/assets/gear/ba_mythril_sabatons.ron"));
+  assert.equal(iron.id, "ba_iron_sabatons");
+  assert.equal(iron.slot, "Feet");
+  assert.equal(iron.material, "steel");
+  assert.ok(iron.shapes.length > mythril.shapes.length);
+});
+
+test("decayed greaves are shorter bone shin plates", () => {
+  const decayed = parseGear(read("ba-stick-render/assets/gear/ba_decayed_greaves.ron"));
+  const dark = parseGear(read("ba-stick-render/assets/gear/ba_darksteel_greaves.ron"));
+  assert.equal(decayed.id, "ba_decayed_greaves");
+  assert.equal(decayed.slot, "Feet");
+  assert.equal(decayed.material, "bone");
+  const maxY = (g: ReturnType<typeof parseGear>) =>
+    Math.max(...g.shapes.filter((s) => s.kind === "Capsule").flatMap((s) => [s.from[1], s.to[1]]));
+  assert.ok(maxY(decayed) < maxY(dark));
+});
+
+test("battleweave coat is a short fighting coat", () => {
+  const g = parseGear(read("ba-stick-render/assets/gear/ba_battleweave_coat.ron"));
+  const paint = parsePlate(read("ba-stick-render/assets/gear/ba_battleweave_coat.plate.ron"));
+  assert.equal(g.id, "ba_battleweave_coat");
+  assert.equal(g.slot, "Chest");
+  assert.equal(paint.id, "ba_battleweave_coat");
+  assert.ok(paint.flow > 0 && paint.flow < 0.72);
+  assert.ok(paint.y0 > -1.0);
+  assert.ok(paint.rows.every((row) => row.length === paint.rows[0]!.length));
+  assert.ok(paint.rows.every((row) => !row.includes(".")));
+  assert.ok(paint.rows.some((r) => r.includes("e") || r.includes("k")));
+  assert.ok(paint.rows.some((r) => r.includes("b") || r.includes("m") || r.includes("c")));
+});
+
+test("altarweave coat is a knee liturgical coat with a gold stole", () => {
+  const g = parseGear(read("ba-stick-render/assets/gear/ba_altarweave_coat.ron"));
+  const paint = parsePlate(read("ba-stick-render/assets/gear/ba_altarweave_coat.plate.ron"));
+  const fight = parsePlate(read("ba-stick-render/assets/gear/ba_battleweave_coat.plate.ron"));
+  assert.equal(g.id, "ba_altarweave_coat");
+  assert.equal(g.slot, "Chest");
+  assert.equal(paint.id, "ba_altarweave_coat");
+  assert.ok(paint.y0 < fight.y0, "altarweave hem hangs below the fighting coat");
+  assert.ok(paint.y0 > -1.10);
+  assert.ok(paint.flow > 0.4 && paint.flow < 0.70);
+  assert.ok(paint.rows.every((row) => row.length === paint.rows[0]!.length));
+  assert.ok(paint.rows.every((row) => !row.includes(".")));
+  assert.ok(paint.rows.some((r) => r.includes("g")), "gold stole");
+  assert.ok(paint.rows.every((r) => !r.includes("e")), "no steel seams");
+  assert.ok(paint.rows.some((r) => r.includes("b") || r.includes("m") || r.includes("c")));
+});
+
+test("leather sandals follow both feet", () => {
+  const g = parseGear(read("ba-stick-render/assets/gear/ba_leather_sandals.ron"));
+  assert.equal(g.id, "ba_leather_sandals");
+  assert.equal(g.slot, "Feet");
+  assert.equal(g.attach, "pelvis");
+  assert.equal(g.material, "leather");
+  assert.equal(g.thicknessMul.l_shin, 1.12);
+  assert.equal(g.thicknessMul.r_shin, 1.12);
+  assert.notEqual(g.attach, "chest");
+  const leather = g.shapes.filter((s) => s.ramp === "Material");
+  const soles = leather.filter((s) => s.kind === "Capsule");
+  assert.ok(soles.length >= 4, "sole and strap capsules sit in foot-local space");
+  assert.ok(
+    soles.every((s) => Math.hypot(s.to[0] - s.from[0], s.to[1] - s.from[1], s.to[2] - s.from[2]) < 0.12),
+    "capsules stay short on the feet",
+  );
+  assert.ok(
+    soles.every((s) =>
+      [s.from, s.to].every((p) => Math.abs(p[0]) < 0.08 && p[1] > -0.08 && p[1] < 0.12),
+    ),
+    "capsules are foot-local, not parked on the pelvis",
+  );
+  const left = g.shapes.find((s) => s.at === "l_foot" && s.ramp === "Material");
+  const right = g.shapes.find((s) => s.at === "r_foot" && s.ramp === "Material");
+  assert.ok(left && right && left.r === 0.014 && right.r === 0.014);
+});
+
+test("bronze mittens follow both hands", () => {
+  const g = parseGear(read("ba-stick-render/assets/gear/ba_bronze_mittens.ron"));
+  assert.equal(g.id, "ba_bronze_mittens");
+  assert.equal(g.slot, "Hands");
+  assert.equal(g.attach, "r_hand");
+  assert.equal(g.material, "steel");
+  assert.equal(g.thicknessMul.l_forearm, 1.18);
+  assert.equal(g.thicknessMul.r_forearm, 1.18);
+  assert.notEqual(g.attach, "chest");
+  const steel = g.shapes.filter((s) => s.kind === "Capsule" && s.ramp === "Material");
+  assert.ok(steel.length >= 3, "wrist, palm, and knuckle overlap into one mitten");
+  assert.ok(steel.every((s) => Math.hypot(s.to[0] - s.from[0], s.to[1] - s.from[1], s.to[2] - s.from[2]) < 0.12), "capsules stay short on the fist");
+  const left = g.shapes.find((s) => s.at === "l_hand" && s.ramp === "Material");
+  const right = g.shapes.find((s) => s.at === "r_hand" && s.ramp === "Material");
+  const stud = g.shapes.find((s) => s.at === "l_hand" && s.ramp === "Trim");
+  assert.ok(left && right && stud && stud.r < left.r);
 });
 
 test("iron cuisses are plates on the thighs", () => {
@@ -255,6 +460,59 @@ test("iron cuisses are plates on the thighs", () => {
   assert.ok(paint.rows[0]!.split("").every((cell) => cell === "g"));
   assert.ok(paint.rows[paint.rows.length - 1]!.split("").every((cell) => cell === "g"));
   assert.ok(paint.rows.some((row) => row.includes("e")));
+});
+
+test("iron leggings reuse the metal-legs cuisses recipe", () => {
+  const g = parseGear(read("ba-stick-render/assets/gear/ba_iron_leggings.ron"));
+  const cuisses = parseGear(read("ba-stick-render/assets/gear/ba_iron_cuisses.ron"));
+  assert.equal(g.id, "ba_iron_leggings");
+  assert.equal(g.slot, "Legs");
+  assert.equal(g.attach, "pelvis");
+  assert.equal(g.material, "steel");
+  assert.equal(g.shapes.length, 0);
+  assert.equal(g.slot, cuisses.slot);
+  assert.equal(g.attach, cuisses.attach);
+  assert.equal(g.material, cuisses.material);
+  const paint = parsePlate(read("ba-stick-render/assets/gear/ba_iron_leggings.plate.ron"));
+  const cuissePaint = parsePlate(read("ba-stick-render/assets/gear/ba_iron_cuisses.plate.ron"));
+  assert.equal(paint.id, "ba_iron_leggings");
+  assert.equal(paint.flow, 0);
+  assert.equal(paint.wrap, 0);
+  assert.deepEqual(paint.rows, cuissePaint.rows);
+  assert.ok(paint.rows.every((row) => row.length === paint.rows[0]!.length));
+  assert.ok(paint.rows.every((row) => !row.includes(".") && !row.includes("i") && !row.includes("k")));
+  assert.ok(paint.rows[0]!.split("").every((cell) => cell === "g"));
+  assert.ok(paint.rows[paint.rows.length - 1]!.split("").every((cell) => cell === "g"));
+  assert.ok(paint.rows.some((row) => row.includes("e")));
+});
+
+test("leather trousers reuse the cuisses thigh shell in leather", () => {
+  const g = parseGear(read("ba-stick-render/assets/gear/ba_leather_trousers.ron"));
+  const cuisses = parseGear(read("ba-stick-render/assets/gear/ba_iron_cuisses.ron"));
+  assert.equal(g.id, "ba_leather_trousers");
+  assert.equal(g.slot, "Legs");
+  assert.equal(g.attach, "pelvis");
+  assert.equal(g.material, "leather");
+  assert.equal(g.shapes.length, 0);
+  assert.equal(g.slot, cuisses.slot);
+  assert.equal(g.attach, cuisses.attach);
+  assert.notEqual(g.material, cuisses.material);
+  const paint = parsePlate(read("ba-stick-render/assets/gear/ba_leather_trousers.plate.ron"));
+  const cuissePaint = parsePlate(read("ba-stick-render/assets/gear/ba_iron_cuisses.plate.ron"));
+  assert.equal(paint.id, "ba_leather_trousers");
+  assert.equal(paint.flow, 0);
+  assert.equal(paint.wrap, 0);
+  assert.equal(paint.x0, cuissePaint.x0);
+  assert.equal(paint.y0, cuissePaint.y0);
+  assert.equal(paint.x1, cuissePaint.x1);
+  assert.equal(paint.y1, cuissePaint.y1);
+  assert.equal(paint.z, cuissePaint.z);
+  assert.equal(paint.rows.length, cuissePaint.rows.length);
+  assert.ok(paint.rows.every((row) => row.length === paint.rows[0]!.length));
+  assert.ok(paint.rows.every((row) => !row.includes(".") && !row.includes("e") && !row.includes("g") && !row.includes("i")));
+  assert.ok(paint.rows.some((row) => row.includes("l")));
+  assert.ok(paint.rows.some((row) => row.includes("d")));
+  assert.ok(paint.rows.some((row) => row.includes("k")));
 });
 
 test("iron shovel is a shaft and a wide blade", () => {
@@ -279,6 +537,46 @@ test("iron pickaxe is a shaft and a head across it", () => {
   if (head.kind === "Capsule") {
     assert.ok(head.from[0]! < 0 && head.to[0]! > 0);
   }
+});
+
+test("ashbeam club is a dust shaft through the hand and a thick head", () => {
+  const g = parseGear(read("ba-stick-render/assets/gear/ba_ashbeam_club.ron"));
+  assert.equal(g.id, "ba_ashbeam_club");
+  assert.equal(g.slot, "MainHand");
+  assert.equal(g.attach, "r_hand");
+  assert.equal(g.stance, "1h");
+  assert.equal(g.material, "dust");
+  assert.equal(g.reach, 0.6);
+  assert.equal(g.shapes.length, 3);
+  assert.ok(g.shapes.every((sh) => sh.kind === "Capsule"));
+  const shaft = g.shapes[0]!;
+  assert.equal(shaft.kind, "Capsule");
+  assert.ok(shaft.from[1]! < 0 && shaft.to[1]! > 0, "shaft runs through the hand");
+  assert.equal(shaft.from[0], 0);
+  assert.equal(shaft.to[0], 0);
+  const head = g.shapes[2]!;
+  assert.ok((head.from[1] ?? 0) > 0 && (head.to[1] ?? 0) > (head.from[1] ?? 0), "head sits on +y");
+  assert.ok((head.thick ?? 0) > (shaft.thick ?? 0), "head is thicker than the shaft");
+});
+
+test("ashbeam staff is a dust shaft through the hand and an orb", () => {
+  const g = parseGear(read("ba-stick-render/assets/gear/ba_ashbeam_staff.ron"));
+  assert.equal(g.id, "ba_ashbeam_staff");
+  assert.equal(g.slot, "MainHand");
+  assert.equal(g.attach, "r_hand");
+  assert.equal(g.stance, "staff");
+  assert.equal(g.material, "dust");
+  assert.equal(g.reach, 0.75);
+  assert.equal(g.shapes.length, 3);
+  const shaft = g.shapes[0]!;
+  assert.equal(shaft.kind, "Capsule");
+  assert.ok(shaft.from[1]! < 0 && shaft.to[1]! > 0, "shaft runs through the hand");
+  assert.equal(shaft.from[0], 0);
+  assert.equal(shaft.to[0], 0);
+  assert.equal(g.shapes[2]!.kind, "Disc");
+  assert.ok((g.shapes[2]!.center[1] ?? 0) > shaft.to[1]!, "orb sits past the tip");
+  const frame = gearFrame(g, solveIdle(0.6));
+  assert.ok(frame.y.y > 0.85, "staff +y is upright, not the down-pointing swing");
 });
 
 test("iron sword is a grip, a guard, and a long blade", () => {

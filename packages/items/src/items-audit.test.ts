@@ -61,4 +61,10 @@ describe("items audit catalog patches", () => {
     assert.equal(CATALOG_BY_ID[186]!.stats?.atk, undefined);
     assert.equal(CATALOG_BY_ID[204]!.stats?.atk, undefined);
   });
+
+  it("Druid wears shared caster staffs, not job-unique books", () => {
+    assert.ok(CATALOG_BY_ID[1]!.jobRestrict?.includes("druid"));
+    assert.deepEqual(CATALOG_BY_ID[1075]!.jobRestrict, ["tim"]);
+    assert.deepEqual(CATALOG_BY_ID[1074]!.jobRestrict, ["cleric"]);
+  });
 });

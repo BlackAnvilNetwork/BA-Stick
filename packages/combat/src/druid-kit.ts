@@ -42,6 +42,30 @@ export const DRUID_SHIFT_IDS = [
   "dr_ring_walk",
 ] as const;
 
+/**
+ * Using a form leaves that song ready to toggle. Sibling forms share the
+ * family recast. Ring Split skips the family lock for the next shift.
+ */
+export function applyDruidShiftRecast(
+  recasts: Partial<Record<string, number>>,
+  usedId: string,
+  now: number,
+  skipFamily = false,
+): void {
+  if (skipFamily) {
+    delete recasts[usedId];
+    return;
+  }
+  const until = now + DRUID_SHIFT_RECAST_MS;
+  for (const id of DRUID_SHIFT_IDS) {
+    if (id === usedId) {
+      delete recasts[id];
+      continue;
+    }
+    recasts[id] = until;
+  }
+}
+
 export const DRUID_ABILITY_IDS = [
   "rest",
   "dr_ringwake",

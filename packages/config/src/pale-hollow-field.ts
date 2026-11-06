@@ -1,6 +1,7 @@
 /**
  * Pale Hollow field for the enlarged basin: 226 grid spawns, six Emberwatch hares, plus tutorial mobs,
  * a roof only where the ground already has a job, and a short kill quest at each roof.
+ * Wenna Gatesmoke at Emberwatch chains five jobs (walk, gather, fight, town, ring).
  * Spacing is deterministic. Linked packs keep one neighbor inside 12 m.
  */
 import {
@@ -21,6 +22,7 @@ import {
   type PaleHollowMobDef,
   type PaleHollowMobJob,
 } from "./pale-hollow";
+import { WENNA_QUESTS } from "./wenna-quests";
 
 export type PaleHollowFieldNpc = {
   id: string;
@@ -32,6 +34,10 @@ export type PaleHollowFieldNpc = {
   yardId: string;
 };
 
+export type PaleHollowQuestSite = { id: string; name: string; x: number; z: number; r: number; line: string };
+
+export type PaleHollowQuestKind = "kill" | "fetch" | "gather" | "talk";
+
 export type PaleHollowQuestDef = {
   id: string;
   npcId: string;
@@ -42,6 +48,12 @@ export type PaleHollowQuestDef = {
   gold: number;
   need: number;
   mobIds: readonly string[];
+  kind?: PaleHollowQuestKind;
+  requires?: string;
+  sites?: readonly PaleHollowQuestSite[];
+  gatherIds?: readonly string[];
+  gatherYields?: readonly string[];
+  talkNpcId?: string;
 };
 
 /** `read` = the on-site landmark step (world quests with `readPoi`). */
@@ -455,18 +467,10 @@ export const PH_FIELD_NPCS: readonly PaleHollowFieldNpc[] = PH_YARDS.map((y) => 
   return { id: spec.id, name: spec.name, x: y.x + 2.2, z: y.z + 1.4, facing: y.yaw, role: "quest_giver" as const, yardId: y.id };
 });
 
+export const PH_SKIRT_MOB_IDS = EMBER_HARE_SPOTS.map((_, i) => `ph-ember-hare-${i + 1}`);
+
 export const PH_QUESTS: readonly PaleHollowQuestDef[] = [
-  {
-    id: "ph-skirt",
-    npcId: "npc-ph-herald",
-    title: "Skirt of the Camp",
-    offer: "Hares are in the grass around Emberwatch. Bring down six of the nearest.",
-    progress: "The grass around Emberwatch is still full of hares.",
-    done: "The grass by Emberwatch is clear.",
-    gold: 25,
-    need: 6,
-    mobIds: EMBER_HARE_SPOTS.map((_, i) => `ph-ember-hare-${i + 1}`),
-  },
+  ...WENNA_QUESTS,
   ...PH_YARDS.map((y) => {
     const spec = YARD_NPC[y.id]!;
     return {
@@ -521,8 +525,33 @@ export function paleHollowQuestByNpc(npcId: string): PaleHollowQuestDef | undefi
   return PH_QUESTS.find((q) => q.npcId === npcId);
 }
 
+export function paleHollowQuestsByNpc(npcId: string): PaleHollowQuestDef[] {
+  return PH_QUESTS.filter((q) => q.npcId === npcId);
+}
+
 export function paleHollowQuestById(id: string): PaleHollowQuestDef | undefined {
   return PH_QUESTS.find((q) => q.id === id);
+}
+
+export function paleHollowQuestKind(quest: PaleHollowQuestDef): PaleHollowQuestKind {
+  return quest.kind ?? "kill";
+}
+
+function paleHollowQuestReady(quest: PaleHollowQuestDef, entry: PaleHollowQuestProgress): boolean {
+  return entry.kills >= quest.need;
+}
+
+/** Kill/gather keep a count. A single visit or talk is a sentence, not 0/1. */
+export function paleHollowQuestProgressBody(
+  quest: PaleHollowQuestDef,
+  entry: PaleHollowQuestProgress,
+): string {
+  const kind = paleHollowQuestKind(quest);
+  const n = Math.min(entry.kills, quest.need);
+  if (kind === "kill" || kind === "gather" || (kind === "fetch" && quest.need > 1)) {
+    return `${quest.progress} ${n}/${quest.need}.`;
+  }
+  return quest.progress;
 }
 
 export function paleHollowQuestLogEntries(state: PaleHollowQuestState): PaleHollowQuestLogEntry[] {
@@ -537,7 +566,7 @@ export function paleHollowQuestLogEntries(state: PaleHollowQuestState): PaleHoll
       kills: entry.kills,
       need: quest.need,
       progress: quest.progress,
-      ready: entry.kills >= quest.need,
+      ready: paleHollowQuestReady(quest, entry),
     };
   });
 }
@@ -548,25 +577,113 @@ export function paleHollowQuestCredit(state: PaleHollowQuestState, mobId: string
   let changed = false;
   const active = st.active.map((entry) => {
     const quest = paleHollowQuestById(entry.id);
-    if (!quest || !quest.mobIds.includes(mobId) || entry.kills >= quest.need) return entry;
+    if (!quest || paleHollowQuestKind(quest) !== "kill" || !quest.mobIds.includes(mobId) || entry.kills >= quest.need) {
+      return entry;
+    }
     changed = true;
     return { ...entry, kills: entry.kills + 1 };
   });
   return changed ? { ...st, active } : st;
 }
 
+/** Stand on a fetch site to take what it holds. The same site does not count twice. */
+export function paleHollowQuestVisit(
+  state: PaleHollowQuestState,
+  x: number,
+  z: number,
+): { state: PaleHollowQuestState; found: PaleHollowQuestSite[] } {
+  const st = normalizePaleHollowQuestState(state);
+  const found: PaleHollowQuestSite[] = [];
+  const active = st.active.map((entry) => {
+    const quest = paleHollowQuestById(entry.id);
+    if (!quest || paleHollowQuestKind(quest) !== "fetch" || !quest.sites) return entry;
+    const seen = entry.seen ?? [];
+    if (seen.length >= quest.need) return entry;
+    const hit = quest.sites.find(
+      (site) => !seen.includes(site.id) && Math.hypot(site.x - x, site.z - z) <= site.r,
+    );
+    if (!hit) return entry;
+    found.push(hit);
+    const nextSeen = [...seen, hit.id];
+    return { ...entry, seen: nextSeen, kills: nextSeen.length };
+  });
+  return { state: found.length ? { ...st, active } : st, found };
+}
+
+/** Credit a gather step by spawn template id and/or the mat that dropped. */
+export function paleHollowQuestGather(
+  state: PaleHollowQuestState,
+  spawnPointId: string,
+  yieldId?: string,
+): { state: PaleHollowQuestState; credited: string[] } {
+  const st = normalizePaleHollowQuestState(state);
+  const credited: string[] = [];
+  const active = st.active.map((entry) => {
+    const quest = paleHollowQuestById(entry.id);
+    if (!quest || paleHollowQuestKind(quest) !== "gather" || entry.kills >= quest.need) return entry;
+    const bySpawn = quest.gatherIds?.includes(spawnPointId) === true;
+    const byYield = yieldId != null && quest.gatherYields?.includes(yieldId) === true;
+    if (!bySpawn && !byYield) return entry;
+    credited.push(quest.id);
+    return { ...entry, kills: entry.kills + 1 };
+  });
+  return { state: credited.length ? { ...st, active } : st, credited };
+}
+
+/** Credit a talk step when the named NPC is spoken to (not the giver). */
+export function paleHollowQuestTalkNpc(
+  state: PaleHollowQuestState,
+  npcId: string,
+): { state: PaleHollowQuestState; credited: string[] } {
+  const st = normalizePaleHollowQuestState(state);
+  const credited: string[] = [];
+  const active = st.active.map((entry) => {
+    const quest = paleHollowQuestById(entry.id);
+    if (!quest || paleHollowQuestKind(quest) !== "talk" || quest.talkNpcId !== npcId || entry.kills >= quest.need) {
+      return entry;
+    }
+    credited.push(quest.id);
+    return { ...entry, kills: entry.kills + 1 };
+  });
+  return { state: credited.length ? { ...st, active } : st, credited };
+}
+
+/**
+ * Talk to a giver: turn in a ready quest, else report progress, else offer the
+ * next quest whose `requires` is done. Yard keepers still have one quest each.
+ */
 export function paleHollowQuestTalk(
   state: PaleHollowQuestState,
   npcId: string,
 ): { state: PaleHollowQuestState; title: string; body: string; gold: number } {
   const st = normalizePaleHollowQuestState(state);
-  const quest = paleHollowQuestByNpc(npcId);
-  if (!quest) return { state: st, title: "…", body: "…", gold: 0 };
-  if (st.done.includes(quest.id)) {
-    return { state: st, title: quest.title, body: quest.done, gold: 0 };
+  const qs = paleHollowQuestsByNpc(npcId);
+  if (qs.length === 0) return { state: st, title: "…", body: "…", gold: 0 };
+  for (const quest of qs) {
+    const entry = st.active.find((a) => a.id === quest.id);
+    if (entry && paleHollowQuestReady(quest, entry)) {
+      return {
+        state: { ...st, active: st.active.filter((a) => a.id !== quest.id), done: [...st.done, quest.id] },
+        title: quest.title,
+        body: quest.done,
+        gold: quest.gold,
+      };
+    }
   }
-  const idx = st.active.findIndex((a) => a.id === quest.id);
-  if (idx < 0) {
+  for (const quest of qs) {
+    const entry = st.active.find((a) => a.id === quest.id);
+    if (entry) {
+      return {
+        state: st,
+        title: quest.title,
+        body: paleHollowQuestProgressBody(quest, entry),
+        gold: 0,
+      };
+    }
+  }
+  for (const quest of qs) {
+    if (st.done.includes(quest.id)) continue;
+    if (quest.requires && !st.done.includes(quest.requires)) continue;
     return {
       state: { ...st, active: [...st.active, { id: quest.id, kills: 0 }] },
       title: quest.title,
@@ -574,15 +691,11 @@ export function paleHollowQuestTalk(
       gold: 0,
     };
   }
-  const entry = st.active[idx]!;
-  if (entry.kills < quest.need) {
-    return { state: st, title: quest.title, body: `${quest.progress} ${entry.kills}/${quest.need}.`, gold: 0 };
+  const waiting = qs.find((quest) => !st.done.includes(quest.id));
+  if (waiting) {
+    const need = waiting.requires ? paleHollowQuestById(waiting.requires) : undefined;
+    return { state: st, title: waiting.title, body: need ? `Come back when "${need.title}" is done.` : "…", gold: 0 };
   }
-  const active = st.active.filter((a) => a.id !== quest.id);
-  return {
-    state: { zoneId: "pale_hollow", active, done: [...st.done, quest.id] },
-    title: quest.title,
-    body: quest.done,
-    gold: quest.gold,
-  };
+  const last = qs[qs.length - 1]!;
+  return { state: st, title: last.title, body: last.done, gold: 0 };
 }

@@ -6,6 +6,7 @@ import {
   type AbilityId as CombatAbilityId,
   type JobId as CombatJobId,
 } from "@bellgrave/combat";
+import { CHAT_MAX_LEN, ChatChannelSchema } from "./chat";
 
 export type AbilityId = CombatAbilityId;
 export type JobId = CombatJobId;
@@ -22,6 +23,14 @@ export type Vec2 = z.infer<typeof Vec2Schema>;
 
 export const Gender = z.enum(["male", "female", "pepeka"]);
 export type Gender = z.infer<typeof Gender>;
+
+export {
+  CHAT_MAX_LEN,
+  ChatChannelSchema,
+  parseChatCommand,
+  sanitizeChatText,
+} from "./chat";
+export type { ChatChannel } from "./chat";
 
 export const ClientMessageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("auth/hello"), wallet: z.string().regex(/^0x[0-9a-fA-F]{40}$/) }),
@@ -67,6 +76,10 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("char/nameCheck"),
     name: z.string().min(2).max(16),
+  }),
+  /** Bind any Character NFTs this wallet already owns, then refresh the roster. */
+  z.object({
+    type: z.literal("char/syncOwned"),
   }),
   z.object({ type: z.literal("move"), x: z.number(), z: z.number() }),
   /** General dash: a direction only. The server picks the distance and checks walls and cooldown. */
@@ -249,6 +262,12 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
     priceWei: z.string().regex(/^[1-9][0-9]{0,77}$/),
     epoch: z.number().int().nonnegative(),
     req: z.number().int().nonnegative(),
+  }),
+  /** Nearby say, or `/p` party. Server sanitizes and rate-limits. */
+  z.object({
+    type: z.literal("chat"),
+    text: z.string().min(1).max(CHAT_MAX_LEN),
+    channel: ChatChannelSchema.optional(),
   }),
 ]);
 export type ClientMessage = z.infer<typeof ClientMessageSchema>;
@@ -818,6 +837,11 @@ export type ServerMessage =
       error?: string;
     }
   | {
+      type: "char/roster";
+      hasCharacter: boolean;
+      characters: CharacterPreview[];
+    }
+  | {
       type: "ah/admitFill";
       req: number;
       ok: boolean;
@@ -837,6 +861,13 @@ export type ServerMessage =
       events: LokEventView[];
       total: number;
       hasMore: boolean;
+    }
+  | {
+      type: "chat";
+      channel: "say" | "party";
+      fromId: string;
+      fromName: string;
+      text: string;
     }
   | {
       type: "npc/dialog";

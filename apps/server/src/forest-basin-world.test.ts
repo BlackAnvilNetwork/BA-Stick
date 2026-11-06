@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  FB_CAMP,
   FB_SPAWN,
   forestBasinClampMove,
   forestBasinWalkable,
@@ -10,10 +11,10 @@ import { paleHollowFindPath } from "./nav-grid";
 import { FB_SPAWN as SPAWN, forestBasinFeet, forestBasinSpawnWalkable } from "./forest-basin-world";
 
 describe("forest basin world", () => {
-  it("spawn is walkable flat ground", () => {
+  it("spawn is walkable on the Kettle Hollow camp floor", () => {
     assert.equal(forestBasinSpawnWalkable(), true);
     const y = forestBasinFeet(SPAWN.x, SPAWN.z);
-    assert.ok(y >= 1.9 && y <= 2.1);
+    assert.ok(Math.abs(y - FB_CAMP.floorY) < 0.2, `spawn y ${y} vs camp ${FB_CAMP.floorY}`);
   });
 
   it("clamp stops at the pad edge", () => {

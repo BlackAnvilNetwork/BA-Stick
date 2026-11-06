@@ -60,7 +60,7 @@ export function NpcInteractMenu() {
 
   const close = () => useGame.getState().setNpcDialog(null);
 
-  // Job Master: Change Alt header + subjob name list (or Lvl 10 gate)
+  // Job Master: main-job change is always available; Change Alt stays L10+.
   if (isJobMaster) {
     return (
       <div className="npc-dialog npc-dialog-world npc-dialog-slim">

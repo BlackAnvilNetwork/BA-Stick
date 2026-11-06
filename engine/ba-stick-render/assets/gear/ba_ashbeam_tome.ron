@@ -1,0 +1,29 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Ashbeam tome. Name-skin of the spellbound tome: closed book in the hand
+// frame, +y along the spine. Trim bind instead of Glow. Staff stance.
+(
+    id: "ba_ashbeam_tome",
+    slot: MainHand,
+    attach: Some("r_hand"),
+    stance: Some("staff"),
+    reach: 0.26,
+    swing_weight: 1.15,
+    material: Some("dust"),
+    shapes: [
+        Capsule(from: (0.0, -0.10, 0.0), to: (0.0, 0.15, 0.0), ramp: Trim, thick: 2.2),
+        Capsule(from: (-0.048, -0.08, 0.018), to: (-0.048, 0.12, 0.018), ramp: Material, thick: 1.6),
+        Capsule(from: (0.048, -0.08, 0.018), to: (0.048, 0.12, 0.018), ramp: Material, thick: 1.6),
+        Capsule(from: (-0.048, 0.12, 0.018), to: (0.048, 0.12, 0.018), ramp: Material, thick: 1.6),
+        Capsule(from: (-0.048, -0.08, 0.018), to: (0.048, -0.08, 0.018), ramp: Material, thick: 1.6),
+        Capsule(from: (-0.026, -0.04, 0.020), to: (0.026, 0.08, 0.020), ramp: Material, thick: 1.9),
+        Capsule(from: (-0.048, -0.08, -0.018), to: (-0.048, 0.12, -0.018), ramp: Material, thick: 1.6),
+        Capsule(from: (0.048, -0.08, -0.018), to: (0.048, 0.12, -0.018), ramp: Material, thick: 1.6),
+        Capsule(from: (-0.048, 0.12, -0.018), to: (0.048, 0.12, -0.018), ramp: Material, thick: 1.6),
+        Capsule(from: (-0.048, -0.08, -0.018), to: (0.048, -0.08, -0.018), ramp: Material, thick: 1.6),
+        Capsule(from: (-0.026, -0.04, -0.020), to: (0.026, 0.08, -0.020), ramp: Material, thick: 1.9),
+        Capsule(from: (-0.034, -0.06, 0.0), to: (0.034, 0.10, 0.0), ramp: Material, thick: 1.8),
+    ],
+)

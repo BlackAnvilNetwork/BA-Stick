@@ -4,6 +4,7 @@ import {
   DASH_COOLDOWN_MS,
   DASH_DISTANCE,
   DASH_MIN,
+  PH_HUB,
   PH_HUB_REAR_WALL,
   PH_HUB_SPAWN,
   dashPos,
@@ -52,6 +53,17 @@ test("dash stops short of the hub rear wall and never lands inside it", () => {
   // Flush against the wall there is no room at all.
   const flush = planDash({ x: p.run.tx, z: p.run.tz }, { dx: 0, dz: 1 }, paleHollowClampMove, 0, undefined);
   assert.ok(!flush.ok || Math.hypot(flush.run.tx - p.run.tx, flush.run.tz - p.run.tz) >= DASH_MIN);
+});
+
+test("dash from inside the rear wall does not land north of the cliff", () => {
+  const x = PH_HUB.minX + 14;
+  const z = PH_HUB.minZ + 6 + 8.5;
+  assert.equal(paleHollowWalkable(x, z), false);
+  const p = planDash({ x, z }, { dx: 0, dz: 1 }, paleHollowClampMove, 0, undefined);
+  if (p.ok) {
+    assert.ok(paleHollowWalkable(p.run.tx, p.run.tz));
+    assert.ok(p.run.tz < PH_HUB_REAR_WALL.maxZ + 0.2, `dashed through to z=${p.run.tz}`);
+  }
 });
 
 test("zone bounds: a clamp that holds the edge ends the dash at the edge", () => {

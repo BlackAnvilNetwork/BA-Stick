@@ -1,0 +1,46 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Front-face stamp for ba_chainmail. wrap and flow stay 0 so this is a
+// flat chest stamp. The quad is in the chest frame (metres): +x to the
+// figure's right, +y up the spine, +z out of the chest. Rows run from the
+// top of the quad downward. '.' leaves the steel, 'g' is gold on steel,
+// 'r' is the red medallion.
+(
+    id: "ba_chainmail",
+    x0: -0.13,
+    y0: -0.38,
+    x1: 0.13,
+    y1: 0.0,
+    z: 0.06,
+    wrap: 0.0,
+    flow: 0.0,
+    // Upper-arm guard, as a fraction of the shoulder-to-elbow bone.
+    arm_from: 0.04,
+    arm_to: 0.62,
+    arm_thick: 2.8,
+    cuff_from: 0.54,
+    cuff_to: 0.66,
+    cuff_thick: 1.15,
+    rows: [
+        ".....ggggg.....",
+        "...gg.....gg...",
+        "..g....g....g..",
+        "..g..g.g.g..g..",
+        "..g....g....g..",
+        "..g....g....g..",
+        "..g....r....g..",
+        "..g....g....g..",
+        "...g...g...g...",
+        "...g...g...g...",
+        "....g..g..g....",
+        "....g..g..g....",
+        "....g.....g....",
+        ".....g...g.....",
+        ".....g...g.....",
+        "......g.g......",
+        "......ggg......",
+        "...............",
+    ],
+)

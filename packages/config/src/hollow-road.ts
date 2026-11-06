@@ -15,6 +15,7 @@ import { naturalMaskDist } from "./natural-shore";
  * North is +z. No open water. No bridge.
  */
 
+import { slideMove } from "./slide-move";
 import { zoneLink } from "./zone-links";
 
 export const HR_BOUNDS = { minX: -18, maxX: 18, minZ: 0, maxZ: 160 } as const;
@@ -146,19 +147,7 @@ export function hollowRoadClampMove(
   toX: number,
   toZ: number,
 ): { x: number; z: number } {
-  const end = hollowRoadClamp(toX, toZ);
-  if (!hollowRoadWalkable(fromX, fromZ) && hollowRoadWalkable(end.x, end.z)) return end;
-  const dist = Math.hypot(end.x - fromX, end.z - fromZ);
-  if (dist < 1e-4) return { x: fromX, z: fromZ };
-  const steps = Math.max(1, Math.ceil(dist / 0.3));
-  let last = { x: fromX, z: fromZ };
-  for (let i = 1; i <= steps; i++) {
-    const t = i / steps;
-    const c = hollowRoadClamp(fromX + (end.x - fromX) * t, fromZ + (end.z - fromZ) * t);
-    if (!hollowRoadWalkable(c.x, c.z)) return last;
-    last = c;
-  }
-  return last;
+  return slideMove(hollowRoadClamp, hollowRoadWalkable, fromX, fromZ, toX, toZ);
 }
 
 export type HollowRoadBiome = "hub_indoor" | "ash_road" | "scrub" | "mountain";

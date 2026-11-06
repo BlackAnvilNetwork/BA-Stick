@@ -16,6 +16,7 @@ import {
   viteSettlementChainId,
   walletConnectProjectId,
 } from "./walletconnect";
+import { ignoreDisconnectedWalletRejections } from "./wallet-provider";
 
 /** Reown WalletGuide listing ids — order is respected on the Connect main view. */
 const RABBY_WALLET_ID = "18388be9ac2d02726dbac9777c96efaac06d744b2f6d580fccdd4127a6d01fd1";
@@ -74,11 +75,20 @@ export function ensureAppKit(): AppKit | null {
         socials: false,
         swaps: false,
         onramp: false,
+        connectMethodsOrder: ["wallet"],
       },
+      enableWalletGuide: true,
+      defaultAccountTypes: { eip155: "eoa" },
       allWallets: "SHOW",
       // Rabby first, then common desktop wallets (order respected).
       featuredWalletIds: [RABBY_WALLET_ID, METAMASK_WALLET_ID, COINBASE_WALLET_ID],
       themeMode: "dark",
+      themeVariables: {
+        "--apkt-accent": "#b8924a",
+        "--apkt-color-mix": "#3a2e18",
+        "--apkt-color-mix-strength": 24,
+        "--apkt-border-radius-master": "2px",
+      },
     });
   } catch (err) {
     initError = err instanceof Error ? err.message : String(err);
@@ -94,6 +104,7 @@ export function ensureAppKit(): AppKit | null {
  * Production Gnosis/Chiado bundles must ship VITE_WALLETCONNECT_PROJECT_ID.
  */
 if (typeof window !== "undefined") {
+  ignoreDisconnectedWalletRejections();
   if (import.meta.env.PROD) {
     assertWalletConnectProjectIdForPublicNetwork({
       VITE_NETWORK: import.meta.env.VITE_NETWORK,

@@ -19,13 +19,129 @@ import {
 type Item = { name: string; src: string; gear?: GearDef; error?: string };
 
 /** Pointed cloth hat stack; per-item plate only. */
-const CLOTH_HAT_GEAR_IDS = new Set(["ba_cloth_hat", "ba_silk_hat", "ba_velvet_hat"]);
+const CLOTH_HAT_GEAR_IDS = new Set(["ba_cloth_hat", "ba_silk_hat", "ba_velvet_hat", "ba_throneweave_hat", "ba_altarweave_hat", "ba_battleweave_hat"]);
+
+/** Cowl triangle (HeadStyle::Hood). Not a pointed hat stack. */
+const HOOD_GEAR_IDS = new Set(["ba_battleweave_hood"]);
+
+/** Closed metal helm shell (shared mesh, per-item plate). Skullcaps stay on their own discs. */
+const IRON_HELM_GEAR_IDS = new Set([
+  "ba_iron_helm",
+  "ba_bronze_helm",
+  "ba_mythril_helm",
+  "ba_darksteel_helm",
+  "ba_palace_helm",
+  "ba_scale_mail_helm",
+  "ba_orichalcum_war_helm",
+  "ba_steel_helm",
+  "ba_rogues_helm",
+  "ba_shade_helm",
+  "ba_bone_helm",
+]);
+
+/** Thigh shell (shared mesh, per-item plate). Empty-shape legs would be invisible without this. */
+const METAL_LEGS_GEAR_IDS = new Set([
+  "ba_iron_cuisses",
+  "ba_iron_leggings",
+  "ba_iron_subligar",
+  "ba_bronze_leggings",
+  "ba_bronze_subligar",
+  "ba_mythril_cuisses",
+  "ba_palace_cuisses",
+  "ba_darksteel_breeches",
+  "ba_leather_trousers",
+  "ba_fine_jerkin_trousers",
+  "ba_shade_leather_trousers",
+  "ba_scale_mail_trousers",
+  "ba_bone_trousers",
+  "ba_linen_slops",
+  "ba_shade_slops",
+  "ba_silk_slacks",
+  "ba_velvet_slacks",
+  "ba_battleweave_slacks",
+  "ba_battleweave_hose",
+  "ba_rogues_trousers",
+  "ba_orichalcum_war_cuisses",
+  "ba_steel_subligar",
+  "ba_throneweave_slacks",
+  "ba_altarweave_slacks",
+]);
+
+/** Foot-local solids, instanced on l_foot and r_foot. */
+const FEET_GEAR_IDS = new Set([
+  "ba_leather_sandals",
+  "ba_fine_jerkin_boots",
+  "ba_shade_leather_boots",
+  "ba_scale_mail_boots",
+  "ba_rogues_boots",
+  "ba_linen_socks",
+  "ba_silk_pumps",
+  "ba_velvet_pumps",
+  "ba_shade_pumps",
+  "ba_mythril_sabatons",
+  "ba_palace_sabatons",
+  "ba_orichalcum_war_sabatons",
+  "ba_darksteel_greaves",
+  "ba_bronze_sabatons",
+  "ba_iron_sabatons",
+  "ba_steel_sabatons",
+  "ba_decayed_greaves",
+  "ba_battleweave_pumps",
+  "ba_battleweave_slippers",
+  "ba_throneweave_pumps",
+  "ba_altarweave_pumps",
+  "ba_bone_boots",
+]);
+
+/** Hand-local solids, instanced on l_hand and r_hand (left mirrors +x). */
+const HANDS_GEAR_IDS = new Set([
+  "ba_bronze_mittens",
+  "ba_iron_mittens",
+  "ba_steel_mittens",
+  "ba_mythril_mittens",
+  "ba_darksteel_mittens",
+  "ba_palace_gauntlets",
+  "ba_orichalcum_war_gauntlets",
+  "ba_leather_gloves",
+  "ba_fine_jerkin_gloves",
+  "ba_shade_leather_gloves",
+  "ba_scale_mail_gloves",
+  "ba_rogues_gloves",
+  "ba_linen_cuffs",
+  "ba_silk_cuffs",
+  "ba_velvet_cuffs",
+  "ba_shade_cuffs",
+  "ba_battleweave_cuffs",
+  "ba_battleweave_gloves",
+  "ba_throneweave_cuffs",
+  "ba_altarweave_cuffs",
+  "ba_bone_gloves",
+]);
+
+/** Round off-hand shield face (shared mesh, per-item plate). */
+const SHIELD_GEAR_IDS = new Set([
+  "ba_iron_shield",
+  "ba_steel_shield",
+  "ba_bronze_shield",
+  "ba_mythril_shield",
+  "ba_darksteel_shield",
+  "ba_darksteel_targe",
+  "ba_orichalcum_targe",
+  "ba_mythril_targe",
+  "ba_orichalcum_shield",
+  "ba_palace_targe",
+  "ba_shell_shield",
+]);
+
+/** Pointed kite face (shared mesh, per-item plate). */
+const KITE_GEAR_IDS = new Set([
+  "ba_kite_shield",
+  "ba_palace_shield",
+]);
 
 /** Bandana mesh (brow, crown drape, knot, tails); per-item plate only. */
 const BANDANA_GEAR_IDS = new Set([
   "ba_leather_bandana",
-  "ba_linen_helm",
-  "ba_fine_jerkin_helm",
   "ba_shade_leather_bandana",
   "ba_skull_bandana",
 ]);
@@ -35,7 +151,6 @@ const FOREHEAD_RING_GEAR_IDS = new Set([
   "ba_headband",
   "ba_bell_torque_band",
   "ba_circlet",
-  "ba_mythril_torque",
 ]);
 type Mode = "figure" | "front" | "side";
 
@@ -433,12 +548,12 @@ function draw(gear: GearDef, plate: PlateDef | undefined, fig: ReturnType<typeof
       put(toWorld(frame, [0, y, -R]));
     }
   }
-  if (gear.id === "ba_iron_shield") {
+  if (SHIELD_GEAR_IDS.has(gear.id)) {
     for (const p of [[0.24, 0.04, 0.16], [-0.24, 0.04, 0.16], [0, 0.04, 0.4], [0, 0.04, -0.08]] as Triple[]) {
       put(toWorld(frame, p));
     }
   }
-  if (gear.id === "ba_kite_shield") {
+  if (KITE_GEAR_IDS.has(gear.id)) {
     for (const [x, z] of kiteOutline()) put(toWorld(frame, [x, 0.04, z]));
   }
   if (PIXEL_SWORD_GEAR_IDS.has(gear.id)) {
@@ -453,7 +568,7 @@ function draw(gear: GearDef, plate: PlateDef | undefined, fig: ReturnType<typeof
   if (PIXEL_AXE_GEAR_IDS.has(gear.id)) {
     for (const p of pixelAxeBounds(gear.id)) put(toWorld(frame, p));
   }
-  if (gear.id === "ba_iron_cuisses") {
+  if (METAL_LEGS_GEAR_IDS.has(gear.id)) {
     for (const side of [0, 1]) {
       for (let ring = 0; ring < CUISSE_T.length + 1; ring++) {
         put(cuissePoint(fig, side, ring, 0));
@@ -462,9 +577,31 @@ function draw(gear: GearDef, plate: PlateDef | undefined, fig: ReturnType<typeof
       }
     }
   }
-  for (const sh of gear.shapes) {
-    if (sh.kind === "Disc") put(shapePoint(sh, fig, frame));
-    else { put(at(sh.from)); put(at(sh.to)); }
+  if (FEET_GEAR_IDS.has(gear.id)) {
+    for (const joint of ["l_foot", "r_foot"] as const) {
+      for (const sh of gear.shapes) {
+        if (sh.kind === "Disc") put(shapePoint(sh, fig, frame));
+        else {
+          put(atFoot(fig, frame, joint, sh.from));
+          put(atFoot(fig, frame, joint, sh.to));
+        }
+      }
+    }
+  } else if (HANDS_GEAR_IDS.has(gear.id)) {
+    for (const joint of ["l_hand", "r_hand"] as const) {
+      for (const sh of gear.shapes) {
+        if (sh.kind === "Disc") put(shapePoint(sh, fig, frame));
+        else {
+          put(atHand(fig, frame, joint, sh.from));
+          put(atHand(fig, frame, joint, sh.to));
+        }
+      }
+    }
+  } else {
+    for (const sh of gear.shapes) {
+      if (sh.kind === "Disc") put(shapePoint(sh, fig, frame));
+      else { put(at(sh.from)); put(at(sh.to)); }
+    }
   }
   const minX = Math.min(...samples.map((p) => p.x));
   const maxX = Math.max(...samples.map((p) => p.x));
@@ -524,18 +661,23 @@ function draw(gear: GearDef, plate: PlateDef | undefined, fig: ReturnType<typeof
   const wrap = plate?.wrap ?? 0;
   if (plate && fabric) drawFabric(octx, plate, fig, frame, map);
   else if (plate && wrap > 0) drawWrap(octx, plate, fig, frame, map);
-  if (gear.id.endsWith("_helm") && plate) drawHelm(octx, plate, frame, map);
+  if (IRON_HELM_GEAR_IDS.has(gear.id) && plate) drawHelm(octx, plate, frame, map);
+  else if (HOOD_GEAR_IDS.has(gear.id)) drawHood(octx, frame, map);
   else if (CLOTH_HAT_GEAR_IDS.has(gear.id) && plate) drawHat(octx, plate, frame, map);
   else if (BANDANA_GEAR_IDS.has(gear.id) && plate) drawLeatherBandana(octx, plate, headNeckFrame(fig), map);
   else if (FOREHEAD_RING_GEAR_IDS.has(gear.id) && plate) drawHeadband(octx, plate, headNeckFrame(fig), map);
-  else if (gear.id === "ba_iron_shield" && plate) {
+  else if (SHIELD_GEAR_IDS.has(gear.id) && plate) {
     for (const sh of gear.shapes) strokeShape(octx, sh, fig, frame, map, fit, false, at, gear.material);
     drawShield(octx, plate, frame, map);
-  } else if (gear.id === "ba_kite_shield" && plate) {
+  } else if (KITE_GEAR_IDS.has(gear.id) && plate) {
     for (const sh of gear.shapes) strokeShape(octx, sh, fig, frame, map, fit, false, at, gear.material);
-    drawKite(octx, frame, map);
-  } else if (gear.id === "ba_iron_cuisses" && plate) {
+    drawKite(octx, frame, map, gear.id === "ba_palace_shield" ? "#d9a441" : "#9aa6b8");
+  } else if (METAL_LEGS_GEAR_IDS.has(gear.id) && plate) {
     drawCuisses(octx, plate, fig, frame, map);
+  } else if (FEET_GEAR_IDS.has(gear.id)) {
+    drawSandals(octx, gear, fig, frame, map, fit);
+  } else if (HANDS_GEAR_IDS.has(gear.id)) {
+    drawGloves(octx, gear, fig, frame, map, fit);
   } else if (PIXEL_SWORD_GEAR_IDS.has(gear.id)) {
     const art = swordArtForGearId(gear.id) ?? "iron";
     const meshMat = swordMeshMaterial(gear.id, gear.material);
@@ -635,6 +777,71 @@ function screen(p: Vec3, frame: ReturnType<typeof gearFrame>): Pt {
 function shapePoint(sh: GearShape, fig: ReturnType<typeof solveIdle>, frame: ReturnType<typeof gearFrame>): Vec3 {
   if (sh.at && fig.joints[sh.at]) return fig.joints[sh.at]!;
   return toWorld(frame, sh.center);
+}
+
+/** Foot-local point: same axes as the pelvis frame, origin on that foot joint. */
+function atFoot(
+  fig: ReturnType<typeof solveIdle>,
+  frame: ReturnType<typeof gearFrame>,
+  joint: "l_foot" | "r_foot",
+  p: Triple,
+): Vec3 {
+  const o = fig.joints[joint]!;
+  return add(o, add(mul(frame.x, p[0]), add(mul(frame.y, p[1]), mul(frame.z, p[2]))));
+}
+
+/** Hand-local point. Left hand mirrors +x so the thumb stays inward. */
+function atHand(
+  fig: ReturnType<typeof solveIdle>,
+  frame: ReturnType<typeof gearFrame>,
+  joint: "l_hand" | "r_hand",
+  p: Triple,
+): Vec3 {
+  const o = fig.joints[joint]!;
+  const x = joint === "l_hand" ? -p[0] : p[0];
+  return add(o, add(mul(frame.x, x), add(mul(frame.y, p[1]), mul(frame.z, p[2]))));
+}
+
+function drawSandals(
+  pen: CanvasRenderingContext2D,
+  gear: GearDef,
+  fig: ReturnType<typeof solveIdle>,
+  frame: ReturnType<typeof gearFrame>,
+  map: (p: Pt) => Pt,
+  fit: number,
+): void {
+  for (const joint of ["l_foot", "r_foot"] as const) {
+    const at = (p: Triple) => atFoot(fig, frame, joint, p);
+    for (const sh of gear.shapes) {
+      if (sh.kind === "Disc") continue;
+      strokeShape(pen, sh, fig, frame, map, fit, false, at, gear.material);
+    }
+  }
+  for (const sh of gear.shapes) {
+    if (sh.kind !== "Disc") continue;
+    strokeShape(pen, sh, fig, frame, map, fit, false, (p) => toWorld(frame, p), gear.material);
+  }
+}
+
+function drawGloves(
+  pen: CanvasRenderingContext2D,
+  gear: GearDef,
+  fig: ReturnType<typeof solveIdle>,
+  frame: ReturnType<typeof gearFrame>,
+  map: (p: Pt) => Pt,
+  fit: number,
+): void {
+  for (const joint of ["l_hand", "r_hand"] as const) {
+    const at = (p: Triple) => atHand(fig, frame, joint, p);
+    for (const sh of gear.shapes) {
+      if (sh.kind === "Disc") continue;
+      strokeShape(pen, sh, fig, frame, map, fit, false, at, gear.material);
+    }
+  }
+  for (const sh of gear.shapes) {
+    if (sh.kind !== "Disc") continue;
+    strokeShape(pen, sh, fig, frame, map, fit, false, (p) => toWorld(frame, p), gear.material);
+  }
 }
 
 function depthOf(sh: GearShape, fig: ReturnType<typeof solveIdle>, frame: ReturnType<typeof gearFrame>, at: (p: Triple) => Vec3): number {
@@ -1088,6 +1295,7 @@ function drawKite(
   pen: CanvasRenderingContext2D,
   frame: ReturnType<typeof gearFrame>,
   map: (p: Pt) => Pt,
+  field = "#9aa6b8",
 ): void {
   const outer = kiteOutline();
   const inner = kiteInset(outer, KITE_RIM);
@@ -1100,7 +1308,7 @@ function drawKite(
     });
     pen.closePath();
   };
-  pen.fillStyle = "#9aa6b8";
+  pen.fillStyle = field;
   pen.beginPath();
   loop(outer);
   pen.fill();
@@ -1498,6 +1706,26 @@ function drawHeadband(
 }
 
 /** Pointed cloth hat. Strips run from the tip down to the brim. The face stays open. */
+function drawHood(
+  pen: CanvasRenderingContext2D,
+  frame: ReturnType<typeof gearFrame>,
+  map: (p: Pt) => Pt,
+): void {
+  const tip = map(screen(toWorld(frame, [0, 0.40, 0.02]), frame));
+  const l = map(screen(toWorld(frame, [-0.22, 0.02, 0.10]), frame));
+  const r = map(screen(toWorld(frame, [0.22, 0.02, 0.10]), frame));
+  pen.fillStyle = "#4d6d86";
+  pen.strokeStyle = "#9aa6b8";
+  pen.lineWidth = 2;
+  pen.beginPath();
+  pen.moveTo(tip.x, tip.y);
+  pen.lineTo(l.x, l.y);
+  pen.lineTo(r.x, r.y);
+  pen.closePath();
+  pen.fill();
+  pen.stroke();
+}
+
 function drawHat(
   pen: CanvasRenderingContext2D,
   plate: PlateDef,

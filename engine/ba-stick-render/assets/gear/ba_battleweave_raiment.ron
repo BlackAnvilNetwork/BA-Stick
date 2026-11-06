@@ -1,0 +1,29 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Battleweave raiment. Name-skin of ba_battleweave_coat: cinched fighting
+// coat to mid-thigh. In-world draw reuses the coat mesh.
+(
+    id: "ba_battleweave_raiment",
+    slot: Chest,
+    attach: Some("chest"),
+    material: Some("dust"),
+    thickness_mul: {
+        "spine": 1.22,
+        "shoulders": 1.10,
+    },
+    shapes: [
+        Capsule(from: (-0.13, -0.02, 0.04), to: (0.13, -0.02, 0.04), ramp: Material, thick: 2.6),
+        Capsule(from: (0.0, -0.02, 0.05), to: (0.0, -0.40, 0.035), ramp: Material, thick: 3.2),
+        Capsule(from: (-0.11, -0.12, 0.05), to: (0.11, -0.12, 0.05), ramp: Material, thick: 3.2),
+        Capsule(from: (-0.08, -0.28, 0.045), to: (0.08, -0.28, 0.045), ramp: Material, thick: 2.8),
+        Capsule(from: (-0.040, -0.40, 0.04), to: (0.040, -0.40, 0.04), ramp: Trim, thick: 2.4),
+        Capsule(from: (-0.12, -0.04, 0.03), to: (-0.14, -0.28, 0.0), ramp: Material, thick: 2.4),
+        Capsule(from: (0.12, -0.04, 0.03), to: (0.14, -0.28, 0.0), ramp: Material, thick: 2.4),
+        Capsule(from: (-0.02, -0.40, 0.03), to: (-0.12, -0.72, 0.02), ramp: Material, thick: 2.6),
+        Capsule(from: (0.02, -0.40, 0.03), to: (0.12, -0.72, 0.02), ramp: Material, thick: 2.6),
+        Capsule(from: (0.0, -0.40, 0.045), to: (0.0, -0.72, 0.02), ramp: Material, thick: 2.4),
+        Capsule(from: (-0.14, -0.70, 0.02), to: (0.14, -0.70, 0.02), ramp: Material, thick: 2.2),
+    ],
+)

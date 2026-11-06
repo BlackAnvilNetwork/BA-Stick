@@ -1,0 +1,19 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+// Modified: 2026-11-04 — small wood buckler, not iron shield clone.
+//
+// Small wood buckler. Not an iron shield clone: a short grip behind a
+// small disc face on the off hand. The face is pixel strips on concentric
+// rings in a plane. The rings are not drawn. Material is dust (wood is
+// not a ramp).
+(
+    id: "ba_buckler_wood",
+    slot: OffHand,
+    attach: Some("l_hand"),
+    stance: Some("shield"),
+    material: Some("dust"),
+    shapes: [
+        Capsule(from: (-0.04, 0.0, 0.10), to: (0.04, 0.0, 0.10), ramp: Material, thick: 1.8),
+    ],
+)

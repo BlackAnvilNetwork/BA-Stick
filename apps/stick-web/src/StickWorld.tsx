@@ -8,7 +8,8 @@ import { clampPaleHollow, DASH_COOLDOWN_MS, DASH_MS, fieldById, fieldClampMove, 
 import type { UnitSnapshot } from "@bellgrave/protocol";
 import { NpcInteractMenu } from "@bellgrave/ui/NpcInteractMenu";
 import { clearKeyboardMove, setKeyboardMoveKey } from "@bellgrave/ui/moveInput";
-import { FB_H, FB_W, bakedZoneFor, createRenderer, fetchProps, fetchZone, fbScale, fromFramebuffer, placeAllZones, toFramebuffer } from "./renderer";
+import { FB_H, FB_W, bakedZoneFor, createRenderer, fbScale, fetchProps, fetchZone, fromFramebuffer, fromFramebufferFit, placeAllZones, readCanvasFit, toFramebuffer, toFramebufferFit } from "./renderer";
+import { fitScale } from "./fit";
 import { staticAt } from "./statics";
 import { CombatFloaters } from "./floaters";
 import { GatherIcons, loadIconAtlas, type IconAtlas } from "./gather";
@@ -23,7 +24,7 @@ import { AnimEdges } from "./sfx";
 import { ZONE_FADE_MS, ZoneTracker } from "./zones";
 import { ResonanceClock, buffVfx, statusIcons } from "./buffs";
 import { STATUS_ICON_FB, StatusColumns } from "./statusColumn";
-import { applyMapData } from "./minimap";
+import { applyMapData, blitMinimapToWell, clampMinimapDock, DOCK_REMEASURE_FRAMES, minimapBlitKey, minimapDockClientRect, shouldBlitMinimap, shouldDrawHudMinimap, shouldRemeasureMinimapDock, sameMinimapDock, type MinimapBlitKey } from "./minimap";
 import type { StickRenderer } from "ba-stick-render";
 import { camModeFromDataset, cameraKey, lookAxes, type LookHeld } from "./camera";
 import { cycleView, toggleCamControl } from "@bellgrave/ui/uiSettings";
@@ -88,12 +89,13 @@ export function StickWorld() {
       cleanups.push(() => viewObs.disconnect());
       let zoneLoaded: string | null = null;
       let zoneRetryAt = 0;
+      const origin = { x: 0, z: 0 };
       const loadTerrain = (want: string) => {
         void Promise.all([fetchZone(want), fetchProps(want)])
           .then(([b, p]) => {
             if (!alive || zoneLoaded !== want) return;
-            r.loadZone(b);
-            if (p) r.loadProps(p);
+            r.placeZone(b, origin.x, origin.z);
+            if (p) r.placeProps(p, origin.x, origin.z);
             applyMapData(r, want);
           })
           .catch((err: unknown) => {
@@ -104,7 +106,6 @@ export function StickWorld() {
           });
       };
       const zones = new ZoneTracker();
-      const origin = { x: 0, z: 0 };
       let activeZone = "pale_hollow";
       let lastSnap: unknown = null;
       let lastGearKey = "";
@@ -140,6 +141,14 @@ export function StickWorld() {
       const dashClock = new DashClock(DASH_COOLDOWN_MS);
       let localDash: { x: number; z: number; until: number } | null = null;
       let cursorFb: [number, number] | null = null;
+      let minimapWell: HTMLElement | null = null;
+      let minimapLogFrame: HTMLElement | null = null;
+      let lastWellDock: [number, number, number, number] | null = null;
+      let lastBlitKey: MinimapBlitKey | null = null;
+      let lastMapPane = false;
+      let lastDrawMode: ReturnType<typeof shouldDrawHudMinimap> | null = null;
+      let dockAge = DOCK_REMEASURE_FRAMES;
+      let hudMinimapCanvas: HTMLCanvasElement | null = null;
       const clampMoveHere = (ax: number, az: number, bx: number, bz: number) =>
         fieldClampMove(activeZone, ax, az, bx, bz) ?? paleHollowClampMove(ax, az, bx, bz);
       const tryDash = () => {
@@ -233,7 +242,7 @@ export function StickWorld() {
         if (e.button === 0) {
           const hitStatic = staticAt(zones.current, sx, sy, (x, y, z) => {
             const p = r.worldToScreen(x, y, z);
-            return [p[0], p[1]];
+            return [p[0], p[1], p[2] ?? 1];
           }, (x, z) => r.zoneHeight(x, z));
           if (hitStatic) {
             send(hitStatic.send);
@@ -256,7 +265,10 @@ export function StickWorld() {
           return;
         }
         const [sx, sy] = toFramebuffer(canvas, e.clientX, e.clientY);
-        cursorFb = [sx, sy];
+        cursorFb = [
+          Math.max(0, Math.min(FB_W - 1, sx)),
+          Math.max(0, Math.min(FB_H - 1, sy)),
+        ];
         if (r.minimapButton(sx, sy)) {
           hovered = null;
           canvas.style.cursor = "pointer";
@@ -335,9 +347,14 @@ export function StickWorld() {
         e.stopPropagation();
         r.setMinimapFull(!r.minimapFull());
       };
-      mapBtn.current?.addEventListener("pointerdown", onMapBtn);
+      const mapBtnEl = mapBtn.current;
+      const onLeave = () => {
+        cursorFb = null;
+      };
+      mapBtnEl?.addEventListener("pointerdown", onMapBtn);
       canvas.addEventListener("pointerdown", onPointer);
       canvas.addEventListener("pointermove", onMove);
+      canvas.addEventListener("pointerleave", onLeave);
       canvas.addEventListener("contextmenu", onContext);
       window.addEventListener("keydown", down, true);
       window.addEventListener("keyup", up, true);
@@ -352,9 +369,10 @@ export function StickWorld() {
       };
       window.addEventListener("blur", onBlur);
       cleanups.push(() => {
-        mapBtn.current?.removeEventListener("pointerdown", onMapBtn);
+        mapBtnEl?.removeEventListener("pointerdown", onMapBtn);
         canvas.removeEventListener("pointerdown", onPointer);
         canvas.removeEventListener("pointermove", onMove);
+        canvas.removeEventListener("pointerleave", onLeave);
         canvas.removeEventListener("contextmenu", onContext);
         window.removeEventListener("keydown", down, true);
         window.removeEventListener("keyup", up, true);
@@ -404,8 +422,7 @@ export function StickWorld() {
           zoneRetryAt = 0;
           loadTerrain(zoneLoaded);
         }
-        if (snap && snap !== lastSnap) {
-          lastSnap = snap;
+        if (snap) {
           const nowMs = Date.now();
           const wallet = g.wallet;
           const units = snap.units.map((u) => {
@@ -421,6 +438,8 @@ export function StickWorld() {
             }
             return cNext.unit;
           });
+          // Every frame: form preset (`druid:stickbear`) and anim clocks must
+          // reach upsertUnit even when Zustand keeps the same snapshot object.
           syncUnits(
             {
               upsertUnit: (id, x, y, z, facing, anim, preset) => {
@@ -440,15 +459,18 @@ export function StickWorld() {
             known,
             nowMs,
           );
-          casts.forget(known);
-          for (const fx of vfx.scan(snap.units, myUnit()?.id, Date.now())) if (known.has(fx.from)) playSteps(r, fx.steps, fx.from, fx.to);
-          resonance.forget(known);
-          for (const ev of floats.scan(snap.units, myUnit(), snap.log ?? [], Date.now())) if (known.has(ev.id)) r.addFloater(ev.id, ev.kind, ev.value);
-          const me0 = myUnit();
-          for (const ev of edges.scan(snap.units, me0, Date.now())) {
-            if (ev.kind === "enemySwing") playEnemySwing(ev.volume);
-            else if (ev.kind === "jobSwing") playJobSwing(ev.job, ev.volume);
-            else playTemporalDistortion(ev.until);
+          if (snap !== lastSnap) {
+            lastSnap = snap;
+            casts.forget(known);
+            for (const fx of vfx.scan(snap.units, myUnit()?.id, Date.now())) if (known.has(fx.from)) playSteps(r, fx.steps, fx.from, fx.to);
+            resonance.forget(known);
+            for (const ev of floats.scan(snap.units, myUnit(), snap.log ?? [], Date.now())) if (known.has(ev.id)) r.addFloater(ev.id, ev.kind, ev.value);
+            const me0 = myUnit();
+            for (const ev of edges.scan(snap.units, me0, Date.now())) {
+              if (ev.kind === "enemySwing") playEnemySwing(ev.volume);
+              else if (ev.kind === "jobSwing") playJobSwing(ev.job, ev.volume);
+              else playTemporalDistortion(ev.until);
+            }
           }
         }
         const me = myUnit();
@@ -537,6 +559,8 @@ export function StickWorld() {
         // 3D pixel sky: same wall clock the server rolls weather on.
         r.setTimeOfDay(paleHollowDayPhaseAt(Date.now()));
         r.tick(dt);
+        const fit = readCanvasFit(canvas);
+        const pxScale = fitScale(fit.width, fit.height, fit.cover);
         // Effects + labels
         const wall = Date.now();
         const ctxBase = {
@@ -546,7 +570,7 @@ export function StickWorld() {
           hovered,
           combatTargetId: me?.targetId ?? null,
         };
-        const shown = new Map<string, { text: string; cls: string; x: number; y: number }>();
+        const shown = new Map<string, { text: string; cls: string; x: number; y: number; hp?: number; maxHp?: number }>();
         for (const u of snap?.units ?? []) {
           if (!known.has(u.id)) continue;
           const fx = unitFx(u, { ...ctxBase, cast: casts.progress(u, wall) });
@@ -556,8 +580,8 @@ export function StickWorld() {
           const label = labelFor(u, ctxBase);
           if (label && fx.fade > 0.3) {
             const a = r.anchor(u.id);
-            if (a.length === 3) {
-              const [cx, cy] = fromFramebuffer(canvas, a[0], a[1]);
+            if (a && a.length === 3) {
+              const [cx, cy] = fromFramebufferFit(fit, a[0], a[1]);
               shown.set(u.id, { ...label, x: cx, y: cy });
             }
           }
@@ -565,14 +589,13 @@ export function StickWorld() {
         labels.update(shown);
         // Status icon column beside the torso (#34, old UnitStatusIcons)
         const sc = new Map<string, { icons: ReturnType<typeof statusIcons>; x: number; y: number; scale: number }>();
-        const pxScale = fbScale(canvas);
         for (const u of snap?.units ?? []) {
           if (!known.has(u.id)) continue;
           const ic = statusIcons(u, wall);
           if (ic.length === 0) continue;
           const a = r.anchor(u.id);
-          if (a.length !== 3) continue;
-          const [cx, cy] = fromFramebuffer(canvas, a[0] + (u.kind === "mob" ? 12 : 10), a[1] + (a[2] - a[1]) * 0.15);
+          if (!a || a.length !== 3) continue;
+          const [cx, cy] = fromFramebufferFit(fit, a[0] + (u.kind === "mob" ? 12 : 10), a[1] + (a[2] - a[1]) * 0.15);
           sc.set(u.id, { icons: ic.slice(0, 6), x: cx, y: cy, scale: pxScale });
         }
         statusCols.update(sc);
@@ -582,8 +605,8 @@ export function StickWorld() {
         for (const u of snap?.units ?? []) {
           if (!u.gatherNode || !known.has(u.id)) continue;
           const a = r.anchor(u.id);
-          if (a.length !== 3) continue;
-          const [cx, cy] = fromFramebuffer(canvas, a[0], a[1]);
+          if (!a || a.length !== 3) continue;
+          const [cx, cy] = fromFramebufferFit(fit, a[0], a[1]);
           gi.set(u.id, { slug: u.gatherYield, x: cx, y: cy, scale, ready: u.hp > 0 });
         }
         icons.update(atlas, gi, wall / 1000);
@@ -592,47 +615,102 @@ export function StickWorld() {
         const menu = menuRef.current;
         if (menu && npcId) {
           const a = r.anchor(npcId);
-          if (a.length === 3) {
-            const [cx, cy] = fromFramebuffer(canvas, a[0], a[2]);
+          if (a && a.length === 3) {
+            const [cx, cy] = fromFramebufferFit(fit, a[0], a[2]);
             menu.style.transform = `translate(${Math.round(cx)}px, ${Math.round(cy) + 6}px) translate(-50%, 0)`;
             menu.style.visibility = "visible";
           } else menu.style.visibility = "hidden";
         }
         const mapButton = mapBtn.current;
+        if (minimapLogFrame && !minimapLogFrame.isConnected) minimapLogFrame = null;
+        if (!minimapLogFrame) minimapLogFrame = document.querySelector(".hud-combat-log");
+        if (minimapWell && !minimapWell.isConnected) minimapWell = null;
+        const mapPane = Boolean(minimapLogFrame?.classList.contains("hud-pane-map"));
+        const paneJustOpened = mapPane && !lastMapPane;
+        lastMapPane = mapPane;
+        if (!mapPane) {
+          minimapWell = null;
+          hudMinimapCanvas = null;
+        } else if (!minimapWell) {
+          minimapWell =
+            minimapLogFrame?.querySelector(".hud-minimap-well") ??
+            document.querySelector(".hud-minimap-well");
+          hudMinimapCanvas = null;
+        }
+        const well = minimapWell;
+        const settingOn = document.documentElement.dataset.uiMinimap !== "off";
+        const draw = shouldDrawHudMinimap({
+          mapPane,
+          hasWell: Boolean(well),
+          settingOn,
+          full: r.minimapFull(),
+        });
+        r.setMinimap(draw !== "hide");
+        if (draw !== lastDrawMode) {
+          if (draw !== "dock") {
+            r.setMinimapDock(0, 0, 0, 0);
+            lastWellDock = null;
+            lastBlitKey = null;
+          }
+          lastDrawMode = draw;
+        }
+        dockAge += 1;
+        if (draw === "dock" && well && shouldRemeasureMinimapDock(dockAge, paneJustOpened || !lastWellDock)) {
+          dockAge = 0;
+          const box = minimapDockClientRect(well, minimapLogFrame);
+          const [x0, y0] = toFramebufferFit(fit, box.left, box.top);
+          const [x1, y1] = toFramebufferFit(fit, box.right, box.bottom);
+          const dock = clampMinimapDock(x0, y0, x1, y1, FB_W, FB_H) ?? [8, 248, 148, 104];
+          if (!sameMinimapDock(lastWellDock, dock)) {
+            lastWellDock = dock;
+            r.setMinimapDock(dock[0], dock[1], dock[2], dock[3]);
+            lastBlitKey = null;
+          }
+        }
         if (mapButton) {
-          const shown = document.documentElement.dataset.uiMinimap !== "off";
-          if (!shown) mapButton.style.visibility = "hidden";
+          if (draw === "hide") mapButton.style.visibility = "hidden";
           else {
             const full = r.minimapFull();
-            const ox = full ? 6 : FB_W - 148 - 6;
-            const oy = 6;
-            const [x0, y0] = fromFramebuffer(canvas, ox + 2, oy + 1);
-            const [x2, y2] = fromFramebuffer(canvas, ox + 12, oy + 10);
-            let x = x0;
-            let y = y0;
-            // The expanded map's corner sits under the character panel. Keep the
-            // shrink control on the map's top edge, just past that panel.
-            if (full) {
-              const dock = document.querySelector(".hud-vitals-dock");
-              if (dock) {
-                const dockR = dock.getBoundingClientRect();
-                const canvasR = canvas.getBoundingClientRect();
-                x = dockR.right - canvasR.left + 8;
-                y = dockR.top - canvasR.top;
+            if (!full && !well) {
+              mapButton.style.visibility = "hidden";
+            } else {
+              const ox = full ? 6 : lastWellDock ? lastWellDock[0] : 6;
+              const oy = full ? 6 : lastWellDock ? lastWellDock[1] : 6;
+              const [x0, y0] = fromFramebufferFit(fit, ox + 2, oy + 1);
+              const [x2, y2] = fromFramebufferFit(fit, ox + 12, oy + 10);
+              mapButton.style.visibility = "visible";
+              mapButton.style.transform = `translate(${Math.round(x0)}px, ${Math.round(y0)}px)`;
+              mapButton.style.width = `${Math.max(26, Math.round(x2 - x0))}px`;
+              mapButton.style.height = `${Math.max(26, Math.round(y2 - y0))}px`;
+              const flag = full ? "1" : "0";
+              if (mapButton.dataset.full !== flag) {
+                mapButton.dataset.full = flag;
+                mapButton.setAttribute("aria-label", full ? "Shrink map" : "Expand map");
               }
-            }
-            mapButton.style.visibility = "visible";
-            mapButton.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
-            mapButton.style.width = `${Math.max(26, Math.round(x2 - x0))}px`;
-            mapButton.style.height = `${Math.max(26, Math.round(y2 - y0))}px`;
-            const flag = full ? "1" : "0";
-            if (mapButton.dataset.full !== flag) {
-              mapButton.dataset.full = flag;
-              mapButton.setAttribute("aria-label", full ? "Shrink map" : "Expand map");
             }
           }
         }
         r.draw();
+        if (draw === "dock" && lastWellDock && well) {
+          if (!hudMinimapCanvas || !hudMinimapCanvas.isConnected) {
+            hudMinimapCanvas = well.querySelector("canvas");
+          }
+          const nearby = (snap?.units ?? []).reduce((n, u) => {
+            if (!me) return n;
+            return Math.abs(u.x - me.x) < 70 && Math.abs(u.z - me.z) < 70 ? n + 1 : n;
+          }, 0);
+          const nextKey = minimapBlitKey(
+            lastWellDock,
+            r.minimapBakes(),
+            (me?.x ?? 0) - origin.x,
+            (me?.z ?? 0) - origin.z,
+            me?.facing ?? 0,
+            nearby,
+          );
+          if (hudMinimapCanvas && (dockAge === 0 || shouldBlitMinimap(lastBlitKey, nextKey))) {
+            if (blitMinimapToWell(canvas, hudMinimapCanvas, lastWellDock)) lastBlitKey = nextKey;
+          }
+        }
         raf = requestAnimationFrame(frame);
       };
       raf = requestAnimationFrame(frame);

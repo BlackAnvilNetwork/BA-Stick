@@ -8,6 +8,12 @@ import { anvil, gnosis, gnosisChiado, type AppKitNetwork } from "@reown/appkit/n
 import { createWalletClient, custom, type Account, type WalletClient } from "viem";
 import { appKitConfigured, ensureAppKit } from "./appkit-config";
 import { defaultRpcUrl } from "./walletconnect";
+import {
+  attachProviderChain,
+  isWalletDisconnectedError,
+  readProviderChainId,
+  WALLET_DISCONNECTED_HINT,
+} from "./wallet-provider";
 
 export { appKitConfigured, ensureAppKit, appKitInitError } from "./appkit-config";
 
@@ -74,6 +80,49 @@ export async function sessionFromConnectedAppKit(opts?: AppKitSessionOpts): Prom
   return sessionFromModal(modal, address, opts);
 }
 
+/**
+ * Wait for AppKit to restore a previous pairing (no modal).
+ * Returns null when nothing reconnects in time.
+ */
+export async function sessionFromRestoredAppKit(
+  opts?: AppKitSessionOpts & { timeoutMs?: number; prefer?: string },
+): Promise<AppKitSession | null> {
+  const modal = ensureAppKit();
+  if (!modal) return null;
+  const prefer = opts?.prefer?.toLowerCase();
+  const take = async (
+    address: `0x${string}`,
+    ignorePrefer = false,
+  ): Promise<AppKitSession | null> => {
+    if (!ignorePrefer && prefer && address.toLowerCase() !== prefer) return null;
+    try {
+      return await sessionFromModal(modal, address, opts);
+    } catch {
+      return null;
+    }
+  };
+  const existing = modal.getAddress();
+  // Live AppKit account wins over a stale persisted prefer (leftover burner).
+  if (isAddress(existing)) return take(existing, true);
+
+  const timeoutMs = opts?.timeoutMs ?? 2500;
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (session: AppKitSession | null) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      unsub();
+      resolve(session);
+    };
+    const timer = setTimeout(() => finish(null), timeoutMs);
+    const unsub = modal.subscribeAccount((state) => {
+      if (!state.isConnected || !isAddress(state.address)) return;
+      void take(state.address, true).then(finish);
+    });
+  });
+}
+
 /** Open AppKit Connect view and resolve when a wallet account is connected. */
 export async function connectWithAppKit(opts?: AppKitSessionOpts): Promise<AppKitSession> {
   const modal = ensureAppKit();
@@ -137,16 +186,21 @@ async function sessionFromModal(
   }
 
   let chainId = targetChainId ?? (Number(import.meta.env.VITE_CHAIN_ID ?? "100") || 100);
-  try {
-    const hex = (await provider.request({ method: "eth_chainId" })) as string;
-    const n = Number.parseInt(hex, 16);
-    if (Number.isSafeInteger(n) && n > 0) {
-      // Prefer the wallet's reported chain after switch; fall back to target.
-      chainId = n;
+  let reported = await readProviderChainId(provider);
+  if (reported == null) {
+    const attachTo = targetChainId ?? chainId;
+    const attachRpc = opts?.rpcUrl ?? defaultRpcUrl(attachTo);
+    try {
+      await attachProviderChain(provider, attachTo, attachRpc);
+      reported = await readProviderChainId(provider);
+    } catch (err) {
+      if (isWalletDisconnectedError(err) || (err instanceof Error && err.message === WALLET_DISCONNECTED_HINT)) {
+        throw new Error(WALLET_DISCONNECTED_HINT);
+      }
+      throw err;
     }
-  } catch {
-    /* keep default */
   }
+  if (reported != null && targetChainId == null) chainId = reported;
   if (targetChainId != null) chainId = targetChainId;
 
   const rpcUrl = opts?.rpcUrl ?? defaultRpcUrl(chainId);

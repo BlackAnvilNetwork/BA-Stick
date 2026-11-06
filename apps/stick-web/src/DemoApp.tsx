@@ -19,10 +19,19 @@ export function DemoApp() {
     const zone = q.get("zone");
     const ox = Number(q.get("x") ?? "0") || 0;
     const oz = Number(q.get("z") ?? "0") || 0;
-    void Promise.all([createRenderer(ref.current!), zone ? fetchZone(zone) : null, zone ? fetchProps(zone) : null]).then(([r, bytes, props]) => {
+    void Promise.all([createRenderer(ref.current!), zone ? fetchZone(zone) : null, zone ? fetchProps(zone) : null]).then(async ([r, bytes, props]) => {
       if (!alive) return;
       if (bytes) r.loadZone(bytes);
       if (props) r.loadProps(props);
+      if (zone === "forest_basin" && bytes) {
+        try {
+          const res = await fetch(`${import.meta.env.BASE_URL}zones/forest_basin.wfl`);
+          if (res.ok && alive) r.setWaterLayout(new Uint8Array(await res.arrayBuffer()), 0, 0);
+        } catch (err) {
+          console.warn("forest basin water layout stayed offline", err);
+        }
+      }
+      if (!alive) return;
       if (bytes) applyMapData(r, zone);
       if (q.has("nomap")) r.setMinimap(false);
       r.setCamera(ox, oz);

@@ -232,7 +232,14 @@ pub fn footprint(p: &Prop) -> Option<f32> {
 /// Dithered contact shadows for every visible prop with a footprint.
 pub fn draw_shadows(fb: &mut Framebuffer, cam: &Camera, props: &[Prop], cam_y: f32) {
     let (w, h) = (fb.w as f32, fb.h as f32);
+    let eye = ViewCull::new(cam);
+    let iso_box = if eye.is_none() { Some(iso_view_box(cam)) } else { None };
     for p in props {
+        if let Some((x0, x1, z0, z1)) = iso_box {
+            if !prop_in_box(p, x0, x1, z0, z1) {
+                continue;
+            }
+        }
         let Some(r) = footprint(p) else { continue };
         let (ox, oz) = crate::atmosphere::shadow_offset(r);
         let c = v3(p.x + ox, p.y - cam_y, p.z + oz);
@@ -322,6 +329,23 @@ fn reach(p: &Prop) -> f32 {
         kind::WATER_LIFT => p.s + 3.0,
         _ => 2.0,
     }
+}
+
+/// Iso draw box around the camera (m). Farther props cannot reach 640×360.
+pub(crate) const ISO_PROP_VIEW_M: f32 = 56.0;
+
+pub(crate) fn iso_view_box(cam: &Camera) -> (f32, f32, f32, f32) {
+    (
+        cam.cx - ISO_PROP_VIEW_M,
+        cam.cx + ISO_PROP_VIEW_M,
+        cam.cz - ISO_PROP_VIEW_M,
+        cam.cz + ISO_PROP_VIEW_M,
+    )
+}
+
+pub(crate) fn prop_in_box(p: &Prop, x0: f32, x1: f32, z0: f32, z1: f32) -> bool {
+    let r = reach(p);
+    p.x + r >= x0 && p.x - r <= x1 && p.z + r >= z0 && p.z - r <= z1
 }
 
 /// Depth-tested triangle with interpolated depth.
@@ -1329,7 +1353,13 @@ pub fn draw(
     let (w, h) = (fb.w as f32, fb.h as f32);
     // None in iso, so the iso loop pays one branch per prop.
     let eye = ViewCull::new(cam);
+    let iso_box = if eye.is_none() { Some(iso_view_box(cam)) } else { None };
     for p in props {
+        if let Some((x0, x1, z0, z1)) = iso_box {
+            if !prop_in_box(p, x0, x1, z0, z1) {
+                continue;
+            }
+        }
         let base = v3(p.x, p.y - cam_y, p.z);
         if let Some(e) = &eye {
             if e.skips(base, reach(p)) {
@@ -2337,6 +2367,29 @@ mod tests {
     }
 
     use super::*;
+
+    #[test]
+    fn iso_view_box_drops_far_props() {
+        use stick_engine::camera::Camera;
+        let cam = Camera::new(64, 36);
+        let (x0, x1, z0, z1) = iso_view_box(&cam);
+        let near = Prop {
+            kind: kind::PINE,
+            var: 0,
+            x: 0.0,
+            z: 0.0,
+            y: 0.0,
+            yaw: 0.0,
+            s: 1.0,
+            w: 1.0,
+            h: 1.0,
+            d: 1.0,
+            j: [0.0; 6],
+        };
+        let far = Prop { x: 400.0, z: 400.0, ..near };
+        assert!(prop_in_box(&near, x0, x1, z0, z1));
+        assert!(!prop_in_box(&far, x0, x1, z0, z1));
+    }
 
     fn rec(kind: u8, x: f32, z: f32) -> Vec<u8> {
         let mut v = vec![kind, 0];

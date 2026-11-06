@@ -4,6 +4,7 @@
  * Server + client share `paleHollowHeight`.
  */
 
+import { slideMove, straightMove } from "./slide-move";
 import { nearTrailCorridor } from "./trail-geom";
 import { MAYFLOWER_STATIONS as ST, MAYFLOWER_SPUR, MAYFLOWER_SCREEN, mayflowerFieldWeight, mayflowerInTown, mayflowerSample } from "./pale-hollow-town";
 
@@ -1281,22 +1282,17 @@ export function paleHollowClampMove(
   toX: number,
   toZ: number,
 ): { x: number; z: number } {
-  const end = clampPaleHollow(toX, toZ);
-  const fromWalk = paleHollowWalkable(fromX, fromZ);
-  if (!fromWalk && paleHollowWalkable(end.x, end.z)) {
-    return end;
-  }
-  const dist = Math.hypot(end.x - fromX, end.z - fromZ);
-  if (dist < 1e-4) return { x: fromX, z: fromZ };
-  const steps = Math.max(1, Math.ceil(dist / 0.3));
-  let last = { x: fromX, z: fromZ };
-  for (let i = 1; i <= steps; i++) {
-    const t = i / steps;
-    const c = clampPaleHollow(fromX + (end.x - fromX) * t, fromZ + (end.z - fromZ) * t);
-    if (!paleHollowWalkable(c.x, c.z)) return last;
-    last = c;
-  }
-  return last;
+  return slideMove(clampPaleHollow, paleHollowWalkable, fromX, fromZ, toX, toZ);
+}
+
+/** Path lineClear: every sample on the segment is walkable. No corner slide. */
+export function paleHollowStraightMove(
+  fromX: number,
+  fromZ: number,
+  toX: number,
+  toZ: number,
+): { x: number; z: number } {
+  return straightMove(clampPaleHollow, paleHollowWalkable, fromX, fromZ, toX, toZ);
 }
 
 /**

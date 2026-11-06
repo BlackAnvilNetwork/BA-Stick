@@ -36,4 +36,28 @@ export const WEAPON_TOKEN_TYPES: Record<number, WeaponType> = {
   317: "dagger", // bone-dagger
   1064: "sword", // decayed-sword
   1065: "axe", // decayed-axe
+  1074: "staff", // bloodbeam-crozier
+  1075: "staff", // ashbeam-tome
+  1076: "staff", // bellwood-crozier
+  1088: "sword", // steel-sword
+  1091: "dagger", // rogues-dagger
+  1099: "dagger", // orichalcum-dagger
+  1116: "greatsword", // darksteel-greatsword
+  1117: "greatsword", // orichalcum-greatsword
+  1118: "greatsword", // bronze-greatsword
+  1119: "axe", // iron-axe
+  1120: "axe", // steel-great-axe
+  1122: "axe", // mythril-great-axe
+  1123: "dagger", // mythril-dagger
+  1124: "dagger", // darksteel-dagger
+  1125: "sword", // palace-sword
+  1126: "dagger", // bronze-dagger
+  1127: "axe", // bronze-great-axe
+  1128: "dagger", // steel-dagger
+  1129: "axe", // steel-axe
+  1130: "axe", // mythril-axe
+  1131: "axe", // darksteel-axe
+  1134: "axe", // orichalcum-axe
+  1135: "axe", // orichalcum-great-axe
+  1137: "greatsword", // palace-greatsword
 } as const;

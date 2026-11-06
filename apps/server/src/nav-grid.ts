@@ -1,7 +1,7 @@
 import {
   PALE_HOLLOW_BOUNDS,
   clampPaleHollow,
-  paleHollowClampMove,
+  paleHollowStraightMove,
   paleHollowWalkable,
 } from "@bellgrave/config";
 
@@ -87,7 +87,7 @@ function cellKey(ix: number, iz: number): number {
 type ClampMove = (fx: number, fz: number, tx: number, tz: number) => { x: number; z: number };
 
 /** Straight-line check with the zone's own movement clamp (fields are not Pale Hollow). */
-function lineClear(ax: number, az: number, bx: number, bz: number, move: ClampMove = paleHollowClampMove): boolean {
+function lineClear(ax: number, az: number, bx: number, bz: number, move: ClampMove = paleHollowStraightMove): boolean {
   const c = move(ax, az, bx, bz);
   return Math.hypot(c.x - bx, c.z - bz) < 0.25;
 }
@@ -127,6 +127,7 @@ const PALE_HOLLOW_NAV: NavZone = {
   bounds: PALE_HOLLOW_BOUNDS,
   walkable: paleHollowWalkable,
   clamp: clampPaleHollow,
+  clampMove: paleHollowStraightMove,
 };
 
 export function paleHollowFindPath(

@@ -14,6 +14,20 @@ describe("pvp level caps", () => {
     assert.equal(applyAreaLevelCap(12, 30), 12);
   });
 
+  it("Ash Pit L30 keeps Druid forms and seals post-30 songs", () => {
+    assert.equal(abilityUsableUnderCaps("druid", 30, null, "dr_stickbear"), true);
+    assert.equal(abilityUsableUnderCaps("druid", 30, null, "dr_stickdeer"), true);
+    assert.equal(abilityUsableUnderCaps("druid", 30, null, "dr_racerunner"), true);
+    assert.equal(abilityUsableUnderCaps("druid", 30, null, "dr_sticklion"), true);
+    assert.equal(abilityUsableUnderCaps("druid", 30, null, "dr_ring_walk"), true);
+    assert.equal(abilityUsableUnderCaps("druid", 30, null, "dr_stick_rake"), true);
+    assert.equal(abilityUsableUnderCaps("druid", 30, null, "dr_ash_brace"), true);
+    assert.equal(abilityUsableUnderCaps("druid", 30, null, "dr_still_water"), true);
+    assert.equal(abilityUsableUnderCaps("druid", 30, null, "dr_dustmend_ii"), false);
+    assert.equal(abilityUsableUnderCaps("druid", 30, null, "dr_stick_rake_ii"), false);
+    assert.equal(abilityUsableUnderCaps("druid", 30, null, "dr_stick_pounce"), false);
+  });
+
   it("blocks high unlock abilities under L30/L15", () => {
     assert.equal(abilityUsableUnderCaps("knight", 30, null, "provoke"), true);
     // Support at L15: early rogue kit ok; unlock 60 blocked.

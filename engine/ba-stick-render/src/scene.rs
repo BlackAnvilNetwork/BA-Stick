@@ -190,6 +190,10 @@ pub struct Scene {
     /// The minimap zone above stays in that zone's local coordinates.
     world: Vec<Zone>,
     world_props: Vec<props::Prop>,
+    /// Origins already given to `place_props` so a retry does not double trees.
+    prop_origins: Vec<(f32, f32)>,
+    /// World-space identity of the zone the minimap last adopted (no clone).
+    minimap_src: Option<(f32, f32, usize, usize)>,
     /// Subtracted from unit positions for the local-space minimap.
     map_ox: f32,
     map_oz: f32,
@@ -269,6 +273,8 @@ impl Scene {
             props: Vec::new(),
             world: Vec::new(),
             world_props: Vec::new(),
+            prop_origins: Vec::new(),
+            minimap_src: None,
             map_ox: 0.0,
             map_oz: 0.0,
             floaters: Vec::new(),
@@ -318,6 +324,8 @@ impl Scene {
         self.world.clear();
         self.world_water.clear();
         self.world_props.clear();
+        self.prop_origins.clear();
+        self.minimap_src = None;
         self.set_cam_mode("iso");
         self.look_yaw = 0.0;
         self.look_pitch = 0.0;
@@ -418,14 +426,23 @@ impl Scene {
     }
 
     pub fn prop_count(&self) -> usize { self.props.len() }
+    pub fn world_count(&self) -> usize { self.world.len() }
+    pub fn world_prop_count(&self) -> usize { self.world_props.len() }
     pub fn has_zone(&self) -> bool { self.zone.is_some() || !self.world.is_empty() }
 
+    fn same_world_zone(a: &Zone, min_x: f32, min_z: f32, w: usize, h: usize) -> bool {
+        (a.min_x - min_x).abs() < 0.01 && (a.min_z - min_z).abs() < 0.01 && a.w == w && a.h == h
+    }
+
     /// Add a zone to the concurrent world. `ox`/`oz` shift its grid into world space.
-    /// Does not replace zones already placed, and does not change the minimap zone.
+    /// A zone already at that footprint is skipped (play + placeAllZones both place).
     pub fn place_zone(&mut self, bytes: &[u8], ox: f32, oz: f32) -> Result<(), String> {
         let mut zone = Zone::parse(bytes)?;
         zone.min_x += ox;
         zone.min_z += oz;
+        if self.world.iter().any(|z| Self::same_world_zone(z, zone.min_x, zone.min_z, zone.w, zone.h)) {
+            return Ok(());
+        }
         self.world.push(zone);
         self.water_dirty = true;
         Ok(())
@@ -464,8 +481,34 @@ impl Scene {
         ok
     }
 
+    /// Remember which world zone the minimap should bake. Does not clone it.
+    fn sync_minimap_zone(&mut self) {
+        if self.world.is_empty() {
+            return;
+        }
+        let (cx, cz) = self
+            .follow
+            .as_deref()
+            .and_then(|id| self.units.get(id))
+            .map(|u| (u.pos.x, u.pos.z))
+            .unwrap_or((self.cam.cx, self.cam.cz));
+        let Some(wz) = self.zone_at(cx, cz) else {
+            return;
+        };
+        if let Some((x, z, w, h)) = self.minimap_src {
+            if Self::same_world_zone(wz, x, z, w, h) {
+                return;
+            }
+        }
+        self.minimap_src = Some((wz.min_x, wz.min_z, wz.w, wz.h));
+        self.minimap.invalidate();
+    }
+
     /// Props for a placed zone. Positions are shifted by the same origin as `place_zone`.
     pub fn place_props(&mut self, bytes: &[u8], ox: f32, oz: f32) -> Result<usize, String> {
+        if self.prop_origins.iter().any(|(x, z)| (x - ox).abs() < 0.01 && (z - oz).abs() < 0.01) {
+            return Ok(0);
+        }
         let mut placed = props::parse(bytes)?;
         for p in &mut placed {
             p.x += ox;
@@ -473,6 +516,7 @@ impl Scene {
         }
         let n = placed.len();
         self.world_props.extend(placed);
+        self.prop_origins.push((ox, oz));
         self.rebuild_static_lights();
         Ok(n)
     }
@@ -549,10 +593,10 @@ impl Scene {
                     e.target = target;
                 }
                 e.target_yaw = u.facing;
-                if e.preset_key != u.preset {
-                    e.preset = RigPreset::resolve(&u.preset);
-                    e.preset_key = u.preset;
-                }
+                // Always re-resolve. Druid form swaps `druid/male` → `druid:stickbear`
+                // on the same unit id; skipping that leaves the Ring-Walker biped.
+                e.preset = RigPreset::resolve(&u.preset);
+                e.preset_key = u.preset;
                 if e.anim != u.anim || u.anim.restarts() && e.animator.action_finished(&self.lib) {
                     let blend = if e.anim == AnimState::Rest || u.anim == AnimState::Rest { 0.4 } else { 0.12 };
                     e.animator.play(u.anim.action_clip(), blend, 1.0, u.anim.restarts());
@@ -612,6 +656,11 @@ impl Scene {
             Some(a) => a.clip.as_str(),
             None => u.anim.clip(),
         })
+    }
+
+    /// Last preset key passed to `upsert_unit` (Druid form swaps this in place).
+    pub fn unit_preset(&self, id: &str) -> Option<&str> {
+        self.units.get(id).map(|u| u.preset_key.as_str())
     }
 
     /// Advance interpolation and animation by `dt` seconds.
@@ -741,6 +790,17 @@ impl Scene {
         }
     }
 
+    fn play_zoom(mode: CamMode, rail: f32) -> f32 {
+        // Pull iso / third-person back from the character. First person stays 1.
+        const OUT: f32 = 0.84;
+        if rail > 1.0 || mode == CamMode::FirstPerson {
+            let t = (rail - 1.0).clamp(0.0, 1.0);
+            OUT + (1.0 - OUT) * t
+        } else {
+            OUT
+        }
+    }
+
     fn step_camera(&mut self, dt: f32) {
         if self.rig.mode != CamMode::Iso {
             self.yaw_bias = wrap_angle(self.yaw_bias - self.look_yaw * self.rig.cfg.look_speed * dt);
@@ -748,6 +808,7 @@ impl Scene {
         let s = self.subject();
         let (w, h) = (self.cam.w, self.cam.h);
         self.rig.update(dt, self.look_pitch, &s, self.cam.cx, self.cam.cz, w, h);
+        self.cam.zoom = Self::play_zoom(self.rig.mode, self.rig.r);
         self.cam.view = match self.rig.view {
             Some(v) => {
                 let (lift, _) = self.boom_clear_of_ground(v, 0.0);
@@ -1047,8 +1108,10 @@ impl Scene {
         let (mut x, mut z) = self.cam.unproject_ground(sx, sy);
         for _ in 0..3 {
             let dy = self.zone_height(x, z) - self.cam_y;
-            if self.cam.view.is_some() {
-                let (nx, nz) = self.cam.unproject_ground(sx, sy + dy * stick_engine::camera::HEIGHT_PX);
+            // Iso and the iso→TP blend share `unproject_at_height` so hill
+            // pick stays on one scale. Pure perspective keeps the view ray.
+            if self.cam.view.is_some() && self.cam.effective_view().skew < 1e-3 {
+                let (nx, nz) = self.cam.unproject_ground(sx, sy + dy * stick_engine::camera::HEIGHT_PX * self.cam.zoom);
                 x = nx;
                 z = nz;
                 continue;
@@ -1080,6 +1143,7 @@ impl Scene {
         if v.skew >= 1e-3 || v.inv_d <= 0.0 {
             return None;
         }
+        let (sx, sy) = self.cam.to_view_px(sx, sy);
         let eye = v.eye()?;
         let (r, dn) = v.basis();
         let s2 = v.scale * v.scale;
@@ -1154,8 +1218,11 @@ impl Scene {
                 continue;
             }
             let feet = self.cam.project(self.rel(u.pos));
-            // Figures are drawn scaled by s(v) in 3D; scale the click box to match (s = 1 in iso).
-            let s = self.cam.scale_at(u.pos);
+            if feet.culled() {
+                continue;
+            }
+            // 3D: project().s is the drawn scale. Iso: scale_at * zoom.
+            let s = unit_pick_s(&self.cam, u, feet);
             let half_w = (body_radius(&u.preset.body) * 28.0).max(12.0) * s;
             let height = unit_height_px(u).max(24.0) * s;
             if (sx - feet.x).abs() <= half_w && sy <= feet.y + 6.0 * s && sy >= feet.y - height {
@@ -1248,13 +1315,18 @@ impl Scene {
     pub fn anchor(&self, id: &str) -> Option<(f32, f32, f32)> {
         let u = self.units.get(id)?;
         let feet = self.cam.project(self.rel(u.pos));
-        Some((feet.x, feet.y - unit_height_px(u) * self.cam.scale_at(u.pos), feet.y))
+        if feet.culled() {
+            return None;
+        }
+        let s = unit_pick_s(&self.cam, u, feet);
+        Some((feet.x, feet.y - unit_height_px(u) * s, feet.y))
     }
 
-    /// Framebuffer position of a world point.
-    pub fn world_to_screen(&self, x: f32, y: f32, z: f32) -> (f32, f32) {
+    /// Framebuffer position of a world point. `s` is 0 when the point is
+    /// behind the eye (3D project returns 0,0); iso keeps s > 0.
+    pub fn world_to_screen(&self, x: f32, y: f32, z: f32) -> (f32, f32, f32) {
         let p = self.cam.project(self.rel(v3(x, y, z)));
-        (p.x, p.y)
+        (p.x, p.y, p.s)
     }
 
     /// Buff / ailment visual state for a unit (#34); false if unknown.
@@ -1274,15 +1346,25 @@ impl Scene {
 
     fn buff_anchor(&self, id: &str, u: &Unit) -> crate::buffvfx::Anchor {
         let base = self.rel(u.pos);
+        let feet = self.cam.project(base);
+        let s = unit_pick_s(&self.cam, u, feet);
         let seed = id.bytes().fold(2166136261u32, |h, b| (h ^ b as u32).wrapping_mul(16777619));
-        crate::buffvfx::Anchor { base, feet: self.cam.project(base), h: unit_height_px(u), seed }
+        crate::buffvfx::Anchor { base, feet, h: unit_height_px(u) * s.max(0.15), seed }
     }
 
     /// Draw the ground and all units into the framebuffer.
     pub fn draw(&mut self) {
-        if let Some(z) = &self.zone {
-            if self.minimap.needs_bake() && !self.backdrop && !self.boot_menu {
-                self.minimap.bake(z, &self.props);
+        if self.minimap.on {
+            self.sync_minimap_zone();
+        }
+        if self.minimap.on && self.minimap.needs_bake() && !self.backdrop && !self.boot_menu {
+            let world_i = self.minimap_src.and_then(|(x, z, w, h)| {
+                self.world.iter().position(|zn| Self::same_world_zone(zn, x, z, w, h))
+            });
+            if let Some(i) = world_i {
+                self.minimap.bake_at(&self.world[i], &self.world_props, self.map_ox, self.map_oz);
+            } else if self.zone.is_some() {
+                self.minimap.bake(self.zone.as_ref().unwrap(), &self.props);
             }
         }
         if !self.boot_menu {
@@ -1339,6 +1421,10 @@ impl Scene {
         // Terrain is colour-only; reset depth before grass/props/units so nothing stale blocks draws.
         if self.boot_menu {
             self.fb.color.fill(BACKDROP);
+            self.fb.clear_depth();
+        } else if self.backdrop {
+            // Parchment fill is colour-only. Stale depth from the last form
+            // (bear → deer) would eat the new envelope.
             self.fb.clear_depth();
         } else if !self.backdrop {
             // Ground and grass already drew; depth was cleared before them.
@@ -1607,7 +1693,8 @@ impl Scene {
             };
             bb.post(&mut self.fb, &saved, tint, u.fx.fade);
             if let Some(mark) = u.preset.npc_mark {
-                let top = feet.y - unit_height_px(u) - 4.0 + (t * 2.0).sin() * 1.5;
+                let s = unit_pick_s(&cam, u, feet);
+                let top = feet.y - unit_height_px(u) * s - 4.0 * s + (t * 2.0).sin() * 1.5 * s;
                 diamond(&mut self.fb, feet.x, top, mark);
             }
             if u.fx.flags & FX_SHINY != 0 {
@@ -1637,21 +1724,28 @@ impl Scene {
                 continue;
             }
             let feet = cam.project(rel(u.pos));
-            let top = feet.y - unit_height_px(u);
+            if feet.culled() {
+                continue;
+            }
+            let s = unit_pick_s(&cam, u, feet);
+            if s <= 0.0 {
+                continue;
+            }
+            let top = feet.y - unit_height_px(u) * s;
             if u.fx.level_up >= 0.0 {
                 level_up(&mut self.fb, &cam, rel(u.pos), u.fx.level_up);
             }
-            let mut y = top - 7.0;
+            let mut y = top - 7.0 * s;
             if u.preset.npc_mark.is_some() {
-                y -= 6.0;
+                y -= 6.0 * s;
             }
             if u.fx.hp >= 0.0 && u.fx.fade > 0.5 {
                 let col = if u.fx.hp < 0.3 { FX_HP_LOW } else { FX_HP };
-                bar(&mut self.fb, feet.x, y, 20, u.fx.hp, col);
-                y += 3.0;
+                bar(&mut self.fb, feet.x, y, (20.0 * s).max(8.0) as i32, u.fx.hp, col);
+                y += 3.0 * s;
             }
             if u.fx.cast >= 0.0 {
-                bar(&mut self.fb, feet.x, y, 20, u.fx.cast, FX_CAST);
+                bar(&mut self.fb, feet.x, y, (20.0 * s).max(8.0) as i32, u.fx.cast, FX_CAST);
             }
         }
         // Floating combat numbers follow their unit (or stay where it vanished).
@@ -2162,7 +2256,7 @@ impl Scene {
             self.lighting.layer.glow(out, self.fb.w, self.fb.h, &self.lighting.stamps, g);
         }
         crate::vfx::blend(&self.vfx.sparks, self.fb.w, self.fb.h, out);
-        if !self.backdrop && !self.boot_menu && self.zone.is_some() && self.minimap.on {
+        if !self.backdrop && !self.boot_menu && self.has_zone() && self.minimap.on {
             let (cx, cz, yaw, marks) = self.map_view();
             self.minimap.composite(out, self.fb.w, self.fb.h, cx, cz, yaw, &marks);
         }
@@ -2217,6 +2311,7 @@ pub fn melee_lunge_weighted(t: f32, weight: f32) -> f32 {
 /// sx - 0.5w = u ISO_X / (1 - a v). In iso (a = 0) this is the old shift.
 fn unproject_at_height(cam: &Camera, sx: f32, sy: f32, dy: f32) -> (f32, f32) {
     use stick_engine::camera::{HEIGHT_PX, ISO_X, ISO_Y, PERSP_K};
+    let (sx, sy) = cam.to_view_px(sx, sy);
     let a = PERSP_K * cam.persp;
     let yy = sy - cam.h * 0.55;
     let v = (yy + dy * HEIGHT_PX) / (ISO_Y + a * yy);
@@ -2234,6 +2329,18 @@ pub(crate) fn follow_offset(lift_px: f32, persp: f32) -> f32 {
     let a = stick_engine::camera::PERSP_K * persp;
     let v = y / (1.0 + a * y).max(0.2);
     -v * 0.5
+}
+
+/// 3D uses the projected scale (`feet.s`). Iso keeps `scale_at * zoom`.
+fn unit_pick_s(cam: &Camera, u: &Unit, feet: P2) -> f32 {
+    if feet.culled() {
+        return 0.0;
+    }
+    if cam.view.is_some() && feet.s > 0.0 {
+        feet.s
+    } else {
+        cam.scale_at(u.pos) * cam.zoom
+    }
 }
 
 fn unit_height_px(u: &Unit) -> f32 {

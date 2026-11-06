@@ -161,7 +161,18 @@ import {
 
 } from "./battlemage-kit";
 
-
+import {
+  DRUID_ABILITIES,
+  DRUID_ABILITY_IDS,
+  DRUID_CATEGORY_TABS,
+  isDruidAbilityId,
+  druidAbilitiesUnlocked,
+  druidAbilityIconUrl,
+  druidAbilityTooltip,
+  druidHotbarOrder,
+  type DruidAbilityId,
+  type DruidForm,
+} from "./druid-kit";
 
 import {
 
@@ -217,6 +228,14 @@ import { SHARED_ABILITY_ICON } from "./shared-icons";
 
 
 
+/** Map-builder tools. Not a job kit — listed so protocol/silence can name them. */
+export const MAP_BUILDER_ABILITY_IDS = ["map_raise"] as const;
+export type MapBuilderAbilityId = (typeof MAP_BUILDER_ABILITY_IDS)[number];
+
+export function isMapBuilderAbilityId(id: string): id is MapBuilderAbilityId {
+  return (MAP_BUILDER_ABILITY_IDS as readonly string[]).includes(id);
+}
+
 /** Unique ability id list (rest appears in multiple kits once). */
 
 export const ALL_ABILITY_IDS = Array.from(
@@ -240,13 +259,12 @@ export const ALL_ABILITY_IDS = Array.from(
     ...DRUID_ABILITY_IDS,
 
     ...WEAPON_TP_ABILITY_IDS,
+    ...MAP_BUILDER_ABILITY_IDS,
 
 
   ]),
 
 ) as [string, ...string[]];
-
-
 
 export type AbilityId =
 
@@ -263,7 +281,8 @@ export type AbilityId =
   | ClericAbilityId
   | BattleMageAbilityId
   | DruidAbilityId
-  | WeaponTpAbilityId;
+  | WeaponTpAbilityId
+  | MapBuilderAbilityId;
 
 
 
@@ -285,7 +304,8 @@ export function isAbilityId(id: string): id is AbilityId {
     isBattleMageAbilityId(id) ||
     isDruidAbilityId(id) ||
 
-    isWeaponTpAbilityId(id)
+    isWeaponTpAbilityId(id) ||
+    isMapBuilderAbilityId(id)
   );
 }
 
@@ -321,6 +341,7 @@ export function abilityIconUrl(id: AbilityId | string): string {
 
   if (isDruidAbilityId(id)) return druidAbilityIconUrl(id);
   if (isBattleMageAbilityId(id)) return battleMageAbilityIconUrl(id);
+  if (isDruidAbilityId(id)) return druidAbilityIconUrl(id);
   if (isClericAbilityId(id)) return clericAbilityIconUrl(id);
 
   if (isSorcererAbilityId(id)) return sorcererAbilityIconUrl(id);

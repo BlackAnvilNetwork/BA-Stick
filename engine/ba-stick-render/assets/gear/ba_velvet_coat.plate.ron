@@ -1,0 +1,44 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Front-face paint for the velvet coat. Every cell is a pixel:
+// 'c' dark velvet, 'b' mid-blue fold, 'g' gold clasp. No empty cells, no 'k'.
+// `flow` is how far the hem follows a foot. Sleeves run shoulder, elbow,
+// then a wrist disk. Top and bottom rows cap the sheet edges.
+(
+    id: "ba_velvet_coat",
+    x0: -0.30,
+    y0: -1.22,
+    x1: 0.30,
+    y1: 0.0,
+    z: 0.07,
+    flow: 0.72,
+    sleeve_drop: 0.36,
+    arm_from: 0.0,
+    arm_to: 1.0,
+    arm_thick: 2.8,
+    cuff_from: 0.0,
+    cuff_to: 0.14,
+    cuff_thick: 3.2,
+    rows: [
+        "ccccccccccccccc",
+        "cbbbbbbbbbbbbbc",
+        "cbcccccccccccbc",
+        "cbcccbbbbbcccbc",
+        "cbcccbgggbcccbc",
+        "cbcccbbbbbcccbc",
+        "cccccbbbbbccccc",
+        "cbcccccccccccbc",
+        "cbcccbbbbbcccbc",
+        "cbcccbcbbcbccbc",
+        "cbcccbcgcbcccbc",
+        "cbcccbcbbcbccbc",
+        "cbcccbbbbbcccbc",
+        "cbcccbcbbcbccbc",
+        "cbcccbbbbbcccbc",
+        "cbcccccccccccbc",
+        "cbbbbbbbbbbbbbc",
+        "ccccccccccccccc",
+    ],
+)

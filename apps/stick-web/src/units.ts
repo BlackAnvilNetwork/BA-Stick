@@ -1,4 +1,4 @@
-import { DRUID_FORM_PRESET, isDruidForm, swordSwingRendererAnim } from "@bellgrave/combat";
+import { DRUID_FORM_PRESET, isDruidForm, swordSwingRendererAnim, type DruidForm } from "@bellgrave/combat";
 import { gatherInteractMs, gatherMethod } from "./gather";
 import type { UnitSnapshot } from "@bellgrave/protocol";
 
@@ -8,7 +8,15 @@ export interface UnitSink {
   removeUnit(id: string): boolean;
 }
 
-/** Rig preset key: "<job|npc:role|mob:archetype>/<gender>". */
+/** Coerce snapshot form (number or numeric string) onto the locked 0..4 enum. */
+export function druidFormOf(u: Pick<UnitSnapshot, "job" | "buffs">): DruidForm {
+  if (u.job !== "druid") return 0;
+  const raw = u.buffs?.druidForm as unknown;
+  const n = typeof raw === "number" ? raw : typeof raw === "string" ? Number(raw) : 0;
+  return isDruidForm(n) ? n : 0;
+}
+
+/** Rig preset key: "<job|npc:role|mob:archetype>/<gender>" or `druid:<form>`. */
 export function presetFor(u: UnitSnapshot): string {
   if (u.gatherNode) return `gather:${gatherMethod(u)}`;
   // Seam Country landmarks: a readable standing stone (click → npc/interact reads it).
@@ -16,7 +24,7 @@ export function presetFor(u: UnitSnapshot): string {
   if (u.kind === "npc") return `npc:${u.npcRole ?? "guide"}`;
   if (u.kind === "mob") return `mob:${u.archetype ?? "mob"}`;
   if (u.job === "druid") {
-    const form = isDruidForm(u.buffs?.druidForm ?? 0) ? u.buffs!.druidForm : 0;
+    const form = druidFormOf(u);
     const key = DRUID_FORM_PRESET[form];
     if (form === 0) return `${key}/${u.gender ?? "male"}`;
     return key;

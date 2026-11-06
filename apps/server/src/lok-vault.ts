@@ -9,6 +9,13 @@ import { durableWrite } from "./durable-write";
 import { chainBoundSendGate, chainBoundXdaiSend, releaseEpochXdai } from "./root-anchor";
 import { withOwnerKeyQueue } from "./owner-tx-queue";
 import { resolvePublicRpcUrl } from "./public-rpc";
+import {
+  collectOwnedCharacterNfts,
+  ownedNftScanLastId,
+  type OwnedCharacterNft,
+} from "./owned-nfts";
+
+export type { OwnedCharacterNft };
 
 /**
  * sha256 of the checked-in engine bundle (contracts/lok-log/engine/pkg/lok_engine.wasm).
@@ -838,6 +845,52 @@ export async function serverMintCharacterFor(
  * Read `ownerOf(tokenId)` for AH list payout / transfer cancel.
  * Client-supplied payout addresses are never used (mainnet rule 2/4).
  */
+export async function listOwnedCharacterNfts(
+  wallet: string,
+  envIn: NodeJS.ProcessEnv = process.env,
+  opts?: { suggestedTokenId?: string },
+): Promise<OwnedCharacterNft[]> {
+  const env = envOf(envIn);
+  if (!env.rpc || !env.nft) return [];
+  if (!isAddress(wallet)) return [];
+  try {
+    const chainId = await chainIdOf(env.rpc);
+    const pub = publicClient(env.rpc, chainId);
+    const next = await pub.readContract({
+      address: env.nft as `0x${string}`,
+      abi: NFT_ABI,
+      functionName: "nextTokenId",
+    });
+    const lastId = ownedNftScanLastId(next, opts?.suggestedTokenId);
+    return collectOwnedCharacterNfts({
+      owner: wallet,
+      lastId,
+      ownerOf: (tokenId) =>
+        pub.readContract({
+          address: env.nft as `0x${string}`,
+          abi: NFT_ABI,
+          functionName: "ownerOf",
+          args: [tokenId],
+        }),
+      summary: env.checkpoint
+        ? (tokenId) =>
+            pub.readContract({
+              address: env.checkpoint as `0x${string}`,
+              abi: CHECKPOINT_ABI,
+              functionName: "summary",
+              args: [tokenId],
+            })
+        : undefined,
+    });
+  } catch (err) {
+    console.warn(
+      "[bellgrave] listOwnedCharacterNfts failed:",
+      err instanceof Error ? err.message : err,
+    );
+    return [];
+  }
+}
+
 export async function readCharacterNftOwner(
   tokenId: string,
   envIn: NodeJS.ProcessEnv = process.env,

@@ -4,6 +4,12 @@ export const PIXEL_DAGGER_GEAR_IDS = new Set([
   "ba_bone_dagger",
   "ba_neolithic_dagger",
   "ba_fang_dagger",
+  "ba_rogues_dagger",
+  "ba_orichalcum_dagger",
+  "ba_mythril_dagger",
+  "ba_darksteel_dagger",
+  "ba_bronze_dagger",
+  "ba_steel_dagger",
 ]);
 
 export const PIXEL_SWORD_GEAR_IDS = new Set([
@@ -12,17 +18,26 @@ export const PIXEL_SWORD_GEAR_IDS = new Set([
   "ba_iron_greatsword",
   "ba_steel_greatsword",
   "ba_mythril_greatsword",
+  "ba_darksteel_greatsword",
+  "ba_orichalcum_greatsword",
+  "ba_bronze_greatsword",
   "ba_bronze_sword",
+  "ba_palace_sword",
   "ba_darksteel_blade",
   "ba_mythril_sword",
   "ba_orichalcum_sword",
   "ba_decayed_sword",
+  "ba_steel_sword",
 ]);
 
 const PIXEL_GREATSWORD_GEAR_IDS = new Set([
   "ba_iron_greatsword",
   "ba_steel_greatsword",
   "ba_mythril_greatsword",
+  "ba_darksteel_greatsword",
+  "ba_orichalcum_greatsword",
+  "ba_bronze_greatsword",
+  "ba_palace_greatsword",
 ]);
 
 export type SwordArt =
@@ -40,15 +55,26 @@ export type SwordArt =
 export function swordArtForGearId(id: string): SwordArt | null {
   switch (id) {
     case "ba_steel_greatsword":
+    case "ba_steel_sword":
+    case "ba_steel_dagger":
       return "steel";
     case "ba_bronze_sword":
+    case "ba_bronze_greatsword":
+    case "ba_bronze_dagger":
       return "bronze";
     case "ba_darksteel_blade":
+    case "ba_darksteel_greatsword":
+    case "ba_darksteel_dagger":
       return "darksteel";
     case "ba_mythril_sword":
     case "ba_mythril_greatsword":
+    case "ba_mythril_dagger":
       return "mythril";
+    case "ba_palace_sword":
+      return "orichalcum";
     case "ba_orichalcum_sword":
+    case "ba_orichalcum_greatsword":
+    case "ba_palace_greatsword":
       return "orichalcum";
     case "ba_bone_dagger":
       return "bone";
@@ -56,6 +82,10 @@ export function swordArtForGearId(id: string): SwordArt | null {
       return "neolithic";
     case "ba_fang_dagger":
       return "fang";
+    case "ba_rogues_dagger":
+      return "steel";
+    case "ba_orichalcum_dagger":
+      return "orichalcum";
     case "ba_decayed_sword":
       return "decayed";
     case "ba_iron_sword":

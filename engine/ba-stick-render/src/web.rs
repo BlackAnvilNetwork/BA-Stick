@@ -103,8 +103,11 @@ impl StickRenderer {
     /// 2 leather, 3 metal, 4 wood, 5 bone, 6 gold. Seeds = catalog item ids.
     #[wasm_bindgen(js_name = setGear)]
     #[allow(clippy::too_many_arguments)]
-    pub fn set_gear(&mut self, id: &str, family: u8, wmat: u8, wseed: u32, body: u8, bseed: u32, head: u8, hseed: u32, legs: u8, lseed: u32) -> bool {
-        self.scene.set_gear(id, crate::gear::garb(family, wmat, wseed, body, bseed, head, hseed, legs, lseed))
+    pub fn set_gear(&mut self, id: &str, family: u8, wmat: u8, wseed: u32, body: u8, bseed: u32, head: u8, hseed: u32, legs: u8, lseed: u32, feet: u8, fseed: u32, sseed: u32, hndseed: u32) -> bool {
+        let mut g = crate::gear::garb(family, wmat, wseed, body, bseed, head, hseed, legs, lseed, feet, fseed);
+        crate::gear::apply_offhand(&mut g, sseed);
+        crate::gear::apply_hands(&mut g, hndseed);
+        self.scene.set_gear(id, g)
     }
 
     /// Preview mode (#37): no ground, transparent background.
@@ -236,6 +239,12 @@ impl StickRenderer {
     #[wasm_bindgen(js_name = setMinimap)]
     pub fn set_minimap(&mut self, on: bool) { self.scene.minimap.on = on; }
 
+    /// Place the corner minimap in a HUD slot (framebuffer pixels). w/h <= 0 clears it.
+    #[wasm_bindgen(js_name = setMinimapDock)]
+    pub fn set_minimap_dock(&mut self, x: i32, y: i32, w: i32, h: i32) {
+        self.scene.minimap.set_dock(x, y, w, h);
+    }
+
     /// Expand the minimap over the framebuffer. The corner control toggles this.
     #[wasm_bindgen(js_name = setMinimapFull)]
     pub fn set_minimap_full(&mut self, on: bool) { self.scene.minimap.full = on; }
@@ -271,6 +280,18 @@ impl StickRenderer {
 
     #[wasm_bindgen(js_name = setCamera)]
     pub fn set_camera(&mut self, x: f32, z: f32) { self.scene.set_camera(x, z); }
+
+    /// Stick-form seed hook. Baked forms ignore this.
+    #[wasm_bindgen(js_name = setStickFormSeed)]
+    pub fn set_stick_form_seed(&mut self, seed: u32) {
+        crate::stick_form::set_seed(seed);
+    }
+
+    /// Always 0 — the four Druid forms are baked.
+    #[wasm_bindgen(js_name = stickFormSeed)]
+    pub fn stick_form_seed(&self) -> u32 {
+        crate::stick_form::active_seed(crate::stick_form::stick_bear())
+    }
 
     pub fn follow(&mut self, id: Option<String>) { self.scene.follow(id.as_deref()); }
 
@@ -324,11 +345,11 @@ impl StickRenderer {
         self.scene.anchor(id).map_or(vec![], |(x, a, b)| vec![x, a, b])
     }
 
-    /// `[x, y]` framebuffer pixel of a world point.
+    /// `[x, y, s]` framebuffer pixel of a world point. `s` is 0 when culled.
     #[wasm_bindgen(js_name = worldToScreen)]
     pub fn world_to_screen(&self, x: f32, y: f32, z: f32) -> Vec<f32> {
-        let (sx, sy) = self.scene.world_to_screen(x, y, z);
-        vec![sx, sy]
+        let (sx, sy, s) = self.scene.world_to_screen(x, y, z);
+        vec![sx, sy, s]
     }
 
     #[wasm_bindgen(js_name = removeUnit)]

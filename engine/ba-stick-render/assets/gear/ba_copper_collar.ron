@@ -1,0 +1,63 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Copper Collar. A short copper neck collar on the neck bone:
+// overlapping capsules wrap the throat and drop onto the upper chest,
+// with material discs at neck and chest. No buckle disc. No gold rivets.
+// `thick` is a radius in pixels, matching Stick Engine capsules.
+(
+    id: "ba_copper_collar",
+    slot: Head,
+    attach: Some("neck"),
+    material: Some("steel"),
+    thickness_mul: {
+        "neck": 1.32,
+    },
+    shapes: [
+        // Front collar band under the chin.
+        Capsule(
+            from: (-0.038, 0.008, 0.042),
+            to: (0.038, 0.008, 0.042),
+            ramp: Material,
+            thick: 1.6,
+        ),
+        // Rear nape band. Overlaps the side wraps.
+        Capsule(
+            from: (-0.036, 0.004, -0.038),
+            to: (0.036, 0.004, -0.038),
+            ramp: Material,
+            thick: 1.5,
+        ),
+        // Left wrap, closes the ring.
+        Capsule(
+            from: (-0.042, 0.006, -0.022),
+            to: (-0.040, 0.006, 0.028),
+            ramp: Material,
+            thick: 1.55,
+        ),
+        // Right wrap, closes the ring.
+        Capsule(
+            from: (0.042, 0.006, -0.022),
+            to: (0.040, 0.006, 0.028),
+            ramp: Material,
+            thick: 1.55,
+        ),
+        // Throat plate dropping toward the upper chest.
+        Capsule(
+            from: (0.0, 0.010, 0.046),
+            to: (0.0, -0.062, 0.058),
+            ramp: Material,
+            thick: 1.8,
+        ),
+        // Lower flare on the upper chest. Overlaps the throat plate.
+        Capsule(
+            from: (-0.032, -0.058, 0.054),
+            to: (0.032, -0.058, 0.054),
+            ramp: Material,
+            thick: 1.5,
+        ),
+        Disc(at: Some("neck"), r: 0.055, ramp: Material),
+        Disc(at: Some("chest"), r: 0.036, ramp: Material),
+    ],
+)

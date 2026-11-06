@@ -27,7 +27,8 @@ export const CATALOG: ItemDef[] = [
     "jobRestrict": [
       "tim",
       "sorcerer",
-      "cleric"
+      "cleric",
+      "druid"
     ],
     "weaponFamily": "staff",
     "rarity": "Common"
@@ -56,7 +57,8 @@ export const CATALOG: ItemDef[] = [
       "battlemage",
       "tim",
       "sorcerer",
-      "cleric"
+      "cleric",
+      "druid"
     ],
     "rarity": "Common"
   },
@@ -131,7 +133,7 @@ export const CATALOG: ItemDef[] = [
       "knight",
       "fighter"
     ],
-    "rarity": "Uncommon"
+    "rarity": "Common"
   },
   {
     "id": 6,
@@ -209,7 +211,7 @@ export const CATALOG: ItemDef[] = [
       "gold": 730,
       "materialsText": "Iron Ingot×4, Ash Dust×1"
     },
-    "rarity": "Uncommon"
+    "rarity": "Common"
   },
   {
     "id": 9,
@@ -458,7 +460,7 @@ export const CATALOG: ItemDef[] = [
       "sorcerer"
     ],
     "weaponFamily": "staff",
-    "rarity": "Uncommon"
+    "rarity": "Common"
   },
   {
     "id": 32,
@@ -484,7 +486,7 @@ export const CATALOG: ItemDef[] = [
       "sorcerer"
     ],
     "weaponFamily": "staff",
-    "rarity": "Uncommon"
+    "rarity": "Common"
   },
   {
     "id": 33,
@@ -510,7 +512,7 @@ export const CATALOG: ItemDef[] = [
       "sorcerer"
     ],
     "weaponFamily": "staff",
-    "rarity": "Rare"
+    "rarity": "Uncommon"
   },
   {
     "id": 34,
@@ -536,7 +538,7 @@ export const CATALOG: ItemDef[] = [
       "sorcerer"
     ],
     "weaponFamily": "staff",
-    "rarity": "Rare"
+    "rarity": "Uncommon"
   },
   {
     "id": 35,
@@ -674,7 +676,7 @@ export const CATALOG: ItemDef[] = [
     },
     "delayMs": 3600,
     "slot": "main",
-    "rarity": "Uncommon"
+    "rarity": "Common"
   },
   {
     "id": 41,
@@ -696,7 +698,7 @@ export const CATALOG: ItemDef[] = [
     },
     "delayMs": 3600,
     "slot": "main",
-    "rarity": "Rare"
+    "rarity": "Common"
   },
   {
     "id": 42,
@@ -721,10 +723,11 @@ export const CATALOG: ItemDef[] = [
     "jobRestrict": [
       "tim",
       "sorcerer",
-      "cleric"
+      "cleric",
+      "druid"
     ],
     "weaponFamily": "staff",
-    "rarity": "Epic"
+    "rarity": "Legendary"
   },
   {
     "id": 43,
@@ -835,9 +838,10 @@ export const CATALOG: ItemDef[] = [
     "jobRestrict": [
       "tim",
       "sorcerer",
-      "cleric"
+      "cleric",
+      "druid"
     ],
-    "rarity": "Uncommon",
+    "rarity": "Rare",
     "weaponFamily": "staff"
   },
   {
@@ -863,9 +867,10 @@ export const CATALOG: ItemDef[] = [
     "slot": "main",
     "jobRestrict": [
       "tim",
-      "sorcerer"
+      "sorcerer",
+      "druid"
     ],
-    "rarity": "Rare",
+    "rarity": "Legendary",
     "weaponFamily": "staff"
   },
   {
@@ -941,7 +946,7 @@ export const CATALOG: ItemDef[] = [
       "rogue"
     ],
     "weaponFamily": "dagger",
-    "rarity": "Common"
+    "rarity": "Rare"
   },
   {
     "id": 87,
@@ -966,7 +971,7 @@ export const CATALOG: ItemDef[] = [
       "rogue"
     ],
     "weaponFamily": "dagger",
-    "rarity": "Rare"
+    "rarity": "Epic"
   },
   {
     "id": 88,
@@ -1206,9 +1211,9 @@ export const CATALOG: ItemDef[] = [
       "materialsText": "Bronze Ingot×2, Pale Dust×1"
     },
     "stats": {
-      "def": 5,
+      "def": 6,
       "str": 2,
-      "hp": 20
+      "hp": 25
     },
     "slot": "legs",
     "jobRestrict": [
@@ -1319,7 +1324,7 @@ export const CATALOG: ItemDef[] = [
       "knight",
       "fighter"
     ],
-    "rarity": "Uncommon"
+    "rarity": "Common"
   },
   {
     "id": 115,
@@ -1344,7 +1349,7 @@ export const CATALOG: ItemDef[] = [
       "knight",
       "fighter"
     ],
-    "rarity": "Uncommon"
+    "rarity": "Common"
   },
   {
     "id": 116,
@@ -1360,16 +1365,16 @@ export const CATALOG: ItemDef[] = [
       "materialsText": "Iron Ingot×2, Ash Dust×1"
     },
     "stats": {
-      "def": 10,
-      "str": 3,
-      "hp": 30
+      "def": 9,
+      "str": 5,
+      "hp": 35
     },
     "slot": "legs",
     "jobRestrict": [
       "knight",
       "fighter"
     ],
-    "rarity": "Uncommon"
+    "rarity": "Common"
   },
   {
     "id": 117,
@@ -1394,7 +1399,7 @@ export const CATALOG: ItemDef[] = [
       "knight",
       "fighter"
     ],
-    "rarity": "Uncommon"
+    "rarity": "Common"
   },
   {
     "id": 119,
@@ -1487,7 +1492,7 @@ export const CATALOG: ItemDef[] = [
       "battlemage"
     ],
     "weaponFamily": "sword",
-    "rarity": "Uncommon"
+    "rarity": "Rare"
   },
   {
     "id": 127,
@@ -1511,7 +1516,7 @@ export const CATALOG: ItemDef[] = [
     "jobRestrict": [
       "knight"
     ],
-    "rarity": "Uncommon"
+    "rarity": "Rare"
   },
   {
     "id": 128,
@@ -1535,7 +1540,7 @@ export const CATALOG: ItemDef[] = [
     "jobRestrict": [
       "knight"
     ],
-    "rarity": "Uncommon"
+    "rarity": "Rare"
   },
   {
     "id": 129,
@@ -1709,7 +1714,7 @@ export const CATALOG: ItemDef[] = [
       "battlemage"
     ],
     "weaponFamily": "sword",
-    "rarity": "Rare"
+    "rarity": "Epic"
   },
   {
     "id": 138,
@@ -1735,7 +1740,7 @@ export const CATALOG: ItemDef[] = [
       "fighter"
     ],
     "weaponFamily": "axe",
-    "rarity": "Rare"
+    "rarity": "Epic"
   },
   {
     "id": 139,
@@ -1760,7 +1765,7 @@ export const CATALOG: ItemDef[] = [
       "knight",
       "fighter"
     ],
-    "rarity": "Rare"
+    "rarity": "Epic"
   },
   {
     "id": 140,
@@ -1785,7 +1790,7 @@ export const CATALOG: ItemDef[] = [
       "knight",
       "fighter"
     ],
-    "rarity": "Rare"
+    "rarity": "Epic"
   },
   {
     "id": 141,
@@ -1810,7 +1815,7 @@ export const CATALOG: ItemDef[] = [
       "knight",
       "fighter"
     ],
-    "rarity": "Rare"
+    "rarity": "Epic"
   },
   {
     "id": 142,
@@ -1835,7 +1840,7 @@ export const CATALOG: ItemDef[] = [
       "knight",
       "fighter"
     ],
-    "rarity": "Rare"
+    "rarity": "Epic"
   },
   {
     "id": 143,
@@ -1860,7 +1865,7 @@ export const CATALOG: ItemDef[] = [
       "knight",
       "fighter"
     ],
-    "rarity": "Rare"
+    "rarity": "Epic"
   },
   {
     "id": 144,
@@ -1883,7 +1888,7 @@ export const CATALOG: ItemDef[] = [
     "jobRestrict": [
       "knight"
     ],
-    "rarity": "Rare"
+    "rarity": "Epic"
   },
   {
     "id": 145,
@@ -1978,7 +1983,7 @@ export const CATALOG: ItemDef[] = [
     "jobRestrict": [
       "knight"
     ],
-    "rarity": "Epic"
+    "rarity": "Legendary"
   },
   {
     "id": 154,
@@ -2002,7 +2007,7 @@ export const CATALOG: ItemDef[] = [
     "jobRestrict": [
       "knight"
     ],
-    "rarity": "Epic"
+    "rarity": "Legendary"
   },
   {
     "id": 155,
@@ -2026,7 +2031,7 @@ export const CATALOG: ItemDef[] = [
     "jobRestrict": [
       "knight"
     ],
-    "rarity": "Epic"
+    "rarity": "Legendary"
   },
   {
     "id": 156,
@@ -2050,7 +2055,7 @@ export const CATALOG: ItemDef[] = [
     "jobRestrict": [
       "knight"
     ],
-    "rarity": "Epic"
+    "rarity": "Legendary"
   },
   {
     "id": 157,
@@ -2074,7 +2079,7 @@ export const CATALOG: ItemDef[] = [
     "jobRestrict": [
       "knight"
     ],
-    "rarity": "Epic"
+    "rarity": "Legendary"
   },
   {
     "id": 158,
@@ -2100,7 +2105,7 @@ export const CATALOG: ItemDef[] = [
       "fighter"
     ],
     "weaponFamily": "axe",
-    "rarity": "Epic"
+    "rarity": "Legendary"
   },
   {
     "id": 159,
@@ -2260,7 +2265,7 @@ export const CATALOG: ItemDef[] = [
       "cleric"
     ],
     "weaponFamily": "staff",
-    "rarity": "Uncommon"
+    "rarity": "Common"
   },
   {
     "id": 175,
@@ -2439,10 +2444,11 @@ export const CATALOG: ItemDef[] = [
     "twoHand": true,
     "jobRestrict": [
       "tim",
-      "sorcerer"
+      "sorcerer",
+      "druid"
     ],
     "weaponFamily": "staff",
-    "rarity": "Rare"
+    "rarity": "Uncommon"
   },
   {
     "id": 196,
@@ -2463,7 +2469,7 @@ export const CATALOG: ItemDef[] = [
       "str": 2
     },
     "slot": "grip",
-    "rarity": "Rare"
+    "rarity": "Uncommon"
   },
   {
     "id": 199,
@@ -2493,7 +2499,7 @@ export const CATALOG: ItemDef[] = [
       "acc": 14
     },
     "slot": "ranged",
-    "rarity": "Epic"
+    "rarity": "Common"
   },
   {
     "id": 205,
@@ -2534,7 +2540,7 @@ export const CATALOG: ItemDef[] = [
       "tim"
     ],
     "weaponFamily": "staff",
-    "rarity": "Epic"
+    "rarity": "Legendary"
   },
   {
     "id": 207,
@@ -2560,7 +2566,7 @@ export const CATALOG: ItemDef[] = [
       "sorcerer"
     ],
     "weaponFamily": "staff",
-    "rarity": "Epic"
+    "rarity": "Legendary"
   },
   {
     "id": 208,
@@ -2807,7 +2813,7 @@ export const CATALOG: ItemDef[] = [
     "jobRestrict": [
       "rogue"
     ],
-    "rarity": "Common"
+    "rarity": "Uncommon"
   },
   {
     "id": 222,
@@ -2831,7 +2837,7 @@ export const CATALOG: ItemDef[] = [
     "jobRestrict": [
       "rogue"
     ],
-    "rarity": "Common"
+    "rarity": "Uncommon"
   },
   {
     "id": 223,
@@ -2907,8 +2913,8 @@ export const CATALOG: ItemDef[] = [
   },
   {
     "id": 226,
-    "name": "Mercenary Mantle",
-    "description": "Mercenary Mantle. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
+    "name": "Mantle of the Last Company",
+    "description": "Mantle of the Last Company. A leather wrap the Anvilhold sellswords wore when the halls still stood.",
     "icon": "/icons/items/mercenary-mantle.png",
     "slug": "mercenary-mantle",
     "kind": "equipment",
@@ -2929,7 +2935,7 @@ export const CATALOG: ItemDef[] = [
       "rogue",
       "tim"
     ],
-    "rarity": "Uncommon"
+    "rarity": "Legendary"
   },
   {
     "id": 230,
@@ -3015,7 +3021,7 @@ export const CATALOG: ItemDef[] = [
       "fighter",
       "rogue"
     ],
-    "rarity": "Rare"
+    "rarity": "Uncommon"
   },
   {
     "id": 236,
@@ -3040,7 +3046,7 @@ export const CATALOG: ItemDef[] = [
       "fighter",
       "rogue"
     ],
-    "rarity": "Rare"
+    "rarity": "Uncommon"
   },
   {
     "id": 237,
@@ -3065,7 +3071,7 @@ export const CATALOG: ItemDef[] = [
       "fighter",
       "rogue"
     ],
-    "rarity": "Rare"
+    "rarity": "Uncommon"
   },
   {
     "id": 238,
@@ -3090,7 +3096,7 @@ export const CATALOG: ItemDef[] = [
       "fighter",
       "rogue"
     ],
-    "rarity": "Rare"
+    "rarity": "Uncommon"
   },
   {
     "id": 242,
@@ -3139,7 +3145,7 @@ export const CATALOG: ItemDef[] = [
       "knight",
       "rogue"
     ],
-    "rarity": "Rare"
+    "rarity": "Epic"
   },
   {
     "id": 246,
@@ -3164,7 +3170,7 @@ export const CATALOG: ItemDef[] = [
       "knight",
       "rogue"
     ],
-    "rarity": "Rare"
+    "rarity": "Epic"
   },
   {
     "id": 247,
@@ -3190,7 +3196,7 @@ export const CATALOG: ItemDef[] = [
       "knight",
       "rogue"
     ],
-    "rarity": "Rare"
+    "rarity": "Epic"
   },
   {
     "id": 248,
@@ -3215,7 +3221,7 @@ export const CATALOG: ItemDef[] = [
       "knight",
       "rogue"
     ],
-    "rarity": "Rare"
+    "rarity": "Epic"
   },
   {
     "id": 249,
@@ -3240,7 +3246,7 @@ export const CATALOG: ItemDef[] = [
       "knight",
       "rogue"
     ],
-    "rarity": "Rare"
+    "rarity": "Epic"
   },
   {
     "id": 251,
@@ -3292,7 +3298,7 @@ export const CATALOG: ItemDef[] = [
     "jobRestrict": [
       "rogue"
     ],
-    "rarity": "Epic"
+    "rarity": "Rare"
   },
   {
     "id": 262,
@@ -3346,7 +3352,8 @@ export const CATALOG: ItemDef[] = [
       "battlemage",
       "tim",
       "sorcerer",
-      "cleric"
+      "cleric",
+      "druid"
     ],
     "rarity": "Common"
   },
@@ -3373,7 +3380,8 @@ export const CATALOG: ItemDef[] = [
       "battlemage",
       "tim",
       "sorcerer",
-      "cleric"
+      "cleric",
+      "druid"
     ],
     "rarity": "Common"
   },
@@ -3400,7 +3408,8 @@ export const CATALOG: ItemDef[] = [
       "battlemage",
       "tim",
       "sorcerer",
-      "cleric"
+      "cleric",
+      "druid"
     ],
     "rarity": "Common"
   },
@@ -3427,7 +3436,8 @@ export const CATALOG: ItemDef[] = [
       "battlemage",
       "tim",
       "sorcerer",
-      "cleric"
+      "cleric",
+      "druid"
     ],
     "rarity": "Common"
   },
@@ -3535,7 +3545,8 @@ export const CATALOG: ItemDef[] = [
       "tim",
       "sorcerer",
       "cleric",
-      "battlemage"
+      "battlemage",
+      "druid"
     ],
     "rarity": "Uncommon"
   },
@@ -3563,7 +3574,8 @@ export const CATALOG: ItemDef[] = [
       "tim",
       "sorcerer",
       "cleric",
-      "battlemage"
+      "battlemage",
+      "druid"
     ],
     "rarity": "Uncommon"
   },
@@ -3590,7 +3602,8 @@ export const CATALOG: ItemDef[] = [
       "tim",
       "sorcerer",
       "cleric",
-      "battlemage"
+      "battlemage",
+      "druid"
     ],
     "rarity": "Uncommon"
   },
@@ -3617,7 +3630,8 @@ export const CATALOG: ItemDef[] = [
       "tim",
       "sorcerer",
       "cleric",
-      "battlemage"
+      "battlemage",
+      "druid"
     ],
     "rarity": "Uncommon"
   },
@@ -3644,7 +3658,8 @@ export const CATALOG: ItemDef[] = [
       "tim",
       "sorcerer",
       "cleric",
-      "battlemage"
+      "battlemage",
+      "druid"
     ],
     "rarity": "Uncommon"
   },
@@ -3686,7 +3701,8 @@ export const CATALOG: ItemDef[] = [
       "tim",
       "sorcerer",
       "cleric",
-      "battlemage"
+      "battlemage",
+      "druid"
     ],
     "rarity": "Uncommon"
   },
@@ -3714,7 +3730,8 @@ export const CATALOG: ItemDef[] = [
       "tim",
       "sorcerer",
       "cleric",
-      "battlemage"
+      "battlemage",
+      "druid"
     ],
     "rarity": "Rare"
   },
@@ -3741,9 +3758,10 @@ export const CATALOG: ItemDef[] = [
       "tim",
       "sorcerer",
       "cleric",
-      "battlemage"
+      "battlemage",
+      "druid"
     ],
-    "rarity": "Rare"
+    "rarity": "Uncommon"
   },
   {
     "id": 287,
@@ -3768,9 +3786,10 @@ export const CATALOG: ItemDef[] = [
       "tim",
       "sorcerer",
       "cleric",
-      "battlemage"
+      "battlemage",
+      "druid"
     ],
-    "rarity": "Rare"
+    "rarity": "Uncommon"
   },
   {
     "id": 288,
@@ -3795,9 +3814,10 @@ export const CATALOG: ItemDef[] = [
       "tim",
       "sorcerer",
       "cleric",
-      "battlemage"
+      "battlemage",
+      "druid"
     ],
-    "rarity": "Rare"
+    "rarity": "Uncommon"
   },
   {
     "id": 292,
@@ -3978,7 +3998,7 @@ export const CATALOG: ItemDef[] = [
       "mp": 80
     },
     "slot": "head",
-    "rarity": "Rare"
+    "rarity": "Uncommon"
   },
   {
     "id": 303,
@@ -4071,7 +4091,7 @@ export const CATALOG: ItemDef[] = [
       "tim",
       "sorcerer"
     ],
-    "rarity": "Epic"
+    "rarity": "Legendary"
   },
   {
     "id": 313,
@@ -4133,7 +4153,7 @@ export const CATALOG: ItemDef[] = [
     },
     "slot": "head",
     "jobRestrict": "all",
-    "rarity": "Uncommon"
+    "rarity": "Rare"
   },
   {
     "id": 316,
@@ -4212,7 +4232,7 @@ export const CATALOG: ItemDef[] = [
       "knight",
       "cleric"
     ],
-    "rarity": "Epic"
+    "rarity": "Legendary"
   },
   {
     "id": 320,
@@ -4274,7 +4294,7 @@ export const CATALOG: ItemDef[] = [
       "acc": 2
     },
     "slot": "earring",
-    "rarity": "Common"
+    "rarity": "Rare"
   },
   {
     "id": 324,
@@ -4330,7 +4350,7 @@ export const CATALOG: ItemDef[] = [
       "agi": 2
     },
     "slot": "ring",
-    "rarity": "Uncommon"
+    "rarity": "Rare"
   },
   {
     "id": 327,
@@ -4356,7 +4376,7 @@ export const CATALOG: ItemDef[] = [
       "fighter",
       "rogue"
     ],
-    "rarity": "Uncommon"
+    "rarity": "Common"
   },
   {
     "id": 328,
@@ -4381,7 +4401,7 @@ export const CATALOG: ItemDef[] = [
       "fighter",
       "rogue"
     ],
-    "rarity": "Uncommon"
+    "rarity": "Common"
   },
   {
     "id": 329,
@@ -4420,7 +4440,7 @@ export const CATALOG: ItemDef[] = [
       "fighter",
       "rogue"
     ],
-    "rarity": "Uncommon"
+    "rarity": "Common"
   },
   {
     "id": 333,
@@ -4505,8 +4525,8 @@ export const CATALOG: ItemDef[] = [
   },
   {
     "id": 337,
-    "name": "Skull Bandana",
-    "description": "Skull Bandana. Tempered gear from Mayflower's forges, made by hands that still remember the makers' names.",
+    "name": "Cowl of the First Pit",
+    "description": "Cowl of the First Pit. Bone-hide wrap from the first sink that opened under Anvilhold.",
     "icon": "/icons/items/skull-bandana.png",
     "slug": "skull-bandana",
     "kind": "equipment",
@@ -4525,7 +4545,7 @@ export const CATALOG: ItemDef[] = [
     "jobRestrict": [
       "rogue"
     ],
-    "rarity": "Rare"
+    "rarity": "Legendary"
   },
   {
     "id": 341,
@@ -4546,7 +4566,7 @@ export const CATALOG: ItemDef[] = [
       "acc": 3
     },
     "slot": "ring",
-    "rarity": "Rare"
+    "rarity": "Uncommon"
   },
   {
     "id": 342,
@@ -4601,7 +4621,7 @@ export const CATALOG: ItemDef[] = [
     },
     "slot": "ring",
     "jobRestrict": "all",
-    "rarity": "Epic"
+    "rarity": "Rare"
   },
   {
     "id": 346,
@@ -4623,7 +4643,7 @@ export const CATALOG: ItemDef[] = [
       "hp": 30
     },
     "slot": "ring",
-    "rarity": "Epic"
+    "rarity": "Legendary"
   },
   {
     "id": 347,
@@ -4762,7 +4782,7 @@ export const CATALOG: ItemDef[] = [
       "mp": 20
     },
     "slot": "head",
-    "rarity": "Common"
+    "rarity": "Uncommon"
   },
   {
     "id": 355,
@@ -4840,7 +4860,7 @@ export const CATALOG: ItemDef[] = [
       "mab": 2
     },
     "slot": "ring",
-    "rarity": "Uncommon"
+    "rarity": "Common"
   },
   {
     "id": 359,
@@ -4987,7 +5007,7 @@ export const CATALOG: ItemDef[] = [
       "mab": 2
     },
     "slot": "ring",
-    "rarity": "Uncommon"
+    "rarity": "Rare"
   },
   {
     "id": 368,
@@ -5021,7 +5041,7 @@ export const CATALOG: ItemDef[] = [
       "mab": 3
     },
     "slot": "earring",
-    "rarity": "Rare"
+    "rarity": "Epic"
   },
   {
     "id": 370,
@@ -5041,7 +5061,7 @@ export const CATALOG: ItemDef[] = [
       "atk": 4
     },
     "slot": "earring",
-    "rarity": "Rare"
+    "rarity": "Uncommon"
   },
   {
     "id": 372,
@@ -5076,7 +5096,7 @@ export const CATALOG: ItemDef[] = [
       "mp": 20
     },
     "slot": "ring",
-    "rarity": "Rare"
+    "rarity": "Uncommon"
   },
   {
     "id": 374,
@@ -5140,7 +5160,7 @@ export const CATALOG: ItemDef[] = [
       "mp": 30
     },
     "slot": "ring",
-    "rarity": "Epic"
+    "rarity": "Legendary"
   },
   {
     "id": 378,
@@ -7069,7 +7089,7 @@ export const CATALOG: ItemDef[] = [
       "rogue",
       "cleric"
     ],
-    "rarity": "Rare"
+    "rarity": "Common"
   },
   {
     "id": 1063,
@@ -7118,7 +7138,7 @@ export const CATALOG: ItemDef[] = [
       "battlemage"
     ],
     "weaponFamily": "sword",
-    "rarity": "Common"
+    "rarity": "Legendary"
   },
   {
     "id": 1065,
@@ -7134,7 +7154,8 @@ export const CATALOG: ItemDef[] = [
       "materialsText": "Dustgrain×10"
     },
     "stats": {
-      "atk": 6
+      "atk": 10,
+      "str": 2
     },
     "delayMs": 2600,
     "slot": "main",
@@ -7142,7 +7163,7 @@ export const CATALOG: ItemDef[] = [
       "fighter"
     ],
     "weaponFamily": "axe",
-    "rarity": "Common"
+    "rarity": "Epic"
   },
   {
     "id": 1066,
@@ -7171,6 +7192,1851 @@ export const CATALOG: ItemDef[] = [
     "recipe": {
       "gold": 130,
       "materialsText": "Bronze Ingot×2, Pale Dust×1"
+    }
+  },
+  {
+    "id": 1068,
+    "name": "Bronze Sabatons",
+    "description": "Bronze Sabatons. Ruined gear dug from the ashes of Anvilhold's fallen craft halls.",
+    "icon": "/icons/items/bronze-sabatons.png",
+    "slug": "bronze-sabatons",
+    "kind": "equipment",
+    "craftLevel": 6,
+    "craftSkill": "smithing",
+    "recipe": {
+      "gold": 170,
+      "materialsText": "Bronze Ingot×1, Pale Dust×1"
+    },
+    "stats": {
+      "def": 4,
+      "vit": 2,
+      "hp": 10
+    },
+    "slot": "feet",
+    "jobRestrict": [
+      "knight",
+      "fighter"
+    ],
+    "rarity": "Common"
+  },
+  {
+    "id": 1069,
+    "name": "Iron Sabatons",
+    "description": "Iron Sabatons. Ruined gear dug from the ashes of Anvilhold's fallen craft halls.",
+    "icon": "/icons/items/iron-sabatons.png",
+    "slug": "iron-sabatons",
+    "kind": "equipment",
+    "craftLevel": 25,
+    "craftSkill": "smithing",
+    "recipe": {
+      "gold": 550,
+      "materialsText": "Iron Ingot×1, Ash Dust×1"
+    },
+    "stats": {
+      "def": 8,
+      "vit": 4,
+      "agi": 3,
+      "hp": 18
+    },
+    "slot": "feet",
+    "jobRestrict": [
+      "knight",
+      "fighter"
+    ],
+    "rarity": "Common"
+  },
+  {
+    "id": 1070,
+    "name": "Decayed Greaves",
+    "description": "Decayed Greaves. Ruined gear dug from the ashes of Anvilhold's fallen craft halls.",
+    "icon": "/icons/items/decayed-greaves.png",
+    "slug": "decayed-greaves",
+    "kind": "equipment",
+    "craftLevel": 4,
+    "craftSkill": "bonecraft",
+    "recipe": {
+      "gold": 130,
+      "materialsText": "Dustgrain×6"
+    },
+    "stats": {
+      "def": 3,
+      "vit": 2,
+      "hp": 8
+    },
+    "slot": "feet",
+    "jobRestrict": [
+      "knight",
+      "fighter"
+    ],
+    "rarity": "Rare"
+  },
+  {
+    "id": 1071,
+    "name": "Battleweave Coat",
+    "description": "Battleweave Coat. A silk fighting coat cut for blade and spell.",
+    "icon": "/icons/items/battleweave-coat.png",
+    "slug": "battleweave-coat",
+    "kind": "equipment",
+    "craftLevel": 61,
+    "craftSkill": "clothcraft",
+    "recipe": {
+      "gold": 1270,
+      "materialsText": "Silk Cloth×3, Velvet Thread×1, Slag Dust×1"
+    },
+    "stats": {
+      "def": 28,
+      "str": 8,
+      "int": 14,
+      "mab": 10,
+      "mp": 50,
+      "hp": 38
+    },
+    "slot": "body",
+    "jobRestrict": [
+      "battlemage"
+    ],
+    "rarity": "Rare"
+  },
+  {
+    "id": 1072,
+    "name": "Altarweave Coat",
+    "description": "Altarweave Coat. A rare cleric coat with a gold stole, cut from altar cloth.",
+    "icon": "/icons/items/altarweave-coat.png",
+    "slug": "altarweave-coat",
+    "kind": "equipment",
+    "craftLevel": 72,
+    "craftSkill": "clothcraft",
+    "recipe": {
+      "gold": 1490,
+      "materialsText": "Velvet Cloth×3, Bell Dust×1"
+    },
+    "stats": {
+      "def": 31,
+      "mnd": 31,
+      "mp": 70,
+      "hp": 40
+    },
+    "slot": "body",
+    "jobRestrict": [
+      "cleric"
+    ],
+    "rarity": "Rare"
+  },
+  {
+    "id": 1073,
+    "name": "Iron Shield",
+    "description": "Iron Shield. A round iron face for the off hand, the Mayflower stock pattern.",
+    "icon": "/icons/items/iron-shield.png",
+    "slug": "iron-shield",
+    "kind": "equipment",
+    "craftLevel": 31,
+    "craftSkill": "smithing",
+    "recipe": {
+      "gold": 670,
+      "materialsText": "Iron Ingot×3, Cobble×2, Ash Dust×1"
+    },
+    "stats": {
+      "def": 15,
+      "vit": 3
+    },
+    "slot": "sub",
+    "jobRestrict": [
+      "knight",
+      "battlemage",
+      "cleric"
+    ],
+    "rarity": "Common"
+  },
+  {
+    "id": 1074,
+    "name": "Bloodbeam Crozier",
+    "description": "Bloodbeam Crozier. An uncommon cleric staff with a hooked head, cut from bloodbeam lumber.",
+    "icon": "/icons/items/bloodbeam-crozier.png",
+    "slug": "bloodbeam-crozier",
+    "kind": "equipment",
+    "craftLevel": 57,
+    "craftSkill": "woodworking",
+    "recipe": {
+      "gold": 1190,
+      "materialsText": "Bloodbeam Lumber×2, Jadeite×1, Slag Dust×1"
+    },
+    "stats": {
+      "mab": 27,
+      "mnd": 6
+    },
+    "delayMs": 3600,
+    "slot": "main",
+    "jobRestrict": [
+      "cleric"
+    ],
+    "weaponFamily": "staff",
+    "rarity": "Uncommon"
+  },
+  {
+    "id": 1075,
+    "name": "Ashbeam Tome",
+    "description": "Ashbeam Tome. A common support book bound in ashbeam-stained cloth.",
+    "icon": "/icons/items/ashbeam-tome.png",
+    "slug": "ashbeam-tome",
+    "kind": "equipment",
+    "craftLevel": 55,
+    "craftSkill": "clothcraft",
+    "recipe": {
+      "gold": 1150,
+      "materialsText": "Silk Cloth×2, Spell Parchment×2, Slag Dust×1"
+    },
+    "stats": {
+      "mab": 26,
+      "int": 5,
+      "mnd": 3,
+      "mp": 22
+    },
+    "delayMs": 2400,
+    "slot": "main",
+    "jobRestrict": [
+      "tim"
+    ],
+    "weaponFamily": "staff",
+    "rarity": "Common"
+  },
+  {
+    "id": 1076,
+    "name": "Bellwood Crozier",
+    "description": "Bellwood Crozier. An uncommon two-hand cleric staff with a hooked head.",
+    "icon": "/icons/items/bellwood-crozier.png",
+    "slug": "bellwood-crozier",
+    "kind": "equipment",
+    "craftLevel": 70,
+    "craftSkill": "woodworking",
+    "recipe": {
+      "gold": 1450,
+      "materialsText": "Bellwood Lumber×2, Silk Thread×1, Bell Dust×1"
+    },
+    "stats": {
+      "mab": 36,
+      "mnd": 8
+    },
+    "delayMs": 3600,
+    "slot": "main",
+    "twoHand": true,
+    "jobRestrict": [
+      "cleric"
+    ],
+    "weaponFamily": "staff",
+    "rarity": "Uncommon"
+  },
+  {
+    "id": 1077,
+    "name": "Battleweave Cuffs",
+    "description": "Battleweave Cuffs. Rare battlemage wrist wraps cut from silk and velvet thread.",
+    "icon": "/icons/items/battleweave-cuffs.png",
+    "slug": "battleweave-cuffs",
+    "kind": "equipment",
+    "craftLevel": 63,
+    "craftSkill": "clothcraft",
+    "recipe": {
+      "gold": 1310,
+      "materialsText": "Silk Cloth×1, Velvet Thread×1, Slag Dust×1"
+    },
+    "stats": {
+      "def": 14,
+      "mab": 8,
+      "str": 4,
+      "int": 5
+    },
+    "slot": "hands",
+    "jobRestrict": [
+      "battlemage"
+    ],
+    "rarity": "Rare"
+  },
+  {
+    "id": 1078,
+    "name": "Darksteel Targe",
+    "description": "Darksteel Targe. An epic small round for battlemage and cleric.",
+    "icon": "/icons/items/darksteel-targe.png",
+    "slug": "darksteel-targe",
+    "kind": "equipment",
+    "craftLevel": 75,
+    "craftSkill": "smithing",
+    "recipe": {
+      "gold": 1550,
+      "materialsText": "Darksteel Ingot×2, Mythril Nail×1, Bell Dust×1"
+    },
+    "stats": {
+      "def": 26,
+      "vit": 4,
+      "mdb": 3
+    },
+    "slot": "sub",
+    "jobRestrict": [
+      "battlemage",
+      "cleric"
+    ],
+    "rarity": "Epic"
+  },
+  {
+    "id": 1079,
+    "name": "Palace Shield",
+    "description": "Palace Shield. A legendary pointed kite for the knight line.",
+    "icon": "/icons/items/palace-shield.png",
+    "slug": "palace-shield",
+    "kind": "equipment",
+    "craftLevel": 97,
+    "craftSkill": "smithing",
+    "recipe": {
+      "gold": 1990,
+      "materialsText": "Orichalcum Ingot×3, Marble Chip×1, Darksteel Nail×1, Throne Dust×1"
+    },
+    "stats": {
+      "def": 40,
+      "vit": 9
+    },
+    "slot": "sub",
+    "jobRestrict": [
+      "knight"
+    ],
+    "rarity": "Legendary"
+  },
+  {
+    "id": 1080,
+    "name": "Battleweave Slacks",
+    "description": "Battleweave Slacks. Rare battlemage thigh panels with a steel seam.",
+    "icon": "/icons/items/battleweave-slacks.png",
+    "slug": "battleweave-slacks",
+    "kind": "equipment",
+    "craftLevel": 67,
+    "craftSkill": "clothcraft",
+    "recipe": {
+      "gold": 1390,
+      "materialsText": "Silk Cloth×2, Velvet Thread×1, Slag Dust×1"
+    },
+    "stats": {
+      "def": 21,
+      "mp": 70,
+      "str": 5,
+      "int": 6
+    },
+    "slot": "legs",
+    "jobRestrict": [
+      "battlemage"
+    ],
+    "rarity": "Rare"
+  },
+  {
+    "id": 1081,
+    "name": "Battleweave Pumps",
+    "description": "Battleweave Pumps. Rare battlemage cloth shoes with a steel instep seam.",
+    "icon": "/icons/items/battleweave-pumps.png",
+    "slug": "battleweave-pumps",
+    "kind": "equipment",
+    "craftLevel": 71,
+    "craftSkill": "clothcraft",
+    "recipe": {
+      "gold": 1470,
+      "materialsText": "Silk Cloth×1, Velvet Thread×1, Slag Dust×1"
+    },
+    "stats": {
+      "def": 15,
+      "agi": 5,
+      "str": 3,
+      "mp": 80
+    },
+    "slot": "feet",
+    "jobRestrict": [
+      "battlemage"
+    ],
+    "rarity": "Rare"
+  },
+  {
+    "id": 1082,
+    "name": "Altarweave Cuffs",
+    "description": "Altarweave Cuffs. Rare cleric wrist wraps with a gold stole bind.",
+    "icon": "/icons/items/altarweave-cuffs.png",
+    "slug": "altarweave-cuffs",
+    "kind": "equipment",
+    "craftLevel": 74,
+    "craftSkill": "clothcraft",
+    "recipe": {
+      "gold": 1530,
+      "materialsText": "Velvet Cloth×1, Bell Dust×1"
+    },
+    "stats": {
+      "def": 16,
+      "mab": 8,
+      "mnd": 7
+    },
+    "slot": "hands",
+    "jobRestrict": [
+      "cleric"
+    ],
+    "rarity": "Rare"
+  },
+  {
+    "id": 1083,
+    "name": "Altarweave Slacks",
+    "description": "Altarweave Slacks. Rare cleric thigh panels with a gold stole stripe.",
+    "icon": "/icons/items/altarweave-slacks.png",
+    "slug": "altarweave-slacks",
+    "kind": "equipment",
+    "craftLevel": 76,
+    "craftSkill": "clothcraft",
+    "recipe": {
+      "gold": 1570,
+      "materialsText": "Velvet Cloth×2, Bell Dust×1"
+    },
+    "stats": {
+      "def": 25,
+      "mp": 80,
+      "mnd": 8
+    },
+    "slot": "legs",
+    "jobRestrict": [
+      "cleric"
+    ],
+    "rarity": "Rare"
+  },
+  {
+    "id": 1084,
+    "name": "Altarweave Pumps",
+    "description": "Altarweave Pumps. Rare cleric cloth shoes with a gold instep bind.",
+    "icon": "/icons/items/altarweave-pumps.png",
+    "slug": "altarweave-pumps",
+    "kind": "equipment",
+    "craftLevel": 78,
+    "craftSkill": "clothcraft",
+    "recipe": {
+      "gold": 1610,
+      "materialsText": "Velvet Cloth×1, Bell Dust×1"
+    },
+    "stats": {
+      "def": 17,
+      "mnd": 4,
+      "mp": 90
+    },
+    "slot": "feet",
+    "jobRestrict": [
+      "cleric"
+    ],
+    "rarity": "Rare"
+  },
+  {
+    "id": 1085,
+    "name": "Battleweave Raiment",
+    "description": "Battleweave Raiment. Rare battlemage fighting coat, a heavier cut of the weave.",
+    "icon": "/icons/items/battleweave-raiment.png",
+    "slug": "battleweave-raiment",
+    "kind": "equipment",
+    "craftLevel": 93,
+    "craftSkill": "clothcraft",
+    "recipe": {
+      "gold": 1910,
+      "materialsText": "Velvet Cloth×3, Diamond×1, Throne Dust×1"
+    },
+    "stats": {
+      "def": 38,
+      "str": 12,
+      "int": 22,
+      "mab": 16,
+      "mp": 72,
+      "hp": 50
+    },
+    "slot": "body",
+    "jobRestrict": [
+      "battlemage"
+    ],
+    "rarity": "Rare"
+  },
+  {
+    "id": 1086,
+    "name": "Orichalcum Targe",
+    "description": "Orichalcum Targe. An epic gold small round for battlemage and cleric.",
+    "icon": "/icons/items/orichalcum-targe.png",
+    "slug": "orichalcum-targe",
+    "kind": "equipment",
+    "craftLevel": 91,
+    "craftSkill": "smithing",
+    "recipe": {
+      "gold": 1870,
+      "materialsText": "Orichalcum Ingot×2, Marble Chip×1, Throne Dust×1"
+    },
+    "stats": {
+      "def": 34,
+      "vit": 6,
+      "mdb": 5
+    },
+    "slot": "sub",
+    "jobRestrict": [
+      "battlemage",
+      "cleric"
+    ],
+    "rarity": "Epic"
+  },
+  {
+    "id": 1087,
+    "name": "Throneweave Hat",
+    "description": "Throneweave Hat. A legendary pointed hat for tim, sorcerer, and cleric.",
+    "icon": "/icons/items/throneweave-hat.png",
+    "slug": "throneweave-hat",
+    "kind": "equipment",
+    "craftLevel": 95,
+    "craftSkill": "clothcraft",
+    "recipe": {
+      "gold": 1950,
+      "materialsText": "Velvet Cloth×1, Diamond×1, Throne Dust×1"
+    },
+    "stats": {
+      "def": 20,
+      "int": 10,
+      "mp": 100
+    },
+    "slot": "head",
+    "jobRestrict": [
+      "tim",
+      "sorcerer",
+      "cleric",
+      "druid"
+    ],
+    "rarity": "Legendary"
+  },
+  {
+    "id": 1088,
+    "name": "Steel Sword",
+    "description": "Steel Sword. An uncommon one-hand beside the steel greatsword.",
+    "icon": "/icons/items/steel-sword.png",
+    "slug": "steel-sword",
+    "kind": "equipment",
+    "craftLevel": 36,
+    "craftSkill": "smithing",
+    "recipe": {
+      "gold": 770,
+      "materialsText": "Steel Ingot×2, Ashbeam Lumber×1, Slag Dust×1"
+    },
+    "stats": {
+      "atk": 16,
+      "str": 4,
+      "int": 3
+    },
+    "delayMs": 2400,
+    "slot": "main",
+    "jobRestrict": [
+      "knight",
+      "fighter",
+      "battlemage"
+    ],
+    "weaponFamily": "sword",
+    "rarity": "Uncommon"
+  },
+  {
+    "id": 1089,
+    "name": "Steel Mail",
+    "description": "Steel Mail. Uncommon knight and fighter plate, a steel cut of iron mail.",
+    "icon": "/icons/items/steel-mail.png",
+    "slug": "steel-mail",
+    "kind": "equipment",
+    "craftLevel": 37,
+    "craftSkill": "smithing",
+    "recipe": {
+      "gold": 790,
+      "materialsText": "Steel Ingot×3, Slag Dust×1"
+    },
+    "stats": {
+      "def": 26,
+      "vit": 9,
+      "hp": 37
+    },
+    "slot": "body",
+    "jobRestrict": [
+      "knight",
+      "fighter"
+    ],
+    "rarity": "Uncommon"
+  },
+  {
+    "id": 1090,
+    "name": "Orichalcum Mail",
+    "description": "Orichalcum Mail. Epic fighter hauberk of gold scales.",
+    "icon": "/icons/items/orichalcum-mail.png",
+    "slug": "orichalcum-mail",
+    "kind": "equipment",
+    "craftLevel": 85,
+    "craftSkill": "smithing",
+    "recipe": {
+      "gold": 1750,
+      "materialsText": "Orichalcum Ingot×3, Darksteel Nail×1, Throne Dust×1"
+    },
+    "stats": {
+      "def": 53,
+      "vit": 18,
+      "hp": 73
+    },
+    "slot": "body",
+    "jobRestrict": [
+      "fighter"
+    ],
+    "rarity": "Epic"
+  },
+  {
+    "id": 1091,
+    "name": "Rogue's Dagger",
+    "description": "Rogue's Dagger. Rare rogue main, a steel short blade on a leather grip.",
+    "icon": "/icons/items/rogues-dagger.png",
+    "slug": "rogues-dagger",
+    "kind": "equipment",
+    "craftLevel": 61,
+    "craftSkill": "bonecraft",
+    "recipe": {
+      "gold": 1270,
+      "materialsText": "Giant Femur×1, Fine Leather×1, Bone Hilt×1, Bell Dust×1"
+    },
+    "stats": {
+      "atk": 34,
+      "dex": 10
+    },
+    "delayMs": 1800,
+    "slot": "main",
+    "jobRestrict": [
+      "rogue"
+    ],
+    "weaponFamily": "dagger",
+    "rarity": "Rare"
+  },
+  {
+    "id": 1092,
+    "name": "Altarweave Hat",
+    "description": "Altarweave Hat. Rare cleric pointed hat with a gold stole band.",
+    "icon": "/icons/items/altarweave-hat.png",
+    "slug": "altarweave-hat",
+    "kind": "equipment",
+    "craftLevel": 62,
+    "craftSkill": "clothcraft",
+    "recipe": {
+      "gold": 1290,
+      "materialsText": "Silk Cloth×1, Velvet Thread×1, Slag Dust×1"
+    },
+    "stats": {
+      "def": 16,
+      "mnd": 8,
+      "mp": 80
+    },
+    "slot": "head",
+    "jobRestrict": [
+      "cleric"
+    ],
+    "rarity": "Rare"
+  },
+  {
+    "id": 1093,
+    "name": "Orichalcum War Helm",
+    "description": "Orichalcum War Helm. Epic fighter helm, gold plate with a steel brow.",
+    "icon": "/icons/items/orichalcum-war-helm.png",
+    "slug": "orichalcum-war-helm",
+    "kind": "equipment",
+    "craftLevel": 81,
+    "craftSkill": "smithing",
+    "recipe": {
+      "gold": 1670,
+      "materialsText": "Orichalcum Ingot×1, Marble Chip×1, Throne Dust×1"
+    },
+    "stats": {
+      "def": 18,
+      "vit": 8,
+      "hp": 88
+    },
+    "slot": "head",
+    "jobRestrict": [
+      "fighter"
+    ],
+    "rarity": "Epic"
+  },
+  {
+    "id": 1094,
+    "name": "Orichalcum War Gauntlets",
+    "description": "Orichalcum War Gauntlets. Epic fighter hands, gold fingers with a steel rivet.",
+    "icon": "/icons/items/orichalcum-war-gauntlets.png",
+    "slug": "orichalcum-war-gauntlets",
+    "kind": "equipment",
+    "craftLevel": 83,
+    "craftSkill": "smithing",
+    "recipe": {
+      "gold": 1710,
+      "materialsText": "Orichalcum Ingot×1, Marble Chip×1, Throne Dust×1"
+    },
+    "stats": {
+      "def": 18,
+      "atk": 8,
+      "vit": 8
+    },
+    "slot": "hands",
+    "jobRestrict": [
+      "fighter"
+    ],
+    "rarity": "Epic"
+  },
+  {
+    "id": 1095,
+    "name": "Orichalcum War Sabatons",
+    "description": "Orichalcum War Sabatons. Epic fighter feet, gold vamp with steel rivets.",
+    "icon": "/icons/items/orichalcum-war-sabatons.png",
+    "slug": "orichalcum-war-sabatons",
+    "kind": "equipment",
+    "craftLevel": 84,
+    "craftSkill": "smithing",
+    "recipe": {
+      "gold": 1730,
+      "materialsText": "Orichalcum Ingot×2, Marble Chip×1, Throne Dust×1"
+    },
+    "stats": {
+      "def": 19,
+      "vit": 8,
+      "agi": 8
+    },
+    "slot": "feet",
+    "jobRestrict": [
+      "fighter"
+    ],
+    "rarity": "Epic"
+  },
+  {
+    "id": 1096,
+    "name": "Rogue's Helm",
+    "description": "Rogue's Helm. Rare rogue helm, scale checker with a gold brow.",
+    "icon": "/icons/items/rogues-helm.png",
+    "slug": "rogues-helm",
+    "kind": "equipment",
+    "craftLevel": 81,
+    "craftSkill": "leathercraft",
+    "recipe": {
+      "gold": 1670,
+      "materialsText": "Scale Leather×1, Bell Dust×1"
+    },
+    "stats": {
+      "def": 17,
+      "dex": 9,
+      "acc": 8
+    },
+    "slot": "head",
+    "jobRestrict": [
+      "rogue"
+    ],
+    "rarity": "Rare"
+  },
+  {
+    "id": 1097,
+    "name": "Rogue's Gloves",
+    "description": "Rogue's Gloves. Rare rogue hands, steel fingers with gold scale discs.",
+    "icon": "/icons/items/rogues-gloves.png",
+    "slug": "rogues-gloves",
+    "kind": "equipment",
+    "craftLevel": 83,
+    "craftSkill": "leathercraft",
+    "recipe": {
+      "gold": 1710,
+      "materialsText": "Scale Leather×1, Bell Dust×1"
+    },
+    "stats": {
+      "def": 17,
+      "acc": 9,
+      "dex": 8
+    },
+    "slot": "hands",
+    "jobRestrict": [
+      "rogue"
+    ],
+    "rarity": "Rare"
+  },
+  {
+    "id": 1098,
+    "name": "Rogue's Boots",
+    "description": "Rogue's Boots. Rare rogue feet, steel vamp with gold instep rivets.",
+    "icon": "/icons/items/rogues-boots.png",
+    "slug": "rogues-boots",
+    "kind": "equipment",
+    "craftLevel": 84,
+    "craftSkill": "leathercraft",
+    "recipe": {
+      "gold": 1730,
+      "materialsText": "Scale Leather×2, Bell Dust×1"
+    },
+    "stats": {
+      "def": 18,
+      "agi": 12,
+      "hp": 55
+    },
+    "slot": "feet",
+    "jobRestrict": [
+      "rogue"
+    ],
+    "rarity": "Rare"
+  },
+  {
+    "id": 1099,
+    "name": "Orichalcum Dagger",
+    "description": "Orichalcum Dagger. Epic rogue main, a gold short blade on a leather grip.",
+    "icon": "/icons/items/orichalcum-dagger.png",
+    "slug": "orichalcum-dagger",
+    "kind": "equipment",
+    "craftLevel": 87,
+    "craftSkill": "smithing",
+    "recipe": {
+      "gold": 1790,
+      "materialsText": "Orichalcum Ingot×1, Fine Leather×1, Throne Dust×1"
+    },
+    "stats": {
+      "atk": 40,
+      "dex": 12
+    },
+    "delayMs": 1800,
+    "slot": "main",
+    "jobRestrict": [
+      "rogue"
+    ],
+    "weaponFamily": "dagger",
+    "rarity": "Epic"
+  },
+  {
+    "id": 1100,
+    "name": "Battleweave Hat",
+    "description": "Battleweave Hat. Rare battlemage pointed hat with a steel brow.",
+    "icon": "/icons/items/battleweave-hat.png",
+    "slug": "battleweave-hat",
+    "kind": "equipment",
+    "craftLevel": 64,
+    "craftSkill": "clothcraft",
+    "recipe": {
+      "gold": 1330,
+      "materialsText": "Silk Cloth×1, Velvet Thread×1, Slag Dust×1"
+    },
+    "stats": {
+      "def": 15,
+      "int": 6,
+      "str": 3,
+      "mab": 6,
+      "mp": 60
+    },
+    "slot": "head",
+    "jobRestrict": [
+      "battlemage"
+    ],
+    "rarity": "Rare"
+  },
+  {
+    "id": 1101,
+    "name": "Battleweave Hood",
+    "description": "Battleweave Hood. Rare battlemage cowl, steel-trimmed cloth.",
+    "icon": "/icons/items/battleweave-hood.png",
+    "slug": "battleweave-hood",
+    "kind": "equipment",
+    "craftLevel": 81,
+    "craftSkill": "clothcraft",
+    "recipe": {
+      "gold": 1670,
+      "materialsText": "Velvet Cloth×1, Diamond×1, Throne Dust×1"
+    },
+    "stats": {
+      "def": 18,
+      "str": 6,
+      "int": 8,
+      "mp": 90
+    },
+    "slot": "head",
+    "jobRestrict": [
+      "battlemage"
+    ],
+    "rarity": "Rare"
+  },
+  {
+    "id": 1102,
+    "name": "Battleweave Gloves",
+    "description": "Battleweave Gloves. Rare battlemage hands, steel-wrapped cuffs.",
+    "icon": "/icons/items/battleweave-gloves.png",
+    "slug": "battleweave-gloves",
+    "kind": "equipment",
+    "craftLevel": 82,
+    "craftSkill": "clothcraft",
+    "recipe": {
+      "gold": 1690,
+      "materialsText": "Velvet Cloth×1, Throne Dust×1"
+    },
+    "stats": {
+      "def": 18,
+      "mab": 10,
+      "str": 5,
+      "int": 7
+    },
+    "slot": "hands",
+    "jobRestrict": [
+      "battlemage"
+    ],
+    "rarity": "Rare"
+  },
+  {
+    "id": 1103,
+    "name": "Rogue's Trousers",
+    "description": "Rogue's Trousers. Rare rogue legs, scale thighs with a gold hip band.",
+    "icon": "/icons/items/rogues-trousers.png",
+    "slug": "rogues-trousers",
+    "kind": "equipment",
+    "craftLevel": 85,
+    "craftSkill": "leathercraft",
+    "recipe": {
+      "gold": 1750,
+      "materialsText": "Scale Leather×2, Bell Dust×1"
+    },
+    "stats": {
+      "def": 24,
+      "agi": 14,
+      "hp": 70
+    },
+    "slot": "legs",
+    "jobRestrict": [
+      "rogue"
+    ],
+    "rarity": "Rare"
+  },
+  {
+    "id": 1104,
+    "name": "Battleweave Hose",
+    "description": "Battleweave Hose. Rare battlemage legs, steel-seamed cloth.",
+    "icon": "/icons/items/battleweave-hose.png",
+    "slug": "battleweave-hose",
+    "kind": "equipment",
+    "craftLevel": 86,
+    "craftSkill": "clothcraft",
+    "recipe": {
+      "gold": 1770,
+      "materialsText": "Velvet Cloth×2, Throne Dust×1"
+    },
+    "stats": {
+      "def": 27,
+      "mp": 90,
+      "str": 7,
+      "int": 8
+    },
+    "slot": "legs",
+    "jobRestrict": [
+      "battlemage"
+    ],
+    "rarity": "Rare"
+  },
+  {
+    "id": 1105,
+    "name": "Battleweave Slippers",
+    "description": "Battleweave Slippers. Rare battlemage feet, steel-seamed pumps.",
+    "icon": "/icons/items/battleweave-slippers.png",
+    "slug": "battleweave-slippers",
+    "kind": "equipment",
+    "craftLevel": 88,
+    "craftSkill": "clothcraft",
+    "recipe": {
+      "gold": 1810,
+      "materialsText": "Velvet Cloth×1, Throne Dust×1"
+    },
+    "stats": {
+      "def": 19,
+      "agi": 7,
+      "str": 4,
+      "mp": 100
+    },
+    "slot": "feet",
+    "jobRestrict": [
+      "battlemage"
+    ],
+    "rarity": "Rare"
+  },
+  {
+    "id": 1106,
+    "name": "Orichalcum War Cuisses",
+    "description": "Orichalcum War Cuisses. Epic fighter thighs, gold-rimmed steel.",
+    "icon": "/icons/items/orichalcum-war-cuisses.png",
+    "slug": "orichalcum-war-cuisses",
+    "kind": "equipment",
+    "craftLevel": 89,
+    "craftSkill": "smithing",
+    "recipe": {
+      "gold": 1830,
+      "materialsText": "Orichalcum Ingot×2, Marble Chip×1, Throne Dust×1"
+    },
+    "stats": {
+      "def": 27,
+      "vit": 10,
+      "hp": 96
+    },
+    "slot": "legs",
+    "jobRestrict": [
+      "fighter"
+    ],
+    "rarity": "Epic"
+  },
+  {
+    "id": 1107,
+    "name": "Throneweave Cuffs",
+    "description": "Throneweave Cuffs. Legendary caster hands, gold wrap on dark cloth.",
+    "icon": "/icons/items/throneweave-cuffs.png",
+    "slug": "throneweave-cuffs",
+    "kind": "equipment",
+    "craftLevel": 91,
+    "craftSkill": "clothcraft",
+    "recipe": {
+      "gold": 1870,
+      "materialsText": "Velvet Cloth×1, Diamond×1, Throne Dust×1"
+    },
+    "stats": {
+      "def": 20,
+      "mab": 12,
+      "int": 8
+    },
+    "slot": "hands",
+    "jobRestrict": [
+      "tim",
+      "sorcerer",
+      "cleric",
+      "druid"
+    ],
+    "rarity": "Legendary"
+  },
+  {
+    "id": 1108,
+    "name": "Throneweave Slacks",
+    "description": "Throneweave Slacks. Legendary caster legs, gold hip and knee.",
+    "icon": "/icons/items/throneweave-slacks.png",
+    "slug": "throneweave-slacks",
+    "kind": "equipment",
+    "craftLevel": 94,
+    "craftSkill": "clothcraft",
+    "recipe": {
+      "gold": 1930,
+      "materialsText": "Velvet Cloth×2, Diamond×1, Throne Dust×1"
+    },
+    "stats": {
+      "def": 32,
+      "mp": 100,
+      "int": 10
+    },
+    "slot": "legs",
+    "jobRestrict": [
+      "tim",
+      "sorcerer",
+      "cleric",
+      "druid"
+    ],
+    "rarity": "Legendary"
+  },
+  {
+    "id": 1109,
+    "name": "Throneweave Pumps",
+    "description": "Throneweave Pumps. Legendary caster feet, gold-trimmed vamp.",
+    "icon": "/icons/items/throneweave-pumps.png",
+    "slug": "throneweave-pumps",
+    "kind": "equipment",
+    "craftLevel": 98,
+    "craftSkill": "clothcraft",
+    "recipe": {
+      "gold": 2010,
+      "materialsText": "Velvet Cloth×1, Diamond×1, Throne Dust×1"
+    },
+    "stats": {
+      "def": 21,
+      "agi": 8,
+      "mp": 120
+    },
+    "slot": "feet",
+    "jobRestrict": [
+      "tim",
+      "sorcerer",
+      "cleric",
+      "druid"
+    ],
+    "rarity": "Legendary"
+  },
+  {
+    "id": 1110,
+    "name": "Steel Helm",
+    "description": "Steel Helm. Uncommon knight and fighter helm, steel crown with a gold face rim.",
+    "icon": "/icons/items/steel-helm.png",
+    "slug": "steel-helm",
+    "kind": "equipment",
+    "craftLevel": 32,
+    "craftSkill": "smithing",
+    "recipe": {
+      "gold": 690,
+      "materialsText": "Steel Ingot×1, Slag Dust×1"
+    },
+    "stats": {
+      "def": 9,
+      "str": 4,
+      "acc": 4
+    },
+    "slot": "head",
+    "jobRestrict": [
+      "knight",
+      "fighter"
+    ],
+    "rarity": "Uncommon"
+  },
+  {
+    "id": 1111,
+    "name": "Steel Mittens",
+    "description": "Steel Mittens. Uncommon knight and fighter hands, steel palms without gold rivets.",
+    "icon": "/icons/items/steel-mittens.png",
+    "slug": "steel-mittens",
+    "kind": "equipment",
+    "craftLevel": 33,
+    "craftSkill": "smithing",
+    "recipe": {
+      "gold": 710,
+      "materialsText": "Steel Ingot×1, Slag Dust×1"
+    },
+    "stats": {
+      "def": 9,
+      "atk": 4,
+      "acc": 4
+    },
+    "slot": "hands",
+    "jobRestrict": [
+      "knight",
+      "fighter"
+    ],
+    "rarity": "Uncommon"
+  },
+  {
+    "id": 1112,
+    "name": "Steel Shield",
+    "description": "Steel Shield. Uncommon tank and hybrid off-hand, gold boss on a steel rim.",
+    "icon": "/icons/items/steel-shield.png",
+    "slug": "steel-shield",
+    "kind": "equipment",
+    "craftLevel": 39,
+    "craftSkill": "smithing",
+    "recipe": {
+      "gold": 830,
+      "materialsText": "Steel Ingot×3, Steel Nail×1, Slag Dust×1"
+    },
+    "stats": {
+      "def": 19,
+      "vit": 4
+    },
+    "slot": "sub",
+    "jobRestrict": [
+      "knight",
+      "battlemage",
+      "cleric"
+    ],
+    "rarity": "Uncommon"
+  },
+  {
+    "id": 1113,
+    "name": "Steel Subligar",
+    "description": "Steel Subligar. Uncommon knight and fighter thighs, steel hip and knee.",
+    "icon": "/icons/items/steel-subligar.png",
+    "slug": "steel-subligar",
+    "kind": "equipment",
+    "craftLevel": 41,
+    "craftSkill": "smithing",
+    "recipe": {
+      "gold": 870,
+      "materialsText": "Steel Ingot×2, Slag Dust×1"
+    },
+    "stats": {
+      "def": 13,
+      "str": 5,
+      "hp": 48
+    },
+    "slot": "legs",
+    "jobRestrict": [
+      "knight",
+      "fighter"
+    ],
+    "rarity": "Uncommon"
+  },
+  {
+    "id": 1114,
+    "name": "Steel Sabatons",
+    "description": "Steel Sabatons. Uncommon knight and fighter feet, steel plate with an instep rivet.",
+    "icon": "/icons/items/steel-sabatons.png",
+    "slug": "steel-sabatons",
+    "kind": "equipment",
+    "craftLevel": 43,
+    "craftSkill": "smithing",
+    "recipe": {
+      "gold": 910,
+      "materialsText": "Steel Ingot×2, Slag Dust×1"
+    },
+    "stats": {
+      "def": 10,
+      "vit": 5,
+      "agi": 4,
+      "hp": 24
+    },
+    "slot": "feet",
+    "jobRestrict": [
+      "knight",
+      "fighter"
+    ],
+    "rarity": "Uncommon"
+  },
+  {
+    "id": 1115,
+    "name": "Mythril Mail",
+    "description": "Mythril Mail. Rare fighter plate, steel field with a pale medallion.",
+    "icon": "/icons/items/mythril-mail.png",
+    "slug": "mythril-mail",
+    "kind": "equipment",
+    "craftLevel": 45,
+    "craftSkill": "smithing",
+    "recipe": {
+      "gold": 950,
+      "materialsText": "Mythril Ingot×3, Steel Nail×1, Slag Dust×1"
+    },
+    "stats": {
+      "def": 34,
+      "vit": 12,
+      "hp": 48
+    },
+    "slot": "body",
+    "jobRestrict": [
+      "fighter"
+    ],
+    "rarity": "Rare"
+  },
+  {
+    "id": 1116,
+    "name": "Darksteel Greatsword",
+    "description": "Darksteel Greatsword. Epic two-hander, a dust-dark blade on a long grip.",
+    "icon": "/icons/items/darksteel-greatsword.png",
+    "slug": "darksteel-greatsword",
+    "kind": "equipment",
+    "craftLevel": 67,
+    "craftSkill": "smithing",
+    "recipe": {
+      "gold": 1390,
+      "materialsText": "Darksteel Ingot×4, Bell Dust×1"
+    },
+    "stats": {
+      "atk": 42,
+      "str": 10
+    },
+    "delayMs": 3800,
+    "slot": "main",
+    "twoHand": true,
+    "jobRestrict": [
+      "knight",
+      "fighter"
+    ],
+    "weaponFamily": "greatsword",
+    "rarity": "Epic"
+  },
+  {
+    "id": 1117,
+    "name": "Orichalcum Greatsword",
+    "description": "Orichalcum Greatsword. Epic two-hander, a gold blade on a long grip.",
+    "icon": "/icons/items/orichalcum-greatsword.png",
+    "slug": "orichalcum-greatsword",
+    "kind": "equipment",
+    "craftLevel": 90,
+    "craftSkill": "smithing",
+    "recipe": {
+      "gold": 1850,
+      "materialsText": "Orichalcum Ingot×4, Throne Dust×1"
+    },
+    "stats": {
+      "atk": 48,
+      "str": 11
+    },
+    "delayMs": 3800,
+    "slot": "main",
+    "twoHand": true,
+    "jobRestrict": [
+      "knight",
+      "fighter"
+    ],
+    "weaponFamily": "greatsword",
+    "rarity": "Epic"
+  },
+  {
+    "id": 1118,
+    "name": "Bronze Greatsword",
+    "description": "Bronze Greatsword. Common knight and fighter two-hander, a long bronze blade.",
+    "icon": "/icons/items/bronze-greatsword.png",
+    "slug": "bronze-greatsword",
+    "kind": "equipment",
+    "craftLevel": 15,
+    "craftSkill": "smithing",
+    "recipe": {
+      "gold": 350,
+      "materialsText": "Bronze Ingot×4, Pale Dust×1"
+    },
+    "stats": {
+      "atk": 12,
+      "str": 3
+    },
+    "delayMs": 3800,
+    "slot": "main",
+    "twoHand": true,
+    "jobRestrict": [
+      "knight",
+      "fighter"
+    ],
+    "weaponFamily": "greatsword",
+    "rarity": "Common"
+  },
+  {
+    "id": 1119,
+    "name": "Iron Axe",
+    "description": "Iron Axe. Common fighter one-hander, a steel labrys on a short haft.",
+    "icon": "/icons/items/iron-axe.png",
+    "slug": "iron-axe",
+    "kind": "equipment",
+    "craftLevel": 21,
+    "craftSkill": "smithing",
+    "recipe": {
+      "gold": 470,
+      "materialsText": "Iron Ingot×2, Ash Dust×1"
+    },
+    "stats": {
+      "atk": 11,
+      "str": 4
+    },
+    "delayMs": 2600,
+    "slot": "main",
+    "jobRestrict": [
+      "fighter"
+    ],
+    "weaponFamily": "axe",
+    "rarity": "Common"
+  },
+  {
+    "id": 1120,
+    "name": "Steel Great Axe",
+    "description": "Steel Great Axe. Uncommon fighter two-hander, a long steel labrys.",
+    "icon": "/icons/items/steel-great-axe.png",
+    "slug": "steel-great-axe",
+    "kind": "equipment",
+    "craftLevel": 47,
+    "craftSkill": "smithing",
+    "recipe": {
+      "gold": 990,
+      "materialsText": "Steel Ingot×4, Slag Dust×1"
+    },
+    "stats": {
+      "atk": 24,
+      "str": 6
+    },
+    "delayMs": 2600,
+    "slot": "main",
+    "twoHand": true,
+    "jobRestrict": [
+      "fighter"
+    ],
+    "weaponFamily": "axe",
+    "rarity": "Uncommon"
+  },
+  {
+    "id": 1121,
+    "name": "Mythril Targe",
+    "description": "Mythril Targe. Rare hybrid and healer off-hand, a pale trail field with a gold rim.",
+    "icon": "/icons/items/mythril-targe.png",
+    "slug": "mythril-targe",
+    "kind": "equipment",
+    "craftLevel": 53,
+    "craftSkill": "smithing",
+    "recipe": {
+      "gold": 1110,
+      "materialsText": "Mythril Ingot×2, Steel Nail×1, Slag Dust×1"
+    },
+    "stats": {
+      "def": 22,
+      "vit": 4,
+      "mdb": 2
+    },
+    "slot": "sub",
+    "jobRestrict": [
+      "battlemage",
+      "cleric"
+    ],
+    "rarity": "Rare"
+  },
+  {
+    "id": 1122,
+    "name": "Mythril Great Axe",
+    "description": "Mythril Great Axe. Rare fighter two-hander, a long pale labrys.",
+    "icon": "/icons/items/mythril-great-axe.png",
+    "slug": "mythril-great-axe",
+    "kind": "equipment",
+    "craftLevel": 55,
+    "craftSkill": "smithing",
+    "recipe": {
+      "gold": 1150,
+      "materialsText": "Mythril Ingot×4, Slag Dust×1"
+    },
+    "stats": {
+      "atk": 30,
+      "str": 8
+    },
+    "delayMs": 2600,
+    "slot": "main",
+    "twoHand": true,
+    "jobRestrict": [
+      "fighter"
+    ],
+    "weaponFamily": "axe",
+    "rarity": "Rare"
+  },
+  {
+    "id": 1123,
+    "name": "Mythril Dagger",
+    "description": "Mythril Dagger. Rare rogue short blade, a pale edge on a leather grip.",
+    "icon": "/icons/items/mythril-dagger.png",
+    "slug": "mythril-dagger",
+    "kind": "equipment",
+    "craftLevel": 57,
+    "craftSkill": "smithing",
+    "recipe": {
+      "gold": 1190,
+      "materialsText": "Mythril Ingot×1, Fine Leather×1, Slag Dust×1"
+    },
+    "stats": {
+      "atk": 22,
+      "dex": 7
+    },
+    "delayMs": 1800,
+    "slot": "main",
+    "jobRestrict": [
+      "rogue"
+    ],
+    "weaponFamily": "dagger",
+    "rarity": "Rare"
+  },
+  {
+    "id": 1124,
+    "name": "Darksteel Dagger",
+    "description": "Darksteel Dagger. Epic rogue short blade, a dust-dark edge.",
+    "icon": "/icons/items/darksteel-dagger.png",
+    "slug": "darksteel-dagger",
+    "kind": "equipment",
+    "craftLevel": 63,
+    "craftSkill": "smithing",
+    "recipe": {
+      "gold": 1310,
+      "materialsText": "Darksteel Ingot×1, Fine Leather×1, Bell Dust×1"
+    },
+    "stats": {
+      "atk": 36,
+      "dex": 10
+    },
+    "delayMs": 1800,
+    "slot": "main",
+    "jobRestrict": [
+      "rogue"
+    ],
+    "weaponFamily": "dagger",
+    "rarity": "Epic"
+  },
+  {
+    "id": 1125,
+    "name": "Palace Sword",
+    "description": "Palace Sword. Legendary knight hybrid one-hander, a gold blade.",
+    "icon": "/icons/items/palace-sword.png",
+    "slug": "palace-sword",
+    "kind": "equipment",
+    "craftLevel": 99,
+    "craftSkill": "smithing",
+    "recipe": {
+      "gold": 2030,
+      "materialsText": "Orichalcum Ingot×2, Bellwood Lumber×1, Throne Dust×1"
+    },
+    "stats": {
+      "atk": 46,
+      "str": 12,
+      "int": 8
+    },
+    "delayMs": 2400,
+    "slot": "main",
+    "jobRestrict": [
+      "knight",
+      "fighter",
+      "battlemage"
+    ],
+    "weaponFamily": "sword",
+    "rarity": "Legendary"
+  },
+  {
+    "id": 1126,
+    "name": "Bronze Dagger",
+    "description": "Bronze Dagger. Common rogue short blade, a copper edge on a leather grip.",
+    "icon": "/icons/items/bronze-dagger.png",
+    "slug": "bronze-dagger",
+    "kind": "equipment",
+    "craftLevel": 13,
+    "craftSkill": "smithing",
+    "recipe": {
+      "gold": 310,
+      "materialsText": "Bronze Ingot×1, Leather×1, Pale Dust×1"
+    },
+    "stats": {
+      "atk": 8,
+      "dex": 3
+    },
+    "delayMs": 1800,
+    "slot": "main",
+    "jobRestrict": [
+      "rogue"
+    ],
+    "weaponFamily": "dagger",
+    "rarity": "Common"
+  },
+  {
+    "id": 1127,
+    "name": "Bronze Great Axe",
+    "description": "Bronze Great Axe. Common fighter two-hander, a long copper labrys.",
+    "icon": "/icons/items/bronze-great-axe.png",
+    "slug": "bronze-great-axe",
+    "kind": "equipment",
+    "craftLevel": 17,
+    "craftSkill": "smithing",
+    "recipe": {
+      "gold": 390,
+      "materialsText": "Bronze Ingot×4, Pale Dust×1"
+    },
+    "stats": {
+      "atk": 10,
+      "str": 3
+    },
+    "delayMs": 2600,
+    "slot": "main",
+    "twoHand": true,
+    "jobRestrict": [
+      "fighter"
+    ],
+    "weaponFamily": "axe",
+    "rarity": "Common"
+  },
+  {
+    "id": 1128,
+    "name": "Steel Dagger",
+    "description": "Steel Dagger. Uncommon rogue short blade, a grey edge on a leather grip.",
+    "icon": "/icons/items/steel-dagger.png",
+    "slug": "steel-dagger",
+    "kind": "equipment",
+    "craftLevel": 56,
+    "craftSkill": "smithing",
+    "recipe": {
+      "gold": 1170,
+      "materialsText": "Steel Ingot×1, Fine Leather×1, Slag Dust×1"
+    },
+    "stats": {
+      "atk": 16,
+      "dex": 5
+    },
+    "delayMs": 1800,
+    "slot": "main",
+    "jobRestrict": [
+      "rogue"
+    ],
+    "weaponFamily": "dagger",
+    "rarity": "Uncommon"
+  },
+  {
+    "id": 1129,
+    "name": "Steel Axe",
+    "description": "Steel Axe. Uncommon fighter one-hander, a gold-socket labrys on a short haft.",
+    "icon": "/icons/items/steel-axe.png",
+    "slug": "steel-axe",
+    "kind": "equipment",
+    "craftLevel": 59,
+    "craftSkill": "smithing",
+    "recipe": {
+      "gold": 1230,
+      "materialsText": "Steel Ingot×2, Slag Dust×1"
+    },
+    "stats": {
+      "atk": 18,
+      "str": 5
+    },
+    "delayMs": 2600,
+    "slot": "main",
+    "jobRestrict": [
+      "fighter"
+    ],
+    "weaponFamily": "axe",
+    "rarity": "Uncommon"
+  },
+  {
+    "id": 1130,
+    "name": "Mythril Axe",
+    "description": "Mythril Axe. Rare fighter one-hander, a pale labrys on a short haft.",
+    "icon": "/icons/items/mythril-axe.png",
+    "slug": "mythril-axe",
+    "kind": "equipment",
+    "craftLevel": 61,
+    "craftSkill": "smithing",
+    "recipe": {
+      "gold": 1270,
+      "materialsText": "Mythril Ingot×2, Slag Dust×1"
+    },
+    "stats": {
+      "atk": 24,
+      "str": 7
+    },
+    "delayMs": 2600,
+    "slot": "main",
+    "jobRestrict": [
+      "fighter"
+    ],
+    "weaponFamily": "axe",
+    "rarity": "Rare"
+  },
+  {
+    "id": 1131,
+    "name": "Darksteel Axe",
+    "description": "Darksteel Axe. Epic fighter one-hander, a dust-dark labrys on a short haft.",
+    "icon": "/icons/items/darksteel-axe.png",
+    "slug": "darksteel-axe",
+    "kind": "equipment",
+    "craftLevel": 64,
+    "craftSkill": "smithing",
+    "recipe": {
+      "gold": 1330,
+      "materialsText": "Darksteel Ingot×2, Bell Dust×1"
+    },
+    "stats": {
+      "atk": 30,
+      "str": 8
+    },
+    "delayMs": 2600,
+    "slot": "main",
+    "jobRestrict": [
+      "fighter"
+    ],
+    "weaponFamily": "axe",
+    "rarity": "Epic"
+  },
+  {
+    "id": 1132,
+    "name": "Bone Gloves",
+    "description": "Bone Gloves. Common fighter and rogue hands, ivory finger tubes on hide cuffs.",
+    "icon": "/icons/items/bone-gloves.png",
+    "slug": "bone-gloves",
+    "kind": "equipment",
+    "craftLevel": 29,
+    "craftSkill": "bonecraft",
+    "recipe": {
+      "gold": 630,
+      "materialsText": "Bone Chip×2, Soft Pelt×1, Ash Dust×1"
+    },
+    "stats": {
+      "def": 7,
+      "dex": 3,
+      "acc": 3
+    },
+    "slot": "hands",
+    "jobRestrict": [
+      "fighter",
+      "rogue"
+    ],
+    "rarity": "Common"
+  },
+  {
+    "id": 1133,
+    "name": "Bone Boots",
+    "description": "Bone Boots. Common fighter and rogue feet, ivory wraps on hide soles.",
+    "icon": "/icons/items/bone-boots.png",
+    "slug": "bone-boots",
+    "kind": "equipment",
+    "craftLevel": 33,
+    "craftSkill": "bonecraft",
+    "recipe": {
+      "gold": 710,
+      "materialsText": "Bone Chip×2, Soft Pelt×1, Ash Dust×1"
+    },
+    "stats": {
+      "def": 7,
+      "agi": 3,
+      "dex": 2,
+      "hp": 16
+    },
+    "slot": "feet",
+    "jobRestrict": [
+      "fighter",
+      "rogue"
+    ],
+    "rarity": "Common"
+  },
+  {
+    "id": 1134,
+    "name": "Orichalcum Axe",
+    "description": "Orichalcum Axe. Epic fighter one-hander, a gold-trail labrys on a short haft.",
+    "icon": "/icons/items/orichalcum-axe.png",
+    "slug": "orichalcum-axe",
+    "kind": "equipment",
+    "craftLevel": 76,
+    "craftSkill": "smithing",
+    "recipe": {
+      "gold": 1570,
+      "materialsText": "Orichalcum Ingot×2, Throne Dust×1"
+    },
+    "stats": {
+      "atk": 36,
+      "str": 10
+    },
+    "delayMs": 2600,
+    "slot": "main",
+    "jobRestrict": [
+      "fighter"
+    ],
+    "weaponFamily": "axe",
+    "rarity": "Epic"
+  },
+  {
+    "id": 1135,
+    "name": "Orichalcum Great Axe",
+    "description": "Orichalcum Great Axe. Epic fighter two-hander, a gold-trail labrys on a long haft.",
+    "icon": "/icons/items/orichalcum-great-axe.png",
+    "slug": "orichalcum-great-axe",
+    "kind": "equipment",
+    "craftLevel": 77,
+    "craftSkill": "smithing",
+    "recipe": {
+      "gold": 1590,
+      "materialsText": "Orichalcum Ingot×4, Throne Dust×1"
+    },
+    "stats": {
+      "atk": 42,
+      "str": 11
+    },
+    "delayMs": 2600,
+    "slot": "main",
+    "twoHand": true,
+    "jobRestrict": [
+      "fighter"
+    ],
+    "weaponFamily": "axe",
+    "rarity": "Epic"
+  },
+  {
+    "id": 1136,
+    "name": "Orichalcum Shield",
+    "description": "Orichalcum Shield. Epic knight round, a gold face on the darksteel shield mesh.",
+    "icon": "/icons/items/orichalcum-shield.png",
+    "slug": "orichalcum-shield",
+    "kind": "equipment",
+    "craftLevel": 78,
+    "craftSkill": "smithing",
+    "recipe": {
+      "gold": 1610,
+      "materialsText": "Orichalcum Ingot×3, Darksteel Nail×1, Throne Dust×1"
+    },
+    "stats": {
+      "def": 36,
+      "vit": 8
+    },
+    "slot": "sub",
+    "jobRestrict": [
+      "knight"
+    ],
+    "rarity": "Epic"
+  },
+  {
+    "id": 1137,
+    "name": "Palace Greatsword",
+    "description": "Palace Greatsword. Legendary knight and fighter two-hander, a trail-gold long blade.",
+    "icon": "/icons/items/palace-greatsword.png",
+    "slug": "palace-greatsword",
+    "kind": "equipment",
+    "craftLevel": 96,
+    "craftSkill": "smithing",
+    "recipe": {
+      "gold": 1970,
+      "materialsText": "Orichalcum Ingot×4, Throne Dust×1"
+    },
+    "stats": {
+      "atk": 54,
+      "str": 13
+    },
+    "delayMs": 3800,
+    "slot": "main",
+    "twoHand": true,
+    "jobRestrict": [
+      "knight",
+      "fighter"
+    ],
+    "weaponFamily": "greatsword",
+    "rarity": "Legendary"
+  },
+  {
+    "id": 1138,
+    "name": "Palace Targe",
+    "description": "Palace Targe. Legendary battlemage and cleric small round, a gold face.",
+    "icon": "/icons/items/palace-targe.png",
+    "slug": "palace-targe",
+    "kind": "equipment",
+    "craftLevel": 97,
+    "craftSkill": "smithing",
+    "recipe": {
+      "gold": 1990,
+      "materialsText": "Orichalcum Ingot×2, Marble Chip×1, Throne Dust×1"
+    },
+    "stats": {
+      "def": 38,
+      "vit": 8,
+      "mdb": 6
+    },
+    "slot": "sub",
+    "jobRestrict": [
+      "battlemage",
+      "cleric"
+    ],
+    "rarity": "Legendary"
+  },
+  {
+    "id": 1139,
+    "name": "Iron Nail×12",
+    "description": "Iron Nail×12 — worked stock from Mayflower's benches. Feed it into higher recipes.",
+    "icon": "/icons/items/iron-nail.png",
+    "slug": "iron-nail",
+    "kind": "intermediate",
+    "craftLevel": 19,
+    "craftSkill": "smithing",
+    "craftOutputQty": 12,
+    "recipe": {
+      "gold": 430,
+      "materialsText": "Iron Ingot×1, Ash Dust×1"
+    }
+  },
+  {
+    "id": 1140,
+    "name": "Slag DEX Elixir",
+    "description": "Slag DEX Elixir. Supplies from Mayflower's stillrooms, fletchers' benches and cookfires.",
+    "icon": "/icons/items/slag-dex-elixir.png",
+    "slug": "slag-dex-elixir",
+    "kind": "consumable",
+    "craftLevel": 53,
+    "craftSkill": "alchemy",
+    "recipe": {
+      "gold": 1110,
+      "materialsText": "Distilled Ash×1, Slag Dust×1"
+    },
+    "stats": {
+      "hp": 146,
+      "mp": 146
+    },
+    "consume": {
+      "hp": 146,
+      "mp": 146
+    }
+  },
+  {
+    "id": 1141,
+    "name": "Fine Leather Belt",
+    "description": "Fine Leather Belt — worked stock from Mayflower's benches. Feed it into higher recipes.",
+    "icon": "/icons/items/fine-leather-belt.png",
+    "slug": "fine-leather-belt",
+    "kind": "intermediate",
+    "craftLevel": 61,
+    "craftSkill": "leathercraft",
+    "recipe": {
+      "gold": 1270,
+      "materialsText": "Fine Leather×1, Slag Dust×1"
     }
   }
 ] as ItemDef[];

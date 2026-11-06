@@ -26,6 +26,13 @@ test("contain letterbox puts a portrait tap above the image", () => {
   const [, fy] = fbFromClient({ left: 0, top: 0, width: 393, height: 851 }, 200, 260, false);
   assert.ok(fy < 0);
 });
+test("cover fills a wide desktop window without letterbox hits", () => {
+  const r = { left: 0, top: 0, width: 1920, height: 900 };
+  const [fx, fy] = fbFromClient(r, 960, 450, true);
+  assert.ok(fx >= 0 && fx <= 640 && fy >= 0 && fy <= 360);
+  const [cx, cy] = fbToClient(1920, 900, fx, fy, true);
+  assert.ok(Math.abs(cx - 960) < 1e-6 && Math.abs(cy - 450) < 1e-6);
+});
 
 test("atmosphere off on touch, overridable", () => {
   assert.equal(atmosphereFor(true, ""), false);

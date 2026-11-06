@@ -285,8 +285,7 @@ export function resolveClericAbility(
 
   if (id === "rest") {
     if (p.anim === "rest") {
-      hooks.stopRest(p);
-      hooks.pushLog(p, "You stand.");
+      hooks.stopRest(p, "You stand.");
       return true;
     }
     p.moveTo = null;

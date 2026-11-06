@@ -20,12 +20,18 @@ use crate::gear::{
     BRONZE_SWORD_ITEM, DARKSTEEL_BLADE_ITEM, DARKSTEEL_GREAT_AXE_ITEM, DARKSTEEL_HELM_ITEM,
     FANG_DAGGER_ITEM, IRON_DAGGER_ITEM, IRON_GREAT_AXE_ITEM, IRON_GREATSWORD_ITEM, IRON_HELM_ITEM,
     MYTHRIL_GREATSWORD_ITEM, MYTHRIL_HELM_ITEM, MYTHRIL_SWORD_ITEM, NEOLITHIC_DAGGER_ITEM,
-    ORICHALCUM_SWORD_ITEM, PALACE_GREAT_AXE_ITEM, PALACE_HELM_ITEM, SCALE_MAIL_HELM_ITEM,
-    SHADE_HELM_ITEM, STEEL_GREATSWORD_ITEM, BELL_TORQUE_BAND_ITEM, CIRCLET_ITEM, LINEN_HELM_ITEM,
+    ORICHALCUM_SWORD_ITEM, ORICHALCUM_WAR_GAUNTLETS_ITEM, ORICHALCUM_WAR_HELM_ITEM, PALACE_GREAT_AXE_ITEM, PALACE_HELM_ITEM, ROGUES_HELM_ITEM, SCALE_MAIL_HELM_ITEM,
+    SHADE_HELM_ITEM, STEEL_GREATSWORD_ITEM, STEEL_SWORD_ITEM, BELL_TORQUE_BAND_ITEM, CIRCLET_ITEM, LINEN_HELM_ITEM,
     LEATHER_BANDANA_ITEM, MYTHRIL_TORQUE_ITEM, SHADE_LEATHER_BANDANA_ITEM, FINE_JERKIN_HELM_ITEM,
-    SKULL_BANDANA_ITEM, SILK_HAT_ITEM, VELVET_HAT_ITEM, DECAYED_SWORD_ITEM, uses_bandana_mesh,
+    SKULL_BANDANA_ITEM, SILK_HAT_ITEM, VELVET_HAT_ITEM, DECAYED_SWORD_ITEM,
+    ALTARWEAVE_COAT_ITEM, ALTARWEAVE_CUFFS_ITEM, ALTARWEAVE_PUMPS_ITEM, ALTARWEAVE_SLACKS_ITEM,
+    ASHBEAM_TOME_ITEM, BATTLEWEAVE_COAT_ITEM, BATTLEWEAVE_CUFFS_ITEM, BATTLEWEAVE_RAIMENT_ITEM,
+    BATTLEWEAVE_PUMPS_ITEM, BATTLEWEAVE_SLACKS_ITEM,
+    BELLWOOD_CROZIER_ITEM, BLOODBEAM_CROZIER_ITEM, BRONZE_SABATONS_ITEM, DECAYED_GREAVES_ITEM,
+    IRON_SABATONS_ITEM, ORICHALCUM_WAR_SABATONS_ITEM, uses_catalog_staff_ron,
+    uses_bandana_mesh,
 };
-use crate::palette::{CR_TUSK, GEAR_BONE, GEAR_BRONZE, GEAR_LEATHER, GEAR_LEATHER_FAR, ROCK, ROCK_D};
+use crate::palette::{CR_TUSK, GEAR_BONE, GEAR_BRONZE, GEAR_LEATHER, GEAR_LEATHER_FAR, ROCK, ROCK_D, WOOD};
 
 /// Lay the figure down along its facing. `t` in 0..1 (0 = standing).
 pub fn collapse(j: &mut Joints, ground: Vec3, yaw: f32, t: f32) {
@@ -129,7 +135,7 @@ pub fn draw_garbed(
     }
     fb.capsule(p(j.hip[0]), p(j.hip[1]), t, legs, o);
     fb.capsule(p(j.pelvis), p(j.chest), t + 0.6 + garb.bulk, torso, o);
-    let yoke = if garb.robe {
+    let yoke = if garb.robe || garb.coat_item != 0 {
         crate::palette::WATER
     } else if garb.vest {
         crate::palette::GEAR_LEATHER
@@ -140,11 +146,18 @@ pub fn draw_garbed(
     };
     fb.capsule(p(j.shoulder[0]), p(j.shoulder[1]), t + garb.bulk * 0.5, yoke, o);
     fb.capsule(p(j.chest), p(j.neck), t * 0.8, yoke, o);
-    fb.disc(p(j.neck), t + 0.4, if garb.robe || garb.vest || garb.harness { yoke } else { look.accent }, None);
+    fb.disc(p(j.neck), t + 0.4, if garb.robe || garb.coat_item != 0 || garb.vest || garb.harness { yoke } else { look.accent }, None);
     if garb.plate {
-        draw_iron_cuirass(fb, cam, j);
+        draw_iron_cuirass(fb, cam, j, garb.plate_item);
     }
-    if garb.robe {
+    if garb.hauberk_item != 0 {
+        draw_orichalcum_mail(fb, cam, j);
+    }
+    if garb.coat_item == BATTLEWEAVE_COAT_ITEM || garb.coat_item == BATTLEWEAVE_RAIMENT_ITEM {
+        draw_battleweave_coat(fb, cam, j);
+    } else if garb.coat_item == ALTARWEAVE_COAT_ITEM {
+        draw_altarweave_coat(fb, cam, j);
+    } else if garb.robe {
         draw_wizard_robe(fb, cam, j);
     }
     if garb.vest {
@@ -156,9 +169,21 @@ pub fn draw_garbed(
     if garb.cuisses {
         draw_iron_cuisses(fb, cam, j);
     }
+    if garb.leather_trousers {
+        draw_leather_trousers(fb, cam, j);
+    }
+    if garb.legs_item != 0 {
+        draw_catalog_slacks(fb, cam, j, garb.legs_item);
+    }
+    if garb.feet_item != 0 {
+        draw_catalog_feet(fb, cam, j, garb.feet_item);
+    }
+    if garb.hands_item != 0 {
+        draw_catalog_hands(fb, cam, j, garb.hands_item);
+    }
     let head_px = pr.head_r * HEIGHT_PX * cam.scale_at(j.head);
     fb.disc(p(j.head), head_px, look.body, o);
-    let hair_ok = garb.helm_item == 0 && garb.hat_item.is_none() && garb.headband_item == 0 && garb.head.is_none();
+    let hair_ok = garb.helm_item == 0 && garb.hat_item.is_none() && garb.headband_item == 0 && garb.hood_item == 0 && garb.head.is_none();
     if hair_ok {
         if let Some((rig, body)) = hair_rig {
             if body.hair != stick_engine::body::HairStyle::None {
@@ -172,16 +197,18 @@ pub fn draw_garbed(
         draw_leather_bandana(fb, cam, j, garb.headband_item);
     } else if garb.headband_item != 0 {
         draw_headband(fb, cam, j, garb.headband_item);
+    } else if garb.hood_item != 0 {
+        head_gear(fb, cam, j, pr.head_r, HeadStyle::Hood, crate::palette::WATER, C_STEEL);
     } else if let Some(item) = garb.hat_item {
         draw_cloth_hat(fb, cam, j, item);
     } else if let Some((style, c, crest)) = garb.head {
         head_gear(fb, cam, j, pr.head_r, style, c, crest);
     }
     if garb.shield {
-        draw_iron_shield(fb, cam, j);
+        draw_iron_shield(fb, cam, j, garb.shield_item);
     }
     if garb.kite {
-        draw_kite_shield(fb, cam, j);
+        draw_kite_shield(fb, cam, j, garb.shield_item);
     }
     }
     let w = garb.weapon.unwrap_or(WeaponLook::plain(Weapon::None));
@@ -265,7 +292,7 @@ pub fn draw_garbed(
         }
         Weapon::Axe => {
             if let Some(style) = pixel_labrys_style(w.seed) {
-                let (head_mul, haft_mul) = if w.seed == BRONZE_AXE_ITEM || w.seed == DECAYED_AXE_ITEM {
+                let (head_mul, haft_mul) = if pixel_one_hand_axe(w.seed) {
                     (1.0, 1.0)
                 } else {
                     (1.5, 3.0)
@@ -300,14 +327,18 @@ pub fn draw_garbed(
             }
         }
         Weapon::Staff => {
-            // A staff held upright-ish: shaft through the hand, tilted along the swing.
-            let d = j.sword_dir * 0.35 + v3(0.0, 1.0, 0.0);
-            let dir = d * (1.0 / d.len().max(1e-3));
-            let reach = 0.75 * w.len;
-            let foot = hand - dir * reach;
-            let top = hand + dir * reach;
-            fb.capsule(p(foot), p(top), 1.1, w.grip, o);
-            fb.disc(p(top + dir * 0.05), 2.4, if garb.weapon.is_some() && w.gem != C_ACCENT { w.gem } else { look.accent }, o);
+            if uses_catalog_staff_ron(w.seed) {
+                draw_catalog_staff_ron(fb, cam, j, w.seed);
+            } else {
+                // A staff stands upright through the hand, with a light swing tilt.
+                let d = j.sword_dir * 0.12 + v3(0.0, 1.0, 0.0);
+                let dir = d * (1.0 / d.len().max(1e-3));
+                let reach = 0.75 * w.len;
+                let foot = hand - dir * reach;
+                let top = hand + dir * reach;
+                fb.capsule(p(foot), p(top), 1.1, w.grip, o);
+                fb.disc(p(top + dir * 0.05), 2.4, if garb.weapon.is_some() && w.gem != C_ACCENT { w.gem } else { look.accent }, o);
+            }
         }
         Weapon::None => {}
     }}
@@ -413,7 +444,13 @@ fn layout_great() -> PixelSwordLayout {
 fn pixel_greatsword_item(seed: u32) -> bool {
     matches!(
         seed,
-        IRON_GREATSWORD_ITEM | STEEL_GREATSWORD_ITEM | MYTHRIL_GREATSWORD_ITEM
+        IRON_GREATSWORD_ITEM
+            | STEEL_GREATSWORD_ITEM
+            | MYTHRIL_GREATSWORD_ITEM
+            | crate::gear::DARKSTEEL_GREATSWORD_ITEM
+            | crate::gear::ORICHALCUM_GREATSWORD_ITEM
+            | crate::gear::BRONZE_GREATSWORD_ITEM
+            | crate::gear::PALACE_GREATSWORD_ITEM
     )
 }
 
@@ -424,6 +461,12 @@ fn pixel_dagger_item(seed: u32) -> bool {
             | NEOLITHIC_DAGGER_ITEM
             | FANG_DAGGER_ITEM
             | BONE_DAGGER_ITEM
+            | crate::gear::ROGUES_DAGGER_ITEM
+            | crate::gear::ORICHALCUM_DAGGER_ITEM
+            | crate::gear::MYTHRIL_DAGGER_ITEM
+            | crate::gear::DARKSTEEL_DAGGER_ITEM
+            | crate::gear::BRONZE_DAGGER_ITEM
+            | crate::gear::STEEL_DAGGER_ITEM
     )
 }
 
@@ -466,30 +509,70 @@ fn pixel_sword_offhand_grip_y(lay: &PixelSwordLayout) -> f32 {
 #[derive(Clone, Copy)]
 enum LabrysPalette {
     Bronze,
+    BronzeGreat,
     Decayed,
+    Iron,
     IronGreat,
+    Steel,
+    SteelGreat,
+    Mythril,
+    MythrilGreat,
+    Darksteel,
     DarksteelGreat,
     PalaceGreat,
+    Orichalcum,
+    OrichalcumGreat,
+}
+
+fn pixel_one_hand_axe(seed: u32) -> bool {
+    matches!(
+        seed,
+        BRONZE_AXE_ITEM
+            | DECAYED_AXE_ITEM
+            | crate::gear::IRON_AXE_ITEM
+            | crate::gear::STEEL_AXE_ITEM
+            | crate::gear::MYTHRIL_AXE_ITEM
+            | crate::gear::DARKSTEEL_AXE_ITEM
+            | crate::gear::ORICHALCUM_AXE_ITEM
+    )
 }
 
 fn pixel_labrys_style(seed: u32) -> Option<LabrysPalette> {
     match seed {
         BRONZE_AXE_ITEM => Some(LabrysPalette::Bronze),
+        crate::gear::BRONZE_GREAT_AXE_ITEM => Some(LabrysPalette::BronzeGreat),
         DECAYED_AXE_ITEM => Some(LabrysPalette::Decayed),
+        crate::gear::IRON_AXE_ITEM => Some(LabrysPalette::Iron),
         IRON_GREAT_AXE_ITEM => Some(LabrysPalette::IronGreat),
+        crate::gear::STEEL_AXE_ITEM => Some(LabrysPalette::Steel),
+        crate::gear::STEEL_GREAT_AXE_ITEM => Some(LabrysPalette::SteelGreat),
+        crate::gear::MYTHRIL_AXE_ITEM => Some(LabrysPalette::Mythril),
+        crate::gear::MYTHRIL_GREAT_AXE_ITEM => Some(LabrysPalette::MythrilGreat),
+        crate::gear::DARKSTEEL_AXE_ITEM => Some(LabrysPalette::Darksteel),
         DARKSTEEL_GREAT_AXE_ITEM => Some(LabrysPalette::DarksteelGreat),
         PALACE_GREAT_AXE_ITEM => Some(LabrysPalette::PalaceGreat),
+        crate::gear::ORICHALCUM_AXE_ITEM => Some(LabrysPalette::Orichalcum),
+        crate::gear::ORICHALCUM_GREAT_AXE_ITEM => Some(LabrysPalette::OrichalcumGreat),
         _ => None,
     }
 }
 
 fn labrys_colors(style: LabrysPalette) -> (u8, u8, u8, u8, u8) {
     match style {
-        LabrysPalette::Bronze => (C_GOLD, GEAR_LEATHER_FAR, C_GOLD, C_GOLD, C_OUTLINE),
+        LabrysPalette::Bronze | LabrysPalette::BronzeGreat => {
+            (C_GOLD, GEAR_LEATHER_FAR, C_GOLD, C_GOLD, C_OUTLINE)
+        }
         LabrysPalette::Decayed => (C_OUTLINE, C_OUTLINE, C_OUTLINE, C_OUTLINE, C_OUTLINE),
+        LabrysPalette::Iron => (C_STEEL, C_STEEL, C_SHADOW, C_STEEL, C_OUTLINE),
         LabrysPalette::IronGreat => (C_STEEL, C_STEEL, C_SHADOW, C_STEEL, C_OUTLINE),
+        LabrysPalette::Steel | LabrysPalette::SteelGreat => (C_STEEL, C_STEEL, C_GOLD, C_STEEL, C_OUTLINE),
+        LabrysPalette::Mythril => (C_TRAIL, C_DASH, C_TRAIL, C_TRAIL, C_OUTLINE),
+        LabrysPalette::MythrilGreat => (C_TRAIL, C_DASH, C_SHADOW, C_TRAIL, C_OUTLINE),
+        LabrysPalette::Darksteel => (C_DUST, C_DUST, C_OUTLINE, C_DUST, C_OUTLINE),
         LabrysPalette::DarksteelGreat => (C_STEEL, C_DUST, C_SHADOW, C_STEEL, C_OUTLINE),
         LabrysPalette::PalaceGreat => (C_GOLD, C_DASH, C_STEEL, C_GOLD, C_OUTLINE),
+        LabrysPalette::Orichalcum => (C_TRAIL, C_TRAIL, C_GOLD, C_TRAIL, C_OUTLINE),
+        LabrysPalette::OrichalcumGreat => (C_TRAIL, C_STEEL, C_GOLD, C_TRAIL, C_OUTLINE),
     }
 }
 
@@ -535,7 +618,7 @@ struct PixelSwordPalette {
 
 fn pixel_sword_palette(item_id: u32) -> PixelSwordPalette {
     match item_id {
-        BRONZE_SWORD_ITEM => PixelSwordPalette {
+        BRONZE_SWORD_ITEM | crate::gear::BRONZE_GREATSWORD_ITEM | crate::gear::BRONZE_DAGGER_ITEM => PixelSwordPalette {
             grip: crate::palette::GEAR_LEATHER,
             guard: crate::palette::GEAR_LEATHER_FAR,
             blade: GEAR_BRONZE,
@@ -543,7 +626,7 @@ fn pixel_sword_palette(item_id: u32) -> PixelSwordPalette {
             plate: GEAR_BRONZE,
             fuller: C_SHADOW,
         },
-        DARKSTEEL_BLADE_ITEM => PixelSwordPalette {
+        DARKSTEEL_BLADE_ITEM | crate::gear::DARKSTEEL_GREATSWORD_ITEM | crate::gear::DARKSTEEL_DAGGER_ITEM => PixelSwordPalette {
             grip: C_OUTLINE,
             guard: C_OUTLINE,
             blade: C_DUST,
@@ -551,7 +634,7 @@ fn pixel_sword_palette(item_id: u32) -> PixelSwordPalette {
             plate: C_DUST,
             fuller: C_OUTLINE,
         },
-        MYTHRIL_SWORD_ITEM | MYTHRIL_GREATSWORD_ITEM => PixelSwordPalette {
+        MYTHRIL_SWORD_ITEM | MYTHRIL_GREATSWORD_ITEM | crate::gear::MYTHRIL_DAGGER_ITEM => PixelSwordPalette {
             grip: C_TRAIL,
             guard: C_TRAIL,
             blade: C_DASH,
@@ -559,7 +642,7 @@ fn pixel_sword_palette(item_id: u32) -> PixelSwordPalette {
             plate: C_DASH,
             fuller: C_SHADOW,
         },
-        STEEL_GREATSWORD_ITEM => PixelSwordPalette {
+        STEEL_SWORD_ITEM | STEEL_GREATSWORD_ITEM | crate::gear::STEEL_DAGGER_ITEM => PixelSwordPalette {
             grip: C_SHADOW,
             guard: C_DUST,
             blade: C_STEEL,
@@ -567,7 +650,7 @@ fn pixel_sword_palette(item_id: u32) -> PixelSwordPalette {
             plate: C_STEEL,
             fuller: C_OUTLINE,
         },
-        ORICHALCUM_SWORD_ITEM => PixelSwordPalette {
+        ORICHALCUM_SWORD_ITEM | crate::gear::ORICHALCUM_GREATSWORD_ITEM | crate::gear::PALACE_GREATSWORD_ITEM => PixelSwordPalette {
             grip: C_TRAIL,
             guard: C_TRAIL,
             blade: C_TRAIL,
@@ -590,6 +673,30 @@ fn pixel_sword_palette(item_id: u32) -> PixelSwordPalette {
             edge: ROCK_D,
             plate: ROCK,
             fuller: C_SHADOW,
+        },
+        crate::gear::ROGUES_DAGGER_ITEM => PixelSwordPalette {
+            grip: GEAR_LEATHER_FAR,
+            guard: C_SHADOW,
+            blade: C_STEEL,
+            edge: C_GOLD,
+            plate: C_STEEL,
+            fuller: C_SHADOW,
+        },
+        crate::gear::ORICHALCUM_DAGGER_ITEM => PixelSwordPalette {
+            grip: GEAR_LEATHER_FAR,
+            guard: C_GOLD,
+            blade: C_GOLD,
+            edge: C_STEEL,
+            plate: C_GOLD,
+            fuller: C_SHADOW,
+        },
+        crate::gear::PALACE_SWORD_ITEM => PixelSwordPalette {
+            grip: C_SHADOW,
+            guard: C_GOLD,
+            blade: C_GOLD,
+            edge: C_DASH,
+            plate: C_GOLD,
+            fuller: C_STEEL,
         },
         FANG_DAGGER_ITEM => PixelSwordPalette {
             grip: GEAR_LEATHER_FAR,
@@ -1290,6 +1397,75 @@ fn draw_gear_shapes(
     draw_gear_in_frame(fb, cam, j, fig_hand_frame(j, right), g, tint);
 }
 
+fn bloodbeam_crozier() -> &'static GearDef {
+    use std::sync::OnceLock;
+    static GEAR: OnceLock<GearDef> = OnceLock::new();
+    GEAR.get_or_init(|| {
+        GearDef::from_ron(include_str!("../assets/gear/ba_bloodbeam_crozier.ron")).expect("ba_bloodbeam_crozier")
+    })
+}
+
+fn ashbeam_tome() -> &'static GearDef {
+    use std::sync::OnceLock;
+    static GEAR: OnceLock<GearDef> = OnceLock::new();
+    GEAR.get_or_init(|| {
+        GearDef::from_ron(include_str!("../assets/gear/ba_ashbeam_tome.ron")).expect("ba_ashbeam_tome")
+    })
+}
+
+fn bellwood_crozier() -> &'static GearDef {
+    use std::sync::OnceLock;
+    static GEAR: OnceLock<GearDef> = OnceLock::new();
+    GEAR.get_or_init(|| {
+        GearDef::from_ron(include_str!("../assets/gear/ba_bellwood_crozier.ron")).expect("ba_bellwood_crozier")
+    })
+}
+
+fn catalog_staff_ron(item_id: u32) -> &'static GearDef {
+    match item_id {
+        BLOODBEAM_CROZIER_ITEM => bloodbeam_crozier(),
+        ASHBEAM_TOME_ITEM => ashbeam_tome(),
+        BELLWOOD_CROZIER_ITEM => bellwood_crozier(),
+        _ => bloodbeam_crozier(),
+    }
+}
+
+fn catalog_staff_ramp(item_id: u32) -> fn(ColorSlot) -> u8 {
+    match item_id {
+        BLOODBEAM_CROZIER_ITEM => bloodbeam_crozier_ramp,
+        ASHBEAM_TOME_ITEM => ashbeam_tome_ramp,
+        _ => bellwood_crozier_ramp,
+    }
+}
+
+fn bloodbeam_crozier_ramp(slot: ColorSlot) -> u8 {
+    match slot {
+        ColorSlot::Trim => C_GOLD,
+        ColorSlot::Glow | ColorSlot::Accent => C_ACCENT,
+        _ => WOOD,
+    }
+}
+
+fn ashbeam_tome_ramp(slot: ColorSlot) -> u8 {
+    match slot {
+        ColorSlot::Trim => C_GOLD,
+        ColorSlot::Glow => C_DASH,
+        _ => WOOD,
+    }
+}
+
+fn bellwood_crozier_ramp(slot: ColorSlot) -> u8 {
+    match slot {
+        ColorSlot::Trim | ColorSlot::Glow => C_GOLD,
+        ColorSlot::Accent => C_DASH,
+        _ => WOOD,
+    }
+}
+
+fn draw_catalog_staff_ron(fb: &mut Framebuffer, cam: &Camera, j: &Joints, item_id: u32) {
+    draw_gear_shapes(fb, cam, j, catalog_staff_ron(item_id), catalog_staff_ramp(item_id));
+}
+
 fn anvil_world_frame(j: &Joints, ground_y: f32) -> (Vec3, Vec3, Vec3, Vec3) {
     let fwd = character_front(j);
     let mut fwd_h = v3(fwd.x, 0.0, fwd.z);
@@ -1692,10 +1868,66 @@ fn wizard_plate() -> &'static Plate {
     PLATE.get_or_init(|| parse_plate(include_str!("../assets/gear/ba_wizard_robe.plate.ron")))
 }
 
+#[cfg(test)]
+fn linen_robe() -> &'static GearDef {
+    use std::sync::OnceLock;
+    static GEAR: OnceLock<GearDef> = OnceLock::new();
+    GEAR.get_or_init(|| {
+        GearDef::from_ron(include_str!("../assets/gear/ba_linen_robe.ron")).expect("ba_linen_robe")
+    })
+}
+
+#[cfg(test)]
+fn linen_plate() -> &'static Plate {
+    use std::sync::OnceLock;
+    static PLATE: OnceLock<Plate> = OnceLock::new();
+    PLATE.get_or_init(|| parse_plate(include_str!("../assets/gear/ba_linen_robe.plate.ron")))
+}
+
 fn iron_plate() -> &'static Plate {
     use std::sync::OnceLock;
     static PLATE: OnceLock<Plate> = OnceLock::new();
     PLATE.get_or_init(|| parse_plate(include_str!("../assets/gear/ba_iron_cuirass.plate.ron")))
+}
+
+fn steel_mail() -> &'static GearDef {
+    use std::sync::OnceLock;
+    static GEAR: OnceLock<GearDef> = OnceLock::new();
+    GEAR.get_or_init(|| GearDef::from_ron(include_str!("../assets/gear/ba_steel_mail.ron")).expect("ba_steel_mail"))
+}
+
+fn steel_mail_plate() -> &'static Plate {
+    use std::sync::OnceLock;
+    static PLATE: OnceLock<Plate> = OnceLock::new();
+    PLATE.get_or_init(|| parse_plate(include_str!("../assets/gear/ba_steel_mail.plate.ron")))
+}
+
+fn mythril_mail() -> &'static GearDef {
+    use std::sync::OnceLock;
+    static GEAR: OnceLock<GearDef> = OnceLock::new();
+    GEAR.get_or_init(|| GearDef::from_ron(include_str!("../assets/gear/ba_mythril_mail.ron")).expect("ba_mythril_mail"))
+}
+
+fn mythril_mail_plate() -> &'static Plate {
+    use std::sync::OnceLock;
+    static PLATE: OnceLock<Plate> = OnceLock::new();
+    PLATE.get_or_init(|| parse_plate(include_str!("../assets/gear/ba_mythril_mail.plate.ron")))
+}
+
+fn catalog_plate_gear(item_id: u32) -> &'static GearDef {
+    match item_id {
+        crate::gear::STEEL_MAIL_ITEM => steel_mail(),
+        crate::gear::MYTHRIL_MAIL_ITEM => mythril_mail(),
+        _ => iron_cuirass(),
+    }
+}
+
+fn catalog_cuirass_plate(item_id: u32) -> &'static Plate {
+    match item_id {
+        crate::gear::STEEL_MAIL_ITEM => steel_mail_plate(),
+        crate::gear::MYTHRIL_MAIL_ITEM => mythril_mail_plate(),
+        _ => iron_plate(),
+    }
 }
 
 fn parse_plate(src: &str) -> Plate {
@@ -1774,9 +2006,9 @@ fn plate_color(slot: ColorSlot) -> u8 {
 
 /// Joint-local chest plate. Shapes are filled with no per-piece outline;
 /// one 1 px border is stamped around the combined silhouette afterwards.
-fn draw_iron_cuirass(fb: &mut Framebuffer, cam: &Camera, j: &Joints) {
-    let g = iron_cuirass();
-    let plate = iron_plate();
+fn draw_iron_cuirass(fb: &mut Framebuffer, cam: &Camera, j: &Joints, item_id: u32) {
+    let g = catalog_plate_gear(item_id);
+    let plate = catalog_cuirass_plate(item_id);
     let origin = j.chest;
     let y = (j.chest - j.pelvis).norm();
     let mut x = y.cross(Vec3::UP).norm();
@@ -2032,7 +2264,50 @@ fn sleeve_point(frame: &(Vec3, Vec3, Vec3, Vec3), j: &Joints, side: usize, u: f3
 
 /// Two pixel sheets, front and back, pinned to the shoulder line and carried by the bones.
 fn draw_wizard_robe(fb: &mut Framebuffer, cam: &Camera, j: &Joints) {
-    let plate = wizard_plate();
+    draw_flow_coat(fb, cam, j, wizard_plate(), 1.0);
+}
+
+fn battleweave_plate() -> &'static Plate {
+    use std::sync::OnceLock;
+    static PLATE: OnceLock<Plate> = OnceLock::new();
+    PLATE.get_or_init(|| parse_plate(include_str!("../assets/gear/ba_battleweave_coat.plate.ron")))
+}
+
+#[cfg(test)]
+fn battleweave_coat() -> &'static GearDef {
+    use std::sync::OnceLock;
+    static GEAR: OnceLock<GearDef> = OnceLock::new();
+    GEAR.get_or_init(|| {
+        GearDef::from_ron(include_str!("../assets/gear/ba_battleweave_coat.ron")).expect("ba_battleweave_coat")
+    })
+}
+
+/// Fighting coat: same sheet path as the robe, hem stops at mid-thigh.
+fn draw_battleweave_coat(fb: &mut Framebuffer, cam: &Camera, j: &Joints) {
+    draw_flow_coat(fb, cam, j, battleweave_plate(), 0.58);
+}
+
+fn altarweave_plate() -> &'static Plate {
+    use std::sync::OnceLock;
+    static PLATE: OnceLock<Plate> = OnceLock::new();
+    PLATE.get_or_init(|| parse_plate(include_str!("../assets/gear/ba_altarweave_coat.plate.ron")))
+}
+
+#[cfg(test)]
+fn altarweave_coat() -> &'static GearDef {
+    use std::sync::OnceLock;
+    static GEAR: OnceLock<GearDef> = OnceLock::new();
+    GEAR.get_or_init(|| {
+        GearDef::from_ron(include_str!("../assets/gear/ba_altarweave_coat.ron")).expect("ba_altarweave_coat")
+    })
+}
+
+/// Liturgical coat: longer than battleweave, shorter than the wizard robe.
+fn draw_altarweave_coat(fb: &mut Framebuffer, cam: &Camera, j: &Joints) {
+    draw_flow_coat(fb, cam, j, altarweave_plate(), 0.76);
+}
+
+fn draw_flow_coat(fb: &mut Framebuffer, cam: &Camera, j: &Joints, plate: &Plate, hem_v: f32) {
     let y = (j.chest - j.pelvis).norm();
     let mut x = y.cross(Vec3::UP).norm();
     if x.len() < 0.5 {
@@ -2046,7 +2321,7 @@ fn draw_wizard_robe(fb: &mut Framebuffer, cam: &Camera, j: &Joints) {
             for col in 0..SHEET_COLS {
                 let u = col as f32 / (SHEET_COLS - 1) as f32;
                 let v = row as f32 / (SHEET_ROWS - 1) as f32;
-                include_px(&mut bounds, cam.project(sheet_point(&frame, j, u, v, front)), 1.0);
+                include_px(&mut bounds, cam.project(sheet_point(&frame, j, u, v * hem_v, front)), 1.0);
                 for side in 0..2 {
                     include_px(&mut bounds, cam.project(sleeve_point(&frame, j, side, u, v, front)), 1.0);
                 }
@@ -2067,16 +2342,16 @@ fn draw_wizard_robe(fb: &mut Framebuffer, cam: &Camera, j: &Joints) {
     });
     // Back sheet first. Depth keeps it behind the skeleton and the front sheet.
     for front in [false, true] {
-        draw_sheet(fb, cam, &frame, j, plate, front);
+        draw_sheet(fb, cam, &frame, j, plate, front, hem_v);
         for side in 0..2 {
             draw_sleeve(fb, cam, &frame, j, plate, side, front);
         }
     }
-    // Top cap is the top row. Bottom cap is the bottom row.
+    // Top cap is the top row. Bottom cap is the hem row.
     let top = plate_edge(plate, 0);
     let hem_c = plate_edge(plate, plate.h.saturating_sub(1));
     paint_ring(fb, cam, &ring_at(&frame, j, 0.0), top, -0.04);
-    paint_ring(fb, cam, &ring_at(&frame, j, 1.0), hem_c, -0.04);
+    paint_ring(fb, cam, &ring_at(&frame, j, hem_v), hem_c, -0.04);
     for side in 0..2 {
         paint_ring(fb, cam, &sleeve_ring(&frame, j, side, 0.0), top, -0.02);
     }
@@ -2132,6 +2407,32 @@ fn draw_leather_vest(fb: &mut Framebuffer, cam: &Camera, j: &Joints) {
 /// Hide mesh on the torso. Bone ribs and straps are capsules on the chest.
 fn draw_bone_harness(fb: &mut Framebuffer, cam: &Camera, j: &Joints) {
     draw_wrapped(fb, cam, j, bone_harness(), harness_plate(), harness_color);
+}
+
+fn orichalcum_mail() -> &'static GearDef {
+    use std::sync::OnceLock;
+    static GEAR: OnceLock<GearDef> = OnceLock::new();
+    GEAR.get_or_init(|| {
+        GearDef::from_ron(include_str!("../assets/gear/ba_orichalcum_mail.ron")).expect("ba_orichalcum_mail")
+    })
+}
+
+fn orichalcum_mail_plate() -> &'static Plate {
+    use std::sync::OnceLock;
+    static PLATE: OnceLock<Plate> = OnceLock::new();
+    PLATE.get_or_init(|| parse_plate(include_str!("../assets/gear/ba_orichalcum_mail.plate.ron")))
+}
+
+fn orichalcum_mail_color(slot: ColorSlot) -> u8 {
+    match slot {
+        ColorSlot::Trim => C_GOLD,
+        ColorSlot::Accent => C_ACCENT,
+        _ => C_STEEL,
+    }
+}
+
+fn draw_orichalcum_mail(fb: &mut Framebuffer, cam: &Camera, j: &Joints) {
+    draw_wrapped(fb, cam, j, orichalcum_mail(), orichalcum_mail_plate(), orichalcum_mail_color);
 }
 
 fn draw_wrapped(fb: &mut Framebuffer, cam: &Camera, j: &Joints, g: &GearDef, plate: &Plate, color: fn(ColorSlot) -> u8) {
@@ -2260,8 +2561,8 @@ fn paint_solid_tri(fb: &mut Framebuffer, a: stick_engine::camera::P2, b: stick_e
     }
 }
 
-fn draw_sheet(fb: &mut Framebuffer, cam: &Camera, frame: &(Vec3, Vec3, Vec3, Vec3), j: &Joints, plate: &Plate, front: bool) {
-    paint_grid(fb, cam, plate, 1.0, |u, v| sheet_point(frame, j, u, v, front));
+fn draw_sheet(fb: &mut Framebuffer, cam: &Camera, frame: &(Vec3, Vec3, Vec3, Vec3), j: &Joints, plate: &Plate, front: bool, v_end: f32) {
+    paint_grid(fb, cam, plate, v_end, |u, v| sheet_point(frame, j, u, v, front));
 }
 
 fn draw_sleeve(fb: &mut Framebuffer, cam: &Camera, frame: &(Vec3, Vec3, Vec3, Vec3), j: &Joints, plate: &Plate, side: usize, front: bool) {
@@ -2485,6 +2786,9 @@ helm_plate_fn!(mythril_helm_plate, "../assets/gear/ba_mythril_helm.plate.ron");
 helm_plate_fn!(darksteel_helm_plate, "../assets/gear/ba_darksteel_helm.plate.ron");
 helm_plate_fn!(palace_helm_plate, "../assets/gear/ba_palace_helm.plate.ron");
 helm_plate_fn!(scale_mail_helm_plate, "../assets/gear/ba_scale_mail_helm.plate.ron");
+helm_plate_fn!(orichalcum_war_helm_plate, "../assets/gear/ba_orichalcum_war_helm.plate.ron");
+helm_plate_fn!(steel_helm_plate, "../assets/gear/ba_steel_helm.plate.ron");
+helm_plate_fn!(rogues_helm_plate, "../assets/gear/ba_rogues_helm.plate.ron");
 helm_plate_fn!(shade_helm_plate, "../assets/gear/ba_shade_helm.plate.ron");
 
 fn catalog_helm_plate(item_id: u32) -> &'static Plate {
@@ -2495,6 +2799,9 @@ fn catalog_helm_plate(item_id: u32) -> &'static Plate {
         DARKSTEEL_HELM_ITEM => darksteel_helm_plate(),
         PALACE_HELM_ITEM => palace_helm_plate(),
         SCALE_MAIL_HELM_ITEM => scale_mail_helm_plate(),
+        ORICHALCUM_WAR_HELM_ITEM => orichalcum_war_helm_plate(),
+        crate::gear::STEEL_HELM_ITEM => steel_helm_plate(),
+        ROGUES_HELM_ITEM => rogues_helm_plate(),
         SHADE_HELM_ITEM => shade_helm_plate(),
         BONE_HELM_ITEM => bone_helm_plate(),
         _ => iron_helm_plate(),
@@ -2508,6 +2815,7 @@ fn helm_cap_color(item_id: u32) -> u8 {
         DARKSTEEL_HELM_ITEM => crate::compat::C_SHADOW,
         SHADE_HELM_ITEM => crate::compat::C_SHADOW,
         MYTHRIL_HELM_ITEM => crate::compat::C_TRAIL,
+        crate::gear::STEEL_HELM_ITEM => C_STEEL,
         _ => C_GOLD,
     }
 }
@@ -2919,14 +3227,38 @@ fn cloth_hat() -> &'static GearDef {
     GEAR.get_or_init(|| GearDef::from_ron(include_str!("../assets/gear/ba_cloth_hat.ron")).expect("ba_cloth_hat"))
 }
 
+fn throneweave_hat() -> &'static GearDef {
+    use std::sync::OnceLock;
+    static GEAR: OnceLock<GearDef> = OnceLock::new();
+    GEAR.get_or_init(|| GearDef::from_ron(include_str!("../assets/gear/ba_throneweave_hat.ron")).expect("ba_throneweave_hat"))
+}
+
+fn altarweave_hat() -> &'static GearDef {
+    use std::sync::OnceLock;
+    static GEAR: OnceLock<GearDef> = OnceLock::new();
+    GEAR.get_or_init(|| GearDef::from_ron(include_str!("../assets/gear/ba_altarweave_hat.ron")).expect("ba_altarweave_hat"))
+}
+
+fn battleweave_hat() -> &'static GearDef {
+    use std::sync::OnceLock;
+    static GEAR: OnceLock<GearDef> = OnceLock::new();
+    GEAR.get_or_init(|| GearDef::from_ron(include_str!("../assets/gear/ba_battleweave_hat.ron")).expect("ba_battleweave_hat"))
+}
+
 helm_plate_fn!(cloth_hat_plate, "../assets/gear/ba_cloth_hat.plate.ron");
 helm_plate_fn!(silk_hat_plate, "../assets/gear/ba_silk_hat.plate.ron");
 helm_plate_fn!(velvet_hat_plate, "../assets/gear/ba_velvet_hat.plate.ron");
+helm_plate_fn!(throneweave_hat_plate, "../assets/gear/ba_throneweave_hat.plate.ron");
+helm_plate_fn!(altarweave_hat_plate, "../assets/gear/ba_altarweave_hat.plate.ron");
+helm_plate_fn!(battleweave_hat_plate, "../assets/gear/ba_battleweave_hat.plate.ron");
 
 fn catalog_hat_plate(item_id: u32) -> &'static Plate {
     match item_id {
         SILK_HAT_ITEM => silk_hat_plate(),
         VELVET_HAT_ITEM => velvet_hat_plate(),
+        crate::gear::THRONEWEAVE_HAT_ITEM => throneweave_hat_plate(),
+        crate::gear::ALTARWEAVE_HAT_ITEM => altarweave_hat_plate(),
+        crate::gear::BATTLEWEAVE_HAT_ITEM => battleweave_hat_plate(),
         _ => cloth_hat_plate(),
     }
 }
@@ -2953,7 +3285,12 @@ fn hat_disks() -> [HelmDisk; 6] {
 
 /// Pixel strips on a pointed stack. The tip disk is filled with the top row. The face stays open.
 fn draw_cloth_hat(fb: &mut Framebuffer, cam: &Camera, j: &Joints, item_id: u32) {
-    let _ = cloth_hat();
+    let _ = match item_id {
+        crate::gear::THRONEWEAVE_HAT_ITEM => throneweave_hat(),
+        crate::gear::ALTARWEAVE_HAT_ITEM => altarweave_hat(),
+        crate::gear::BATTLEWEAVE_HAT_ITEM => battleweave_hat(),
+        _ => cloth_hat(),
+    };
     let plate = catalog_hat_plate(item_id);
     let frame = head_frame(j);
     let disks = hat_disks();
@@ -3036,6 +3373,54 @@ fn shield_plate() -> &'static Plate {
     PLATE.get_or_init(|| parse_plate(include_str!("../assets/gear/ba_iron_shield.plate.ron")))
 }
 
+fn darksteel_targe_plate() -> &'static Plate {
+    use std::sync::OnceLock;
+    static PLATE: OnceLock<Plate> = OnceLock::new();
+    PLATE.get_or_init(|| parse_plate(include_str!("../assets/gear/ba_darksteel_targe.plate.ron")))
+}
+
+fn orichalcum_targe_plate() -> &'static Plate {
+    use std::sync::OnceLock;
+    static PLATE: OnceLock<Plate> = OnceLock::new();
+    PLATE.get_or_init(|| parse_plate(include_str!("../assets/gear/ba_orichalcum_targe.plate.ron")))
+}
+
+fn steel_shield_plate() -> &'static Plate {
+    use std::sync::OnceLock;
+    static PLATE: OnceLock<Plate> = OnceLock::new();
+    PLATE.get_or_init(|| parse_plate(include_str!("../assets/gear/ba_steel_shield.plate.ron")))
+}
+
+fn mythril_targe_plate() -> &'static Plate {
+    use std::sync::OnceLock;
+    static PLATE: OnceLock<Plate> = OnceLock::new();
+    PLATE.get_or_init(|| parse_plate(include_str!("../assets/gear/ba_mythril_targe.plate.ron")))
+}
+
+fn orichalcum_shield_plate() -> &'static Plate {
+    use std::sync::OnceLock;
+    static PLATE: OnceLock<Plate> = OnceLock::new();
+    PLATE.get_or_init(|| parse_plate(include_str!("../assets/gear/ba_orichalcum_shield.plate.ron")))
+}
+
+fn palace_targe_plate() -> &'static Plate {
+    use std::sync::OnceLock;
+    static PLATE: OnceLock<Plate> = OnceLock::new();
+    PLATE.get_or_init(|| parse_plate(include_str!("../assets/gear/ba_palace_targe.plate.ron")))
+}
+
+fn catalog_shield_plate(item_id: u32) -> &'static Plate {
+    match item_id {
+        crate::gear::DARKSTEEL_TARGE_ITEM => darksteel_targe_plate(),
+        crate::gear::ORICHALCUM_TARGE_ITEM => orichalcum_targe_plate(),
+        crate::gear::STEEL_SHIELD_ITEM => steel_shield_plate(),
+        crate::gear::MYTHRIL_TARGE_ITEM => mythril_targe_plate(),
+        crate::gear::ORICHALCUM_SHIELD_ITEM => orichalcum_shield_plate(),
+        crate::gear::PALACE_TARGE_ITEM => palace_targe_plate(),
+        _ => shield_plate(),
+    }
+}
+
 /// Face center in the off-hand frame, and ring radii from the boss out to the rim.
 const SHIELD_CENTER: (f32, f32, f32) = (0.0, 0.04, 0.16);
 const SHIELD_R: [f32; 4] = [0.05, 0.11, 0.17, 0.24];
@@ -3067,9 +3452,9 @@ fn shield_disks() -> [HelmDisk; 4] {
 }
 
 /// Concentric strips in the shield plane. The boss is a filled gold disk. The grip is the capsule.
-fn draw_iron_shield(fb: &mut Framebuffer, cam: &Camera, j: &Joints) {
+fn draw_iron_shield(fb: &mut Framebuffer, cam: &Camera, j: &Joints, item_id: u32) {
     let gear = iron_shield();
-    let plate = shield_plate();
+    let plate = catalog_shield_plate(item_id);
     let frame = shield_frame(j);
     let disks = shield_disks();
     let mut bounds = [i32::MAX, i32::MAX, i32::MIN, i32::MIN];
@@ -3151,6 +3536,19 @@ fn kite_plate() -> &'static Plate {
     use std::sync::OnceLock;
     static PLATE: OnceLock<Plate> = OnceLock::new();
     PLATE.get_or_init(|| parse_plate(include_str!("../assets/gear/ba_kite_shield.plate.ron")))
+}
+
+fn palace_shield_plate() -> &'static Plate {
+    use std::sync::OnceLock;
+    static PLATE: OnceLock<Plate> = OnceLock::new();
+    PLATE.get_or_init(|| parse_plate(include_str!("../assets/gear/ba_palace_shield.plate.ron")))
+}
+
+fn catalog_kite_plate(item_id: u32) -> &'static Plate {
+    match item_id {
+        crate::gear::PALACE_SHIELD_ITEM => palace_shield_plate(),
+        _ => kite_plate(),
+    }
 }
 
 /// Kite in the off-hand plane. Local x is across the face, local z is up the face.
@@ -3255,9 +3653,9 @@ fn kite_cross() -> [(f32, f32, f32, f32); 2] {
 }
 
 /// Pointed steel face, gold rim of even thickness, gold cross. The grip is the capsule.
-fn draw_kite_shield(fb: &mut Framebuffer, cam: &Camera, j: &Joints) {
+fn draw_kite_shield(fb: &mut Framebuffer, cam: &Camera, j: &Joints, item_id: u32) {
     let gear = kite_shield();
-    let plate = kite_plate();
+    let plate = catalog_kite_plate(item_id);
     let frame = shield_frame(j);
     let outer = kite_outline();
     let inner = kite_inset(&outer, KITE_RIM);
@@ -3355,6 +3753,18 @@ fn iron_cuisses() -> &'static GearDef {
     GEAR.get_or_init(|| GearDef::from_ron(include_str!("../assets/gear/ba_iron_cuisses.ron")).expect("ba_iron_cuisses"))
 }
 
+fn leather_trousers_plate() -> &'static Plate {
+    use std::sync::OnceLock;
+    static PLATE: OnceLock<Plate> = OnceLock::new();
+    PLATE.get_or_init(|| parse_plate(include_str!("../assets/gear/ba_leather_trousers.plate.ron")))
+}
+
+fn leather_trousers() -> &'static GearDef {
+    use std::sync::OnceLock;
+    static GEAR: OnceLock<GearDef> = OnceLock::new();
+    GEAR.get_or_init(|| GearDef::from_ron(include_str!("../assets/gear/ba_leather_trousers.ron")).expect("ba_leather_trousers"))
+}
+
 /// Fraction down the thigh after the hip cap. 0 is the hip joint. The last stop is above the knee.
 const CUISSE_T: [f32; 5] = [0.0, 0.22, 0.46, 0.68, 0.90];
 /// Shell radius around the bone. Wider at the hip, clear of the limb on every side.
@@ -3410,7 +3820,414 @@ fn cuisse_point(j: &Joints, side: usize, ring: usize, u: f32) -> Vec3 {
 /// Steel shell on each hip and thigh. The inner thigh stays open. The knee is not covered.
 fn draw_iron_cuisses(fb: &mut Framebuffer, cam: &Camera, j: &Joints) {
     let _gear = iron_cuisses();
-    let plate = cuisse_plate();
+    draw_thigh_shell(fb, cam, j, cuisse_plate());
+}
+
+/// Leather retint of the cuisses thigh shell. Same rings, leather plate.
+fn draw_leather_trousers(fb: &mut Framebuffer, cam: &Camera, j: &Joints) {
+    let _gear = leather_trousers();
+    draw_thigh_shell(fb, cam, j, leather_trousers_plate());
+}
+
+fn battleweave_slacks() -> &'static GearDef {
+    use std::sync::OnceLock;
+    static GEAR: OnceLock<GearDef> = OnceLock::new();
+    GEAR.get_or_init(|| {
+        GearDef::from_ron(include_str!("../assets/gear/ba_battleweave_slacks.ron")).expect("ba_battleweave_slacks")
+    })
+}
+
+fn battleweave_slacks_plate() -> &'static Plate {
+    use std::sync::OnceLock;
+    static PLATE: OnceLock<Plate> = OnceLock::new();
+    PLATE.get_or_init(|| parse_plate(include_str!("../assets/gear/ba_battleweave_slacks.plate.ron")))
+}
+
+fn altarweave_slacks() -> &'static GearDef {
+    use std::sync::OnceLock;
+    static GEAR: OnceLock<GearDef> = OnceLock::new();
+    GEAR.get_or_init(|| {
+        GearDef::from_ron(include_str!("../assets/gear/ba_altarweave_slacks.ron")).expect("ba_altarweave_slacks")
+    })
+}
+
+fn altarweave_slacks_plate() -> &'static Plate {
+    use std::sync::OnceLock;
+    static PLATE: OnceLock<Plate> = OnceLock::new();
+    PLATE.get_or_init(|| parse_plate(include_str!("../assets/gear/ba_altarweave_slacks.plate.ron")))
+}
+
+fn battleweave_hose_plate() -> &'static Plate {
+    use std::sync::OnceLock;
+    static PLATE: OnceLock<Plate> = OnceLock::new();
+    PLATE.get_or_init(|| parse_plate(include_str!("../assets/gear/ba_battleweave_hose.plate.ron")))
+}
+
+fn rogues_trousers_plate() -> &'static Plate {
+    use std::sync::OnceLock;
+    static PLATE: OnceLock<Plate> = OnceLock::new();
+    PLATE.get_or_init(|| parse_plate(include_str!("../assets/gear/ba_rogues_trousers.plate.ron")))
+}
+
+fn orichalcum_war_cuisses_plate() -> &'static Plate {
+    use std::sync::OnceLock;
+    static PLATE: OnceLock<Plate> = OnceLock::new();
+    PLATE.get_or_init(|| parse_plate(include_str!("../assets/gear/ba_orichalcum_war_cuisses.plate.ron")))
+}
+
+fn throneweave_slacks_plate() -> &'static Plate {
+    use std::sync::OnceLock;
+    static PLATE: OnceLock<Plate> = OnceLock::new();
+    PLATE.get_or_init(|| parse_plate(include_str!("../assets/gear/ba_throneweave_slacks.plate.ron")))
+}
+
+fn steel_subligar_plate() -> &'static Plate {
+    use std::sync::OnceLock;
+    static PLATE: OnceLock<Plate> = OnceLock::new();
+    PLATE.get_or_init(|| parse_plate(include_str!("../assets/gear/ba_steel_subligar.plate.ron")))
+}
+
+fn catalog_slacks_plate(item_id: u32) -> &'static Plate {
+    match item_id {
+        ALTARWEAVE_SLACKS_ITEM => altarweave_slacks_plate(),
+        BATTLEWEAVE_SLACKS_ITEM => battleweave_slacks_plate(),
+        crate::gear::BATTLEWEAVE_HOSE_ITEM => battleweave_hose_plate(),
+        crate::gear::ROGUES_TROUSERS_ITEM => rogues_trousers_plate(),
+        crate::gear::ORICHALCUM_WAR_CUISSES_ITEM => orichalcum_war_cuisses_plate(),
+        crate::gear::THRONEWEAVE_SLACKS_ITEM => throneweave_slacks_plate(),
+        crate::gear::STEEL_SUBLIGAR_ITEM => steel_subligar_plate(),
+        _ => battleweave_slacks_plate(),
+    }
+}
+
+fn draw_catalog_slacks(fb: &mut Framebuffer, cam: &Camera, j: &Joints, item_id: u32) {
+    let _gear = match item_id {
+        ALTARWEAVE_SLACKS_ITEM => altarweave_slacks(),
+        _ => battleweave_slacks(),
+    };
+    draw_thigh_shell(fb, cam, j, catalog_slacks_plate(item_id));
+}
+
+fn bronze_sabatons() -> &'static GearDef {
+    use std::sync::OnceLock;
+    static GEAR: OnceLock<GearDef> = OnceLock::new();
+    GEAR.get_or_init(|| GearDef::from_ron(include_str!("../assets/gear/ba_bronze_sabatons.ron")).expect("ba_bronze_sabatons"))
+}
+
+fn iron_sabatons() -> &'static GearDef {
+    use std::sync::OnceLock;
+    static GEAR: OnceLock<GearDef> = OnceLock::new();
+    GEAR.get_or_init(|| GearDef::from_ron(include_str!("../assets/gear/ba_iron_sabatons.ron")).expect("ba_iron_sabatons"))
+}
+
+fn decayed_greaves() -> &'static GearDef {
+    use std::sync::OnceLock;
+    static GEAR: OnceLock<GearDef> = OnceLock::new();
+    GEAR.get_or_init(|| GearDef::from_ron(include_str!("../assets/gear/ba_decayed_greaves.ron")).expect("ba_decayed_greaves"))
+}
+
+fn altarweave_pumps() -> &'static GearDef {
+    use std::sync::OnceLock;
+    static GEAR: OnceLock<GearDef> = OnceLock::new();
+    GEAR.get_or_init(|| {
+        GearDef::from_ron(include_str!("../assets/gear/ba_altarweave_pumps.ron")).expect("ba_altarweave_pumps")
+    })
+}
+
+fn altarweave_feet_ramp(slot: ColorSlot) -> u8 {
+    match slot {
+        ColorSlot::Trim => C_GOLD,
+        ColorSlot::Accent => C_ACCENT,
+        _ => crate::palette::WATER,
+    }
+}
+
+fn battleweave_pumps() -> &'static GearDef {
+    use std::sync::OnceLock;
+    static GEAR: OnceLock<GearDef> = OnceLock::new();
+    GEAR.get_or_init(|| {
+        GearDef::from_ron(include_str!("../assets/gear/ba_battleweave_pumps.ron")).expect("ba_battleweave_pumps")
+    })
+}
+
+fn battleweave_slippers() -> &'static GearDef {
+    use std::sync::OnceLock;
+    static GEAR: OnceLock<GearDef> = OnceLock::new();
+    GEAR.get_or_init(|| {
+        GearDef::from_ron(include_str!("../assets/gear/ba_battleweave_slippers.ron")).expect("ba_battleweave_slippers")
+    })
+}
+
+fn steel_sabatons() -> &'static GearDef {
+    use std::sync::OnceLock;
+    static GEAR: OnceLock<GearDef> = OnceLock::new();
+    GEAR.get_or_init(|| {
+        GearDef::from_ron(include_str!("../assets/gear/ba_steel_sabatons.ron")).expect("ba_steel_sabatons")
+    })
+}
+
+fn bone_boots() -> &'static GearDef {
+    use std::sync::OnceLock;
+    static GEAR: OnceLock<GearDef> = OnceLock::new();
+    GEAR.get_or_init(|| {
+        GearDef::from_ron(include_str!("../assets/gear/ba_bone_boots.ron")).expect("ba_bone_boots")
+    })
+}
+
+fn throneweave_pumps() -> &'static GearDef {
+    use std::sync::OnceLock;
+    static GEAR: OnceLock<GearDef> = OnceLock::new();
+    GEAR.get_or_init(|| {
+        GearDef::from_ron(include_str!("../assets/gear/ba_throneweave_pumps.ron")).expect("ba_throneweave_pumps")
+    })
+}
+
+fn throneweave_feet_ramp(slot: ColorSlot) -> u8 {
+    match slot {
+        ColorSlot::Trim => C_GOLD,
+        ColorSlot::Accent => C_GOLD,
+        _ => crate::palette::WATER,
+    }
+}
+
+fn orichalcum_war_sabatons() -> &'static GearDef {
+    use std::sync::OnceLock;
+    static GEAR: OnceLock<GearDef> = OnceLock::new();
+    GEAR.get_or_init(|| {
+        GearDef::from_ron(include_str!("../assets/gear/ba_orichalcum_war_sabatons.ron"))
+            .expect("ba_orichalcum_war_sabatons")
+    })
+}
+
+fn catalog_feet_gear(item_id: u32) -> &'static GearDef {
+    match item_id {
+        BRONZE_SABATONS_ITEM => bronze_sabatons(),
+        IRON_SABATONS_ITEM => iron_sabatons(),
+        DECAYED_GREAVES_ITEM => decayed_greaves(),
+        BATTLEWEAVE_PUMPS_ITEM => battleweave_pumps(),
+        ALTARWEAVE_PUMPS_ITEM => altarweave_pumps(),
+        ORICHALCUM_WAR_SABATONS_ITEM => orichalcum_war_sabatons(),
+        crate::gear::ROGUES_BOOTS_ITEM => rogues_boots(),
+        crate::gear::BATTLEWEAVE_SLIPPERS_ITEM => battleweave_slippers(),
+        crate::gear::THRONEWEAVE_PUMPS_ITEM => throneweave_pumps(),
+        crate::gear::STEEL_SABATONS_ITEM => steel_sabatons(),
+        crate::gear::BONE_BOOTS_ITEM => bone_boots(),
+        _ => iron_sabatons(),
+    }
+}
+
+fn bronze_feet_ramp(slot: ColorSlot) -> u8 {
+    match slot {
+        ColorSlot::Trim => C_GOLD,
+        ColorSlot::Accent => C_HILT,
+        _ => GEAR_BRONZE,
+    }
+}
+
+fn bone_feet_ramp(slot: ColorSlot) -> u8 {
+    match slot {
+        ColorSlot::Trim => C_GOLD,
+        ColorSlot::Accent => crate::palette::GEAR_LEATHER_FAR,
+        _ => GEAR_BONE,
+    }
+}
+
+fn cloth_feet_ramp(slot: ColorSlot) -> u8 {
+    match slot {
+        ColorSlot::Trim => C_STEEL,
+        ColorSlot::Accent => C_GOLD,
+        _ => crate::palette::WATER,
+    }
+}
+
+fn catalog_feet_tint(item_id: u32) -> fn(ColorSlot) -> u8 {
+    match item_id {
+        BRONZE_SABATONS_ITEM => bronze_feet_ramp,
+        DECAYED_GREAVES_ITEM => bone_feet_ramp,
+        BATTLEWEAVE_PUMPS_ITEM => cloth_feet_ramp,
+        ALTARWEAVE_PUMPS_ITEM => altarweave_feet_ramp,
+        crate::gear::BATTLEWEAVE_SLIPPERS_ITEM => cloth_feet_ramp,
+        crate::gear::THRONEWEAVE_PUMPS_ITEM => throneweave_feet_ramp,
+        crate::gear::BONE_BOOTS_ITEM => bone_feet_ramp,
+        ORICHALCUM_WAR_SABATONS_ITEM => orichalcum_hands_ramp,
+        _ => plate_color,
+    }
+}
+
+fn battleweave_cuffs() -> &'static GearDef {
+    use std::sync::OnceLock;
+    static GEAR: OnceLock<GearDef> = OnceLock::new();
+    GEAR.get_or_init(|| {
+        GearDef::from_ron(include_str!("../assets/gear/ba_battleweave_cuffs.ron")).expect("ba_battleweave_cuffs")
+    })
+}
+
+fn altarweave_cuffs() -> &'static GearDef {
+    use std::sync::OnceLock;
+    static GEAR: OnceLock<GearDef> = OnceLock::new();
+    GEAR.get_or_init(|| {
+        GearDef::from_ron(include_str!("../assets/gear/ba_altarweave_cuffs.ron")).expect("ba_altarweave_cuffs")
+    })
+}
+
+fn rogues_gloves() -> &'static GearDef {
+    use std::sync::OnceLock;
+    static GEAR: OnceLock<GearDef> = OnceLock::new();
+    GEAR.get_or_init(|| {
+        GearDef::from_ron(include_str!("../assets/gear/ba_rogues_gloves.ron")).expect("ba_rogues_gloves")
+    })
+}
+
+fn rogues_boots() -> &'static GearDef {
+    use std::sync::OnceLock;
+    static GEAR: OnceLock<GearDef> = OnceLock::new();
+    GEAR.get_or_init(|| {
+        GearDef::from_ron(include_str!("../assets/gear/ba_rogues_boots.ron")).expect("ba_rogues_boots")
+    })
+}
+
+fn orichalcum_war_gauntlets() -> &'static GearDef {
+    use std::sync::OnceLock;
+    static GEAR: OnceLock<GearDef> = OnceLock::new();
+    GEAR.get_or_init(|| {
+        GearDef::from_ron(include_str!("../assets/gear/ba_orichalcum_war_gauntlets.ron"))
+            .expect("ba_orichalcum_war_gauntlets")
+    })
+}
+
+fn catalog_hands_gear(item_id: u32) -> &'static GearDef {
+    match item_id {
+        ALTARWEAVE_CUFFS_ITEM => altarweave_cuffs(),
+        BATTLEWEAVE_CUFFS_ITEM => battleweave_cuffs(),
+        ORICHALCUM_WAR_GAUNTLETS_ITEM => orichalcum_war_gauntlets(),
+        crate::gear::ROGUES_GLOVES_ITEM => rogues_gloves(),
+        crate::gear::BATTLEWEAVE_GLOVES_ITEM => battleweave_gloves(),
+        crate::gear::THRONEWEAVE_CUFFS_ITEM => throneweave_cuffs(),
+        crate::gear::STEEL_MITTENS_ITEM => steel_mittens(),
+        crate::gear::BONE_GLOVES_ITEM => bone_gloves(),
+        _ => battleweave_cuffs(),
+    }
+}
+
+fn altarweave_hands_ramp(slot: ColorSlot) -> u8 {
+    match slot {
+        ColorSlot::Trim => C_GOLD,
+        ColorSlot::Accent => C_ACCENT,
+        _ => crate::palette::WATER,
+    }
+}
+
+fn battleweave_gloves() -> &'static GearDef {
+    use std::sync::OnceLock;
+    static GEAR: OnceLock<GearDef> = OnceLock::new();
+    GEAR.get_or_init(|| {
+        GearDef::from_ron(include_str!("../assets/gear/ba_battleweave_gloves.ron")).expect("ba_battleweave_gloves")
+    })
+}
+
+fn steel_mittens() -> &'static GearDef {
+    use std::sync::OnceLock;
+    static GEAR: OnceLock<GearDef> = OnceLock::new();
+    GEAR.get_or_init(|| {
+        GearDef::from_ron(include_str!("../assets/gear/ba_steel_mittens.ron")).expect("ba_steel_mittens")
+    })
+}
+
+fn bone_gloves() -> &'static GearDef {
+    use std::sync::OnceLock;
+    static GEAR: OnceLock<GearDef> = OnceLock::new();
+    GEAR.get_or_init(|| {
+        GearDef::from_ron(include_str!("../assets/gear/ba_bone_gloves.ron")).expect("ba_bone_gloves")
+    })
+}
+
+fn bone_hands_ramp(slot: ColorSlot) -> u8 {
+    match slot {
+        ColorSlot::Trim => crate::palette::GEAR_LEATHER_FAR,
+        ColorSlot::Accent => crate::palette::GEAR_LEATHER,
+        _ => GEAR_BONE,
+    }
+}
+
+fn steel_hands_ramp(slot: ColorSlot) -> u8 {
+    match slot {
+        ColorSlot::Trim => C_STEEL,
+        ColorSlot::Accent => C_SHADOW,
+        _ => C_STEEL,
+    }
+}
+
+fn throneweave_cuffs() -> &'static GearDef {
+    use std::sync::OnceLock;
+    static GEAR: OnceLock<GearDef> = OnceLock::new();
+    GEAR.get_or_init(|| {
+        GearDef::from_ron(include_str!("../assets/gear/ba_throneweave_cuffs.ron")).expect("ba_throneweave_cuffs")
+    })
+}
+
+fn throneweave_hands_ramp(slot: ColorSlot) -> u8 {
+    match slot {
+        ColorSlot::Trim => C_GOLD,
+        ColorSlot::Accent => C_GOLD,
+        _ => crate::palette::WATER,
+    }
+}
+
+fn orichalcum_hands_ramp(slot: ColorSlot) -> u8 {
+    match slot {
+        ColorSlot::Trim => C_STEEL,
+        ColorSlot::Accent => C_STEEL,
+        _ => C_GOLD,
+    }
+}
+
+fn catalog_hands_tint(item_id: u32) -> fn(ColorSlot) -> u8 {
+    match item_id {
+        ALTARWEAVE_CUFFS_ITEM => altarweave_hands_ramp,
+        crate::gear::THRONEWEAVE_CUFFS_ITEM => throneweave_hands_ramp,
+        crate::gear::STEEL_MITTENS_ITEM => steel_hands_ramp,
+        crate::gear::BONE_GLOVES_ITEM => bone_hands_ramp,
+        ORICHALCUM_WAR_GAUNTLETS_ITEM => orichalcum_hands_ramp,
+        _ => plate_color,
+    }
+}
+
+/// Instance wrist-local cuff capsules on both hands. +y runs elbow→hand.
+fn draw_catalog_hands(fb: &mut Framebuffer, cam: &Camera, j: &Joints, item_id: u32) {
+    let g = catalog_hands_gear(item_id);
+    let tint = catalog_hands_tint(item_id);
+    for i in 0..2 {
+        let y = (j.hand[i] - j.elbow[i]).norm();
+        let mut x = y.cross(Vec3::UP).norm();
+        if x.len() < 0.5 {
+            x = v3(1.0, 0.0, 0.0);
+        }
+        let mut z = x.cross(y).norm();
+        if i == 0 {
+            x = v3(-x.x, -x.y, -x.z);
+            z = x.cross(y).norm();
+        }
+        draw_gear_in_frame(fb, cam, j, (j.hand[i], x, y, z), g, tint);
+    }
+}
+
+/// Instance a foot-local RON on both feet. Axes match the pelvis/chest frame
+/// (x right, y up the spine, z forward); origin is each foot joint.
+fn draw_catalog_feet(fb: &mut Framebuffer, cam: &Camera, j: &Joints, item_id: u32) {
+    let g = catalog_feet_gear(item_id);
+    let tint = catalog_feet_tint(item_id);
+    let y = (j.chest - j.pelvis).norm();
+    let mut x = y.cross(Vec3::UP).norm();
+    if x.len() < 0.5 {
+        x = v3(1.0, 0.0, 0.0);
+    }
+    let z = x.cross(y).norm();
+    for i in 0..2 {
+        draw_gear_in_frame(fb, cam, j, (j.foot[i], x, y, z), g, tint);
+    }
+}
+
+fn draw_thigh_shell(fb: &mut Framebuffer, cam: &Camera, j: &Joints, plate: &Plate) {
     let mut bounds = [i32::MAX, i32::MAX, i32::MIN, i32::MIN];
     for side in 0..2 {
         for ring in 0..cuisse_rings() {
@@ -3534,6 +4351,41 @@ mod plate_tests {
     }
 
     #[test]
+    fn bronze_harness_reuses_iron_cuirass_recipe() {
+        use stick_engine::gear::GearDef;
+        let g = GearDef::from_ron(include_str!("../assets/gear/ba_bronze_harness.ron"))
+            .expect("ba_bronze_harness");
+        assert_eq!(g.id, "ba_bronze_harness");
+        assert_eq!(g.shapes.len(), super::iron_cuirass().shapes.len());
+        let p = super::parse_plate(include_str!("../assets/gear/ba_bronze_harness.plate.ron"));
+        assert_eq!(p.flow, 0.0);
+        assert_eq!(p.wrap, 0.0);
+        assert_eq!(p.w, 15);
+        assert_eq!(p.h, 18);
+        assert!(p.cells.contains(&0), ". leaves the steel showing");
+        assert!(p.cells.contains(&crate::compat::C_GOLD));
+        assert!(p.cells.contains(&crate::compat::C_ACCENT));
+    }
+
+    #[test]
+    fn iron_mail_reuses_iron_cuirass_recipe() {
+        use stick_engine::gear::GearDef;
+        let g = GearDef::from_ron(include_str!("../assets/gear/ba_iron_mail.ron"))
+            .expect("ba_iron_mail");
+        assert_eq!(g.id, "ba_iron_mail");
+        assert_eq!(g.material, Some(stick_engine::raster::ramp_id("steel").unwrap()));
+        assert_eq!(g.shapes.len(), super::iron_cuirass().shapes.len());
+        let p = super::parse_plate(include_str!("../assets/gear/ba_iron_mail.plate.ron"));
+        assert_eq!(p.flow, 0.0);
+        assert_eq!(p.wrap, 0.0);
+        assert_eq!(p.w, 15);
+        assert_eq!(p.h, 18);
+        assert!(p.cells.contains(&0), ". leaves the steel showing");
+        assert!(p.cells.contains(&crate::compat::C_GOLD));
+        assert!(p.cells.contains(&crate::compat::C_ACCENT));
+    }
+
+    #[test]
     fn wizard_robe_flows_from_the_hem() {
         let p = super::wizard_plate();
         assert_eq!(p.w, 15);
@@ -3546,6 +4398,24 @@ mod plate_tests {
         assert!(!p.cells.contains(&0), "every robe pixel is painted");
         let g = super::wizard_robe();
         assert_eq!(g.shapes.len(), 14);
+    }
+
+    #[test]
+    fn linen_robe_is_the_cloth_body_retint() {
+        let p = super::linen_plate();
+        assert_eq!(p.w, 15);
+        assert_eq!(p.h, 18);
+        assert!(p.flow > 0.2);
+        assert!(p.sleeve_drop > 0.2);
+        assert!(!p.cells.contains(&crate::compat::C_SHADOW), "k reads as a hole");
+        assert!(p.cells.contains(&crate::palette::WATER));
+        assert!(p.cells.contains(&(crate::palette::WATER + 1)));
+        assert!(p.cells.contains(&27));
+        assert!(!p.cells.contains(&0), "every robe pixel is painted");
+        let g = super::linen_robe();
+        assert_eq!(g.id, "ba_linen_robe");
+        assert_eq!(g.shapes.len(), 14);
+        assert_eq!(g.material, Some(stick_engine::raster::ramp_id("dust").unwrap()));
     }
 
     #[test]
@@ -3661,6 +4531,34 @@ mod plate_tests {
     }
 
     #[test]
+    fn bronze_shield_reuses_iron_shield_recipe() {
+        use stick_engine::gear::{GearDef, GearSlot, Shape};
+        let g = GearDef::from_ron(include_str!("../assets/gear/ba_bronze_shield.ron"))
+            .expect("ba_bronze_shield");
+        assert_eq!(g.id, "ba_bronze_shield");
+        assert_eq!(g.slot, GearSlot::OffHand);
+        assert_eq!(g.stance.as_deref(), Some("shield"));
+        assert_eq!(g.shapes.len(), 1);
+        assert!(matches!(g.shapes[0], Shape::Capsule { .. }));
+        let iron = super::iron_shield();
+        assert_eq!(g.slot, iron.slot);
+        assert_eq!(g.attach, iron.attach);
+        assert_eq!(g.stance, iron.stance);
+        assert_eq!(g.material, iron.material);
+        assert_eq!(g.shapes.len(), iron.shapes.len());
+        let plate = super::parse_plate(include_str!("../assets/gear/ba_bronze_shield.plate.ron"));
+        let iron_plate = super::shield_plate();
+        assert_eq!(plate.flow, 0.0);
+        assert_eq!(plate.wrap, 0.0);
+        assert_eq!(plate.cells, iron_plate.cells);
+        assert!(plate.cells.contains(&super::C_STEEL));
+        assert!(plate.cells.contains(&super::C_GOLD));
+        assert!(!plate.cells.contains(&0));
+        assert!(!plate.cells.contains(&13));
+        assert!(!plate.cells.contains(&crate::compat::C_SHADOW));
+    }
+
+    #[test]
     fn kite_shield_is_a_pointed_face() {
         use stick_engine::gear::Shape;
         let outer = super::kite_outline();
@@ -3726,6 +4624,53 @@ mod plate_tests {
     }
 
     #[test]
+    fn leather_trousers_reuse_the_cuisses_thigh_shell() {
+        use stick_engine::math::v3;
+        let look = crate::gear::garb(0, 0, 0, 0, 0, 0, 0, 2, 214, 0, 0);
+        assert!(look.leather_trousers, "leather legs wear the trousers shell");
+        assert!(!look.cuisses, "leather legs are not metal cuisses");
+        let j = crate::compat::Fig {
+            pelvis: v3(0.0, 0.9, 0.0),
+            chest: v3(0.0, 1.42, 0.0),
+            hip: [v3(-0.11, 0.9, 0.0), v3(0.11, 0.9, 0.0)],
+            knee: [v3(-0.11, 0.44, 0.0), v3(0.11, 0.44, 0.0)],
+            ..crate::compat::Fig::default()
+        };
+        let fwd = super::body_fwd(&j);
+        let hip = j.hip[0];
+        let knee = j.knee[0];
+        let hip_cap = super::cuisse_point(&j, 0, 0, 0.2);
+        let low = super::cuisse_point(&j, 0, 5, 0.1);
+        assert!(hip_cap.y > hip.y + 0.08, "the hip plate rises above the joint");
+        assert!((low - knee).len() < (low - hip).len(), "the narrow end stops by the knee");
+        let bone = hip + (knee - hip) * super::CUISSE_T[2];
+        let front = super::cuisse_point(&j, 0, 3, 0.1);
+        let back = super::cuisse_point(&j, 0, 3, 0.78);
+        assert!((front - bone).dot(fwd) > super::LIMB_R, "the front of the thigh is plated");
+        assert!((back - bone).dot(fwd) < -super::LIMB_R, "the back of the thigh is plated");
+        let mut swung = j;
+        swung.knee[0] = knee + v3(0.0, 0.05, 0.25);
+        let moved = super::cuisse_point(&swung, 0, 5, 0.1);
+        assert!((moved - low).len() > 0.15, "a stride carries the plate");
+        let g = super::leather_trousers();
+        assert_eq!(g.id, "ba_leather_trousers");
+        assert!(g.shapes.is_empty(), "the arcs are invisible");
+        assert_eq!(g.material, Some(stick_engine::raster::ramp_id("leather").unwrap()));
+        let plate = super::leather_trousers_plate();
+        let cuisses = super::cuisse_plate();
+        assert_eq!(plate.w, cuisses.w);
+        assert_eq!(plate.h, cuisses.h);
+        assert_eq!(plate.flow, 0.0);
+        assert_eq!(plate.wrap, 0.0);
+        assert!(plate.cells.contains(&crate::palette::GEAR_LEATHER));
+        assert!(plate.cells.contains(&crate::palette::GEAR_LEATHER_FAR));
+        assert!(plate.cells.contains(&crate::compat::C_SHADOW));
+        assert!(!plate.cells.contains(&0));
+        assert!(!plate.cells.contains(&super::C_STEEL), "leather legs are not a second metal look");
+        assert!(!plate.cells.contains(&super::C_GOLD), "leather legs are not a second metal look");
+    }
+
+    #[test]
     fn catalog_daggers_use_short_layout_not_iron_sword() {
         use crate::gear::{Mat, WeaponLook, BONE_DAGGER_ITEM, FANG_DAGGER_ITEM, IRON_DAGGER_ITEM, NEOLITHIC_DAGGER_ITEM};
         use crate::preset::Weapon;
@@ -3768,6 +4713,63 @@ mod plate_tests {
         assert!(super::pixel_axe_item(DECAYED_AXE_ITEM));
         assert!(super::pixel_labrys_style(DECAYED_AXE_ITEM).is_some());
         assert_eq!(w.kind, Weapon::Axe);
+    }
+
+    #[test]
+    fn ashbeam_club_is_a_shaft_and_thick_head() {
+        use stick_engine::gear::{GearSlot, Shape};
+        let g = stick_engine::gear::GearDef::from_ron(include_str!(
+            "../assets/gear/ba_ashbeam_club.ron"
+        ))
+        .expect("ba_ashbeam_club");
+        assert_eq!(g.id, "ba_ashbeam_club");
+        assert_eq!(g.slot, GearSlot::MainHand);
+        assert_eq!(g.stance.as_deref(), Some("1h"));
+        assert!((g.reach - 0.60).abs() < 1e-3);
+        assert_eq!(g.shapes.len(), 3);
+        match g.shapes[0] {
+            Shape::Capsule { from, to, .. } => {
+                assert!(from.1 < 0.0 && to.1 > 0.0, "shaft runs through the hand");
+                assert!(from.0.abs() < 1e-6 && to.0.abs() < 1e-6, "+y along the club");
+            }
+            _ => panic!("shaft is a capsule"),
+        }
+        match g.shapes[2] {
+            Shape::Capsule { from, to, thick, .. } => {
+                assert!(from.1 > 0.0 && to.1 > from.1, "head sits on +y");
+                assert!(thick > 2.0, "head is the thick striking end");
+            }
+            _ => panic!("head is a capsule"),
+        }
+    }
+
+    #[test]
+    fn ashbeam_staff_is_a_shaft_and_orb() {
+        use stick_engine::color::ColorSlot;
+        use stick_engine::gear::{GearSlot, Shape};
+        let g = stick_engine::gear::GearDef::from_ron(include_str!(
+            "../assets/gear/ba_ashbeam_staff.ron"
+        ))
+        .expect("ba_ashbeam_staff");
+        assert_eq!(g.id, "ba_ashbeam_staff");
+        assert_eq!(g.slot, GearSlot::MainHand);
+        assert_eq!(g.stance.as_deref(), Some("staff"));
+        assert!((g.reach - 0.75).abs() < 1e-3);
+        assert_eq!(g.shapes.len(), 3);
+        match g.shapes[0] {
+            Shape::Capsule { from, to, .. } => {
+                assert!(from.1 < 0.0 && to.1 > 0.0, "shaft runs through the hand");
+                assert!(from.0.abs() < 1e-6 && to.0.abs() < 1e-6, "+y along the shaft");
+            }
+            _ => panic!("shaft is a capsule"),
+        }
+        match &g.shapes[2] {
+            Shape::Disc { center, ramp, .. } => {
+                assert!(center.1 > 0.75, "orb sits past the tip");
+                assert_eq!(*ramp, ColorSlot::Glow);
+            }
+            _ => panic!("tip is a disc"),
+        }
     }
 
     #[test]
@@ -4008,6 +5010,917 @@ mod plate_tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn bronze_mittens_follow_the_hands() {
+        use stick_engine::gear::{GearDef, GearSlot, Shape};
+        use stick_engine::rig::Joint;
+        let g = GearDef::from_ron(include_str!("../assets/gear/ba_bronze_mittens.ron")).expect("ba_bronze_mittens");
+        assert_eq!(g.id, "ba_bronze_mittens");
+        assert_eq!(g.slot, GearSlot::Hands);
+        assert_eq!(g.attach, Joint::RHand);
+        assert_ne!(g.attach, Joint::Chest);
+        assert!(
+            g.shapes.iter().any(|s| matches!(s, Shape::Disc { at: Some(j), .. } if j == "l_hand")),
+            "left mitten follows l_hand"
+        );
+        assert!(
+            g.shapes.iter().any(|s| matches!(s, Shape::Disc { at: Some(j), .. } if j == "r_hand")),
+            "right mitten follows r_hand"
+        );
+        let capsules = g.shapes.iter().filter(|s| matches!(s, Shape::Capsule { .. })).count();
+        assert!(capsules >= 3, "short overlapping capsules make the fist bag");
+    }
+
+    #[test]
+    fn leather_sandals_follow_the_feet() {
+        use stick_engine::gear::{GearDef, GearSlot, Shape};
+        use stick_engine::rig::Joint;
+        let g = GearDef::from_ron(include_str!("../assets/gear/ba_leather_sandals.ron")).expect("ba_leather_sandals");
+        assert_eq!(g.id, "ba_leather_sandals");
+        assert_eq!(g.slot, GearSlot::Feet);
+        assert_eq!(g.attach, Joint::Pelvis);
+        assert_ne!(g.attach, Joint::Chest);
+        assert_eq!(g.material, Some(stick_engine::raster::ramp_id("leather").unwrap()));
+        assert!(
+            g.shapes.iter().any(|s| matches!(s, Shape::Disc { at: Some(j), .. } if j == "l_foot")),
+            "left sandal follows l_foot"
+        );
+        assert!(
+            g.shapes.iter().any(|s| matches!(s, Shape::Disc { at: Some(j), .. } if j == "r_foot")),
+            "right sandal follows r_foot"
+        );
+        let capsules = g.shapes.iter().filter(|s| matches!(s, Shape::Capsule { .. })).count();
+        assert!(capsules >= 4, "short sole and strap capsules sit at both feet");
+        assert!(
+            g.shapes.iter().filter(|s| matches!(s, Shape::Capsule { .. })).all(|s| match s {
+                Shape::Capsule { from, to, .. } => {
+                    let dx = to.0 - from.0;
+                    let dy = to.1 - from.1;
+                    let dz = to.2 - from.2;
+                    dx * dx + dy * dy + dz * dz < 0.12 * 0.12
+                }
+                _ => false,
+            }),
+            "capsules stay short on the feet"
+        );
+        assert!(
+            g.shapes.iter().filter(|s| matches!(s, Shape::Capsule { .. })).all(|s| match s {
+                Shape::Capsule { from, to, .. } => {
+                    from.0.abs() < 0.08
+                        && to.0.abs() < 0.08
+                        && from.1 > -0.08
+                        && to.1 > -0.08
+                }
+                _ => false,
+            }),
+            "capsules are foot-local, not parked on the pelvis"
+        );
+    }
+
+    #[test]
+    fn bronze_sabatons_are_smaller_than_mythril() {
+        use stick_engine::gear::{GearDef, GearSlot, Shape};
+        use stick_engine::rig::Joint;
+        let bronze = GearDef::from_ron(include_str!("../assets/gear/ba_bronze_sabatons.ron")).expect("ba_bronze_sabatons");
+        let mythril = GearDef::from_ron(include_str!("../assets/gear/ba_mythril_sabatons.ron")).expect("ba_mythril_sabatons");
+        assert_eq!(bronze.id, "ba_bronze_sabatons");
+        assert_eq!(bronze.slot, GearSlot::Feet);
+        assert_eq!(bronze.attach, Joint::Pelvis);
+        assert_eq!(bronze.material, Some(stick_engine::raster::ramp_id("steel").unwrap()));
+        assert!(
+            bronze.shapes.iter().any(|s| matches!(s, Shape::Disc { at: Some(j), .. } if j == "l_foot")),
+            "left sabaton follows l_foot"
+        );
+        assert!(
+            bronze.shapes.iter().any(|s| matches!(s, Shape::Disc { at: Some(j), .. } if j == "r_foot")),
+            "right sabaton follows r_foot"
+        );
+        let max_abs = |g: &GearDef| {
+            g.shapes.iter().filter_map(|s| match s {
+                Shape::Capsule { from, to, .. } => Some(from.0.abs().max(to.0.abs()).max(from.2.abs()).max(to.2.abs())),
+                _ => None,
+            }).fold(0.0_f32, f32::max)
+        };
+        assert!(max_abs(&bronze) < max_abs(&mythril), "bronze plates are smaller than mythril");
+        let look = crate::gear::garb(0, 0, 0, 0, 0, 0, 0, 0, 0, 3, crate::gear::BRONZE_SABATONS_ITEM);
+        assert_eq!(look.feet_item, crate::gear::BRONZE_SABATONS_ITEM);
+    }
+
+    #[test]
+    fn iron_sabatons_match_mythril_scale() {
+        use stick_engine::gear::{GearDef, GearSlot};
+        let iron = GearDef::from_ron(include_str!("../assets/gear/ba_iron_sabatons.ron")).expect("ba_iron_sabatons");
+        let mythril = GearDef::from_ron(include_str!("../assets/gear/ba_mythril_sabatons.ron")).expect("ba_mythril_sabatons");
+        assert_eq!(iron.id, "ba_iron_sabatons");
+        assert_eq!(iron.slot, GearSlot::Feet);
+        assert!(iron.shapes.len() > mythril.shapes.len(), "iron adds an ankle cuff");
+        let look = crate::gear::garb(0, 0, 0, 0, 0, 0, 0, 0, 0, 3, crate::gear::IRON_SABATONS_ITEM);
+        assert_eq!(look.feet_item, crate::gear::IRON_SABATONS_ITEM);
+    }
+
+    #[test]
+    fn decayed_greaves_are_shorter_bone_plates() {
+        use stick_engine::gear::{GearDef, GearSlot, Shape};
+        let decayed = GearDef::from_ron(include_str!("../assets/gear/ba_decayed_greaves.ron")).expect("ba_decayed_greaves");
+        let dark = GearDef::from_ron(include_str!("../assets/gear/ba_darksteel_greaves.ron")).expect("ba_darksteel_greaves");
+        assert_eq!(decayed.id, "ba_decayed_greaves");
+        assert_eq!(decayed.slot, GearSlot::Feet);
+        assert_eq!(decayed.material, Some(stick_engine::raster::ramp_id("bone").unwrap()));
+        let max_y = |g: &GearDef| {
+            g.shapes.iter().filter_map(|s| match s {
+                Shape::Capsule { from, to, .. } => Some(from.1.max(to.1)),
+                _ => None,
+            }).fold(0.0_f32, f32::max)
+        };
+        assert!(max_y(&decayed) < max_y(&dark), "decayed greaves sit shorter on the shin");
+        let look = crate::gear::garb(0, 0, 0, 0, 0, 0, 0, 0, 0, 5, crate::gear::DECAYED_GREAVES_ITEM);
+        assert_eq!(look.feet_item, crate::gear::DECAYED_GREAVES_ITEM);
+    }
+
+    #[test]
+    fn battleweave_coat_is_a_short_fighting_coat() {
+        use stick_engine::gear::{GearDef, GearSlot};
+        let g = super::battleweave_coat();
+        assert_eq!(g.id, "ba_battleweave_coat");
+        assert_eq!(g.slot, GearSlot::Chest);
+        let plate = super::battleweave_plate();
+        assert!(plate.flow > 0.0 && plate.flow < 0.72, "fighting coat flow is shorter than a robe");
+        assert!(plate.y0 > -1.0, "hem stops above the ankle");
+        assert!(plate.cells.contains(&crate::compat::C_STEEL) || plate.cells.iter().any(|&c| c == 8 || c == 13));
+        let look = crate::gear::garb(0, 0, 0, 1, crate::gear::BATTLEWEAVE_COAT_ITEM, 0, 0, 0, 0, 0, 0);
+        assert_eq!(look.coat_item, crate::gear::BATTLEWEAVE_COAT_ITEM);
+        assert!(!look.robe, "battleweave is not the generic wizard robe");
+        let _ = GearDef::from_ron(include_str!("../assets/gear/ba_battleweave_coat.ron")).expect("ba_battleweave_coat");
+    }
+
+    #[test]
+    fn altarweave_coat_is_a_knee_liturgical_coat() {
+        use stick_engine::gear::{GearDef, GearSlot};
+        let g = super::altarweave_coat();
+        assert_eq!(g.id, "ba_altarweave_coat");
+        assert_eq!(g.slot, GearSlot::Chest);
+        let plate = super::altarweave_plate();
+        assert!(plate.flow > 0.4 && plate.flow < 0.70, "altarweave flow sits between fighting coat and robe");
+        assert!(plate.y0 < -0.80 && plate.y0 > -1.10, "hem is at the knee");
+        assert!(plate.cells.contains(&crate::compat::C_GOLD), "gold stole");
+        let look = crate::gear::garb(0, 0, 0, 1, crate::gear::ALTARWEAVE_COAT_ITEM, 0, 0, 0, 0, 0, 0);
+        assert_eq!(look.coat_item, crate::gear::ALTARWEAVE_COAT_ITEM);
+        assert!(!look.robe, "altarweave is not the generic wizard robe");
+        let _ = GearDef::from_ron(include_str!("../assets/gear/ba_altarweave_coat.ron")).expect("ba_altarweave_coat");
+    }
+
+    #[test]
+    fn iron_shield_catalog_id_raises_the_offhand() {
+        use stick_engine::gear::GearDef;
+        let mut look = crate::gear::garb(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        crate::gear::apply_offhand(&mut look, crate::gear::IRON_SHIELD_ITEM);
+        assert!(look.shield);
+        assert!(!look.kite);
+        assert_eq!(look.shield_item, crate::gear::IRON_SHIELD_ITEM);
+        let _ = GearDef::from_ron(include_str!("../assets/gear/ba_iron_shield.ron")).expect("ba_iron_shield");
+    }
+
+    #[test]
+    fn palace_shield_catalog_id_uses_the_gold_kite() {
+        use stick_engine::gear::GearDef;
+        let mut look = crate::gear::garb(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        crate::gear::apply_offhand(&mut look, crate::gear::PALACE_SHIELD_ITEM);
+        assert!(look.kite);
+        assert!(!look.shield);
+        assert_eq!(look.shield_item, crate::gear::PALACE_SHIELD_ITEM);
+        let plate = super::palace_shield_plate();
+        assert!(plate.cells.iter().all(|&c| c == crate::compat::C_GOLD), "palace kite field is gold");
+        let _ = GearDef::from_ron(include_str!("../assets/gear/ba_palace_shield.ron")).expect("ba_palace_shield");
+    }
+
+    #[test]
+    fn darksteel_targe_catalog_id_uses_the_dark_plate() {
+        use stick_engine::gear::GearDef;
+        let mut look = crate::gear::garb(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        crate::gear::apply_offhand(&mut look, crate::gear::DARKSTEEL_TARGE_ITEM);
+        assert!(look.shield);
+        assert!(!look.kite);
+        assert_eq!(look.shield_item, crate::gear::DARKSTEEL_TARGE_ITEM);
+        let plate = super::darksteel_targe_plate();
+        assert!(plate.cells.contains(&13), "dark steel field");
+        assert!(!plate.cells.contains(&crate::compat::C_STEEL), "targe is not iron paint");
+        let _ = GearDef::from_ron(include_str!("../assets/gear/ba_darksteel_targe.ron")).expect("ba_darksteel_targe");
+    }
+
+    #[test]
+    fn catalog_staff_rons_are_not_the_generic_pole() {
+        use stick_engine::gear::{GearDef, GearSlot, Shape};
+        let hook = |g: &GearDef| {
+            g.shapes.iter().any(|s| match s {
+                Shape::Capsule { from, to, .. } => from.0.abs() > 0.05 || to.0.abs() > 0.05,
+                _ => false,
+            })
+        };
+        let blood = super::bloodbeam_crozier();
+        assert_eq!(blood.id, "ba_bloodbeam_crozier");
+        assert_eq!(blood.slot, GearSlot::MainHand);
+        assert!(hook(blood), "crozier has a hooked head");
+        let bell = super::bellwood_crozier();
+        assert_eq!(bell.id, "ba_bellwood_crozier");
+        assert!(hook(bell), "bellwood crozier has a hooked head");
+        let tome = super::ashbeam_tome();
+        assert_eq!(tome.id, "ba_ashbeam_tome");
+        let max_y = tome
+            .shapes
+            .iter()
+            .map(|s| match s {
+                Shape::Capsule { from, to, .. } => from.1.max(to.1),
+                Shape::Disc { center, .. } => center.1,
+                Shape::Line { from, to, .. } => from.1.max(to.1),
+            })
+            .fold(f32::MIN, f32::max);
+        assert!(max_y < 0.35, "tome is a book, not a staff pole: max y {max_y}");
+        assert!(crate::gear::uses_catalog_staff_ron(crate::gear::BLOODBEAM_CROZIER_ITEM));
+        assert!(crate::gear::uses_catalog_staff_ron(crate::gear::ASHBEAM_TOME_ITEM));
+        assert!(crate::gear::uses_catalog_staff_ron(crate::gear::BELLWOOD_CROZIER_ITEM));
+        let _ = GearDef::from_ron(include_str!("../assets/gear/ba_bloodbeam_crozier.ron")).expect("ba_bloodbeam_crozier");
+        let _ = GearDef::from_ron(include_str!("../assets/gear/ba_ashbeam_tome.ron")).expect("ba_ashbeam_tome");
+        let _ = GearDef::from_ron(include_str!("../assets/gear/ba_bellwood_crozier.ron")).expect("ba_bellwood_crozier");
+    }
+
+    #[test]
+    fn battleweave_pumps_catalog_id_instances_on_the_feet() {
+        use stick_engine::gear::{GearDef, GearSlot};
+        let look = crate::gear::garb(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, crate::gear::BATTLEWEAVE_PUMPS_ITEM);
+        assert_eq!(look.feet_item, crate::gear::BATTLEWEAVE_PUMPS_ITEM);
+        let g = super::battleweave_pumps();
+        assert_eq!(g.id, "ba_battleweave_pumps");
+        assert_eq!(g.slot, GearSlot::Feet);
+        assert!(g.shapes.len() >= 8, "pump is a sole and vamp, not a sabaton plate");
+        let _ = GearDef::from_ron(include_str!("../assets/gear/ba_battleweave_pumps.ron")).expect("ba_battleweave_pumps");
+    }
+
+    #[test]
+    fn battleweave_slacks_catalog_id_paints_the_thighs() {
+        use stick_engine::gear::{GearDef, GearSlot};
+        let look = crate::gear::garb(0, 0, 0, 0, 0, 0, 0, 1, crate::gear::BATTLEWEAVE_SLACKS_ITEM, 0, 0);
+        assert_eq!(look.legs_item, crate::gear::BATTLEWEAVE_SLACKS_ITEM);
+        assert!(!look.cuisses);
+        assert!(!look.leather_trousers);
+        let g = super::battleweave_slacks();
+        assert_eq!(g.id, "ba_battleweave_slacks");
+        assert_eq!(g.slot, GearSlot::Legs);
+        let plate = super::battleweave_slacks_plate();
+        assert!(plate.cells.contains(&crate::compat::C_STEEL), "steel seam");
+        let _ = GearDef::from_ron(include_str!("../assets/gear/ba_battleweave_slacks.ron")).expect("ba_battleweave_slacks");
+    }
+
+    #[test]
+    fn altarweave_slacks_catalog_id_paints_gold_stole() {
+        use stick_engine::gear::{GearDef, GearSlot};
+        let look = crate::gear::garb(0, 0, 0, 0, 0, 0, 0, 1, crate::gear::ALTARWEAVE_SLACKS_ITEM, 0, 0);
+        assert_eq!(look.legs_item, crate::gear::ALTARWEAVE_SLACKS_ITEM);
+        let g = super::altarweave_slacks();
+        assert_eq!(g.id, "ba_altarweave_slacks");
+        assert_eq!(g.slot, GearSlot::Legs);
+        let plate = super::altarweave_slacks_plate();
+        assert!(plate.cells.contains(&crate::compat::C_GOLD), "gold stole");
+        let _ = GearDef::from_ron(include_str!("../assets/gear/ba_altarweave_slacks.ron")).expect("ba_altarweave_slacks");
+    }
+
+    #[test]
+    fn altarweave_pumps_catalog_id_instances_on_the_feet() {
+        use stick_engine::gear::{GearDef, GearSlot};
+        let look = crate::gear::garb(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, crate::gear::ALTARWEAVE_PUMPS_ITEM);
+        assert_eq!(look.feet_item, crate::gear::ALTARWEAVE_PUMPS_ITEM);
+        let g = super::altarweave_pumps();
+        assert_eq!(g.id, "ba_altarweave_pumps");
+        assert_eq!(g.slot, GearSlot::Feet);
+        let _ = GearDef::from_ron(include_str!("../assets/gear/ba_altarweave_pumps.ron")).expect("ba_altarweave_pumps");
+    }
+
+    #[test]
+    fn battleweave_raiment_uses_the_coat_draw() {
+        use stick_engine::gear::GearDef;
+        let look = crate::gear::garb(0, 0, 0, 1, crate::gear::BATTLEWEAVE_RAIMENT_ITEM, 0, 0, 0, 0, 0, 0);
+        assert_eq!(look.coat_item, crate::gear::BATTLEWEAVE_RAIMENT_ITEM);
+        assert!(!look.robe);
+        let _ = GearDef::from_ron(include_str!("../assets/gear/ba_battleweave_raiment.ron")).expect("ba_battleweave_raiment");
+    }
+
+    #[test]
+    fn orichalcum_targe_catalog_id_uses_the_gold_plate() {
+        use stick_engine::gear::GearDef;
+        let mut look = crate::gear::garb(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        crate::gear::apply_offhand(&mut look, crate::gear::ORICHALCUM_TARGE_ITEM);
+        assert!(look.shield);
+        assert_eq!(look.shield_item, crate::gear::ORICHALCUM_TARGE_ITEM);
+        let plate = super::orichalcum_targe_plate();
+        assert!(plate.cells.contains(&crate::compat::C_GOLD), "orichalcum field");
+        let _ = GearDef::from_ron(include_str!("../assets/gear/ba_orichalcum_targe.ron")).expect("ba_orichalcum_targe");
+    }
+
+    #[test]
+    fn orichalcum_mail_catalog_id_uses_the_gold_hauberk() {
+        use stick_engine::gear::{GearDef, GearSlot};
+        let look = crate::gear::garb(0, 0, 0, 3, crate::gear::ORICHALCUM_MAIL_ITEM, 0, 0, 0, 0, 0, 0);
+        assert_eq!(look.hauberk_item, crate::gear::ORICHALCUM_MAIL_ITEM);
+        assert!(!look.plate, "orichalcum mail is not a cuirass stamp");
+        let g = super::orichalcum_mail();
+        assert_eq!(g.id, "ba_orichalcum_mail");
+        assert_eq!(g.slot, GearSlot::Chest);
+        let plate = super::orichalcum_mail_plate();
+        assert!(plate.wrap > 0.2);
+        assert!(plate.cells.contains(&crate::compat::C_GOLD));
+        let _ = GearDef::from_ron(include_str!("../assets/gear/ba_orichalcum_mail.ron")).expect("ba_orichalcum_mail");
+    }
+
+    #[test]
+    fn rogues_dagger_uses_the_steel_short_blade() {
+        use stick_engine::gear::GearDef;
+        assert!(super::pixel_dagger_item(crate::gear::ROGUES_DAGGER_ITEM));
+        let pal = super::pixel_sword_palette(crate::gear::ROGUES_DAGGER_ITEM);
+        assert_eq!(pal.blade, crate::compat::C_STEEL);
+        assert_ne!(pal.blade, crate::palette::CR_TUSK, "not fang tusk");
+        let _ = GearDef::from_ron(include_str!("../assets/gear/ba_rogues_dagger.ron")).expect("ba_rogues_dagger");
+    }
+
+    #[test]
+    fn batch_d_catalog_ids_draw_named_meshes() {
+        use stick_engine::gear::GearDef;
+        let mut gloves = crate::gear::garb(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        crate::gear::apply_hands(&mut gloves, crate::gear::BATTLEWEAVE_GLOVES_ITEM);
+        assert_eq!(gloves.hands_item, crate::gear::BATTLEWEAVE_GLOVES_ITEM);
+        let hose = crate::gear::garb(0, 0, 0, 0, 0, 0, 0, 1, crate::gear::BATTLEWEAVE_HOSE_ITEM, 0, 0);
+        assert_eq!(hose.legs_item, crate::gear::BATTLEWEAVE_HOSE_ITEM);
+        assert!(super::catalog_slacks_plate(crate::gear::BATTLEWEAVE_HOSE_ITEM).cells.contains(&crate::compat::C_STEEL));
+        let trousers = crate::gear::garb(0, 0, 0, 0, 0, 0, 0, 2, crate::gear::ROGUES_TROUSERS_ITEM, 0, 0);
+        assert_eq!(trousers.legs_item, crate::gear::ROGUES_TROUSERS_ITEM);
+        assert!(super::catalog_slacks_plate(crate::gear::ROGUES_TROUSERS_ITEM).cells.contains(&crate::compat::C_GOLD));
+        let cuisses = crate::gear::garb(0, 0, 0, 0, 0, 0, 0, 3, crate::gear::ORICHALCUM_WAR_CUISSES_ITEM, 0, 0);
+        assert_eq!(cuisses.legs_item, crate::gear::ORICHALCUM_WAR_CUISSES_ITEM);
+        assert!(!cuisses.cuisses);
+        let slippers = crate::gear::garb(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, crate::gear::BATTLEWEAVE_SLIPPERS_ITEM);
+        assert_eq!(slippers.feet_item, crate::gear::BATTLEWEAVE_SLIPPERS_ITEM);
+        let mut tw_cuffs = crate::gear::garb(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        crate::gear::apply_hands(&mut tw_cuffs, crate::gear::THRONEWEAVE_CUFFS_ITEM);
+        assert_eq!(tw_cuffs.hands_item, crate::gear::THRONEWEAVE_CUFFS_ITEM);
+        let tw_slacks = crate::gear::garb(0, 0, 0, 0, 0, 0, 0, 1, crate::gear::THRONEWEAVE_SLACKS_ITEM, 0, 0);
+        assert_eq!(tw_slacks.legs_item, crate::gear::THRONEWEAVE_SLACKS_ITEM);
+        let tw_pumps = crate::gear::garb(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, crate::gear::THRONEWEAVE_PUMPS_ITEM);
+        assert_eq!(tw_pumps.feet_item, crate::gear::THRONEWEAVE_PUMPS_ITEM);
+        assert_eq!(
+            GearDef::from_ron(include_str!("../assets/gear/ba_battleweave_gloves.ron"))
+                .expect("ba_battleweave_gloves")
+                .id,
+            "ba_battleweave_gloves"
+        );
+        assert_eq!(
+            GearDef::from_ron(include_str!("../assets/gear/ba_battleweave_hose.ron"))
+                .expect("ba_battleweave_hose")
+                .id,
+            "ba_battleweave_hose"
+        );
+        assert_eq!(
+            GearDef::from_ron(include_str!("../assets/gear/ba_rogues_trousers.ron"))
+                .expect("ba_rogues_trousers")
+                .id,
+            "ba_rogues_trousers"
+        );
+        assert_eq!(
+            GearDef::from_ron(include_str!("../assets/gear/ba_orichalcum_war_cuisses.ron"))
+                .expect("ba_orichalcum_war_cuisses")
+                .id,
+            "ba_orichalcum_war_cuisses"
+        );
+        assert_eq!(
+            GearDef::from_ron(include_str!("../assets/gear/ba_battleweave_slippers.ron"))
+                .expect("ba_battleweave_slippers")
+                .id,
+            "ba_battleweave_slippers"
+        );
+        assert_eq!(
+            GearDef::from_ron(include_str!("../assets/gear/ba_throneweave_cuffs.ron"))
+                .expect("ba_throneweave_cuffs")
+                .id,
+            "ba_throneweave_cuffs"
+        );
+        assert_eq!(
+            GearDef::from_ron(include_str!("../assets/gear/ba_throneweave_slacks.ron"))
+                .expect("ba_throneweave_slacks")
+                .id,
+            "ba_throneweave_slacks"
+        );
+        assert_eq!(
+            GearDef::from_ron(include_str!("../assets/gear/ba_throneweave_pumps.ron"))
+                .expect("ba_throneweave_pumps")
+                .id,
+            "ba_throneweave_pumps"
+        );
+    }
+
+    #[test]
+    fn battleweave_hood_catalog_id_uses_the_cowl() {
+        use stick_engine::gear::GearDef;
+        let look = crate::gear::garb(0, 0, 0, 0, 0, 1, crate::gear::BATTLEWEAVE_HOOD_ITEM, 0, 0, 0, 0);
+        assert_eq!(look.hood_item, crate::gear::BATTLEWEAVE_HOOD_ITEM);
+        assert_eq!(look.hat_item, None, "hood is not a pointed hat");
+        let _ = GearDef::from_ron(include_str!("../assets/gear/ba_battleweave_hood.ron")).expect("ba_battleweave_hood");
+    }
+
+    #[test]
+    fn battleweave_hat_catalog_id_uses_the_steel_brow() {
+        use stick_engine::gear::GearDef;
+        let look = crate::gear::garb(0, 0, 0, 0, 0, 1, crate::gear::BATTLEWEAVE_HAT_ITEM, 0, 0, 0, 0);
+        assert_eq!(look.hat_item, Some(crate::gear::BATTLEWEAVE_HAT_ITEM));
+        let plate = super::battleweave_hat_plate();
+        assert!(plate.cells.contains(&crate::compat::C_STEEL), "steel brow");
+        assert!(!plate.cells.contains(&crate::compat::C_GOLD), "not altarweave gold stole");
+        let g = super::battleweave_hat();
+        assert_eq!(g.id, "ba_battleweave_hat");
+        let _ = GearDef::from_ron(include_str!("../assets/gear/ba_battleweave_hat.ron")).expect("ba_battleweave_hat");
+    }
+
+    #[test]
+    fn altarweave_hat_catalog_id_uses_the_gold_stole() {
+        use stick_engine::gear::GearDef;
+        let look = crate::gear::garb(0, 0, 0, 0, 0, 1, crate::gear::ALTARWEAVE_HAT_ITEM, 0, 0, 0, 0);
+        assert_eq!(look.hat_item, Some(crate::gear::ALTARWEAVE_HAT_ITEM));
+        let plate = super::altarweave_hat_plate();
+        assert!(plate.cells.contains(&crate::compat::C_GOLD), "gold stole band");
+        let g = super::altarweave_hat();
+        assert_eq!(g.id, "ba_altarweave_hat");
+        let _ = GearDef::from_ron(include_str!("../assets/gear/ba_altarweave_hat.ron")).expect("ba_altarweave_hat");
+    }
+
+    #[test]
+    fn rogues_gloves_catalog_id_raises_gold_scales() {
+        use stick_engine::gear::{GearDef, GearSlot};
+        let mut look = crate::gear::garb(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        crate::gear::apply_hands(&mut look, crate::gear::ROGUES_GLOVES_ITEM);
+        assert_eq!(look.hands_item, crate::gear::ROGUES_GLOVES_ITEM);
+        let g = super::rogues_gloves();
+        assert_eq!(g.id, "ba_rogues_gloves");
+        assert_eq!(g.slot, GearSlot::Hands);
+        let _ = GearDef::from_ron(include_str!("../assets/gear/ba_rogues_gloves.ron")).expect("ba_rogues_gloves");
+    }
+
+    #[test]
+    fn rogues_boots_catalog_id_uses_the_gold_instep() {
+        use stick_engine::gear::{GearDef, GearSlot};
+        let look = crate::gear::garb(0, 0, 0, 0, 0, 0, 0, 0, 0, 3, crate::gear::ROGUES_BOOTS_ITEM);
+        assert_eq!(look.feet_item, crate::gear::ROGUES_BOOTS_ITEM);
+        let g = super::rogues_boots();
+        assert_eq!(g.id, "ba_rogues_boots");
+        assert_eq!(g.slot, GearSlot::Feet);
+        let _ = GearDef::from_ron(include_str!("../assets/gear/ba_rogues_boots.ron")).expect("ba_rogues_boots");
+    }
+
+    #[test]
+    fn orichalcum_dagger_uses_the_gold_short_blade() {
+        use stick_engine::gear::GearDef;
+        assert!(super::pixel_dagger_item(crate::gear::ORICHALCUM_DAGGER_ITEM));
+        let pal = super::pixel_sword_palette(crate::gear::ORICHALCUM_DAGGER_ITEM);
+        assert_eq!(pal.blade, crate::compat::C_GOLD);
+        assert_eq!(pal.edge, crate::compat::C_STEEL);
+        assert_ne!(pal.blade, crate::palette::CR_TUSK, "not fang tusk");
+        let rogue = super::pixel_sword_palette(crate::gear::ROGUES_DAGGER_ITEM);
+        assert_ne!(pal.blade, rogue.blade, "not rogue steel blade");
+        let _ = GearDef::from_ron(include_str!("../assets/gear/ba_orichalcum_dagger.ron"))
+            .expect("ba_orichalcum_dagger");
+    }
+
+    #[test]
+    fn rogues_helm_catalog_id_uses_the_gold_brow() {
+        use stick_engine::gear::GearDef;
+        let look = crate::gear::garb(0, 0, 0, 0, 0, 3, crate::gear::ROGUES_HELM_ITEM, 0, 0, 0, 0);
+        assert_eq!(look.helm_item, crate::gear::ROGUES_HELM_ITEM);
+        let plate = super::rogues_helm_plate();
+        assert!(plate.cells.contains(&crate::compat::C_GOLD), "gold brow");
+        assert!(plate.cells.contains(&crate::compat::C_STEEL), "scale field");
+        let scale = super::scale_mail_helm_plate();
+        assert_ne!(plate.cells, scale.cells, "not scale-mail checker");
+        let _ = GearDef::from_ron(include_str!("../assets/gear/ba_rogues_helm.ron")).expect("ba_rogues_helm");
+    }
+
+    #[test]
+    fn orichalcum_war_sabatons_catalog_id_uses_the_gold_vamp() {
+        use stick_engine::gear::{GearDef, GearSlot};
+        let look = crate::gear::garb(0, 0, 0, 0, 0, 0, 0, 0, 0, 3, crate::gear::ORICHALCUM_WAR_SABATONS_ITEM);
+        assert_eq!(look.feet_item, crate::gear::ORICHALCUM_WAR_SABATONS_ITEM);
+        let g = super::orichalcum_war_sabatons();
+        assert_eq!(g.id, "ba_orichalcum_war_sabatons");
+        assert_eq!(g.slot, GearSlot::Feet);
+        assert_eq!(super::catalog_feet_tint(crate::gear::ORICHALCUM_WAR_SABATONS_ITEM)(stick_engine::color::ColorSlot::Material), crate::compat::C_GOLD);
+        let _ = GearDef::from_ron(include_str!("../assets/gear/ba_orichalcum_war_sabatons.ron"))
+            .expect("ba_orichalcum_war_sabatons");
+    }
+
+    #[test]
+    fn orichalcum_war_gauntlets_catalog_id_raises_gold_fingers() {
+        use stick_engine::gear::{GearDef, GearSlot};
+        let mut look = crate::gear::garb(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        crate::gear::apply_hands(&mut look, crate::gear::ORICHALCUM_WAR_GAUNTLETS_ITEM);
+        assert_eq!(look.hands_item, crate::gear::ORICHALCUM_WAR_GAUNTLETS_ITEM);
+        let g = super::orichalcum_war_gauntlets();
+        assert_eq!(g.id, "ba_orichalcum_war_gauntlets");
+        assert_eq!(g.slot, GearSlot::Hands);
+        assert_eq!(super::catalog_hands_tint(crate::gear::ORICHALCUM_WAR_GAUNTLETS_ITEM)(stick_engine::color::ColorSlot::Material), crate::compat::C_GOLD);
+        assert_eq!(super::catalog_hands_tint(crate::gear::ORICHALCUM_WAR_GAUNTLETS_ITEM)(stick_engine::color::ColorSlot::Trim), crate::compat::C_STEEL);
+        let _ = GearDef::from_ron(include_str!("../assets/gear/ba_orichalcum_war_gauntlets.ron"))
+            .expect("ba_orichalcum_war_gauntlets");
+    }
+
+    #[test]
+    fn orichalcum_war_helm_catalog_id_uses_the_gold_steel_brow() {
+        use stick_engine::gear::GearDef;
+        let look = crate::gear::garb(0, 0, 0, 0, 0, 3, crate::gear::ORICHALCUM_WAR_HELM_ITEM, 0, 0, 0, 0);
+        assert_eq!(look.helm_item, crate::gear::ORICHALCUM_WAR_HELM_ITEM);
+        let plate = super::orichalcum_war_helm_plate();
+        assert!(plate.cells.contains(&crate::compat::C_GOLD), "orichalcum gold field");
+        assert!(plate.cells.contains(&crate::compat::C_STEEL), "steel brow");
+        let palace = super::palace_helm_plate();
+        assert_ne!(plate.cells, palace.cells, "not palace solid gold");
+        let _ = GearDef::from_ron(include_str!("../assets/gear/ba_orichalcum_war_helm.ron"))
+            .expect("ba_orichalcum_war_helm");
+    }
+
+    #[test]
+    fn batch_e_catalog_ids_draw_named_meshes() {
+        use stick_engine::gear::GearDef;
+        let helm = crate::gear::garb(0, 0, 0, 0, 0, 3, crate::gear::STEEL_HELM_ITEM, 0, 0, 0, 0);
+        assert_eq!(helm.helm_item, crate::gear::STEEL_HELM_ITEM);
+        let plate = super::steel_helm_plate();
+        assert!(plate.cells.contains(&crate::compat::C_STEEL));
+        assert!(plate.cells.contains(&crate::compat::C_GOLD));
+        assert_ne!(plate.cells, super::iron_helm_plate().cells, "steel helm is not iron gold cap");
+        let mut mittens = crate::gear::garb(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        crate::gear::apply_hands(&mut mittens, crate::gear::STEEL_MITTENS_ITEM);
+        assert_eq!(mittens.hands_item, crate::gear::STEEL_MITTENS_ITEM);
+        let mut shield = crate::gear::garb(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        crate::gear::apply_offhand(&mut shield, crate::gear::STEEL_SHIELD_ITEM);
+        assert!(shield.shield);
+        assert_eq!(shield.shield_item, crate::gear::STEEL_SHIELD_ITEM);
+        assert_ne!(
+            super::steel_shield_plate().cells,
+            super::shield_plate().cells,
+            "steel shield is not iron gold rim"
+        );
+        let legs = crate::gear::garb(0, 0, 0, 0, 0, 0, 0, 3, crate::gear::STEEL_SUBLIGAR_ITEM, 0, 0);
+        assert_eq!(legs.legs_item, crate::gear::STEEL_SUBLIGAR_ITEM);
+        assert!(!legs.cuisses);
+        let feet = crate::gear::garb(0, 0, 0, 0, 0, 0, 0, 0, 0, 3, crate::gear::STEEL_SABATONS_ITEM);
+        assert_eq!(feet.feet_item, crate::gear::STEEL_SABATONS_ITEM);
+        let mail = crate::gear::garb(0, 0, 0, 3, crate::gear::MYTHRIL_MAIL_ITEM, 0, 0, 0, 0, 0, 0);
+        assert_eq!(mail.plate_item, crate::gear::MYTHRIL_MAIL_ITEM);
+        assert!(super::mythril_mail_plate().cells.contains(&crate::compat::C_TRAIL));
+        assert!(!super::mythril_mail_plate().cells.contains(&crate::compat::C_ACCENT));
+        assert!(super::pixel_greatsword_item(crate::gear::DARKSTEEL_GREATSWORD_ITEM));
+        assert_eq!(
+            super::pixel_sword_palette(crate::gear::DARKSTEEL_GREATSWORD_ITEM).blade,
+            crate::compat::C_DUST
+        );
+        assert!(super::pixel_greatsword_item(crate::gear::ORICHALCUM_GREATSWORD_ITEM));
+        assert_eq!(
+            super::pixel_sword_palette(crate::gear::ORICHALCUM_GREATSWORD_ITEM).blade,
+            crate::compat::C_TRAIL
+        );
+        assert_eq!(
+            GearDef::from_ron(include_str!("../assets/gear/ba_steel_helm.ron"))
+                .expect("ba_steel_helm")
+                .id,
+            "ba_steel_helm"
+        );
+        assert_eq!(
+            GearDef::from_ron(include_str!("../assets/gear/ba_steel_mittens.ron"))
+                .expect("ba_steel_mittens")
+                .id,
+            "ba_steel_mittens"
+        );
+        assert_eq!(
+            GearDef::from_ron(include_str!("../assets/gear/ba_steel_shield.ron"))
+                .expect("ba_steel_shield")
+                .id,
+            "ba_steel_shield"
+        );
+        assert_eq!(
+            GearDef::from_ron(include_str!("../assets/gear/ba_steel_subligar.ron"))
+                .expect("ba_steel_subligar")
+                .id,
+            "ba_steel_subligar"
+        );
+        assert_eq!(
+            GearDef::from_ron(include_str!("../assets/gear/ba_steel_sabatons.ron"))
+                .expect("ba_steel_sabatons")
+                .id,
+            "ba_steel_sabatons"
+        );
+        assert_eq!(
+            GearDef::from_ron(include_str!("../assets/gear/ba_mythril_mail.ron"))
+                .expect("ba_mythril_mail")
+                .id,
+            "ba_mythril_mail"
+        );
+        assert_eq!(
+            GearDef::from_ron(include_str!("../assets/gear/ba_darksteel_greatsword.ron"))
+                .expect("ba_darksteel_greatsword")
+                .id,
+            "ba_darksteel_greatsword"
+        );
+        assert_eq!(
+            GearDef::from_ron(include_str!("../assets/gear/ba_orichalcum_greatsword.ron"))
+                .expect("ba_orichalcum_greatsword")
+                .id,
+            "ba_orichalcum_greatsword"
+        );
+    }
+
+    #[test]
+    fn batch_f_catalog_ids_draw_named_meshes() {
+        use stick_engine::gear::GearDef;
+        assert!(super::pixel_greatsword_item(crate::gear::BRONZE_GREATSWORD_ITEM));
+        assert_eq!(
+            super::pixel_sword_palette(crate::gear::BRONZE_GREATSWORD_ITEM).blade,
+            crate::palette::GEAR_BRONZE
+        );
+        assert!(super::pixel_axe_item(crate::gear::IRON_AXE_ITEM));
+        assert!(super::pixel_one_hand_axe(crate::gear::IRON_AXE_ITEM));
+        assert!(!super::pixel_one_hand_axe(crate::gear::STEEL_GREAT_AXE_ITEM));
+        assert!(super::pixel_axe_item(crate::gear::STEEL_GREAT_AXE_ITEM));
+        assert!(super::pixel_axe_item(crate::gear::MYTHRIL_GREAT_AXE_ITEM));
+        let mut targe = crate::gear::garb(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        crate::gear::apply_offhand(&mut targe, crate::gear::MYTHRIL_TARGE_ITEM);
+        assert!(targe.shield);
+        assert_eq!(targe.shield_item, crate::gear::MYTHRIL_TARGE_ITEM);
+        assert!(super::mythril_targe_plate().cells.contains(&crate::compat::C_TRAIL));
+        assert_ne!(
+            super::mythril_targe_plate().cells,
+            super::darksteel_targe_plate().cells,
+            "mythril targe is not darksteel"
+        );
+        assert!(super::pixel_dagger_item(crate::gear::MYTHRIL_DAGGER_ITEM));
+        assert_eq!(
+            super::pixel_sword_palette(crate::gear::MYTHRIL_DAGGER_ITEM).blade,
+            crate::compat::C_DASH
+        );
+        assert!(super::pixel_dagger_item(crate::gear::DARKSTEEL_DAGGER_ITEM));
+        assert_eq!(
+            super::pixel_sword_palette(crate::gear::DARKSTEEL_DAGGER_ITEM).blade,
+            crate::compat::C_DUST
+        );
+        assert_eq!(
+            super::pixel_sword_palette(crate::gear::PALACE_SWORD_ITEM).blade,
+            crate::compat::C_GOLD
+        );
+        assert_eq!(
+            GearDef::from_ron(include_str!("../assets/gear/ba_bronze_greatsword.ron"))
+                .expect("ba_bronze_greatsword")
+                .id,
+            "ba_bronze_greatsword"
+        );
+        assert_eq!(
+            GearDef::from_ron(include_str!("../assets/gear/ba_iron_axe.ron"))
+                .expect("ba_iron_axe")
+                .id,
+            "ba_iron_axe"
+        );
+        assert_eq!(
+            GearDef::from_ron(include_str!("../assets/gear/ba_steel_great_axe.ron"))
+                .expect("ba_steel_great_axe")
+                .id,
+            "ba_steel_great_axe"
+        );
+        assert_eq!(
+            GearDef::from_ron(include_str!("../assets/gear/ba_mythril_targe.ron"))
+                .expect("ba_mythril_targe")
+                .id,
+            "ba_mythril_targe"
+        );
+        assert_eq!(
+            GearDef::from_ron(include_str!("../assets/gear/ba_mythril_great_axe.ron"))
+                .expect("ba_mythril_great_axe")
+                .id,
+            "ba_mythril_great_axe"
+        );
+        assert_eq!(
+            GearDef::from_ron(include_str!("../assets/gear/ba_mythril_dagger.ron"))
+                .expect("ba_mythril_dagger")
+                .id,
+            "ba_mythril_dagger"
+        );
+        assert_eq!(
+            GearDef::from_ron(include_str!("../assets/gear/ba_darksteel_dagger.ron"))
+                .expect("ba_darksteel_dagger")
+                .id,
+            "ba_darksteel_dagger"
+        );
+        assert_eq!(
+            GearDef::from_ron(include_str!("../assets/gear/ba_palace_sword.ron"))
+                .expect("ba_palace_sword")
+                .id,
+            "ba_palace_sword"
+        );
+    }
+
+    #[test]
+    fn batch_g_catalog_ids_draw_named_meshes() {
+        use stick_engine::gear::GearDef;
+        assert!(super::pixel_dagger_item(crate::gear::BRONZE_DAGGER_ITEM));
+        assert_eq!(
+            super::pixel_sword_palette(crate::gear::BRONZE_DAGGER_ITEM).blade,
+            crate::palette::GEAR_BRONZE
+        );
+        assert!(super::pixel_axe_item(crate::gear::BRONZE_GREAT_AXE_ITEM));
+        assert!(!super::pixel_one_hand_axe(crate::gear::BRONZE_GREAT_AXE_ITEM));
+        assert!(super::pixel_dagger_item(crate::gear::STEEL_DAGGER_ITEM));
+        assert_eq!(
+            super::pixel_sword_palette(crate::gear::STEEL_DAGGER_ITEM).blade,
+            crate::compat::C_STEEL
+        );
+        assert!(super::pixel_one_hand_axe(crate::gear::STEEL_AXE_ITEM));
+        assert!(!super::pixel_one_hand_axe(crate::gear::STEEL_GREAT_AXE_ITEM));
+        assert!(super::pixel_one_hand_axe(crate::gear::MYTHRIL_AXE_ITEM));
+        assert!(super::pixel_one_hand_axe(crate::gear::DARKSTEEL_AXE_ITEM));
+        let mut gloves = crate::gear::garb(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        crate::gear::apply_hands(&mut gloves, crate::gear::BONE_GLOVES_ITEM);
+        assert_eq!(gloves.hands_item, crate::gear::BONE_GLOVES_ITEM);
+        assert_eq!(
+            super::catalog_hands_tint(crate::gear::BONE_GLOVES_ITEM)(stick_engine::color::ColorSlot::Material),
+            crate::palette::GEAR_BONE
+        );
+        let feet = crate::gear::garb(0, 0, 0, 0, 0, 0, 0, 0, 0, 5, crate::gear::BONE_BOOTS_ITEM);
+        assert_eq!(feet.feet_item, crate::gear::BONE_BOOTS_ITEM);
+        assert_eq!(
+            super::catalog_feet_tint(crate::gear::BONE_BOOTS_ITEM)(stick_engine::color::ColorSlot::Material),
+            crate::palette::GEAR_BONE
+        );
+        assert_eq!(
+            GearDef::from_ron(include_str!("../assets/gear/ba_bronze_dagger.ron"))
+                .expect("ba_bronze_dagger")
+                .id,
+            "ba_bronze_dagger"
+        );
+        assert_eq!(
+            GearDef::from_ron(include_str!("../assets/gear/ba_bronze_great_axe.ron"))
+                .expect("ba_bronze_great_axe")
+                .id,
+            "ba_bronze_great_axe"
+        );
+        assert_eq!(
+            GearDef::from_ron(include_str!("../assets/gear/ba_steel_dagger.ron"))
+                .expect("ba_steel_dagger")
+                .id,
+            "ba_steel_dagger"
+        );
+        assert_eq!(
+            GearDef::from_ron(include_str!("../assets/gear/ba_steel_axe.ron"))
+                .expect("ba_steel_axe")
+                .id,
+            "ba_steel_axe"
+        );
+        assert_eq!(
+            GearDef::from_ron(include_str!("../assets/gear/ba_mythril_axe.ron"))
+                .expect("ba_mythril_axe")
+                .id,
+            "ba_mythril_axe"
+        );
+        assert_eq!(
+            GearDef::from_ron(include_str!("../assets/gear/ba_darksteel_axe.ron"))
+                .expect("ba_darksteel_axe")
+                .id,
+            "ba_darksteel_axe"
+        );
+        assert_eq!(
+            GearDef::from_ron(include_str!("../assets/gear/ba_bone_gloves.ron"))
+                .expect("ba_bone_gloves")
+                .id,
+            "ba_bone_gloves"
+        );
+        assert_eq!(
+            GearDef::from_ron(include_str!("../assets/gear/ba_bone_boots.ron"))
+                .expect("ba_bone_boots")
+                .id,
+            "ba_bone_boots"
+        );
+    }
+
+    #[test]
+    fn batch_h_catalog_ids_draw_named_meshes() {
+        use stick_engine::gear::GearDef;
+        assert!(super::pixel_one_hand_axe(crate::gear::ORICHALCUM_AXE_ITEM));
+        assert!(!super::pixel_one_hand_axe(crate::gear::ORICHALCUM_GREAT_AXE_ITEM));
+        assert!(super::pixel_axe_item(crate::gear::ORICHALCUM_AXE_ITEM));
+        assert!(super::pixel_axe_item(crate::gear::ORICHALCUM_GREAT_AXE_ITEM));
+        assert_eq!(
+            GearDef::from_ron(include_str!("../assets/gear/ba_orichalcum_axe.ron"))
+                .expect("ba_orichalcum_axe")
+                .stance
+                .as_deref(),
+            Some("1h")
+        );
+        assert_eq!(
+            GearDef::from_ron(include_str!("../assets/gear/ba_orichalcum_great_axe.ron"))
+                .expect("ba_orichalcum_great_axe")
+                .stance
+                .as_deref(),
+            Some("2h")
+        );
+        let mut shield = crate::gear::garb(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        crate::gear::apply_offhand(&mut shield, crate::gear::ORICHALCUM_SHIELD_ITEM);
+        assert!(shield.shield);
+        assert!(!shield.kite);
+        assert_eq!(shield.shield_item, crate::gear::ORICHALCUM_SHIELD_ITEM);
+        assert!(super::orichalcum_shield_plate().cells.contains(&crate::compat::C_GOLD));
+        assert_ne!(
+            super::orichalcum_shield_plate().cells,
+            super::orichalcum_targe_plate().cells,
+            "orichalcum knight shield is not the BM targe"
+        );
+        assert!(super::pixel_greatsword_item(crate::gear::PALACE_GREATSWORD_ITEM));
+        assert_eq!(
+            super::pixel_sword_palette(crate::gear::PALACE_GREATSWORD_ITEM).blade,
+            crate::compat::C_TRAIL
+        );
+        let mut targe = crate::gear::garb(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        crate::gear::apply_offhand(&mut targe, crate::gear::PALACE_TARGE_ITEM);
+        assert!(targe.shield);
+        assert!(!targe.kite);
+        assert_eq!(targe.shield_item, crate::gear::PALACE_TARGE_ITEM);
+        assert_eq!(
+            GearDef::from_ron(include_str!("../assets/gear/ba_orichalcum_shield.ron"))
+                .expect("ba_orichalcum_shield")
+                .id,
+            "ba_orichalcum_shield"
+        );
+        assert_eq!(
+            GearDef::from_ron(include_str!("../assets/gear/ba_palace_greatsword.ron"))
+                .expect("ba_palace_greatsword")
+                .id,
+            "ba_palace_greatsword"
+        );
+        assert_eq!(
+            GearDef::from_ron(include_str!("../assets/gear/ba_palace_targe.ron"))
+                .expect("ba_palace_targe")
+                .id,
+            "ba_palace_targe"
+        );
+    }
+
+    #[test]
+    fn steel_mail_catalog_id_uses_the_opaque_steel_plate() {
+        use stick_engine::gear::{GearDef, GearSlot};
+        let look = crate::gear::garb(0, 0, 0, 3, crate::gear::STEEL_MAIL_ITEM, 0, 0, 0, 0, 0, 0);
+        assert!(look.plate);
+        assert_eq!(look.plate_item, crate::gear::STEEL_MAIL_ITEM);
+        let g = super::steel_mail();
+        assert_eq!(g.id, "ba_steel_mail");
+        assert_eq!(g.slot, GearSlot::Chest);
+        let plate = super::steel_mail_plate();
+        assert!(plate.cells.contains(&crate::compat::C_STEEL), "opaque steel field");
+        assert!(plate.cells.contains(&crate::compat::C_GOLD));
+        let _ = GearDef::from_ron(include_str!("../assets/gear/ba_steel_mail.ron")).expect("ba_steel_mail");
+    }
+
+    #[test]
+    fn steel_sword_uses_the_steel_pixel_palette() {
+        use stick_engine::gear::GearDef;
+        let pal = super::pixel_sword_palette(crate::gear::STEEL_SWORD_ITEM);
+        assert_eq!(pal.blade, crate::compat::C_STEEL);
+        assert_ne!(pal.blade, crate::compat::C_BODY, "steel 1H is not iron pale blade");
+        let _ = GearDef::from_ron(include_str!("../assets/gear/ba_steel_sword.ron")).expect("ba_steel_sword");
+    }
+
+    #[test]
+    fn throneweave_hat_catalog_id_uses_the_gold_tip() {
+        use stick_engine::gear::GearDef;
+        let look = crate::gear::garb(0, 0, 0, 0, 0, 1, crate::gear::THRONEWEAVE_HAT_ITEM, 0, 0, 0, 0);
+        assert_eq!(look.hat_item, Some(crate::gear::THRONEWEAVE_HAT_ITEM));
+        let plate = super::throneweave_hat_plate();
+        assert!(plate.cells.contains(&crate::compat::C_GOLD), "gold tip and brim");
+        let g = super::throneweave_hat();
+        assert_eq!(g.id, "ba_throneweave_hat");
+        let _ = GearDef::from_ron(include_str!("../assets/gear/ba_throneweave_hat.ron")).expect("ba_throneweave_hat");
+    }
+
+    #[test]
+    fn altarweave_cuffs_catalog_id_raises_the_wrists() {
+        use stick_engine::gear::{GearDef, GearSlot};
+        let mut look = crate::gear::garb(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        crate::gear::apply_hands(&mut look, crate::gear::ALTARWEAVE_CUFFS_ITEM);
+        assert_eq!(look.hands_item, crate::gear::ALTARWEAVE_CUFFS_ITEM);
+        let g = super::altarweave_cuffs();
+        assert_eq!(g.id, "ba_altarweave_cuffs");
+        assert_eq!(g.slot, GearSlot::Hands);
+        let _ = GearDef::from_ron(include_str!("../assets/gear/ba_altarweave_cuffs.ron")).expect("ba_altarweave_cuffs");
+    }
+
+    #[test]
+    fn battleweave_cuffs_catalog_id_raises_the_wrists() {
+        use stick_engine::gear::{GearDef, GearSlot};
+        let mut look = crate::gear::garb(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        crate::gear::apply_hands(&mut look, crate::gear::BATTLEWEAVE_CUFFS_ITEM);
+        assert_eq!(look.hands_item, crate::gear::BATTLEWEAVE_CUFFS_ITEM);
+        let g = super::battleweave_cuffs();
+        assert_eq!(g.id, "ba_battleweave_cuffs");
+        assert_eq!(g.slot, GearSlot::Hands);
+        let _ = GearDef::from_ron(include_str!("../assets/gear/ba_battleweave_cuffs.ron")).expect("ba_battleweave_cuffs");
     }
 
     #[test]

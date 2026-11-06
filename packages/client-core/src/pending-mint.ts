@@ -11,15 +11,13 @@ export type PendingMint = {
   gameWallet: string;
 };
 
-function storageKey(gameWallet: string): string {
-  return "bellgrave:pendingMint:" + gameWallet.toLowerCase();
+function storageKey(wallet: string): string {
+  return "bellgrave:pendingMint:" + wallet.toLowerCase();
 }
 
-export function readPendingMint(gameWallet: string): PendingMint | null {
-  if (typeof localStorage === "undefined") return null;
+function parsePending(raw: string | null): PendingMint | null {
+  if (!raw) return null;
   try {
-    const raw = localStorage.getItem(storageKey(gameWallet));
-    if (!raw) return null;
     const parsed = JSON.parse(raw) as PendingMint;
     if (
       !parsed ||
@@ -37,14 +35,43 @@ export function readPendingMint(gameWallet: string): PendingMint | null {
   }
 }
 
-export function writePendingMint(pending: PendingMint): void {
-  if (typeof localStorage === "undefined") return;
-  localStorage.setItem(storageKey(pending.gameWallet), JSON.stringify(pending));
+/** Look up a pending mint under the game session and/or the paying wallet. */
+export function readPendingMint(...wallets: Array<string | null | undefined>): PendingMint | null {
+  if (typeof localStorage === "undefined") return null;
+  const seen = new Set<string>();
+  for (const wallet of wallets) {
+    if (!wallet || !/^0x[0-9a-fA-F]{40}$/.test(wallet)) continue;
+    const key = wallet.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const found = parsePending(localStorage.getItem(storageKey(key)));
+    if (found) return found;
+  }
+  return null;
 }
 
-export function clearPendingMint(gameWallet: string): void {
+export function writePendingMint(pending: PendingMint): void {
   if (typeof localStorage === "undefined") return;
-  localStorage.removeItem(storageKey(gameWallet));
+  const json = JSON.stringify(pending);
+  localStorage.setItem(storageKey(pending.gameWallet), json);
+  if (pending.payer.toLowerCase() !== pending.gameWallet.toLowerCase()) {
+    localStorage.setItem(storageKey(pending.payer), json);
+  }
+}
+
+export function clearPendingMint(...wallets: Array<string | null | undefined>): void {
+  if (typeof localStorage === "undefined") return;
+  const seen = new Set<string>();
+  for (const wallet of wallets) {
+    if (!wallet || !/^0x[0-9a-fA-F]{40}$/.test(wallet)) continue;
+    const pending = parsePending(localStorage.getItem(storageKey(wallet)));
+    if (pending) {
+      seen.add(pending.gameWallet.toLowerCase());
+      seen.add(pending.payer.toLowerCase());
+    }
+    seen.add(wallet.toLowerCase());
+  }
+  for (const key of seen) localStorage.removeItem(storageKey(key));
 }
 
 /** M-F: drop a pending paid mint once its token is bound on the roster. */

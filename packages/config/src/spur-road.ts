@@ -8,8 +8,9 @@ import { naturalMaskDist } from "./natural-shore";
  * 2. Walkable: |x| <= 8, plus a disc r=14 at (0, 100).
  *    Outside the mask is blocked highland (mountain). Both gate centers
  *    already sit on the road, so the mask is not widened.
- * 3. Relief: road 1.4 m, smooth crest 3.2 m at z=100, north lip 1.6 m.
- *    Hard cap 3.9 m.
+ * 3. Relief: one smooth hump — 1.4 m at the south lip, 3.2 m crest at z=100,
+ *    1.6 m at the north lip. The mid pad is a level camp shelf on that crest.
+ *    Banks rise off the 16 m road (about 4 m / 0.5 m strokes). Hard cap 3.9 m.
  * 4. Widths: road 16 m, mid pad 28 m, trail 3.3 m down the centre.
  * 5. Exits: south-lip to forest_basin, north-lip to ring_ward. Spawn (0, 100).
  * 6. Landmarks: Mid Rise (0, 100) camp.
@@ -27,8 +28,15 @@ export const SR_SPAWN = { x: 0, z: 100, facing: 0 } as const;
 
 const SR_ROAD_HALF = 8;
 export const SR_PAD = { x: 0, z: 100, r: 14 } as const;
+const SR_SOUTH = 1.4;
+const SR_NORTH = 1.6;
 const SR_CREST = 3.2;
 const SR_CAP = 3.9;
+/** Camp shelf on the mid pad. Camp props all sit inside this radius. */
+const SR_SHELF_R = 8;
+/** Map-builder stroke: 4 m across, 0.5 m of height. Finer than this will not read in iso. */
+const SR_STROKE = 4;
+const SR_STROKE_H = 0.5;
 
 export type SpurRoadGate = {
   id: string;
@@ -102,8 +110,22 @@ function inRect(x: number, z: number, g: SpurRoadGate): boolean {
 
 /** Road grade: 1.4 at the south lip, 3.2 on the mid rise, 1.6 at the north lip. */
 function roadY(z: number): number {
-  if (z <= SR_PAD.z) return 1.4 + (SR_CREST - 1.4) * smooth(z / SR_PAD.z);
-  return SR_CREST + (1.6 - SR_CREST) * smooth((z - SR_PAD.z) / (SR_BOUNDS.maxZ - SR_PAD.z));
+  if (z <= SR_PAD.z) return SR_SOUTH + (SR_CREST - SR_SOUTH) * smooth(z / SR_PAD.z);
+  return SR_CREST + (SR_NORTH - SR_CREST) * smooth((z - SR_PAD.z) / (SR_BOUNDS.maxZ - SR_PAD.z));
+}
+
+/**
+ * Bank above the road. The first brush spends up to two strokes (1 m) so a
+ * rise finishes inside 4 m — the crest only has 0.7 m of room under the cap,
+ * and a change under about 0.5 m does not show. Later strokes are 0.5 m / 4 m.
+ */
+function bankRise(dist: number, room: number): number {
+  if (dist <= 0 || room <= 0) return 0;
+  const first = Math.min(room, SR_STROKE_H * 2);
+  const head = smooth(Math.min(dist, SR_STROKE) / SR_STROKE) * first;
+  if (dist <= SR_STROKE || room <= first) return head;
+  const more = Math.min(room - first, ((dist - SR_STROKE) / SR_STROKE) * SR_STROKE_H);
+  return head + more;
 }
 
 export function spurRoadWalkable(x: number, z: number): boolean {
@@ -124,11 +146,16 @@ export function spurRoadOnBridge(_x: number, _z: number): boolean {
 }
 
 export function spurRoadStandHeight(x: number, z: number): number {
-  const base = roadY(z);
-  const d = spurRoadMaskDist(x, z);
-  if (d <= 0) return Math.max(-0.5, Math.min(SR_CAP, base));
-  const lift = smooth(Math.min(d, 10) / 10) * (SR_CAP - base);
-  return Math.max(-0.5, Math.min(SR_CAP, base + Math.max(0, lift)));
+  const grade = roadY(z);
+  const padDist = Math.hypot(x - SR_PAD.x, z - SR_PAD.z);
+  // Level camp shelf on the crest. Far from the pad (the south lip included)
+  // this weight is 0, so the grade that meets Forest Basin stays put.
+  const shelfT = 1 - smooth(Math.max(0, padDist - SR_SHELF_R) / SR_STROKE);
+  const floor = grade + (SR_CREST - grade) * shelfT;
+  // Banks start outside the 16 m road. The shelf and both gate rects sit inside it.
+  const offRoad = Math.max(0, Math.abs(x) - SR_ROAD_HALF);
+  const y = floor + bankRise(offRoad, SR_CAP - floor);
+  return Math.max(-0.5, Math.min(SR_CAP, y));
 }
 
 export function spurRoadHeight(x: number, z: number): number {

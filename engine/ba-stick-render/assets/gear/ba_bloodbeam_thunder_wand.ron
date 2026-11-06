@@ -1,0 +1,20 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Bloodbeam Thunder Wand. Short thunder wand. Dust baton through the hand frame, +y along the shaft.
+// Grip wrap at the origin. Tiny Glow disc at the tip.
+(
+    id: "ba_bloodbeam_thunder_wand",
+    slot: MainHand,
+    attach: Some("r_hand"),
+    stance: Some("staff"),
+    reach: 0.28,
+    swing_weight: 0.9,
+    material: Some("dust"),
+    shapes: [
+        Capsule(from: (0.0, -0.06, 0.0), to: (0.0, 0.28, 0.0), ramp: Material, thick: 1.0),
+        Capsule(from: (0.0, -0.04, 0.0), to: (0.0, 0.04, 0.0), ramp: Material, thick: 1.6),
+        Disc(at: None, center: (0.0, 0.32, 0.0), r: 0.022, ramp: Glow),
+    ],
+)

@@ -2,19 +2,32 @@
 export const PIXEL_AXE_GEAR_IDS = new Set([
   "ba_bronze_axe",
   "ba_decayed_axe",
+  "ba_iron_axe",
   "ba_iron_great_axe",
+  "ba_bronze_great_axe",
+  "ba_steel_axe",
+  "ba_steel_great_axe",
+  "ba_mythril_axe",
+  "ba_mythril_great_axe",
+  "ba_darksteel_axe",
   "ba_darksteel_great_axe",
   "ba_palace_great_axe",
+  "ba_orichalcum_axe",
+  "ba_orichalcum_great_axe",
 ]);
 
-export type PixelAxeArt = "bronze" | "decayed" | "iron" | "darksteel" | "palace";
+export type PixelAxeArt = "bronze" | "decayed" | "iron" | "steel" | "mythril" | "darksteel" | "palace" | "orichalcum";
 
 export function axeArtForGearId(id: string): PixelAxeArt | null {
   if (id === "ba_bronze_axe") return "bronze";
   if (id === "ba_decayed_axe") return "decayed";
-  if (id === "ba_iron_great_axe") return "iron";
-  if (id === "ba_darksteel_great_axe") return "darksteel";
+  if (id === "ba_iron_axe" || id === "ba_iron_great_axe") return "iron";
+  if (id === "ba_bronze_great_axe") return "bronze";
+  if (id === "ba_steel_axe" || id === "ba_steel_great_axe") return "steel";
+  if (id === "ba_mythril_axe" || id === "ba_mythril_great_axe") return "mythril";
+  if (id === "ba_darksteel_axe" || id === "ba_darksteel_great_axe") return "darksteel";
   if (id === "ba_palace_great_axe") return "palace";
+  if (id === "ba_orichalcum_axe" || id === "ba_orichalcum_great_axe") return "orichalcum";
   return null;
 }
 
@@ -52,6 +65,22 @@ const IRON_GREAT_AXE_COLORS: PixelAxeColors = {
   outline: "#18161f",
 };
 
+const STEEL_GREAT_AXE_COLORS: PixelAxeColors = {
+  haft: "#9aa6b8",
+  edge: "#d9a441",
+  head: "#9aa6b8",
+  socket: "#9aa6b8",
+  outline: "#18161f",
+};
+
+const MYTHRIL_GREAT_AXE_COLORS: PixelAxeColors = {
+  haft: "#7ec8e8",
+  edge: "#e8eaef",
+  head: "#5fe0f0",
+  socket: "#7ec8e8",
+  outline: "#18161f",
+};
+
 const DARKSTEEL_AXE_COLORS: PixelAxeColors = {
   haft: "#6a6470",
   edge: "#18161f",
@@ -65,6 +94,14 @@ const PALACE_GREAT_AXE_COLORS: PixelAxeColors = {
   edge: "#9aa6b8",
   head: "#e8eaef",
   socket: "#d9a441",
+  outline: "#18161f",
+};
+
+const ORICHALCUM_AXE_COLORS: PixelAxeColors = {
+  haft: "#7ec8e8",
+  edge: "#d9a441",
+  head: "#7ec8e8",
+  socket: "#7ec8e8",
   outline: "#18161f",
 };
 
@@ -187,10 +224,29 @@ const GREAT_AXE_SCALE = { haftLenMul: 3, headMul: 1.5 } as const;
 const LAYOUTS: Record<string, PixelAxeLayout> = {
   ba_bronze_axe: buildPixelAxeLayout(1, 1, BRONZE_AXE_COLORS),
   ba_decayed_axe: buildPixelAxeLayout(1, 1, DECAYED_AXE_COLORS),
+  ba_iron_axe: buildPixelAxeLayout(1, 1, IRON_GREAT_AXE_COLORS),
+  ba_bronze_great_axe: buildPixelAxeLayout(
+    GREAT_AXE_SCALE.haftLenMul,
+    GREAT_AXE_SCALE.headMul,
+    BRONZE_AXE_COLORS,
+  ),
+  ba_steel_axe: buildPixelAxeLayout(1, 1, STEEL_GREAT_AXE_COLORS),
+  ba_mythril_axe: buildPixelAxeLayout(1, 1, MYTHRIL_GREAT_AXE_COLORS),
+  ba_darksteel_axe: buildPixelAxeLayout(1, 1, DARKSTEEL_AXE_COLORS),
   ba_iron_great_axe: buildPixelAxeLayout(
     GREAT_AXE_SCALE.haftLenMul,
     GREAT_AXE_SCALE.headMul,
     IRON_GREAT_AXE_COLORS,
+  ),
+  ba_steel_great_axe: buildPixelAxeLayout(
+    GREAT_AXE_SCALE.haftLenMul,
+    GREAT_AXE_SCALE.headMul,
+    STEEL_GREAT_AXE_COLORS,
+  ),
+  ba_mythril_great_axe: buildPixelAxeLayout(
+    GREAT_AXE_SCALE.haftLenMul,
+    GREAT_AXE_SCALE.headMul,
+    MYTHRIL_GREAT_AXE_COLORS,
   ),
   ba_darksteel_great_axe: buildPixelAxeLayout(
     GREAT_AXE_SCALE.haftLenMul,
@@ -201,6 +257,12 @@ const LAYOUTS: Record<string, PixelAxeLayout> = {
     GREAT_AXE_SCALE.haftLenMul,
     GREAT_AXE_SCALE.headMul,
     PALACE_GREAT_AXE_COLORS,
+  ),
+  ba_orichalcum_axe: buildPixelAxeLayout(1, 1, ORICHALCUM_AXE_COLORS),
+  ba_orichalcum_great_axe: buildPixelAxeLayout(
+    GREAT_AXE_SCALE.haftLenMul,
+    GREAT_AXE_SCALE.headMul,
+    ORICHALCUM_AXE_COLORS,
   ),
 };
 

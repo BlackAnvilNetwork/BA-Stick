@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
 //
-// Shade helm strips. All shadow black (k).
+// Shade helm strips. Dark cloth (d) with a shadow rim (k).
 (
     id: "ba_shade_helm",
     x0: -0.17,
@@ -21,12 +21,12 @@
     cuff_thick: 0.0,
     rows: [
         "kkkkkkkkkkkk",
-        "kkkkkkkkkkkk",
-        "kkkkkkkkkkkk",
-        "kkkkkkkkkkkk",
-        "kkkkkkkkkkkk",
-        "kkkkkkkkkkkk",
-        "kkkkkkkkkkkk",
+        "dddddddddddd",
+        "dddddddddddd",
+        "dddddddddddd",
+        "dddddddddddd",
+        "dddddddddddd",
+        "dddddddddddd",
         "kkkkkkkkkkkk",
     ],
 )

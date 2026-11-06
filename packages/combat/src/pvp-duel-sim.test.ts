@@ -57,6 +57,7 @@ import {
   type Stats,
   type WeaponType,
 } from "./index.ts";
+import { applyDruidShiftRecast, DRUID_ABILITIES, druidFormHp } from "./druid-kit.ts";
 import { physDtMul, playerMagDtMul } from "../../../apps/server/src/incoming-dt.ts";
 import { CATALOG, scaleGearStat, type ItemDef } from "../../items/src/index.ts";
 
@@ -73,6 +74,7 @@ const FAMILY: Record<JobId, readonly string[]> = {
   rogue: ["dagger"],
   knight: ["sword"],
   battle_mage: ["sword", "staff"],
+  druid: ["staff", "club"],
 };
 
 /** Catalog jobRestrict keys. starter-kit.ts uses the same families. */
@@ -84,6 +86,7 @@ const RESTRICT: Record<JobId, string> = {
   cleric: "cleric",
   sorcerer: "sorcerer",
   fighter: "fighter",
+  druid: "druid",
 };
 
 const CASTER_WEAPON: Record<JobId, boolean> = {
@@ -94,6 +97,7 @@ const CASTER_WEAPON: Record<JobId, boolean> = {
   rogue: false,
   fighter: false,
   battle_mage: false,
+  druid: true,
 };
 
 const SHORT: Record<JobId, string> = {
@@ -104,6 +108,7 @@ const SHORT: Record<JobId, string> = {
   sorcerer: "SOR",
   fighter: "FTR",
   battle_mage: "BM",
+  druid: "DRU",
 };
 
 type Mode = "full" | "trade";
@@ -224,6 +229,8 @@ type Unit = {
   dmgBy: Record<string, number>;
   healBy: Record<string, number>;
   controlBy: Record<string, number>;
+  druidForm: number;
+  humanMaxHp: number;
 };
 
 type Fight = {
@@ -427,6 +434,8 @@ function spawn(job: JobId, level: number, gear: Loadout): Unit {
     dmgBy: {},
     healBy: {},
     controlBy: {},
+    druidForm: 0,
+    humanMaxHp: gear.maxHp,
   };
 }
 
@@ -615,6 +624,7 @@ function tickSecond(u: Unit, now: number) {
 
 function swing(u: Unit, foe: Unit, now: number, rng: () => number, full: boolean) {
   if (u.hp <= 0 || foe.hp <= 0) return;
+  if (u.job === "druid" && u.druidForm === 4) return; // index.ts playerSwingPvp
   if (u.stance === "aether") return; // index.ts playerSwing
   if (locked(u, now, full)) return;
   if (now < u.nextSwingAt) return;
@@ -1404,6 +1414,129 @@ function actBm(u: Unit, foe: Unit, now: number, full: boolean) {
   tryWs(u, foe, now, full);
 }
 
+function applyDruidForm(u: Unit, form: number) {
+  const knight = jobVitalsAtLevel("knight", u.level).maxHp;
+  const ratio = u.hp / Math.max(1, u.maxHp);
+  u.druidForm = form;
+  u.maxHp = druidFormHp(u.humanMaxHp, form as 0 | 1 | 2 | 3 | 4, knight);
+  u.hp = Math.max(1, Math.min(u.maxHp, Math.floor(u.maxHp * ratio)));
+}
+
+function actDruid(u: Unit, foe: Unit, now: number, full: boolean) {
+  const d = DRUID_ABILITIES;
+  const form = u.druidForm;
+  const low = u.hp / u.maxHp < 0.5;
+  const critical = u.hp / u.maxHp < 0.35;
+  const shift = (id: "dr_stickbear" | "dr_stickdeer" | "dr_sticklion" | "dr_ring_walk") => {
+    const dest = d[id].shiftTo ?? 0;
+    if (form === dest || d[id].unlockLevel > u.level) return false;
+    if (!pay(u, id, 0, 0, now, 400)) return false;
+    applyDruidShiftRecast(u.recasts, id, now);
+    applyDruidForm(u, dest);
+    return true;
+  };
+
+  if (critical && form !== 2 && u.level >= 8 && shift("dr_stickdeer")) return;
+
+  if (form === 2) {
+    const still = u.level >= 20 ? "dr_still_water_ii" : "dr_still_water";
+    if (u.hp / u.maxHp < 0.85 && pay(u, still, d[still].mp, d[still].recastMs, now)) {
+      heal(u, (d[still].heal ?? 40) + Math.floor(u.stats.mnd * 1.2), still);
+      return;
+    }
+    if (u.level >= 10 && pay(u, "dr_antler_hum", d.dr_antler_hum.mp, d.dr_antler_hum.recastMs, now)) {
+      u.regenUntil = now + (d.dr_antler_hum.durationMs ?? 12_000);
+      u.regenTick = Math.max(1, Math.floor((d.dr_antler_hum.heal ?? 48) / 12));
+      u.regenId = "dr_antler_hum";
+      return;
+    }
+    if (!critical && u.level >= 18 && shift("dr_sticklion")) return;
+    if (!critical) shift("dr_stickbear");
+    return;
+  }
+
+  if (form === 0) {
+    if (u.level >= 18 && shift("dr_sticklion")) return;
+    if (shift("dr_stickbear")) return;
+    if (
+      u.level >= 10 &&
+      now >= u.protectUntil &&
+      pay(u, "dr_chalk_ward", d.dr_chalk_ward.mp, d.dr_chalk_ward.recastMs, now, 400)
+    ) {
+      u.protectUntil = now + (d.dr_chalk_ward.durationMs ?? 90_000);
+      u.protectPhysMul = d.dr_chalk_ward.physDt ?? 0.92;
+      return;
+    }
+    if (full && low && u.level >= 8 && shift("dr_stickdeer")) return;
+    if (u.hp / u.maxHp < 0.62 && pay(u, "dr_dustmend", d.dr_dustmend.mp, d.dr_dustmend.recastMs, now)) {
+      heal(u, (d.dr_dustmend.heal ?? 32) + Math.floor(u.stats.mnd * 1.1), "dr_dustmend");
+      return;
+    }
+    if (foe.atkDownUntil <= now && pay(u, "dr_sour_hum", d.dr_sour_hum.mp, d.dr_sour_hum.recastMs, now)) {
+      foe.atkDownUntil = now + (d.dr_sour_hum.durationMs ?? 12_000);
+      foe.atkDownMul = d.dr_sour_hum.hitMul ?? 0.92;
+    }
+    return;
+  }
+
+  if (form === 1) {
+    const brace = u.level >= 45 ? "dr_ash_brace_ii" : "dr_ash_brace";
+    if (
+      d[brace].unlockLevel <= u.level &&
+      now >= u.phalanxUntil &&
+      pay(u, brace, 0, d[brace].recastMs, now, 400)
+    ) {
+      u.phalanxUntil = now + (d[brace].durationMs ?? 20_000);
+      u.phalanxPhysMul = d[brace].physDt ?? 0.78;
+      return;
+    }
+    const maul = u.level >= 50 ? "dr_stick_maul_ii" : "dr_stick_maul";
+    if (d[maul].unlockLevel <= u.level && pay(u, maul, 0, d[maul].recastMs, now, 500)) {
+      finishPhysical(u, foe, (d[maul].potency ?? 28) + u.stats.str * 0.35 + u.stats.dex * 0.2, now, maul);
+    }
+    return;
+  }
+
+  if (form === 3) {
+    if (
+      u.level >= 20 &&
+      now >= u.enSpellUntil &&
+      pay(u, "dr_mane_dust", d.dr_mane_dust.mp, d.dr_mane_dust.recastMs, now, 400)
+    ) {
+      u.enSpellUntil = now + 8_000;
+      return;
+    }
+    const rake =
+      u.level >= 58 ? "dr_stick_rake_iii" : u.level >= 32 ? "dr_stick_rake_ii" : "dr_stick_rake";
+    if (pay(u, rake, d[rake].mp, d[rake].recastMs, now, 500)) {
+      let pot = d[rake].potency ?? 38;
+      if (now < u.enSpellUntil) pot = Math.floor(pot * 1.15);
+      finishPhysical(u, foe, pot + u.stats.str * 0.35 + u.stats.dex * 0.2, now, rake);
+      return;
+    }
+    if (full && u.level >= 40 && pay(u, "dr_stick_pounce", 0, d.dr_stick_pounce.recastMs, now, 500)) {
+      finishPhysical(
+        u,
+        foe,
+        (d.dr_stick_pounce.potency ?? 40) + u.stats.str * 0.35 + u.stats.dex * 0.2,
+        now,
+        "dr_stick_pounce",
+      );
+      foe.stunUntil = Math.max(foe.stunUntil, now + 1500);
+      return;
+    }
+    if (full && u.level >= 68 && pay(u, "dr_long_pounce", 0, d.dr_long_pounce.recastMs, now, 500)) {
+      finishPhysical(
+        u,
+        foe,
+        (d.dr_long_pounce.potency ?? 160) + u.stats.str * 0.35 + u.stats.dex * 0.2,
+        now,
+        "dr_long_pounce",
+      );
+    }
+  }
+}
+
 function act(u: Unit, foe: Unit, now: number, full: boolean) {
   if (u.hp <= 0 || foe.hp <= 0) return;
   if (now < u.castReadyAt) return;
@@ -1418,6 +1551,7 @@ function act(u: Unit, foe: Unit, now: number, full: boolean) {
   else if (u.job === "cleric") actCleric(u, foe, now, full);
   else if (u.job === "sorcerer") actSorcerer(u, foe, now, full);
   else if (u.job === "time_mage") actTim(u, foe, now, full);
+  else if (u.job === "druid") actDruid(u, foe, now, full);
   else actBm(u, foe, now, full);
 }
 
@@ -1633,6 +1767,26 @@ function report(fights: Fight[]): string {
 }
 
 describe("pvp duel sim", () => {
+  it("druid at Ash Pit cap shifts to lion or bear and deals damage", { timeout: 20_000 }, () => {
+    const gear = pickWeapon("druid", 30);
+    assert.equal(gear.family, "staff");
+    assert.ok(gear.mab > 0, "druid staff has no MAB");
+
+    const u = spawn("druid", 30, gear);
+    const foe = spawn("knight", 30, pickWeapon("knight", 30));
+    const forms = new Set<number>([u.druidForm]);
+    for (let now = 0; now < 8_000; now += TICK_MS) {
+      actDruid(u, foe, now, true);
+      forms.add(u.druidForm);
+    }
+    assert.ok(forms.has(3) || forms.has(1), "Ash Pit druid never shifted to lion or bear");
+    assert.ok(!forms.has(4), "racerunner should not be the Ash Pit closer");
+
+    const f = duel("druid", "knight", 30, 3, "full");
+    assert.ok(f.winner || f.ms === DURATION_MS, "fight hung");
+    assert.ok(f.aDmg > 0, "druid dealt no damage");
+  });
+
   it("slow penalty does not change swing delay", () => {
     const base = resolveSwingDelayMs(2400, 0);
     // mob-job-ai.ts pace() uses swingDelayMs(haste) only. swingPenalty is unread.

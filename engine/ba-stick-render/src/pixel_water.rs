@@ -138,9 +138,6 @@ pub struct Ripple {
     pub radius: f32,
 }
 
-/// Clock scale for every water tone (1 = authored speed). 0.65 = 35% slower.
-const TIME_SCALE: f32 = 0.65;
-
 /// `base` is 0..6 on the water ramp; `hi` (0 = none) is a hard highlight (6/7/8).
 #[derive(Clone, Copy)]
 pub struct Shade {
@@ -820,7 +817,6 @@ impl WaterField {
     }
 
     fn tone(&self, x: f32, z: f32, t: f32, p: &Params, ripples: &[Ripple], light: [f32; 2], seed: u32, s: Sample, fall: bool) -> Shade {
-        let t = t * TIME_SCALE;
         let u = p.scale / 2.6;
         let depth = (s.sdist * 0.2 + 0.35).max(0.0);
         let fl = (s.flow[0] * s.flow[0] + s.flow[1] * s.flow[1]).sqrt();
@@ -1198,7 +1194,6 @@ pub fn fill_tri_xz(
 }
 
 fn shade_fall_uv(across: f32, down: f32, v: f32, t: f32, p: &Params, seed: u32) -> Shade {
-    let t = t * TIME_SCALE;
     let u = p.scale / 2.6;
     let spd = 6.0;
     // fbm2 tops out at 0.75, so normalise.

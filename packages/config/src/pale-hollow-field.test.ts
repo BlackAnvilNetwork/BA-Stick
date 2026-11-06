@@ -24,9 +24,15 @@ import {
   PH_ALL_MOBS,
   PH_QUESTS,
   emptyPaleHollowQuests,
+  paleHollowQuestById,
   paleHollowQuestCredit,
+  paleHollowQuestGather,
+  paleHollowQuestKind,
   paleHollowQuestTalk,
+  paleHollowQuestTalkNpc,
+  paleHollowQuestVisit,
 } from "./pale-hollow-field.ts";
+import { WENNA_NPC_ID, WENNA_QUESTS } from "./wenna-quests.ts";
 
 function canWalk(from: { x: number; z: number }, to: { x: number; z: number }): boolean {
   const key = (x: number, z: number) => `${x},${z}`;
@@ -126,48 +132,100 @@ describe("pale hollow field", () => {
     }
   });
 
-  it("keeps each quest to a handful of real mobs and pays once", () => {
+  it("keeps each kill quest to a handful of real mobs and pays once", () => {
     const ids = new Set(PH_ALL_MOBS.map((m) => m.id));
     assert.ok(PH_QUESTS.length >= 11);
     for (const quest of PH_QUESTS) {
       assert.ok(quest.need <= 6, quest.id);
+      if (paleHollowQuestKind(quest) !== "kill") {
+        assert.equal(quest.mobIds.length, 0, quest.id);
+        continue;
+      }
       assert.equal(quest.mobIds.length, quest.need, quest.id);
       for (const id of quest.mobIds) assert.equal(ids.has(id), true, id);
     }
-    const skirt = PH_QUESTS.find((q) => q.id === "ph-skirt")!;
-    let state = paleHollowQuestTalk(emptyPaleHollowQuests(), skirt.npcId).state;
-    for (const id of skirt.mobIds) state = paleHollowQuestCredit(state, id);
-    const paid = paleHollowQuestTalk(state, skirt.npcId);
-    assert.equal(paid.gold, skirt.gold);
+    const yard = PH_QUESTS.find((q) => q.id === "ph-clay")!;
+    let state = paleHollowQuestTalk(emptyPaleHollowQuests(), yard.npcId).state;
+    for (const id of yard.mobIds) state = paleHollowQuestCredit(state, id);
+    const paid = paleHollowQuestTalk(state, yard.npcId);
+    assert.equal(paid.gold, yard.gold);
     assert.deepEqual(paid.state.active, []);
-    const again = paleHollowQuestTalk(paid.state, skirt.npcId);
+    const again = paleHollowQuestTalk(paid.state, yard.npcId);
     assert.equal(again.gold, 0);
   });
 
   it("accepts a second quest when legacy save used a single active object", () => {
-    const skirt = PH_QUESTS.find((q) => q.id === "ph-skirt")!;
+    const first = WENNA_QUESTS[0]!;
     const yard = PH_QUESTS.find((q) => q.id === "ph-clay")!;
     const legacy = {
       zoneId: "pale_hollow" as const,
       active: { id: yard.id, kills: 1 },
       done: [] as string[],
     };
-    const r = paleHollowQuestTalk(legacy as unknown as ReturnType<typeof emptyPaleHollowQuests>, skirt.npcId);
-    assert.equal(r.body, skirt.offer);
+    const r = paleHollowQuestTalk(legacy as unknown as ReturnType<typeof emptyPaleHollowQuests>, first.npcId);
+    assert.equal(r.body, first.offer);
     assert.equal(r.state.active.length, 2);
   });
 
   it("tracks several active kill quests at once", () => {
-    const skirt = PH_QUESTS.find((q) => q.id === "ph-skirt")!;
+    const grove = PH_QUESTS.find((q) => q.id === "ph-grove")!;
     const yard = PH_QUESTS.find((q) => q.id === "ph-clay")!;
-    let state = paleHollowQuestTalk(emptyPaleHollowQuests(), skirt.npcId).state;
+    let state = paleHollowQuestTalk(emptyPaleHollowQuests(), grove.npcId).state;
     state = paleHollowQuestTalk(state, yard.npcId).state;
     assert.equal(state.active.length, 2);
-    state = paleHollowQuestCredit(state, skirt.mobIds[0]!);
-    const skirtRow = state.active.find((a) => a.id === skirt.id)!;
+    state = paleHollowQuestCredit(state, grove.mobIds[0]!);
+    const groveRow = state.active.find((a) => a.id === grove.id)!;
     const yardRow = state.active.find((a) => a.id === yard.id)!;
-    assert.equal(skirtRow.kills, 1);
+    assert.equal(groveRow.kills, 1);
     assert.equal(yardRow.kills, 0);
+  });
+
+  it("Wenna offers one Emberwatch quest at a time and chains five", () => {
+    assert.equal(WENNA_QUESTS.length, 5);
+    assert.equal(WENNA_QUESTS[0]!.requires, undefined);
+    for (let i = 1; i < WENNA_QUESTS.length; i++) {
+      assert.equal(WENNA_QUESTS[i]!.requires, WENNA_QUESTS[i - 1]!.id);
+      assert.equal(WENNA_QUESTS[i]!.npcId, WENNA_NPC_ID);
+    }
+    let state = emptyPaleHollowQuests();
+    for (let i = 0; i < WENNA_QUESTS.length; i++) {
+      const quest = WENNA_QUESTS[i]!;
+      const offered = paleHollowQuestTalk(state, WENNA_NPC_ID);
+      assert.equal(offered.title, quest.title, quest.id);
+      assert.equal(offered.body, quest.offer, quest.id);
+      assert.equal(offered.gold, 0, quest.id);
+      state = offered.state;
+      assert.equal(state.active.some((a) => a.id === quest.id), true, quest.id);
+      for (let j = i + 1; j < WENNA_QUESTS.length; j++) {
+        assert.equal(state.active.some((a) => a.id === WENNA_QUESTS[j]!.id), false);
+      }
+      const kind = paleHollowQuestKind(quest);
+      if (kind === "fetch") {
+        for (const site of quest.sites ?? []) {
+          const v = paleHollowQuestVisit(state, site.x, site.z);
+          assert.ok(v.found.some((s) => s.id === site.id), site.id);
+          state = v.state;
+        }
+      } else if (kind === "gather") {
+        for (let n = 0; n < quest.need; n++) {
+          state = paleHollowQuestGather(state, quest.gatherIds?.[n] ?? "ph-ash-a", "ashbeam-log").state;
+        }
+      } else if (kind === "talk") {
+        const credit = paleHollowQuestTalkNpc(state, quest.talkNpcId!);
+        assert.deepEqual(credit.credited, [quest.id]);
+        state = credit.state;
+      } else {
+        for (const id of quest.mobIds) state = paleHollowQuestCredit(state, id);
+      }
+      const paid = paleHollowQuestTalk(state, WENNA_NPC_ID);
+      assert.equal(paid.gold, quest.gold, quest.id);
+      assert.ok(paid.state.done.includes(quest.id), quest.id);
+      state = paid.state;
+    }
+    const after = paleHollowQuestTalk(state, WENNA_NPC_ID);
+    assert.equal(after.gold, 0);
+    assert.equal(after.body, WENNA_QUESTS[4]!.done);
+    assert.equal(paleHollowQuestById("ph-skirt")?.requires, "ph-wenna-emberwood");
   });
 
   it("keeps gather nodes on dry land beside the yards", () => {

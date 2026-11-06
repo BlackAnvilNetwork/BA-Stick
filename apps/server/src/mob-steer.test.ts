@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { clampPaleHollow, paleHollowClampMove, paleHollowWalkable } from "@bellgrave/config";
+import { clampPaleHollow, PH_HUB, PH_HUB_REAR_WALL, paleHollowClampMove, paleHollowWalkable } from "@bellgrave/config";
 import { steerMobStep } from "./mob-steer";
 
 /** Deterministic PRNG so failures reproduce. */
@@ -71,6 +71,16 @@ test("open ground still chases in a straight line", () => {
     checked += 1;
   }
   assert.ok(checked >= 10);
+});
+
+test("a mob inside the hub rear wall does not bound-clamp through it", () => {
+  const x = PH_HUB.minX + 14;
+  const z = 9 + PH_HUB.minZ + 6;
+  const s = steerMobStep(x, z, x, 18 + PH_HUB.minZ + 6, 0.2);
+  if (s.moved) {
+    assert.ok(s.z < PH_HUB_REAR_WALL.maxZ + 0.35, `stepped through the cliff to ${s.x},${s.z}`);
+    assert.ok(Math.hypot(s.x - x, s.z - z) <= 0.2 + 1e-6);
+  }
 });
 
 test("a mob already standing in water may walk out", () => {

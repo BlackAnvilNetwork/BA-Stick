@@ -53,6 +53,13 @@ test("support level is floor(main / 2) and only active from the unlock level", (
   assert.equal(activeSubjobLevel("knight", 40, "knight"), 0);
 });
 
+test("Druid cannot be a support job even above the unlock level", () => {
+  assert.equal(activeSubjobLevel("knight", 40, "druid"), 0);
+  assert.deepEqual(combinedJobStats("knight", 40, "druid"), jobStatsAtLevel("knight", 40));
+  assert.deepEqual(combinedJobVitals("knight", 40, "druid"), jobVitalsAtLevel("knight", 40));
+  assert.ok(activeSubjobLevel("druid", 40, "knight") > 0);
+});
+
 test("kit level: main kit at full level, support kit at half, inactive below L10", () => {
   assert.equal(kitLevel({ job: "time_mage", level: 40, subjob: null }, "time_mage"), 40);
   assert.equal(kitLevel({ job: "knight", level: 40, subjob: "time_mage" }, "time_mage"), 20);

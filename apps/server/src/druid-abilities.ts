@@ -6,8 +6,7 @@ import {
   DRUID_ABILITIES,
   DRUID_FORM,
   DRUID_FORM_LABEL,
-  DRUID_SHIFT_IDS,
-  DRUID_SHIFT_RECAST_MS,
+  applyDruidShiftRecast,
   druidFormHp,
   isDruidAbilityId,
   isDruidShiftId,
@@ -167,13 +166,8 @@ export function dropDruidForm(
   hooks.pushLog(p, why ?? "The song lets you go. You are a Ring-Walker again.");
 }
 
-function applyShiftRecast(p: DruidPlayer, now: number, skipFamily: boolean) {
-  const until = now + DRUID_SHIFT_RECAST_MS;
-  if (skipFamily) {
-    p.recasts.dr_ring_walk = until;
-    return;
-  }
-  for (const id of DRUID_SHIFT_IDS) p.recasts[id] = until;
+function applyShiftRecast(p: DruidPlayer, now: number, usedId: string, skipFamily: boolean) {
+  applyDruidShiftRecast(p.recasts, usedId, now, skipFamily);
 }
 
 export function resolveDruidAbility(
@@ -218,7 +212,7 @@ export function resolveDruidAbility(
     const dest = def.shiftTo;
     if (p.druidForm === dest) {
       dropDruidForm(p, hooks, "You set the song down.");
-      applyShiftRecast(p, now, now < p.druidRingSplitUntil);
+      applyShiftRecast(p, now, id, now < p.druidRingSplitUntil);
       return;
     }
     p.druidForm = dest;
@@ -246,7 +240,7 @@ export function resolveDruidAbility(
       p.maxHp = nextHp;
       p.hp = Math.min(p.hp, p.maxHp);
     }
-    applyShiftRecast(p, now, now < p.druidRingSplitUntil);
+    applyShiftRecast(p, now, id, now < p.druidRingSplitUntil);
     p.druidRingSplitUntil = 0;
     p.anim = dest === 0 ? "cast" : "melee";
     p.animUntil = now + 600;

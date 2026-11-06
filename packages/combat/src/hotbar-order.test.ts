@@ -10,6 +10,7 @@ import { SORCERER_ABILITY_IDS } from "./sorcerer-kit.ts";
 import { FIGHTER_ABILITY_IDS } from "./fighter-kit.ts";
 import { CLERIC_ABILITY_IDS } from "./cleric-kit.ts";
 import { BATTLEMAGE_ABILITY_IDS } from "./battlemage-kit.ts";
+import { DRUID_ABILITY_IDS } from "./druid-kit.ts";
 
 const LEARNED: Record<JobId, readonly string[]> = {
   time_mage: TIM_ABILITY_IDS,
@@ -19,6 +20,7 @@ const LEARNED: Record<JobId, readonly string[]> = {
   fighter: FIGHTER_ABILITY_IDS,
   cleric: CLERIC_ABILITY_IDS,
   battle_mage: BATTLEMAGE_ABILITY_IDS,
+  druid: DRUID_ABILITY_IDS,
 };
 
 const WEAPON: Record<JobId, WeaponType> = {
@@ -29,6 +31,7 @@ const WEAPON: Record<JobId, WeaponType> = {
   rogue: "dagger",
   knight: "sword",
   battle_mage: "sword",
+  druid: "staff",
 };
 
 function bar(job: JobId) {

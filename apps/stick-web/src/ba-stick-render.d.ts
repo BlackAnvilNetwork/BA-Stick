@@ -16,6 +16,7 @@ declare module "ba-stick-render" {
     addMapLabel(text: string, x: number, z: number, kind: number): void;
     clearMapData(): void;
     setMinimap(on: boolean): void;
+    setMinimapDock(x: number, y: number, w: number, h: number): void;
     setMinimapFull(on: boolean): void;
     minimapFull(): boolean;
     minimapButton(sx: number, sy: number): boolean;
@@ -50,9 +51,12 @@ declare module "ba-stick-render" {
     setBootMenu(on: boolean): void;
     spawnVfx(prim: number, from: string, to: string, color: number, count: number, radius: number, flags: number): boolean;
     vfxCount(): number;
-    setGear(id: string, family: number, wmat: number, wseed: number, body: number, bseed: number, head: number, hseed: number, legs: number, lseed: number): boolean;
+    setGear(id: string, family: number, wmat: number, wseed: number, body: number, bseed: number, head: number, hseed: number, legs: number, lseed: number, feet: number, fseed: number, sseed: number, hndseed: number): boolean;
     zoneHeight(x: number, z: number): number;
     setCamera(x: number, z: number): void;
+    /** Live Stick Bear generation. `0` returns to the RON seed. */
+    setStickFormSeed(seed: number): void;
+    stickFormSeed(): number;
     follow(id?: string): void;
     upsertUnit(id: string, x: number, y: number, z: number, facing: number, anim: string, preset: string): void;
     removeUnit(id: string): boolean;
@@ -68,6 +72,7 @@ declare module "ba-stick-render" {
     ): boolean;
     setBuffs(id: string, mask: number, td: number, burst: number): boolean;
     anchor(id: string): Float32Array;
+    /** `[x, y, s]` framebuffer pixel. `s` is 0 when the point is behind the eye. */
     worldToScreen(x: number, y: number, z: number): Float32Array;
     unitCount(): number;
     pickWorld(sx: number, sy: number): Float32Array;

@@ -12,8 +12,8 @@
 export const DASH_DISTANCE = 4;
 export const DASH_MS = 240;
 export const DASH_COOLDOWN_MS = 3000;
-/** Sub-step for the wall walk: well under any wall thickness on the grid. */
-export const DASH_SUBSTEP = 0.2;
+/** Sub-step for the wall walk: matches MOVE_SAMPLE so a thin wall cannot be skipped. */
+export const DASH_SUBSTEP = 0.15;
 /** A dash that cannot get this far (flush against a wall) is refused. */
 export const DASH_MIN = 0.4;
 

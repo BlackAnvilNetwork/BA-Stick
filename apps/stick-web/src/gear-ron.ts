@@ -452,8 +452,11 @@ export function acrossHand(forearm: Vec3): Vec3 {
 export function gearFrame(gear: GearDef, fig: Figure): Frame {
   const o = fig.joints[gear.attach] ?? fig.joints.chest!;
   let y = norm(sub(fig.joints.chest!, fig.joints.pelvis!));
-  if (gear.attach === "r_hand") y = norm(fig.wpnR);
-  else if (gear.attach === "l_hand") y = norm(fig.wpnL);
+  // Staffs stand upright through the hand. Blades follow the swing (+y = wpn).
+  if (gear.stance !== "staff") {
+    if (gear.attach === "r_hand") y = norm(fig.wpnR);
+    else if (gear.attach === "l_hand") y = norm(fig.wpnL);
+  }
   const flatTool =
     PIXEL_SWORD_GEAR_IDS.has(gear.id) ||
     PIXEL_AXE_GEAR_IDS.has(gear.id) ||

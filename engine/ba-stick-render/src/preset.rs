@@ -282,7 +282,7 @@ impl RigPreset {
             "druid:stickdeer" => RigPreset {
                 body: Body::StickForm {
                     kind: 1,
-                    size: 1.22,
+                    size: 1.28,
                 },
                 weapon: Weapon::None,
                 ..with(|_, _| {})
@@ -290,7 +290,7 @@ impl RigPreset {
             "druid:sticklion" => RigPreset {
                 body: Body::StickForm {
                     kind: 2,
-                    size: 1.32,
+                    size: 1.36,
                 },
                 weapon: Weapon::None,
                 ..with(|_, _| {})
@@ -298,7 +298,7 @@ impl RigPreset {
             "druid:racerunner" => RigPreset {
                 body: Body::StickForm {
                     kind: 3,
-                    size: 0.95,
+                    size: 1.28,
                 },
                 weapon: Weapon::None,
                 ..with(|_, _| {})

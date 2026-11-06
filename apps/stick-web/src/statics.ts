@@ -14,12 +14,19 @@ export function staticAt(
   zoneId: string | null,
   sx: number,
   sy: number,
-  toScreen: (x: number, y: number, z: number) => [number, number],
+  toScreen: (x: number, y: number, z: number) => [number, number] | [number, number, number],
   height: (x: number, z: number) => number,
 ): StaticTarget | undefined {
   return STATICS.find((t) => {
     if (t.zoneId !== zoneId) return false;
-    const [px, py] = toScreen(t.x, height(t.x, t.z), t.z);
-    return Math.abs(sx - px) <= t.halfW && sy <= py + 6 && sy >= py - t.heightPx;
+    const y0 = height(t.x, t.z);
+    const feet = toScreen(t.x, y0, t.z);
+    const up = toScreen(t.x, y0 + 1, t.z);
+    if ((feet[2] ?? 1) <= 0 || (up[2] ?? 1) <= 0) return false;
+    const [px, py] = feet;
+    const [, pyUp] = up;
+    const lift = Math.abs(py - pyUp);
+    const s = lift < 1e-3 ? 1 : Math.max(0.15, lift / 44);
+    return Math.abs(sx - px) <= t.halfW * s && sy <= py + 6 * s && sy >= py - t.heightPx * s;
   });
 }

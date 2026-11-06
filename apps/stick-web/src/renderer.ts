@@ -1,6 +1,28 @@
 import { zoneRender } from "./zones";
 import { WORLD_ZONE_IDS, zoneOrigin } from "@bellgrave/config";
 import { FB_H, FB_W, fbFromClient, fbToClient, fitScale } from "./fit";
+
+export type CanvasFit = { left: number; top: number; width: number; height: number; cover: boolean };
+
+/** One layout read per frame. `toFramebuffer` / `fromFramebuffer` each force style. */
+export function readCanvasFit(canvas: HTMLCanvasElement): CanvasFit {
+  const r = canvas.getBoundingClientRect();
+  return {
+    left: r.left,
+    top: r.top,
+    width: r.width,
+    height: r.height,
+    cover: getComputedStyle(canvas).objectFit === "cover",
+  };
+}
+
+export function toFramebufferFit(fit: CanvasFit, clientX: number, clientY: number): [number, number] {
+  return fbFromClient(fit, clientX, clientY, fit.cover);
+}
+
+export function fromFramebufferFit(fit: CanvasFit, fx: number, fy: number): [number, number] {
+  return fbToClient(fit.width, fit.height, fx, fy, fit.cover);
+}
 import init, { StickRenderer } from "ba-stick-render";
 
 export { FB_H, FB_W } from "./fit";
@@ -38,7 +60,8 @@ function isCover(canvas: HTMLCanvasElement): boolean {
 }
 
 export function fbScale(canvas: HTMLCanvasElement): number {
-  return fitScale(canvas.clientWidth, canvas.clientHeight, isCover(canvas));
+  const r = canvas.getBoundingClientRect();
+  return fitScale(r.width, r.height, isCover(canvas));
 }
 
 const zoneCache = new Map<string, Promise<Uint8Array>>();
@@ -117,5 +140,6 @@ export async function placeAllZones(r: {
 
 /** Framebuffer pixel → CSS px relative to the canvas box (inverse of toFramebuffer). */
 export function fromFramebuffer(canvas: HTMLCanvasElement, fx: number, fy: number): [number, number] {
-  return fbToClient(canvas.clientWidth, canvas.clientHeight, fx, fy, isCover(canvas));
+  const r = canvas.getBoundingClientRect();
+  return fbToClient(r.width, r.height, fx, fy, isCover(canvas));
 }

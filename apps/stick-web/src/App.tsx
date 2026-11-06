@@ -14,7 +14,7 @@ import { useGame } from "@bellgrave/client-core/state";
 import { enterZoneMusic, unlockZoneMusic } from "@bellgrave/ui/zoneMusic";
 import { unlockCombatSfx } from "@bellgrave/ui/combatSfx";
 import { toggleMinimap } from "@bellgrave/ui/uiSettings";
-import { clearKeyboardMove } from "@bellgrave/ui/moveInput";
+import { clearKeyboardMove, clearVirtualStick } from "@bellgrave/ui/moveInput";
 import { StickWorld } from "./StickWorld";
 import { BootMenuBackdrop } from "./BootMenuBackdrop";
 import { BootMenuHero } from "./BootMenuHero";
@@ -42,6 +42,7 @@ export function App() {
   useEffect(() => {
     if (phase !== "play") {
       clearKeyboardMove();
+      clearVirtualStick();
       enterZoneMusic(MENU_MUSIC);
       return;
     }
@@ -102,14 +103,23 @@ export function App() {
         return;
       }
       if (e.key === "q" || e.key === "Q") send({ type: "item/use", tokenId: ITEM.POTION });
-      if (e.key === "r" || e.key === "R") castAbility("rest");
+      if (
+        (e.key === "r" || e.key === "R") &&
+        (useGame.getState().snapshot?.you.unlocked ?? []).includes("rest")
+      ) {
+        castAbility("rest");
+      }
       if (e.key === "b" || e.key === "B") window.dispatchEvent(new CustomEvent("bellgrave:toggle-bag"));
       if (e.key === "k" || e.key === "K") window.dispatchEvent(new CustomEvent("bellgrave:toggle-spellbook"));
       if (e.key === "c" || e.key === "C") window.dispatchEvent(new CustomEvent("bellgrave:toggle-craft"));
       if (e.code === "KeyM" && !e.ctrlKey && !e.metaKey && !e.altKey) toggleMinimap();
-      if (e.key === "Escape") {
-        if (useGame.getState().npcDialog) useGame.getState().setNpcDialog(null);
-        else send({ type: "disengage" });
+      // Capture must not close NPC / disengage — Commands/Settings register later.
+      if (e.key === "Escape") return;
+      if (e.key === "/" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        window.dispatchEvent(new CustomEvent("bellgrave:focus-chat", { detail: { seed: "/" } }));
+        return;
       }
       if (
         (e.key === "Enter" || e.code === "NumpadEnter") &&
@@ -124,11 +134,26 @@ export function App() {
           e.preventDefault();
           e.stopImmediatePropagation();
           send({ type: "engage", targetId: g.selectedTarget! });
+          return;
         }
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        window.dispatchEvent(new CustomEvent("bellgrave:focus-chat"));
       }
     };
+    const onEscapeBubble = (e: KeyboardEvent) => {
+      if (useGame.getState().phase !== "play") return;
+      if (typing(e)) return;
+      if (e.key !== "Escape") return;
+      if (useGame.getState().npcDialog) useGame.getState().setNpcDialog(null);
+      else send({ type: "disengage" });
+    };
     window.addEventListener("keydown", onKey, true);
-    return () => window.removeEventListener("keydown", onKey, true);
+    window.addEventListener("keydown", onEscapeBubble);
+    return () => {
+      window.removeEventListener("keydown", onKey, true);
+      window.removeEventListener("keydown", onEscapeBubble);
+    };
   }, []);
 
   return (

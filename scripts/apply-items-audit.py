@@ -42,9 +42,29 @@ LIVE_BASE_SLUGS = [
     "tin-ore",
 ]
 
-RARITY_FROM_LEVEL = lambda lv: (
-    "Common" if lv < 25 else "Uncommon" if lv < 50 else "Rare" if lv < 80 else "Epic"
-)
+def rarity_from_name(name: str) -> str:
+    """Name tokens → rarity. Same list as packages/items/src/rarity.ts."""
+    n = (name or "").strip().lower()
+    if "fishing rod" in n:
+        return "Common"
+    tiers = (
+        ("Legendary", ("palace", "throneweave", "throne", "sovereign", "royal", "chrono", "mana staff", "decayed sword", "grimoire of throne", "last company", "first pit")),
+        ("Epic", ("darksteel", "orichalcum", "scale mail", "cleric's", "mercenary", "fang dagger", "decayed axe", "diamond earring", "jadeite earring", "bellwood ice", "bellwood wind")),
+        ("Rare", ("mythril", "velvet", "battleweave", "spellbound", "neolithic", "scarabrace", "heart", "skull", "diamond ring", "composite", "decayed greaves", "fang earring", "silk coat", "rogue's")),
+        ("Uncommon", ("steel", "shade", "fine", "silk", "bloodbeam", "bellwood", "scale harness", "circlet", "onyx", "lapis", "turtle", "horn", "shell", "bell ring", "bell torque")),
+        ("Common", ("bronze", "iron", "linen", "leather", "bone", "ashbeam", "copper", "buckler", "chainmail", "grip wrap", "war bow", "fishing")),
+    )
+    for rarity, tokens in tiers:
+        if any(t in n for t in tokens):
+            return rarity
+    return "Common"
+
+
+def pepper_rarity(iid: int, name: str = "") -> str:
+    return rarity_from_name(name)
+
+
+RARITY_FROM_LEVEL = pepper_rarity
 
 
 def craft_gold(level: int | None) -> int:
@@ -88,13 +108,11 @@ def main() -> None:
             # still stamp rarity
             it = by_id.get(int(row["id"]))
             if it and it.get("kind") == "equipment":
-                lv = it.get("craftLevel") or int(row["craftLevel"] or 0)
-                it["rarity"] = row.get("rarity") or RARITY_FROM_LEVEL(lv)
+                it["rarity"] = row.get("rarity") or pepper_rarity(it["id"], it.get("name") or "")
             continue
         it = by_id[int(row["id"])]
         it["stats"] = prop
-        lv = it.get("craftLevel") or int(row["craftLevel"] or 0)
-        it["rarity"] = row.get("rarity") or RARITY_FROM_LEVEL(lv)
+        it["rarity"] = row.get("rarity") or pepper_rarity(it["id"], it.get("name") or "")
         if it["id"] == 304:
             # Copper Collar → earring
             it["slot"] = "earring"
@@ -106,7 +124,7 @@ def main() -> None:
     # Stamp rarity on remaining equipment
     for it in cat:
         if it.get("kind") == "equipment" and "rarity" not in it:
-            it["rarity"] = RARITY_FROM_LEVEL(it.get("craftLevel") or 0)
+            it["rarity"] = pepper_rarity(it["id"], it.get("name") or "")
 
     # ── Fishing rods: not staves ────────────────────────────────────────
     for it in cat:

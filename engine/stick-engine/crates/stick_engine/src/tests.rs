@@ -503,6 +503,26 @@ mod perspective {
     }
 
     #[test]
+    fn zoom_pulls_points_toward_the_anchor_and_unproject_roundtrips() {
+        let c = Camera { cx: 2.0, cz: -1.0, zoom: 0.84, ..Camera::new(640, 360) };
+        let p = v3(6.0, 0.0, -1.0);
+        let raw = { let mut d = c; d.zoom = 1.0; d.project(p) };
+        let z = c.project(p);
+        assert!((z.x - 320.0).abs() < (raw.x - 320.0).abs());
+        assert!((z.y - 198.0).abs() < (raw.y - 198.0).abs());
+        let (x, zz) = c.unproject_ground(z.x, z.y);
+        assert!((x - p.x).abs() < 1e-3 && (zz - p.z).abs() < 1e-3);
+        // View path used to undo zoom twice (unproject_ground + pick_ground).
+        let v = View::iso(2.0, -1.0, 640.0, 360.0);
+        let c = Camera { cx: 2.0, cz: -1.0, zoom: 0.84, view: Some(v), ..Camera::new(640, 360) };
+        let z = c.project(p);
+        let (x, zz) = c.unproject_ground(z.x, z.y);
+        assert!((x - p.x).abs() < 1e-3 && (zz - p.z).abs() < 1e-3);
+        let (x, zz) = c.pick_ground(z.x, z.y).expect("ground under zoomed pixel");
+        assert!((x - p.x).abs() < 1e-3 && (zz - p.z).abs() < 1e-3);
+    }
+
+    #[test]
     fn perspective_projection_math() {
         let v = tp(v3(0.0, 1.0, 0.0), 0.0, 5.0);
         let c = Camera { view: Some(v), ..Camera::new(640, 360) };

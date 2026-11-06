@@ -15,7 +15,7 @@ import {
   type WalletClient,
 } from "viem";
 import { generatePrivateKey, privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
-import { appKitConfigured, connectWithAppKit } from "./appkit";
+import { appKitConfigured, connectWithAppKit, sessionFromRestoredAppKit } from "./appkit";
 import { burnerIdentityAllowed } from "./burner-identity";
 import { activeWalletConnectProvider, ensureWalletConnectChain } from "./walletconnect";
 
@@ -120,8 +120,8 @@ export function preferredPayoutWallet(): `0x${string}` | null {
 }
 
 /**
- * Prefer window.ethereum when available, then an active WalletConnect session,
- * then (optionally) open WalletConnect, else the burner when allowed.
+ * Prefer a live Reown AppKit account (the boot Connect identity), then injected,
+ * then an active WalletConnect session, else the burner when allowed.
  */
 export async function getWalletSession(opts: {
   chainId: number;
@@ -136,6 +136,22 @@ export async function getWalletSession(opts: {
   const prefer = opts.preferInjected !== false;
   // Hard gate: never pay/auth with burner outside anvil, even if a caller opts in.
   const allowBurner = opts.allowBurnerFallback === true && burnerIdentityAllowed();
+  if (appKitConfigured()) {
+    const live = await sessionFromRestoredAppKit({
+      chainId: opts.chainId,
+      rpcUrl: opts.rpcUrl,
+      timeoutMs: 80,
+    });
+    if (live) {
+      setPreferredPayoutWallet(live.address);
+      return {
+        account: live.account,
+        address: live.address,
+        client: live.client,
+        source: "appkit",
+      };
+    }
+  }
   const injected = prefer && typeof window !== "undefined" ? injectedProvider() : null;
   if (injected) {
     try {

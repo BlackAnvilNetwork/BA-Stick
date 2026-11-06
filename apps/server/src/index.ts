@@ -109,8 +109,11 @@ import {
   normalizePaleHollowQuestState,
   paleHollowQuestById,
   paleHollowQuestCredit,
+  paleHollowQuestGather,
   paleHollowQuestLogEntries,
   paleHollowQuestTalk,
+  paleHollowQuestTalkNpc,
+  paleHollowQuestVisit,
   forestBasinQuestById,
   forestBasinQuestByNpc,
   forestBasinQuestCredit,
@@ -262,7 +265,7 @@ import type {
   SnapshotMessage,
   UnitSnapshot,
 } from "@bellgrave/protocol";
-import { emptyBuffs, parseClientMessage } from "@bellgrave/protocol";
+import { emptyBuffs, parseChatCommand, parseClientMessage } from "@bellgrave/protocol";
 import { createServer } from "node:http";
 import { WebSocketServer, type WebSocket } from "ws";
 import { handleOpsHttp } from "./ops-health";
@@ -326,6 +329,7 @@ import {
   faucetAnvilEth,
   loadCharacterMintClientConfig,
   linkCharacterNftWithRetry,
+  listOwnedCharacterNfts,
   readCharacterGenesisJob,
   readCharacterNftOwner,
   resolveListSellerPayout,
@@ -335,6 +339,7 @@ import {
   type CharacterMintClientConfig,
 } from "./lok-vault";
 import { refuseZeroMintFee, resolveBindSpawnJob } from "./char-create-guard";
+import { isAutoTokenSuffixedName, ownedNftBindName, pickUnboundOwnedNfts } from "./owned-nfts";
 import {
   enqueuePendingCancel,
   startNftTransferAskCancelWatcher,
@@ -410,6 +415,7 @@ import {
   onPlayerDisconnect,
   isSameParty,
   partyAllyWallets,
+  getParty,
 } from "./party";
 
 type Player = {
@@ -621,6 +627,7 @@ type Player = {
   unlockCache: AbilityId[];
   recasts: Partial<Record<AbilityId, number>>;
   lastLog: string[];
+  lastChatAt?: number;
   ws: WebSocket;
 };
 
@@ -1026,6 +1033,7 @@ const lok: LokWorld = await (async (): Promise<LokWorld> => {
         });
     };
     refreshMintConfig();
+    setInterval(refreshMintConfig, 60_000).unref?.();
     void loadEezClientConfig(process.env)
       .then((cfg) => {
         cachedEezSyncBuy = cfg;
@@ -2258,6 +2266,10 @@ function spawnFieldMob(
     cloneIds: opts.cloneIds ? [...opts.cloneIds] : [...shinyBits.cloneIds],
     shinySummoned: opts.shinySummoned ?? shinyBits.shinySummoned,
     hitBy: new Set(),
+    druidSourHumUntil: 0,
+    druidSourHumMul: 1,
+    druidBleedUntil: 0,
+    druidBleedPot: 0,
   };
 }
 
@@ -3048,6 +3060,56 @@ function pushLog(p: Player, message: string) {
   p.lastLog.push(message);
   if (p.lastLog.length > 40) p.lastLog.shift();
   send(p.ws, { type: "log", message });
+}
+
+const CHAT_COOLDOWN_MS = 800;
+const SAY_RANGE = 48;
+
+function handleChat(p: Player, raw: string, requested?: "say" | "party") {
+  const parsed = parseChatCommand(raw);
+  if (!parsed) {
+    pushLog(p, "Say something first.");
+    return;
+  }
+  const channel = requested ?? parsed.channel;
+  const now = Date.now();
+  if ((p.lastChatAt ?? 0) + CHAT_COOLDOWN_MS > now) {
+    pushLog(p, "Wait a moment before speaking again.");
+    return;
+  }
+  if (channel === "party") {
+    const party = getParty(p.wallet);
+    if (!party) {
+      pushLog(p, "You are not in a party.");
+      return;
+    }
+    p.lastChatAt = now;
+    const payload: ServerMessage = {
+      type: "chat",
+      channel: "party",
+      fromId: p.wallet,
+      fromName: p.name,
+      text: parsed.text,
+    };
+    const members = new Set(party.memberIds);
+    for (const other of players.values()) {
+      if (members.has(other.wallet.toLowerCase())) send(other.ws, payload);
+    }
+    return;
+  }
+  p.lastChatAt = now;
+  const payload: ServerMessage = {
+    type: "chat",
+    channel: "say",
+    fromId: p.wallet,
+    fromName: p.name,
+    text: parsed.text,
+  };
+  for (const other of players.values()) {
+    if (other.zoneId !== p.zoneId) continue;
+    if (dist(p.x, p.z, other.x, other.z) > SAY_RANGE) continue;
+    send(other.ws, payload);
+  }
 }
 
 function send(ws: WebSocket, msg: ServerMessage) {
@@ -4212,6 +4274,19 @@ function touchBasinQuests(p: Player) {
   rememberPlayer(p);
 }
 
+function touchPaleHollowQuests(p: Player) {
+  if (p.zoneId !== "pale_hollow" || p.hollowQuest.active.length === 0) return;
+  const next = paleHollowQuestVisit(
+    { zoneId: "pale_hollow", active: p.hollowQuest.active, done: p.hollowQuest.done },
+    p.x,
+    p.z,
+  );
+  if (!next.found.length) return;
+  p.hollowQuest = { active: next.state.active, done: p.hollowQuest.done };
+  for (const site of next.found) pushLog(p, site.line);
+  rememberPlayer(p);
+}
+
 function touchWarps(p: Player) {
   if ((p.zoneId !== "pale_hollow" && p.zoneId !== "forest_basin") || !Array.isArray(p.warpUnlocked)) return;
   const next = reachWarp(p.warpUnlocked, p.x, p.z, p.zoneId);
@@ -4817,7 +4892,7 @@ function handleAbility(p: Player, id: AbilityId, targetId?: string) {
     pushLog(p, "You are silenced.");
     return;
   }
-  if (isRogueAbilityId(id) && playerHasJob(p, "rogue")) {
+  if (isRogueAbilityId(id) && (id === "rest" ? p.job === "rogue" : playerHasJob(p, "rogue"))) {
     resolveRogueAbility(p, id, targetId, now, {
       pushLog: (pl, msg) => pushLog(pl as Player, msg),
       stopRest: (pl, reason) => stopRest(pl as Player, reason),
@@ -4833,7 +4908,7 @@ function handleAbility(p: Player, id: AbilityId, targetId?: string) {
     });
     return;
   }
-  if (isKnightAbilityId(id) && playerHasJob(p, "knight")) {
+  if (isKnightAbilityId(id) && (id === "rest" ? p.job === "knight" : playerHasJob(p, "knight"))) {
     resolveKnightAbility(p, id, targetId, now, {
       pushLog: (pl, msg) => pushLog(pl as Player, msg),
       stopRest: (pl, reason) => stopRest(pl as Player, reason),
@@ -4849,7 +4924,7 @@ function handleAbility(p: Player, id: AbilityId, targetId?: string) {
     });
     return;
   }
-  if (isFighterAbilityId(id) && playerHasJob(p, "fighter")) {
+  if (isFighterAbilityId(id) && (id === "rest" ? p.job === "fighter" : playerHasJob(p, "fighter"))) {
     resolveFighterAbility(p, id, targetId, now, {
       pushLog: (pl, msg) => pushLog(pl as Player, msg),
       stopRest: (pl, reason) => stopRest(pl as Player, reason),
@@ -4860,7 +4935,7 @@ function handleAbility(p: Player, id: AbilityId, targetId?: string) {
     });
     return;
   }
-  if (isSorcererAbilityId(id) && playerHasJob(p, "sorcerer")) {
+  if (isSorcererAbilityId(id) && (id === "rest" ? p.job === "sorcerer" : playerHasJob(p, "sorcerer"))) {
     resolveSorcererAbility(p as import("./sorcerer-abilities").SorcererPlayer & { wallet: string }, id, targetId, now, {
       pushLog: (pl, msg) => pushLog(pl as Player, msg),
       stopRest: (pl, reason) => stopRest(pl as Player, reason),
@@ -4875,7 +4950,7 @@ function handleAbility(p: Player, id: AbilityId, targetId?: string) {
     });
     return;
   }
-  if (isBattleMageAbilityId(id) && playerHasJob(p, "battle_mage")) {
+  if (isBattleMageAbilityId(id) && (id === "rest" ? p.job === "battle_mage" : playerHasJob(p, "battle_mage"))) {
     resolveBattleMageAbility(p, id, targetId, now, {
       pushLog: (pl, msg) => pushLog(pl as Player, msg),
       stopRest: (pl, reason) => stopRest(pl as Player, reason),
@@ -4891,7 +4966,7 @@ function handleAbility(p: Player, id: AbilityId, targetId?: string) {
     });
     return;
   }
-  if (isClericAbilityId(id) && playerHasJob(p, "cleric")) {
+  if (isClericAbilityId(id) && (id === "rest" ? p.job === "cleric" : playerHasJob(p, "cleric"))) {
     {
       const cleric = p as import("./cleric-abilities").ClericPlayer;
       cleric.gearHealPotency = gearHealPotency(p);
@@ -4916,12 +4991,11 @@ function handleAbility(p: Player, id: AbilityId, targetId?: string) {
       pushLog: (pl, msg) => pushLog(pl as Player, msg),
       stopRest: (pl, reason) => stopRest(pl as Player, reason),
       facingTo,
-      findMob: (tid) => findMobIn(p.zoneId, tid ?? null) ?? null,
-      allMobs: () => mobsIn(p.zoneId),
+      findMob: (tid) => combatFind(p, tid),
+      allMobs: () => combatMobs(p),
       allPlayers: () => partyAllies(p),
       onMobKill: (pl, m) => {
-        const mob = findMob(m.id);
-        if (mob) rewardMobKill(pl as Player, mob, now);
+        noteCombatKill(pl as Player, m, now);
       },
       dist,
       playerCombatStats: (pl) => playerCombatStats(pl as Player),
@@ -4937,7 +5011,7 @@ function handleAbility(p: Player, id: AbilityId, targetId?: string) {
     });
     return;
   }
-  if (isTimAbilityId(id) && playerHasJob(p, "time_mage")) {
+  if (isTimAbilityId(id) && (id === "rest" ? p.job === "time_mage" : playerHasJob(p, "time_mage"))) {
     resolveTimAbility(p, id, targetId, combatMobs(p), now, {
       pushLog: (msg) => pushLog(p, msg),
       stopRest: (reason) => stopRest(p, reason),
@@ -4964,7 +5038,7 @@ function speakHollowQuest(p: Player, npcId: string, nx: number, nz: number, name
   p.facing = facingTo(p.x, p.z, nx, nz);
   ensureHollowQuest(p);
   const state = { zoneId: "pale_hollow" as const, active: p.hollowQuest.active, done: p.hollowQuest.done };
-  // Pale Hollow givers keep their own talk; Seam Country givers chain through `requires`.
+  // Pale Hollow givers (Wenna chains via requires); Seam Country givers chain the same way.
   const result = zoneId === "pale_hollow" ? paleHollowQuestTalk(state, npcId) : worldQuestTalk(state, npcId);
   p.hollowQuest = { active: result.state.active, done: result.state.done };
   rememberPlayer(p);
@@ -5122,17 +5196,31 @@ function handleNpcInteract(p: Player, npcId: string) {
     }
     const bodies: Record<string, string> = {
       guide:
-        "Wenna is at the Emberwatch fire. The grass around her is thick with hares, and she has a count if you want work.",
+        "Wenna keeps Emberwatch's fire. Speak with her if the camp still has work.",
       crafter:
         "Bring base mats from the field. Synth at my bench — I'll rank your crafts as you work.",
       vendor:
         "Two sets of scales on this counter: the Crown's, and the honest ones. Yours go on the honest pair. Sell me what you've brought in from the field, or send it on to a friend. I only trade in what the field gives.",
     };
+    let body = bodies[hub.role] ?? "…";
+    if (hub.role === "vendor") {
+      ensureHollowQuest(p);
+      const credit = paleHollowQuestTalkNpc(
+        { zoneId: "pale_hollow", active: p.hollowQuest.active, done: p.hollowQuest.done },
+        hub.id,
+      );
+      if (credit.credited.length) {
+        p.hollowQuest = { active: credit.state.active, done: p.hollowQuest.done };
+        rememberPlayer(p);
+        body = `${body} Tell Wenna the salt is counted.`;
+        pushLog(p, "Maudry has heard Emberwatch.");
+      }
+    }
     send(p.ws, {
       type: "npc/dialog",
       npcId: hub.id,
       title: hub.name,
-      body: bodies[hub.role] ?? "â€¦",
+      body,
       craftOpen: hub.role === "crafter",
       lokOpen: hub.role === "vendor",
     });
@@ -6602,7 +6690,7 @@ function tickSimBody() {
     if (p.flux && tick % 20 === 0) p.tp = Math.min(3000, p.tp + 5);
 
     if (p.job === "druid" && p.druidForm === 4 && now < (p.druidEmberTailUntil ?? 0)) {
-      const hunted = mobsIn(p.zoneId).some((m) => m.alive && m.targetId === p.wallet);
+      const hunted = combatMobs(p).some((m) => m.alive && m.targetId === p.wallet);
       if (hunted) dropDruidForm(p, { pushLog, syncVitals }, "Something looks at you. The ember-run breaks.");
     }
     if (now >= p.slowUntil) p.swingPenalty = 0;
@@ -6709,6 +6797,7 @@ function tickSimBody() {
     }
     touchWarps(p);
     touchBasinQuests(p);
+    touchPaleHollowQuests(p);
 
     if (p.anim === "rest") {
       // Once per second: recover HP/MP, bleed TP
@@ -6722,7 +6811,7 @@ function tickSimBody() {
         if (p.hp !== beforeHp || p.mp !== beforeMp) {
           pushLog(
             p,
-            `Restingâ€¦ HP ${p.hp}/${p.maxHp} Â· MP ${p.mp}/${p.maxMp} Â· TP ${p.tp}`,
+            `Resting… HP ${p.hp}/${p.maxHp} · MP ${p.mp}/${p.maxMp} · TP ${p.tp}`,
           );
         }
         if (p.hp >= p.maxHp && p.mp >= p.maxMp && p.tp <= 0) {
@@ -6963,6 +7052,17 @@ function tickGathering(p: Player, now: number) {
   grantBaseMat(p, yieldId, 1);
   logLokHarvest(p, yieldId, 1);
   node.readyAt = now + node.respawnMs;
+  if (p.zoneId === "pale_hollow" && p.hollowQuest.active.length > 0) {
+    const credit = paleHollowQuestGather(
+      { zoneId: "pale_hollow", active: p.hollowQuest.active, done: p.hollowQuest.done },
+      node.spawnPointId,
+      yieldId,
+    );
+    if (credit.credited.length) {
+      p.hollowQuest = { active: credit.state.active, done: p.hollowQuest.done };
+      rememberPlayer(p);
+    }
+  }
   relocateGatherNode(fieldNodes, node);
   pushLog(p, `Got ${matDisplayName(yieldId)} ×1.${baitNote}`);
   send(p.ws, snapshotFor(p));
@@ -7107,8 +7207,86 @@ function adoptOrphanLogs(wallet: string, ws: WebSocket) {
   walletToPlayer.delete(owner);
 }
 
+/** Minted Character NFTs this wallet holds but the log has not bound yet. */
+async function adoptOwnedUnboundNfts(wallet: string, ws: WebSocket): Promise<void> {
+  if (!cachedCharacterMint) return;
+  const owner = wallet.toLowerCase();
+  let owned;
+  try {
+    owned = await listOwnedCharacterNfts(owner, process.env, {
+      suggestedTokenId: cachedCharacterMint.suggestedTokenId,
+    });
+  } catch (err) {
+    console.warn(
+      "[bellgrave] owned NFT scan failed:",
+      err instanceof Error ? err.message : err,
+    );
+    return;
+  }
+  const bound = new Set(
+    lok
+      .boundChars()
+      .map((row) => row.tokenId)
+      .filter((id): id is string => !!id),
+  );
+  const unbound = pickUnboundOwnedNfts(owned, bound);
+  for (const nft of unbound) {
+    const capped = lok.ensureWalletCapacity(owner);
+    if (!capped.ok) break;
+    const genesis = await readCharacterGenesisJob(nft.tokenId);
+    const resolved = resolveBindSpawnJob(
+      genesis.ok ? { genesisJob: genesis.job } : { genesisJob: null, genesisError: genesis.error },
+    );
+    if (!resolved.ok) {
+      console.warn("[bellgrave] skip unbound NFT #" + nft.tokenId + ": " + resolved.error);
+      continue;
+    }
+    const name = ownedNftBindName(JOBS[resolved.job].name, (candidate) => {
+      return lok.nameTaken(candidate) || rosterNameTaken(candidate);
+    });
+    const charId = `c_${Date.now().toString(36)}_${randomBytes(6).toString("hex")}`;
+    const claimed = lok.claimName(charId, name, owner);
+    if (!claimed.ok) {
+      console.warn("[bellgrave] name for NFT #" + nft.tokenId + ": " + claimed.error);
+      continue;
+    }
+    const spawned = lok.spawn(charId, claimed.name, resolved.jobIndex, owner, {
+      tokenId: nft.tokenId,
+    });
+    if (!spawned.ok) {
+      console.warn("[bellgrave] spawn NFT #" + nft.tokenId + ": " + spawned.error);
+      continue;
+    }
+    nftOwnerCache().set(nft.tokenId, owner, 0);
+    const p = createPlayer(owner, claimed.name, ws, resolved.job, "male", charId);
+    claimStarter(p);
+    console.log(
+      "[bellgrave] bound wallet NFT #" + nft.tokenId + " as " + claimed.name + " (" + resolved.job + ")",
+    );
+  }
+  players.delete(owner);
+  walletToPlayer.delete(owner);
+}
+
+/** Drop leftover `Job <tokenId>` auto-names; level is shown next to the name in UI. */
+function stripAutoTokenSuffixNames(wallet: string): void {
+  const owner = wallet.toLowerCase();
+  for (const row of lok.charsForWallet(owner)) {
+    const jobId = JOB_IDS[row.job];
+    const jobName = jobId && isJobId(jobId) ? JOBS[jobId].name : "";
+    if (!jobName || !isAutoTokenSuffixedName(row.name, jobName, row.tokenId)) continue;
+    const next = ownedNftBindName(jobName, (candidate) => {
+      return lok.nameTaken(candidate, row.charId) || rosterNameTaken(candidate, row.charId);
+    });
+    const renamed = lok.setBoundName(row.charId, next);
+    if (!renamed.ok) continue;
+    const slot = accountRoster.get(owner)?.get(row.charId);
+    if (slot) slot.name = renamed.name;
+  }
+}
+
 /** Bind this socket after a signature or a still-valid resume token. */
-function completeWalletSession(ws: WebSocket, wallet: string) {
+async function completeWalletSession(ws: WebSocket, wallet: string): Promise<void> {
   const sock = ws as WebSocket & { authDeadline?: ReturnType<typeof setTimeout>; wallet?: string };
   if (sock.authDeadline) {
     clearTimeout(sock.authDeadline);
@@ -7116,6 +7294,8 @@ function completeWalletSession(ws: WebSocket, wallet: string) {
   }
   sock.wallet = wallet;
   adoptOrphanLogs(wallet, ws);
+  await adoptOwnedUnboundNfts(wallet, ws);
+  stripAutoTokenSuffixNames(wallet);
 
   // Park any live character — keep roster, leave the world until char/enter or char/create.
   // A signature, or a resume token that signature issued, is required to take the session.
@@ -7217,12 +7397,10 @@ function onMessage(ws: WebSocket, data: string) {
       send(ws, { type: "error", message: resumed.error });
       return;
     }
-    try {
-      completeWalletSession(ws, resumed.wallet);
-    } catch (err) {
+    void completeWalletSession(ws, resumed.wallet).catch((err) => {
       console.error("[bellgrave] auth resume failed", err);
       send(ws, { type: "error", message: "Login failed on the server. Nothing was changed; try again." });
-    }
+    });
     return;
   }
 
@@ -7239,7 +7417,7 @@ function onMessage(ws: WebSocket, data: string) {
         send(ws, { type: "error", message: verified.error });
         return;
       }
-      completeWalletSession(ws, verified.wallet);
+      return completeWalletSession(ws, verified.wallet);
     }).catch((err) => {
       // A throw after the signature check (for example a corrupt save read by
       // adoptOrphanLogs/createPlayer) used to be an unhandled rejection, which
@@ -7316,6 +7494,22 @@ function onMessage(ws: WebSocket, data: string) {
       return;
     }
     send(ws, { type: "char/nameCheck", available: true, name: named.name });
+    return;
+  }
+
+  if (msg.type === "char/syncOwned") {
+    void (async () => {
+      await adoptOwnedUnboundNfts(wallet, ws);
+      const characters = accountPreviews(wallet);
+      send(ws, {
+        type: "char/roster",
+        hasCharacter: characters.length > 0,
+        characters,
+      });
+    })().catch((err) => {
+      console.error("[bellgrave] char/syncOwned failed", err);
+      send(ws, { type: "error", message: "Could not read character NFTs for this wallet." });
+    });
     return;
   }
 
@@ -7628,6 +7822,7 @@ function onMessage(ws: WebSocket, data: string) {
     msg.type !== "move" &&
     msg.type !== "dash" &&
     msg.type !== "disengage" &&
+    msg.type !== "chat" &&
     msg.type !== "lok/explore" &&
     !String(msg.type).startsWith("party/");
   const runPlayerMessage = () => {
@@ -7849,6 +8044,9 @@ function onMessage(ws: WebSocket, data: string) {
       break;
     case "lok/explore":
       handleLokExplore(p, msg.scope, msg.q, msg.beforeSeq, msg.req);
+      break;
+    case "chat":
+      handleChat(p, msg.text, msg.channel);
       break;
     default:
       break;

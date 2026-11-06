@@ -2,6 +2,7 @@ import { FigurePreview } from "./FigurePreview";
 import {
   JOBS,
   JOB_IDS,
+  mintableStartingJobs,
   SUBJOB_UNLOCK_LEVEL,
   abilityCategory,
   abilityIconUrl,
@@ -9,6 +10,7 @@ import {
   abilityMp,
   resolveAbilityTargetId,
   isHostileTabUnit,
+  TAB_HOSTILE_RANGE,
   enemyTargetLabel,
   abilityRecastMs,
   abilityTooltip,
@@ -19,14 +21,17 @@ import {
   isJobId,
   type DruidForm,
   isTimAbilityId,
+  xpToNextLevel,
   type AbilityId as CombatAbilityId,
   type JobId,
 } from "@bellgrave/combat";
+import { isStoredLocalBurnerWallet } from "@bellgrave/client-core/burner-identity";
 import { clearPendingMint, mintCharacterWithWallet } from "@bellgrave/client-core/character-mint";
+import { readPendingMint } from "@bellgrave/client-core/pending-mint";
 import { ITEM, normalizeCharacterName, characterNameKey, explorerTxUrl } from "@bellgrave/config";
 import { getItem } from "@bellgrave/items";
-import type { AbilityId, UnitSnapshot } from "@bellgrave/protocol";
-import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent } from "react";
+import { CHAT_MAX_LEN, parseChatCommand, type AbilityId, type UnitSnapshot } from "@bellgrave/protocol";
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { AbilityIcon } from "./AbilityIcon";
 import { chromaKeyIconUrl } from "./chroma-icons";
 import { CraftingPanel } from "./CraftingPanel";
@@ -71,9 +76,12 @@ import {
 } from "./hotbar";
 import { useAppKit, useAppKitAccount, useAppKitState } from "@reown/appkit/react";
 import { appKitConfigured } from "@bellgrave/client-core/appkit-config";
+import { hasPersistedAuthForWallet } from "@bellgrave/client-core/auth-session";
 import {
   checkCharacterNameAvailable,
+  isAuthInFlight,
   isServerAuthed,
+  kickLeftoverBurnerToAuth,
   loginWithWalletConnect,
   characterEnterMessage,
   logoutToMenu,
@@ -83,7 +91,34 @@ import {
 import { enterZoneMusic } from "./zoneMusic";
 import { MENU_MUSIC } from "@bellgrave/config";
 import { useGame } from "@bellgrave/client-core/state";
+import {
+  appKitModalView,
+  applyStayOpenToggle,
+  createSubmitLabel,
+  hideBootScreen,
+  playEscapeLayer,
+  shouldAcceptWalletConnectClick,
+  shouldAutoLoginAppKit,
+  shouldDisableWalletControl,
+  shouldForceWalletLogin,
+  shouldHideWalletControlWhileModal,
+  shouldKickLeftoverBurnerToAuth,
+  shouldResetPlayOverlays,
+  shouldRunCreateMint,
+  shouldSendMintWallet,
+  shouldSkipCreateNameCheck,
+  walletControlLabel,
+} from "./hud-leftovers";
 // NpcInteractMenu mounts world-anchored under the NPC in WorldScene.
+
+const OOC_MAP_MS = 20_000;
+const TP_MAX = 3000;
+
+function persistUiPatch(patch: Partial<UiSettings>): UiSettings {
+  const next = { ...loadUiSettings(), ...patch };
+  persistAndApplyUiSettings(next);
+  return next;
+}
 
 const HOTBAR_KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"] as const;
 const HOTBAR_SHIFT_KEYS = ["S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8", "S9", "S0"] as const;
@@ -105,6 +140,9 @@ const HUD_WELLS: readonly (readonly [number, number, number, number])[] = [
   [761, 422, 811, 476],
   [823, 422, 875, 476],
 ];
+/** Menu medallion, just right of Potion on the 1024×533 plate. */
+const HUD_MENU_WELL = [890, 422, 942, 476] as const;
+const MENU_HOLD_MS = 480;
 
 function hudWellStyle(index: number): {
   left: string;
@@ -632,9 +670,8 @@ function EmptyHotbarSlot({
 export function Hud() {
   const snapshot = useGame((s) => s.snapshot);
   const logs = useGame((s) => s.logs);
-  const connected = useGame((s) => s.connected);
+  const chats = useGame((s) => s.chats);
   const phase = useGame((s) => s.phase);
-  const storedLight = useGame((s) => s.light);
   const wallet = useGame((s) => s.wallet);
   const selectedTarget = useGame((s) => s.selectedTarget);
   const npcDialog = useGame((s) => s.npcDialog);
@@ -670,12 +707,136 @@ export function Hud() {
     Array.from({ length: HOTBAR_SLOT_COUNT }, () => null),
   );
   const logEnd = useRef<HTMLDivElement>(null);
+  const chatEnd = useRef<HTMLDivElement>(null);
+  const chatInput = useRef<HTMLInputElement>(null);
+  const [chatDraft, setChatDraft] = useState("");
+  const chatDraftRef = useRef(chatDraft);
+  chatDraftRef.current = chatDraft;
+  const [leftPane, setLeftPane] = useState<"log" | "map">(() =>
+    loadUiSettings().minimap ? "map" : "log",
+  );
+  const leftPaneIntent = useRef<"auto" | "log" | "map">("auto");
+  const lastMinimapSetting = useRef(loadUiSettings().minimap);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuLocked, setMenuLocked] = useState(false);
+
+  useEffect(() => {
+    if (!shouldResetPlayOverlays(phase)) return;
+    setBagOpen(false);
+    setCraftOpen(false);
+    setLokOpen(false);
+    setBookOpen(false);
+    setTreeOpen(false);
+    setSettingsOpen(false);
+    setPartyOpen(false);
+    setExplorerOpen(false);
+    setQuestOpen(false);
+    setAshPitOpen(false);
+    setMenuOpen(false);
+    setMenuLocked(false);
+  }, [phase]);
+  const menuHoldTimer = useRef<number | null>(null);
+  const menuHoldFired = useRef(false);
+  const lastCombatAt = useRef(Date.now());
+  const inCombatRef = useRef(false);
+
+  const clearMenuHold = useCallback(() => {
+    if (menuHoldTimer.current == null) return;
+    window.clearTimeout(menuHoldTimer.current);
+    menuHoldTimer.current = null;
+  }, []);
+
+  const onMenuPointerDown = useCallback((e: ReactPointerEvent<HTMLButtonElement>) => {
+    if (e.button !== 0) return;
+    menuHoldFired.current = false;
+    clearMenuHold();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    menuHoldTimer.current = window.setTimeout(() => {
+      menuHoldFired.current = true;
+      setMenuLocked((v) => {
+        const next = !v;
+        if (next) setMenuOpen(false);
+        return next;
+      });
+      menuHoldTimer.current = null;
+    }, MENU_HOLD_MS);
+  }, [clearMenuHold]);
+
+  const onMenuPointerUp = useCallback(() => {
+    clearMenuHold();
+  }, [clearMenuHold]);
+
+  const onMenuClick = useCallback(() => {
+    const held = menuHoldFired.current;
+    menuHoldFired.current = false;
+    if (held || menuLocked) return;
+    setMenuOpen((v) => !v);
+  }, [menuLocked]);
+
+  useEffect(() => () => clearMenuHold(), [clearMenuHold]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const place = () => {
+      const chrome = document.querySelector(".hud-chrome") as HTMLElement | null;
+      const btn = document.querySelector(".hud-menu-btn") as HTMLElement | null;
+      if (!chrome || !btn) return;
+      const b = btn.getBoundingClientRect();
+      chrome.style.right = `${Math.max(8, window.innerWidth - b.right)}px`;
+      chrome.style.bottom = `${Math.max(8, window.innerHeight - b.top + 10)}px`;
+    };
+    place();
+    window.addEventListener("resize", place);
+    return () => window.removeEventListener("resize", place);
+  }, [menuOpen]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDown = (e: PointerEvent) => {
+      const t = e.target as Node | null;
+      if (!t) return;
+      if ((e.target as HTMLElement | null)?.closest(".hud-menu-dock, .hud-menu-btn")) return;
+      setMenuOpen(false);
+    };
+    window.addEventListener("pointerdown", onDown, true);
+    return () => {
+      window.removeEventListener("pointerdown", onDown, true);
+    };
+  }, [menuOpen]);
+
+  useEffect(() => {
+    const onMinimap = () => {
+      const next = loadUiSettings().minimap;
+      if (next === lastMinimapSetting.current) return;
+      lastMinimapSetting.current = next;
+      if (inCombatRef.current) return;
+      leftPaneIntent.current = "auto";
+      setLeftPane(next ? "map" : "log");
+    };
+    window.addEventListener(UI_SETTINGS_EVENT, onMinimap);
+    return () => window.removeEventListener(UI_SETTINGS_EVENT, onMinimap);
+  }, []);
+
+  const craftStayOpen = useRef(false);
+  const lokStayOpen = useRef(false);
 
   useEffect(() => {
     const onToggle = () => setBagOpen((v) => !v);
     const onBook = () => setBookOpen((v) => !v);
-    const onCraft = () => setCraftOpen((v) => !v);
-    const onLok = () => setLokOpen((v) => !v);
+    const onCraft = () => {
+      setCraftOpen((open) => {
+        const r = applyStayOpenToggle(open, craftStayOpen.current);
+        craftStayOpen.current = r.stayOpen;
+        return r.open;
+      });
+    };
+    const onLok = () => {
+      setLokOpen((open) => {
+        const r = applyStayOpenToggle(open, lokStayOpen.current);
+        lokStayOpen.current = r.stayOpen;
+        return r.open;
+      });
+    };
     const onQuest = () => setQuestOpen((v) => !v);
     window.addEventListener("bellgrave:toggle-bag", onToggle);
     window.addEventListener("bellgrave:toggle-spellbook", onBook);
@@ -692,16 +853,38 @@ export function Hud() {
   }, []);
 
   useEffect(() => {
-    if (npcDialog?.craftOpen) setCraftOpen(true);
+    if (npcDialog?.craftOpen) {
+      setCraftOpen(true);
+      craftStayOpen.current = true;
+    }
   }, [npcDialog?.craftOpen, npcDialog?.npcId]);
 
   useEffect(() => {
-    if (npcDialog?.lokOpen) setLokOpen(true);
+    if (npcDialog?.lokOpen) {
+      setLokOpen(true);
+      lokStayOpen.current = true;
+    }
   }, [npcDialog?.lokOpen, npcDialog?.npcId]);
 
   useEffect(() => {
     logEnd.current?.scrollIntoView({ behavior: "smooth" });
   }, [logs]);
+
+  useEffect(() => {
+    chatEnd.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chats]);
+
+  useEffect(() => {
+    const onFocus = (e: Event) => {
+      const seed = (e as CustomEvent<{ seed?: string }>).detail?.seed;
+      const el = chatInput.current;
+      if (!el) return;
+      el.focus();
+      if (seed && !chatDraftRef.current.trim()) setChatDraft(seed);
+    };
+    window.addEventListener("bellgrave:focus-chat", onFocus);
+    return () => window.removeEventListener("bellgrave:focus-chat", onFocus);
+  }, []);
 
   useEffect(() => {
     if (phase !== "play") return;
@@ -714,24 +897,69 @@ export function Hud() {
   }, [uiSettings.layout]);
 
   useEffect(() => {
-    if (!settingsOpen) return;
+    if (phase !== "play") return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
+      const layer = playEscapeLayer({
+        settings: settingsOpen,
+        commands: menuOpen,
+        bag: bagOpen,
+        craft: craftOpen,
+        spellbook: bookOpen,
+        party: partyOpen,
+        skills: treeOpen,
+        exchange: lokOpen,
+        quest: questOpen,
+        explorer: explorerOpen,
+        ashPit: ashPitOpen,
+      });
+      if (layer === "npc" || layer === "disengage") return;
       e.preventDefault();
       e.stopPropagation();
-      setSettingsOpen(false);
+      e.stopImmediatePropagation();
+      if (layer === "settings") setSettingsOpen(false);
+      else if (layer === "commands") setMenuOpen(false);
+      else if (layer === "bag") setBagOpen(false);
+      else if (layer === "craft") setCraftOpen(false);
+      else if (layer === "spellbook") setBookOpen(false);
+      else if (layer === "party") setPartyOpen(false);
+      else if (layer === "skills") setTreeOpen(false);
+      else if (layer === "exchange") setLokOpen(false);
+      else if (layer === "quest") setQuestOpen(false);
+      else if (layer === "explorer") setExplorerOpen(false);
+      else if (layer === "ashPit") setAshPitOpen(false);
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [settingsOpen]);
+  }, [
+    phase,
+    settingsOpen,
+    menuOpen,
+    bagOpen,
+    craftOpen,
+    bookOpen,
+    partyOpen,
+    treeOpen,
+    lokOpen,
+    questOpen,
+    explorerOpen,
+    ashPitOpen,
+  ]);
 
   // Re-sync from localStorage when entering play / when another tab changes settings.
   // Keeps Mobile sticks visible after remounts and across refresh.
   useEffect(() => {
     if (phase !== "play") return;
-    setUiSettings(loadUiSettings());
+    const cur = loadUiSettings();
+    setUiSettings(cur);
+    leftPaneIntent.current = "auto";
+    setLeftPane(cur.minimap ? "map" : "log");
     const onStorage = (e: StorageEvent) => {
-      if (e.key === UI_SETTINGS_KEY || e.key === null) setUiSettings(loadUiSettings());
+      if (e.key === UI_SETTINGS_KEY || e.key === null) {
+        const next = loadUiSettings();
+        setUiSettings(next);
+        setLeftPane(next.minimap ? "map" : "log");
+      }
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
@@ -844,27 +1072,85 @@ export function Hud() {
     return u;
   }, [snapshot, selectedTarget, wallet]);
 
+  const inCombat = Boolean(
+    me?.targetId ||
+      (wallet &&
+        me &&
+        snapshot?.units.some((u) => {
+          if (!isHostileTabUnit(u, wallet) || !u.targetId) return false;
+          if (u.targetId.toLowerCase() !== wallet.toLowerCase()) return false;
+          const dx = u.x - me.x;
+          const dz = u.z - me.z;
+          return dx * dx + dz * dz <= TAB_HOSTILE_RANGE * TAB_HOSTILE_RANGE;
+        })),
+  );
+  inCombatRef.current = inCombat;
+  useEffect(() => {
+    if (inCombat) {
+      lastCombatAt.current = Date.now();
+      setLeftPane("log");
+    }
+  }, [inCombat]);
+
+  useEffect(() => {
+    if (inCombat) return;
+    const id = window.setTimeout(() => {
+      if (leftPaneIntent.current === "log") {
+        setLeftPane("log");
+        return;
+      }
+      if (leftPaneIntent.current === "map") {
+        setLeftPane("map");
+        return;
+      }
+      setLeftPane(loadUiSettings().minimap ? "map" : "log");
+    }, OOC_MAP_MS);
+    return () => window.clearTimeout(id);
+  }, [inCombat]);
+
   if (phase !== "play" || !snapshot || !me) return null;
   const you = snapshot.you;
+  const xpNeed = xpToNextLevel(you.level);
+  const xpHave = Math.max(0, you.xp);
+  const meters = (
+    <div className="hud-meter-stack">
+      <HudMeter kind="tp" label="TP" value={me.tp} max={TP_MAX} />
+      <HudMeter kind="xp" label="XP" value={xpHave} max={xpNeed} />
+    </div>
+  );
+  const menuButton = (
+    <button
+      type="button"
+      className={`hud-menu-btn${menuOpen ? " open" : ""}${menuLocked ? " locked" : ""}`}
+      style={{
+        left: `${(HUD_MENU_WELL[0] / HUD_FRAME.w) * 100}%`,
+        top: `${(HUD_MENU_WELL[1] / HUD_FRAME.h) * 100}%`,
+        width: `${((HUD_MENU_WELL[2] - HUD_MENU_WELL[0]) / HUD_FRAME.w) * 100}%`,
+        height: `${((HUD_MENU_WELL[3] - HUD_MENU_WELL[1]) / HUD_FRAME.h) * 100}%`,
+      }}
+      aria-label={
+        menuLocked
+          ? "Commands menu locked. Hold to unlock."
+          : menuOpen
+            ? "Close commands menu. Hold to lock closed."
+            : "Commands menu. Hold to lock closed."
+      }
+      aria-expanded={menuOpen}
+      aria-pressed={menuLocked}
+      onPointerDown={onMenuPointerDown}
+      onPointerUp={onMenuPointerUp}
+      onPointerCancel={clearMenuHold}
+      onClick={onMenuClick}
+    >
+      <span className="hud-menu-bars" aria-hidden="true">
+        <i />
+        <i />
+        <i />
+      </span>
+    </button>
+  );
   const potions = you.inventory.reduce((n, i) => n + (i.tokenId === ITEM.POTION ? i.amount : 0), 0);
-  const shortWallet = wallet ? `${wallet.slice(0, 6)}…${wallet.slice(-4)}` : "";
-  const hpPct = (me.hp / me.maxHp) * 100;
-  const mpPct = me.maxMp ? (me.mp / me.maxMp) * 100 : 0;
-  const tpPct = Math.min(100, (me.tp / 3000) * 100);
   const recasts = you.recasts ?? {};
-  const form = unitDruidForm(you.job, me?.buffs);
-  const jobName =
-    you.job === "druid"
-      ? `${JOBS[you.job]?.name ?? you.job} · ${DRUID_FORM_LABEL[form]}`
-      : (JOBS[you.job]?.name ?? you.job);
-  const subName =
-    you.subjob && you.subLevel > 0
-      ? ` / ${JOBS[you.subjob]?.name ?? you.subjob} L${you.subLevel}`
-      : "";
-
-  const posX = me.x.toFixed(1);
-  const posY = me.y.toFixed(1);
-  const posZ = me.z.toFixed(1);
 
   const mobileLayout = layoutUsesArcadeControls(uiSettings.layout);
 
@@ -889,61 +1175,8 @@ export function Hud() {
           </div>
         </div>
       )}
+      {menuOpen && (
       <div className="hud-chrome">
-        <div className="hud-corner-left">
-          <div className="hud-vitals-dock">
-          <div className="hud-identity">
-            {you.name} · Lv.{you.level} · <span className="job">{jobName}{subName}</span>
-            <span className="provisional" data-leader-view={storedLight.leaderView}>
-              {" "}
-              · provisional
-            </span>
-            {storedLight.committed ? (
-              <span className="committed" data-committed-view="committed">
-                {" "}
-                · committed
-              </span>
-            ) : null}
-            {!connected && <span className="offline"> · OFFLINE</span>}
-            <span className="wallet">{shortWallet}</span>
-          </div>
-          <div className="hud-vitals">
-            {mobileLayout && (
-              <>
-                <div className="vital">
-                  <span className="vital-label">HP</span>
-                  <div className="vital-bar hp">
-                    <i style={{ width: `${hpPct}%` }} />
-                  </div>
-                  <span className="vital-num">
-                    {me.hp}/{me.maxHp}
-                  </span>
-                </div>
-                <div className="vital">
-                  <span className="vital-label">MP</span>
-                  <div className="vital-bar mp">
-                    <i style={{ width: `${mpPct}%` }} />
-                  </div>
-                  <span className="vital-num">
-                    {me.mp}/{me.maxMp}
-                  </span>
-                </div>
-              </>
-            )}
-            <div className="vital">
-              <span className="vital-label">TP</span>
-              <div className="vital-bar tp">
-                <i style={{ width: `${tpPct}%` }} />
-              </div>
-              <span className="vital-num">{me.tp}</span>
-            </div>
-          </div>
-          </div>
-          <div className="hud-pos" aria-label={`World position X ${posX}, Y ${posY}, Z ${posZ}`}>
-            X {posX}&nbsp;&nbsp;Y {posY}&nbsp;&nbsp;Z {posZ}
-          </div>
-        </div>
-
         <div className="hud-menu-dock" role="menu" aria-label="Commands" onKeyDownCapture={(e) => {
           if (e.key === "Tab") {
             e.preventDefault();
@@ -951,7 +1184,15 @@ export function Hud() {
           }
         }}>
           <div className="hud-commands-kicker">Black Anvil</div>
-          <div className="hud-commands-header">Commands</div>
+          <button
+            type="button"
+            className="hud-commands-header"
+            aria-expanded={true}
+            onClick={() => setMenuOpen(false)}
+          >
+            Commands
+            <span className="hud-commands-caret" aria-hidden="true">×</span>
+          </button>
           {dualHasSpellbook(you.job, you.subjob) && (
             <button
               type="button"
@@ -1103,6 +1344,7 @@ export function Hud() {
           )}
         </div>
       </div>
+      )}
 
       {bagOpen && <EquipPanel you={you} me={me} onClose={() => setBagOpen(false)} />}
       {craftOpen && <CraftingPanel onClose={closeCraftPanel} />}
@@ -1165,9 +1407,8 @@ export function Hud() {
                     className={active ? "on" : undefined}
                     title={opt.hint}
                     onClick={() => {
-                      const next = { ...uiSettings, layout: opt.id as UiLayoutId };
+                      const next = persistUiPatch({ layout: opt.id as UiLayoutId });
                       setUiSettings(next);
-                      persistAndApplyUiSettings(next);
                     }}
                   >
                     {opt.label}
@@ -1188,9 +1429,8 @@ export function Hud() {
                     aria-selected={uiSettings.view === opt.id}
                     className={`settings-option${uiSettings.view === opt.id ? " active" : ""}`}
                     onClick={() => {
-                      const next = { ...uiSettings, view: opt.id };
+                      const next = persistUiPatch({ view: opt.id });
                       setUiSettings(next);
-                      persistAndApplyUiSettings(next);
                     }}
                   >
                     {opt.label}
@@ -1203,9 +1443,11 @@ export function Hud() {
                   className={`settings-option${uiSettings.minimap ? " active" : ""}`}
                   title="Toggle with M"
                   onClick={() => {
-                    const next = { ...uiSettings, minimap: !uiSettings.minimap };
+                    const next = persistUiPatch({ minimap: !loadUiSettings().minimap });
                     setUiSettings(next);
-                    persistAndApplyUiSettings(next);
+                    lastMinimapSetting.current = next.minimap;
+                    leftPaneIntent.current = "auto";
+                    setLeftPane(next.minimap ? "map" : "log");
                   }}
                 >
                   Minimap (M)
@@ -1226,10 +1468,9 @@ export function Hud() {
                       aria-selected={active}
                       className={active ? "on" : undefined}
                       onClick={() => {
-                        const next = { ...uiSettings, cam: opt.id };
-                        setUiSettings(next);
-                        persistAndApplyUiSettings(next);
-                      }}
+                      const next = persistUiPatch({ cam: opt.id });
+                      setUiSettings(next);
+                    }}
                     >
                       {opt.label}
                     </button>
@@ -1245,9 +1486,8 @@ export function Hud() {
                     aria-selected={uiSettings.pixel === opt.id}
                     className={`settings-option${uiSettings.pixel === opt.id ? " active" : ""}`}
                     onClick={() => {
-                      const next = { ...uiSettings, pixel: opt.id };
+                      const next = persistUiPatch({ pixel: opt.id });
                       setUiSettings(next);
-                      persistAndApplyUiSettings(next);
                     }}
                   >
                     {opt.label}
@@ -1269,9 +1509,8 @@ export function Hud() {
                     aria-selected={active}
                     className={`settings-option${active ? " active" : ""}`}
                     onClick={() => {
-                      const next = { ...uiSettings, color: opt.id as UiColorId };
+                      const next = persistUiPatch({ color: opt.id as UiColorId });
                       setUiSettings(next);
-                      persistAndApplyUiSettings(next);
                     }}
                   >
                     <span className="settings-swatch" style={{ background: opt.swatch }} />
@@ -1296,9 +1535,8 @@ export function Hud() {
                     className={`settings-option${active ? " active" : ""}`}
                     style={{ fontFamily }}
                     onClick={() => {
-                      const next = { ...uiSettings, font: opt.id as UiFontId };
+                      const next = persistUiPatch({ font: opt.id as UiFontId });
                       setUiSettings(next);
-                      persistAndApplyUiSettings(next);
                     }}
                   >
                     {opt.label}
@@ -1334,7 +1572,9 @@ export function Hud() {
               <div>Spellbook</div>
               <div className="spellbook-sub">
                 {bookIds.length} unlocked
-                {you.subjob && you.subLevel > 0
+                {you.job === "druid"
+                  ? ` · ${JOBS[you.job]?.name} · ${DRUID_FORM_LABEL[unitDruidForm(you.job, me?.buffs)]}`
+                  : you.subjob && you.subLevel > 0
                   ? ` · ${JOBS[you.job]?.name} + ${JOBS[you.subjob]?.name} L${you.subLevel}`
                   : ""}{" "}
                 · drag onto hotbar
@@ -1394,35 +1634,100 @@ export function Hud() {
       <div style={{ flex: 1 }} />
 
       <div className="hud-bottom">
+        <div className={`hud-log-frame hud-combat-log${leftPane === "map" ? " hud-pane-map" : ""}`}>
+          <div className="hud-log-head">
+            <span>{leftPane === "map" ? "Minimap" : "Combat Log"}</span>
+            <div className="hud-pane-toggle" role="tablist" aria-label="Combat log or minimap">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={leftPane === "log"}
+                className={leftPane === "log" ? "active" : ""}
+                onClick={() => {
+                  lastCombatAt.current = Date.now();
+                  leftPaneIntent.current = "log";
+                  setLeftPane("log");
+                }}
+              >
+                Log
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={leftPane === "map"}
+                className={leftPane === "map" ? "active" : ""}
+                onClick={() => {
+                  leftPaneIntent.current = "map";
+                  setLeftPane("map");
+                  const next = persistUiPatch({ minimap: true });
+                  lastMinimapSetting.current = next.minimap;
+                }}
+              >
+                Map
+              </button>
+            </div>
+          </div>
+          {leftPane === "log" ? (
+            <div className="hud-log-body mmo-scroll">
+              {logs.map((l, i) => (
+                <div key={`${i}-${l.slice(0, 24)}`} className={logClass(l)}>
+                  {l}
+                </div>
+              ))}
+              <div ref={logEnd} />
+            </div>
+          ) : (
+            <div className="hud-minimap-well" aria-hidden>
+              <canvas className="hud-minimap-canvas" />
+            </div>
+          )}
+        </div>
         {mobileLayout ? (
-          <MobileArcadeControls
-            potions={potions}
-            onCastSlot={(index) => {
-              const id = hotbarAbilityAt(index, 0);
-              if (id) castAbility(id);
-            }}
-            onCastRest={() => {
-              if (restUnlocked) castAbility("rest");
-            }}
-            onPotion={() => send({ type: "item/use", tokenId: ITEM.POTION })}
-          />
+          <div className="hud-action-mobile">
+            <div className="hud-mobile-top">
+              {meters}
+              <button
+                type="button"
+                className={`hud-menu-btn hud-menu-btn-flow${menuOpen ? " open" : ""}${menuLocked ? " locked" : ""}`}
+                aria-label={
+                  menuLocked
+                    ? "Commands menu locked. Hold to unlock."
+                    : menuOpen
+                      ? "Close commands menu. Hold to lock closed."
+                      : "Commands menu. Hold to lock closed."
+                }
+                aria-expanded={menuOpen}
+                aria-pressed={menuLocked}
+                onPointerDown={onMenuPointerDown}
+                onPointerUp={onMenuPointerUp}
+                onPointerCancel={clearMenuHold}
+                onClick={onMenuClick}
+              >
+                <span className="hud-menu-bars" aria-hidden="true">
+                  <i />
+                  <i />
+                  <i />
+                </span>
+              </button>
+            </div>
+            <MobileArcadeControls
+              potions={potions}
+              onCastSlot={(index) => {
+                const id = hotbarAbilityAt(index, 0);
+                if (id) castAbility(id);
+              }}
+              onCastRest={() => {
+                if (restUnlocked) castAbility("rest");
+              }}
+              onPotion={() => send({ type: "item/use", tokenId: ITEM.POTION })}
+            />
+          </div>
         ) : (
           <div className="hud-action-plate">
+            {meters}
             <img className="hud-action-frame" src="/ui/hud/hotbar.png" alt="" draggable={false} />
-            <img
-              className="hud-action-fill hp"
-              src="/ui/hud/health.png"
-              alt=""
-              draggable={false}
-              style={{ ["--p" as string]: String(Math.max(0, Math.min(1, me.maxHp ? me.hp / me.maxHp : 0))) }}
-            />
-            <img
-              className="hud-action-fill mp"
-              src="/ui/hud/mana.png"
-              alt=""
-              draggable={false}
-              style={{ ["--p" as string]: String(Math.max(0, Math.min(1, me.maxMp ? me.mp / me.maxMp : 0))) }}
-            />
+            <CrescentFill kind="hp" src="/ui/hud/health.png" value={me.hp} max={me.maxHp} />
+            <CrescentFill kind="mp" src="/ui/hud/mana.png" value={me.mp} max={me.maxMp} />
             <div
               className="hud-crescent-read hp"
               role="meter"
@@ -1562,28 +1867,300 @@ export function Hud() {
                 </div>
               </div>
             </div>
+            {menuButton}
           </div>
         )}
-
-        <div className="hud-log-frame">
+        <div className="hud-log-frame hud-chat-log">
           <div className="hud-log-head">
-            <span>Combat Log</span>
-            <span className="hud-log-hints">
-              {mobileLayout
-                ? "Sticks · Face 1–8 · Flick Skills stick · R Rest · Q Potion · K Book · B Character"
-                : "WASD · Drag book→bar · 1–0 · Shift+1–0 · Alt+1–0 · R Rest · Q Potion · K Book · B Character · C Craft"}
-            </span>
+            <span>Chat</span>
+            <span className="hud-log-hints">Enter · /p party</span>
           </div>
           <div className="hud-log-body mmo-scroll">
-            {logs.map((l, i) => (
-              <div key={`${i}-${l.slice(0, 24)}`} className={logClass(l)}>
-                {l}
+            {chats.length === 0 && (
+              <div className="hud-log-line system">No one has spoken nearby.</div>
+            )}
+            {chats.map((c) => (
+              <div
+                key={`${c.t}-${c.fromId}-${c.text.slice(0, 16)}`}
+                className={`hud-log-line hud-chat-line ${c.channel}`}
+              >
+                {c.channel === "party" ? (
+                  <span className="hud-chat-chan">[Party] </span>
+                ) : null}
+                <span className="hud-chat-name">{c.fromName}</span>
+                <span className="hud-chat-sep">: </span>
+                <span className="hud-chat-text">{c.text}</span>
               </div>
             ))}
-            <div ref={logEnd} />
+            <div ref={chatEnd} />
           </div>
+          <form
+            className="hud-chat-compose"
+            onSubmit={(e: FormEvent) => {
+              e.preventDefault();
+              const parsed = parseChatCommand(chatDraft);
+              if (!parsed) return;
+              send({ type: "chat", text: parsed.text, channel: parsed.channel });
+              setChatDraft("");
+            }}
+          >
+            <input
+              ref={chatInput}
+              className="hud-chat-input"
+              type="text"
+              maxLength={CHAT_MAX_LEN}
+              value={chatDraft}
+              placeholder="Say…"
+              aria-label="Chat message"
+              autoComplete="off"
+              onChange={(e) => setChatDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key !== "Escape") return;
+                e.preventDefault();
+                e.stopPropagation();
+                chatInput.current?.blur();
+              }}
+            />
+            <button type="submit" className="hud-chat-send">
+              Send
+            </button>
+          </form>
         </div>
       </div>
+    </div>
+  );
+}
+
+function prefersReducedMotion() {
+  return typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+const CRES_TOP = 0.105066;
+const CRES_SPAN = 0.592871;
+const HUD_W = 1024;
+const HUD_H = 533;
+
+function liquidSurfacePoints(p: number, phase: number, amp: number, tilt: number) {
+  const top = CRES_TOP * HUD_H;
+  const span = CRES_SPAN * HUD_H;
+  const bottom = top + span;
+  const cut = top + span * (1 - Math.max(0, Math.min(1, p)));
+  const n = 22;
+  const pts: { x: number; y: number }[] = [];
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
+    let y =
+      cut +
+      Math.sin(t * Math.PI * 5.5 + phase) * amp +
+      Math.sin(t * Math.PI * 11 + phase * 1.3) * amp * 0.42 +
+      Math.sin(t * Math.PI * 17 + phase * 0.7) * amp * 0.16 +
+      (t - 0.5) * tilt;
+    y = Math.min(bottom - 0.5, Math.max(top + 0.5, y));
+    pts.push({ x: t * HUD_W, y });
+  }
+  return { pts, bottom };
+}
+
+function smoothThrough(pts: { x: number; y: number }[]) {
+  if (pts.length === 0) return "";
+  const p0 = pts[0]!;
+  let d = `M${p0.x.toFixed(2)},${p0.y.toFixed(2)}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i === 0 ? 0 : i - 1]!;
+    const b = pts[i]!;
+    const c = pts[i + 1]!;
+    const e = pts[i + 2] ?? c;
+    const c1x = b.x + (c.x - a.x) / 6;
+    const c1y = b.y + (c.y - a.y) / 6;
+    const c2x = c.x - (e.x - b.x) / 6;
+    const c2y = c.y - (e.y - b.y) / 6;
+    d += ` C${c1x.toFixed(2)},${c1y.toFixed(2)} ${c2x.toFixed(2)},${c2y.toFixed(2)} ${c.x.toFixed(2)},${c.y.toFixed(2)}`;
+  }
+  return d;
+}
+
+function liquidSurfacePath(p: number, phase: number, amp: number, tilt: number) {
+  const { pts, bottom } = liquidSurfacePoints(p, phase, amp, tilt);
+  return `M0,${bottom.toFixed(2)} ${smoothThrough(pts).replace(/^M/, "L")} L${HUD_W},${bottom.toFixed(2)} Z`;
+}
+
+function liquidSurfaceStroke(p: number, phase: number, amp: number, tilt: number) {
+  return smoothThrough(liquidSurfacePoints(p, phase, amp, tilt).pts);
+}
+
+function CrescentFill({
+  kind,
+  src,
+  value,
+  max,
+}: {
+  kind: "hp" | "mp";
+  src: string;
+  value: number;
+  max: number;
+}) {
+  const target = Math.max(0, Math.min(1, max > 0 ? value / max : 0));
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const sheet = useRef<HTMLImageElement | null>(null);
+  const sim = useRef({ p: target, v: 0, target, phase: kind === "mp" ? 1.7 : 0, last: 0, raf: 0 });
+  const paintRef = useRef<() => void>(() => {});
+  const kickRef = useRef<() => void>(() => {});
+
+  useEffect(() => {
+    sim.current.target = target;
+    if (prefersReducedMotion()) {
+      sim.current.p = target;
+      sim.current.v = 0;
+      paintRef.current();
+    } else {
+      kickRef.current();
+    }
+  }, [target]);
+
+  useEffect(() => {
+    const img = new Image();
+    img.src = src;
+    img.onload = () => {
+      sheet.current = img;
+      paintRef.current();
+    };
+    if (img.complete) {
+      sheet.current = img;
+      paintRef.current();
+    }
+  }, [src]);
+
+  useEffect(() => {
+    const s = sim.current;
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const paint = () => {
+      const canvas = canvasRef.current;
+      const bmp = sheet.current;
+      if (!canvas || !bmp) return;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      const quiet = mq.matches;
+      const amp = quiet ? 0 : 11 + Math.min(14, Math.abs(s.v) * 70);
+      const tilt = quiet ? 0 : s.v * 28;
+      const fill = liquidSurfacePath(s.p, s.phase, amp, tilt);
+      ctx.clearRect(0, 0, HUD_W, HUD_H);
+      ctx.save();
+      ctx.imageSmoothingEnabled = true;
+      ctx.clip(new Path2D(fill));
+      ctx.drawImage(bmp, 0, 0, HUD_W, HUD_H);
+      ctx.globalCompositeOperation = "source-atop";
+      ctx.strokeStyle = kind === "hp" ? "rgba(220, 255, 230, 0.32)" : "rgba(220, 244, 255, 0.32)";
+      ctx.lineWidth = 2;
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+      ctx.stroke(new Path2D(liquidSurfaceStroke(s.p, s.phase, amp, tilt)));
+      ctx.restore();
+      ctx.globalCompositeOperation = "destination-in";
+      ctx.drawImage(bmp, 0, 0, HUD_W, HUD_H);
+      ctx.globalCompositeOperation = "source-over";
+      canvas.classList.toggle("slosh", !quiet && Math.abs(s.v) > 0.012);
+    };
+    paintRef.current = paint;
+    const stop = () => {
+      if (s.raf) cancelAnimationFrame(s.raf);
+      s.raf = 0;
+    };
+    const step = (now: number) => {
+      const dt = s.last ? Math.min(0.033, (now - s.last) / 1000) : 1 / 60;
+      s.last = now;
+      if (mq.matches) {
+        s.p = s.target;
+        s.v = 0;
+        paint();
+        s.raf = 0;
+        return;
+      }
+      s.v += (s.target - s.p) * 20 * dt - s.v * 8.4 * dt;
+      s.p += s.v * dt;
+      s.phase += dt * (1.55 + Math.min(3.2, Math.abs(s.v) * 7));
+      paint();
+      if (Math.abs(s.v) < 0.0008 && Math.abs(s.p - s.target) < 0.002) {
+        s.v = 0;
+        s.p = s.target;
+        s.raf = 0;
+        return;
+      }
+      s.raf = requestAnimationFrame(step);
+    };
+    const kick = () => {
+      if (s.raf) return;
+      s.last = 0;
+      s.raf = requestAnimationFrame(step);
+    };
+    kickRef.current = kick;
+    paint();
+    if (!mq.matches) kick();
+    const onMotion = () => {
+      stop();
+      s.last = 0;
+      if (mq.matches) {
+        s.p = s.target;
+        s.v = 0;
+        paint();
+      } else {
+        kick();
+      }
+    };
+    mq.addEventListener("change", onMotion);
+    return () => {
+      stop();
+      mq.removeEventListener("change", onMotion);
+      paintRef.current = () => {};
+    };
+  }, [kind]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      className={`hud-action-fill ${kind}`}
+      width={HUD_W}
+      height={HUD_H}
+      aria-hidden
+    />
+  );
+}
+
+function HudMeter({
+  kind,
+  label,
+  value,
+  max,
+}: {
+  kind: "tp" | "xp";
+  label: string;
+  value: number;
+  max: number;
+}) {
+  const pct = max > 0 ? Math.max(0, Math.min(100, (value / max) * 100)) : 0;
+  const read = kind === "tp" ? `${Math.round(pct)}%` : `${value} / ${max}`;
+  const [tick, setTick] = useState(false);
+  const prev = useRef(value);
+  useEffect(() => {
+    if (prev.current === value) return;
+    prev.current = value;
+    setTick(true);
+    const id = window.setTimeout(() => setTick(false), 420);
+    return () => window.clearTimeout(id);
+  }, [value]);
+  return (
+    <div
+      className={`hud-meter ${kind}${tick ? " tick" : ""}`}
+      role="meter"
+      aria-label={label}
+      aria-valuemin={0}
+      aria-valuemax={max}
+      aria-valuenow={value}
+    >
+      <span className="hud-meter-k">{label}</span>
+      <div className="hud-meter-track">
+        <i style={{ width: `${pct}%` }} />
+      </div>
+      <span className="hud-meter-n">{read}</span>
     </div>
   );
 }
@@ -1595,54 +2172,100 @@ function WalletConnectButton() {
 }
 
 /**
- * Docs path (https://docs.reown.com/appkit/overview): useAppKit().open for the
- * pre-built modal (EIP-6963 / WalletConnect / Coinbase). Login+sign runs once
- * useAppKitAccount reports connected (open() alone only shows the modal).
+ * Docs path (https://docs.reown.com/appkit/overview): useAppKit().open.
+ * Disconnected → Connect. Connected → Account (switch / disconnect).
+ * Game hello runs once per address after AppKit reports connected.
  */
 function AppKitConnectButton() {
   const pushLog = useGame((s) => s.pushLog);
+  const sessionWallet = useGame((s) => s.wallet);
   const { open } = useAppKit();
   const { address, isConnected } = useAppKitAccount();
   const { open: modalOpen } = useAppKitState();
   const [busy, setBusy] = useState(false);
-  const loginStarted = useRef(false);
+  const [clickTick, setClickTick] = useState(0);
+  const userClicked = useRef(false);
+  const startedFor = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!busy || !isConnected || !address || loginStarted.current) return;
-    loginStarted.current = true;
-    // Modal already open via useAppKit — do not call connectWithAppKit / raw WC QR.
-    void loginWithWalletConnect({ appKitAlreadyOpen: true }).then((res) => {
+    if (address && startedFor.current && startedFor.current !== address.toLowerCase()) {
+      startedFor.current = null;
+    }
+    const sameWallet =
+      !!address && !!sessionWallet && sessionWallet.toLowerCase() === address.toLowerCase();
+    const liveNonBurner = !!address && !isStoredLocalBurnerWallet(address);
+    const accountSwitch = !!sessionWallet && liveNonBurner && !sameWallet;
+    if (
+      !shouldAutoLoginAppKit({
+        connected: isConnected,
+        address,
+        persisted: !!address && hasPersistedAuthForWallet(address),
+        userClicked: userClicked.current,
+        alreadyAuthed: isServerAuthed() && sameWallet,
+        startedFor: startedFor.current,
+        authInFlight: isAuthInFlight(),
+        leftoverReplace:
+          !!sessionWallet && isStoredLocalBurnerWallet(sessionWallet) && liveNonBurner,
+        unsignedLive: !sessionWallet && liveNonBurner,
+        accountSwitch,
+      })
+    ) {
+      return;
+    }
+    const addr = address!.toLowerCase();
+    const force = shouldForceWalletLogin(userClicked.current) || accountSwitch;
+    startedFor.current = addr;
+    userClicked.current = false;
+    setBusy(true);
+    void loginWithWalletConnect({
+      appKitAlreadyOpen: true,
+      ...(force ? { force: true } : {}),
+    }).then((res) => {
       setBusy(false);
-      loginStarted.current = false;
-      if (!res.ok) pushLog("Wallet: " + res.error);
-      else pushLog("Wallet: " + res.address.slice(0, 6) + "…" + res.address.slice(-4));
+      if (!res.ok) {
+        startedFor.current = null;
+        pushLog("Wallet: " + res.error);
+      } else pushLog("Wallet: " + walletControlLabel({ busy: false, connected: true, address: res.address }));
     });
-  }, [busy, isConnected, address, pushLog]);
+  }, [isConnected, address, clickTick, pushLog, sessionWallet]);
 
   // User dismissed the modal without connecting.
   useEffect(() => {
-    if (busy && !modalOpen && !isConnected && !loginStarted.current) {
+    if (busy && !modalOpen && !isConnected && !startedFor.current) {
       setBusy(false);
+      userClicked.current = false;
     }
   }, [busy, modalOpen, isConnected]);
 
+  const view = appKitModalView(isConnected);
+  if (shouldHideWalletControlWhileModal(modalOpen)) return null;
   return (
     <button
       type="button"
-      className="boot-primary"
-      disabled={busy}
-      style={{ marginTop: "0.75rem", width: "100%" }}
+      data-wallet-control="appkit"
+      className={["boot-primary", "boot-wallet", isConnected ? "is-connected" : ""]
+        .filter(Boolean)
+        .join(" ")}
+      disabled={shouldDisableWalletControl(busy, isConnected)}
       onClick={() => {
-        if (busy) return;
+        if (isConnected) {
+          void open({ view: "Account" }).catch((err: unknown) => {
+            pushLog("Wallet: " + (err instanceof Error ? err.message : String(err)));
+          });
+          return;
+        }
+        if (!shouldAcceptWalletConnectClick(busy)) return;
+        userClicked.current = true;
         setBusy(true);
-        loginStarted.current = false;
-        void open({ view: "Connect" }).catch((err: unknown) => {
+        setClickTick((n) => n + 1);
+        void open({ view }).catch((err: unknown) => {
           setBusy(false);
+          userClicked.current = false;
           pushLog("Wallet: " + (err instanceof Error ? err.message : String(err)));
         });
       }}
     >
-      {busy ? "Opening wallet…" : "Connect Wallet"}
+      {walletControlLabel({ busy, connected: isConnected, address })}
     </button>
   );
 }
@@ -1654,9 +2277,10 @@ function FallbackConnectButton() {
     return (
       <button
         type="button"
-        className="boot-primary"
+        className="boot-primary boot-wallet"
+        data-wallet-control="unavailable"
         disabled
-        style={{ marginTop: "0.75rem", width: "100%", opacity: 0.75 }}
+        style={{ opacity: 0.75 }}
         title="Set VITE_WALLETCONNECT_PROJECT_ID (Reown) in apps/stick-web/.env.local, or install a browser wallet"
       >
         Connect Wallet (set Reown project ID or install MetaMask)
@@ -1666,13 +2290,13 @@ function FallbackConnectButton() {
   return (
     <button
       type="button"
-      className="boot-primary"
+      className="boot-primary boot-wallet"
+      data-wallet-control="fallback"
       disabled={busy}
-      style={{ marginTop: "0.75rem", width: "100%" }}
       onClick={() => {
-        if (busy) return;
+        if (!shouldAcceptWalletConnectClick(busy)) return;
         setBusy(true);
-        void loginWithWalletConnect().then((res) => {
+        void loginWithWalletConnect({ force: true }).then((res) => {
           setBusy(false);
           if (!res.ok) pushLog("Wallet: " + res.error);
           else pushLog("Wallet: " + res.address.slice(0, 6) + "…" + res.address.slice(-4));
@@ -1689,9 +2313,18 @@ export function BootScreens() {
   const connected = useGame((s) => s.connected);
   const hasCharacter = useGame((s) => s.hasCharacter);
   const characterPreview = useGame((s) => s.characterPreview);
-  const snapshot = useGame((s) => s.snapshot);
+  const sessionWallet = useGame((s) => s.wallet);
+  const leftover = !!sessionWallet && isStoredLocalBurnerWallet(sessionWallet);
 
-  if (phase === "play" && snapshot) return null;
+  useEffect(() => {
+    if (shouldKickLeftoverBurnerToAuth(sessionWallet, leftover)) {
+      kickLeftoverBurnerToAuth();
+    }
+  }, [sessionWallet, leftover]);
+
+  if (hideBootScreen(phase)) return null;
+
+  const stayOnAuth = leftover || !connected || phase === "boot" || phase === "auth";
 
   return (
     <div className="boot-screen">
@@ -1705,32 +2338,21 @@ export function BootScreens() {
             />
             <span className="boot-brand-fallback">Black Anvil</span>
           </h1>
-          {!connected || phase === "boot" || phase === "auth" ? (
-            <>
-              <p className="boot-sub">
-                {!connected
-                  ? "Connecting to server…"
-                  : phase === "auth"
-                    ? "Connect a wallet to sign in."
-                    : "Signing in…"}
-              </p>
-              <WalletConnectButton />
-            </>
+          <WalletConnectButton />
+          {stayOnAuth ? (
+            <p className="boot-sub">
+              {!connected
+                ? "Connecting to server…"
+                : leftover || phase === "auth"
+                  ? "Connect a wallet to sign in."
+                  : "Signing in…"}
+            </p>
           ) : phase === "create" ? (
-            <>
-              <WalletConnectButton />
-              <CreatePanel />
-            </>
+            <CreatePanel />
           ) : phase === "select" || hasCharacter ? (
-            <>
-              <WalletConnectButton />
-              <SelectPanel preview={characterPreview} />
-            </>
+            <SelectPanel preview={characterPreview} />
           ) : (
-            <>
-              <WalletConnectButton />
-              <CreatePanel />
-            </>
+            <CreatePanel />
           )}
         </div>
       </div>
@@ -1759,6 +2381,7 @@ function SelectPanel({
     job: JobId;
     level: number;
     gender?: "male" | "female" | "pepeka";
+    tokenId?: string;
   } | null;
 }) {
   const characters = useGame((s) => s.characters);
@@ -1800,9 +2423,12 @@ function SelectPanel({
               >
                 <img className="boot-char-portrait" src={appearancePortrait(g)} alt="" width={72} height={72} />
                 <div className="boot-char-meta">
-                  <div className="boot-char-name">{c.name}</div>
+                  <div className="boot-char-name">
+                    <span>{c.name}</span>
+                    <span className="boot-char-level">Lv.{c.level}</span>
+                  </div>
                   <div className="boot-char-detail">
-                    Lv.{c.level} {jobName} · {appearanceLabel(g)}
+                    {jobName} · {appearanceLabel(g)}
                   </div>
                 </div>
               </button>
@@ -1810,7 +2436,7 @@ function SelectPanel({
           })}
         </div>
       ) : (
-        <p className="boot-sub">Loading character…</p>
+        <p className="boot-sub">Reading characters from your wallet…</p>
       )}
       <button
         type="button"
@@ -1848,7 +2474,30 @@ function CreatePanel() {
   const characters = useGame((s) => s.characters);
   const pushLog = useGame((s) => s.pushLog);
   const mintCfg = useGame((s) => s.characterMint ?? s.snapshot?.you?.lok?.characterMint ?? null);
-  const playableJobs = (Object.keys(JOBS) as JobId[]).filter((j) => JOBS[j].playable);
+  const playableJobs = mintableStartingJobs(mintCfg?.startingJobs);
+  const mintTimer = useRef<number | null>(null);
+  const leftCreate = useRef(false);
+
+  const cancelCreateMint = useCallback(() => {
+    leftCreate.current = true;
+    if (mintTimer.current != null) {
+      window.clearTimeout(mintTimer.current);
+      mintTimer.current = null;
+    }
+    useGame.getState().setPendingCreateEnter(false);
+    setCreating(false);
+  }, []);
+
+  useEffect(() => {
+    leftCreate.current = false;
+    return () => {
+      leftCreate.current = true;
+      if (mintTimer.current != null) {
+        window.clearTimeout(mintTimer.current);
+        mintTimer.current = null;
+      }
+    };
+  }, []);
 
   return (
     <form
@@ -1895,7 +2544,6 @@ function CreatePanel() {
             ...(extra?.mintChainId != null ? { mintChainId: extra.mintChainId } : {}),
             ...(extra?.mintCharId ? { mintCharId: extra.mintCharId } : {}),
           });
-          window.setTimeout(() => send({ type: "claim/starter" }), 100);
           setCreating(false);
         };
 
@@ -1905,7 +2553,19 @@ function CreatePanel() {
           setCreating(false);
           return;
         }
-        void checkCharacterNameAvailable(name).then((avail) => {
+        if (isStoredLocalBurnerWallet(useGame.getState().wallet ?? "")) {
+          kickLeftoverBurnerToAuth();
+          useGame.getState().setPendingCreateEnter(false);
+          setCreating(false);
+          return;
+        }
+        const pendingMint = readPendingMint(useGame.getState().wallet);
+        void (
+          shouldSkipCreateNameCheck(!!pendingMint)
+            ? Promise.resolve({ ok: true as const })
+            : checkCharacterNameAvailable(name)
+        ).then((avail) => {
+          if (!shouldRunCreateMint(leftCreate.current)) return;
           if (!avail.ok) {
             pushLog(avail.error);
             useGame.getState().setPendingCreateEnter(false);
@@ -1927,7 +2587,9 @@ function CreatePanel() {
             return;
           }
           if (mintCfg.devFaucet) send({ type: "dev/faucet" });
-          window.setTimeout(() => {
+          mintTimer.current = window.setTimeout(() => {
+            mintTimer.current = null;
+            if (!shouldRunCreateMint(leftCreate.current)) return;
             void mintCharacterWithWallet({
               mint: mintCfg,
               job: jobIndex < 0 ? 0 : jobIndex,
@@ -1935,6 +2597,7 @@ function CreatePanel() {
               charId: name,
               allowReuse: true,
             }).then((res) => {
+              if (!shouldRunCreateMint(leftCreate.current)) return;
               if (!res.ok) {
                 pushLog("Character mint: " + res.error);
                 useGame.getState().setPendingCreateEnter(false);
@@ -1960,7 +2623,9 @@ function CreatePanel() {
               }
               finish({
                 tokenId: res.tokenId,
-                mintWallet: res.payer,
+                ...(shouldSendMintWallet(res.payer, gameWallet)
+                  ? { mintWallet: res.payer }
+                  : {}),
                 ...(res.mintSignature
                   ? {
                       mintNonce: res.mintNonce,
@@ -1992,9 +2657,9 @@ function CreatePanel() {
         <p className="boot-sub">
           Character NFT mint fee: {(Number(mintCfg.mintFee) / 1e18).toFixed(4)}{" "}
           {mintCfg.currency?.symbol ??
-            (mintCfg.chainId === 100 || mintCfg.chainId === 10200 ? "xDAI" : "ETH")}{" "}
-          (native, paid from your
-          wallet before the character is created)
+            (mintCfg.chainId === 100 || mintCfg.chainId === 10200 ? "xDAI" : "ETH")}
+          . Paid from this wallet. If you already minted, Create binds that NFT and
+          does not charge again
           {mintCfg.devFaucet ? ". Local faucet can fund the burner on anvil 31337." : ""}.
         </p>
       ) : null}
@@ -2049,15 +2714,21 @@ function CreatePanel() {
       </label>
       <p className="boot-hint">
         Lv.{SUBJOB_UNLOCK_LEVEL}+ unlocks a support job (half main level). Your sprite stays main.
+        {JOBS.druid.playable && !playableJobs.includes("druid")
+          ? " Druid is live at the Job Master; new Druid mints wait on factory job 7."
+          : ""}
       </p>
       <button type="submit" className="boot-primary">
-        Create {JOBS[job]?.name ?? "Adventurer"} · Claim starter
+        {createSubmitLabel(JOBS[job]?.name ?? "Adventurer", !!mintCfg)}
       </button>
       {characters.length > 0 && (
         <button
           type="button"
           className="boot-secondary"
-          onClick={() => useGame.getState().setPhase("select")}
+          onClick={() => {
+            cancelCreateMint();
+            useGame.getState().setPhase("select");
+          }}
         >
           Back to character select
         </button>

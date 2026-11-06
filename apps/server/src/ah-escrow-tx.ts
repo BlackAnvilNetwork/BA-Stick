@@ -24,6 +24,7 @@ import { cancelTxRecordStore } from "./cancel-tx-record";
 import { consumeGlobalListingTxBudget } from "./lok-list-rate";
 import { openAskPendingStore } from "./open-ask-pending";
 import { withOwnerKeyQueue } from "./owner-tx-queue";
+import { sendListingRoleCall } from "./listing-safe-exec";
 import { chainBoundSendGate } from "./root-anchor";
 import { settlementConfirmations } from "./settlement-confirmations";
 
@@ -339,13 +340,16 @@ export async function replacePendingOpenAsk(opts: {
       try {
         const budget = consumeGlobalListingTxBudget({ dataDir: opts.dataDir });
         if (!budget.ok) return budget;
-        const hash = await c.wallet.writeContract({
+        const hash = await sendListingRoleCall({
+          env: opts.env,
+          wallet: c.wallet,
+          pub: c.pub,
+          account: c.account,
+          chain: c.chain,
           address: c.escrow,
           abi: AH_ABI,
           functionName: "cancelAsk",
           args: [BigInt(opts.listingId)],
-          account: c.account,
-          chain: c.chain,
         });
         const receipt = await waitReceipt(c.pub, hash, 1);
         if (!cancelReceiptProvesAskCancelled(receipt, opts.listingId, c.escrow)) {
@@ -433,7 +437,12 @@ export async function openAskOnchain(opts: {
         address: c.account.address,
         blockTag: "pending",
       });
-      hash = await c.wallet.writeContract({
+      hash = await sendListingRoleCall({
+        env: opts.env,
+        wallet: c.wallet,
+        pub: c.pub,
+        account: c.account,
+        chain: c.chain,
         address: c.escrow,
         abi: AH_ABI,
         functionName: "openAsk",
@@ -444,8 +453,6 @@ export async function openAskOnchain(opts: {
           BigInt(opts.amount),
           BigInt(opts.priceWei),
         ],
-        account: c.account,
-        chain: c.chain,
         nonce,
       });
       // M-1: record broadcast before waiting so a stuck receipt cannot be reclaimed as neverOpened.
@@ -765,13 +772,16 @@ async function cancelAskOnchainUnlocked(opts: {
     if (!budget.ok) return budget;
 
     try {
-      const hash = await c.wallet.writeContract({
+      const hash = await sendListingRoleCall({
+        env,
+        wallet: c.wallet,
+        pub: c.pub,
+        account: c.account,
+        chain: c.chain,
         address: c.escrow,
         abi: AH_ABI,
         functionName: "cancelAsk",
         args: [BigInt(opts.listingId)],
-        account: c.account,
-        chain: c.chain,
       });
       // Record before finality so a timeout retry can release the log — cleared on revert.
       cancels.set(opts.listingId, hash);

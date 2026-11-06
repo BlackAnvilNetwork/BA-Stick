@@ -2,21 +2,20 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
 
-// Swing: wind-up over the right shoulder, horizontal slash across the body,
-// follow-through, recover. hit_start/hit_end mark the active frames;
-// cancel_open/cancel_close let another action interrupt the recovery.
+// Heroic horizontal slash — deep coil, full extension, off-hand counterbalance.
 (
     name: "swing",
     duration: 0.45,
     looping: false,
     mask: Full,
-    base: { "l_hip": 20.0, "l_knee": 20.0, "r_hip": -20.0, "r_knee": 15.0, "l_shoulder": 20.0, "l_elbow": 60.0, "l_arm_out": 25.0 },
+    base: { "l_hip": 22.0, "l_knee": 22.0, "r_hip": -22.0, "r_knee": 18.0, "l_shoulder": -12.0, "l_elbow": 55.0, "l_arm_out": 18.0 },
     keys: [
-        (t: 0.0,  pose: { "twist": -10.0, "lean": 5.0,  "r_shoulder": 20.0, "r_elbow": 40.0, "r_arm_out": 20.0, "r_wpn_yaw": 30.0,  "r_wpn_pitch": -40.0 }),
-        (t: 0.12, pose: { "twist": -55.0, "lean": 0.0,  "r_shoulder": 60.0, "r_elbow": 70.0, "r_arm_out": 75.0, "r_wpn_yaw": -120.0, "r_wpn_pitch": 35.0, "bob": -0.02 }),
-        (t: 0.2,  pose: { "twist": 10.0,  "lean": 15.0, "r_shoulder": 85.0, "r_elbow": 10.0, "r_arm_out": 45.0, "r_wpn_yaw": -10.0,  "r_wpn_pitch": 5.0,  "bob": -0.06 }),
-        (t: 0.28, pose: { "twist": 60.0,  "lean": 18.0, "r_shoulder": 70.0, "r_elbow": 15.0, "r_arm_out": 5.0,  "r_wpn_yaw": 95.0,  "r_wpn_pitch": -15.0, "bob": -0.07 }),
-        (t: 0.45, pose: { "twist": 0.0,   "lean": 6.0,  "r_shoulder": 20.0, "r_elbow": 35.0, "r_arm_out": 15.0, "r_wpn_yaw": 30.0,  "r_wpn_pitch": -45.0, "bob": -0.03 }),
+        (t: 0.0,  pose: { "twist": -12.0, "lean": 4.0,  "r_shoulder": 15.0,  "r_elbow": 35.0,  "r_arm_out": 18.0,  "l_shoulder": -18.0, "l_arm_out": 14.0,  "r_wpn_yaw": 25.0,   "r_wpn_pitch": -42.0, "bob": 0.0 }),
+        (t: 0.1,  pose: { "twist": -68.0, "lean": -2.0,  "r_shoulder": 55.0,  "r_elbow": 78.0,  "r_arm_out": 82.0,  "l_shoulder": -48.0, "l_arm_out": 42.0,  "r_wpn_yaw": -130.0, "r_wpn_pitch": 38.0,  "bob": -0.03, "l_hip": 28.0, "r_hip": -28.0 }),
+        (t: 0.16, pose: { "twist": -72.0, "lean": 0.0,   "r_shoulder": 62.0,  "r_elbow": 82.0,  "r_arm_out": 88.0,  "l_shoulder": -52.0, "l_arm_out": 48.0,  "r_wpn_yaw": -135.0, "r_wpn_pitch": 42.0,  "bob": -0.04 }),
+        (t: 0.22, pose: { "twist": 18.0,  "lean": 22.0,  "r_shoulder": 92.0,  "r_elbow": 8.0,   "r_arm_out": 52.0,  "l_shoulder": -58.0, "l_arm_out": 38.0,  "r_wpn_yaw": -5.0,   "r_wpn_pitch": 8.0,   "bob": -0.10, "l_hip": 32.0, "r_knee": 28.0 }),
+        (t: 0.29, pose: { "twist": 72.0,  "lean": 26.0,  "r_shoulder": 78.0,  "r_elbow": 12.0,  "r_arm_out": 2.0,   "l_shoulder": -42.0, "l_arm_out": 28.0,  "r_wpn_yaw": 108.0,  "r_wpn_pitch": -18.0, "bob": -0.11 }),
+        (t: 0.45, pose: { "twist": 0.0,   "lean": 8.0,   "r_shoulder": 22.0,  "r_elbow": 38.0,  "r_arm_out": 18.0,  "l_shoulder": -12.0, "l_arm_out": 16.0,  "r_wpn_yaw": 32.0,   "r_wpn_pitch": -48.0, "bob": -0.04 }),
     ],
-    events: [ (t: 0.14, name: "hit_start"), (t: 0.3, name: "hit_end"), (t: 0.34, name: "cancel_open"), (t: 0.45, name: "cancel_close") ],
+    events: [ (t: 0.14, name: "hit_start"), (t: 0.31, name: "hit_end"), (t: 0.35, name: "cancel_open"), (t: 0.45, name: "cancel_close") ],
 )

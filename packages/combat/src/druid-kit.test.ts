@@ -7,6 +7,8 @@ import {
   DRUID_FORM_LABEL,
   DRUID_FORM_PRESET,
   DRUID_SHIFT_IDS,
+  DRUID_SHIFT_RECAST_MS,
+  applyDruidShiftRecast,
   druidFormHp,
   druidHotbarOrder,
   druidMoveMul,
@@ -131,4 +133,18 @@ test("shift family is the five locked songs", () => {
     "dr_racerunner",
     "dr_ring_walk",
   ]);
+});
+
+test("using a form recasts siblings and leaves that form ready to toggle", () => {
+  const recasts: Partial<Record<string, number>> = {};
+  const now = 10_000;
+  applyDruidShiftRecast(recasts, "dr_stickbear", now);
+  assert.equal(recasts.dr_stickbear, undefined);
+  assert.equal(recasts.dr_stickdeer, now + DRUID_SHIFT_RECAST_MS);
+  assert.equal(recasts.dr_sticklion, now + DRUID_SHIFT_RECAST_MS);
+  assert.equal(recasts.dr_racerunner, now + DRUID_SHIFT_RECAST_MS);
+  assert.equal(recasts.dr_ring_walk, now + DRUID_SHIFT_RECAST_MS);
+  applyDruidShiftRecast(recasts, "dr_stickbear", now, true);
+  assert.equal(recasts.dr_stickbear, undefined);
+  assert.equal(recasts.dr_stickdeer, now + DRUID_SHIFT_RECAST_MS);
 });

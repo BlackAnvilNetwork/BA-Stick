@@ -231,7 +231,7 @@ export function resolveTimAbility(
   // Rest toggle
   if (id === "rest") {
     if (p.anim === "rest") {
-      hooks.stopRest();
+      hooks.stopRest("You stand.");
       return true;
     }
     if (p.moveTo) {
@@ -240,7 +240,7 @@ export function resolveTimAbility(
     }
     p.targetId = null;
     p.anim = "rest";
-    p.animUntil = Number.POSITIVE_INFINITY;
+    p.animUntil = now + 60_000;
     hooks.pushLog("You kneel and rest — HP/MP recover, TP fades.");
     return true;
   }

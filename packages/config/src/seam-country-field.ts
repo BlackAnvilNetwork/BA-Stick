@@ -641,7 +641,7 @@ export type WorldQuestTalk = { state: PaleHollowQuestState; title: string; body:
 
 /**
  * Talk to a giver: turn in a ready quest, else report progress, else offer the
- * next quest whose `requires` is done. Pale Hollow givers keep one quest each.
+ * next quest whose `requires` is done. Yard keepers keep one quest; Wenna chains.
  */
 export function worldQuestTalk(state: PaleHollowQuestState, npcId: string): WorldQuestTalk {
   const st = normalizePaleHollowQuestState(state);

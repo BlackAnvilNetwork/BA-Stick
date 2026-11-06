@@ -5,6 +5,8 @@ export type FigurePreviewProps = {
   /** Protocol job id (e.g. "time_mage"). */
   job: string;
   gender?: "male" | "female" | "pepeka";
+  /** Druid form (0 Ring-Walker … 4 Racerunner). Ignored for other jobs. */
+  form?: number;
   /** Equipped catalog ids (paperdoll preview). */
   equip?: Partial<Equipment> | null;
   /** CSS px height. */

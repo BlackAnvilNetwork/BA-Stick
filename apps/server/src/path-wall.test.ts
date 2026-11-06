@@ -134,6 +134,26 @@ test("the camp stays enterable around the cliff (#121)", () => {
   }
 });
 
+test("a click from inside the rear wall does not pop out the far side", () => {
+  const insideZ = 8.6 + OZ;
+  assert.equal(paleHollowInHubRearWall(OX, insideZ), true);
+  const c = paleHollowClampMove(OX, insideZ, OX, 16 + OZ);
+  assert.ok(paleHollowWalkable(c.x, c.z));
+  assert.ok(!paleHollowInHubRearWall(c.x, c.z));
+  assert.ok(c.z < PH_HUB_REAR_WALL.maxZ + 0.2, `popped through to z=${c.z}`);
+});
+
+test("walking along the rear wall face slides instead of pinning", () => {
+  const z = PH_HUB_REAR_WALL.minZ - 0.4;
+  const x = OX;
+  assert.equal(paleHollowWalkable(x, z), true);
+  const c = paleHollowClampMove(x, z, x + 4, z + 4);
+  assert.ok(paleHollowWalkable(c.x, c.z));
+  assert.ok(!paleHollowInHubRearWall(c.x, c.z));
+  assert.ok(c.x > x + 1, `expected X slide along the face, got x=${c.x}`);
+  assert.ok(c.z < PH_HUB_REAR_WALL.minZ + 0.05, `walked into the wall z=${c.z}`);
+});
+
 test("mob chase steps do not tunnel the rear wall (#120)", () => {
   let x = OX;
   let z = 5 + OZ;

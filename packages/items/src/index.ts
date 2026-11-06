@@ -25,6 +25,7 @@ export {
   type ItemRarity,
 } from "./types";
 export { CATALOG, CATALOG_BY_ID, CATALOG_BY_SLUG } from "./catalog.generated";
+export { ITEM_RARITIES, pepperRarity, rarityFromName, rarityClass } from "./rarity";
 export {
   CRAFT_SKILLS,
   CRAFT_SKILL_LABEL,

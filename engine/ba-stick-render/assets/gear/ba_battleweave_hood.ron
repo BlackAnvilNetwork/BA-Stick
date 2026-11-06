@@ -1,0 +1,12 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Battleweave hood. In-world draw is HeadStyle::Hood (cowl, not a pointed hat).
+(
+    id: "ba_battleweave_hood",
+    slot: Head,
+    attach: Some("head"),
+    material: Some("dust"),
+    shapes: [],
+)

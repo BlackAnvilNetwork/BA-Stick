@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { WORLD_ZONE_IDS, zoneOrigin, zoneWorldBounds } from "@bellgrave/config";
 
@@ -26,4 +29,11 @@ test("zone worlds touch along north and do not cover each other", () => {
   for (let i = 1; i < boxes.length; i++) {
     assert.equal(boxes[i].minZ, boxes[i - 1].maxZ, boxes[i].id);
   }
+});
+
+test("zone retry places terrain at the world origin", () => {
+  const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "StickWorld.tsx"), "utf8");
+  assert.match(src, /r\.placeZone\(b, origin\.x, origin\.z\)/);
+  assert.match(src, /r\.placeProps\(p, origin\.x, origin\.z\)/);
+  assert.equal(src.includes("r.loadZone(b)"), false);
 });

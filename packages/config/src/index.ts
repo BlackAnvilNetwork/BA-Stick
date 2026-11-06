@@ -160,6 +160,7 @@ export {
   paleHollowWalkable,
   paleHollowInHubRearWall,
   paleHollowClampMove,
+  paleHollowStraightMove,
   paleHollowBridgeCrossings,
   paleHollowBankPoint,
   paleHollowInBuildingClearing,
@@ -202,15 +203,24 @@ export {
   normalizePaleHollowQuestState,
   paleHollowQuestById,
   paleHollowQuestByNpc,
+  paleHollowQuestsByNpc,
   paleHollowQuestCredit,
+  paleHollowQuestGather,
+  paleHollowQuestKind,
   paleHollowQuestLogEntries,
   paleHollowQuestTalk,
+  paleHollowQuestTalkNpc,
+  paleHollowQuestVisit,
   type PaleHollowFieldNpc,
   type PaleHollowQuestDef,
+  type PaleHollowQuestKind,
   type PaleHollowQuestLogEntry,
   type PaleHollowQuestProgress,
+  type PaleHollowQuestSite,
   type PaleHollowQuestState,
 } from "./pale-hollow-field";
+
+export { WENNA_QUESTS, WENNA_NPC_ID } from "./wenna-quests";
 
 export {
   PH_SNOW_ACCUM_SEC,
@@ -340,6 +350,7 @@ export {
   type ZoneGate,
   type TravelStep,
 } from "./zone-fields";
+export { MOVE_SAMPLE, UNSTUCK_RADIUS, nearestWalkable, slideMove, straightMove } from "./slide-move";
 export {
   SEAM_COUNTRY_ZONES,
   SEAM_COUNTRY_WARPS,

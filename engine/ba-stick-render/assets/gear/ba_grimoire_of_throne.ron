@@ -1,0 +1,31 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Grimoire of Throne. Closed book in the hand frame, +y along the spine.
+// Rectangular covers on ±z, page block between, Glow bind, gold clasp.
+// Staff stance keeps +y upright.
+(
+    id: "ba_grimoire_of_throne",
+    slot: MainHand,
+    attach: Some("r_hand"),
+    stance: Some("staff"),
+    reach: 0.28,
+    swing_weight: 1.25,
+    material: Some("dust"),
+    shapes: [
+        Capsule(from: (0.0, -0.10, 0.0), to: (0.0, 0.16, 0.0), ramp: Glow, thick: 2.6),
+        Capsule(from: (-0.055, -0.08, 0.022), to: (-0.055, 0.14, 0.022), ramp: Material, thick: 1.8),
+        Capsule(from: (0.055, -0.08, 0.022), to: (0.055, 0.14, 0.022), ramp: Material, thick: 1.8),
+        Capsule(from: (-0.055, 0.14, 0.022), to: (0.055, 0.14, 0.022), ramp: Material, thick: 1.8),
+        Capsule(from: (-0.055, -0.08, 0.022), to: (0.055, -0.08, 0.022), ramp: Material, thick: 1.8),
+        Capsule(from: (-0.03, -0.04, 0.024), to: (0.03, 0.10, 0.024), ramp: Material, thick: 2.2),
+        Capsule(from: (-0.055, -0.08, -0.022), to: (-0.055, 0.14, -0.022), ramp: Material, thick: 1.8),
+        Capsule(from: (0.055, -0.08, -0.022), to: (0.055, 0.14, -0.022), ramp: Material, thick: 1.8),
+        Capsule(from: (-0.055, 0.14, -0.022), to: (0.055, 0.14, -0.022), ramp: Material, thick: 1.8),
+        Capsule(from: (-0.055, -0.08, -0.022), to: (0.055, -0.08, -0.022), ramp: Material, thick: 1.8),
+        Capsule(from: (-0.03, -0.04, -0.024), to: (0.03, 0.10, -0.024), ramp: Material, thick: 2.2),
+        Capsule(from: (-0.04, -0.06, 0.0), to: (0.04, 0.12, 0.0), ramp: Material, thick: 2.0),
+        Disc(at: None, center: (0.0, 0.02, 0.030), r: 0.012, ramp: Trim),
+    ],
+)
