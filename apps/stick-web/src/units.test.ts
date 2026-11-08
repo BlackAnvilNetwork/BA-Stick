@@ -5,6 +5,7 @@ import type { UnitWithCraft } from "./units";
 import {
   animFor,
   craftActFor,
+  druidFormOf,
   gatherActFor,
   LEATHERCRAFT_ANIM_MS,
   presentCraft,
@@ -13,6 +14,7 @@ import {
   syncUnits,
   type UnitSink,
 } from "./units";
+import { ZONE_LINKS } from "@bellgrave/config";
 import { moveKeyFromCode, wasdTarget } from "./input";
 
 const unit = (o: Partial<UnitWithCraft>): UnitWithCraft => ({
@@ -33,6 +35,22 @@ test("presetFor maps Druid forms; gender only on Ring-Walker", () => {
   assert.equal(presetFor(unit({ job: "druid", buffs: buffs(2) })), "druid:stickdeer");
   assert.equal(presetFor(unit({ job: "druid", buffs: buffs(3) })), "druid:sticklion");
   assert.equal(presetFor(unit({ job: "druid", gender: "pepeka", buffs: buffs(4) })), "druid:racerunner");
+  assert.equal(druidFormOf(unit({ job: "druid", buffs: { druidForm: "1" } as unknown as UnitSnapshot["buffs"] })), 1);
+  assert.equal(presetFor(unit({ job: "druid", buffs: { druidForm: "3" } as unknown as UnitSnapshot["buffs"] })), "druid:sticklion");
+});
+
+test("syncUnits pushes the form preset on an existing unit id", () => {
+  const presets: string[] = [];
+  const sink: UnitSink = {
+    upsertUnit: (_id, _x, _y, _z, _facing, _anim, preset) => void presets.push(preset),
+    removeUnit: () => true,
+  };
+  const known = new Set<string>();
+  const bear = (form: 0 | 1) =>
+    unit({ id: "0xme", job: "druid", gender: "male", buffs: { druidForm: form } as UnitSnapshot["buffs"] });
+  syncUnits(sink, [bear(0)], known, 0);
+  syncUnits(sink, [bear(1)], known, 0);
+  assert.deepEqual(presets, ["druid/male", "druid:stickbear"]);
 });
 
 test("animFor holds melee/cast only until animUntil", () => {
@@ -44,7 +62,7 @@ test("animFor holds melee/cast only until animUntil", () => {
   assert.equal(animFor(unit({ anim: "melee", animUntil: 2000 }), 3000), "idle");
   assert.equal(animFor(unit({ anim: "walk" }), 0), "walk");
   assert.equal(animFor(unit({ anim: "rest" }), 0), "rest");
-  assert.equal(animFor(unit({ anim: "dead" }), 0), "idle");
+  assert.equal(animFor(unit({ anim: "dead" }), 0), "dead");
   assert.equal(animFor(unit({ anim: "cast", animUntil: 2000, gatherTool: "shovel" }), 1000), "harvest");
   assert.equal(animFor(unit({ anim: "cast", animUntil: 2000, gatherTool: "pick" }), 1000), "mine");
   assert.equal(animFor(unit({ anim: "cast", animUntil: 2000, gatherTool: "shovel" }), 3000), "idle");
@@ -218,7 +236,12 @@ test("labelFor follows legacy nameplate visibility", () => {
   assert.deepEqual(labelFor(unit({ id: "n", kind: "npc", name: "Job Master" }), c), { text: "Job Master", cls: "npc" });
   assert.equal(labelFor(unit({ id: "m", kind: "mob", name: "Dust Hare", level: 2 }), c), null);
   assert.deepEqual(labelFor(unit({ id: "m", kind: "mob", name: "Dust Hare", level: 2 }), { ...c, selected: "m" }), { text: "Dust Hare Lv2", cls: "mob" });
-  assert.equal(labelFor(unit({ id: "0xME", name: "Me" }), { ...c, selected: "0xME" }), null);
+  assert.deepEqual(labelFor(unit({ id: "0xME", name: "Me", hp: 12, maxHp: 20 }), { ...c, selected: "0xME" }), {
+    text: "Me",
+    cls: "player self",
+    hp: 12,
+    maxHp: 20,
+  });
   assert.equal(labelFor(unit({ id: "p", name: "Bob", pvpBounty: true }), c)?.cls, "player bounty");
 });
 
@@ -274,6 +297,8 @@ test("staticAt hits the storage chest only in its zone and footprint", () => {
   assert.equal(hit?.send.type, "npc/interact");
   assert.equal(staticAt("palace_hall", cx, cy - 10, toScreen, h), undefined);
   assert.equal(staticAt("pale_hollow", 300, 75, toScreen, h), undefined);
+  const culled = (): [number, number, number] => [0, 0, 0];
+  assert.equal(staticAt("pale_hollow", 0, 0, culled, h), undefined, "behind-eye (0,0) s=0 is not a hit");
 });
 
 import { gatherMethod, iconCell } from "./gather";
@@ -289,6 +314,13 @@ test("gather nodes: method from authored defs, click sends gather, depleted is i
   const atlas = { size: 16, cols: 32, index: { dustgrain: 3, "copper-ore": 40 } };
   assert.deepEqual(iconCell(atlas, "copper-ore"), { x: 128, y: 16 });
   assert.deepEqual(iconCell(atlas, "nope"), { x: 48, y: 0 });
+});
+
+test("E–W spawn facing on ring-to-fords / fords-to-reach / reach-to-fords", () => {
+  const link = (id: string) => ZONE_LINKS.find((l) => l.id === id)!;
+  assert.equal(link("ring-to-fords").spawn.facing, Math.PI / 2);
+  assert.equal(link("fords-to-reach").spawn.facing, Math.PI / 2);
+  assert.equal(link("reach-to-fords").spawn.facing, -Math.PI / 2);
 });
 
 test("Seam Country landmarks render as a standing stone and click to read", () => {

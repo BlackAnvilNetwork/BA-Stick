@@ -1,9 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { UnitSnapshot } from "@bellgrave/protocol";
 import { KNIGHT_ABILITY_IDS } from "../../../packages/combat/src/knight-kit.ts";
 import * as kits from "../../../packages/combat/src/abilities.ts";
-import { VFX, VfxDirector, colorOf, playSteps, stepsFor } from "./vfx.ts";
+import { VFX, VfxDirector, colorOf, playSteps, stepsFor, waitsCastPose } from "./vfx.ts";
 
 const allIds = (): string[] => {
   const ids = new Set<string>();
@@ -30,6 +33,8 @@ test("every ability in the kits has a VFX entry", () => {
 
 test("table resolves steps, generics and colours", () => {
   assert.deepEqual(stepsFor("rest"), []);
+  assert.equal(stepsFor("quest_accept")[0].prim, "ring");
+  assert.equal(stepsFor("quest_complete")[0].prim, "ring");
   assert.equal(stepsFor("sc_ember_lance")[0].prim, "projectile");
   assert.equal(stepsFor("sc_ember_rain")[1].prim, "ring");
   assert.equal(stepsFor("nope")[0].prim, "burst");
@@ -81,4 +86,65 @@ test("cast burst on the caster at every cast start (F36)", () => {
   const m = d.scan([u("boss", "cast", 700, { kind: "mob" })], "me", 200);
   assert.equal(m[0].steps[0].color, "enfeeble");
   assert.equal(d.scan([u("sc", "cast", 2500, { job: "sorcerer" })], "me", 1200).length, 1, "next cast bursts again");
+});
+
+test("signature abilities use distinct job motifs", () => {
+  const sig: Record<string, string[]> = {
+    bulwark: ["silver", "crimson"],
+    shield_bash: ["silver", "crimson"],
+    ghost_step: ["dark", "dark"],
+    backblade: ["dark", "dark"],
+    sacred_mercy: ["holy", "protect", "holy"],
+    cl_cure: ["protect", "holy"],
+    arcane_flood: ["dark", "water"],
+    killing_storm: ["iron", "oxblood"],
+    berserk: ["oxblood", "iron"],
+    spellblade: ["teal", "bronze"],
+    bm_flame_edge: ["bronze", "fire", "teal"],
+    temporal_distortion: ["time", "ash", "time"],
+    quicken: ["time", "ash", "holy"],
+  };
+  for (const name of ["silver", "crimson", "iron", "oxblood", "teal", "bronze", "ash"]) {
+    assert.match(VFX.colors[name], /^[0-9a-f]{6}$/);
+  }
+  for (const [id, colors] of Object.entries(sig)) {
+    const steps = stepsFor(id);
+    assert.ok(steps.length >= 2, id);
+    assert.deepEqual(steps.map((s) => s.color), colors, id);
+    assert.notDeepEqual(steps, VFX.generic, id);
+    if (id !== "temporal_distortion" && id !== "quicken") {
+      for (const s of steps) assert.notEqual(s.color, "time", id);
+    }
+  }
+  // Ghost Step hide is snapshot omission — dark rings are caster motif, not hide.
+  for (const s of stepsFor("ghost_step")) assert.ok((s.radius ?? 0.5) < 1.2);
+  for (const s of stepsFor("killing_storm")) assert.ok((s.radius ?? 0) < 3);
+  assert.equal(stepsFor("sc_ember_lance")[1].prim, "burst");
+  assert.equal(stepsFor("sc_rime_needle")[0].prim, "line");
+  assert.equal(stepsFor("sc_volt_arc")[1].rise, true);
+  assert.equal(stepsFor("sc_tidebreak")[1].prim, "ring");
+  assert.equal(stepsFor("sc_gravel_shard")[0].prim, "line");
+  assert.equal(stepsFor("sc_gale_cut")[1].rise, true);
+  assert.ok((stepsFor("sc_gale_cut")[1].radius ?? 0) > (stepsFor("sc_tidebreak")[1].radius ?? 0));
+});
+
+test("kit spells wait for the cast pose; other players tint from job motif", () => {
+  assert.equal(waitsCastPose("dr_ash_brace"), true);
+  assert.equal(waitsCastPose("sacred_mercy"), true);
+  assert.equal(waitsCastPose("berserk"), true);
+  assert.equal(waitsCastPose("ghost_step"), true);
+  assert.equal(waitsCastPose("temporal_distortion"), true);
+  assert.equal(waitsCastPose("provoke"), false);
+  const d = new VfxDirector();
+  d.scan([u("kn", "cast", 500, { job: "knight" })], "me", 0);
+  assert.equal(d.scan([u("kn", "idle", 500, { job: "knight" })], "me", 600)[0].steps[0].color, "silver");
+  d.scan([u("ft", "cast", 500, { job: "fighter" })], "me", 0);
+  assert.equal(d.scan([u("ft", "idle", 500, { job: "fighter" })], "me", 600)[0].steps[0].color, "iron");
+  d.scan([u("bm", "cast", 500, { job: "battle_mage" })], "me", 0);
+  assert.equal(d.scan([u("bm", "idle", 500, { job: "battle_mage" })], "me", 600)[0].steps[0].color, "teal");
+});
+
+test("Ghost Step hide is snapshot omission, not dark rings", () => {
+  const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../../server/src/index.ts"), "utf8");
+  assert.match(src, /nowUnits < pl\.ghostStepUntil/);
 });

@@ -568,11 +568,6 @@ export function skillPointsGrantedForLevels(fromLevel: number, toLevel: number):
   return Math.max(0, b - a) * SKILL_POINTS_PER_LEVEL;
 }
 
-/** @deprecated Use skillPointsSpentOnTree — same cost table. */
-export function skillPointsSpent(unlocked: readonly string[]): number {
-  return skillPointsSpentOnTree(unlocked);
-}
-
 /** Points a normal (non-heart) node costs. */
 export const SKILL_NODE_COST = 1;
 

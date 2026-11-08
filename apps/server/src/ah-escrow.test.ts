@@ -8,7 +8,6 @@ import {
   ASK_FILLED_TOPIC,
   ahEscrowClientConfig,
   applyAskFilled,
-  classifyAskFilledFailure,
   decodeAskFilled,
   fillKeyOf,
   scanAskFilled,
@@ -89,6 +88,10 @@ describe("AhEscrow AskFilled mirror", () => {
     const beforeBuyerKek = lok.kekOf(buyer.tokenId);
     const applied = applyAskFilled(lok, fill, "0xabc-0");
     assert.equal(applied.ok, true, applied.ok ? "" : applied.error);
+    assert.equal(applied.kind, "applied");
+    const replayed = applyAskFilled(lok, fill, "0xabc-0");
+    assert.equal(replayed.ok, true);
+    assert.equal(replayed.kind, "replay");
     assert.equal(lok.kekOf(seller.tokenId), beforeSellerKek);
     assert.equal(lok.kekOf(buyer.tokenId), beforeBuyerKek);
     const inbox = lok.view(buyer.tokenId).inbox ?? [];
@@ -101,11 +104,28 @@ describe("AhEscrow AskFilled mirror", () => {
     );
   });
 
-  it("classifyAskFilledFailure treats all non-replay errors as quarantine", () => {
-    assert.equal(classifyAskFilledFailure("unknown listing"), "quarantine");
-    assert.equal(classifyAskFilledFailure("buyer would pay more than the ask"), "quarantine");
-    assert.equal(classifyAskFilledFailure("rpc timeout"), "quarantine");
-    assert.equal(classifyAskFilledFailure("some random engine error"), "quarantine");
+  it("applyAskFilled quarantines unknown listings", () => {
+    const dir = mkdtempSync(join(tmpdir(), "lok-ah-escrow-"));
+    const lok = LokWorld.open(dir, undefined, {});
+    const applied = applyAskFilled(
+      lok,
+      {
+        listingId: "999",
+        buyer: "0x00000000000000000000000000000000000000bb",
+        buyerTokenId: "2",
+        sellerPayout: "0x00000000000000000000000000000000000000aa",
+        priceWei: "500",
+        feeWei: "5",
+        itemId: "111",
+        amount: "1",
+      },
+      "0xabc-unknown",
+    );
+    assert.equal(applied.ok, false);
+    if (!applied.ok) {
+      assert.equal(applied.kind, "quarantine");
+      assert.equal(applied.error, "unknown listing");
+    }
   });
 
   it("ahEscrowClientConfig needs address + http rpc + chain id", async () => {

@@ -12,13 +12,12 @@ import { DemoApp } from "./DemoApp";
 document.documentElement.dataset.renderer = "stick";
 {
   const saved = localStorage.getItem(UI_SETTINGS_KEY);
-  const initial = initialUiSettings(saved, loadUiSettings(), isCoarsePointer());
+  const initial = initialUiSettings(saved, loadUiSettings(), isCoarsePointer(), window.innerWidth);
   if (saved == null && initial.layout === "mobile") saveUiSettings(initial);
   applyUiSettings(initial);
 }
 
-// `?demo` keeps the offline renderer. A playable zone on the same URL enters the live client.
+// `?demo` keeps the offline renderer (Forest Basin water included). Omit it to enter the live client.
 const params = new URLSearchParams(location.search);
-const playZone = params.get("zone");
-const demo = params.has("demo") && playZone !== "forest_basin" && playZone !== "pale_hollow" && playZone !== "hollow_road";
+const demo = params.has("demo");
 createRoot(document.getElementById("root")!).render(<StrictMode>{demo ? <DemoApp /> : <App />}</StrictMode>);

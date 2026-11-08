@@ -1,5 +1,4 @@
 import { paleHollowClampMove } from "@bellgrave/config";
-import { getMoveKeys } from "@bellgrave/ui/moveInput";
 
 /** WASD step length per send, in world units (matches the legacy client). */
 export const WASD_STEP = 4.5;
@@ -31,6 +30,32 @@ export function wasdTarget(
 ): { x: number; z: number } | null {
   const sx = (keys.d ? 1 : 0) - (keys.a ? 1 : 0);
   const sy = (keys.s ? 1 : 0) - (keys.w ? 1 : 0);
+  return screenMoveTarget(sx, sy, me, pick, center, clamp);
+}
+
+/**
+ * Analog stick → iso world target. Stick +x is screen-right, +y is screen-up
+ * (same as setVirtualStick). Weak axes still dash/walk this way instead of
+ * falling back to facing, which yanks backward when the stick is just off-cone.
+ */
+export function analogScreenTarget(
+  analog: { nx: number; ny: number },
+  me: { x: number; z: number },
+  pick: (sx: number, sy: number) => [number, number],
+  center: [number, number],
+  clamp: (fromX: number, fromZ: number, toX: number, toZ: number) => { x: number; z: number } = paleHollowClampMove,
+): { x: number; z: number } | null {
+  return screenMoveTarget(analog.nx, -analog.ny, me, pick, center, clamp);
+}
+
+function screenMoveTarget(
+  sx: number,
+  sy: number,
+  me: { x: number; z: number },
+  pick: (sx: number, sy: number) => [number, number],
+  center: [number, number],
+  clamp: (fromX: number, fromZ: number, toX: number, toZ: number) => { x: number; z: number },
+): { x: number; z: number } | null {
   if (!sx && !sy) return null;
   const [ax, az] = pick(center[0], center[1]);
   const [bx, bz] = pick(center[0] + sx * 64, center[1] + sy * 64);
@@ -60,11 +85,23 @@ export function headingStep(keys: MoveKeys, heading: number, dt: number): number
   return Math.atan2(Math.sin(h), Math.cos(h));
 }
 
-/** Third/first-person W/S target: `WASD_STEP` along (S: against) the heading. */
-export function headingTarget(keys: MoveKeys, me: { x: number; z: number }, heading: number, clamp: Clamp = paleHollowClampMove): { x: number; z: number } | null {
-  const dir = (keys.w ? 1 : 0) - (keys.s ? 1 : 0);
-  if (!dir) return null;
-  const c = clamp(me.x, me.z, me.x + Math.sin(heading) * dir * WASD_STEP, me.z + Math.cos(heading) * dir * WASD_STEP);
+/** Third/first-person W/S target: `WASD_STEP` along (S: against) the heading. Stick X strafes. */
+export function headingTarget(
+  keys: MoveKeys,
+  me: { x: number; z: number },
+  heading: number,
+  clamp: Clamp = paleHollowClampMove,
+  strafe = 0,
+  analogDir?: number,
+): { x: number; z: number } | null {
+  const dir = analogDir !== undefined ? analogDir : (keys.w ? 1 : 0) - (keys.s ? 1 : 0);
+  const fx = Math.sin(heading);
+  const fz = Math.cos(heading);
+  const mx = fx * dir + fz * strafe;
+  const mz = fz * dir - fx * strafe;
+  if (Math.abs(mx) < 1e-6 && Math.abs(mz) < 1e-6) return null;
+  const len = Math.hypot(mx, mz) || 1;
+  const c = clamp(me.x, me.z, me.x + (mx / len) * WASD_STEP, me.z + (mz / len) * WASD_STEP);
   if (Math.hypot(c.x - me.x, c.z - me.z) < 1e-4) return null;
   return c;
 }
@@ -126,15 +163,20 @@ export function wasdIntent(args: {
  * the heading drifted, the target is nearly reached, or as a keep-alive.
  */
 export function shouldResend(
-  prev: { keys: string; heading: number; at: number; x: number; z: number } | null,
+  prev: { keys: string; heading: number; at: number; x: number; z: number; full?: boolean } | null,
   now: { keys: string; heading: number; at: number },
   me: { x: number; z: number },
 ): boolean {
   if (!prev) return true;
   if (prev.keys !== now.keys) return true;
   const dh = Math.abs(Math.atan2(Math.sin(now.heading - prev.heading), Math.cos(now.heading - prev.heading)));
-  if (dh > (3 * Math.PI) / 180) return true;
-  if (Math.hypot(prev.x - me.x, prev.z - me.z) < 2.5) return true;
+  // 3° fired every 50 ms while A/D turned (~6°/tick). Keepalive covers heading drift.
+  if (dh > (18 * Math.PI) / 180) return true;
+  const remaining = Math.hypot(prev.x - me.x, prev.z - me.z);
+  // Only a full-length step is topped up as it runs out. A step the clamp cut short
+  // (a wall ahead) always sits inside 2.5 m, so topping it up re-sent every tick (20 Hz).
+  // The keep-alive below covers it.
+  if (prev.full !== false && remaining < 2.5 && remaining > 0.35) return true;
   return now.at - prev.at >= 250;
 }
 
@@ -158,10 +200,39 @@ export function moveKeyFromCode(code: string): "w" | "a" | "s" | "d" | null {
   }
 }
 
-export { getMoveKeys };
+export { getKeyboardMoveKeys, getMoveKeys, getStickAxes, markVirtualStickReleased, virtualStickHeld, virtualStickReleasedRecently } from "@bellgrave/ui/moveInput";
+
+/**
+ * Hold the predicted dash pose until the snapshot `dashTo` arrives (or DashClock
+ * refuses at 400 ms). Injecting dashTo without holding x,z loses the lunge to syncUnits.
+ */
+export const DASH_PRED_HOLD = 400;
+
+/** Dialog / bag / craft swallow Space dash. */
+export function playOverlayBlocksDash(): boolean {
+  if (typeof document === "undefined") return false;
+  const d = document.documentElement.dataset;
+  return d.uiBag === "1" || d.uiCraft === "1" || d.uiNpc === "1";
+}
 
 /** Metres a stop lands ahead of the (one-snapshot-old) server position. */
-export const STOP_LEAD = 0.3;
+export const STOP_LEAD = 0.12;
+/** Predicted pose close enough to the snapshot to drop walk-ahead. */
+export const RECONCILE_SNAP = 0.08;
+
+/** Move `from` toward `to` by up to `step` metres. Done when the gap is tiny. */
+export function blendToward(
+  from: { x: number; z: number },
+  to: { x: number; z: number },
+  step: number,
+): { x: number; z: number; done: boolean } {
+  const dx = to.x - from.x;
+  const dz = to.z - from.z;
+  const d = Math.hypot(dx, dz);
+  if (d <= RECONCILE_SNAP || step >= d) return { x: to.x, z: to.z, done: true };
+  const k = step / d;
+  return { x: from.x + dx * k, z: from.z + dz * k, done: false };
+}
 
 /**
  * Where to send the unit when move keys are released: the server position plus a
@@ -188,9 +259,10 @@ type Keys = { w: boolean; a: boolean; s: boolean; d: boolean };
 
 /**
  * Dash direction as a unit XZ vector.
- * - 3D (tp/fp, `heading` set): along the heading; S alone dashes backwards. A/D turn, so they are ignored.
- * - Iso: the held WASD direction (screen-relative, as walking); with no key held, toward the cursor's
- *   ground point; failing that, the way the unit faces.
+ * - 3D (tp/fp, `heading` set): analog stick if held (same basis as headingTarget);
+ *   else along the heading, S alone dashes backwards. A/D turn, so they are ignored.
+ * - Iso: the held WASD / analog direction (screen-relative, as walking); with no
+ *   key held, toward the cursor's ground point; failing that, the way the unit faces.
  */
 export function dashDirection(
   keys: Keys,
@@ -198,8 +270,18 @@ export function dashDirection(
   heading: number | null,
   isoKeyTarget: { x: number; z: number } | null,
   cursor: [number, number] | null,
+  analog?: { nx: number; ny: number } | null,
 ): { dx: number; dz: number } {
   if (heading !== null) {
+    if (analog && (Math.abs(analog.nx) > 1e-3 || Math.abs(analog.ny) > 1e-3)) {
+      const fx = Math.sin(heading);
+      const fz = Math.cos(heading);
+      const strafe = -analog.nx;
+      const mx = fx * analog.ny + fz * strafe;
+      const mz = fz * analog.ny - fx * strafe;
+      const d = Math.hypot(mx, mz);
+      if (d > 0.05) return { dx: mx / d, dz: mz / d };
+    }
     const back = keys.s && !keys.w ? -1 : 1;
     return { dx: Math.sin(heading) * back, dz: Math.cos(heading) * back };
   }
@@ -226,7 +308,7 @@ export class DashClock {
     this.pendingSince = now;
   }
   /** Each frame: true when the server never confirmed, so the prediction must be dropped. */
-  refused(now: number, serverDashing: boolean, timeoutMs = 400): boolean {
+  refused(now: number, serverDashing: boolean, timeoutMs = DASH_PRED_HOLD): boolean {
     if (this.pendingSince === null) return false;
     if (serverDashing) {
       this.pendingSince = null;

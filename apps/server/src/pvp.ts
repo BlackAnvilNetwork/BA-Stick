@@ -51,8 +51,8 @@ export function pvpAreaSpawn(area: PvpAreaDef): { x: number; z: number; facing: 
   };
 }
 
-export function areaAtPlayer(x: number, z: number): PvpAreaDef | undefined {
-  return pvpAreaAt(x, z);
+export function areaAtPlayer(x: number, z: number, zoneId?: string): PvpAreaDef | undefined {
+  return pvpAreaAt(x, z, zoneId);
 }
 
 export function effectivePvpMainLevel(actualLevel: number, area: PvpAreaDef | undefined): number {
@@ -72,12 +72,12 @@ export function pvpAbilityAllowed(
 
 /** Both combatants must be in the same PvP area; victim must have an open bounty. */
 export function canPvpStrike(
-  attacker: { x: number; z: number },
-  victim: { x: number; z: number },
+  attacker: { x: number; z: number; zoneId?: string },
+  victim: { x: number; z: number; zoneId?: string },
   victimHasBounty: boolean,
 ): { ok: true; area: PvpAreaDef } | { ok: false; reason: string } {
-  const a = areaAtPlayer(attacker.x, attacker.z);
-  const b = areaAtPlayer(victim.x, victim.z);
+  const a = areaAtPlayer(attacker.x, attacker.z, attacker.zoneId);
+  const b = areaAtPlayer(victim.x, victim.z, victim.zoneId);
   if (!a || !b || a.id !== b.id) {
     return { ok: false, reason: "Not in a PvP area." };
   }

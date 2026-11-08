@@ -6,8 +6,7 @@ import {
   DRUID_ABILITIES,
   DRUID_FORM,
   DRUID_FORM_LABEL,
-  DRUID_SHIFT_IDS,
-  DRUID_SHIFT_RECAST_MS,
+  applyDruidShiftRecast,
   druidFormHp,
   isDruidAbilityId,
   isDruidShiftId,
@@ -16,6 +15,7 @@ import {
 } from "@bellgrave/combat";
 import { jobVitalsAtLevel } from "@bellgrave/combat";
 import { signatureWeaponEquipped } from "./starter-kit";
+import { takeMobHit, type MobEnhanceHost } from "./mob-enhances";
 import type { AbilityId } from "@bellgrave/protocol";
 
 export type DruidPlayer = {
@@ -80,7 +80,7 @@ export type DruidMob = {
   druidSourHumMul?: number;
   druidBleedUntil?: number;
   druidBleedPot?: number;
-};
+} & MobEnhanceHost;
 
 export type DruidHooks = {
   pushLog: (p: DruidPlayer, msg: string) => void;
@@ -167,13 +167,8 @@ export function dropDruidForm(
   hooks.pushLog(p, why ?? "The song lets you go. You are a Ring-Walker again.");
 }
 
-function applyShiftRecast(p: DruidPlayer, now: number, skipFamily: boolean) {
-  const until = now + DRUID_SHIFT_RECAST_MS;
-  if (skipFamily) {
-    p.recasts.dr_ring_walk = until;
-    return;
-  }
-  for (const id of DRUID_SHIFT_IDS) p.recasts[id] = until;
+function applyShiftRecast(p: DruidPlayer, now: number, usedId: string, skipFamily: boolean) {
+  applyDruidShiftRecast(p.recasts, usedId, now, skipFamily);
 }
 
 export function resolveDruidAbility(
@@ -202,7 +197,8 @@ export function resolveDruidAbility(
     return;
   }
   if (p.druidForm === 4 && !isDruidShiftId(id) && id !== "rest" && id !== "dr_tail_dash" && id !== "dr_tail_dash_ii" && id !== "dr_ember_tail" && id !== "dr_long_run" && id !== "dr_ember_run") {
-    dropDruidForm(p, hooks, "The racerunner startles and the song breaks.");
+    hooks.dashToward(p, 8, now);
+    hooks.pushLog(p, "The racerunner bounds.");
     return;
   }
   if (def.form != null && p.druidForm !== def.form) {
@@ -218,7 +214,7 @@ export function resolveDruidAbility(
     const dest = def.shiftTo;
     if (p.druidForm === dest) {
       dropDruidForm(p, hooks, "You set the song down.");
-      applyShiftRecast(p, now, now < p.druidRingSplitUntil);
+      applyShiftRecast(p, now, id, now < p.druidRingSplitUntil);
       return;
     }
     p.druidForm = dest;
@@ -246,7 +242,7 @@ export function resolveDruidAbility(
       p.maxHp = nextHp;
       p.hp = Math.min(p.hp, p.maxHp);
     }
-    applyShiftRecast(p, now, now < p.druidRingSplitUntil);
+    applyShiftRecast(p, now, id, now < p.druidRingSplitUntil);
     p.druidRingSplitUntil = 0;
     p.anim = dest === 0 ? "cast" : "melee";
     p.animUntil = now + 600;
@@ -260,9 +256,12 @@ export function resolveDruidAbility(
     if (def.recastMs > 0) p.recasts[id] = now + def.recastMs;
   };
 
-  const ally = (tid?: string) => {
-    if (!tid) return p;
-    return hooks.allPlayers().find((a) => a.wallet === tid || a.name === tid) ?? p;
+  const resolveAlly = (tid: string | undefined, range: number) => {
+    const id = tid ?? p.targetId ?? undefined;
+    if (!id) return p;
+    const found = hooks.allPlayers().find((a) => a.wallet === id || a.name === id);
+    if (found && hooks.dist(p.x, p.z, found.x, found.z) <= range) return found;
+    return p;
   };
 
   const foe = () => hooks.findMob(targetId ?? p.targetId);
@@ -297,7 +296,7 @@ export function resolveDruidAbility(
     spend();
     let heal = def.heal ?? 32;
     if (now < p.druidRingwakeUntil) heal = Math.floor(heal * 1.12);
-    const t = ally(targetId);
+    const t = resolveAlly(targetId, def.range ?? 12);
     t.hp = Math.min(t.maxHp, t.hp + heal);
     p.anim = "cast";
     p.animUntil = now + 700;
@@ -310,7 +309,10 @@ export function resolveDruidAbility(
     spend();
     let heal = def.heal ?? 36;
     if (now < p.druidRingwakeUntil) heal = Math.floor(heal * 1.12);
-    const folks = [...hooks.allPlayers()].sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp);
+    const r = def.range ?? 12;
+    const folks = [...hooks.allPlayers()]
+      .filter((t) => hooks.dist(p.x, p.z, t.x, t.z) <= r)
+      .sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp);
     for (const t of folks.slice(0, 2)) t.hp = Math.min(t.maxHp, t.hp + heal);
     p.anim = "cast";
     p.animUntil = now + 700;
@@ -321,7 +323,7 @@ export function resolveDruidAbility(
 
   if (id === "dr_antler_hum" || id === "dr_antler_hum_ii") {
     spend();
-    const t = ally(targetId);
+    const t = resolveAlly(targetId, def.range ?? 12);
     const ticks = 6;
     let pot = Math.floor((def.heal ?? 48) / ticks);
     if (now < p.druidRingwakeUntil) pot = Math.floor(pot * 1.12);
@@ -353,7 +355,7 @@ export function resolveDruidAbility(
 
   if (id === "dr_mere_veil" || id === "dr_mere_veil_ii") {
     spend();
-    const t = ally(targetId);
+    const t = resolveAlly(targetId, def.range ?? 12);
     t.druidMereVeilUntil = now + (def.durationMs ?? 20_000);
     t.druidMereVeilHp = def.absorb ?? 25;
     p.anim = "cast";
@@ -386,7 +388,7 @@ export function resolveDruidAbility(
 
   if (id === "dr_chalk_ward" || id === "dr_chalk_ward_ii" || id === "dr_mirror_glaze") {
     spend();
-    const t = id === "dr_mirror_glaze" ? p : ally(targetId);
+    const t = id === "dr_mirror_glaze" ? p : resolveAlly(targetId, def.range ?? 12);
     t.druidChalkWardUntil = now + (def.durationMs ?? 90_000);
     t.druidChalkWardMul = def.physDt ?? 0.92;
     p.anim = "cast";
@@ -417,6 +419,10 @@ export function resolveDruidAbility(
     const m = foe();
     if (!m || !m.alive) {
       hooks.pushLog(p, "No foe.");
+      return;
+    }
+    if (hooks.dist(p.x, p.z, m.x, m.z) > (def.range ?? 12)) {
+      hooks.pushLog(p, "Too far.");
       return;
     }
     spend();
@@ -496,7 +502,12 @@ export function resolveDruidAbility(
       pot = Math.floor(pot * mane);
       consumeDruidMane(p, now);
     }
-    const dmg = Math.max(1, Math.floor(pot + stats.str * 0.35 + stats.dex * 0.2));
+    const dmg = takeMobHit(
+      m,
+      Math.max(1, Math.floor(pot + stats.str * 0.35 + stats.dex * 0.2)),
+      "physical",
+      now,
+    );
     m.hp -= dmg;
     if (id.startsWith("dr_stick_rake")) {
       m.druidBleedUntil = now + 6_000;

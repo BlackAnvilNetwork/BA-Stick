@@ -15,8 +15,9 @@ import {
   type WalletClient,
 } from "viem";
 import { generatePrivateKey, privateKeyToAccount, type PrivateKeyAccount } from "viem/accounts";
-import { appKitConfigured, connectWithAppKit } from "./appkit";
+import { appKitConfigured, connectWithAppKit, sessionFromRestoredAppKit } from "./appkit";
 import { burnerIdentityAllowed } from "./burner-identity";
+import { attachProviderChain } from "./wallet-provider";
 import { activeWalletConnectProvider, ensureWalletConnectChain } from "./walletconnect";
 
 const PK_KEY = "bellgrave.walletKey";
@@ -67,43 +68,6 @@ function chainOf(chainId: number, rpcUrl: string): Chain {
   };
 }
 
-async function ensureInjectedChain(
-  ethereum: Eip1193,
-  chainId: number,
-  rpcUrl: string,
-): Promise<void> {
-  const hexId = "0x" + chainId.toString(16);
-  try {
-    await ethereum.request({
-      method: "wallet_switchEthereumChain",
-      params: [{ chainId: hexId }],
-    });
-    return;
-  } catch (err) {
-    const code = (err as { code?: number })?.code;
-    // 4902 = unrecognized chain — add it
-    if (code !== 4902 && code !== -32603) throw err;
-  }
-  await ethereum.request({
-    method: "wallet_addEthereumChain",
-    params: [
-      {
-        chainId: hexId,
-        chainName: chainId === 31337 ? "Black Anvil Local" : settlementCurrency(chainId).name,
-        nativeCurrency: (() => {
-          const cur = settlementCurrency(chainId);
-          return { name: cur.name, symbol: cur.symbol, decimals: cur.decimals };
-        })(),
-        rpcUrls: [rpcUrl],
-      },
-    ],
-  });
-  await ethereum.request({
-    method: "wallet_switchEthereumChain",
-    params: [{ chainId: hexId }],
-  });
-}
-
 /** Remember the wallet that should receive AH sale proceeds. */
 export function setPreferredPayoutWallet(address: string): void {
   if (/^0x[0-9a-fA-F]{40}$/.test(address)) {
@@ -120,8 +84,8 @@ export function preferredPayoutWallet(): `0x${string}` | null {
 }
 
 /**
- * Prefer window.ethereum when available, then an active WalletConnect session,
- * then (optionally) open WalletConnect, else the burner when allowed.
+ * Prefer a live Reown AppKit account (the boot Connect identity), then injected,
+ * then an active WalletConnect session, else the burner when allowed.
  */
 export async function getWalletSession(opts: {
   chainId: number;
@@ -136,10 +100,27 @@ export async function getWalletSession(opts: {
   const prefer = opts.preferInjected !== false;
   // Hard gate: never pay/auth with burner outside anvil, even if a caller opts in.
   const allowBurner = opts.allowBurnerFallback === true && burnerIdentityAllowed();
-  const injected = prefer && typeof window !== "undefined" ? injectedProvider() : null;
+  if (appKitConfigured()) {
+    const live = await sessionFromRestoredAppKit({
+      chainId: opts.chainId,
+      rpcUrl: opts.rpcUrl,
+      timeoutMs: 80,
+    });
+    if (live) {
+      setPreferredPayoutWallet(live.address);
+      return {
+        account: live.account,
+        address: live.address,
+        client: live.client,
+        source: "appkit",
+      };
+    }
+    // AppKit is the login path — do not eth_requestAccounts + switch-loop MetaMask.
+  }
+  const injected = !appKitConfigured() && prefer && typeof window !== "undefined" ? injectedProvider() : null;
   if (injected) {
     try {
-      await ensureInjectedChain(injected, opts.chainId, opts.rpcUrl);
+      await attachProviderChain(injected, opts.chainId, opts.rpcUrl);
       const accounts = (await injected.request({
         method: "eth_requestAccounts",
       })) as string[];

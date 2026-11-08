@@ -26,4 +26,47 @@ describe("game log", () => {
       Date.now = realNow;
     }
   });
+
+  it("keeps a WS log line until the snapshot includes it", () => {
+    const g = useGame.getState();
+    g.setSnapshot(snap(18, []));
+    g.pushLog("You hit a rat.", { local: false });
+    g.setSnapshot(snap(19, ["other line"]));
+    assert.deepEqual(useGame.getState().logs, ["other line", "You hit a rat."]);
+  });
+
+  it("does not duplicate a WS log line that is also in the snapshot", () => {
+    const g = useGame.getState();
+    g.setSnapshot(snap(20, []));
+    g.pushLog("You hit a rat.", { local: false });
+    g.setSnapshot(snap(21, ["You hit a rat."]));
+    assert.deepEqual(useGame.getState().logs, ["You hit a rat."]);
+  });
+
+  it("keeps chat lines off the combat log", () => {
+    const g = useGame.getState();
+    g.setSnapshot(snap(10, ["You hit a rat."]));
+    g.pushChat({ channel: "say", fromId: "0x1", fromName: "That", text: "hello" });
+    assert.deepEqual(useGame.getState().logs, ["You hit a rat."]);
+    assert.equal(useGame.getState().chats.at(-1)?.text, "hello");
+    g.clearSnapshot();
+    assert.deepEqual(useGame.getState().chats, []);
+  });
+
+  it("clearSnapshot drops leftover NPC dialog and slain prompt", () => {
+    const g = useGame.getState();
+    g.setNpcDialog({ npcId: "smith", title: "Smith", body: "Hi" });
+    g.setPvpSlainPrompt({ slayerName: "X", bountyWei: "1", areaId: "pit" });
+    g.clearSnapshot();
+    assert.equal(useGame.getState().npcDialog, null);
+    assert.equal(useGame.getState().pvpSlainPrompt, null);
+  });
+
+  it("clears npcDialog when the zone changes", () => {
+    const g = useGame.getState();
+    g.setSnapshot({ ...snap(40, []), you: { zoneId: "pale_hollow" } } as unknown as SnapshotMessage);
+    g.setNpcDialog({ npcId: "smith", title: "Smith", body: "Hi" });
+    g.setSnapshot({ ...snap(41, []), you: { zoneId: "emberwatch" } } as unknown as SnapshotMessage);
+    assert.equal(useGame.getState().npcDialog, null);
+  });
 });

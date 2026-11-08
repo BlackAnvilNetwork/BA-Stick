@@ -66,6 +66,59 @@ export type CharacterMintConfig = {
   devServerMint?: boolean;
 };
 
+/** Match server `collectOwnedCharacterNfts` window. */
+export const OWNED_NFT_SCAN_WINDOW = 64;
+
+/** Scan high enough to cover both last-minted and next-to-mint suggestions. */
+export function ownedScanLastId(nextTokenId: bigint, suggestedTokenId?: string): bigint {
+  let last = nextTokenId > 0n ? nextTokenId : 0n;
+  if (suggestedTokenId && /^[1-9][0-9]{0,77}$/.test(suggestedTokenId)) {
+    try {
+      const suggested = BigInt(suggestedTokenId);
+      if (suggested > last) last = suggested;
+    } catch {
+      /* ignore */
+    }
+  }
+  return last;
+}
+
+function boundIdSet(ids?: Iterable<string>): Set<string> {
+  const out = new Set<string>();
+  if (!ids) return out;
+  for (const id of ids) {
+    if (id) out.add(String(id));
+  }
+  return out;
+}
+
+/** Newest NFT `owner` still holds, scanning `lastId` downward. Skips roster-bound ids. */
+export async function findNewestOwnedToken(opts: {
+  ownerOf: (tokenId: bigint) => Promise<string>;
+  owner: string;
+  lastId: bigint;
+  maxScan?: number;
+  boundTokenIds?: Iterable<string>;
+}): Promise<string | null> {
+  const owner = opts.owner.toLowerCase();
+  if (!/^0x[0-9a-f]{40}$/.test(owner) || opts.lastId < 1n) return null;
+  const bound = boundIdSet(opts.boundTokenIds);
+  const limit = Math.max(1, Math.min(opts.maxScan ?? OWNED_NFT_SCAN_WINDOW, OWNED_NFT_SCAN_WINDOW));
+  let id = opts.lastId;
+  for (let i = 0; i < limit && id >= 1n; i++, id -= 1n) {
+    try {
+      const held = (await opts.ownerOf(id)).toLowerCase();
+      if (held !== owner) continue;
+      const found = id.toString();
+      if (bound.has(found)) continue;
+      return found;
+    } catch {
+      /* token does not exist */
+    }
+  }
+  return null;
+}
+
 function mintRevertHint(err: unknown): string {
   const msg = err instanceof Error ? err.message : String(err);
   if (/BadJob|0xb02810cc/i.test(msg)) {
@@ -131,6 +184,8 @@ export async function mintCharacterWithWallet(opts: {
   tokenId?: string;
   /** When true, skip payment and reuse a pending unbound NFT if still owned. */
   allowReuse?: boolean;
+  /** Roster-bound Character NFT ids — never reuse these for a second mint. */
+  boundTokenIds?: Iterable<string>;
 }): Promise<MintResult> {
   const named = normalizeCharacterName(opts.charId);
   if (!named.ok) return { ok: false, error: named.error };
@@ -179,17 +234,21 @@ export async function mintCharacterWithWallet(opts: {
     });
     const payer = session.address.toLowerCase();
     const game = opts.gameWallet.toLowerCase();
+    const bound = boundIdSet(opts.boundTokenIds);
 
-    // M-C: reuse an already-paid unbound NFT when still held by the payer.
+    // M-C: reuse an already-paid unbound NFT when still held by the session or payer.
     if (opts.allowReuse !== false) {
-      const pending = readPendingMint(game);
+      const pending = readPendingMint(game, payer);
       if (
         pending &&
         pending.chainId === opts.mint.chainId &&
         pending.factory.toLowerCase() === opts.mint.factory.toLowerCase() &&
         pending.nft.toLowerCase() === opts.mint.nft.toLowerCase()
       ) {
-        try {
+        if (bound.has(pending.tokenId)) {
+          clearPendingMint(game, payer);
+        } else {
+          try {
           const owner = (
             await pub.readContract({
               address: opts.mint.nft as `0x${string}`,
@@ -198,13 +257,13 @@ export async function mintCharacterWithWallet(opts: {
               args: [BigInt(pending.tokenId)],
             })
           ).toLowerCase();
-          if (owner === pending.payer.toLowerCase() || owner === payer) {
-            if (payer === game && pending.payer.toLowerCase() === game) {
+          if (owner === game || owner === payer || owner === pending.payer.toLowerCase()) {
+            if (owner === game) {
               return {
                 ok: true,
                 hash: "reuse",
                 tokenId: pending.tokenId,
-                payer: pending.payer.toLowerCase(),
+                payer: game,
                 charId: named.name,
                 reused: true,
               };
@@ -226,9 +285,54 @@ export async function mintCharacterWithWallet(opts: {
               ...claim,
             };
           }
-        } catch {
-          clearPendingMint(game);
+          } catch {
+            clearPendingMint(game, payer);
+          }
         }
+      }
+    }
+
+    let chainLast = 0n;
+    try {
+      chainLast = await pub.readContract({
+        address: opts.mint.nft as `0x${string}`,
+        abi: NFT_NEXT_ABI,
+        functionName: "nextTokenId",
+      });
+    } catch {
+      chainLast = 0n;
+    }
+    const lastId = ownedScanLastId(chainLast, opts.mint.suggestedTokenId);
+    if (opts.allowReuse !== false && lastId >= 1n) {
+      const owned = await findNewestOwnedToken({
+        ownerOf: (tokenId) =>
+          pub.readContract({
+            address: opts.mint.nft as `0x${string}`,
+            abi: OWNER_ABI,
+            functionName: "ownerOf",
+            args: [tokenId],
+          }),
+        owner: game,
+        lastId,
+        boundTokenIds: bound,
+      });
+      if (owned) {
+        writePendingMint({
+          tokenId: owned,
+          payer: game,
+          chainId: opts.mint.chainId,
+          factory: opts.mint.factory.toLowerCase(),
+          nft: opts.mint.nft.toLowerCase(),
+          gameWallet: game,
+        });
+        return {
+          ok: true,
+          hash: "reuse",
+          tokenId: owned,
+          payer: game,
+          charId: named.name,
+          reused: true,
+        };
       }
     }
 

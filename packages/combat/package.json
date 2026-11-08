@@ -10,7 +10,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test src/pvp-caps.test.ts src/targeting.test.ts src/druid-kit.test.ts"
+    "test": "tsx --test src/pvp-caps.test.ts src/targeting.test.ts src/hotbar-order.test.ts src/druid-kit.test.ts src/pvp-duel-sim.test.ts src/sword-swings.test.ts"
   },
   "devDependencies": {
     "@types/node": "^22.13.10",

@@ -35,22 +35,30 @@ function isJobMasterNpc(npcId: string): boolean {
   return npcId === "npc-ph-job-master" || npcId === "npc-job-master" || npcId.includes("job-master");
 }
 
-function isTrainerNpc(npcId: string, hasSpells: boolean): boolean {
+function isTrainerNpc(npcId: string, hasSpells: boolean, npcRole?: string): boolean {
+  if (isJobMasterNpc(npcId) || npcRole === "job_master") return false;
   return (
     hasSpells ||
+    npcRole === "spell_trainer" ||
     npcId === "npc-ph-chronomancer" ||
     npcId === "npc-chronomancer" ||
-    npcId.includes("chronomancer")
+    npcId.includes("chronomancer") ||
+    npcId.includes("trainer")
   );
 }
 
 export function NpcInteractMenu() {
   const dialog = useGame((s) => s.npcDialog);
   const you = useGame((s) => s.snapshot?.you);
+  const npcRole = useGame((s) => {
+    const id = s.npcDialog?.npcId;
+    if (!id) return undefined;
+    return s.snapshot?.units.find((u) => u.id === id)?.npcRole;
+  });
   if (!dialog) return null;
 
   const spells = dialog.spells ?? [];
-  const isTrainer = isTrainerNpc(dialog.npcId, Boolean(dialog.spells));
+  const isTrainer = isTrainerNpc(dialog.npcId, Boolean(dialog.spells), npcRole);
   const isJobMaster = isJobMasterNpc(dialog.npcId) || Boolean(dialog.jobs && !isTrainer);
   const jobs = (dialog.jobs ?? []) as JobId[];
   const canSub = (you?.level ?? 0) >= SUBJOB_UNLOCK_LEVEL;
@@ -60,7 +68,7 @@ export function NpcInteractMenu() {
 
   const close = () => useGame.getState().setNpcDialog(null);
 
-  // Job Master: Change Alt header + subjob name list (or Lvl 10 gate)
+  // Job Master: main-job change is always available; Change Alt stays L10+.
   if (isJobMaster) {
     return (
       <div className="npc-dialog npc-dialog-world npc-dialog-slim">

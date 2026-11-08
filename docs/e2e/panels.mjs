@@ -19,7 +19,12 @@ await click("Crafting"); await wait(600);
 await p.evaluate(() => { const g = [...document.querySelectorAll("button")].filter(b => b.textContent?.trim() === "gold"); g[0]?.click(); });
 await wait(500);
 console.log("craft btns:", (await btns()).match(/Craft[^|]*/g));
-await p.evaluate(() => { const el = [...document.querySelectorAll("button")].find(b => /^Craft\b/.test(b.textContent?.trim() ?? "")); el?.click(); });
+const nearBrann = await p.evaluate(() => window.__useGame.getState().snapshot?.you.nearCrafter === true);
+if (nearBrann) {
+  await p.evaluate(() => { const el = [...document.querySelectorAll("button")].find(b => /^Craft\b/.test(b.textContent?.trim() ?? "")); el?.click(); });
+} else {
+  console.log("skip craft click: not near Brann Coldiron");
+}
 await wait(900); await p.screenshot({ path: "/workspace/ba-research/screens/m4-panel-craft.png" });
 await click("Close"); await wait(300);
 // Skills: click an available node in the tree (svg/canvas)
@@ -42,7 +47,20 @@ for (const role of ["spell_trainer", "job_master"]) {
   const pos = await p.evaluate((id) => { const s = window.__stick; const a = s.r.anchor(id); const c = s.canvas.getBoundingClientRect(); const [x, y] = s.fromFramebuffer(s.canvas, a[0], (a[1] + a[2]) / 2); return [c.left + x, c.top + y]; }, id);
   await p.mouse.click(pos[0], pos[1]); await wait(1500);
   console.log(role, "btns:", (await btns()).slice(0, 400));
-  const acted = await p.evaluate((role) => { const bs = [...document.querySelectorAll("button")].filter(b => !b.disabled && role === "job_master" ? /^Cleric$/ : /^(Learn|Buy)\b/i.test(b.textContent?.trim() ?? "")); bs[0]?.click(); return bs.slice(0,3).map(b => b.textContent?.trim()); }, role);
+  const acted = await p.evaluate((role) => {
+    if (role === "job_master") {
+      const pick = (header) => {
+        const h = [...document.querySelectorAll(".npc-subjob-header")].find((el) => el.textContent?.includes(header));
+        const bs = h ? [...(h.parentElement?.querySelectorAll("button") ?? [])].filter((b) => !b.disabled) : [];
+        bs[0]?.click();
+        return bs.slice(0, 3).map((b) => b.textContent?.trim());
+      };
+      return { main: pick("Change Main"), alt: pick("Change Alt") };
+    }
+    const bs = [...document.querySelectorAll("button")].filter((b) => !b.disabled && /^(Learn|Buy)\b/i.test(b.textContent?.trim() ?? ""));
+    bs[0]?.click();
+    return bs.slice(0, 3).map((b) => b.textContent?.trim());
+  }, role);
   console.log(role, "acted:", acted); await wait(1200);
   await p.screenshot({ path: `/workspace/ba-research/screens/m4-panel-${role}.png` });
   await p.keyboard.press("Escape"); await click("Close"); await wait(400);
