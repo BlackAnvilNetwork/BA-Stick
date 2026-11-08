@@ -27,7 +27,7 @@ export const SLOT_LABEL: Record<EquipSlot, string> = {
   ring2: "Ring 2",
   earring: "Earring",
   main: "Main hand",
-  sub: "Off hand",
+  sub: "Shields",
   grip: "Grip",
   ranged: "Ranged",
   ammo: "Ammo",
@@ -58,7 +58,7 @@ export function weaponCategoryId(family: WeaponFamily): string {
   return "weapon:" + family;
 }
 
-/** Synth mats named like `*-knuckles` (bonecraft blanks), not equippable weapons yet. */
+/** Leftover synth mats named like `*-knuckles` (bonecraft blanks). */
 export function weaponCraftComponentFamily(def: ItemDef): WeaponFamily | null {
   if (def.kind === "equipment") return null;
   if (def.slug.endsWith("-knuckles") || def.slug === "knuckles") return "knuckles";

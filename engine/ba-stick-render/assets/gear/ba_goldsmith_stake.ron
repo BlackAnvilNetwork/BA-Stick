@@ -4,10 +4,10 @@
 (
     id: "ba_goldsmith_stake",
     slot: Feet,
-    material: Some("void"),
+    material: Some("dust"),
     shapes: [
-        Capsule(from: (-0.20, 0.01, -0.10), to: (0.20, 0.04, 0.10), ramp: Glow, thick: 3.4),
-        Capsule(from: (-0.14, 0.03, -0.08), to: (0.14, 0.05, 0.08), ramp: Glow, thick: 2.6),
+        Capsule(from: (-0.20, 0.01, -0.10), to: (0.20, 0.04, 0.10), ramp: Material, thick: 3.4),
+        Capsule(from: (-0.14, 0.03, -0.08), to: (0.14, 0.05, 0.08), ramp: Material, thick: 2.6),
         Capsule(from: (0.0, 0.05, 0.0), to: (0.0, 0.11, 0.0), ramp: Material, thick: 4.6),
         Capsule(from: (0.0, 0.11, 0.0), to: (0.10, 0.15, 0.04), ramp: Material, thick: 3.2),
         Line(from: (0.04, 0.12, 0.02), to: (0.09, 0.15, 0.035), ramp: Trim, thick: 1.4),

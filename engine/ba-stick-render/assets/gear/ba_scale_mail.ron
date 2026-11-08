@@ -1,0 +1,63 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Steel scale mail, not a leather vest. Shoulder straps stay on the chest
+// bone; four overlapping horizontal scale-row capsules and a few Disc scales
+// sit on the chest face. The steel mesh is ba_scale_mail.plate.ron.
+// `thick` is a radius in pixels.
+(
+    id: "ba_scale_mail",
+    slot: Chest,
+    attach: Some("chest"),
+    material: Some("steel"),
+    thickness_mul: {
+        "spine": 1.18,
+        "shoulders": 1.08,
+    },
+    shapes: [
+        Capsule(
+            from: (-0.05, -0.02, 0.055),
+            to: (-0.16, 0.01, 0.02),
+            ramp: Material,
+            thick: 1.5,
+        ),
+        Capsule(
+            from: (0.05, -0.02, 0.055),
+            to: (0.16, 0.01, 0.02),
+            ramp: Material,
+            thick: 1.5,
+        ),
+        // Overlapping horizontal scale rows, collar to belly.
+        Capsule(
+            from: (-0.09, -0.06, 0.06),
+            to: (0.09, -0.06, 0.06),
+            ramp: Material,
+            thick: 1.4,
+        ),
+        Capsule(
+            from: (-0.085, -0.12, 0.058),
+            to: (0.085, -0.12, 0.058),
+            ramp: Material,
+            thick: 1.4,
+        ),
+        Capsule(
+            from: (-0.08, -0.18, 0.056),
+            to: (0.08, -0.18, 0.056),
+            ramp: Material,
+            thick: 1.4,
+        ),
+        Capsule(
+            from: (-0.07, -0.24, 0.054),
+            to: (0.07, -0.24, 0.054),
+            ramp: Material,
+            thick: 1.4,
+        ),
+        // Staggered Disc scales on the chest face.
+        Disc(at: None, center: (-0.04, -0.08, 0.07), r: 0.016, ramp: Material),
+        Disc(at: None, center: (0.04, -0.08, 0.07), r: 0.016, ramp: Material),
+        Disc(at: None, center: (0.0, -0.14, 0.072), r: 0.016, ramp: Material),
+        Disc(at: None, center: (-0.045, -0.20, 0.068), r: 0.016, ramp: Material),
+        Disc(at: None, center: (0.045, -0.20, 0.068), r: 0.016, ramp: Material),
+    ],
+)

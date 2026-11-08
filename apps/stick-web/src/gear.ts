@@ -1,3 +1,4 @@
+import { DRUID_FORM_PRESET, isDruidForm } from "@bellgrave/combat";
 import type { Equipment, ItemDef } from "@bellgrave/items";
 
 /**
@@ -11,6 +12,12 @@ export const MAT: Record<string, number> = { clothcraft: 1, leathercraft: 2, smi
 
 export function materialOf(item: ItemDef | undefined): number {
   if (!item) return 0;
+  // Mythril is goldsmithing stock, but worn blades/plate still use the metal mesh.
+  const slug = item.slug ?? "";
+  const slot = item.slot ?? "";
+  if (slug.includes("mythril") && slot && !/^(ring|earring)$/.test(slot) && !/(torque|chain|circlet)/.test(slug)) {
+    return MAT.smithing;
+  }
   return MAT[item.craftSkill ?? ""] ?? 1;
 }
 
@@ -23,7 +30,7 @@ export function familyOf(item: ItemDef | undefined): number {
   return FAMILY.sword;
 }
 
-export type GearArgs = [number, number, number, number, number, number, number, number, number];
+export type GearArgs = [number, number, number, number, number, number, number, number, number, number, number, number, number];
 
 export function gearArgs(equip: Partial<Equipment> | undefined, getItem: (id: number) => ItemDef | undefined): GearArgs {
   const at = (slot: keyof Equipment) => {
@@ -34,6 +41,9 @@ export function gearArgs(equip: Partial<Equipment> | undefined, getItem: (id: nu
   const body = at("body");
   const head = at("head");
   const legs = at("legs");
+  const feet = at("feet");
+  const sub = at("sub");
+  const hands = at("hands");
   return [
     main ? familyOf(main.item) : 0,
     main ? materialOf(main.item) : 0,
@@ -44,10 +54,25 @@ export function gearArgs(equip: Partial<Equipment> | undefined, getItem: (id: nu
     head?.id ?? 0,
     legs ? materialOf(legs.item) : 0,
     legs?.id ?? 0,
+    feet ? materialOf(feet.item) : 0,
+    feet?.id ?? 0,
+    sub?.id ?? 0,
+    hands?.id ?? 0,
   ];
 }
 
 /** Preset key for a preview figure (#37), same as in-world players. */
-export function previewPreset(job: string, gender: string | undefined): string {
+export function previewPreset(
+  job: string,
+  gender: string | undefined,
+  form?: number,
+): string {
+  if (job === "druid") {
+    const raw = form ?? 0;
+    const n = isDruidForm(raw) ? raw : 0;
+    const key = DRUID_FORM_PRESET[n];
+    if (n === 0) return `${key}/${gender ?? "male"}`;
+    return key;
+  }
   return `${job}/${gender ?? "male"}`;
 }

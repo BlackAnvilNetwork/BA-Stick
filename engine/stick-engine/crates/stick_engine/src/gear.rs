@@ -104,13 +104,18 @@ impl GearDef {
     }
 
     /// Joint-local frame (origin, x, y, z) for this item's attach point.
-    /// Hands use the weapon direction as +y.
+    /// Hands use the weapon direction as +y, except staffs which stand on world up
+    /// so idle hang (r_wpn_pitch ≈ −55°) does not bury the orb.
     pub fn frame(&self, j: &Joints) -> (Vec3, Vec3, Vec3, Vec3) {
         let o = j.get(self.attach);
-        let y = match self.attach {
-            Joint::RHand => j.wpn_dir[1],
-            Joint::LHand => j.wpn_dir[0],
-            _ => (j.get(Joint::Chest) - j.get(Joint::Pelvis)).norm(),
+        let y = if self.stance.as_deref() == Some("staff") {
+            Vec3::UP
+        } else {
+            match self.attach {
+                Joint::RHand => j.wpn_dir[1],
+                Joint::LHand => j.wpn_dir[0],
+                _ => (j.get(Joint::Chest) - j.get(Joint::Pelvis)).norm(),
+            }
         };
         let mut x = y.cross(Vec3::UP).norm();
         if x.len() < 0.5 {

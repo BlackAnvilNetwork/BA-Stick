@@ -5,6 +5,8 @@ export type FigurePreviewProps = {
   /** Protocol job id (e.g. "time_mage"). */
   job: string;
   gender?: "male" | "female" | "pepeka";
+  /** Druid form (0 Ring-Walker … 4 Racerunner). Ignored for other jobs. */
+  form?: number;
   /** Equipped catalog ids (paperdoll preview). */
   equip?: Partial<Equipment> | null;
   /** CSS px height. */
@@ -13,9 +15,9 @@ export type FigurePreviewProps = {
 };
 
 /**
- * Live character preview slot (#37). Clients that can render a figure
- * provide a component; without a provider the `fallback` (e.g. the static
- * boot portrait) is shown, so the old client is unchanged.
+ * Live character preview slot (#37). stick-web provides StickPreview via
+ * FigurePreviewContext; without a provider the `fallback` (e.g. the static
+ * boot portrait) is shown.
  */
 export const FigurePreviewContext = createContext<ComponentType<FigurePreviewProps> | null>(null);
 

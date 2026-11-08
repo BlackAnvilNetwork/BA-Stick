@@ -1,0 +1,68 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Darksteel greaves. One shin in foot-local metres: origin is the foot
+// joint, +y up the shin, +z toward the toe, +x the character's right.
+// The viewer and draw path instance this pair on l_foot and r_foot so
+// the plates walk with the stride. Tiny discs mark each joint.
+// Overlapping shin plates from above the ankle to mid/upper shin — not boots.
+// `thick` is a radius in pixels.
+(
+    id: "ba_darksteel_greaves",
+    slot: Feet,
+    attach: Some("pelvis"),
+    material: Some("steel"),
+    thickness_mul: {
+        "l_shin": 1.12,
+        "r_shin": 1.12,
+    },
+    shapes: [
+        // Front plate, mid shin.
+        Capsule(
+            from: (0.0, 0.05, 0.03),
+            to: (0.0, 0.20, 0.03),
+            ramp: Material,
+            thick: 2.4,
+        ),
+        // Front plate, above-ankle overlap.
+        Capsule(
+            from: (0.0, 0.04, 0.03),
+            to: (0.0, 0.10, 0.03),
+            ramp: Material,
+            thick: 2.2,
+        ),
+        // Left wrap.
+        Capsule(
+            from: (-0.028, 0.04, 0.012),
+            to: (-0.028, 0.20, 0.012),
+            ramp: Material,
+            thick: 2.2,
+        ),
+        // Right wrap.
+        Capsule(
+            from: (0.028, 0.04, 0.012),
+            to: (0.028, 0.20, 0.012),
+            ramp: Material,
+            thick: 2.2,
+        ),
+        // Left wrap, overlapping the front plate.
+        Capsule(
+            from: (-0.020, 0.05, 0.026),
+            to: (-0.020, 0.19, 0.026),
+            ramp: Material,
+            thick: 2.0,
+        ),
+        // Right wrap, overlapping the front plate.
+        Capsule(
+            from: (0.020, 0.05, 0.026),
+            to: (0.020, 0.19, 0.026),
+            ramp: Material,
+            thick: 2.0,
+        ),
+        // Knee-cap, frame-local.
+        Disc(at: None, center: (0.0, 0.22, 0.02), r: 0.018, ramp: Material),
+        Disc(at: Some("l_foot"), r: 0.014, ramp: Material),
+        Disc(at: Some("r_foot"), r: 0.014, ramp: Material),
+    ],
+)

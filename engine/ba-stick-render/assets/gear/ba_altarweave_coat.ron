@@ -1,0 +1,99 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// BA altarweave coat: a liturgical cloth body to the knee, gold stole down
+// the chest. No train. The stole and hem band are gold Trim. Paint is
+// ba_altarweave_coat.plate.ron. Sleeves run shoulder, elbow, then a wrist
+// disk. `thick` is a radius in pixels. Sheets stay outside the bones.
+(
+    id: "ba_altarweave_coat",
+    slot: Chest,
+    attach: Some("chest"),
+    material: Some("dust"),
+    thickness_mul: {
+        "spine": 1.18,
+        "shoulders": 1.08,
+    },
+    shapes: [
+        // Collar yoke.
+        Capsule(
+            from: (-0.13, -0.02, 0.04),
+            to: (0.13, -0.02, 0.04),
+            ramp: Material,
+            thick: 2.7,
+        ),
+        // Chest down to the waist. Negative y hangs down the torso.
+        Capsule(
+            from: (0.0, -0.02, 0.05),
+            to: (0.0, -0.44, 0.035),
+            ramp: Material,
+            thick: 3.3,
+        ),
+        Capsule(
+            from: (-0.11, -0.13, 0.05),
+            to: (0.11, -0.13, 0.05),
+            ramp: Material,
+            thick: 3.3,
+        ),
+        Capsule(
+            from: (-0.09, -0.30, 0.045),
+            to: (0.09, -0.30, 0.045),
+            ramp: Material,
+            thick: 3.0,
+        ),
+        // Gold stole clasp at the throat.
+        Capsule(
+            from: (-0.028, -0.06, 0.055),
+            to: (0.028, -0.06, 0.055),
+            ramp: Trim,
+            thick: 2.6,
+        ),
+        // Gold stole hanging to the knee.
+        Capsule(
+            from: (0.0, -0.06, 0.055),
+            to: (0.0, -0.92, 0.03),
+            ramp: Trim,
+            thick: 2.2,
+        ),
+        // Shoulder drapes, liturgical cut.
+        Capsule(
+            from: (-0.12, -0.04, 0.03),
+            to: (-0.15, -0.36, 0.0),
+            ramp: Material,
+            thick: 2.5,
+        ),
+        Capsule(
+            from: (0.12, -0.04, 0.03),
+            to: (0.15, -0.36, 0.0),
+            ramp: Material,
+            thick: 2.5,
+        ),
+        // Skirt panels to the knee. No train.
+        Capsule(
+            from: (-0.02, -0.42, 0.03),
+            to: (-0.14, -0.96, 0.02),
+            ramp: Material,
+            thick: 2.7,
+        ),
+        Capsule(
+            from: (0.02, -0.42, 0.03),
+            to: (0.14, -0.96, 0.02),
+            ramp: Material,
+            thick: 2.7,
+        ),
+        Capsule(
+            from: (0.0, -0.44, 0.045),
+            to: (0.0, -0.96, 0.02),
+            ramp: Material,
+            thick: 2.5,
+        ),
+        // Gold hem band at the knee.
+        Capsule(
+            from: (-0.16, -0.94, 0.02),
+            to: (0.16, -0.94, 0.02),
+            ramp: Trim,
+            thick: 2.3,
+        ),
+    ],
+)

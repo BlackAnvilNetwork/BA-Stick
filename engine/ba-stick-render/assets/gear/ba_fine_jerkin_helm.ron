@@ -2,11 +2,22 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
 //
-// Fine jerkin helm. Same bandana mesh; tempered leather plate.
+// Leather jerkin skullcap, not a bandana. Overlapping crown discs sit over the
+// head; the face stays open. Optional thin brim at the hairline. No buckle.
 (
     id: "ba_fine_jerkin_helm",
     slot: Head,
     attach: Some("head"),
     material: Some("leather"),
-    shapes: [],
+    shapes: [
+        Disc(at: None, center: (0.0, 0.08, 0.0), r: 0.10, ramp: Material),
+        Disc(at: None, center: (0.0, 0.11, 0.0), r: 0.08, ramp: Material),
+        Disc(at: None, center: (0.0, 0.14, 0.0), r: 0.055, ramp: Material),
+        Capsule(
+            from: (-0.12, 0.04, 0.02),
+            to: (0.12, 0.04, 0.02),
+            ramp: Material,
+            thick: 1.2,
+        ),
+    ],
 )

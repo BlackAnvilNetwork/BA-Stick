@@ -1,0 +1,30 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+// Modified: 2026-11-04 — small wood buckler face, not iron shield clone.
+//
+// Small wood disc. 'l' leather, 'd' dark leather, 'k' rim. No steel 'e'
+// or gold 'g'. Row 0 is the boss edge. The last row is the rim.
+(
+    id: "ba_buckler_wood",
+    x0: -0.12,
+    y0: -0.02,
+    x1: 0.12,
+    y1: 0.22,
+    z: 0.04,
+    flow: 0.0,
+    sleeve_drop: 0.0,
+    wrap: 0.0,
+    arm_from: 0.0,
+    arm_to: 0.0,
+    arm_thick: 0.0,
+    cuff_from: 0.0,
+    cuff_to: 0.0,
+    cuff_thick: 0.0,
+    rows: [
+        "llllllll",
+        "lddddddl",
+        "llllllll",
+        "kkkkkkkk",
+    ],
+)

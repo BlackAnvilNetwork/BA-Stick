@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
 //
-// Mythril helm strips. Light blue (n), white rim (w).
+// Mythril helm strips. Light blue body (n), white rim (w). Same pair as the
+// mythril sword blade / trail. No gold.
 (
     id: "ba_mythril_helm",
     x0: -0.17,

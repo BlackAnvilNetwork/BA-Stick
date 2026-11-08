@@ -1,0 +1,42 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Mythril mail stamp. Light blue field (n), white trim (w). Same pair as
+// the mythril sword. Not gold, not steel.
+(
+    id: "ba_mythril_mail",
+    x0: -0.13,
+    y0: -0.38,
+    x1: 0.13,
+    y1: 0.0,
+    z: 0.06,
+    wrap: 0,
+    flow: 0,
+    arm_from: 0.04,
+    arm_to: 0.62,
+    arm_thick: 2.8,
+    cuff_from: 0.54,
+    cuff_to: 0.66,
+    cuff_thick: 1.15,
+    rows: [
+        "nnnnnwwwwwnnnnn",
+        "nnnww.....wwnnn",
+        "nnw....w....wnn",
+        "nnw..w.w.w..wnn",
+        "nnw....w....wnn",
+        "nnw....w....wnn",
+        "nnw....n....wnn",
+        "nnw....w....wnn",
+        "nnnw...w...wnnn",
+        "nnnw...w...wnnn",
+        "nnnnw..w..wnnnn",
+        "nnnnw..w..wnnnn",
+        "nnnnw.....wnnnn",
+        "nnnnnw...wnnnnn",
+        "nnnnnw...wnnnnn",
+        "nnnnnnw.wnnnnnn",
+        "nnnnnnwwwnnnnnn",
+        "nnnnnnnnnnnnnnn",
+    ],
+)

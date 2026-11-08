@@ -1,5 +1,7 @@
 import { FigurePreview } from "./FigurePreview";
 import {
+  DRUID_FORM_LABEL,
+  isDruidForm,
   JOBS,
   attackFromStats,
   magicAttackMul,
@@ -18,6 +20,7 @@ import {
   hqStats,
   itemIcon,
   itemName,
+  rarityClass,
   RING_EQUIP_SLOTS,
   canEquipAnotherCopy,
   scaleGearStat,
@@ -42,7 +45,8 @@ type BagRow = { tokenId: number; amount: number; starter?: boolean; hq?: boolean
 
 type SlotDef = { id: EquipSlot; label: string };
 
-/** Catalog-backed paperdoll slots. Equip from the bag; click a filled slot to remove it. */
+/** Catalog-backed paperdoll slots. Equip from the bag; click a filled slot to remove it.
+ * Ammo stays: catalog has crafted arrow stacks (slot:ammo). Hide only if that count hits 0. */
 const SLOTS: SlotDef[] = [
   { id: "main", label: "Main" },
   { id: "sub", label: "Sub" },
@@ -77,14 +81,15 @@ type Props = {
 export function EquipPanel({ you, me, onClose }: Props) {
   const job = isJobId(you.job) ? you.job : "time_mage";
   const sub = you.subjob && isJobId(you.subjob) ? you.subjob : null;
+  const combatLv = you.combatLevel ?? you.level;
   const derived = deriveCharacterAttributes(
     job,
-    you.level,
+    combatLv,
     sub,
     you.skillUnlocked ?? [],
     you.freeStats ?? {},
   );
-  const gearStats = aggregateEquipmentStatsScaled(you.equip, you.level, you.equipHq);
+  const gearStats = aggregateEquipmentStatsScaled(you.equip, combatLv, you.equipHq);
   const stats = {
     str: derived.total.str + (gearStats.str ?? 0),
     dex: derived.total.dex + (gearStats.dex ?? 0),
@@ -112,7 +117,10 @@ export function EquipPanel({ you, me, onClose }: Props) {
   const xpNeed = xpToNextLevel(you.level);
   const xpHave = Math.max(0, you.xp);
   const xpLeft = Math.max(0, xpNeed - xpHave);
-  const jobName = JOBS[you.job]?.name ?? you.job;
+  const jobName =
+    job === "druid" && isDruidForm(me.buffs.druidForm) && me.buffs.druidForm !== 0
+      ? `${JOBS[you.job]?.name ?? you.job} · ${DRUID_FORM_LABEL[me.buffs.druidForm]}`
+      : (JOBS[you.job]?.name ?? you.job);
   const stanceLabel =
     job === "knight"
       ? me.buffs.bulwarkUntil > now
@@ -151,7 +159,7 @@ export function EquipPanel({ you, me, onClose }: Props) {
           <div className="cmd-kicker">Character</div>
           <div className="cmd-panel-title">{you.name}</div>
           <div className="cmd-panel-sub">
-            Lv.{you.level} {jobName}
+            Lv.{you.level}{combatLv !== you.level ? ` · combat ${combatLv}` : ""} {jobName}
             {sub ? ` / ${JOBS[sub]?.name ?? sub} L${you.subLevel || Math.floor(you.level / 2)}` : ""}
             {stanceLabel}
           </div>
@@ -249,7 +257,14 @@ export function EquipPanel({ you, me, onClose }: Props) {
 
           <div className="equip-col">
             <div className="cmd-section-label">Paperdoll</div>
-            <FigurePreview job={you.job} gender={you.gender} equip={you.equip} size={140} className="equip-live-figure" />
+            <FigurePreview
+              job={you.job}
+              gender={you.gender}
+              form={job === "druid" ? me.buffs.druidForm : undefined}
+              equip={you.equip}
+              size={140}
+              className="equip-live-figure"
+            />
             <div className="equip-grid">
               {SLOTS.map((slot) => (
                 <EquipCell key={slot.id} slot={slot} you={you} />
@@ -301,6 +316,7 @@ function BagItemRow({
       <div className="equip-bag-card-body">
         <div className="equip-item-name">
           {item.hq ? "HQ " : ""}{itemName(item.tokenId)}{item.starter ? " (starter)" : ""}
+          {def?.rarity ? <span className={`equip-item-rarity ${rarityClass(def.rarity)}`}> [{def.rarity}]</span> : null}
           <span className="equip-item-qty"> x{item.amount}</span>
         </div>
         {statsLine ? <div className="equip-item-stats">{statsLine}</div> : null}

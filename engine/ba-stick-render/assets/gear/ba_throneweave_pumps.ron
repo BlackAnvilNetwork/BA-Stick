@@ -1,0 +1,24 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Throneweave pumps. Gold trim on a dark vamp.
+(
+    id: "ba_throneweave_pumps",
+    slot: Feet,
+    attach: Some("pelvis"),
+    material: Some("dust"),
+    thickness_mul: { "l_shin": 1.08, "r_shin": 1.08 },
+    shapes: [
+        Capsule(from: (-0.038, -0.016, 0.03), to: (0.038, -0.016, 0.03), ramp: Material, thick: 2.0),
+        Capsule(from: (-0.033, -0.016, -0.04), to: (0.033, -0.016, -0.04), ramp: Material, thick: 1.8),
+        Capsule(from: (0.0, -0.016, -0.05), to: (0.0, -0.016, 0.03), ramp: Material, thick: 1.8),
+        Capsule(from: (0.0, -0.016, 0.01), to: (0.0, -0.016, 0.11), ramp: Material, thick: 1.7),
+        Capsule(from: (0.0, 0.012, -0.04), to: (0.0, 0.012, 0.03), ramp: Material, thick: 1.8),
+        Capsule(from: (0.0, 0.010, 0.01), to: (0.0, 0.008, 0.10), ramp: Material, thick: 1.6),
+        Capsule(from: (-0.034, 0.018, 0.03), to: (0.034, 0.018, 0.03), ramp: Trim, thick: 1.6),
+        Capsule(from: (-0.028, 0.022, 0.00), to: (0.028, 0.022, 0.00), ramp: Trim, thick: 1.4),
+        Disc(at: Some("l_foot"), r: 0.014, ramp: Material),
+        Disc(at: Some("r_foot"), r: 0.014, ramp: Material),
+    ],
+)

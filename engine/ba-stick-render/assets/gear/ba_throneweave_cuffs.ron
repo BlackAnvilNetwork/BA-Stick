@@ -1,0 +1,18 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Throneweave cuffs. Gold wrap on a dark band.
+(
+    id: "ba_throneweave_cuffs",
+    slot: Hands,
+    attach: Some("r_hand"),
+    material: Some("dust"),
+    thickness_mul: { "l_forearm": 1.20, "r_forearm": 1.20 },
+    shapes: [
+        Capsule(from: (0.0, -0.038, 0.0), to: (0.0, -0.006, 0.0), ramp: Material, thick: 1.7),
+        Capsule(from: (-0.020, -0.022, 0.008), to: (0.020, -0.022, 0.008), ramp: Trim, thick: 1.35),
+        Disc(at: Some("l_hand"), r: 0.022, ramp: Material),
+        Disc(at: Some("r_hand"), r: 0.022, ramp: Material),
+    ],
+)

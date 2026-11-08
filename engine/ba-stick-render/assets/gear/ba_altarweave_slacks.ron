@@ -1,0 +1,13 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Altarweave slacks. Name-skin of velvet slacks: hip-to-knee panels with a
+// gold stole stripe. The arcs are not drawn. Dust ramp, never cloth.
+(
+    id: "ba_altarweave_slacks",
+    slot: Legs,
+    attach: Some("pelvis"),
+    material: Some("dust"),
+    shapes: [],
+)

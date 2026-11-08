@@ -2,14 +2,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
 //
-// Mythril torque. Light blue (n) and white (w), matching mythril helm.
+// Mythril neck torque. Light blue (n) with a white (w) band. No gold.
 (
     id: "ba_mythril_torque",
-    x0: -0.24,
-    y0: 0.015,
-    x1: 0.24,
-    y1: 0.06,
-    z: 0.0,
+    x0: -0.10,
+    y0: -0.04,
+    x1: 0.10,
+    y1: 0.04,
+    z: 0.05,
     flow: 0.0,
     sleeve_drop: 0.0,
     wrap: 0.0,
@@ -20,9 +20,8 @@
     cuff_to: 0.0,
     cuff_thick: 0.0,
     rows: [
-        "wwwwwwwwwwww",
-        "nnnnnnnnnnnn",
-        "nnnnnnnnnnnn",
-        "wwwwwwwwwwww",
+        "nnnwwnnn",
+        "nwwwwwwn",
+        "nnnwwnnn",
     ],
 )

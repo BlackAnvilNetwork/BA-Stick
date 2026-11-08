@@ -1,0 +1,50 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Mercenary cloak/mantle hardware: shoulder straps and a chest clasp, plus
+// hanging back-cape capsules in -z. Not a vest. The leather drape is the
+// pixel mesh in ba_mercenary_mantle.plate.ron. `thick` is a radius in pixels.
+(
+    id: "ba_mercenary_mantle",
+    slot: Chest,
+    attach: Some("chest"),
+    material: Some("leather"),
+    thickness_mul: {
+        "spine": 1.08,
+        "shoulders": 1.10,
+    },
+    shapes: [
+        Capsule(
+            from: (-0.05, -0.02, 0.055),
+            to: (-0.16, 0.01, 0.02),
+            ramp: Material,
+            thick: 1.5,
+        ),
+        Capsule(
+            from: (0.05, -0.02, 0.055),
+            to: (0.16, 0.01, 0.02),
+            ramp: Material,
+            thick: 1.5,
+        ),
+        Disc(at: None, center: (0.0, -0.02, 0.06), r: 0.014, ramp: Trim),
+        Capsule(
+            from: (0.0, -0.04, -0.04),
+            to: (0.0, -0.32, -0.08),
+            ramp: Material,
+            thick: 2.0,
+        ),
+        Capsule(
+            from: (-0.10, -0.04, -0.04),
+            to: (-0.10, -0.32, -0.08),
+            ramp: Material,
+            thick: 2.0,
+        ),
+        Capsule(
+            from: (0.10, -0.04, -0.04),
+            to: (0.10, -0.32, -0.08),
+            ramp: Material,
+            thick: 2.0,
+        ),
+    ],
+)

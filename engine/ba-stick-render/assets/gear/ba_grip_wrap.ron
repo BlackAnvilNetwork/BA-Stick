@@ -1,0 +1,36 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Grip Wrap. A short leather wrap on the right fist: overlapping
+// capsules at the palm and knuckles. No buckle disc. Hands wrap,
+// attached to r_hand. `thick` is a radius in pixels.
+(
+    id: "ba_grip_wrap",
+    slot: Hands,
+    attach: Some("r_hand"),
+    material: Some("leather"),
+    shapes: [
+        // Palm wrap through the fist.
+        Capsule(
+            from: (0.0, -0.008, 0.01),
+            to: (0.0, 0.032, 0.012),
+            ramp: Material,
+            thick: 1.6,
+        ),
+        // Knuckle wrap across the fist, overlapping the palm band.
+        Capsule(
+            from: (-0.018, 0.010, 0.006),
+            to: (0.018, 0.014, 0.008),
+            ramp: Material,
+            thick: 1.5,
+        ),
+        // Second wind, slightly offset so the wrap reads as a bundle.
+        Capsule(
+            from: (-0.014, 0.000, 0.014),
+            to: (0.016, 0.022, 0.004),
+            ramp: Material,
+            thick: 1.4,
+        ),
+    ],
+)

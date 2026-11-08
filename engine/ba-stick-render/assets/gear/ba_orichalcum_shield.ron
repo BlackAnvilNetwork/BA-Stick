@@ -1,0 +1,15 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Orichalcum knight shield. Name-skin of ba_darksteel_shield (round, not targe).
+(
+    id: "ba_orichalcum_shield",
+    slot: OffHand,
+    attach: Some("l_hand"),
+    stance: Some("shield"),
+    material: Some("steel"),
+    shapes: [
+        Capsule(from: (-0.08, 0.0, 0.16), to: (0.08, 0.0, 0.16), ramp: Material, thick: 2.2),
+    ],
+)

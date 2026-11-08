@@ -1,0 +1,21 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Battleweave slippers. Open mule: low sole, no tall vamp, steel instep strap.
+(
+    id: "ba_battleweave_slippers",
+    slot: Feet,
+    attach: Some("pelvis"),
+    material: Some("dust"),
+    thickness_mul: { "l_shin": 1.04, "r_shin": 1.04 },
+    shapes: [
+        Capsule(from: (-0.040, -0.018, 0.02), to: (0.040, -0.018, 0.02), ramp: Material, thick: 2.1),
+        Capsule(from: (-0.034, -0.018, -0.04), to: (0.034, -0.018, -0.04), ramp: Material, thick: 1.9),
+        Capsule(from: (0.0, -0.018, -0.05), to: (0.0, -0.018, 0.10), ramp: Material, thick: 1.9),
+        Capsule(from: (-0.036, -0.004, 0.02), to: (0.036, -0.004, 0.02), ramp: Trim, thick: 1.8),
+        Capsule(from: (0.0, -0.018, 0.08), to: (0.0, 0.002, 0.08), ramp: Trim, thick: 1.5),
+        Disc(at: Some("l_foot"), r: 0.016, ramp: Trim),
+        Disc(at: Some("r_foot"), r: 0.016, ramp: Trim),
+    ],
+)

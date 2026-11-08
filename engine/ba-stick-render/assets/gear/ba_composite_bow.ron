@@ -1,0 +1,27 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Composite Bow. First accepted bow look: a recurve D-stave in the hand frame.
+// Grip wrap at the origin. Upper limb along +y, lower along -y, both with a
+// −z belly (string toward the figure); tips fall back toward the y-axis.
+// Staff stance keeps +y upright (chest-pelvis), not the wpnR down-swing.
+(
+    id: "ba_composite_bow",
+    slot: MainHand,
+    attach: Some("r_hand"),
+    stance: Some("staff"),
+    reach: 0.70,
+    swing_weight: 1.15,
+    material: Some("dust"),
+    shapes: [
+        Capsule(from: (0.0, -0.10, 0.0), to: (0.0, 0.10, 0.0), ramp: Material, thick: 2.0),
+        Capsule(from: (0.0, 0.05, -0.02), to: (0.0, 0.28, -0.10), ramp: Material, thick: 1.55),
+        Capsule(from: (0.0, 0.24, -0.09), to: (0.0, 0.48, -0.14), ramp: Material, thick: 1.4),
+        Capsule(from: (0.0, 0.44, -0.13), to: (0.0, 0.70, -0.03), ramp: Material, thick: 1.2),
+        Capsule(from: (0.0, -0.05, -0.02), to: (0.0, -0.28, -0.10), ramp: Material, thick: 1.55),
+        Capsule(from: (0.0, -0.24, -0.09), to: (0.0, -0.48, -0.14), ramp: Material, thick: 1.4),
+        Capsule(from: (0.0, -0.44, -0.13), to: (0.0, -0.70, -0.03), ramp: Material, thick: 1.2),
+        Line(from: (0.0, 0.70, -0.03), to: (0.0, -0.70, -0.03), ramp: Material, thick: 1.0),
+    ],
+)

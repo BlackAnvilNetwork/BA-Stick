@@ -17,6 +17,7 @@ import {
   itemFitsEquipSlot,
   scaleGearStat,
 } from "@bellgrave/items";
+import { isFishingRod } from "./fishing";
 
 type GearEquip = Parameters<typeof aggregateEquipmentStats>[0];
 type Geared = { equip?: GearEquip | null; level?: number };
@@ -30,6 +31,7 @@ export function meleeAtkBonus(p: Geared): number {
   const equip = p.equip ?? null;
   const mainId = equip?.main;
   if (mainId == null) return 0;
+  if (isFishingRod(mainId)) return 0;
   const main = getItem(mainId);
   if (!main || main.slot !== "main") return 0;
   const playerLevel = p.level ?? 100;

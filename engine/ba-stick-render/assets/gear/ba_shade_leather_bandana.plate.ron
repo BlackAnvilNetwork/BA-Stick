@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
 //
-// Shade leather bandana: shadow black (k) checker on the shared bandana mesh.
+// Shade leather bandana: dark leather (d) and shadow (k). No steel 'i'.
 (
     id: "ba_shade_leather_bandana",
     x0: -0.24,
@@ -20,13 +20,13 @@
     cuff_to: 0.0,
     cuff_thick: 0.0,
     rows: [
-        "kikikikikiki",
-        "ikikikikikik",
-        "kikikikikiki",
-        "ikikikikikik",
-        "kikikikikiki",
-        "ikikikikikik",
-        "kikikikikiki",
-        "ikikikikikik",
+        "kdkdkdkdkdkd",
+        "dkdkdkdkdkdk",
+        "kdkdkdkdkdkd",
+        "dkdkdkdkdkdk",
+        "kdkdkdkdkdkd",
+        "dkdkdkdkdkdk",
+        "kdkdkdkdkdkd",
+        "dkdkdkdkdkdk",
     ],
 )
