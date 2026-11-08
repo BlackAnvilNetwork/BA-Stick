@@ -13,6 +13,8 @@ import {
   paleHollowInOpenWater,
   paleHollowPlaceOnDryLand,
   paleHollowWalkable,
+  nearestWalkable,
+  UNSTUCK_RADIUS,
 } from "@bellgrave/config";
 
 /**
@@ -55,17 +57,8 @@ export function mobGround(zoneId: string | null | undefined): MobGround {
   const camps = [...fieldNpcDefs(f.id), ...(isSeamCountryZone(f.id) ? seamCountryCamps(f.id) : [])];
   const walkable = (x: number, z: number) => f.walkable(x, z) && !f.openWater(x, z);
   const placeOnDry = (x: number, z: number) => {
-    const c = f.clamp(x, z);
-    if (walkable(c.x, c.z)) return c;
-    for (let r = 0.5; r <= 12; r += 0.5) {
-      const n = Math.max(6, Math.round(r * 8));
-      for (let k = 0; k < n; k++) {
-        const a = (k / n) * Math.PI * 2;
-        const q = f.clamp(c.x + Math.sin(a) * r, c.z + Math.cos(a) * r);
-        if (walkable(q.x, q.z)) return q;
-      }
-    }
-    return { x: f.spawn.x, z: f.spawn.z };
+    const snap = nearestWalkable(f.clamp, walkable, x, z, UNSTUCK_RADIUS, f.openWater);
+    return snap ?? { x, z };
   };
   const g: MobGround = {
     zoneId: f.id,

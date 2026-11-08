@@ -503,6 +503,55 @@ mod perspective {
     }
 
     #[test]
+    fn zoom_pulls_points_toward_the_anchor_and_unproject_roundtrips() {
+        let c = Camera { cx: 2.0, cz: -1.0, zoom: 0.84, ..Camera::new(640, 360) };
+        let p = v3(6.0, 0.0, -1.0);
+        let raw = { let mut d = c; d.zoom = 1.0; d.project(p) };
+        let z = c.project(p);
+        assert!((z.x - 320.0).abs() < (raw.x - 320.0).abs());
+        assert!((z.y - 198.0).abs() < (raw.y - 198.0).abs());
+        let (x, zz) = c.unproject_ground(z.x, z.y);
+        assert!((x - p.x).abs() < 1e-3 && (zz - p.z).abs() < 1e-3);
+        // View path used to undo zoom twice (unproject_ground + pick_ground).
+        let v = View::iso(2.0, -1.0, 640.0, 360.0);
+        let c = Camera { cx: 2.0, cz: -1.0, zoom: 0.84, view: Some(v), ..Camera::new(640, 360) };
+        let z = c.project(p);
+        let (x, zz) = c.unproject_ground(z.x, z.y);
+        assert!((x - p.x).abs() < 1e-3 && (zz - p.z).abs() < 1e-3);
+        let (x, zz) = c.pick_ground(z.x, z.y).expect("ground under zoomed pixel");
+        assert!((x - p.x).abs() < 1e-3 && (zz - p.z).abs() < 1e-3);
+    }
+
+    #[test]
+    fn scaled_far_widens_pick_and_leaves_iso_unproject() {
+        let iso = Camera::new(640, 360);
+        let (x0, z0) = iso.unproject_ground(400.0, 200.0);
+        let mut stretched = iso;
+        stretched.far = 90.0;
+        let (x1, z1) = stretched.unproject_ground(400.0, 200.0);
+        assert!((x0 - x1).abs() < 1e-5 && (z0 - z1).abs() < 1e-5);
+
+        let v = tp(v3(0.0, 1.0, 0.0), 0.0, 6.0);
+        let c36 = Camera { view: Some(v), far: 36.0, ..Camera::new(640, 360) };
+        let c90 = Camera { view: Some(v), far: 90.0, ..Camera::new(640, 360) };
+        let mut extra_long = 0;
+        let mut extra_short = 0;
+        // 30° down: far ground sits above the 55% look-at row, toward the horizon.
+        for y in 0..360 {
+            let a = c36.pick_ground(320.0, y as f32);
+            let b = c90.pick_ground(320.0, y as f32);
+            if a.is_none() && b.is_some() {
+                extra_long += 1;
+            }
+            if a.is_some() && b.is_none() {
+                extra_short += 1;
+            }
+        }
+        assert_eq!(extra_short, 0, "raising FAR must not lose ground picks");
+        assert!(extra_long > 0, "raising FAR must pick more distant ground");
+    }
+
+    #[test]
     fn perspective_projection_math() {
         let v = tp(v3(0.0, 1.0, 0.0), 0.0, 5.0);
         let c = Camera { view: Some(v), ..Camera::new(640, 360) };

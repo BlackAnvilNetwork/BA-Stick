@@ -35,6 +35,8 @@ export function applyZoneMood(r: LightingRenderer, zoneId: string | null | undef
  */
 export function applyWorldLighting(r: LightingRenderer, activeZone: string | null | undefined): void {
   r.clearLighting();
+  // Lights only for placed WORLD_ZONE_IDS bakes. Unbaked ids (palace_hall, …)
+  // must not register at origin 0 and wash Pale Hollow.
   for (const id of WORLD_ZONE_IDS) {
     const o = zoneOrigin(id);
     for (const a of ZONE_MOOD_AREAS[id] ?? []) {

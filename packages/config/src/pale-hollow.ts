@@ -4,8 +4,9 @@
  * Server + client share `paleHollowHeight`.
  */
 
+import { slideMove, straightMove } from "./slide-move";
 import { nearTrailCorridor } from "./trail-geom";
-import { MAYFLOWER_STATIONS as ST, MAYFLOWER_SPUR, MAYFLOWER_SCREEN, mayflowerFieldWeight, mayflowerInTown, mayflowerSample } from "./pale-hollow-town";
+import { MAYFLOWER_STATIONS as ST, MAYFLOWER_SPUR, MAYFLOWER_SCREEN, mayflowerFieldWeight, mayflowerInTown, mayflowerSample, mayflowerOpenGrass } from "./pale-hollow-town";
 
 /**
  * The basin is a region, not a valley you can see in one glance.
@@ -32,7 +33,8 @@ export const PH_HUB = {
 } as const;
 
 /**
- * Impassable footprint of the visual `HubRearRockWall` in PaleHollowMap
+ * Impassable footprint of the visual hub rear rock wall baked in
+ * `apps/stick-web/scripts/bake-props.ts`
  * (mossy chalk cliff on the camp's north rear). The mesh runs about x -9..9,
  * z 7.4..10.5; this rect is that body with a small pad so a point-mover
  * cannot clip the boxes.
@@ -97,7 +99,7 @@ export function paleHollowInHubApron(x: number, z: number): boolean {
 
 /**
  * Party storage chest (hub) â€” interact stub only; full storage inventory later.
- * Visual prop lives in PaleHollowMap HubEncampment.
+ * Visual prop is baked with the hub encampment in `apps/stick-web/scripts/bake-props.ts`.
  */
 export const PH_STORAGE_CHEST = {
   id: "npc-ph-storage",
@@ -468,6 +470,7 @@ function paleHollowBiomeCore(x: number, z: number): PaleHollowBiome {
   if (Math.hypot(x + 20, z - 430) < 22) return "crypt";
   if (Math.hypot(x - 20, z - 410) < 28) return "ore_seam";
   if (z > 400 && Math.abs(x) < 40) return "scrub";
+  if (mayflowerOpenGrass(x, z)) return "grass";
   if (Math.abs(x) > 170 || z > 440 || z < 20) return "scrub";
   return "grass";
 }
@@ -1267,7 +1270,6 @@ export function paleHollowWalkable(x: number, z: number): boolean {
   if (paleHollowInLakeShallows(x, z)) return true;
   if (paleHollowInOpenWater(x, z)) return false;
   if (paleHollowInRiverWall(x, z)) return false;
-  if (paleHollowBiomeCore(x, z) === "river") return false;
   return true;
 }
 
@@ -1281,22 +1283,17 @@ export function paleHollowClampMove(
   toX: number,
   toZ: number,
 ): { x: number; z: number } {
-  const end = clampPaleHollow(toX, toZ);
-  const fromWalk = paleHollowWalkable(fromX, fromZ);
-  if (!fromWalk && paleHollowWalkable(end.x, end.z)) {
-    return end;
-  }
-  const dist = Math.hypot(end.x - fromX, end.z - fromZ);
-  if (dist < 1e-4) return { x: fromX, z: fromZ };
-  const steps = Math.max(1, Math.ceil(dist / 0.3));
-  let last = { x: fromX, z: fromZ };
-  for (let i = 1; i <= steps; i++) {
-    const t = i / steps;
-    const c = clampPaleHollow(fromX + (end.x - fromX) * t, fromZ + (end.z - fromZ) * t);
-    if (!paleHollowWalkable(c.x, c.z)) return last;
-    last = c;
-  }
-  return last;
+  return slideMove(clampPaleHollow, paleHollowWalkable, fromX, fromZ, toX, toZ, paleHollowInOpenWater);
+}
+
+/** Path lineClear: every sample on the segment is walkable. No corner slide. */
+export function paleHollowStraightMove(
+  fromX: number,
+  fromZ: number,
+  toX: number,
+  toZ: number,
+): { x: number; z: number } {
+  return straightMove(clampPaleHollow, paleHollowWalkable, fromX, fromZ, toX, toZ);
 }
 
 /**
@@ -1480,7 +1477,8 @@ export function paleHollowHeight(x: number, z: number): number {
 }
 
 /**
- * Terrain PlaneGeometry segments in PaleHollowMap (`widthSegments`, `heightSegments`).
+ * Terrain grid segments used by `paleHollowStandHeight` and the stick-web
+ * heightfield bake (`apps/stick-web/scripts/bake-zones.ts`).
  * `paleHollowStandHeight` barycentric-samples this same grid.
  */
 export const PALE_HOLLOW_TERRAIN_SEG_X = 72;
@@ -1761,6 +1759,7 @@ export function paleHollowPlaceOnDryLand(
 
 /** Terrain move modifiers â€” rivers slow; banks soft slow. */
 export function paleHollowMoveMul(x: number, z: number): number {
+  if (paleHollowOnBridge(x, z) || (paleHollowTrailCache && paleHollowOnTrail(x, z))) return 1;
   const b = paleHollowBiome(x, z);
   if (b === "river") return 0.55;
   if (b === "riverbank") return 0.82;

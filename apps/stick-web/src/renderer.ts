@@ -1,6 +1,28 @@
 import { zoneRender } from "./zones";
 import { WORLD_ZONE_IDS, zoneOrigin } from "@bellgrave/config";
 import { FB_H, FB_W, fbFromClient, fbToClient, fitScale } from "./fit";
+
+export type CanvasFit = { left: number; top: number; width: number; height: number; cover: boolean };
+
+/** One layout read per frame. `toFramebuffer` / `fromFramebuffer` each force style. */
+export function readCanvasFit(canvas: HTMLCanvasElement): CanvasFit {
+  const r = canvas.getBoundingClientRect();
+  return {
+    left: r.left,
+    top: r.top,
+    width: r.width,
+    height: r.height,
+    cover: getComputedStyle(canvas).objectFit === "cover",
+  };
+}
+
+export function toFramebufferFit(fit: CanvasFit, clientX: number, clientY: number): [number, number] {
+  return fbFromClient(fit, clientX, clientY, fit.cover);
+}
+
+export function fromFramebufferFit(fit: CanvasFit, fx: number, fy: number): [number, number] {
+  return fbToClient(fit.width, fit.height, fx, fy, fit.cover);
+}
 import init, { StickRenderer } from "ba-stick-render";
 
 export { FB_H, FB_W } from "./fit";
@@ -38,7 +60,8 @@ function isCover(canvas: HTMLCanvasElement): boolean {
 }
 
 export function fbScale(canvas: HTMLCanvasElement): number {
-  return fitScale(canvas.clientWidth, canvas.clientHeight, isCover(canvas));
+  const r = canvas.getBoundingClientRect();
+  return fitScale(r.width, r.height, isCover(canvas));
 }
 
 const zoneCache = new Map<string, Promise<Uint8Array>>();
@@ -77,6 +100,22 @@ export function fetchProps(id: string): Promise<Uint8Array | null> {
   return p;
 }
 
+const waterCache = new Map<string, Promise<Uint8Array | null>>();
+/** Fetch river spines (`public/zones/<id>.wfl`). 404 means flags-only still water. */
+export function fetchWaterLayout(id: string): Promise<Uint8Array | null> {
+  let p = waterCache.get(id);
+  if (!p) {
+    p = fetch(`${import.meta.env.BASE_URL}zones/${id}.wfl`)
+      .then(async (res) => (res.ok ? new Uint8Array(await res.arrayBuffer()) : null))
+      .catch(() => {
+        waterCache.delete(id);
+        return null;
+      });
+    waterCache.set(id, p);
+  }
+  return p;
+}
+
 /** Server zone id → baked zone (see zones.ts). */
 export function bakedZoneFor(zoneId: string | undefined): string | null {
   return zoneRender(zoneId).baked;
@@ -92,21 +131,16 @@ export async function placeAllZones(r: {
   placeProps(bytes: Uint8Array, ox: number, oz: number): number;
   setWaterLayout?(bytes: Uint8Array, ox: number, oz: number): void;
 }): Promise<void> {
-  const jobs = new Map(WORLD_ZONE_IDS.map((id) => [id, Promise.all([fetchZone(id), fetchProps(id)] as const)]));
+  const jobs = new Map(
+    WORLD_ZONE_IDS.map((id) => [id, Promise.all([fetchZone(id), fetchProps(id), fetchWaterLayout(id)] as const)]),
+  );
   const place = async (id: string) => {
     try {
-      const [baz, bap] = await jobs.get(id)!;
+      const [baz, bap, wfl] = await jobs.get(id)!;
       const o = zoneOrigin(id);
       r.placeZone(baz, o.x, o.z);
       if (bap) r.placeProps(bap, o.x, o.z);
-      if (id === "forest_basin" && r.setWaterLayout) {
-        try {
-          const res = await fetch(`${import.meta.env.BASE_URL}zones/forest_basin.wfl`);
-          if (res.ok) r.setWaterLayout(new Uint8Array(await res.arrayBuffer()), o.x, o.z);
-        } catch (err) {
-          console.warn("forest basin water layout stayed offline", err);
-        }
-      }
+      if (wfl && r.setWaterLayout) r.setWaterLayout(wfl, o.x, o.z);
     } catch (err) {
       console.warn(`zone ${id} stayed offline`, err);
     }
@@ -117,5 +151,6 @@ export async function placeAllZones(r: {
 
 /** Framebuffer pixel → CSS px relative to the canvas box (inverse of toFramebuffer). */
 export function fromFramebuffer(canvas: HTMLCanvasElement, fx: number, fy: number): [number, number] {
-  return fbToClient(canvas.clientWidth, canvas.clientHeight, fx, fy, isCover(canvas));
+  const r = canvas.getBoundingClientRect();
+  return fbToClient(r.width, r.height, fx, fy, isCover(canvas));
 }

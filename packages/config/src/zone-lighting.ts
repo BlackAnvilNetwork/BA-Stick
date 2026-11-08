@@ -82,7 +82,7 @@ export const LIGHT_MOODS = {
 
 const SEAM = LIGHT_MOODS.seamCountry;
 
-/** The mood a zone starts in. Zones not listed have plain daylight. */
+/** The mood a zone starts in. Unlisted ids fall back to citadel/slag, not meadow daylight. */
 export const ZONE_LIGHT_MOODS: Readonly<Record<string, LightMood>> = {
   pale_hollow: LIGHT_MOODS.daylight,
   // Seam Country: the seven fields east of Pale Hollow. Forest Basin has its own shade.
@@ -94,14 +94,6 @@ export const ZONE_LIGHT_MOODS: Readonly<Record<string, LightMood>> = {
   coil_pass: SEAM,
   coil_ridge: SEAM,
   forest_basin: LIGHT_MOODS.forestBasin,
-  // The Citadel of the Seven Seats and its hall.
-  palace_hall: LIGHT_MOODS.citadel,
-  citadel_of_kek: LIGHT_MOODS.citadel,
-  belltower_keep: LIGHT_MOODS.citadel,
-  // Forge country.
-  slagpits: LIGHT_MOODS.slag,
-  ashlands: LIGHT_MOODS.slag,
-  obsidia: LIGHT_MOODS.cave,
 };
 
 /** Places with their own mood inside a zone. */
@@ -112,7 +104,7 @@ export const ZONE_MOOD_AREAS: Readonly<Record<string, readonly MoodArea[]>> = {
       name: "Mayflower",
       x: (MAYFLOWER_BBOX.minX + MAYFLOWER_BBOX.maxX) / 2,
       z: (MAYFLOWER_BBOX.minZ + MAYFLOWER_BBOX.maxZ) / 2,
-      r: 60,
+      r: Math.hypot((MAYFLOWER_BBOX.maxX - MAYFLOWER_BBOX.minX) / 2, (MAYFLOWER_BBOX.maxZ - MAYFLOWER_BBOX.minZ) / 2),
       feather: 20,
       mood: LIGHT_MOODS.mayflower,
     },
@@ -192,7 +184,17 @@ export function zoneMapLights(zoneId: string): readonly MapLight[] {
 }
 
 export function zoneLightMood(zoneId: string | null | undefined): LightMood {
-  return (zoneId && ZONE_LIGHT_MOODS[zoneId]) || LIGHT_MOODS.daylight;
+  if (!zoneId) return LIGHT_MOODS.daylight;
+  if (ZONE_LIGHT_MOODS[zoneId]) return ZONE_LIGHT_MOODS[zoneId];
+  if (zoneId === "slagpits" || zoneId === "ashlands" || zoneId === "obsidia" || zoneId === "great_filter") {
+    return LIGHT_MOODS.slag;
+  }
+  return LIGHT_MOODS.citadel;
+}
+
+/** Outdoor / night:1 (and partial-night indoor) share the wall clock. Freeze only night:0 caves. */
+export function zoneUsesDayClock(zoneId: string | null | undefined): boolean {
+  return zoneLightMood(zoneId).night > 0;
 }
 
 /** True when the renderer can skip the light pass for this mood. */

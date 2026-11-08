@@ -1,19 +1,27 @@
 /**
  * Dash: a short burst every class has, ported from Stick Engine's `dash`
- * action (13 m/s for 0.22 s, lunge pose, afterimage trail) and tuned for
- * BA-Stick's 6 m/s run and MMO pacing.
+ * action (lunge pose, afterimage trail) and tuned for BA-Stick's 6 m/s run
+ * and MMO pacing: DASH_DISTANCE metres over DASH_MS (about 17 m/s average,
+ * eased out).
  *
  * The server owns it. The client sends only a direction. The server checks
  * the cooldown, walks the segment in small steps with the zone's own move
  * clamp so the dash stops at walls and zone bounds, and never goes past
- * DASH_DISTANCE however the message is forged.
+ * the planned distance (DASH_DISTANCE, or an ability range) however the
+ * message is forged.
  */
 
 export const DASH_DISTANCE = 4;
 export const DASH_MS = 240;
 export const DASH_COOLDOWN_MS = 3000;
-/** Sub-step for the wall walk: well under any wall thickness on the grid. */
-export const DASH_SUBSTEP = 0.2;
+
+/** Flight time for a dash that covers `travelled` meters. Matches `planDash`. */
+export function dashDurationMs(travelled: number): number {
+  const d = Number.isFinite(travelled) && travelled > 0 ? travelled : DASH_DISTANCE;
+  return DASH_MS * (d / DASH_DISTANCE);
+}
+/** Sub-step for the wall walk: matches MOVE_SAMPLE so a thin wall cannot be skipped. */
+export const DASH_SUBSTEP = 0.15;
 /** A dash that cannot get this far (flush against a wall) is refused. */
 export const DASH_MIN = 0.4;
 
@@ -32,19 +40,21 @@ export function planDash(
   clamp: ClampMove,
   now: number,
   lastDashAt: number | undefined,
+  distance = DASH_DISTANCE,
 ): DashPlan {
   if (lastDashAt != null && now - lastDashAt < DASH_COOLDOWN_MS) {
     return { ok: false, reason: "cooldown", readyIn: DASH_COOLDOWN_MS - (now - lastDashAt) };
   }
   const len = Math.hypot(dir.dx, dir.dz);
   if (!Number.isFinite(len) || len < 1e-3) return { ok: false, reason: "direction" };
+  const cap = Number.isFinite(distance) && distance > 0 ? distance : DASH_DISTANCE;
   const ux = dir.dx / len;
   const uz = dir.dz / len;
   let x = from.x;
   let z = from.z;
-  const steps = Math.ceil(DASH_DISTANCE / DASH_SUBSTEP);
+  const steps = Math.ceil(cap / DASH_SUBSTEP);
   for (let i = 0; i < steps; i++) {
-    const s = Math.min(DASH_SUBSTEP, DASH_DISTANCE - i * DASH_SUBSTEP);
+    const s = Math.max(0, Math.min(DASH_SUBSTEP, cap - i * DASH_SUBSTEP));
     const wx = x + ux * s;
     const wz = z + uz * s;
     const c = clamp(x, z, wx, wz);
@@ -57,7 +67,7 @@ export function planDash(
   if (d < DASH_MIN) return { ok: false, reason: "blocked" };
   return {
     ok: true,
-    run: { fx: from.x, fz: from.z, tx: x, tz: z, start: now, end: now + DASH_MS * (d / DASH_DISTANCE) },
+    run: { fx: from.x, fz: from.z, tx: x, tz: z, start: now, end: now + dashDurationMs(d) },
     facing: Math.atan2(ux, uz),
   };
 }

@@ -1,7 +1,7 @@
 import { naturalSample } from "./natural-edges";
 /**
- * Pale Hollow static props for ba-stick-render, placed exactly like the old
- * client (the retired apps/web/src/PaleHollowMap.tsx): hub encampment coordinates, the
+ * Pale Hollow static props for ba-stick-render, placed from the authored
+ * hub/camp layout in this bake: hub encampment coordinates, the
  * deterministic `WorldTrees` and `placeClutterInChunk` scatter (same hash2,
  * same grids, same biome rules), rock wall blocks and mountain peaks.
  *

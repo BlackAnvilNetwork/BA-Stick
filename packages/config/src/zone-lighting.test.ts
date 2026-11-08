@@ -4,7 +4,7 @@
 
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { ZONES } from "./index";
+import { WORLD_ZONE_IDS, ZONES } from "./index";
 import {
   LIGHT_KIND,
   LIGHT_MOODS,
@@ -14,6 +14,7 @@ import {
   moodIsBright,
   zoneLightMood,
   zoneMapLights,
+  zoneUsesDayClock,
 } from "./zone-lighting";
 
 describe("zone lighting", () => {
@@ -40,7 +41,15 @@ describe("zone lighting", () => {
       for (const id of Object.keys(t)) assert.ok(ids.has(id), `unknown zone ${id}`);
     }
     assert.deepEqual(zoneLightMood("forest_basin"), LIGHT_MOODS.forestBasin);
-    assert.equal(zoneLightMood("no_such_zone").ambient[0], 1);
+    assert.equal(zoneLightMood("no_such_zone").ambient[0], LIGHT_MOODS.citadel.ambient[0]);
+    const placed = new Set(WORLD_ZONE_IDS);
+    for (const id of Object.keys(ZONE_LIGHT_MOODS)) {
+      assert.ok(placed.has(id), `unbaked mood ${id}`);
+    }
+    assert.equal(zoneLightMood("palace_hall").ambient[0], LIGHT_MOODS.citadel.ambient[0]);
+    assert.equal(zoneLightMood("slagpits").ambient[0], LIGHT_MOODS.slag.ambient[0]);
+    assert.equal(zoneUsesDayClock("hollow_road"), true);
+    assert.equal(zoneUsesDayClock("palace_hall"), LIGHT_MOODS.citadel.night > 0);
   });
 
   it("areas and lights are named and well-formed", () => {

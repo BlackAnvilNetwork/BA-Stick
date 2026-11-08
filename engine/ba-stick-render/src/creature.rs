@@ -11,9 +11,8 @@ use stick_engine::math::{v3, Vec3};
 use stick_engine::raster::Framebuffer;
 
 use crate::palette::{
-    BLOOM_C, CR_DOG, CR_DOG_FAR, CR_DOG_FILL, CR_DOG_SPOT, CR_NOSE, CR_TEETH, CR_TUSK, EMBER,
-    FX_RING_SELF, FX_TELL_DARK, GRASS, GRASS_D, GRASS_L, ROCK, ROCK_D, ROCK_L, WATER, WOOD, WOOD_D,
-    WOOD_L,
+    BLOOM_C, CR_DOG, CR_DOG_FAR, CR_DOG_FILL, CR_DOG_SPOT, CR_NOSE, CR_TEETH, CR_TUSK,
+    FX_TELL_DARK, GRASS, GRASS_D, GRASS_L, ROCK, ROCK_D, ROCK_L, WATER, WOOD, WOOD_D,
 };
 use crate::preset::Body;
 
@@ -31,6 +30,8 @@ pub struct Pose {
     pub ready: bool,
     /// Melee progress 0..1 (1 = done / not attacking).
     pub attack: f32,
+    /// 0..1 Druid-form rest sit (ignored while dead). Bipeds use the rest clip.
+    pub rest: f32,
 }
 
 /// Duration of a creature melee lunge.
@@ -511,11 +512,13 @@ fn stick_leg(
     col: u8,
     limb: f32,
     s: f32,
+    tuck: f32,
 ) {
-    let sw = (ps.phase + off).sin() * 0.14 * s * ps.moving;
-    let fl = (ps.phase + off).cos().max(0.0) * 0.05 * s * ps.moving;
+    let rest = if ps.dead > 0.01 { 0.0 } else { ps.rest.clamp(0.0, 1.0) };
+    let sw = (ps.phase + off).sin() * 0.14 * s * ps.moving * (1.0 - rest);
+    let fl = (ps.phase + off).cos().max(0.0) * 0.05 * s * ps.moving * (1.0 - rest);
     let foot = v3(top.x, ps.pos.y + fl, top.z) + f * sw;
-    let foot = foot + (top - foot) * (ps.dead * 0.55);
+    let foot = foot + (top - foot) * (ps.dead * 0.55 + tuck * 0.72);
     let q = |v: Vec3| cam.project(v);
     fb.capsule(q(top), q(foot), limb * 0.65, col, Some(C_OUTLINE));
     fb.disc(q(top), 1.1, FX_TELL_DARK, None);
@@ -525,145 +528,17 @@ fn stick_leg(
 fn stick_form(fb: &mut Framebuffer, cam: &Camera, kind: u8, s: f32, ps: &Pose) {
     let f = v3(ps.yaw.sin(), 0.0, ps.yaw.cos());
     let r = v3(ps.yaw.cos(), 0.0, -ps.yaw.sin());
-    let up = v3(0.0, 1.0, 0.0);
-    let p = |v: Vec3| cam.project(v);
-    let o = Some(C_OUTLINE);
-    let flat = 1.0 - ps.dead * 0.72;
-    let trot = (ps.phase * 2.0).sin() * 0.03 * s * ps.moving;
-    let base = ps.pos + up * trot.abs();
     let limb = (1.5 + s * 1.1).max(1.3);
-    let gold = FX_RING_SELF;
-
-    match kind {
-        0 => {
-            // Stick Bear — dense bundled twigs, hunched, no tusks.
-            let hip = base - f * (0.28 * s) + up * (0.40 * s * flat);
-            let sh = base + f * (0.26 * s) + up * (0.50 * s * flat);
-            let head = sh + f * (0.22 * s) + up * (0.10 * s * flat);
-            let snout = head + f * (0.14 * s) - up * (0.02 * s);
-            for k in 0..9 {
-                let t = k as f32 / 8.0;
-                let along = hip + (sh - hip) * t;
-                let side = r * (((k * 3) % 5) as f32 - 2.0) * 0.05 * s;
-                let lift = up * (((k * 5) % 4) as f32 - 1.5) * 0.04 * s * flat;
-                fb.capsule(
-                    p(along + side - f * (0.06 * s)),
-                    p(along - side + lift + f * (0.05 * s)),
-                    limb * (0.55 + (k % 3) as f32 * 0.08),
-                    if k % 2 == 0 { WOOD } else { WOOD_D },
-                    o,
-                );
-            }
-            fb.capsule(p(hip), p(sh), limb + 2.4 * s, WOOD, o);
-            stick_leg(fb, cam, ps, f, hip - r * (0.13 * s), 0.0, WOOD_D, limb, s);
-            stick_leg(fb, cam, ps, f, hip + r * (0.13 * s), std::f32::consts::PI, WOOD, limb, s);
-            stick_leg(fb, cam, ps, f, sh - r * (0.12 * s), std::f32::consts::PI, WOOD_D, limb, s);
-            stick_leg(fb, cam, ps, f, sh + r * (0.12 * s), 0.0, WOOD, limb, s);
-            fb.disc(p(head), (0.16 * s * HEIGHT_PX).max(3.0), WOOD, o);
-            fb.capsule(p(head), p(snout), 1.6, WOOD_L, o);
-            for side in [-1.0f32, 1.0] {
-                let ear = head + r * (0.07 * side * s) + up * (0.10 * s * flat);
-                fb.capsule(p(head + r * (0.04 * side * s)), p(ear), 1.2, WOOD, o);
-            }
-            let eye = head + f * (0.07 * s) + up * (0.03 * s);
-            fb.plot(p(eye).x as i32, p(eye).y as i32, p(eye).d - 0.5, C_OUTLINE);
-        }
-        1 => {
-            // Stick Deer — sparse armature, open ribs, branching antlers.
-            let hip = base - f * (0.22 * s) + up * (0.52 * s * flat);
-            let sh = base + f * (0.20 * s) + up * (0.58 * s * flat);
-            let neck = sh + f * (0.08 * s) + up * (0.16 * s * flat);
-            let head = neck + f * (0.14 * s) + up * (0.08 * s * flat);
-            fb.capsule(p(hip), p(sh), limb * 0.85, WOOD, o);
-            for k in 0..5 {
-                let t = 0.15 + k as f32 * 0.16;
-                let rib = hip + (sh - hip) * t;
-                fb.capsule(
-                    p(rib + r * (0.10 * s)),
-                    p(rib - r * (0.10 * s) + up * (0.10 * s * flat)),
-                    1.1,
-                    WOOD_L,
-                    o,
-                );
-            }
-            fb.capsule(p(sh), p(neck), 1.3, WOOD_D, o);
-            fb.capsule(p(neck), p(head), 1.2, WOOD, o);
-            fb.disc(p(head), (0.08 * s * HEIGHT_PX).max(2.0), WOOD, o);
-            for side in [-1.0f32, 1.0] {
-                let root = head + r * (0.03 * side * s) + up * (0.04 * s);
-                let mid = root + up * (0.16 * s * flat) + r * (0.05 * side * s) - f * (0.02 * s);
-                let tip = mid + up * (0.12 * s * flat) + r * (0.07 * side * s);
-                let fork = mid + up * (0.07 * s * flat) - r * (0.04 * side * s) + f * (0.03 * s);
-                fb.capsule(p(root), p(mid), 1.05, WOOD_L, o);
-                fb.capsule(p(mid), p(tip), 0.95, WOOD_L, o);
-                fb.capsule(p(mid), p(fork), 0.9, WOOD, o);
-            }
-            stick_leg(fb, cam, ps, f, hip - r * (0.08 * s), 0.0, WOOD_D, limb, s);
-            stick_leg(fb, cam, ps, f, hip + r * (0.08 * s), std::f32::consts::PI, WOOD, limb, s);
-            stick_leg(fb, cam, ps, f, sh - r * (0.07 * s), std::f32::consts::PI, WOOD_D, limb, s);
-            stick_leg(fb, cam, ps, f, sh + r * (0.07 * s), 0.0, WOOD, limb, s);
-            let eye = head + f * (0.05 * s) + up * (0.02 * s);
-            fb.plot(p(eye).x as i32, p(eye).y as i32, p(eye).d - 0.5, C_OUTLINE);
-        }
-        2 => {
-            // Stick Lion — sparse long limbs, radiating mane, tufted tail.
-            let hip = base - f * (0.26 * s) + up * (0.48 * s * flat);
-            let sh = base + f * (0.24 * s) + up * (0.52 * s * flat);
-            let head = sh + f * (0.18 * s) + up * (0.08 * s * flat);
-            fb.capsule(p(hip), p(sh), limb * 0.9, WOOD, o);
-            for k in 0..4 {
-                let t = 0.2 + k as f32 * 0.18;
-                let rib = hip + (sh - hip) * t;
-                fb.capsule(p(rib + r * (0.08 * s)), p(rib - r * (0.08 * s)), 1.05, WOOD_D, o);
-            }
-            for i in 0..10 {
-                let a = i as f32 / 10.0 * std::f32::consts::TAU;
-                let tip = head + r * (a.cos() * 0.16 * s) + up * (a.sin() * 0.14 * s * flat) - f * (0.02 * s);
-                fb.capsule(p(head), p(tip), 1.0, if i % 2 == 0 { WOOD_L } else { WOOD }, o);
-            }
-            fb.disc(p(head), (0.09 * s * HEIGHT_PX).max(2.1), WOOD, o);
-            let tail_a = hip - f * (0.08 * s) + up * (0.06 * s);
-            let tail_b = tail_a - f * (0.28 * s) + up * (0.10 * s * flat) + r * ((ps.phase).sin() * 0.04 * s);
-            let tuft = tail_b - f * (0.08 * s);
-            fb.capsule(p(hip), p(tail_b), 1.15, WOOD_D, o);
-            fb.disc(p(tuft), 2.2, WOOD, o);
-            stick_leg(fb, cam, ps, f, hip - r * (0.10 * s), 0.0, WOOD_D, limb, s);
-            stick_leg(fb, cam, ps, f, hip + r * (0.10 * s), std::f32::consts::PI, WOOD, limb, s);
-            stick_leg(fb, cam, ps, f, sh - r * (0.09 * s), std::f32::consts::PI, WOOD_D, limb, s);
-            stick_leg(fb, cam, ps, f, sh + r * (0.09 * s), 0.0, WOOD, limb, s);
-            let eye = head + f * (0.05 * s) + up * (0.02 * s);
-            fb.plot(p(eye).x as i32, p(eye).y as i32, p(eye).d - 0.5, C_OUTLINE);
-        }
-        _ => {
-            // Racerunner — bound withies, long low lizard, tail ember, no hop.
-            let hip = base - f * (0.18 * s) + up * (0.16 * s * flat);
-            let sh = base + f * (0.22 * s) + up * (0.18 * s * flat);
-            let head = sh + f * (0.16 * s) + up * (0.04 * s * flat);
-            let snout = head + f * (0.10 * s);
-            fb.capsule(p(hip), p(sh), limb * 0.95, WOOD, o);
-            for k in 0..4 {
-                let t = 0.15 + k as f32 * 0.22;
-                let ring = hip + (sh - hip) * t;
-                fb.capsule(p(ring + r * (0.06 * s)), p(ring - r * (0.06 * s)), 1.15, WOOD_L, o);
-            }
-            fb.capsule(p(sh), p(head), 1.3, WOOD_D, o);
-            fb.capsule(p(head), p(snout), 1.1, WOOD, o);
-            fb.disc(p(head), (0.07 * s * HEIGHT_PX).max(1.8), WOOD, o);
-            let wave = (ps.phase * 1.6).sin() * 0.06 * s * (0.35 + 0.65 * ps.moving);
-            let mid = hip - f * (0.22 * s) + r * wave + up * (0.08 * s * flat);
-            let tip = hip - f * (0.48 * s) + r * (wave * 1.4) + up * (0.06 * s * flat);
-            fb.capsule(p(hip), p(mid), 1.15, WOOD_D, o);
-            fb.capsule(p(mid), p(tip), 1.0, WOOD, o);
-            let glow = 0.55 + 0.45 * (ps.time * 6.0).sin();
-            fb.disc(p(tip), 1.6 + glow, if glow > 0.7 { EMBER } else { gold }, None);
-            stick_leg(fb, cam, ps, f, hip - r * (0.06 * s), 0.0, WOOD_D, limb, s);
-            stick_leg(fb, cam, ps, f, hip + r * (0.06 * s), std::f32::consts::PI, WOOD, limb, s);
-            stick_leg(fb, cam, ps, f, sh - r * (0.055 * s), std::f32::consts::PI, WOOD_D, limb, s);
-            stick_leg(fb, cam, ps, f, sh + r * (0.055 * s), 0.0, WOOD, limb, s);
-            let eye = head + f * (0.04 * s) + up * (0.02 * s);
-            fb.plot(p(eye).x as i32, p(eye).y as i32, p(eye).d - 0.5, C_OUTLINE);
-        }
-    }
+    let layout = crate::stick_form::draw_form(fb, cam, kind, s, ps);
+    let def = crate::stick_form::form_def(kind);
+    let stance = def.stance * s * (1.0 - 0.35 * if ps.dead > 0.01 { 0.0 } else { ps.rest.clamp(0.0, 1.0) });
+    let thick = limb * def.leg_thick;
+    let rear = crate::stick_form::form_leg_tuck(kind, ps.rest, ps.dead, false);
+    let fore = crate::stick_form::form_leg_tuck(kind, ps.rest, ps.dead, true);
+    stick_leg(fb, cam, ps, f, layout.hip - r * stance, 0.0, WOOD_D, thick, s, rear);
+    stick_leg(fb, cam, ps, f, layout.hip + r * stance, std::f32::consts::PI, WOOD, thick, s, rear);
+    stick_leg(fb, cam, ps, f, layout.sh - r * (stance * 0.92), std::f32::consts::PI, WOOD_D, thick, s, fore);
+    stick_leg(fb, cam, ps, f, layout.sh + r * (stance * 0.92), 0.0, WOOD, thick, s, fore);
 }
 
 /// Gather node marker: ground glow + a small prop per method + twinkles.

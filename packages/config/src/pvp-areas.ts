@@ -64,17 +64,21 @@ export function pvpAreaById(id: string): PvpAreaDef | undefined {
   return PVP_AREAS[id];
 }
 
-/** First PvP area whose bounds contain (x, z), if any. */
-export function pvpAreaAt(x: number, z: number): PvpAreaDef | undefined {
+/**
+ * First PvP area whose bounds contain (x, z) in `zoneId`.
+ * Defaults to Pale Hollow so old callers stay on Ash Pit, not Forest Basin's overlapping pad.
+ */
+export function pvpAreaAt(x: number, z: number, zoneId = "pale_hollow"): PvpAreaDef | undefined {
   for (const area of Object.values(PVP_AREAS)) {
+    if (area.zoneId !== zoneId) continue;
     const { minX, maxX, minZ, maxZ } = area.bounds;
     if (x >= minX && x <= maxX && z >= minZ && z <= maxZ) return area;
   }
   return undefined;
 }
 
-export function inPvpArea(x: number, z: number): boolean {
-  return !!pvpAreaAt(x, z);
+export function inPvpArea(x: number, z: number, zoneId = "pale_hollow"): boolean {
+  return !!pvpAreaAt(x, z, zoneId);
 }
 
 /** Effective main level under an area cap (or uncapped). */

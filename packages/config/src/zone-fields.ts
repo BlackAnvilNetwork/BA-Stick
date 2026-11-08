@@ -139,14 +139,18 @@ import {
 import {
   PALE_HOLLOW_BOUNDS,
   PH_ASH_ROAD,
+  PH_QUARRY_CUT,
+  PH_SEAM_TUNNEL,
+  PH_TIMBER_BRIDGE,
   PH_TRAIL_STONE_WIDTH,
   PH_TRAIL_WIDTH,
   clampPaleHollow,
-  paleHollowClampMove,
   paleHollowOnBridge,
+  paleHollowMoveMul,
   paleHollowTrails,
   paleHollowWalkable,
 } from "./pale-hollow";
+import { slideMove } from "./slide-move";
 import { zoneLink } from "./zone-links";
 
 export type ZoneGate = {
@@ -186,34 +190,13 @@ function boxClamp(bounds: ZoneField["bounds"], x: number, z: number) {
   };
 }
 
-function slide(
-  bounds: ZoneField["bounds"],
-  walkable: (x: number, z: number) => boolean,
-  fromX: number,
-  fromZ: number,
-  toX: number,
-  toZ: number,
-) {
-  const end = boxClamp(bounds, toX, toZ);
-  if (!walkable(fromX, fromZ) && walkable(end.x, end.z)) return end;
-  const dist = Math.hypot(end.x - fromX, end.z - fromZ);
-  if (dist < 1e-4) return { x: fromX, z: fromZ };
-  const steps = Math.max(1, Math.ceil(dist / 0.3));
-  let last = { x: fromX, z: fromZ };
-  for (let i = 1; i <= steps; i++) {
-    const t = i / steps;
-    const c = boxClamp(bounds, fromX + (end.x - fromX) * t, fromZ + (end.z - fromZ) * t);
-    if (!walkable(c.x, c.z)) return last;
-    last = c;
-  }
-  return last;
-}
-
 function field(
   spec: Omit<ZoneField, "clamp" | "clampMove"> & { clampMove?: ZoneField["clampMove"]; clamp?: ZoneField["clamp"] },
 ): ZoneField {
   const clamp = spec.clamp ?? ((x: number, z: number) => boxClamp(spec.bounds, x, z));
-  const clampMove = spec.clampMove ?? ((fromX, fromZ, toX, toZ) => slide(spec.bounds, spec.walkable, fromX, fromZ, toX, toZ));
+  const clampMove =
+    spec.clampMove ??
+    ((fromX, fromZ, toX, toZ) => slideMove(clamp, spec.walkable, fromX, fromZ, toX, toZ, spec.openWater));
   return { ...spec, clamp, clampMove };
 }
 
@@ -415,8 +398,10 @@ function buildFieldNav(spec: {
       const t = i / steps;
       const c = { x: fx + (tx - fx) * t, z: fz + (tz - fz) * t };
       if (!spec.walkable(c.x, c.z)) return last;
-      // Side clearance is only asked for away from the ends, so paths can still start or finish beside a wall.
-      const nearEnd = !startOpen && t * dist < 1 || (1 - t) * dist < 1;
+      // Skip side clearance only when the start is already tight and this sample is
+      // still in the first/last metre. `&&` binds before `||`, so the old order
+      // treated every last metre as open and pinned click paths at doors and fords.
+      const nearEnd = !startOpen && (t * dist < 1 || (1 - t) * dist < 1);
       if (!nearEnd && !onCorridor(c.x, c.z) && (!spec.walkable(c.x + px, c.z + pz) || !spec.walkable(c.x - px, c.z - pz))) return last;
       last = c;
     }
@@ -454,13 +439,56 @@ export function fieldNav(zoneId: string | undefined): FieldNav | undefined {
     onBridge: field.onBridge,
     trails: field.trails(),
     trailWidth: field.trailWidth,
+    widthForTrail: (t) => (t.surface === "stone" ? PH_TRAIL_STONE_WIDTH : field.trailWidth),
   });
 }
 
 export function fieldGateSoftLevel(zoneId: string | undefined, x: number, z: number): number | null | undefined {
+  if (!zoneId || zoneId === "pale_hollow") {
+    const gate = fieldGateAt("pale_hollow", x, z);
+    if (!gate) return null;
+    if (gate.id === PH_ASH_ROAD.id) return PH_ASH_ROAD.softLevel;
+    if (gate.id === "timber-bridge") return PH_TIMBER_BRIDGE.softLevel;
+    if (gate.id === "quarry-cut") return PH_QUARRY_CUT.softLevel;
+    if (gate.id === "seam-tunnel") return PH_SEAM_TUNNEL.softLevel;
+    return null;
+  }
   const field = fieldById(zoneId);
   if (!field) return undefined;
   return field.gateSoftLevel(x, z);
+}
+
+const PH_SOFT_GATES: readonly ZoneGate[] = [
+  { id: PH_ASH_ROAD.id, minX: PH_ASH_ROAD.minX, maxX: PH_ASH_ROAD.maxX, minZ: PH_ASH_ROAD.minZ, maxZ: PH_ASH_ROAD.maxZ, blocked: PH_ASH_ROAD.blocked, destZone: zoneLink("pale_hollow", PH_ASH_ROAD.id)?.to ?? "hollow_road" },
+  { id: "timber-bridge", minX: PH_TIMBER_BRIDGE.minX, maxX: PH_TIMBER_BRIDGE.maxX, minZ: PH_TIMBER_BRIDGE.minZ, maxZ: PH_TIMBER_BRIDGE.maxZ, blocked: PH_TIMBER_BRIDGE.blocked, destZone: null },
+  { id: "quarry-cut", minX: PH_QUARRY_CUT.minX, maxX: PH_QUARRY_CUT.maxX, minZ: PH_QUARRY_CUT.minZ, maxZ: PH_QUARRY_CUT.maxZ, blocked: PH_QUARRY_CUT.blocked, destZone: null },
+  { id: "seam-tunnel", minX: PH_SEAM_TUNNEL.minX, maxX: PH_SEAM_TUNNEL.maxX, minZ: PH_SEAM_TUNNEL.minZ, maxZ: PH_SEAM_TUNNEL.maxZ, blocked: PH_SEAM_TUNNEL.blocked, destZone: null },
+];
+
+/** Gate rect containing (x, z), including blocked / dest-less lips. */
+export function fieldGateAt(zoneId: string | undefined, x: number, z: number): ZoneGate | null {
+  if (!zoneId || zoneId === "pale_hollow") {
+    for (const gate of PH_SOFT_GATES) {
+      if (x >= gate.minX && x <= gate.maxX && z >= gate.minZ && z <= gate.maxZ) return gate;
+    }
+    return null;
+  }
+  const field = fieldById(zoneId);
+  if (!field) return null;
+  for (const gate of field.gates) {
+    if (x >= gate.minX && x <= gate.maxX && z >= gate.minZ && z <= gate.maxZ) return gate;
+  }
+  return null;
+}
+
+/** Walk / dash speed scale. Pale Hollow keeps its river muls; other fields slow on water. */
+export function zoneMoveMul(zoneId: string | undefined, x: number, z: number): number {
+  if (!zoneId || zoneId === "pale_hollow") return paleHollowMoveMul(x, z);
+  const field = fieldById(zoneId);
+  if (!field || field.onBridge(x, z)) return 1;
+  if (nearTrailCorridor(x, z, field.trails(), field.trailWidth)) return 1;
+  if (field.water(x, z) != null) return 0.55;
+  return 1;
 }
 
 export type TravelStep = { zoneId: string; x: number; z: number; facing: number };

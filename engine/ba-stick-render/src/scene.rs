@@ -147,7 +147,7 @@ struct DashPred {
 }
 
 /// After the predicted dash ends, hold its landing this long before the server owns the unit again.
-const DASH_PRED_HOLD: f32 = 0.12;
+const DASH_PRED_HOLD: f32 = 0.5;
 
 /// Stick Engine's dash trail: one afterimage per `GHOST_EVERY`, each fading over `GHOST_LIFE`.
 pub(crate) const GHOST_EVERY: f32 = 0.04;
@@ -184,12 +184,18 @@ pub struct Scene {
     water_field: Option<crate::pixel_water::WaterField>,
     world_water: Vec<Option<crate::pixel_water::WaterField>>,
     water_layout: Option<crate::pixel_water::WaterLayout>,
+    /// Origins already given to `load_water_layout` so a retry does not double spines.
+    water_layout_origins: Vec<(f32, f32)>,
     water_dirty: bool,
     props: Vec<props::Prop>,
     /// Every zone drawn together, already shifted into world coordinates.
     /// The minimap zone above stays in that zone's local coordinates.
     world: Vec<Zone>,
     world_props: Vec<props::Prop>,
+    /// Origins already given to `place_props` so a retry does not double trees.
+    prop_origins: Vec<(f32, f32)>,
+    /// World-space identity of the zone the minimap last adopted (no clone).
+    minimap_src: Option<(f32, f32, usize, usize)>,
     /// Subtracted from unit positions for the local-space minimap.
     map_ox: f32,
     map_oz: f32,
@@ -240,6 +246,14 @@ pub struct Scene {
     /// Local player hair style and colours (Stick Engine cosmetics).
     player_appearance: crate::appearance::Appearance,
     player_hair_spring: [stick_engine::character::HairSpring; 3],
+    /// Draw-distance slider 0..1 (iso prop box + 3D FAR together).
+    draw_distance: f32,
+    /// Atmosphere slider 0..1 (optical depth). Ignored when `atmosphere` is off.
+    atmosphere_amount: f32,
+    /// PH weather clock multiplies hazeBase. Off for Seam / Forest Basin.
+    weather_haze: bool,
+    atmo_look: crate::atmosphere::ZoneLook,
+    atmo_areas: Vec<crate::atmosphere::AreaLook>,
 }
 
 impl Scene {
@@ -249,7 +263,7 @@ impl Scene {
         lib.register_ron(include_str!("../assets/clips/swing.ron")).expect("swing clip");
         lib.register_ron(include_str!("../assets/clips/swing_overhead.ron")).expect("swing_overhead clip");
         lib.register_ron(include_str!("../assets/clips/swing_spin.ron")).expect("swing_spin clip");
-        Scene {
+        let mut s = Scene {
             fb: Framebuffer::new(w, h),
             cam: Camera::new(w, h),
             rig: CamRig::new(CamConfig::default()),
@@ -265,10 +279,13 @@ impl Scene {
             water_field: None,
             world_water: Vec::new(),
             water_layout: None,
+            water_layout_origins: Vec::new(),
             water_dirty: false,
             props: Vec::new(),
             world: Vec::new(),
             world_props: Vec::new(),
+            prop_origins: Vec::new(),
+            minimap_src: None,
             map_ox: 0.0,
             map_oz: 0.0,
             floaters: Vec::new(),
@@ -298,7 +315,14 @@ impl Scene {
             float_px: Vec::new(),
             player_appearance: crate::appearance::Appearance::default(),
             player_hair_spring: [stick_engine::character::HairSpring::default(); 3],
-        }
+            draw_distance: crate::atmosphere::DRAW_DEFAULT,
+            atmosphere_amount: crate::atmosphere::ATMO_DEFAULT,
+            weather_haze: false,
+            atmo_look: crate::atmosphere::PALE_HOLLOW_LOOK,
+            atmo_areas: Vec::new(),
+        };
+        crate::atmosphere::apply_draw_distance(&mut s.cam, crate::atmosphere::DRAW_DEFAULT);
+        s
     }
 
     /// Live pixel forge menu: procedural cavern, hero idle, embers.
@@ -318,6 +342,8 @@ impl Scene {
         self.world.clear();
         self.world_water.clear();
         self.world_props.clear();
+        self.prop_origins.clear();
+        self.minimap_src = None;
         self.set_cam_mode("iso");
         self.look_yaw = 0.0;
         self.look_pitch = 0.0;
@@ -403,6 +429,7 @@ impl Scene {
         self.zone = None;
         self.water_field = None;
         self.water_layout = None;
+        self.water_layout_origins.clear();
         self.water_dirty = false;
         self.props.clear();
         self.rebuild_static_lights();
@@ -418,24 +445,45 @@ impl Scene {
     }
 
     pub fn prop_count(&self) -> usize { self.props.len() }
+    pub fn world_count(&self) -> usize { self.world.len() }
+    pub fn world_prop_count(&self) -> usize { self.world_props.len() }
     pub fn has_zone(&self) -> bool { self.zone.is_some() || !self.world.is_empty() }
 
+    fn same_world_zone(a: &Zone, min_x: f32, min_z: f32, w: usize, h: usize) -> bool {
+        (a.min_x - min_x).abs() < 0.01 && (a.min_z - min_z).abs() < 0.01 && a.w == w && a.h == h
+    }
+
     /// Add a zone to the concurrent world. `ox`/`oz` shift its grid into world space.
-    /// Does not replace zones already placed, and does not change the minimap zone.
+    /// A zone already at that footprint is skipped (play + placeAllZones both place).
     pub fn place_zone(&mut self, bytes: &[u8], ox: f32, oz: f32) -> Result<(), String> {
         let mut zone = Zone::parse(bytes)?;
         zone.min_x += ox;
         zone.min_z += oz;
+        if self.world.iter().any(|z| Self::same_world_zone(z, zone.min_x, zone.min_z, zone.w, zone.h)) {
+            return Ok(());
+        }
         self.world.push(zone);
         self.water_dirty = true;
         Ok(())
     }
 
     /// River spines + fall spans (`WFL1`), shifted by the same origin as `place_zone`.
+    /// Appends into the existing layout so a second `.wfl` does not clobber Forest Basin.
     pub fn load_water_layout(&mut self, bytes: &[u8], ox: f32, oz: f32) -> Result<(), String> {
+        if self
+            .water_layout_origins
+            .iter()
+            .any(|(x, z)| (x - ox).abs() < 0.01 && (z - oz).abs() < 0.01)
+        {
+            return Ok(());
+        }
         let mut layout = crate::pixel_water::WaterLayout::parse(bytes)?;
         layout.offset(ox, oz);
-        self.water_layout = Some(layout);
+        match &mut self.water_layout {
+            Some(existing) => existing.merge(layout),
+            None => self.water_layout = Some(layout),
+        }
+        self.water_layout_origins.push((ox, oz));
         self.water_dirty = true;
         Ok(())
     }
@@ -464,8 +512,34 @@ impl Scene {
         ok
     }
 
+    /// Remember which world zone the minimap should bake. Does not clone it.
+    fn sync_minimap_zone(&mut self) {
+        if self.world.is_empty() {
+            return;
+        }
+        let (cx, cz) = self
+            .follow
+            .as_deref()
+            .and_then(|id| self.units.get(id))
+            .map(|u| (u.pos.x, u.pos.z))
+            .unwrap_or((self.cam.cx, self.cam.cz));
+        let Some(wz) = self.zone_at(cx, cz) else {
+            return;
+        };
+        if let Some((x, z, w, h)) = self.minimap_src {
+            if Self::same_world_zone(wz, x, z, w, h) {
+                return;
+            }
+        }
+        self.minimap_src = Some((wz.min_x, wz.min_z, wz.w, wz.h));
+        self.minimap.invalidate();
+    }
+
     /// Props for a placed zone. Positions are shifted by the same origin as `place_zone`.
     pub fn place_props(&mut self, bytes: &[u8], ox: f32, oz: f32) -> Result<usize, String> {
+        if self.prop_origins.iter().any(|(x, z)| (x - ox).abs() < 0.01 && (z - oz).abs() < 0.01) {
+            return Ok(0);
+        }
         let mut placed = props::parse(bytes)?;
         for p in &mut placed {
             p.x += ox;
@@ -473,6 +547,7 @@ impl Scene {
         }
         let n = placed.len();
         self.world_props.extend(placed);
+        self.prop_origins.push((ox, oz));
         self.rebuild_static_lights();
         Ok(n)
     }
@@ -540,7 +615,7 @@ impl Scene {
             Some(e) => {
                 // A zone hand-off jumps hundreds of metres. Interpolating that
                 // slides the figure across empty sky. Snap instead.
-                if (e.pos.x - target.x).abs().max((e.pos.z - target.z).abs()) > 24.0 {
+                if (e.pos.x - target.x).abs().max((e.pos.z - target.z).abs()) > 12.0 {
                     e.pos = target;
                     e.yaw = u.facing;
                 }
@@ -549,12 +624,18 @@ impl Scene {
                     e.target = target;
                 }
                 e.target_yaw = u.facing;
-                if e.preset_key != u.preset {
-                    e.preset = RigPreset::resolve(&u.preset);
-                    e.preset_key = u.preset;
-                }
+                // Always re-resolve. Druid form swaps `druid/male` → `druid:stickbear`
+                // on the same unit id; skipping that leaves the Ring-Walker biped.
+                e.preset = RigPreset::resolve(&u.preset);
+                e.preset_key = u.preset;
                 if e.anim != u.anim || u.anim.restarts() && e.animator.action_finished(&self.lib) {
-                    let blend = if e.anim == AnimState::Rest || u.anim == AnimState::Rest { 0.4 } else { 0.12 };
+                    let blend = if e.anim == AnimState::Rest && u.anim == AnimState::Walk {
+                        0.12
+                    } else if e.anim == AnimState::Rest || u.anim == AnimState::Rest {
+                        0.4
+                    } else {
+                        0.12
+                    };
                     e.animator.play(u.anim.action_clip(), blend, 1.0, u.anim.restarts());
                     e.anim = u.anim;
                     e.act_t = 0.0;
@@ -612,6 +693,11 @@ impl Scene {
             Some(a) => a.clip.as_str(),
             None => u.anim.clip(),
         })
+    }
+
+    /// Last preset key passed to `upsert_unit` (Druid form swaps this in place).
+    pub fn unit_preset(&self, id: &str) -> Option<&str> {
+        self.units.get(id).map(|u| u.preset_key.as_str())
     }
 
     /// Advance interpolation and animation by `dt` seconds.
@@ -741,6 +827,17 @@ impl Scene {
         }
     }
 
+    fn play_zoom(mode: CamMode, rail: f32) -> f32 {
+        // Pull iso / third-person back from the character. First person stays 1.
+        const OUT: f32 = 0.84;
+        if rail > 1.0 || mode == CamMode::FirstPerson {
+            let t = (rail - 1.0).clamp(0.0, 1.0);
+            OUT + (1.0 - OUT) * t
+        } else {
+            OUT
+        }
+    }
+
     fn step_camera(&mut self, dt: f32) {
         if self.rig.mode != CamMode::Iso {
             self.yaw_bias = wrap_angle(self.yaw_bias - self.look_yaw * self.rig.cfg.look_speed * dt);
@@ -748,6 +845,7 @@ impl Scene {
         let s = self.subject();
         let (w, h) = (self.cam.w, self.cam.h);
         self.rig.update(dt, self.look_pitch, &s, self.cam.cx, self.cam.cz, w, h);
+        self.cam.zoom = Self::play_zoom(self.rig.mode, self.rig.r);
         self.cam.view = match self.rig.view {
             Some(v) => {
                 let (lift, _) = self.boom_clear_of_ground(v, 0.0);
@@ -883,9 +981,16 @@ impl Scene {
             let before = u.pos;
             if let Some(p) = u.pred.as_mut() {
                 p.t += dt;
-                if p.t >= p.dur + DASH_PRED_HOLD {
-                    u.pred = None;
-                    u.target = u.server_target;
+                if p.t >= p.dur {
+                    let dx = u.server_target.x - p.to.x;
+                    let dz = u.server_target.z - p.to.z;
+                    let near = dx * dx + dz * dz < 0.4 * 0.4;
+                    if near || p.t >= p.dur + DASH_PRED_HOLD {
+                        u.pred = None;
+                        u.target = u.server_target;
+                    } else {
+                        u.target = v3(p.to.x, u.server_target.y, p.to.z);
+                    }
                 } else {
                     let k = dash_ease(p.t / p.dur);
                     u.target = v3(p.from.x + (p.to.x - p.from.x) * k, u.server_target.y, p.from.z + (p.to.z - p.from.z) * k);
@@ -1047,8 +1152,10 @@ impl Scene {
         let (mut x, mut z) = self.cam.unproject_ground(sx, sy);
         for _ in 0..3 {
             let dy = self.zone_height(x, z) - self.cam_y;
-            if self.cam.view.is_some() {
-                let (nx, nz) = self.cam.unproject_ground(sx, sy + dy * stick_engine::camera::HEIGHT_PX);
+            // Iso and the iso→TP blend share `unproject_at_height` so hill
+            // pick stays on one scale. Pure perspective keeps the view ray.
+            if self.cam.view.is_some() && self.cam.effective_view().skew < 1e-3 {
+                let (nx, nz) = self.cam.unproject_ground(sx, sy + dy * stick_engine::camera::HEIGHT_PX * self.cam.zoom);
                 x = nx;
                 z = nz;
                 continue;
@@ -1080,6 +1187,7 @@ impl Scene {
         if v.skew >= 1e-3 || v.inv_d <= 0.0 {
             return None;
         }
+        let (sx, sy) = self.cam.to_view_px(sx, sy);
         let eye = v.eye()?;
         let (r, dn) = v.basis();
         let s2 = v.scale * v.scale;
@@ -1094,8 +1202,8 @@ impl Scene {
         if above(t0) <= 0.0 {
             return None;
         }
-        while t0 < stick_engine::camera::FAR {
-            let t1 = (t0 + STEP).min(stick_engine::camera::FAR);
+        while t0 < self.cam.far {
+            let t1 = (t0 + STEP).min(self.cam.far);
             if above(t1) <= 0.0 {
                 let (mut lo, mut hi) = (t0, t1);
                 for _ in 0..10 {
@@ -1114,30 +1222,24 @@ impl Scene {
         v3(p.x, p.y - self.cam_y, p.z)
     }
 
-    /// Screen position for fog thinning around the followed unit (~2 m).
-    fn fog_clear_center(&self) -> Option<(f32, f32)> {
-        let id = self.follow.as_deref()?;
-        let u = self.units.get(id)?;
-        let feet = self.cam.project(self.rel(u.pos));
-        if feet.culled() {
-            return None;
+    /// Mesh, pick, name/yield anchors, and rings/FX share this FAR test.
+    /// Mobs and gather nodes (`Body::Node`) use the same reach as props — no
+    /// shorter harvest disc and no extra enemy pop-in. The followed unit always draws.
+    fn in_draw_range(&self, u: &Unit, is_follow: bool) -> bool {
+        if is_follow {
+            return true;
         }
-        Some((feet.x, feet.y))
-    }
-
-    fn fog_clear_radius_px(&self) -> f32 {
-        let Some(id) = self.follow.as_deref() else {
-            return 0.0;
-        };
-        let Some(u) = self.units.get(id) else {
-            return 0.0;
-        };
-        let p0 = self.cam.project(self.rel(u.pos));
-        if p0.culled() {
-            return 40.0;
+        let slack = crate::atmosphere::UNIT_DRAW_SLACK;
+        if let Some(eye) = self.cam.view.and_then(|v| v.eye()) {
+            let q = self.rel(u.pos) - eye;
+            let lim = self.cam.far + slack;
+            q.dot(q) <= lim * lim
+        } else {
+            let dx = u.pos.x - self.cam.cx;
+            let dz = u.pos.z - self.cam.cz;
+            let lim = self.cam.iso_prop + slack;
+            dx * dx + dz * dz <= lim * lim
         }
-        let p1 = self.cam.project(self.rel(v3(u.pos.x + 2.0, u.pos.y, u.pos.z)));
-        ((p1.x - p0.x).abs() * 1.15).max(28.0)
     }
 
     /// Topmost unit whose body box contains the screen pixel.
@@ -1153,9 +1255,16 @@ impl Scene {
             if skip == Some(id.as_str()) || u.fx.fade < 0.3 {
                 continue;
             }
+            let is_follow = self.follow.as_deref() == Some(id.as_str());
+            if !self.in_draw_range(u, is_follow) {
+                continue;
+            }
             let feet = self.cam.project(self.rel(u.pos));
-            // Figures are drawn scaled by s(v) in 3D; scale the click box to match (s = 1 in iso).
-            let s = self.cam.scale_at(u.pos);
+            if feet.culled() {
+                continue;
+            }
+            // 3D: project().s is the drawn scale. Iso: scale_at * zoom.
+            let s = unit_pick_s(&self.cam, u, feet);
             let half_w = (body_radius(&u.preset.body) * 28.0).max(12.0) * s;
             let height = unit_height_px(u).max(24.0) * s;
             if (sx - feet.x).abs() <= half_w && sy <= feet.y + 6.0 * s && sy >= feet.y - height {
@@ -1247,14 +1356,23 @@ impl Scene {
     /// can place HTML (names, NPC menus) over it.
     pub fn anchor(&self, id: &str) -> Option<(f32, f32, f32)> {
         let u = self.units.get(id)?;
+        let is_follow = self.follow.as_deref() == Some(id);
+        if !self.in_draw_range(u, is_follow) {
+            return None;
+        }
         let feet = self.cam.project(self.rel(u.pos));
-        Some((feet.x, feet.y - unit_height_px(u) * self.cam.scale_at(u.pos), feet.y))
+        if feet.culled() {
+            return None;
+        }
+        let s = unit_pick_s(&self.cam, u, feet);
+        Some((feet.x, feet.y - unit_height_px(u) * s, feet.y))
     }
 
-    /// Framebuffer position of a world point.
-    pub fn world_to_screen(&self, x: f32, y: f32, z: f32) -> (f32, f32) {
+    /// Framebuffer position of a world point. `s` is 0 when the point is
+    /// behind the eye (3D project returns 0,0); iso keeps s > 0.
+    pub fn world_to_screen(&self, x: f32, y: f32, z: f32) -> (f32, f32, f32) {
         let p = self.cam.project(self.rel(v3(x, y, z)));
-        (p.x, p.y)
+        (p.x, p.y, p.s)
     }
 
     /// Buff / ailment visual state for a unit (#34); false if unknown.
@@ -1274,15 +1392,25 @@ impl Scene {
 
     fn buff_anchor(&self, id: &str, u: &Unit) -> crate::buffvfx::Anchor {
         let base = self.rel(u.pos);
+        let feet = self.cam.project(base);
+        let s = unit_pick_s(&self.cam, u, feet);
         let seed = id.bytes().fold(2166136261u32, |h, b| (h ^ b as u32).wrapping_mul(16777619));
-        crate::buffvfx::Anchor { base, feet: self.cam.project(base), h: unit_height_px(u), seed }
+        crate::buffvfx::Anchor { base, feet, h: unit_height_px(u) * s.max(0.15), seed }
     }
 
     /// Draw the ground and all units into the framebuffer.
     pub fn draw(&mut self) {
-        if let Some(z) = &self.zone {
-            if self.minimap.needs_bake() && !self.backdrop && !self.boot_menu {
-                self.minimap.bake(z, &self.props);
+        if self.minimap.on {
+            self.sync_minimap_zone();
+        }
+        if self.minimap.on && self.minimap.needs_bake() && !self.backdrop && !self.boot_menu {
+            let world_i = self.minimap_src.and_then(|(x, z, w, h)| {
+                self.world.iter().position(|zn| Self::same_world_zone(zn, x, z, w, h))
+            });
+            if let Some(i) = world_i {
+                self.minimap.bake_at(&self.world[i], &self.world_props, self.map_ox, self.map_oz);
+            } else if self.zone.is_some() {
+                self.minimap.bake(self.zone.as_ref().unwrap(), &self.props);
             }
         }
         if !self.boot_menu {
@@ -1339,6 +1467,10 @@ impl Scene {
         // Terrain is colour-only; reset depth before grass/props/units so nothing stale blocks draws.
         if self.boot_menu {
             self.fb.color.fill(BACKDROP);
+            self.fb.clear_depth();
+        } else if self.backdrop {
+            // Parchment fill is colour-only. Stale depth from the last form
+            // (bear → deer) would eat the new envelope.
             self.fb.clear_depth();
         } else if !self.backdrop {
             // Ground and grass already drew; depth was cleared before them.
@@ -1416,11 +1548,19 @@ impl Scene {
         // Ground decals: buff rings (#34), telegraphs, selection / hover rings, shadows.
         for (id, bfx) in &self.buffs {
             if let Some(u) = self.units.get(id) {
+                let is_follow = self.follow.as_deref() == Some(id.as_str());
+                if !self.in_draw_range(u, is_follow) {
+                    continue;
+                }
                 let a = self.buff_anchor(id, u);
                 crate::buffvfx::draw_ground(&mut self.fb, &cam, &a, bfx, t);
             }
         }
-        for u in self.units.values() {
+        for (id, u) in &self.units {
+            let is_follow = self.follow.as_deref() == Some(id.as_str());
+            if !self.in_draw_range(u, is_follow) {
+                continue;
+            }
             let c = rel(u.pos);
             let fx = u.fx;
             if fx.cast >= 0.0 {
@@ -1474,6 +1614,10 @@ impl Scene {
         });
         for (id, u) in order {
             let base = rel(u.pos);
+            let is_follow = follow.as_deref() == Some(id.as_str());
+            if !self.in_draw_range(u, is_follow) {
+                continue;
+            }
             let feet = cam.project(base);
             let bb = BBox::around(&self.fb, feet.x, feet.y, unit_height_px(u) + 24.0, 48.0);
             let saved = bb.save(&self.fb);
@@ -1583,6 +1727,7 @@ impl Scene {
                         time: t + u.gait * 0.01,
                         ready: u.fx.flags & FX_DEPLETED == 0,
                         attack: if u.anim.is_sword_combo_swing() { (u.act_t / creature::LUNGE_S).min(1.0) } else { 1.0 },
+                        rest: if u.anim == AnimState::Rest { 1.0 } else { 0.0 },
                     };
                     creature::draw(&mut self.fb, &cam, body, &pose);
                 }
@@ -1607,7 +1752,8 @@ impl Scene {
             };
             bb.post(&mut self.fb, &saved, tint, u.fx.fade);
             if let Some(mark) = u.preset.npc_mark {
-                let top = feet.y - unit_height_px(u) - 4.0 + (t * 2.0).sin() * 1.5;
+                let s = unit_pick_s(&cam, u, feet);
+                let top = feet.y - unit_height_px(u) * s - 4.0 * s + (t * 2.0).sin() * 1.5 * s;
                 diamond(&mut self.fb, feet.x, top, mark);
             }
             if u.fx.flags & FX_SHINY != 0 {
@@ -1637,21 +1783,28 @@ impl Scene {
                 continue;
             }
             let feet = cam.project(rel(u.pos));
-            let top = feet.y - unit_height_px(u);
+            if feet.culled() {
+                continue;
+            }
+            let s = unit_pick_s(&cam, u, feet);
+            if s <= 0.0 {
+                continue;
+            }
+            let top = feet.y - unit_height_px(u) * s;
             if u.fx.level_up >= 0.0 {
                 level_up(&mut self.fb, &cam, rel(u.pos), u.fx.level_up);
             }
-            let mut y = top - 7.0;
+            let mut y = top - 7.0 * s;
             if u.preset.npc_mark.is_some() {
-                y -= 6.0;
+                y -= 6.0 * s;
             }
             if u.fx.hp >= 0.0 && u.fx.fade > 0.5 {
                 let col = if u.fx.hp < 0.3 { FX_HP_LOW } else { FX_HP };
-                bar(&mut self.fb, feet.x, y, 20, u.fx.hp, col);
-                y += 3.0;
+                bar(&mut self.fb, feet.x, y, (20.0 * s).max(8.0) as i32, u.fx.hp, col);
+                y += 3.0 * s;
             }
             if u.fx.cast >= 0.0 {
-                bar(&mut self.fb, feet.x, y, 20, u.fx.cast, FX_CAST);
+                bar(&mut self.fb, feet.x, y, (20.0 * s).max(8.0) as i32, u.fx.cast, FX_CAST);
             }
         }
         // Floating combat numbers follow their unit (or stay where it vanished).
@@ -1688,6 +1841,7 @@ impl Scene {
             let snow = Self::precip_kind_blend(from, to, t, crate::weather::Kind::Snow);
             crate::weather::draw_precip(
                 &mut self.fb,
+                &self.cam,
                 self.weather_time,
                 self.weather_snow,
                 rain,
@@ -1765,6 +1919,31 @@ impl Scene {
     /// Cycle local player body colour (`L`) — same ramps as hair.
     pub fn cycle_body_color(&mut self, d: i32) {
         self.player_appearance.cycle_body_color(d);
+    }
+
+    pub fn set_draw_distance(&mut self, t: f32) {
+        self.draw_distance = t.clamp(0.0, 1.0);
+        crate::atmosphere::apply_draw_distance(&mut self.cam, self.draw_distance);
+    }
+
+    pub fn set_atmosphere_amount(&mut self, t: f32) {
+        self.atmosphere_amount = t.clamp(0.0, 1.0);
+    }
+
+    pub fn set_weather_haze(&mut self, on: bool) {
+        self.weather_haze = on;
+    }
+
+    pub fn set_zone_atmosphere(&mut self, haze_base: f32, valley_beta: f32, scale_h: f32, horizon: u32) {
+        self.atmo_look = crate::atmosphere::ZoneLook { haze_base, valley_beta, scale_h, horizon };
+    }
+
+    pub fn add_atmosphere_area(&mut self, a: crate::atmosphere::AreaLook) {
+        self.atmo_areas.push(a);
+    }
+
+    pub fn clear_atmosphere_areas(&mut self) {
+        self.atmo_areas.clear();
     }
 
     /// Zone weather for Pale Hollow (kind 0..3, snow cover 0..1 from server).
@@ -1944,7 +2123,10 @@ impl Scene {
         };
         for l in self.lighting.statics.iter().chain(self.lighting.extra.iter()) {
             // Cheap world-space pre-cull before projecting.
-            if (l.pos.x - cam.cx).abs() > 90.0 || (l.pos.z - cam.cz).abs() > 90.0 {
+            let lim = cam.far;
+            let dx = l.pos.x - cam.cx;
+            let dz = l.pos.z - cam.cz;
+            if dx * dx + dz * dz > lim * lim {
                 continue;
             }
             let f = flicker(l.flicker, l.seed(), t);
@@ -2055,7 +2237,15 @@ impl Scene {
             if Some(id.as_str()) == self.follow.as_deref() || matches!(u.preset.body, Body::Node { .. } | Body::Landmark) || u.anim == AnimState::Dead {
                 continue;
             }
-            if (u.pos.x - cx).abs() > 70.0 || (u.pos.z - cz).abs() > 70.0 {
+            // Radar matches world FAR so Close cannot ping skip-drawn hares.
+            // Harvest stays off the map (nodes are dense flax / veins).
+            let slack = crate::atmosphere::UNIT_DRAW_SLACK;
+            let mark_r = if self.cam.view.is_some() {
+                self.cam.far + slack
+            } else {
+                self.cam.iso_prop + slack
+            };
+            if (u.pos.x - cx).abs() > mark_r || (u.pos.z - cz).abs() > mark_r {
                 continue;
             }
             let kind = if u.fx.flags & (FX_HOSTILE | FX_MOB) != 0 {
@@ -2078,56 +2268,73 @@ impl Scene {
             } else {
                 (self.cam.cx - self.cam.cz) * stick_engine::camera::ISO_X
             };
-            let params = if self.boot_menu {
+            let follow_xz = self
+                .follow
+                .as_deref()
+                .and_then(|id| self.units.get(id))
+                .map(|u| (u.pos.x, u.pos.z))
+                .unwrap_or((self.cam.cx, self.cam.cz));
+            let look = crate::atmosphere::look_at(self.atmo_look, &self.atmo_areas, follow_xz.0, follow_xz.1);
+            let mut params = if self.boot_menu {
                 crate::atmosphere::FORGE_MENU
             } else {
-                let base = crate::atmosphere::PALE_HOLLOW;
-                let a = crate::atmosphere::pale_hollow_weather(
-                    &base,
-                    crate::weather::Kind::from_u8(self.weather_kind_from),
-                );
-                let b = crate::atmosphere::pale_hollow_weather(
-                    &base,
-                    crate::weather::Kind::from_u8(self.weather_kind_to),
-                );
-                crate::atmosphere::lerp_params(a, b, smoothstep(self.weather_blend))
+                let base = crate::atmosphere::params_from_look(look);
+                if self.weather_haze {
+                    let a = crate::atmosphere::pale_hollow_weather(
+                        &base,
+                        crate::weather::Kind::from_u8(self.weather_kind_from),
+                    );
+                    let b = crate::atmosphere::pale_hollow_weather(
+                        &base,
+                        crate::weather::Kind::from_u8(self.weather_kind_to),
+                    );
+                    crate::atmosphere::lerp_params(a, b, smoothstep(self.weather_blend))
+                } else {
+                    base
+                }
             };
+            if !self.boot_menu {
+                let k = crate::atmosphere::atmosphere_scale(self.atmosphere_amount);
+                params.haze_base *= k;
+                params.valley_beta *= k;
+            }
             let sky = self.sky_ctx();
-            let mut params = params;
-            // Bright moods fold their ambient into the atmosphere tint and skip the light pass.
+            let frame_mood = self.frame_mood().unwrap_or(crate::lighting::Mood::DAYLIGHT);
+            // Horizon follows live mood×biome, including dark moods (light pass still owns pixel ambient).
+            if !self.boot_menu {
+                let h = params.haze;
+                let ch = |sh: u32, k: usize| {
+                    ((((h >> sh) & 255) as f32 * frame_mood.ambient[k]) as u32).min(255) << sh
+                };
+                params.haze = ch(16, 0) | ch(8, 1) | ch(0, 2);
+            }
             if !self.boot_menu && !self.light_pass_on() {
-                // 3D: the night dim comes from ambient_scale below; iso has none, so use the timed mood.
-                let m = if sky.is_some() { self.lighting.mood } else { self.frame_mood() };
-                let m = m.unwrap_or(crate::lighting::Mood::DAYLIGHT);
                 for k in 0..3 {
-                    params.ambient[k] *= m.ambient[k];
+                    params.ambient[k] *= frame_mood.ambient[k];
                 }
             } else if self.boot_menu {
                 for k in 0..3 {
                     params.ambient[k] *= crate::lighting::Mood::FORGE_MENU.ambient[k];
                 }
             }
-            if sky.is_some() {
-                // Night dims the world and its haze in 3D, in step with the sky.
-                let m = crate::sky::ambient_scale(self.day_phase);
-                // With the light pass on, the layer carries the night dim
-                // (scaled by the mood's `night`), so only the haze takes it here.
-                let pass = self.light_pass_on();
-                for k in 0..3 {
-                    if !pass {
-                        params.ambient[k] *= m[k];
-                    }
+            let world = &self.world;
+            let zone = self.zone.as_ref();
+            let height_at = |x: f32, z: f32| -> f32 {
+                if !world.is_empty() {
+                    return world
+                        .iter()
+                        .find(|zn| zn.contains_point(x, z))
+                        .map_or(0.0, |zn| zn.height_at(x, z));
                 }
-                let h = params.haze;
-                let ch = |sh: u32, k: usize| ((((h >> sh) & 255) as f32 * m[k]) as u32).min(255) << sh;
-                params.haze = ch(16, 0) | ch(8, 1) | ch(0, 2);
-            }
+                zone.map_or(0.0, |zn| zn.height_at(x, z))
+            };
             let ex = crate::atmosphere::Extra {
                 sky,
                 time: self.time,
                 depth: Some(&self.fb.depth),
-                clear_center: self.fog_clear_center(),
-                clear_radius_px: self.fog_clear_radius_px(),
+                cam: Some(&self.cam),
+                cam_y: self.cam_y,
+                height_at: Some(&height_at),
             };
             crate::atmosphere::write_rgba_key(
                 &self.pal,
@@ -2162,7 +2369,7 @@ impl Scene {
             self.lighting.layer.glow(out, self.fb.w, self.fb.h, &self.lighting.stamps, g);
         }
         crate::vfx::blend(&self.vfx.sparks, self.fb.w, self.fb.h, out);
-        if !self.backdrop && !self.boot_menu && self.zone.is_some() && self.minimap.on {
+        if !self.backdrop && !self.boot_menu && self.has_zone() && self.minimap.on {
             let (cx, cz, yaw, marks) = self.map_view();
             self.minimap.composite(out, self.fb.w, self.fb.h, cx, cz, yaw, &marks);
         }
@@ -2217,6 +2424,7 @@ pub fn melee_lunge_weighted(t: f32, weight: f32) -> f32 {
 /// sx - 0.5w = u ISO_X / (1 - a v). In iso (a = 0) this is the old shift.
 fn unproject_at_height(cam: &Camera, sx: f32, sy: f32, dy: f32) -> (f32, f32) {
     use stick_engine::camera::{HEIGHT_PX, ISO_X, ISO_Y, PERSP_K};
+    let (sx, sy) = cam.to_view_px(sx, sy);
     let a = PERSP_K * cam.persp;
     let yy = sy - cam.h * 0.55;
     let v = (yy + dy * HEIGHT_PX) / (ISO_Y + a * yy);
@@ -2234,6 +2442,18 @@ pub(crate) fn follow_offset(lift_px: f32, persp: f32) -> f32 {
     let a = stick_engine::camera::PERSP_K * persp;
     let v = y / (1.0 + a * y).max(0.2);
     -v * 0.5
+}
+
+/// 3D uses the projected scale (`feet.s`). Iso keeps `scale_at * zoom`.
+fn unit_pick_s(cam: &Camera, u: &Unit, feet: P2) -> f32 {
+    if feet.culled() {
+        return 0.0;
+    }
+    if cam.view.is_some() && feet.s > 0.0 {
+        feet.s
+    } else {
+        cam.scale_at(u.pos) * cam.zoom
+    }
 }
 
 fn unit_height_px(u: &Unit) -> f32 {
@@ -2592,5 +2812,31 @@ mod dash_tests {
             s.tick(1.0 / 60.0);
         }
         assert!((s.unit_pos("me").unwrap().2 - 2.5).abs() < 0.05);
+    }
+}
+
+#[cfg(test)]
+mod water_layout_merge_tests {
+    use super::*;
+
+    fn wfl_one_seg(ax: f32) -> Vec<u8> {
+        let mut b = vec![b'W', b'F', b'L', b'1', 1, 0, 0, 0];
+        for n in [ax, 0.0f32, 1.0, ax + 4.0, 0.0, 0.5] {
+            b.extend_from_slice(&n.to_le_bytes());
+        }
+        b
+    }
+
+    #[test]
+    fn second_layout_appends_instead_of_replacing() {
+        let mut s = Scene::new(64, 64);
+        s.load_water_layout(&wfl_one_seg(0.0), 0.0, 0.0).unwrap();
+        s.load_water_layout(&wfl_one_seg(40.0), 10.0, 20.0).unwrap();
+        let lay = s.water_layout.as_ref().expect("merged");
+        assert_eq!(lay.segs.len(), 2, "Pale Hollow must not clobber Forest Basin");
+        assert!((lay.segs[0][0] - 0.0).abs() < 0.01);
+        assert!((lay.segs[1][0] - 50.0).abs() < 0.01, "second spine is offset");
+        s.load_water_layout(&wfl_one_seg(0.0), 0.0, 0.0).unwrap();
+        assert_eq!(s.water_layout.as_ref().unwrap().segs.len(), 2, "same origin is not double-counted");
     }
 }

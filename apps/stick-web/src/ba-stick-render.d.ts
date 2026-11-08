@@ -16,6 +16,7 @@ declare module "ba-stick-render" {
     addMapLabel(text: string, x: number, z: number, kind: number): void;
     clearMapData(): void;
     setMinimap(on: boolean): void;
+    setMinimapDock(x: number, y: number, w: number, h: number): void;
     setMinimapFull(on: boolean): void;
     minimapFull(): boolean;
     minimapButton(sx: number, sy: number): boolean;
@@ -26,6 +27,22 @@ declare module "ba-stick-render" {
     addFloater(id: string, kind: number, value: number): void;
     isWading(id: string): boolean;
     setAtmosphere(on: boolean): void;
+    setDrawDistance(t: number): void;
+    setAtmosphereAmount(t: number): void;
+    setWeatherHaze(on: boolean): void;
+    setZoneAtmosphere(hazeBase: number, valleyBeta: number, scaleH: number, horizon: number): void;
+    addAtmosphereArea(
+      x: number,
+      z: number,
+      radius: number,
+      feather: number,
+      hazeBase: number,
+      valleyBeta: number,
+      scaleH: number,
+      horizon: number,
+      density: number,
+    ): void;
+    clearAtmosphereAreas(): void;
     /** 0 clear, 1 rain, 2 fog, 3 snow; snowCover 0..1. */
     setWeather(kind: number, snowCover: number): void;
     /** Time of day 0..1 (0 midnight, 0.5 noon) for the 3D pixel sky. */
@@ -38,8 +55,6 @@ declare module "ba-stick-render" {
     setLook(yaw: number, pitch: number): void;
     addLook(dx: number, dy: number): void;
     firstPerson(): boolean;
-    /** Legacy: true = third person, false = isometric. */
-    setView3d(on: boolean): void;
     setKeylight(on: boolean): void;
     setLights(on: boolean): void;
     setLightMood(r: number, g: number, b: number, playerR: number, playerK: number, glow: number, night: number, snap: boolean): void;
@@ -50,9 +65,12 @@ declare module "ba-stick-render" {
     setBootMenu(on: boolean): void;
     spawnVfx(prim: number, from: string, to: string, color: number, count: number, radius: number, flags: number): boolean;
     vfxCount(): number;
-    setGear(id: string, family: number, wmat: number, wseed: number, body: number, bseed: number, head: number, hseed: number, legs: number, lseed: number): boolean;
+    setGear(id: string, family: number, wmat: number, wseed: number, body: number, bseed: number, head: number, hseed: number, legs: number, lseed: number, feet: number, fseed: number, sseed: number, hndseed: number): boolean;
     zoneHeight(x: number, z: number): number;
     setCamera(x: number, z: number): void;
+    /** Live Stick Bear generation. `0` returns to the RON seed. */
+    setStickFormSeed(seed: number): void;
+    stickFormSeed(): number;
     follow(id?: string): void;
     upsertUnit(id: string, x: number, y: number, z: number, facing: number, anim: string, preset: string): void;
     removeUnit(id: string): boolean;
@@ -68,6 +86,7 @@ declare module "ba-stick-render" {
     ): boolean;
     setBuffs(id: string, mask: number, td: number, burst: number): boolean;
     anchor(id: string): Float32Array;
+    /** `[x, y, s]` framebuffer pixel. `s` is 0 when the point is behind the eye. */
     worldToScreen(x: number, y: number, z: number): Float32Array;
     unitCount(): number;
     pickWorld(sx: number, sy: number): Float32Array;

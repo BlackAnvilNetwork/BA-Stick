@@ -138,9 +138,6 @@ pub struct Ripple {
     pub radius: f32,
 }
 
-/// Clock scale for every water tone (1 = authored speed). 0.65 = 35% slower.
-const TIME_SCALE: f32 = 0.65;
-
 /// `base` is 0..6 on the water ramp; `hi` (0 = none) is a hard highlight (6/7/8).
 #[derive(Clone, Copy)]
 pub struct Shade {
@@ -266,6 +263,11 @@ impl WaterLayout {
             f.pool[0] += ox;
             f.pool[1] += oz;
         }
+    }
+
+    pub fn merge(&mut self, mut other: Self) {
+        self.segs.append(&mut other.segs);
+        self.falls.append(&mut other.falls);
     }
 }
 
@@ -675,7 +677,9 @@ impl WaterField {
                     .collect()
             })
             .unwrap_or_default();
-        if falls.is_empty() {
+        // Authored layout with an empty falls list means "no falls". Only
+        // auto-detect when no layout was supplied at all.
+        if falls.is_empty() && layout.is_none() {
             falls.extend(detect_falls(zone, &water));
         }
         WaterField {
@@ -820,7 +824,6 @@ impl WaterField {
     }
 
     fn tone(&self, x: f32, z: f32, t: f32, p: &Params, ripples: &[Ripple], light: [f32; 2], seed: u32, s: Sample, fall: bool) -> Shade {
-        let t = t * TIME_SCALE;
         let u = p.scale / 2.6;
         let depth = (s.sdist * 0.2 + 0.35).max(0.0);
         let fl = (s.flow[0] * s.flow[0] + s.flow[1] * s.flow[1]).sqrt();
@@ -1003,6 +1006,15 @@ impl WaterField {
     }
 }
 
+fn stamp_water(fb: &mut Framebuffer, x: i32, y: i32, col: u8, a: P2, b: P2, c: P2, w0: f32, w1: f32) {
+    let i = y as usize * fb.w + x as usize;
+    fb.color[i] = col;
+    let d = w0 * a.d + w1 * b.d + (1.0 - w0 - w1) * c.d;
+    if d.is_finite() {
+        fb.depth[i] = d;
+    }
+}
+
 /// Walk pixel centers inside the triangle; `plot(x, y, w0, w1)` gets barycentric A/B.
 fn for_tri_pixels(fb_w: i32, fb_h: i32, a: P2, b: P2, c: P2, mut plot: impl FnMut(i32, i32, f32, f32)) {
     let min_x = a.x.min(b.x).min(c.x).floor().max(0.0) as i32;
@@ -1063,10 +1075,9 @@ pub fn fill_tri(
     ripples: &[Ripple],
     land: u8,
 ) {
-    let w = fb.w;
     let Some(field) = field else {
-        for_tri_pixels(fb.w as i32, fb.h as i32, a, b, c, |x, y, _, _| {
-            fb.color[y as usize * w + x as usize] = WATER + 1;
+        for_tri_pixels(fb.w as i32, fb.h as i32, a, b, c, |x, y, w0, w1| {
+            stamp_water(fb, x, y, WATER + 1, a, b, c, w0, w1);
         });
         return;
     };
@@ -1081,18 +1092,27 @@ pub fn fill_tri(
         let wz = oz + v * cell;
         let sm = field.sample(wx, wz);
         if sm.sdist <= 0.0 {
-            fb.color[y as usize * w + x as usize] = land;
+            stamp_water(fb, x, y, land, a, b, c, w0, w1);
             return;
         }
         if sm.sdist < 0.28 {
-            let b = BAYER4[(y & 3) as usize][(x & 3) as usize] / 16.0;
-            if sm.sdist / 0.28 < b {
-                fb.color[y as usize * w + x as usize] = land;
+            let bth = BAYER4[(y & 3) as usize][(x & 3) as usize] / 16.0;
+            if sm.sdist / 0.28 < bth {
+                stamp_water(fb, x, y, land, a, b, c, w0, w1);
                 return;
             }
         }
-        fb.color[y as usize * w + x as usize] =
-            to_ramp(quantize(field.tone(wx, wz, time, &p, ripples, LIGHT, 7, sm, false), x, y, 0.10));
+        stamp_water(
+            fb,
+            x,
+            y,
+            to_ramp(quantize(field.tone(wx, wz, time, &p, ripples, LIGHT, 7, sm, false), x, y, 0.10)),
+            a,
+            b,
+            c,
+            w0,
+            w1,
+        );
     });
 }
 
@@ -1115,7 +1135,6 @@ pub fn fill_wet_lip(
     ys: [f32; 3],
     level: f32,
 ) {
-    let w = fb.w;
     let du0 = ua.0 - uc.0;
     let du1 = ub.0 - uc.0;
     let dv0 = ua.1 - uc.1;
@@ -1138,8 +1157,17 @@ pub fn fill_wet_lip(
         if sm.sdist > 0.0 {
             let fl = (sm.flow[0] * sm.flow[0] + sm.flow[1] * sm.flow[1]).sqrt();
             let p = mode_from_flow(fl, false).params_iso();
-            fb.color[y as usize * w + x as usize] =
-                to_ramp(quantize(field.tone(wx, wz, time, &p, ripples, LIGHT, 7, sm, false), x, y, 0.10));
+            stamp_water(
+                fb,
+                x,
+                y,
+                to_ramp(quantize(field.tone(wx, wz, time, &p, ripples, LIGHT, 7, sm, false), x, y, 0.10)),
+                a,
+                b,
+                c,
+                w0,
+                w1,
+            );
             return;
         }
         if sm.sdist < -2.0 {
@@ -1151,7 +1179,7 @@ pub fn fill_wet_lip(
             return;
         }
         let col = if t > 0.82 && bth > 0.7 { WATER + 3 } else { land };
-        fb.color[y as usize * w + x as usize] = col;
+        stamp_water(fb, x, y, col, a, b, c, w0, w1);
     });
 }
 
@@ -1176,7 +1204,6 @@ pub fn fill_tri_xz(
     let Some(field) = field else {
         return;
     };
-    let w = fb.w;
     let dx0 = wa.0 - wc.0;
     let dx1 = wb.0 - wc.0;
     let dz0 = wa.1 - wc.1;
@@ -1193,12 +1220,11 @@ pub fn fill_tri_xz(
             }
             field.tone(wx, wz, time, &p, ripples, LIGHT, 7, sm, false)
         };
-        fb.color[y as usize * w + x as usize] = to_ramp(quantize(s, x, y, 0.10));
+        stamp_water(fb, x, y, to_ramp(quantize(s, x, y, 0.10)), a, b, c, w0, w1);
     });
 }
 
 fn shade_fall_uv(across: f32, down: f32, v: f32, t: f32, p: &Params, seed: u32) -> Shade {
-    let t = t * TIME_SCALE;
     let u = p.scale / 2.6;
     let spd = 6.0;
     // fbm2 tops out at 0.75, so normalise.
@@ -1277,6 +1303,20 @@ mod tests {
         let f = field.fall_flow_at(-93.25, 116.5).expect("veil face");
         assert!(f[1] < 0.0, "downhill is south");
         assert!(field.fall_flow_at(-93.0, 118.4).is_none(), "lip is not the face");
+    }
+
+    #[test]
+    fn water_layout_merge_keeps_both_spines() {
+        let mut a = WaterLayout {
+            segs: vec![[0.0, 0.0, 1.0, 1.0, 0.0, 0.5]],
+            falls: vec![],
+        };
+        a.merge(WaterLayout {
+            segs: vec![[10.0, 10.0, 1.0, 11.0, 10.0, 0.4]],
+            falls: vec![],
+        });
+        assert_eq!(a.segs.len(), 2);
+        assert!((a.segs[1][0] - 10.0).abs() < 0.01);
     }
 
     /// The surface pattern must drift downstream (+flow), not across it.

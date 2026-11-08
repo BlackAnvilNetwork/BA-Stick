@@ -103,8 +103,11 @@ impl StickRenderer {
     /// 2 leather, 3 metal, 4 wood, 5 bone, 6 gold. Seeds = catalog item ids.
     #[wasm_bindgen(js_name = setGear)]
     #[allow(clippy::too_many_arguments)]
-    pub fn set_gear(&mut self, id: &str, family: u8, wmat: u8, wseed: u32, body: u8, bseed: u32, head: u8, hseed: u32, legs: u8, lseed: u32) -> bool {
-        self.scene.set_gear(id, crate::gear::garb(family, wmat, wseed, body, bseed, head, hseed, legs, lseed))
+    pub fn set_gear(&mut self, id: &str, family: u8, wmat: u8, wseed: u32, body: u8, bseed: u32, head: u8, hseed: u32, legs: u8, lseed: u32, feet: u8, fseed: u32, sseed: u32, hndseed: u32) -> bool {
+        let mut g = crate::gear::garb(family, wmat, wseed, body, bseed, head, hseed, legs, lseed, feet, fseed);
+        crate::gear::apply_offhand(&mut g, sseed);
+        crate::gear::apply_hands(&mut g, hndseed);
+        self.scene.set_gear(id, g)
     }
 
     /// Preview mode (#37): no ground, transparent background.
@@ -143,12 +146,6 @@ impl StickRenderer {
     #[wasm_bindgen(js_name = firstPerson)]
     pub fn first_person(&self) -> bool { self.scene.first_person() }
 
-    /// Legacy toggle: true = third person, false = isometric.
-    #[wasm_bindgen(js_name = setView3d)]
-    pub fn set_view3d(&mut self, on: bool) {
-        self.scene.set_cam_mode(if on { "tp" } else { "iso" });
-    }
-
     /// L2 directional key light (off by default).
     #[wasm_bindgen(js_name = setKeylight)]
     pub fn set_keylight(&mut self, on: bool) {
@@ -158,6 +155,64 @@ impl StickRenderer {
     #[wasm_bindgen(js_name = setAtmosphere)]
     pub fn set_atmosphere(&mut self, on: bool) {
         self.scene.atmosphere = on;
+    }
+
+    /// Draw-distance slider 0..1. Scales iso prop box, iso ground margin, 3D FAR,
+    /// and the same disc for enemies and harvest nodes.
+    #[wasm_bindgen(js_name = setDrawDistance)]
+    pub fn set_draw_distance(&mut self, t: f32) {
+        self.scene.set_draw_distance(t);
+    }
+
+    /// Atmosphere slider 0..1 (optical depth). The boolean master switch still kills the pass.
+    #[wasm_bindgen(js_name = setAtmosphereAmount)]
+    pub fn set_atmosphere_amount(&mut self, t: f32) {
+        self.scene.set_atmosphere_amount(t);
+    }
+
+    /// When true, Pale Hollow weather multiplies hazeBase. Seam / Forest Basin leave this off.
+    #[wasm_bindgen(js_name = setWeatherHaze)]
+    pub fn set_weather_haze(&mut self, on: bool) {
+        self.scene.set_weather_haze(on);
+    }
+
+    /// Zone aerial look from `@bellgrave/config` ZONE_ATMOSPHERE.
+    #[wasm_bindgen(js_name = setZoneAtmosphere)]
+    pub fn set_zone_atmosphere(&mut self, haze_base: f32, valley_beta: f32, scale_h: f32, horizon: u32) {
+        self.scene.set_zone_atmosphere(haze_base, valley_beta, scale_h, horizon);
+    }
+
+    /// A place with its own aerial (Ash Pit lake, Mayflower density). World metres.
+    #[wasm_bindgen(js_name = addAtmosphereArea)]
+    #[allow(clippy::too_many_arguments)]
+    pub fn add_atmosphere_area(
+        &mut self,
+        x: f32,
+        z: f32,
+        radius: f32,
+        feather: f32,
+        haze_base: f32,
+        valley_beta: f32,
+        scale_h: f32,
+        horizon: u32,
+        density: f32,
+    ) {
+        self.scene.add_atmosphere_area(crate::atmosphere::AreaLook {
+            x,
+            z,
+            r: radius,
+            feather,
+            haze_base,
+            valley_beta,
+            scale_h,
+            horizon,
+            density,
+        });
+    }
+
+    #[wasm_bindgen(js_name = clearAtmosphereAreas)]
+    pub fn clear_atmosphere_areas(&mut self) {
+        self.scene.clear_atmosphere_areas();
     }
 
     /// Light pass on/off (phones, `?lights=0`). Off keeps every mood's ambient tint.
@@ -236,6 +291,12 @@ impl StickRenderer {
     #[wasm_bindgen(js_name = setMinimap)]
     pub fn set_minimap(&mut self, on: bool) { self.scene.minimap.on = on; }
 
+    /// Place the corner minimap in a HUD slot (framebuffer pixels). w/h <= 0 clears it.
+    #[wasm_bindgen(js_name = setMinimapDock)]
+    pub fn set_minimap_dock(&mut self, x: i32, y: i32, w: i32, h: i32) {
+        self.scene.minimap.set_dock(x, y, w, h);
+    }
+
     /// Expand the minimap over the framebuffer. The corner control toggles this.
     #[wasm_bindgen(js_name = setMinimapFull)]
     pub fn set_minimap_full(&mut self, on: bool) { self.scene.minimap.full = on; }
@@ -271,6 +332,18 @@ impl StickRenderer {
 
     #[wasm_bindgen(js_name = setCamera)]
     pub fn set_camera(&mut self, x: f32, z: f32) { self.scene.set_camera(x, z); }
+
+    /// Stick-form seed hook. Baked forms ignore this.
+    #[wasm_bindgen(js_name = setStickFormSeed)]
+    pub fn set_stick_form_seed(&mut self, seed: u32) {
+        crate::stick_form::set_seed(seed);
+    }
+
+    /// Always 0 — the four Druid forms are baked.
+    #[wasm_bindgen(js_name = stickFormSeed)]
+    pub fn stick_form_seed(&self) -> u32 {
+        crate::stick_form::active_seed(crate::stick_form::stick_bear())
+    }
 
     pub fn follow(&mut self, id: Option<String>) { self.scene.follow(id.as_deref()); }
 
@@ -324,11 +397,11 @@ impl StickRenderer {
         self.scene.anchor(id).map_or(vec![], |(x, a, b)| vec![x, a, b])
     }
 
-    /// `[x, y]` framebuffer pixel of a world point.
+    /// `[x, y, s]` framebuffer pixel of a world point. `s` is 0 when culled.
     #[wasm_bindgen(js_name = worldToScreen)]
     pub fn world_to_screen(&self, x: f32, y: f32, z: f32) -> Vec<f32> {
-        let (sx, sy) = self.scene.world_to_screen(x, y, z);
-        vec![sx, sy]
+        let (sx, sy, s) = self.scene.world_to_screen(x, y, z);
+        vec![sx, sy, s]
     }
 
     #[wasm_bindgen(js_name = removeUnit)]
