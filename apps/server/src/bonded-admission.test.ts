@@ -101,17 +101,17 @@ describe("bonded admission", { concurrency: false }, () => {
     }
   });
 
-  test("a validator does not post a bond and does not join", async () => {
+  test("an observer does not post a bond and does not join", async () => {
     reset();
     try {
       const mode = await installedGameMode({});
-      assert.equal(mode.mode, "validator");
+      assert.equal(mode.role, "observer");
       notePostedSlashableBond("host-a", 50n);
-      const result = postReplicaBond("host-a", mode.mode, 50n, REPLACE_SAFE);
+      const result = postReplicaBond("host-a", mode.role, 50n, REPLACE_SAFE);
       assert.deepEqual(result, { joined: false, amountWei: 0n });
       assert.equal(postedSlashableBond("host-a"), 50n);
       assert.equal(postedSlashableBond("validator-1"), 0n);
-      assert.deepEqual(postReplicaBond("validator-1", "validator", 10n), { joined: false, amountWei: 0n });
+      assert.deepEqual(postReplicaBond("validator-1", "observer", 10n), { joined: false, amountWei: 0n });
       assert.equal(votingSet().length, 0);
       assert.deepEqual(registryAdmin(), {
         registryOwner: "gnosis-safe",
@@ -145,8 +145,8 @@ describe("bonded admission", { concurrency: false }, () => {
           probeReachability: async () => true,
         },
       );
-      assert.equal(mode.mode, "replica");
-      const listed = postReplicaBond(PINNED_GNOSIS_LISTING_ADDRESS, mode.mode, 10n);
+      assert.equal(mode.role, "replica");
+      const listed = postReplicaBond(PINNED_GNOSIS_LISTING_ADDRESS, mode.role, 10n);
       assert.deepEqual(listed, { joined: false, amountWei: 0n });
       assert.equal(postedSlashableBond(PINNED_GNOSIS_LISTING_ADDRESS), 0n);
       const checksummed = postReplicaBond("0xbFa29a6EE3d1188aa0A9e0c783E5Da620b859E76", "replica", 10n);
@@ -155,7 +155,7 @@ describe("bonded admission", { concurrency: false }, () => {
       assert.deepEqual(bare, { joined: false, amountWei: 0n });
       assert.equal(votingSet().length, 0);
 
-      const joined = postReplicaBond("replica-a", mode.mode, 8n);
+      const joined = postReplicaBond("replica-a", mode.role, 8n);
       assert.deepEqual(joined, { joined: true, amountWei: 8n });
       assert.equal("listingKey" in joined, false);
       assert.equal(votingReplica(PINNED_GNOSIS_LISTING_ADDRESS), null);
@@ -193,7 +193,7 @@ describe("bonded admission", { concurrency: false }, () => {
       postReplicaBond("replica-a", "replica", 1n);
       postReplicaBond("replica-b", "replica", 2n);
       postReplicaBond("replica-c", "replica", 3n);
-      postReplicaBond("validator-1", "validator", 9n);
+      postReplicaBond("validator-1", "observer", 9n);
       postReplicaBond("phone", "light", 9n);
       postReplicaBond(PINNED_GNOSIS_LISTING_ADDRESS, "replica", 9n);
       assert.equal(votingSet().length, 3);
@@ -224,7 +224,7 @@ describe("bonded admission", { concurrency: false }, () => {
         const joined = postReplicaBond("replica-" + i, "replica", amount, REPLACE_SAFE);
         assert.deepEqual(joined, { joined: true, amountWei: amount });
       }
-      postReplicaBond("validator-1", "validator", 9n);
+      postReplicaBond("validator-1", "observer", 9n);
       postReplicaBond("phone", "light", 9n);
       postReplicaBond(PINNED_GNOSIS_LISTING_ADDRESS, "replica", 9n);
       assert.equal(votingSet().length, 4);

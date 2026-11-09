@@ -236,6 +236,32 @@ export async function readCharacterGenesisJob(
   }
 }
 
+/** Summary level (bits 0–15). Zero means the checkpoint has no summary for this token. */
+export async function readCharacterSummaryLevel(
+  tokenId: string,
+  envIn: NodeJS.ProcessEnv = process.env,
+): Promise<{ ok: true; level: number } | VaultErr> {
+  const env = envOf(envIn);
+  if (!env.rpc || !env.checkpoint) return { ok: false, error: "CharacterCheckpoint is not configured." };
+  if (!/^[1-9][0-9]{0,77}$/.test(tokenId)) return { ok: false, error: "Bad character token id." };
+  try {
+    const chainId = await chainIdOf(env.rpc);
+    const pub = publicClient(env.rpc, chainId);
+    const summary = await pub.readContract({
+      address: env.checkpoint as `0x${string}`,
+      abi: CHECKPOINT_ABI,
+      functionName: "summary",
+      args: [BigInt(tokenId)],
+    });
+    return { ok: true, level: Number(summary & 0xffffn) };
+  } catch (err) {
+    return {
+      ok: false,
+      error: "Failed to read summary for #" + tokenId + ": " + redact(String(err), []),
+    };
+  }
+}
+
 /** Job indexes the factory currently accepts as starting jobs (0–15 probed). */
 export async function readStartingJobs(
   rpc: string,

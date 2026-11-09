@@ -441,6 +441,33 @@ export class LokWorld {
     return { ok: true, tokenId };
   }
 
+  /**
+   * One spawn per token. A second caller, the mint observer or char/create,
+   * sees the existing row and does not append another spawn.
+   * The journal command stays { op: "spawn", tokenId, startingJob }.
+   */
+  ensureMintedSpawn(
+    tokenId: string,
+    job: number,
+    wallet?: string,
+  ): { ok: true; created: boolean; charId: string; tokenId: string } | { ok: false; error: string } {
+    const id = tokenId.trim();
+    const existing = this.charByTokenId(id);
+    if (existing) return { ok: true, created: false, charId: existing.charId, tokenId: existing.tokenId };
+    const charId = "chain_" + id;
+    const preferred = "Mint " + id;
+    const compact = "Mint" + id;
+    const name = !this.nameTaken(preferred) && preferred.length <= 16
+      ? preferred
+      : !this.nameTaken(compact) && compact.length <= 16
+        ? compact
+        : "";
+    if (!name) return { ok: false, error: "No free name for minted token #" + id + "." };
+    const spawned = this.spawn(charId, name, job, wallet, { tokenId: id });
+    if (!spawned.ok) return spawned;
+    return { ok: true, created: true, charId, tokenId: spawned.tokenId };
+  }
+
   /** Open book listings (AhEscrow asks) for boot reconcile against on-chain `asks()`. */
   openBookListings(): EngineListing[] {
     return this.state.listings.filter((row) => row.book === true);

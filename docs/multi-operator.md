@@ -23,7 +23,7 @@ Every design choice below is held to three liveness requirements and to the cons
 
 ### Liveness requirements
 
-1. Zero-friction join and leave. Players, validators, and light clients come and go with no registration and no effect on others. Only leading and voting are gated, because a bad writer can fork state.
+1. Zero-friction join and leave. Players, observers, and light clients come and go with no registration and no effect on others. Only leading and voting are gated, because a bad writer can fork state.
 2. Zero-participant startup. One hosted server or one installed game must boot, create a genesis journal, tick the world, accept players, and persist progress with nobody else on the network. This is a one-replica cluster, not a special mode.
 3. No infrastructure freezes. Losing a leader, a replica, or quorum degrades authenticity or changes the leader. It never stops combat, movement, or loot. Player-visible interruptions are limited to a reconnect.
 
@@ -36,7 +36,7 @@ Every design choice below is held to three liveness requirements and to the cons
 - The listing key stays outside any voting set. Whoever holds it can send `AhEscrow` and `PvpBounty` transactions, and being a replica does not grant it.
 - Chain events (`AskFilled`, PvP bounty logs, NFT transfers) are attestations. A mirror waits for confirmation depth and matching replica reports. Production Gnosis depth starts at 30 blocks (`DEFAULT_GNOSIS_CONFIRMATIONS` in `apps/server/src/settlement-confirmations.ts`). A per-type override may only raise that, never lower it.
 - No shared mutable data directory. `LOK_ALLOW_SHARED_DATA_DIR` is not this mode. Nodes sync by replaying signed batches, or from a checkpoint plus the tail. Published immutable checkpoints and journal segments (section 15) are allowed.
-- No new token and no emissions. The player-facing auction fee is 5% (`AhEscrow` `FEE_BPS = 500`, native xDAI). Half of that fee, 250 bps of the sale, funds the guild vault. The other 250 bps goes to the treasury. Uptime alone does not pay. Validators and light clients are not paid.
+- No new token and no emissions. The player-facing auction fee is 5% (`AhEscrow` `FEE_BPS = 500`, native xDAI). Half of that fee, 250 bps of the sale, funds the guild vault. The other 250 bps goes to the treasury. Uptime alone does not pay. Observers and light clients are not paid.
 
 ### New requirements from the tiered model
 
@@ -58,16 +58,16 @@ Every design choice below is held to three liveness requirements and to the cons
 
 There are four tiers, and a node is promoted from one to the next by capability and bond, never by permission from a central party.
 
-Only replicas vote; validators and light clients verify what the voting set certifies, and Gnosis holds the voting set, the anchored roots, and the proof of cheating.
+Only replicas vote; observers and light clients verify what the voting set certifies, and Gnosis holds the voting set, the anchored roots, and the proof of cheating.
 
 | Tier | Runs on | Holds | Does | Admission |
 | --- | --- | --- | --- | --- |
 | Light | Mobile, web | Latest signed head, its own character's state and proof | Follows commit certificates, verifies its own character against the committed root, watches its own chain events, relays inputs | None |
-| Validator | Installed game (default), any PC node | Full journal, replayed state | Replays every committed batch to the claimed root, serves sync to others, watches Gnosis, publishes fraud evidence | None |
+| Observer | Installed game (default), any PC node | Full journal, replayed state | Replays every committed batch to the claimed root, serves sync to others, watches Gnosis, publishes fraud evidence | None |
 | Replica (a Mark, to players) | PC or server, opt-in | Full journal plus the hot live world | Receives every batch from the leader, signs commit certificates, votes in elections, can be elected. A bonded Mark may register one guild | Posts a bond to join the voting set. The posted amount is the bond |
 | Leader | The best-uptime replica, one per encounter group at a time | The live world | Ticks at 20 Hz, sequences inputs and rolls, produces batches | Elected by replicas, fenced by epoch |
 
-A hosted server is simply a node configured as a replica that is eligible to lead. An installed game is a validator unless its owner enables the replica flag, and the flag is gated by a resource self-check ("can I hold a replica?") and a reachability check. Resource profiles for validator and replica are published after the Phase 0 load test produces baseline numbers.
+A hosted server is simply a node configured as a replica that is eligible to lead. An installed game is an observer unless its owner enables the replica flag, and the flag is gated by a resource self-check ("can I hold a replica?") and a reachability check. Resource profiles for observer and replica are published after the Phase 0 load test produces baseline numbers.
 
 Each tier verifies from the same signed batches and roots. Anyone can leave any tier at any time; a replica that leaves simply stops voting.
 
@@ -100,7 +100,7 @@ Engine phases keep these numbers. Network rollout steps below do not reuse them.
 
 A failed World::apply restores only the touched characters, and the order book only when the command changes listings. `World::load` rejects a document whose touch set is not `affected_at`. `ItemDrop` never credits, and inbound nonces apply once and in order. Duplicate PvP fills are rejected. State uses deterministic structures (`BTreeMap`, keccak links, fail-closed).
 
-### Known gaps that block replicas and validators
+### Known gaps that block replicas and observers
 
 - Replay proves consistency, not authenticity (#232). Closed by the batch envelope and commit certificates (section 5).
 - `lok-replay --expect-root` is on main. A mismatch exits non-zero.
@@ -128,7 +128,7 @@ Each envelope carries:
 
 ### Acceptance rules
 
-A replica or validator accepts a batch only when all hold:
+A replica or observer accepts a batch only when all hold:
 
 1. The parent root, epoch, and height match the chain it expects.
 2. The ruleset hash matches the hash it replays under.
@@ -146,7 +146,7 @@ A batch is committed when it carries a valid certificate. Only committed batches
 
 ### Commit threshold
 
-The threshold is a parameter pinned in the genesis batch. While the replica set is a small allowlist of known hosts, it is a simple majority, which tolerates crashed replicas. While fewer than four replicas have posted a bond and joined the voting set, open bonded admission keeps that majority: `1 + floor(n / 2)`. Once four or more replicas are bonded, the threshold is more than two thirds of that bonded set: `floor(2n / 3) + 1`, which tolerates a minority of dishonest replicas. Three bonded replicas commit at 2 of 3. Four commit at 3 of 4. Five commit at 4 of 5. Validators, light clients, phones, and the listing key are not in `n`. A one-replica genesis uses a threshold of one, so a single server commits its own batches and the "no notaries" case needs no special code.
+The threshold is a parameter pinned in the genesis batch. While the replica set is a small allowlist of known hosts, it is a simple majority, which tolerates crashed replicas. While fewer than four replicas have posted a bond and joined the voting set, open bonded admission keeps that majority: `1 + floor(n / 2)`. Once four or more replicas are bonded, the threshold is more than two thirds of that bonded set: `floor(2n / 3) + 1`, which tolerates a minority of dishonest replicas. Three bonded replicas commit at 2 of 3. Four commit at 3 of 4. Five commit at 4 of 5. Observers, light clients, phones, and the listing key are not in `n`. A one-replica genesis uses a threshold of one, so a single server commits its own batches and the "no notaries" case needs no special code.
 
 ### Equivocation
 
@@ -169,7 +169,7 @@ Every replica applies the same batches in the same order, so any replica can bec
 - Replicas detect a missed heartbeat, increment the epoch, and elect a new leader.
 - A candidate must hold the highest prefix that a threshold of replicas has received. The new leader adopts that prefix; provisional batches beyond it are discarded.
 - Replicas reject any batch carrying an older epoch, which fences a returning stale leader.
-- One Rust BFT engine orders batches from the first replica, including a genesis of one. Raft is not a phase. A crashed host and a lying host are both in scope once a second machine can sign, and a crash-only protocol cannot tell them apart. The engine is Tendermint-family (Malachite, the maintained Rust implementation). It runs at one validator and at three. The TypeScript server keeps the 20 Hz loop and, after a successful seal, submits that batch to the engine. The tick returns without waiting for a commit. A stopped validator or a round that does not decide leaves the batch provisional, and play continues. The server does not implement consensus. The lok wasm stays the state machine. An OP Stack, Orbit, or Cosmos SDK chain is not the orderer: those chains do not tick combat at 20 Hz, and they would replace the rules engine.
+- One Rust BFT engine orders batches from the first replica, including a genesis of one. Raft is not a phase. A crashed host and a lying host are both in scope once a second machine can sign, and a crash-only protocol cannot tell them apart. The engine is Tendermint-family (Malachite, the maintained Rust implementation). Malachite calls its voting nodes validators. In this document those nodes are replicas. It runs at one replica and at three. The TypeScript server keeps the 20 Hz loop and, after a successful seal, submits that batch to the engine. The tick returns without waiting for a commit. A stopped replica or a round that does not decide leaves the batch provisional, and play continues. The server does not implement consensus. The lok wasm stays the state machine. An OP Stack, Orbit, or Cosmos SDK chain is not the orderer: those chains do not tick combat at 20 Hz, and they would replace the rules engine.
 
 ### Hand-off protocol
 
@@ -210,7 +210,7 @@ A genesis with one replica commits its own batches (threshold of one). A cluster
 
 ### Joining and catch-up
 
-A new replica or validator syncs from the latest checkpoint plus the log tail (Phase 5 checkpoint format), replays to the current root, and starts voting only after it has caught up and its bond, if required, is in place.
+A new replica or observer syncs from the latest checkpoint plus the log tail (Phase 5 checkpoint format), replays to the current root, and starts voting only after it has caught up and its bond, if required, is in place.
 
 ## 7. Capacity: encounter groups and leases
 
@@ -244,13 +244,13 @@ The bond is denominated in xDAI, so no new token is introduced.
 
 1. Phase one: the replica set is an allowlist of hosted nodes that you operate, and the threshold is a majority.
 2. Open bonded admission. A replica joins the voting set by posting a bond. The posted amount is the bond. There is no minimum, default, or ceiling. The registry is local and does not broadcast to Gnosis mainnet or Chiado. Joining does not stop the 20 Hz tick. Registry owner, slashing admin, and ruleset proposer stay the Gnosis Safe until a vote of bonded replicas exists. This step does not create that vote and does not transfer admin. The commit threshold stays a majority while fewer than four replicas are bonded.
-3. Once four replicas are bonded, the threshold is more than two thirds of the bonded voting set, `floor(2n / 3) + 1`. The count is replicas that posted a bond and joined. Validators, light clients, phones, and the listing key are not counted. This step does not create a vote that replaces the Safe, does not transfer admin, and does not broadcast to Gnosis mainnet or Chiado. The 20 Hz tick does not wait.
-4. Validators and light clients do not post a bond and do not join the replica set. The listing key stays outside the set. A phone stays a light client.
+3. Once four replicas are bonded, the threshold is more than two thirds of the bonded voting set, `floor(2n / 3) + 1`. The count is replicas that posted a bond and joined. Observers, light clients, phones, and the listing key are not counted. This step does not create a vote that replaces the Safe, does not transfer admin, and does not broadcast to Gnosis mainnet or Chiado. The 20 Hz tick does not wait.
+4. Observers and light clients do not post a bond and do not join the replica set. The listing key stays outside the set. A phone stays a light client.
 
 ### Fraud evidence
 
 - Equivocation is provable on chain, because it only needs two signatures to be checked.
-- An invalid certified batch is not provable on chain, because checking it needs a replay. Validators detect it by replay and `lok-replay --expect-root`, then publish the batch, its parent root, and the mismatch. Until an on-chain dispute game exists (section 18), response is operational: honest replicas refuse to build on it, and the registry owner removes and slashes the offending replicas.
+- An invalid certified batch is not provable on chain, because checking it needs a replay. Observers detect it by replay and `lok-replay --expect-root`, then publish the batch, its parent root, and the mismatch. Until an on-chain dispute game exists (section 18), response is operational: honest replicas refuse to build on it, and the registry owner removes and slashes the offending replicas.
 
 ### Chain-bound actions
 
@@ -300,7 +300,7 @@ It does not replay the world, store the journal, vote, or lead.
 
 A phone is not a default replica. Boot stays the light tier. It does not tick the world, lead, or become a replica.
 
-A limited validator mode is eligible only when the device is both plugged in and on an unmetered connection. Unplugged, or metered, stays on the light tier. Eligibility does not start the world tick. The phone's entry stays light: it does not tick, lead, or become a replica.
+A limited observer mode is eligible only when the device is both plugged in and on an unmetered connection. Unplugged, or metered, stays on the light tier. Eligibility does not start the world tick. The phone's entry stays light: it does not tick, lead, or become a replica.
 
 Background limits on the mobile operating system apply. The eligible mode is best-effort and may be stopped by the OS. This policy sets no CPU, RAM, or disk floor.
 
@@ -308,7 +308,7 @@ That mode grants no combat bonus, no second guild, and not the listing key.
 
 ### Trust boundary
 
-A light client trusts that fewer than the threshold of replicas collude. Against a colluding majority it is protected only by validators noticing and responding (section 8), which is why the validator tier is open to every installed game.
+A light client trusts that fewer than the threshold of replicas collude. Against a colluding majority it is protected only by observers noticing and responding (section 8), which is why the observer tier is open to every installed game.
 
 ### Dependency
 
@@ -325,7 +325,7 @@ The seed changes every epoch of 10 seconds (a parameter) and is held by a seed r
 1. Roller: the role bounces to a different replica every epoch, in rotation, and never lands on the current leader. If no other replica is reachable, the main server (the leader) rolls the seed itself. A roller that is elected leader ends its epoch early and reveals its seed, and the next replica starts a new epoch.
 2. Seed commitment: before the epoch the roller commits to a secret contribution. Once a later Gnosis block's randomness is known, it computes the seed as a hash of its secret and that randomness, then posts a commitment to the seed with a ZK proof that the commitment is exactly that hash of the earlier-committed secret and the public randomness. The proof stops the roller from grinding for a favorable seed, and nobody learns the seed.
 3. Rolls during the epoch: for each batch the leader sends the roller its signed inputs commitment and the event ids. The roller returns the rolls for those events, derived from the seed and each event id through `rollUnit`, signed and bound to that inputs commitment. The leader cannot change the inputs after seeing the rolls.
-4. Reveal: when the epoch ends the roller reveals the seed. Replicas and validators recompute every roll of the epoch and check it against the commitment. A mismatch is evidence against the roller and its bond is slashed.
+4. Reveal: when the epoch ends the roller reveals the seed. Replicas and observers recompute every roll of the epoch and check it against the commitment. A mismatch is evidence against the roller and its bond is slashed.
 5. Certification: batches whose rolls came from the roller are certified once the seed is revealed and recomputed, so committed progress lags by up to an epoch, and so does the provisional tail lost if the leader fails. If proving is fast enough for the tick budget, a per-batch proof of correct roll derivation lets certification run immediately instead.
 
 PvP blind, hit, and crit move off `Math.random` onto this path.
@@ -346,7 +346,7 @@ A set of rollers can serve each epoch instead of one, so no single roller has to
 
 - Seed commitment proof (step 2): everyone can trust the seed was not chosen by the roller, without learning it.
 - Per-batch proof (optional): shows every roll in the batch is derived from the committed seed, so certification does not wait for the reveal. Whether proving fits the latency budget is open (section 18).
-- Epoch proof: one proof per epoch that all its rolls derive from the committed seed, so light clients and Gnosis can check roll integrity without replay. Replicas and validators do not need it, because they recompute after the reveal.
+- Epoch proof: one proof per epoch that all its rolls derive from the committed seed, so light clients and Gnosis can check roll integrity without replay. Replicas and observers do not need it, because they recompute after the reveal.
 - Proving the full `World::apply` transition in zero knowledge is the later proof-verification optimization and stays out of scope here.
 
 Unpredictability comes from separating the roller from the leader, not from the proof. If the leader derived rolls from a seed it holds, latency would be zero but it could predict every roll in the epoch and choose inputs accordingly, so that variant is rejected.
@@ -381,9 +381,9 @@ In every row except a total outage the game keeps ticking; what changes is who l
 | Threshold lost (too few replicas reachable) | A reachable replica keeps ticking provisionally | Unchanged, marked provisional | Not certified; chain-bound actions wait |
 | Partition heals | Below-threshold side adopts the certified chain | Brief reconnect | Its provisional batches are discarded |
 | Two leaders claim one epoch | Replicas accept only the batch signed by the elected leader; conflicting signatures are equivocation | None to brief reconnect | Offender's bond slashed |
-| Validator or light client leaves | Nothing | None | Unchanged |
+| Observer or light client leaves | Nothing | None | Unchanged |
 | Client loses its node | Reconnects through the directory | Reconnect | Unchanged |
-| All replicas offline | World is not running; players cannot connect | World unavailable | Last anchored root and any validator's journal allow restart |
+| All replicas offline | World is not running; players cannot connect | World unavailable | Last anchored root and any observer's journal allow restart |
 | Gnosis RPC unavailable | Play continues; chain-bound actions and mirrors wait | Unchanged in game | Delayed, not lost |
 
 Player-visible interruptions are limited to reconnects and to the same failure class as the single-server design when every replica is down. Directory caching, fallback, and a clear reconnect screen are required client work, and there is no "world paused" state.
@@ -396,12 +396,12 @@ The design guarantees that certified history cannot fork and that cheating by re
 | --- | --- | --- | --- |
 | Malicious leader | Censor or reorder inputs; stall until replaced | Forge rolls, mint beyond caps, certify alone | Leader-blind rolls, caps in `World::apply`, election on missed heartbeat, replicas verify every batch |
 | Minority of dishonest replicas | Withhold votes, delay certification | Certify an invalid batch | Threshold overlap, replay by honest replicas |
-| Dishonest replica majority (above the threshold) | Certify an invalid batch | Hide it from validators | Validators replay and publish evidence; honest replicas refuse to build on it; bond slashing; chain-bound actions held by the anchor and challenge delay |
+| Dishonest replica majority (above the threshold) | Certify an invalid batch | Hide it from observers | Observers replay and publish evidence; honest replicas refuse to build on it; bond slashing; chain-bound actions held by the anchor and challenge delay |
 | Equivocating signer | Send conflicting batches to different peers | Avoid proof | Equivocation court slashes the bond |
 | Network partition | Isolate a minority | Create a second certified history | Threshold overlap; provisional discarded on heal |
 | Malicious seed roller | Predict rolls, leak them to a colluder, withhold rolls | Pick its own seed or change a roll after committing | ZK-proven seed commitments, reveal and recomputation each epoch, several rollers whose shares are hashed together, rotation that excludes the leader, bond slashing; defeating it takes every roller in the set colluding with the leader |
 | Holder of the listing key | Send `AhEscrow` and `PvpBounty` transactions | Alter certified state | Key stays outside the replica set; not granted by operating a node |
-| Malicious light client or validator | Spam requests | Affect state or liveness | Rate limits at serving nodes; no vote |
+| Malicious light client or observer | Spam requests | Affect state or liveness | Rate limits at serving nodes; no vote |
 
 ### Not guaranteed
 
@@ -411,14 +411,14 @@ The design guarantees that certified history cannot fork and that cheating by re
 
 ## 13. Rollout sequence
 
-The order puts a correct, fast engine first, then fault tolerance with three hosted replicas, then open validators, then open replicas, and each step is shippable on its own.
+The order puts a correct, fast engine first, then fault tolerance with three hosted replicas, then open observers, then open replicas, and each step is shippable on its own.
 
 1. Phase 0 quick wins and the load-test baseline (no ruleset change). Gate: load test runs in CI with baseline numbers.
 2. Phase 1+2 bundle: O(touched), safety net, `lok-replay --expect-root`, KEK removal, and ruleset proposals early enough for the timelock. Gate: full log replay gives an identical root.
 3. Envelope with leader signature, ruleset binding, fallback-seeded rolls (Gnosis randomness plus leader commitment) with PvP on `rollUnit`, and caps in `World::apply`. Gate: golden vectors green and replay cost under budget.
 4. Replication and election across three hosted replicas, majority threshold, with the replica registry on an allowlist; seed rolling rotates across the replicas and rolls switch to it. Gate: leader failover practiced and a killed leader costs only a reconnect.
 5. Root anchor on Gnosis and gating of chain-bound actions on anchored roots. Roll proofs for light clients and contracts follow once the roll circuit exists.
-6. Installed game with a bundled node in validator mode, and a web client with light verification. Gate: the per-character proof API and the commitment over character roots are in place.
+6. Installed game with a bundled node in observer mode, and a web client with light verification. Gate: the per-character proof API and the commitment over character roots are in place.
 7. Mobile light client.
 8. Equivocation court, then open bonded admission. The Gnosis Safe stays admin until a vote of bonded replicas exists. While fewer than four replicas are bonded the commit threshold stays a majority (`1 + floor(n / 2)`). Once four or more are bonded it is more than two thirds of that set (`floor(2n / 3) + 1`). Commit certificates are BLS12-381 from the first replica. Gnosis verifies them with the EIP-2537 precompiles (Pectra, 30 Apr 2025). Player session keys stay ECDSA.
 9. Guild registry. One guild per bonded operator. Joining stays free. A character requests and the guild accepts before they count as a member. No payouts yet.
@@ -441,7 +441,7 @@ This design does not attempt any of the following:
 - Introducing a new token, or paying anyone with emissions.
 - Granting a Mark extra damage, loot, or any other combat advantage.
 - Requiring a replica, a bond, or a Mark to join a guild.
-- Paying a replica for idle uptime, or paying validators and light clients.
+- Paying a replica for idle uptime, or paying observers and light clients.
 - Porting CosmWasm entry points, Item/Map patterns, or IBC. Cross-domain traffic is a Gnosis log after depth plus matching reports.
 - Shared disk or automatic full-history replication.
 
@@ -455,7 +455,7 @@ Seven gaps can hurt players or the economy, and each has a fix that belongs in t
 | Settlement lag looks like finality | Trades and fills appear done but stay provisional for up to an epoch, and a leader crash can reverse them | Label value-bearing actions as settling until committed; chain-bound actions already wait |
 | The bond is not tied to the value at stake | A dishonest majority could extract more than the slash costs it | Cap the value certifiable per epoch below a fraction of the slashable bond, and raise the cap as bonds grow |
 | Hidden central keys | The registry owner, who slashes, and the ruleset timelock admin are the real root of trust | Name the holders, publish them, and plan how each decentralizes (for example multisig, then a bonded vote). Until then, say so plainly |
-| Data availability | Anchors hold roots, not data. If every replica and validator loses the journal, the world cannot be rebuilt | Recent checkpoints go out as Gnosis blobs (EIP-4844, pruned after about 18 days). Validators keep the bytes. The anchor records the blob commitment and the keccak. 20 Hz batches are not blob traffic |
+| Data availability | Anchors hold roots, not data. If every replica and observer loses the journal, the world cannot be rebuilt | Recent checkpoints go out as Gnosis blobs (EIP-4844, pruned after about 18 days). Observers keep the bytes. The anchor records the blob commitment and the keccak. 20 Hz batches are not blob traffic |
 | The web client is trusted code | A light client verifies nothing if the site serves a malicious bundle | Pin the bundle hash, use reproducible builds, and serve it from a name the community can check |
 | The leader is an exposed target | One public machine ticks the world | Sentry proxies in front of the leader, a hidden leader address, and fast rotation under attack |
 
@@ -486,7 +486,7 @@ Without these it is a game with a good audit log. With them it is a world that c
 
 | Decision | Why it is expensive later | Choose now |
 | --- | --- | --- |
-| Ruleset versioning in the journal | Old history must stay replayable under the rules that produced it, or validators replaying from genesis break at the first upgrade | Each batch carries the ruleset hash it was replayed under. Every past wasm pin is kept. Unknown hashes are rejected |
+| Ruleset versioning in the journal | Old history must stay replayable under the rules that produced it, or observers replaying from genesis break at the first upgrade | Each batch carries the ruleset hash it was replayed under. Every past wasm pin is kept. Unknown hashes are rejected |
 | State commitment and hash | Changing the tree or the hash means a new genesis | Keccak, the same binary Merkle as `State::root` (`commit_map` in `state.rs`: pair leaves, duplicate the last when a level is odd). `nextRoot` is that tree over `(tokenId, characterRoot)`. A sibling-proof API is Phase 5. A ZK-friendly hash is a new genesis, not a silent swap |
 | Certificate signature scheme | Individual signatures grow with the replica set, and phones and Gnosis pay for each | BLS12-381 aggregate signatures from the first commit certificate. Gnosis EIP-2537 checks them. Player session keys stay ECDSA. There is no later curve migration |
 | World id and protocol version | Without them, clients and replicas on different versions can split silently | Both sit in the genesis batch and in every envelope. An unknown `worldId` or `protocolVersion` is rejected |
@@ -498,12 +498,12 @@ Without these it is a game with a good audit log. With them it is a world that c
 The network's value is a guarantee players cannot get elsewhere plus a kit others can build on, so the design should point at those two things.
 
 - Sell the guarantee, not the infrastructure: provably fair drops, provable scarcity, and a world that outlives its studio. The ZK-verified rolls in section 10 are the concrete proof of the first.
-- Make the engine a kit: another developer launches a persistent, fault-tolerant world from one binary and a ruleset, and every new world adds replicas, validators, and players. That needs the ruleset as the plug-in boundary and the world id from section 16.
+- Make the engine a kit: another developer launches a persistent, fault-tolerant world from one binary and a ruleset, and every new world adds replicas, observers, and players. That needs the ruleset as the plug-in boundary and the world id from section 16.
 - Keep chain friction out of onboarding: play instantly, use session keys, and bring in the wallet only when value moves on chain.
 - Open the data: the public journal and the Phase 3 read-side views feed explorers, guild tools, marketplaces, and economy research.
 - Fund guilds, not idle machines: half of the 5% auction fee, in xDAI, paid on certified play. Half of a guild's earning goes to its members' Guild Wallets. A Mark is the right to lead a guild. It is not a stipend for being online.
-- Give players real power: validators in every installed game, community-run replicas, and a fork path make the world theirs as well as yours.
-- Publish the proof: a public status page with replica count, independent validator count, last anchored height, and time since the last unplanned outage lets anyone check the claims.
+- Give players real power: observers in every installed game, community-run replicas, and a fork path make the world theirs as well as yours.
+- Publish the proof: a public status page with replica count, independent observer count, last anchored height, and time since the last unplanned outage lets anyone check the claims.
 
 ## 18. Decisions, what is still open, and operational items
 
@@ -516,12 +516,12 @@ The stack already in the repo decides the questions that were blocking the spec.
 3. Randomness. The seed epoch is 10 seconds. The roller set is every replica that is not the leader. Certification waits for the reveal until rollout step 12. Step 3 uses Gnosis block randomness plus a leader commitment, and PvP rolls move onto `rollUnit`. No Gnosis ZK precompile is required.
 4. Input order. The order book clears once per batch, one price per item, ties broken by the roller seed. Combat and other inputs stay in the leader's order. Caps in `World::apply` and rotation on a missed heartbeat are the bound on that. There is no separate fair-ordering protocol.
 5. Provisional play. Ticking does not stop when the threshold is lost. A time cap would freeze the world. The client labels state provisional from the first uncertified batch. Chain-bound actions and guild scores ignore provisional batches.
-6. Challenge delay. One day for withdrawals, mints, escrow, and guild payouts, the same floor as the ruleset timelock. One clock. At launch the only watchers are the studio replicas, and one hour is shorter than the time it takes a person to notice a bad certificate. The delay can move down, behind that same timelock, once validators outside the replica set are online. It is not the PvpBounty `claimDelay` (60 seconds to 7 days on that contract).
+6. Challenge delay. One day for withdrawals, mints, escrow, and guild payouts, the same floor as the ruleset timelock. One clock. At launch the only watchers are the studio replicas, and one hour is shorter than the time it takes a person to notice a bad certificate. The delay can move down, behind that same timelock, once observers outside the replica set are online. It is not the PvpBounty `claimDelay` (60 seconds to 7 days on that contract).
 7. Slashing before a dispute game. The Gnosis Safe that holds contract admin may remove a replica and slash its bond only when the evidence reproduces: two signatures at the same epoch and height with different roots, or a batch that `lok-replay --expect-root` rejects. After the equivocation court exists, anyone may submit the signature pair. There is no social vote.
-8. Incentives. Guilds are paid from the auction fee, in xDAI, as specified under Marks and guilds. Replicas are not paid for uptime. Validators and light clients are not paid.
+8. Incentives. Guilds are paid from the auction fee, in xDAI, as specified under Marks and guilds. Replicas are not paid for uptime. Observers and light clients are not paid.
 9. Value at risk. Chain-bound xDAI settled in one epoch (escrow, bounty payouts, withdrawals, guild payouts) is at most 10% of the slashable bonds then posted. In-game gold is outside the cap. The percentage moves only behind the timelock. During the allowlist the posted bonds have to cover real auction volume, or the cap stalls chain-bound actions.
 10. Governance at launch. Registry owner, slashing admin, and ruleset proposer are the Admin Safe (`ADMIN` in `docs/gnosis-launch.md`). Emergency, guardian, and rotator are that same Safe. Its threshold is at least 2. That address is still to be supplied. It is not a server EOA. `FEE_RECIPIENT` is a distinct Treasury Safe. The path off the Safe is a vote of bonded replicas after open admission, not before.
-11. Data availability. A checkpoint is posted as a Gnosis blob. Blobs prune after about 18 days, so they are the publish path, not the archive. Every validator keeps the checkpoint bytes. The anchor stores the blob commitment and the keccak. 20 Hz batches stay off blobs. Celestia, EigenDA, and IPFS are not in the first cut. If every replica and every validator deletes the bytes, the anchor cannot rebuild the world.
+11. Data availability. A checkpoint is posted as a Gnosis blob. Blobs prune after about 18 days, so they are the publish path, not the archive. Every observer keeps the checkpoint bytes. The anchor stores the blob commitment and the keccak. 20 Hz batches stay off blobs. Celestia, EigenDA, and IPFS are not in the first cut. If every replica and every observer deletes the bytes, the anchor cannot rebuild the world.
 12. Versioning. `worldId` and `protocolVersion` are in the genesis batch and in every envelope. Unknown values are rejected. The state-tree hash is keccak, the same function as `State::root` and the Solidity golden vectors. Commit certificates are BLS12-381. Player session keys stay ECDSA.
 
 ### Rejected
@@ -545,18 +545,18 @@ A level-1 reset or a new mint would throw away the character the player can alre
 
 **Proofs, without a second chain.** Replay of the pinned wasm is the definition of a valid batch. A proof never overrides it. If a proof's public inputs or its result disagree with replay, the proof is ignored and the batch is invalid. Nodes that only replay and nodes that also check proofs therefore cannot land on two roots.
 
-Step 12, if it is built, uses one zkVM: SP1, because it executes this Rust crate and accelerates keccak, so the state hash does not change. A second prover (including RISC Zero) is not accepted on the same genesis. The verifying key is pinned beside `LOCAL_RULESET_WASM_SHA256` in the same ruleset record and moves only through the ruleset timelock. A proof under any other key is not a batch of this world. Light clients that cannot replay may trust a proof only after a validator has checked it against replay, or after the dispute game accepts that same pinned key. Until that key exists, light clients use certificates and inclusion proofs, not a prover.
+Step 12, if it is built, uses one zkVM: SP1, because it executes this Rust crate and accelerates keccak, so the state hash does not change. A second prover (including RISC Zero) is not accepted on the same genesis. The verifying key is pinned beside `LOCAL_RULESET_WASM_SHA256` in the same ruleset record and moves only through the ruleset timelock. A proof under any other key is not a batch of this world. Light clients that cannot replay may trust a proof only after an observer has checked it against replay, or after the dispute game accepts that same pinned key. Until that key exists, light clients use certificates and inclusion proofs, not a prover.
 
 ### Operational items
 
 - [ ] Replica key ceremony, encrypted backup expectations, rotation through a certified batch, and an emergency replace path that keeps play running while keys change. The initial set stays at three until the emergency path has been practiced.
 - [ ] Health endpoint on every node: last certified height, last anchored height, clock skew, peer connectivity.
 - [x] Hand-off and election protocol specification (messages, parent-root match, timeouts, in-flight inputs) and a deterministic multi-process test harness. Section 6 states the message kinds, the parent-root match, the heartbeat timeout, and in-flight inputs. `apps/server/src/handoff-harness.test.ts` runs that protocol in two OS processes.
-- [ ] Two published resource profiles (validator, replica) and a "can I hold a replica?" self-check; the installed game defaults to validator.
+- [ ] Two published resource profiles (observer, replica) and a "can I hold a replica?" self-check; the installed game defaults to observer.
 - [ ] Client directory with caching, fallback, and reconnect UX.
 - [ ] Checkpoint format and verification so new nodes start from a recent root rather than genesis.
-- [x] Mobile policy for when the limited validator mode may run (power, network, background limits). Section 9: a phone boots on the light tier and is not a default replica. Limited validator mode is eligible only when the device is plugged in and on an unmetered connection. Eligibility does not start the world tick. Background limits make that mode best-effort, and the OS may stop it. No CPU, RAM, or disk floor. No combat bonus, no second guild, and not the listing key.
-- [ ] Installer and docs: a Mark earns the right to lead one guild. Guild xDAI comes only from the auction-fee split, and only for certified play. Accepted members split half of their guild's earning. Uptime pays nothing. Validators and light clients are not paid.
+- [x] Mobile policy for when the limited observer mode may run (power, network, background limits). Section 9: a phone boots on the light tier and is not a default replica. Limited observer mode is eligible only when the device is plugged in and on an unmetered connection. Eligibility does not start the world tick. Background limits make that mode best-effort, and the OS may stop it. No CPU, RAM, or disk floor. No combat bonus, no second guild, and not the listing key.
+- [ ] Installer and docs: a Mark earns the right to lead one guild. Guild xDAI comes only from the auction-fee split, and only for certified play. Accepted members split half of their guild's earning. Uptime pays nothing. Observers and light clients are not paid.
 
 ## 19. Appendix: changes from the earlier design
 
@@ -568,7 +568,7 @@ Seven things change from the Engine, Multi-Operator World, and Verification docu
 | Small authorized notary set of three | Allowlisted replicas first, then bonded open admission | Player-run nodes cannot depend on invitation |
 | Quorum loss pauses all writes | Below-threshold replicas keep ticking provisionally and discard on heal | No infrastructure freezes |
 | Authenticity depends on notary signatures | Leader signature on every batch plus replica commit certificate, plus Gnosis anchor and equivocation court | Works for one server, three servers, or open replicas |
-| Surfaces: web client, hosted server, PC node | Four tiers (light, validator, replica, leader) across web, installed game, mobile, and hosted server | Mobile and installed games become part of the network |
+| Surfaces: web client, hosted server, PC node | Four tiers (light, observer, replica, leader) across web, installed game, mobile, and hosted server | Mobile and installed games become part of the network |
 | Encounter split as the capacity step after failover | Single-leader parallel groups first; per-encounter leases only if the load test demands | Replication already gives continuity |
 | Roll tape produced by the sim operator | Roll tape derived from a seed a non-leader roller commits and later reveals, keyed by event. Zero-knowledge proofs of that seed wait until rollout step 12 | A leader cannot choose outcomes |
 | No protocol rewards | Guilds are paid half of the 5% auction fee, in xDAI, on certified play. Half of each guild's earning is split across accepted members | Funds operators and members without a new token or a payment for uptime |

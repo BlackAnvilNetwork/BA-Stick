@@ -334,6 +334,7 @@ import {
   listOwnedCharacterNfts,
   readCharacterGenesisJob,
   readCharacterNftOwner,
+  readCharacterSummaryLevel,
   resolveListSellerPayout,
   LOCAL_RULESET_HASH,
   serverMintCharacterFor,
@@ -342,6 +343,23 @@ import {
 } from "./lok-vault";
 import { refuseZeroMintFee, resolveBindSpawnJob } from "./char-create-guard";
 import { isAutoTokenSuffixedName, ownedNftBindName, pickUnboundOwnedNfts } from "./owned-nfts";
+import {
+  NO_WORLD_COPY,
+  assessWorldBoot,
+  contractWorldExists,
+  directoryHasJournal,
+  journalCoversIssuedTokens,
+  mayAdoptOwnedToken,
+  readWorldIdentity,
+  writeWorldIdentity,
+} from "./world-identity";
+import {
+  backfillMintSpawns,
+  recordObservedMint,
+  startMintCatchUp,
+  startMintObserver,
+  summaryAheadOfJournal,
+} from "./mint-observer";
 import {
   enqueuePendingCancel,
   startNftTransferAskCancelWatcher,
@@ -389,7 +407,19 @@ import { sealParentRoot, sealTickBatch, sealView, takeSealedSignedBatch } from "
 import { emptyReplicaHealth, loadTickOrderer, submitOnSimTick } from "./order-submit";
 import { executeOnSimTick, loadSp1Executor, takeArrivedSp1Proof } from "./sp1-execute";
 import { snapshotFor as attachLightProof } from "./web-light-snapshot";
-import { installedGameMode, replicaMayTick, type InstalledGameMode } from "./installed-game-mode";
+import { installedGameMode } from "./installed-game-mode";
+import { can, leaseFor, type CapabilityOp, type PublishedLease, type Role } from "./capability";
+import { applyWorldSync, currentWorldSync, syncBootExit } from "./world-sync";
+import { readWorldManifest, fetchPublishedJournal, type ManifestView } from "./world-manifest";
+import {
+  APPEND_REFUSED,
+  decideWritePath,
+  FORWARD_NEEDS_SIGNATURE,
+  recoverSpawnSigner,
+  validateSpawnInput,
+  type SpawnInput,
+} from "./edge-forward";
+import { bytesToHex } from "viem";
 import { rollPvpAutoAttack } from "./pvp-auto-rolls";
 import { cheapestBait, fishGatherRefusal, isFishingRod } from "./fishing";
 import { emptyMobEnhances, takeMobHit } from "./mob-enhances";
@@ -924,9 +954,27 @@ async function requireLiveCharacterOwner(p: Player): Promise<boolean> {
   return false;
 }
 
+/** Replica is leader-eligible. Observer is the default. The lease is separate. */
+let processRole: Role = "observer";
+let publishedLease: PublishedLease | null = null;
+let loadedManifest: ManifestView | null = null;
+
+function currentLease() {
+  return leaseFor(processRole, publishedLease, process.env.LOK_SELF_ADDRESS ?? "");
+}
+
+function allow(op: CapabilityOp): boolean {
+  return can(op, processRole, currentWorldSync(), currentLease());
+}
+
 const lok: LokWorld = await (async (): Promise<LokWorld> => {
   try {
     loadLokEnv();
+    try {
+      processRole = (await installedGameMode(process.env, { dataDir: defaultLokDir() })).role;
+    } catch (err) {
+      console.error("[bellgrave] node mode check failed", err);
+    }
     applySettlementDeployFile();
     const bootShape = assertProductionEnvShape(process.env);
     if (!bootShape.ok) {
@@ -938,12 +986,122 @@ const lok: LokWorld = await (async (): Promise<LokWorld> => {
       console.error("[bellgrave] FATAL production contracts: " + bootLive.error);
       process.exit(1);
     }
+    const worldDir = defaultLokDir();
+    loadedManifest = await readWorldManifest(process.env);
+    publishedLease = loadedManifest
+      ? { epoch: loadedManifest.epoch, leader: loadedManifest.leader }
+      : null;
+    const chainWorld = await contractWorldExists(process.env);
+    const nft = process.env.LOK_NFT?.trim() ?? "";
+    const assessment = assessWorldBoot({
+      onDisk: readWorldIdentity(worldDir),
+      journalEmpty: !directoryHasJournal(worldDir),
+      chainId: envSettlementChainId(process.env),
+      nft,
+      chainWorldExists: chainWorld.exists,
+    });
+    if (!assessment.ok) {
+      if (assessment.loginError === NO_WORLD_COPY) {
+        applyWorldSync({
+          type: "boot-empty",
+          chainWorldExists: true,
+          manifestPublished: loadedManifest?.genesisSet === true,
+        });
+      } else if (assessment.loginError.includes("Refusing to run") || assessment.loginError.includes("This directory is world")) {
+        applyWorldSync({ type: "boot-identity-mismatch", detail: assessment.loginError });
+      } else {
+        applyWorldSync({ type: "boot-invalid-config", detail: assessment.loginError });
+      }
+    } else if (!directoryHasJournal(worldDir)) {
+      applyWorldSync({
+        type: "boot-empty",
+        chainWorldExists: false,
+        manifestPublished: loadedManifest?.genesisSet === true,
+      });
+    } else {
+      applyWorldSync({ type: "boot-journal" });
+    }
+    if (currentWorldSync().state === "not-synced" && loadedManifest?.journalUri) {
+      const fetched = fetchPublishedJournal({
+        uri: loadedManifest.journalUri,
+        journalHash: loadedManifest.journalHash,
+        destJournal: pathJoin(worldDir, "lok-world.jsonl"),
+      });
+      if (fetched.ok && directoryHasJournal(worldDir)) applyWorldSync({ type: "boot-journal" });
+      else console.error("[bellgrave] published journal was not fetched: " + (fetched.ok ? "empty" : fetched.error));
+    }
+    if (currentWorldSync().state === "not-synced") {
+      console.error("[bellgrave] FATAL no copy of the world: published journal is not on disk");
+      process.exit(1);
+    }
+    const bootExit = syncBootExit(currentWorldSync());
+    if (bootExit) {
+      console.error("[bellgrave] FATAL no copy of the world: " + bootExit);
+      console.error("[bellgrave] login refused: " + bootExit);
+      console.error("[bellgrave] chain signal: " + chainWorld.reason);
+      process.exit(1);
+    }
+    if (currentWorldSync().state === "genesis" && assessment.writeIdentity && !assessment.stampLegacy) {
+      writeWorldIdentity(worldDir, assessment.writeIdentity);
+    }
     configureEpochLedger(defaultLokDir());
     recordPostedSlashableBonds(process.env);
     void bringBondedMarkOnline(process.env).then((result) => {
       if (!result.ok) console.warn("[bellgrave] mark online refused: " + result.error);
     });
     const world = LokWorld.open(defaultLokDir());
+    const knownTokens = new Set(world.boundChars().map((row) => row.tokenId));
+    let mintClean = true;
+    if (
+      allow("append") &&
+      chainWorld.nextTokenId >= 1n &&
+      !journalCoversIssuedTokens(knownTokens, chainWorld.nextTokenId)
+    ) {
+      const backfill = await backfillMintSpawns(world, knownTokens, chainWorld.nextTokenId, process.env);
+      if (backfill.holes.length > 0) {
+        mintClean = false;
+        applyWorldSync({ type: "mint-hole", tokenIds: backfill.holes });
+      } else if (!backfill.complete || backfill.unresolved.length > 0) {
+        mintClean = false;
+        applyWorldSync({ type: "mint-pending" });
+        console.error(
+          "[bellgrave] mint catch-up incomplete: " +
+            (backfill.unresolved.join(",") || "scan") +
+            (backfill.error ? " (" + backfill.error + ")" : "") +
+            ". The world stays identified. A cursor that has passed the mint will refuse.",
+        );
+      }
+    }
+    if (loadedManifest?.genesisSet) {
+      const localEntries = BigInt(world.length);
+      if (localEntries < loadedManifest.headEntries) {
+        mintClean = false;
+        applyWorldSync({
+          type: "tail-behind",
+          localHead: localEntries.toString(),
+          publishedHead: loadedManifest.headEntries.toString(),
+        });
+      } else if (bytesToHex(world.characterRootTreeRoot()).toLowerCase() !== loadedManifest.merkleRoot.toLowerCase()) {
+        mintClean = false;
+        applyWorldSync({
+          type: "forked-root",
+          detail: "Replayed merkle root does not match the manifest.",
+        });
+      }
+    }
+    const afterMint = syncBootExit(currentWorldSync());
+    if (afterMint) {
+      console.error("[bellgrave] FATAL " + afterMint);
+      console.error("[bellgrave] login refused: " + afterMint);
+      process.exit(1);
+    } else if (mintClean && currentWorldSync().state === "identified" && assessment.stampLegacy && assessment.writeIdentity) {
+      writeWorldIdentity(worldDir, assessment.writeIdentity);
+      console.error(
+        "[bellgrave] stamped world identity " +
+          assessment.writeIdentity.genesisHash +
+          " onto an existing journal",
+      );
+    }
     loadGameRoll(defaultLokDir());
     configureMintClaimNonceStore(pathJoin(defaultLokDir(), "mint-claim-nonces.json"));
     console.log(
@@ -958,7 +1116,14 @@ const lok: LokWorld = await (async (): Promise<LokWorld> => {
       },
     });
     startPvpBountyWatcher(world, { dataDir: defaultLokDir() });
-    startNftTransferAskCancelWatcher(world, {
+    const transfersWatched = startNftTransferAskCancelWatcher(world, {
+      onMint: async (xfer) => {
+        if (!allow("append")) {
+          console.error("[bellgrave] " + APPEND_REFUSED + " role=" + processRole + " token=" + xfer.tokenId);
+          return;
+        }
+        await recordObservedMint(world, xfer);
+      },
       onOwnershipChange: async (change) => {
         if (change.from && change.from !== change.to) {
           const reason =
@@ -974,6 +1139,18 @@ const lok: LokWorld = await (async (): Promise<LokWorld> => {
           kickWalletSessions(change.from, reason);
           await refundPvpBountyOnTransfer(change.tokenId);
         }
+      },
+    });
+    if (!transfersWatched) startMintObserver(world);
+    startMintCatchUp(world, {
+      onMissingHistory: (tokenId) => {
+        applyWorldSync({ type: "mint-hole", tokenIds: [tokenId] });
+        console.error(
+          "[bellgrave] FATAL journal is missing mint history for token " +
+            tokenId +
+            ". " +
+            NO_WORLD_COPY,
+        );
       },
     });
     // Block sessions until C-1 rebind finishes (no pre-migration logins).
@@ -1220,6 +1397,10 @@ function lokToken(p: Player): string {
   const existing = lok.tokenFor(p.charId);
   if (existing) return existing;
   const job = JOB_IDS.indexOf(p.job);
+  if (!allow("append")) {
+    console.error("[bellgrave] " + APPEND_REFUSED + " role=" + processRole);
+    return "";
+  }
   const res = lok.spawn(p.charId, p.name, job < 0 ? 0 : job, p.wallet);
   return res.ok ? res.tokenId : "";
 }
@@ -7494,7 +7675,26 @@ async function adoptOwnedUnboundNfts(wallet: string, ws: WebSocket): Promise<voi
       .filter((id): id is string => !!id),
   );
   const unbound = pickUnboundOwnedNfts(owned, bound);
+  const journalTokens = new Set(
+    lok.boundChars().map((row) => row.tokenId).filter((id): id is string => !!id),
+  );
   for (const nft of unbound) {
+    if (
+      !mayAdoptOwnedToken({
+        tokenId: nft.tokenId,
+        journalTokenIds: journalTokens,
+        bindTokenIds: bound,
+        caughtUp: allow("login"),
+      })
+    ) {
+      console.error(
+        "[bellgrave] refusing to adopt token #" +
+          nft.tokenId +
+          ". Minting is the only path to a new character. " +
+          (allow("login") ? "" : NO_WORLD_COPY),
+      );
+      continue;
+    }
     const capped = lok.ensureWalletCapacity(owner);
     if (!capped.ok) break;
     const genesis = await readCharacterGenesisJob(nft.tokenId);
@@ -7512,6 +7712,10 @@ async function adoptOwnedUnboundNfts(wallet: string, ws: WebSocket): Promise<voi
     const claimed = lok.claimName(charId, name, owner);
     if (!claimed.ok) {
       console.warn("[bellgrave] name for NFT #" + nft.tokenId + ": " + claimed.error);
+      continue;
+    }
+    if (!allow("append")) {
+      console.error("[bellgrave] " + APPEND_REFUSED + " role=" + processRole + " token=" + nft.tokenId);
       continue;
     }
     const spawned = lok.spawn(charId, claimed.name, resolved.jobIndex, owner, {
@@ -7569,6 +7773,49 @@ function parkLiveWalletOnSocket(ws: WebSocket, wallet: string): void {
   }
 }
 
+/**
+ * CharacterCheckpoint.summary stores a level. A summary ahead of this journal
+ * means the character was played somewhere else. Refuse that character.
+ * A zero summary has no checkpoint and does not trip.
+ */
+async function refuseCheckpointAhead(wallet: string, ws: WebSocket): Promise<void> {
+  const slots = accountRoster.get(wallet);
+  if (!slots) return;
+  for (const p of [...slots.values()]) {
+    const token = lok.tokenFor(p.charId);
+    if (!token) continue;
+    const summary = await readCharacterSummaryLevel(token);
+    if (!summary.ok) {
+      console.error("[bellgrave] summary tripwire unread for #" + token + ": " + summary.error);
+      continue;
+    }
+    const local = lok.levelOf(token);
+    if (!summaryAheadOfJournal(summary.level, local)) continue;
+    console.error(
+      "[bellgrave] FATAL checkpoint summary for #" +
+        token +
+        " is level " +
+        summary.level +
+        "; this journal has level " +
+        Math.max(1, local) +
+        ". Refusing the character.",
+    );
+    slots.delete(p.charId);
+    send(ws, {
+      type: "log",
+      message:
+        "Character #" +
+        token +
+        " is level " +
+        summary.level +
+        " on the checkpoint and level " +
+        Math.max(1, local) +
+        " on this journal. It was not loaded.",
+    });
+  }
+  if (slots.size === 0) accountRoster.delete(wallet);
+}
+
 /** Bind this socket after a signature or a still-valid resume token. */
 async function completeWalletSession(ws: WebSocket, wallet: string): Promise<void> {
   const sock = ws as WebSocket & { authDeadline?: ReturnType<typeof setTimeout>; wallet?: string };
@@ -7581,8 +7828,14 @@ async function completeWalletSession(ws: WebSocket, wallet: string): Promise<voi
     parkLiveWalletOnSocket(ws, prev);
   }
   sock.wallet = wallet;
+  if (!allow("login")) {
+    send(ws, { type: "error", message: NO_WORLD_COPY });
+    console.error("[bellgrave] login refused: " + NO_WORLD_COPY);
+    return;
+  }
   adoptOrphanLogs(wallet, ws);
   await adoptOwnedUnboundNfts(wallet, ws);
+  await refuseCheckpointAhead(wallet, ws);
   stripAutoTokenSuffixNames(wallet);
 
   // Park any live character — keep roster, leave the world until char/enter or char/create.
@@ -7804,6 +8057,7 @@ function onMessage(ws: WebSocket, data: string) {
   if (msg.type === "char/syncOwned") {
     void (async () => {
       await adoptOwnedUnboundNfts(wallet, ws);
+      await refuseCheckpointAhead(wallet, ws);
       const characters = accountPreviews(wallet);
       send(ws, {
         type: "char/roster",
@@ -7819,6 +8073,73 @@ function onMessage(ws: WebSocket, data: string) {
 
   if (msg.type === "char/create") {
     void (async () => {
+      const writePath = decideWritePath(allow("append"), allow("forward"));
+      if (writePath === "refuse") {
+        send(ws, { type: "error", message: APPEND_REFUSED });
+        console.error("[bellgrave] " + APPEND_REFUSED + " role=" + processRole);
+        return;
+      }
+      if (writePath === "forward") {
+        const signature = msg.inputSig;
+        if (!signature || !msg.tokenId) {
+          send(ws, { type: "error", message: FORWARD_NEEDS_SIGNATURE });
+          return;
+        }
+        const leader = process.env.LOK_LEADER_URL?.trim();
+        if (!leader) {
+          send(ws, { type: "error", message: APPEND_REFUSED });
+          return;
+        }
+        const namedForward = normalizeCharacterName(msg.name);
+        if (!namedForward.ok) {
+          send(ws, { type: "error", message: namedForward.error });
+          return;
+        }
+        const input: SpawnInput = {
+          op: "spawn",
+          wallet,
+          tokenId: msg.tokenId,
+          startingJob: JOB_IDS.indexOf(msg.job) < 0 ? 0 : JOB_IDS.indexOf(msg.job),
+          name: namedForward.name,
+          signature: signature as `0x${string}`,
+        };
+        const signer = await recoverSpawnSigner(input);
+        const local = validateSpawnInput(input, signer, {
+          tokenInJournal: lok.charByTokenId(msg.tokenId) != null,
+          nameTaken: lok.nameTaken(namedForward.name),
+        });
+        if (!local.ok) {
+          send(ws, { type: "error", message: local.error });
+          return;
+        }
+        try {
+          const response = await fetch(leader.replace(/\/$/, "") + "/world/input", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(input),
+          });
+          const body = (await response.json()) as {
+            ok?: boolean;
+            error?: string;
+            name?: string;
+            charId?: string;
+            startingJob?: number;
+          };
+          if (!response.ok || !body.ok || !body.charId || !body.name || typeof body.startingJob !== "number") {
+            send(ws, { type: "error", message: body.error ?? "The leader refused the action." });
+            return;
+          }
+          // The leader already ordered this spawn. Replaying it here copies that row. It is not a second decision.
+          const applied = lok.ensureMintedSpawn(msg.tokenId, body.startingJob, wallet);
+          if (applied.ok) lok.setBoundName(applied.charId, body.name);
+          const p = createPlayer(wallet, body.name, ws, msg.job, msg.gender, applied.ok ? applied.charId : body.charId);
+          send(ws, snapshotFor(p));
+        } catch (err) {
+          console.error("[bellgrave] leader forward failed", err);
+          send(ws, { type: "error", message: "The leader did not accept the action." });
+        }
+        return;
+      }
       if (!isEthAddress(wallet)) {
         send(ws, { type: "error", message: "Authenticate with a signed wallet first." });
         return;
@@ -7993,24 +8314,47 @@ function onMessage(ws: WebSocket, data: string) {
         job = resolved.job;
         jobIndex = resolved.jobIndex;
       }
-      const charId = `c_${Date.now().toString(36)}_${randomBytes(6).toString("hex")}`;
-      const claimed = lok.claimName(charId, named.name, bindWallet);
-      if (!claimed.ok) {
-        send(ws, { type: "error", message: claimed.error });
-        return;
-      }
-      const spawned = lok.spawn(charId, claimed.name, jobIndex < 0 ? 0 : jobIndex, bindWallet, {
-        ...(bindToken ? { tokenId: bindToken } : {}),
-      });
-      if (!spawned.ok) {
-        send(ws, { type: "error", message: spawned.error });
-        return;
+      let charId: string;
+      let displayName = named.name;
+      let mintedTokenId: string | undefined;
+      let freshlySpawned = true;
+      if (bindToken) {
+        const ensured = lok.ensureMintedSpawn(bindToken, jobIndex < 0 ? 0 : jobIndex, bindWallet);
+        if (!ensured.ok) {
+          send(ws, { type: "error", message: ensured.error });
+          return;
+        }
+        freshlySpawned = ensured.created;
+        charId = ensured.charId;
+        mintedTokenId = ensured.tokenId;
+        const renamed = lok.setBoundName(charId, named.name);
+        if (renamed.ok) displayName = renamed.name;
+        else if (freshlySpawned) {
+          send(ws, { type: "error", message: renamed.error });
+          return;
+        } else {
+          displayName = lok.charByTokenId(bindToken)?.name ?? named.name;
+        }
+      } else {
+        charId = `c_${Date.now().toString(36)}_${randomBytes(6).toString("hex")}`;
+        const claimed = lok.claimName(charId, named.name, bindWallet);
+        if (!claimed.ok) {
+          send(ws, { type: "error", message: claimed.error });
+          return;
+        }
+        const spawned = lok.spawn(charId, claimed.name, jobIndex < 0 ? 0 : jobIndex, bindWallet);
+        if (!spawned.ok) {
+          send(ws, { type: "error", message: spawned.error });
+          return;
+        }
+        displayName = claimed.name;
+        mintedTokenId = spawned.tokenId;
       }
       if (bindWallet !== wallet.toLowerCase()) {
         lok.rebindWallet(charId, bindWallet);
       }
-      // Consume mint-claim nonce only after a successful spawn (retry-safe on failure).
-      if (pendingMintNonce) {
+      // Consume mint-claim nonce only after a new spawn (retry-safe on failure).
+      if (pendingMintNonce && freshlySpawned) {
         consumeMintClaimNonce(pendingMintNonce.mintWallet, pendingMintNonce.nonce);
       }
       // Session must match the NFT owner — if bindWallet differs, refuse to enter as auth wallet.
@@ -8024,10 +8368,10 @@ function onMessage(ws: WebSocket, data: string) {
         });
         return;
       }
-      const p = createPlayer(wallet, claimed.name, ws, job, gender, charId);
-      claimStarter(p);
-      if (cachedCharacterMint) {
-        void linkCharacterNftWithRetry(spawned.tokenId, jobIndex < 0 ? 0 : jobIndex, wallet, {
+      const p = createPlayer(wallet, displayName, ws, job, gender, charId);
+      if (freshlySpawned) claimStarter(p);
+      if (cachedCharacterMint && freshlySpawned && mintedTokenId) {
+        void linkCharacterNftWithRetry(mintedTokenId, jobIndex < 0 ? 0 : jobIndex, wallet, {
           acceptedWallets,
           attempts: 8,
           delayMs: 750,
@@ -8040,7 +8384,7 @@ function onMessage(ws: WebSocket, data: string) {
               pushLog(
                 p,
                 "Pay the mint fee for NFT #" +
-                  spawned.tokenId +
+                  mintedTokenId +
                   " from your wallet, then the link will retry. " +
                   res.error,
               );
@@ -8053,7 +8397,9 @@ function onMessage(ws: WebSocket, data: string) {
       }
       pushLog(
         p,
-        `${JOBS[job].name} created. At L${SUBJOB_UNLOCK_LEVEL}+ the Job Master sets a support job (half level).`,
+        freshlySpawned
+          ? `${JOBS[job].name} created. At L${SUBJOB_UNLOCK_LEVEL}+ the Job Master sets a support job (half level).`
+          : displayName + " is already on the log.",
       );
       send(ws, snapshotFor(p));
     })().catch((err) => {
@@ -8369,6 +8715,52 @@ function onMessage(ws: WebSocket, data: string) {
   runPlayerMessage();
 }
 
+async function acceptLeaderSpawn(
+  body: unknown,
+): Promise<
+  { ok: true; charId: string; name: string; tokenId: string; startingJob: number } | { ok: false; error: string }
+> {
+  if (!allow("append")) return { ok: false, error: APPEND_REFUSED };
+  if (!body || typeof body !== "object") return { ok: false, error: "Bad input." };
+  const raw = body as Partial<SpawnInput>;
+  if (
+    raw.op !== "spawn" ||
+    !raw.wallet ||
+    !raw.tokenId ||
+    !raw.name ||
+    !raw.signature ||
+    typeof raw.startingJob !== "number"
+  ) {
+    return { ok: false, error: "Bad input." };
+  }
+  const input: SpawnInput = {
+    op: "spawn",
+    wallet: raw.wallet,
+    tokenId: raw.tokenId,
+    startingJob: raw.startingJob,
+    name: raw.name,
+    signature: raw.signature,
+  };
+  const signer = await recoverSpawnSigner(input);
+  const checked = validateSpawnInput(input, signer, {
+    tokenInJournal: lok.charByTokenId(input.tokenId) != null,
+    nameTaken: lok.nameTaken(input.name),
+  });
+  if (!checked.ok) return checked;
+  const genesis = await readCharacterGenesisJob(input.tokenId);
+  if (!genesis.ok) return { ok: false, error: genesis.error };
+  const spawned = lok.ensureMintedSpawn(input.tokenId, genesis.job, input.wallet);
+  if (!spawned.ok) return spawned;
+  const renamed = lok.setBoundName(spawned.charId, input.name);
+  return {
+    ok: true,
+    charId: spawned.charId,
+    name: renamed.ok ? renamed.name : input.name,
+    tokenId: spawned.tokenId,
+    startingJob: genesis.job,
+  };
+}
+
 const AUTH_ORIGINS = authAllowlist();
 const OPS_STARTED_AT = Date.now();
 const httpServer = createServer((req, res) => {
@@ -8377,6 +8769,8 @@ const httpServer = createServer((req, res) => {
       lokReady: () => !!lok,
       startedAtMs: OPS_STARTED_AT,
       replicaHealth: () => tickOrderer?.replicaHealth?.() ?? emptyReplicaHealth(),
+      worldSync: () => currentWorldSync(),
+      acceptSpawn: (body) => acceptLeaderSpawn(body),
     })
   ) {
     return;
@@ -8452,11 +8846,9 @@ wss.on("connection", (ws, req) => {
   });
 });
 
-// Default is validator: do not tick and do not lead. Replica ticks only after
-// LOK_REPLICA=1 and both the resource self-check and the reachability check pass.
-let nodeMode: InstalledGameMode = { mode: "validator", ticksWorld: false, leads: false };
+// Default is observer. A replica is leader-eligible after LOK_REPLICA=1 and both checks.
 try {
-  nodeMode = await installedGameMode(process.env, { dataDir: defaultLokDir() });
+  processRole = (await installedGameMode(process.env, { dataDir: defaultLokDir() })).role;
 } catch (err) {
   console.error("[bellgrave] node mode check failed", err);
 }
@@ -8471,12 +8863,14 @@ function runWorldTick() {
   if (tickDue < now) tickDue = now + TICK_MS;
   armWorldTick();
 }
-if (replicaMayTick(nodeMode)) {
+if (allow("tick")) {
   tickDue = Date.now() + TICK_MS;
   armWorldTick();
-  console.log("[bellgrave] replica: ticking the world");
+  console.log("[bellgrave] leader: ticking the world");
+} else if (!allow("login")) {
+  console.error("[bellgrave] not ticking: " + NO_WORLD_COPY);
 } else {
-  console.log("[bellgrave] validator: not ticking, not leading");
+  console.log("[bellgrave] observer: not ticking");
 }
 const SAVE_INTERVAL_MS = 15_000;
 setInterval(() => {

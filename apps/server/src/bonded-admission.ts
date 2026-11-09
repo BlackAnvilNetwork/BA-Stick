@@ -36,7 +36,7 @@ export type RegistryAdmin = {
   rulesetProposer: typeof GNOSIS_SAFE_ADMIN;
 };
 
-export type AdmissionTier = "replica" | "validator" | "light";
+export type AdmissionTier = "replica" | "observer" | "light";
 
 export type VotingReplica = {
   id: string;
@@ -127,7 +127,7 @@ const NOT_JOINED: AdmissionResult = { joined: false, amountWei: 0n };
 
 /**
  * Post `amountWei` and join the voting set when the caller is a replica.
- * The posted amount is the bond. Zero, a negative posting, a validator, a
+ * The posted amount is the bond. Zero, a negative posting, an observer, a
  * light client, and the listing key do not join and do not post.
  * `ballot` is ignored.
  */

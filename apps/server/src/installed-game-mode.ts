@@ -1,10 +1,12 @@
 /**
- * Process mode. `docs/multi-operator.md` section 3.
+ * Process role. `docs/multi-operator.md` section 3.
  *
- * The process default is validator. An installed game does not tick the world
- * and does not lead. Replica mode may tick and lead only after the operator
- * sets `LOK_REPLICA=1` and both checks this process runs have passed: the
- * resource self-check and the reachability check.
+ * The process default is observer. An observer replays and does not append.
+ * Replica is leader-eligible. It still does not tick unless `can("tick")`
+ * says this process holds the lease. `LOK_REPLICA=1` selects the replica
+ * role only after the resource self-check and the reachability check pass.
+ *
+ * Leader is not a field on this role. The lease is a separate axis.
  *
  * The resource self-check asks the OS. No CPU, RAM, or disk minimum is applied.
  * Those profiles are not published. A read that throws, or an answer that is
@@ -13,9 +15,9 @@
  * The reachability check is a loopback accept this process opens. It is not a
  * boolean the caller supplies.
  *
- * A hosted server that should keep leading sets the flag and passes both
- * checks. Replica mode does not grant a combat bonus, a second guild, or the
- * listing key.
+ * Replica does not grant a combat bonus, a second guild, or the listing key.
+ * Malachite calls its voting nodes validators. In this process those nodes
+ * are replicas.
  */
 
 import { statfsSync } from "node:fs";
@@ -23,11 +25,7 @@ import { createConnection, createServer } from "node:net";
 import { cpus, freemem } from "node:os";
 
 export type InstalledGameMode = {
-  mode: "validator" | "replica";
-  /** Validator does not tick. Replica may. */
-  ticksWorld: boolean;
-  /** Validator does not lead. Replica may. */
-  leads: boolean;
+  role: "observer" | "replica";
 };
 
 export type ResourceSnapshot = {
@@ -45,17 +43,9 @@ export type ModeChecks = {
   probeReachability?: () => Promise<boolean>;
 };
 
-const VALIDATOR: InstalledGameMode = {
-  mode: "validator",
-  ticksWorld: false,
-  leads: false,
-};
+const OBSERVER: InstalledGameMode = { role: "observer" };
 
-const REPLICA: InstalledGameMode = {
-  mode: "replica",
-  ticksWorld: true,
-  leads: true,
-};
+const REPLICA: InstalledGameMode = { role: "replica" };
 
 /** Operator opt-in. Any other value leaves the replica flag off. */
 export function replicaFlagEnabled(env: NodeJS.ProcessEnv): boolean {
@@ -141,7 +131,7 @@ export function reachabilityCheck(
 }
 
 /**
- * Default is validator. Replica requires the operator flag plus a passing
+ * Default is observer. Replica requires the operator flag plus a passing
  * resource self-check and a passing reachability check. The result never
  * carries a combat bonus, a second guild, or the listing key.
  */
@@ -149,15 +139,10 @@ export async function installedGameMode(
   env: NodeJS.ProcessEnv = process.env,
   checks?: ModeChecks,
 ): Promise<InstalledGameMode> {
-  if (!replicaFlagEnabled(env)) return { ...VALIDATOR };
+  if (!replicaFlagEnabled(env)) return { ...OBSERVER };
   const read = checks?.readResources ?? (() => readResourceSnapshot(checks?.dataDir));
-  if (!resourceSelfCheck(read)) return { ...VALIDATOR };
+  if (!resourceSelfCheck(read)) return { ...OBSERVER };
   const reachable = await reachabilityCheck(checks?.probeReachability);
-  if (!reachable) return { ...VALIDATOR };
+  if (!reachable) return { ...OBSERVER };
   return { ...REPLICA };
-}
-
-/** The world tick runs only for a replica that may tick and may lead. */
-export function replicaMayTick(mode: InstalledGameMode): boolean {
-  return mode.mode === "replica" && mode.ticksWorld === true && mode.leads === true;
 }
