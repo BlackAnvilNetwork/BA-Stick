@@ -22,37 +22,12 @@ export {
   type NetworkProfile,
 } from "./network-profile";
 
-/** @deprecated Prefer settlement chain ids (100 / 10200 / 31337). Kept for legacy imports. */
-export const CHAIN_ID = 4663;
 export const TICK_HZ = 20;
 export const TICK_MS = 1000 / TICK_HZ;
 
-/** @deprecated Prefer `@bellgrave/items` — kept for existing imports. */
-export const ITEM = {
-  STAFF_ASHBEAM: 1,
-  ROBE_LINEN: 2,
-  POTION: 3,
-  SWORD_IRON: 4,
-  MAIL_IRON: 5,
-  DAGGER_IRON: 6,
-  LEATHER_VEST: 7,
-  GREATSWORD_IRON: 8,
-  SCALE_HARNESS: 9,
-} as const;
-
-export const KEK_TOKEN = "0x5a3544a0328afD50A9979e03404F35c555B88c00" as const;
-export const CRAFT_KEK_COST = 1000 as const;
-
-export const HALL = {
-  width: 40,
-  depth: 80,
-  halfWidth: 20,
-  halfDepth: 40,
-} as const;
-
 export const PLAYER_SPEED = 6;
 /** Flux stance move bonus — readable in play (design floor was +5%). */
-export const PLAYER_SPEED_FLUX = 6 * 1.12;
+export const PLAYER_SPEED_FLUX = PLAYER_SPEED * 1.12;
 export const MELEE_RANGE = 2.2;
 export const ABILITY_RANGE = 12;
 
@@ -160,6 +135,7 @@ export {
   paleHollowWalkable,
   paleHollowInHubRearWall,
   paleHollowClampMove,
+  paleHollowStraightMove,
   paleHollowBridgeCrossings,
   paleHollowBankPoint,
   paleHollowInBuildingClearing,
@@ -202,15 +178,26 @@ export {
   normalizePaleHollowQuestState,
   paleHollowQuestById,
   paleHollowQuestByNpc,
+  paleHollowQuestsByNpc,
   paleHollowQuestCredit,
+  paleHollowQuestGather,
+  paleHollowQuestKind,
   paleHollowQuestLogEntries,
   paleHollowQuestTalk,
+  paleHollowQuestTalkNpc,
+  questTalkCue,
+  type QuestTalkCue,
+  paleHollowQuestVisit,
   type PaleHollowFieldNpc,
   type PaleHollowQuestDef,
+  type PaleHollowQuestKind,
   type PaleHollowQuestLogEntry,
   type PaleHollowQuestProgress,
+  type PaleHollowQuestSite,
   type PaleHollowQuestState,
 } from "./pale-hollow-field";
+
+export { WENNA_QUESTS, WENNA_NPC_ID } from "./wenna-quests";
 
 export {
   PH_SNOW_ACCUM_SEC,
@@ -312,6 +299,8 @@ export {
 } from "./field-population";
 
 export { ZONE_ORIGINS, WORLD_ZONE_IDS, zoneOrigin, zoneWorldBounds, type ZoneOrigin } from "./zone-layout";
+export { encodeWaterLayout, type WaterFallSpan } from "./water-layout";
+export { encodePhWaterLayout } from "./pale-hollow-water";
 export {
   LIGHT_KIND,
   LIGHT_MOODS,
@@ -321,11 +310,27 @@ export {
   moodIsBright,
   zoneLightMood,
   zoneMapLights,
+  zoneUsesDayClock,
   type LightKind,
   type LightMood,
   type MapLight,
   type MoodArea,
 } from "./zone-lighting";
+
+export {
+  DRAW_FAR_MAX_M,
+  DRAW_ISO_PROP_MAX_M,
+  DRAW_UNIT_SLACK_M,
+  PH_HORIZON,
+  SNAPSHOT_INTEREST_M,
+  ZONE_ATMOSPHERE,
+  ZONE_ATMOSPHERE_AREAS,
+  atmosphereAreasTouchPvpPad,
+  weatherHazeMul,
+  zoneAtmosphere,
+  type AtmosphereArea,
+  type AtmosphereLook,
+} from "./zone-atmosphere";
 
 export {
   ZONE_FIELDS,
@@ -334,12 +339,15 @@ export {
   fieldClampMove,
   fieldNav,
   fieldGateSoftLevel,
+  fieldGateAt,
+  zoneMoveMul,
   travelAt,
   applyTravel,
   type ZoneField,
   type ZoneGate,
   type TravelStep,
 } from "./zone-fields";
+export { MOVE_SAMPLE, UNSTUCK_RADIUS, nearestWalkable, slideMove, straightMove } from "./slide-move";
 export {
   SEAM_COUNTRY_ZONES,
   SEAM_COUNTRY_WARPS,

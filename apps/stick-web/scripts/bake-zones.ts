@@ -41,6 +41,7 @@ import {
   forestBasinWalkable,
   forestBasinWaterSurfaceY,
   encodeFbWaterLayout,
+  encodePhWaterLayout,
   fbFallSurfaceY,
   paleHollowBiome,
   paleHollowInOpenWater,
@@ -119,14 +120,11 @@ export function bakeZoneGrid(spec: BakeFns, cell = 0.5): Buffer {
       const water = spec.water(x, z);
       const onBr = spec.onBridge(x, z);
       // Channel under a bridge deck still has a water surface; openWater skips decks for gameplay.
-      const wet = water != null && (spec.openWater(x, z) || onBr);
+      const wet = water != null && spec.openWater(x, z);
       if (onBr) {
-        if (wet) {
-          flags |= 1;
-          y = water;
-        } else {
-          flags |= 4;
-        }
+        // Bake rule: bridge wins over water. Deck cells keep stand() height so
+        // the figure does not Y-snap into the river mesh mid-span.
+        flags |= 4;
       } else if (wet) {
         flags |= 1;
         y = water;
@@ -271,6 +269,7 @@ export function bakePaleHollow(cell = 0.5): Buffer {
     walkable: paleHollowWalkable,
     trails: paleHollowTrails(),
     trailWidth: PH_TRAIL_WIDTH,
+    sharedShore: true,
   }, cell);
 }
 
@@ -314,7 +313,7 @@ const FIELD_PROPS: Record<string, () => Prop[]> = {
   coil_ridge: coilRidgeProps,
 };
 
-function writeZone(id: string, grid: Buffer, props: Prop[]) {
+function writeZone(id: string, grid: Buffer, props: Prop[], wfl?: Uint8Array) {
   const out = resolve(dirname(fileURLToPath(import.meta.url)), `../public/zones/${id}.baz`);
   mkdirSync(dirname(out), { recursive: true });
   writeFileSync(out, grid);
@@ -322,23 +321,34 @@ function writeZone(id: string, grid: Buffer, props: Prop[]) {
   const pbuf = encodeProps(props);
   writeFileSync(out.replace(/\.baz$/, ".bap"), pbuf);
   console.log(`baked ${props.length} props (${(pbuf.length / 1024).toFixed(0)} KiB)`);
+  if (wfl) {
+    const wpath = out.replace(/\.baz$/, ".wfl");
+    writeFileSync(wpath, wfl);
+    console.log(`baked ${wpath}`);
+  }
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
   const only = process.argv[2];
   const chainOnly = only === "chain";
   const t0 = Date.now();
-  if (!chainOnly && (!only || only === "pale_hollow")) writeZone("pale_hollow", bakePaleHollow(), paleHollowProps());
-  if (!chainOnly && (!only || only === "forest_basin")) {
-    writeZone("forest_basin", bakeForestBasin(), forestBasinProps());
-    const wfl = resolve(dirname(fileURLToPath(import.meta.url)), "../public/zones/forest_basin.wfl");
-    writeFileSync(wfl, encodeFbWaterLayout());
-    console.log(`baked ${wfl}`);
+  console.log("bake-zones loaded");
+  if (!chainOnly && (!only || only === "pale_hollow")) {
+    console.log("baking pale_hollow...");
+    writeZone("pale_hollow", bakePaleHollow(), paleHollowProps(), encodePhWaterLayout());
   }
-  if (!chainOnly && (!only || only === "boot_forge")) writeZone("boot_forge", bakeBootForgeMenu(), bootForgeMenuProps());
+  if (!chainOnly && (!only || only === "forest_basin")) {
+    console.log("baking forest_basin...");
+    writeZone("forest_basin", bakeForestBasin(), forestBasinProps(), encodeFbWaterLayout());
+  }
+  if (!chainOnly && (!only || only === "boot_forge")) {
+    console.log("baking boot_forge...");
+    writeZone("boot_forge", bakeBootForgeMenu(), bootForgeMenuProps());
+  }
   for (const [id, props] of Object.entries(FIELD_PROPS)) {
     const spec = ZONE_FIELDS[id];
     if (!spec || (only && !chainOnly && only !== id)) continue;
+    console.log(`baking ${id}...`);
     writeZone(id, bakeZoneGrid({
       bounds: spec.bounds,
       biome: spec.biome,

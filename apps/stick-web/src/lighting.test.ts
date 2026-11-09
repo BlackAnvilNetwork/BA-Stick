@@ -40,7 +40,7 @@ describe("lighting wiring", () => {
     assert.equal(sent[2], forge.z + o.z);
   });
 
-  it("an unknown zone gets daylight; Forest Basin uses its woodland shade", () => {
+  it("no zone is daylight; unbaked halls are citadel; Forest Basin uses woodland shade", () => {
     const day = fake();
     applyZoneMood(day.r, undefined, false);
     assert.deepEqual(day.calls[0].args.slice(0, 5), [1, 1, 1, 0, 0]);
@@ -48,6 +48,9 @@ describe("lighting wiring", () => {
     applyZoneMood(basin.r, "forest_basin", false);
     assert.deepEqual(basin.calls[0].args.slice(0, 3), [...LIGHT_MOODS.forestBasin.ambient]);
     assert.equal(basin.calls[0].args[6], LIGHT_MOODS.forestBasin.night);
+    const hall = fake();
+    applyZoneMood(hall.r, "palace_hall", true);
+    assert.deepEqual(hall.calls[0].args.slice(0, 5), [...LIGHT_MOODS.citadel.ambient, LIGHT_MOODS.citadel.playerRadius, LIGHT_MOODS.citadel.playerStrength]);
   });
 
   it("?lights=0 turns the pass off", () => {

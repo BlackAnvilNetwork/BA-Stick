@@ -603,23 +603,23 @@ function entryReady(q: WorldQuestDef, e: { kills: number; read?: boolean }): boo
   return e.kills >= q.need && (!q.readPoi || e.read === true);
 }
 
-/** Quest log rows; a read step counts as one more step of `need`. */
+/** Quest log rows; a read step counts as one more step of `need`. Unknown ids are omitted (Forest Basin rows come from forestBasinQuestLogEntries). */
 export function worldQuestLogEntries(state: PaleHollowQuestState): PaleHollowQuestLogEntry[] {
   const st = normalizePaleHollowQuestState(state);
-  return st.active.map((e) => {
+  return st.active.flatMap((e) => {
     const q = worldQuestById(e.id);
-    if (!q) return { id: e.id, title: e.id, kills: e.kills, need: 1, progress: "", ready: false };
+    if (!q) return [];
     const read = q.readPoi ? (e.read ? 1 : 0) : 0;
     const poi = q.readPoi ? WORLD_POIS.find((p) => p.id === q.readPoi) : undefined;
     const progress = q.readPoi && !e.read && poi ? `${q.progress} Read ${poi.name}.` : q.progress;
-    return {
+    return [{
       id: q.id,
       title: q.title,
       kills: Math.min(e.kills, q.need) + read,
       need: q.need + (q.readPoi ? 1 : 0),
       progress,
       ready: entryReady(q, e),
-    };
+    }];
   });
 }
 
@@ -641,7 +641,7 @@ export type WorldQuestTalk = { state: PaleHollowQuestState; title: string; body:
 
 /**
  * Talk to a giver: turn in a ready quest, else report progress, else offer the
- * next quest whose `requires` is done. Pale Hollow givers keep one quest each.
+ * next quest whose `requires` is done. Yard keepers keep one quest; Wenna chains.
  */
 export function worldQuestTalk(state: PaleHollowQuestState, npcId: string): WorldQuestTalk {
   const st = normalizePaleHollowQuestState(state);

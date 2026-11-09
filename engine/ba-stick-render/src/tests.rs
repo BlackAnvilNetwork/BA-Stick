@@ -141,7 +141,18 @@ fn rain_weather_keeps_figure_and_meadow_grass() {
     let meadow = crate::palette::MEADOW;
     assert!(s.fb.color.iter().filter(|&&c| c == meadow).count() > 80, "meadow blades");
     let body = crate::compat::C_BODY;
-    assert!(s.fb.color.iter().filter(|&&c| c == body).count() > 40, "figure pixels");
+    let body_far = crate::compat::C_BODY_FAR;
+    let figure = s
+        .fb
+        .color
+        .iter()
+        .filter(|&&c| c == body || c == body_far)
+        .count();
+    let (sx, sy, _) = s.world_to_screen(5.0, 0.0, 5.0);
+    assert!(
+        figure > 20 || s.pick_unit(sx, sy - 24.0) == Some("me"),
+        "figure pixels ({figure}) or pick at ({sx:.1},{sy:.1})"
+    );
     let rain_px = s
         .fb
         .color
@@ -149,6 +160,46 @@ fn rain_weather_keeps_figure_and_meadow_grass() {
         .filter(|&&c| c == crate::palette::ROCK || c == crate::palette::ROCK_L)
         .count();
     assert!(rain_px > 20, "rain streaks ({rain_px})");
+}
+
+#[test]
+fn rain_stays_inside_draw_distance() {
+    let bytes = tiny_zone(160, 160, |_, _| (15, 0, 200));
+    let mut s = Scene::new(320, 180);
+    s.load_zone(&bytes).unwrap();
+    s.upsert_unit("me", unit(20.0, 20.0, "idle", "knight"));
+    s.follow(Some("me"));
+    for _ in 0..30 {
+        s.tick(1.0 / 60.0);
+    }
+    s.set_draw_distance(0.0);
+    s.set_weather(1, 0.0);
+    for _ in 0..180 {
+        s.tick(1.0 / 60.0);
+    }
+    s.draw();
+    let (w, h) = (s.fb.w, s.fb.h);
+    let lim = s.cam.iso_prop + 1.0;
+    let mut near = 0;
+    let mut far = 0;
+    for y in 0..h {
+        for x in 0..w {
+            let c = s.fb.color[y * w + x];
+            if c != crate::palette::ROCK && c != crate::palette::ROCK_L {
+                continue;
+            }
+            let (wx, wz) = s.cam.unproject_ground(x as f32 + 0.5, y as f32 + 0.5);
+            let dx = wx - s.cam.cx;
+            let dz = wz - s.cam.cz;
+            if dx * dx + dz * dz > lim * lim {
+                far += 1;
+            } else {
+                near += 1;
+            }
+        }
+    }
+    assert!(near > 10, "Close disc still has rain ({near})");
+    assert_eq!(far, 0, "rain must not paint past iso_prop ({far})");
 }
 
 #[test]
@@ -180,6 +231,98 @@ fn presets_resolve() {
     assert!(matches!(RigPreset::resolve("druid").weapon, crate::preset::Weapon::Staff));
 }
 
+#[test]
+fn stick_forms_stay_visible_as_they_turn() {
+    crate::stick_form::set_seed(0);
+    let sky = crate::atmosphere::SKY;
+    for preset in ["druid:stickbear", "druid:stickdeer", "druid:sticklion", "druid:racerunner"] {
+        let mut counts = Vec::new();
+        for facing in [0.0f32, 0.8, 1.57, 2.4, 3.14, 4.71] {
+            let mut s = Scene::new(200, 200);
+            s.backdrop = true;
+            s.set_camera(0.0, 0.0);
+            s.upsert_unit(
+                "p",
+                UnitInput {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.0,
+                    facing,
+                    anim: AnimState::Idle,
+                    preset: preset.into(),
+                },
+            );
+            s.tick(0.016);
+            s.draw();
+            counts.push(s.fb.color.iter().filter(|&&c| c != 0 && c != sky).count());
+        }
+        let max = *counts.iter().max().unwrap();
+        for (i, n) in counts.iter().enumerate() {
+            assert!(*n > 80, "{preset} yaw {i} painted only {n}");
+            assert!(
+                *n as f32 > max as f32 * 0.45,
+                "{preset} yaw {i} vanished ({n} vs max {max})"
+            );
+        }
+    }
+}
+
+#[test]
+fn stick_form_swap_on_backdrop_keeps_the_new_envelope() {
+    let sky = crate::atmosphere::SKY;
+    let ink = |s: &Scene| s.fb.color.iter().filter(|&&c| c != 0 && c != sky).count();
+    let mut s = Scene::new(120, 160);
+    s.backdrop = true;
+    s.set_camera(0.0, 0.0);
+    s.upsert_unit("p", unit(0.0, 0.0, "idle", "druid:stickbear"));
+    s.tick(0.016);
+    s.draw();
+    let bear = ink(&s);
+    s.upsert_unit("p", unit(0.0, 0.0, "idle", "druid:stickdeer"));
+    s.tick(0.016);
+    s.draw();
+    let deer = ink(&s);
+    s.upsert_unit("p", unit(0.0, 0.0, "idle", "druid:racerunner"));
+    s.tick(0.016);
+    s.draw();
+    let racer = ink(&s);
+    assert!(bear > 80, "bear painted only {bear}");
+    assert!(deer > 80, "deer after bear painted only {deer}");
+    assert!(racer > 80, "racer after deer painted only {racer}");
+    assert!(deer != bear, "deer still looks like the leftover bear");
+}
+
+#[test]
+fn stick_forms_are_baked() {
+    crate::stick_form::set_seed(99);
+    assert_eq!(crate::stick_form::active_seed(crate::stick_form::stick_bear()), 0);
+    assert_eq!(crate::stick_form::active_seed(crate::stick_form::stick_deer()), 0);
+    assert_eq!(crate::stick_form::active_seed(crate::stick_form::stick_lion()), 0);
+    assert_eq!(crate::stick_form::active_seed(crate::stick_form::racerunner()), 0);
+    assert_eq!(crate::stick_form::stick_bear().id, "ba_stick_bear");
+    assert_eq!(crate::stick_form::stick_deer().id, "ba_stick_deer");
+    assert_eq!(crate::stick_form::stick_lion().id, "ba_stick_lion");
+    assert_eq!(crate::stick_form::racerunner().id, "ba_racerunner");
+    assert_eq!(crate::stick_form::stick_deer().kit, "deer");
+    assert_eq!(crate::stick_form::stick_lion().kit, "lion");
+    assert_eq!(crate::stick_form::racerunner().kit, "racer");
+}
+
+#[test]
+fn upsert_replaces_druid_form_preset() {
+    let mut s = Scene::new(64, 64);
+    s.upsert_unit("me", unit(0.0, 0.0, "idle", "druid/male"));
+    assert_eq!(s.unit_preset("me"), Some("druid/male"));
+    s.upsert_unit("me", unit(0.0, 0.0, "melee", "druid:stickbear"));
+    assert_eq!(s.unit_preset("me"), Some("druid:stickbear"));
+    s.upsert_unit("me", unit(0.0, 0.0, "idle", "druid:stickdeer"));
+    assert_eq!(s.unit_preset("me"), Some("druid:stickdeer"));
+    s.upsert_unit("me", unit(0.0, 0.0, "idle", "druid:sticklion"));
+    assert_eq!(s.unit_preset("me"), Some("druid:sticklion"));
+    s.upsert_unit("me", unit(0.0, 0.0, "walk", "druid:racerunner"));
+    assert_eq!(s.unit_preset("me"), Some("druid:racerunner"));
+}
+
 fn tiny_zone(w: u32, h: u32, f: impl Fn(u32, u32) -> (u8, u8, i16)) -> Vec<u8> {
     let mut b = b"BAZ1".to_vec();
     for v in [-2.0f32, -2.0, 0.5] { b.extend_from_slice(&v.to_le_bytes()); }
@@ -208,8 +351,34 @@ fn zone_parse_and_height() {
 }
 
 #[test]
+fn placed_world_zone_bakes_and_composites_the_minimap() {
+    // Play never calls load_zone; the HUD map still has to appear.
+    let bytes = tiny_zone(16, 16, |_, _| (13, 0, 0));
+    let mut s = Scene::new(640, 360);
+    s.place_zone(&bytes, 0.0, 0.0).unwrap();
+    s.set_camera(0.0, 0.0);
+    s.minimap.on = true;
+    s.draw();
+    assert!(s.minimap.baked(), "world place must adopt a local minimap zone");
+    assert!(s.minimap.bakes >= 1);
+    let bakes = s.minimap.bakes;
+    s.place_zone(&bytes, 0.0, 0.0).unwrap();
+    assert_eq!(s.world_count(), 1, "retry must not stack the same zone");
+    s.draw();
+    assert_eq!(s.minimap.bakes, bakes, "same zone must not rebake");
+    let mut out = vec![7u8; 640 * 360 * 4];
+    s.write_rgba(&mut out);
+    let (px, py) = crate::minimap::Minimap::panel_origin(640);
+    assert_ne!(
+        out[((py + crate::minimap::PANEL_H / 2) * 640 + px + crate::minimap::PANEL_W / 2) * 4],
+        7,
+        "default top-right panel must receive the blit"
+    );
+}
+
+#[test]
 fn ground_draws_in_third_person() {
-    let bytes = tiny_zone(40, 40, |i, j| (13, 0, 300));
+    let bytes = tiny_zone(40, 40, |_i, _j| (13, 0, 300));
     let mut s = Scene::new(640, 360);
     s.load_zone(&bytes).unwrap();
     s.set_cam_mode("tp");
@@ -515,59 +684,342 @@ fn gear_changes_the_figure_and_seeds_are_stable() {
         s.fb.color.clone()
     };
     let plain = render(None);
-    let axe = render(Some(garb(4, 3, 7, 0, 0, 0, 0, 0, 0)));
-    let armour = render(Some(garb(0, 0, 0, 2, 5, 3, 9, 2, 5)));
+    let axe = render(Some(garb(4, 3, 7, 0, 0, 0, 0, 0, 0, 0, 0)));
+    let armour = render(Some(garb(0, 0, 0, 2, 5, 3, 9, 2, 5, 0, 0)));
     assert_ne!(plain, axe);
     assert_ne!(plain, armour);
     assert!(armour.contains(&crate::palette::GEAR_LEATHER));
-    let plate = render(Some(garb(0, 0, 0, 3, 5, 0, 0, 0, 0)));
+    let plate = render(Some(garb(0, 0, 0, 3, 5, 0, 0, 0, 0, 0, 0)));
     assert_ne!(plain, plate);
     assert!(plate.contains(&crate::compat::C_STEEL));
     assert!(plate.contains(&crate::compat::C_GOLD));
-    let robe = render(Some(garb(0, 0, 0, 1, 2, 0, 0, 0, 0)));
+    let steel_mail = render(Some(garb(0, 0, 0, 3, crate::gear::STEEL_MAIL_ITEM, 0, 0, 0, 0, 0, 0)));
+    assert_ne!(plain, steel_mail);
+    assert_ne!(plate, steel_mail, "steel mail is not iron cuirass stamp");
+    assert!(steel_mail.contains(&crate::compat::C_STEEL));
+    let mythril_mail = render(Some(garb(0, 0, 0, 3, crate::gear::MYTHRIL_MAIL_ITEM, 0, 0, 0, 0, 0, 0)));
+    assert_ne!(plain, mythril_mail);
+    assert_ne!(steel_mail, mythril_mail, "mythril mail is not steel mail red stud");
+    assert!(mythril_mail.contains(&crate::compat::C_TRAIL));
+    let ori_mail = render(Some(garb(0, 0, 0, 3, crate::gear::ORICHALCUM_MAIL_ITEM, 0, 0, 0, 0, 0, 0)));
+    assert_ne!(plain, ori_mail);
+    assert_ne!(plate, ori_mail, "orichalcum mail is not iron cuirass");
+    assert!(ori_mail.contains(&crate::compat::C_GOLD));
+    let fang = render(Some(garb(3, 2, crate::gear::FANG_DAGGER_ITEM, 0, 0, 0, 0, 0, 0, 0, 0)));
+    let rogue = render(Some(garb(3, 2, crate::gear::ROGUES_DAGGER_ITEM, 0, 0, 0, 0, 0, 0, 0, 0)));
+    assert_ne!(plain, rogue);
+    assert_ne!(fang, rogue, "rogue dagger is not fang tusk");
+    let ori_dag = render(Some(garb(3, 3, crate::gear::ORICHALCUM_DAGGER_ITEM, 0, 0, 0, 0, 0, 0, 0, 0)));
+    let ds_great = render(Some(garb(2, 3, crate::gear::DARKSTEEL_GREATSWORD_ITEM, 0, 0, 0, 0, 0, 0, 0, 0)));
+    assert_ne!(plain, ds_great);
+    assert!(ds_great.contains(&crate::compat::C_DUST));
+    let ori_great = render(Some(garb(2, 3, crate::gear::ORICHALCUM_GREATSWORD_ITEM, 0, 0, 0, 0, 0, 0, 0, 0)));
+    assert_ne!(plain, ori_great);
+    assert_ne!(ds_great, ori_great, "orichalcum greatsword is not darksteel");
+    assert!(ori_great.contains(&crate::compat::C_TRAIL));
+    assert_ne!(plain, ori_dag);
+    assert_ne!(rogue, ori_dag, "orichalcum dagger is not rogue steel blade");
+    assert!(ori_dag.contains(&crate::compat::C_GOLD));
+    let bronze_great = render(Some(garb(2, 3, crate::gear::BRONZE_GREATSWORD_ITEM, 0, 0, 0, 0, 0, 0, 0, 0)));
+    assert_ne!(plain, bronze_great);
+    assert!(bronze_great.contains(&crate::palette::GEAR_BRONZE));
+    let iron_axe = render(Some(garb(4, 3, crate::gear::IRON_AXE_ITEM, 0, 0, 0, 0, 0, 0, 0, 0)));
+    let bronze_axe = render(Some(garb(4, 3, crate::gear::BRONZE_AXE_ITEM, 0, 0, 0, 0, 0, 0, 0, 0)));
+    assert_ne!(plain, iron_axe);
+    assert_ne!(bronze_axe, iron_axe, "iron axe is not bronze labrys");
+    let steel_gaxe = render(Some(garb(4, 3, crate::gear::STEEL_GREAT_AXE_ITEM, 0, 0, 0, 0, 0, 0, 0, 0)));
+    let iron_gaxe = render(Some(garb(4, 3, crate::gear::IRON_GREAT_AXE_ITEM, 0, 0, 0, 0, 0, 0, 0, 0)));
+    assert_ne!(plain, steel_gaxe);
+    assert_ne!(iron_gaxe, steel_gaxe, "steel great axe is not iron");
+    let myth_gaxe = render(Some(garb(4, 3, crate::gear::MYTHRIL_GREAT_AXE_ITEM, 0, 0, 0, 0, 0, 0, 0, 0)));
+    assert_ne!(plain, myth_gaxe);
+    assert_ne!(steel_gaxe, myth_gaxe, "mythril great axe is not steel");
+    assert!(myth_gaxe.contains(&crate::compat::C_TRAIL));
+    let mut myth_targe = garb(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    crate::gear::apply_offhand(&mut myth_targe, crate::gear::MYTHRIL_TARGE_ITEM);
+    let myth_face = render(Some(myth_targe));
+    assert_ne!(plain, myth_face);
+    assert!(myth_face.contains(&crate::compat::C_TRAIL));
+    let myth_dag = render(Some(garb(3, 3, crate::gear::MYTHRIL_DAGGER_ITEM, 0, 0, 0, 0, 0, 0, 0, 0)));
+    let ds_dag = render(Some(garb(3, 3, crate::gear::DARKSTEEL_DAGGER_ITEM, 0, 0, 0, 0, 0, 0, 0, 0)));
+    assert_ne!(plain, myth_dag);
+    assert_ne!(plain, ds_dag);
+    assert_ne!(myth_dag, ds_dag, "mythril dagger is not darksteel");
+    assert!(ds_dag.contains(&crate::compat::C_DUST));
+    let palace_1h = render(Some(garb(1, 3, crate::gear::PALACE_SWORD_ITEM, 0, 0, 0, 0, 0, 0, 0, 0)));
+    assert_ne!(plain, palace_1h);
+    assert!(palace_1h.contains(&crate::compat::C_GOLD));
+    let bronze_dag = render(Some(garb(3, 3, crate::gear::BRONZE_DAGGER_ITEM, 0, 0, 0, 0, 0, 0, 0, 0)));
+    assert_ne!(plain, bronze_dag);
+    assert!(bronze_dag.contains(&crate::palette::GEAR_BRONZE));
+    let bronze_gaxe = render(Some(garb(4, 3, crate::gear::BRONZE_GREAT_AXE_ITEM, 0, 0, 0, 0, 0, 0, 0, 0)));
+    assert_ne!(plain, bronze_gaxe);
+    assert_ne!(bronze_axe, bronze_gaxe, "bronze great axe is not the 1h bronze labrys");
+    let steel_dag = render(Some(garb(3, 3, crate::gear::STEEL_DAGGER_ITEM, 0, 0, 0, 0, 0, 0, 0, 0)));
+    assert_ne!(plain, steel_dag);
+    assert_ne!(bronze_dag, steel_dag, "steel dagger is not bronze");
+    assert!(steel_dag.contains(&crate::compat::C_STEEL));
+    let steel_axe = render(Some(garb(4, 3, crate::gear::STEEL_AXE_ITEM, 0, 0, 0, 0, 0, 0, 0, 0)));
+    assert_ne!(plain, steel_axe);
+    assert_ne!(steel_gaxe, steel_axe, "steel 1h axe is not the great axe");
+    let myth_axe = render(Some(garb(4, 3, crate::gear::MYTHRIL_AXE_ITEM, 0, 0, 0, 0, 0, 0, 0, 0)));
+    assert_ne!(plain, myth_axe);
+    assert_ne!(myth_gaxe, myth_axe, "mythril 1h axe is not the great axe");
+    assert!(myth_axe.contains(&crate::compat::C_TRAIL));
+    let ds_axe = render(Some(garb(4, 3, crate::gear::DARKSTEEL_AXE_ITEM, 0, 0, 0, 0, 0, 0, 0, 0)));
+    assert_ne!(plain, ds_axe);
+    assert!(ds_axe.contains(&crate::compat::C_DUST));
+    let ori_axe = render(Some(garb(4, 3, crate::gear::ORICHALCUM_AXE_ITEM, 0, 0, 0, 0, 0, 0, 0, 0)));
+    assert_ne!(plain, ori_axe);
+    assert_ne!(ds_axe, ori_axe, "orichalcum 1h axe is not darksteel");
+    assert!(ori_axe.contains(&crate::compat::C_TRAIL));
+    let ori_gaxe = render(Some(garb(4, 3, crate::gear::ORICHALCUM_GREAT_AXE_ITEM, 0, 0, 0, 0, 0, 0, 0, 0)));
+    assert_ne!(plain, ori_gaxe);
+    assert_ne!(ori_axe, ori_gaxe, "orichalcum 1h axe is not the 2h great axe");
+    let mut ori_shield = garb(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    crate::gear::apply_offhand(&mut ori_shield, crate::gear::ORICHALCUM_SHIELD_ITEM);
+    let ori_shield_px = render(Some(ori_shield));
+    assert_ne!(plain, ori_shield_px);
+    assert!(ori_shield_px.contains(&crate::compat::C_GOLD));
+    let palace_gs = render(Some(garb(2, 3, crate::gear::PALACE_GREATSWORD_ITEM, 0, 0, 0, 0, 0, 0, 0, 0)));
+    assert_ne!(plain, palace_gs);
+    assert!(palace_gs.contains(&crate::compat::C_TRAIL));
+    let mut palace_targe = garb(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    crate::gear::apply_offhand(&mut palace_targe, crate::gear::PALACE_TARGE_ITEM);
+    let palace_targe_px = render(Some(palace_targe));
+    assert_ne!(plain, palace_targe_px);
+    assert!(palace_targe_px.contains(&crate::compat::C_GOLD));
+    let mut bone_hands = garb(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    crate::gear::apply_hands(&mut bone_hands, crate::gear::BONE_GLOVES_ITEM);
+    let bone_glove_px = render(Some(bone_hands));
+    assert_ne!(plain, bone_glove_px);
+    assert!(bone_glove_px.contains(&crate::palette::GEAR_BONE));
+    let bone_feet = render(Some(garb(0, 0, 0, 0, 0, 0, 0, 0, 0, 5, crate::gear::BONE_BOOTS_ITEM)));
+    assert_ne!(plain, bone_feet);
+    assert!(bone_feet.contains(&crate::palette::GEAR_BONE));
+    let robe = render(Some(garb(0, 0, 0, 1, 2, 0, 0, 0, 0, 0, 0)));
     assert_ne!(plain, robe);
     assert!(robe.contains(&crate::compat::C_SHADOW));
     assert!(robe.contains(&crate::palette::WATER));
-    let vest = render(Some(garb(0, 0, 0, 2, 7, 0, 0, 0, 0)));
+    let vest = render(Some(garb(0, 0, 0, 2, 7, 0, 0, 0, 0, 0, 0)));
     assert_ne!(plain, vest);
     assert!(vest.contains(&crate::palette::GEAR_LEATHER));
     assert!(vest.contains(&crate::palette::GEAR_LEATHER_FAR));
     assert!(vest.contains(&crate::compat::C_SHADOW));
-    let harness = render(Some(garb(0, 0, 0, 5, 327, 0, 0, 0, 0)));
+    let harness = render(Some(garb(0, 0, 0, 5, 327, 0, 0, 0, 0, 0, 0)));
     assert_ne!(plain, harness);
     assert!(harness.contains(&crate::palette::GEAR_BONE));
     assert!(harness.contains(&crate::palette::CR_HARE));
     assert!(harness.contains(&crate::compat::C_SHADOW));
-    let helm = render(Some(garb(0, 0, 0, 0, 0, 3, crate::gear::IRON_HELM_ITEM, 0, 0)));
+    let helm = render(Some(garb(0, 0, 0, 0, 0, 3, crate::gear::IRON_HELM_ITEM, 0, 0, 0, 0)));
     assert_ne!(plain, helm);
     assert!(helm.contains(&crate::compat::C_STEEL));
     assert!(helm.contains(&crate::compat::C_GOLD));
     assert!(helm.contains(&crate::compat::C_BODY));
-    let band = render(Some(garb(0, 0, 0, 0, 0, 1, crate::gear::LINEN_HELM_ITEM, 0, 0)));
+    let war_helm = render(Some(garb(0, 0, 0, 0, 0, 3, crate::gear::ORICHALCUM_WAR_HELM_ITEM, 0, 0, 0, 0)));
+    assert_ne!(plain, war_helm);
+    assert_ne!(helm, war_helm, "orichalcum war helm is not iron helm");
+    assert!(war_helm.contains(&crate::compat::C_GOLD));
+    assert!(war_helm.contains(&crate::compat::C_STEEL));
+    let rogue_helm = render(Some(garb(0, 0, 0, 0, 0, 3, crate::gear::ROGUES_HELM_ITEM, 0, 0, 0, 0)));
+    assert_ne!(plain, rogue_helm);
+    assert_ne!(helm, rogue_helm, "rogue helm is not iron helm");
+    assert_ne!(war_helm, rogue_helm, "rogue helm is not orichalcum war helm");
+    assert!(rogue_helm.contains(&crate::compat::C_GOLD));
+    let steel_helm = render(Some(garb(0, 0, 0, 0, 0, 3, crate::gear::STEEL_HELM_ITEM, 0, 0, 0, 0)));
+    assert_ne!(plain, steel_helm);
+    assert_ne!(helm, steel_helm, "steel helm is not iron gold cap");
+    assert!(steel_helm.contains(&crate::compat::C_STEEL));
+    let band = render(Some(garb(0, 0, 0, 0, 0, 1, crate::gear::LINEN_HELM_ITEM, 0, 0, 0, 0)));
     assert_ne!(plain, band);
     assert!(band.contains(&crate::palette::GEAR_LEATHER));
     assert!(band.contains(&crate::compat::C_BODY));
-    let hat = render(Some(garb(0, 0, 0, 0, 0, 1, 0, 0, 0)));
+    let hat = render(Some(garb(0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0)));
     assert_ne!(plain, hat);
+    let altar_hat = render(Some(garb(0, 0, 0, 0, 0, 1, crate::gear::ALTARWEAVE_HAT_ITEM, 0, 0, 0, 0)));
+    assert_ne!(plain, altar_hat);
+    assert_ne!(hat, altar_hat, "altarweave hat is not generic cloth");
+    assert!(altar_hat.contains(&crate::compat::C_GOLD));
+    let bw_hat = render(Some(garb(0, 0, 0, 0, 0, 1, crate::gear::BATTLEWEAVE_HAT_ITEM, 0, 0, 0, 0)));
+    assert_ne!(plain, bw_hat);
+    assert_ne!(hat, bw_hat, "battleweave hat is not generic cloth");
+    assert_ne!(altar_hat, bw_hat, "battleweave hat is not altarweave gold stole");
+    assert!(bw_hat.contains(&crate::compat::C_STEEL));
+    let bw_hood = render(Some(garb(0, 0, 0, 0, 0, 1, crate::gear::BATTLEWEAVE_HOOD_ITEM, 0, 0, 0, 0)));
+    assert_ne!(plain, bw_hood);
+    assert_ne!(bw_hat, bw_hood, "battleweave hood is not the pointed hat");
+    assert!(bw_hood.contains(&crate::compat::C_STEEL));
     assert!(hat.contains(&crate::palette::WATER));
     assert!(hat.contains(&crate::compat::C_BODY));
-    let mut shield = garb(0, 0, 0, 0, 0, 0, 0, 0, 0);
-    shield.shield = true;
+    let mut shield = garb(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    crate::gear::apply_offhand(&mut shield, crate::gear::IRON_SHIELD_ITEM);
+    assert!(shield.shield);
     let faced = render(Some(shield));
     assert_ne!(plain, faced);
     assert!(faced.contains(&crate::compat::C_STEEL));
     assert!(faced.contains(&crate::compat::C_GOLD));
-    let mut kite = garb(0, 0, 0, 0, 0, 0, 0, 0, 0);
+    let mut targe = garb(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    crate::gear::apply_offhand(&mut targe, crate::gear::DARKSTEEL_TARGE_ITEM);
+    assert!(targe.shield);
+    assert_eq!(targe.shield_item, crate::gear::DARKSTEEL_TARGE_ITEM);
+    let dark_face = render(Some(targe));
+    assert_ne!(plain, dark_face);
+    let mut steel_shield = garb(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    crate::gear::apply_offhand(&mut steel_shield, crate::gear::STEEL_SHIELD_ITEM);
+    let steel_face = render(Some(steel_shield));
+    assert_ne!(plain, steel_face);
+    assert_ne!(faced, steel_face, "steel shield is not iron gold rim");
+    assert_ne!(faced, dark_face, "darksteel targe is not iron paint");
+    assert!(dark_face.contains(&13));
+    assert!(dark_face.contains(&crate::compat::C_GOLD));
+    let mut kite = garb(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     kite.kite = true;
     let pointed = render(Some(kite));
     assert_ne!(plain, pointed);
     assert!(pointed.contains(&crate::compat::C_STEEL));
     assert!(pointed.contains(&crate::compat::C_GOLD));
-    let cuisses = render(Some(garb(0, 0, 0, 0, 0, 0, 0, 3, 1)));
+    let mut palace = garb(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    crate::gear::apply_offhand(&mut palace, crate::gear::PALACE_SHIELD_ITEM);
+    assert!(palace.kite);
+    assert_eq!(palace.shield_item, crate::gear::PALACE_SHIELD_ITEM);
+    let gold_kite = render(Some(palace));
+    assert_ne!(plain, gold_kite);
+    assert_ne!(pointed, gold_kite, "palace kite is not steel kite paint");
+    assert!(gold_kite.contains(&crate::compat::C_GOLD));
+    let cuisses = render(Some(garb(0, 0, 0, 0, 0, 0, 0, 3, 1, 0, 0)));
     assert_ne!(plain, cuisses);
     assert!(cuisses.contains(&crate::compat::C_STEEL));
     assert!(cuisses.contains(&crate::compat::C_GOLD));
-    for fam in 1..=7 { render(Some(garb(fam, 3, fam as u32, 1, 1, 1, 1, 1, 1))); }
+    let steel_legs = render(Some(garb(0, 0, 0, 0, 0, 0, 0, 3, crate::gear::STEEL_SUBLIGAR_ITEM, 0, 0)));
+    assert_ne!(plain, steel_legs);
+    assert_ne!(cuisses, steel_legs, "steel subligar is not generic iron cuisses");
+    let sabatons = render(Some(garb(0, 0, 0, 0, 0, 0, 0, 0, 0, 3, crate::gear::BRONZE_SABATONS_ITEM)));
+    assert_ne!(plain, sabatons);
+    assert!(sabatons.contains(&crate::palette::GEAR_BRONZE));
+    let war_feet = render(Some(garb(0, 0, 0, 0, 0, 0, 0, 0, 0, 3, crate::gear::ORICHALCUM_WAR_SABATONS_ITEM)));
+    assert_ne!(plain, war_feet);
+    assert_ne!(sabatons, war_feet, "orichalcum war sabatons are not bronze");
+    let steel_feet = render(Some(garb(0, 0, 0, 0, 0, 0, 0, 0, 0, 3, crate::gear::STEEL_SABATONS_ITEM)));
+    assert_ne!(plain, steel_feet);
+    assert_ne!(sabatons, steel_feet, "steel sabatons are not bronze");
+    let iron_feet = render(Some(garb(0, 0, 0, 0, 0, 0, 0, 0, 0, 3, crate::gear::IRON_SABATONS_ITEM)));
+    assert_ne!(iron_feet, steel_feet, "steel sabatons are not iron");
+    assert!(war_feet.contains(&crate::compat::C_GOLD));
+    let rogue_feet = render(Some(garb(0, 0, 0, 0, 0, 0, 0, 0, 0, 3, crate::gear::ROGUES_BOOTS_ITEM)));
+    assert_ne!(plain, rogue_feet);
+    assert_ne!(war_feet, rogue_feet, "rogue boots are not orichalcum sabatons");
+    assert!(rogue_feet.contains(&crate::compat::C_GOLD));
+    let coat = render(Some(garb(0, 0, 0, 1, crate::gear::BATTLEWEAVE_COAT_ITEM, 0, 0, 0, 0, 0, 0)));
+    assert_ne!(plain, coat);
+    assert_ne!(robe, coat);
+    assert!(coat.contains(&crate::compat::C_STEEL));
+    let altar = render(Some(garb(0, 0, 0, 1, crate::gear::ALTARWEAVE_COAT_ITEM, 0, 0, 0, 0, 0, 0)));
+    assert_ne!(plain, altar);
+    assert_ne!(robe, altar);
+    assert_ne!(coat, altar);
+    assert!(altar.contains(&crate::compat::C_GOLD));
+    let iron_1h = render(Some(garb(1, 3, 4, 0, 0, 0, 0, 0, 0, 0, 0)));
+    let steel_1h = render(Some(garb(1, 3, crate::gear::STEEL_SWORD_ITEM, 0, 0, 0, 0, 0, 0, 0, 0)));
+    assert_ne!(plain, steel_1h);
+    assert_ne!(iron_1h, steel_1h, "steel 1H is not iron pale blade");
+    assert!(steel_1h.contains(&crate::compat::C_STEEL));
+    assert_ne!(steel_1h, palace_1h, "palace sword is not steel 1H");
+    let pole = render(Some(garb(5, 4, 1, 0, 0, 0, 0, 0, 0, 0, 0)));
+    let crozier = render(Some(garb(5, 4, crate::gear::BLOODBEAM_CROZIER_ITEM, 0, 0, 0, 0, 0, 0, 0, 0)));
+    assert_ne!(pole, crozier, "bloodbeam crozier is not the generic staff pole");
+    assert!(crozier.contains(&crate::compat::C_ACCENT));
+    let tome = render(Some(garb(5, 1, crate::gear::ASHBEAM_TOME_ITEM, 0, 0, 0, 0, 0, 0, 0, 0)));
+    assert_ne!(pole, tome, "ashbeam tome is not the generic staff pole");
+    assert!(tome.contains(&crate::compat::C_GOLD), "tome gold bind");
+    let bell = render(Some(garb(5, 4, crate::gear::BELLWOOD_CROZIER_ITEM, 0, 0, 0, 0, 0, 0, 0, 0)));
+    assert_ne!(pole, bell, "bellwood crozier is not the generic staff pole");
+    let pumps = render(Some(garb(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, crate::gear::BATTLEWEAVE_PUMPS_ITEM)));
+    assert_ne!(plain, pumps);
+    assert_ne!(sabatons, pumps, "battleweave pumps are not iron sabatons");
+    assert!(pumps.contains(&crate::palette::WATER));
+    let slacks = render(Some(garb(0, 0, 0, 0, 0, 0, 0, 1, crate::gear::BATTLEWEAVE_SLACKS_ITEM, 0, 0)));
+    assert_ne!(plain, slacks);
+    assert!(slacks.contains(&crate::compat::C_STEEL));
+    let mut cuffs = garb(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    crate::gear::apply_hands(&mut cuffs, crate::gear::BATTLEWEAVE_CUFFS_ITEM);
+    let wrists = render(Some(cuffs));
+    assert_ne!(plain, wrists);
+    let mut altar_cuffs = garb(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    crate::gear::apply_hands(&mut altar_cuffs, crate::gear::ALTARWEAVE_CUFFS_ITEM);
+    let stole = render(Some(altar_cuffs));
+    assert_ne!(plain, stole);
+    assert_ne!(wrists, stole, "altarweave cuffs are not battleweave paint");
+    assert!(stole.contains(&crate::compat::C_GOLD));
+    let mut war_hands = garb(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    crate::gear::apply_hands(&mut war_hands, crate::gear::ORICHALCUM_WAR_GAUNTLETS_ITEM);
+    let gold_fingers = render(Some(war_hands));
+    assert_ne!(plain, gold_fingers);
+    assert_ne!(wrists, gold_fingers, "orichalcum war gauntlets are not cloth cuffs");
+    assert!(gold_fingers.contains(&crate::compat::C_GOLD));
+    let mut rogue_hands = garb(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    crate::gear::apply_hands(&mut rogue_hands, crate::gear::ROGUES_GLOVES_ITEM);
+    let rogue_wrists = render(Some(rogue_hands));
+    assert_ne!(plain, rogue_wrists);
+    assert_ne!(gold_fingers, rogue_wrists, "rogue gloves are not orichalcum gauntlets");
+    assert!(rogue_wrists.contains(&crate::compat::C_GOLD));
+    let mut bw_gloves = garb(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    crate::gear::apply_hands(&mut bw_gloves, crate::gear::BATTLEWEAVE_GLOVES_ITEM);
+    let bw_wrists = render(Some(bw_gloves));
+    assert_ne!(plain, bw_wrists);
+    let mut tw_cuffs = garb(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    crate::gear::apply_hands(&mut tw_cuffs, crate::gear::THRONEWEAVE_CUFFS_ITEM);
+    let tw_wrists = render(Some(tw_cuffs));
+    assert_ne!(plain, tw_wrists);
+    assert_ne!(bw_wrists, tw_wrists, "throneweave cuffs are not battleweave gloves");
+    assert!(tw_wrists.contains(&crate::compat::C_GOLD));
+    let mut steel_mittens = garb(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    crate::gear::apply_hands(&mut steel_mittens, crate::gear::STEEL_MITTENS_ITEM);
+    let steel_wrists = render(Some(steel_mittens));
+    assert_ne!(plain, steel_wrists);
+    assert_ne!(tw_wrists, steel_wrists, "steel mittens are not throneweave cuffs");
+    let hose = render(Some(garb(0, 0, 0, 0, 0, 0, 0, 1, crate::gear::BATTLEWEAVE_HOSE_ITEM, 0, 0)));
+    assert_ne!(plain, hose);
+    assert_ne!(slacks, hose, "battleweave hose is not slacks");
+    let rogue_legs = render(Some(garb(0, 0, 0, 0, 0, 0, 0, 2, crate::gear::ROGUES_TROUSERS_ITEM, 0, 0)));
+    assert_ne!(plain, rogue_legs);
+    assert!(rogue_legs.contains(&crate::compat::C_GOLD));
+    let war_legs = render(Some(garb(0, 0, 0, 0, 0, 0, 0, 3, crate::gear::ORICHALCUM_WAR_CUISSES_ITEM, 0, 0)));
+    assert_ne!(plain, war_legs);
+    assert_ne!(cuisses, war_legs, "orichalcum war cuisses are not iron cuisses");
+    assert!(war_legs.contains(&crate::compat::C_GOLD));
+    let tw_slacks = render(Some(garb(0, 0, 0, 0, 0, 0, 0, 1, crate::gear::THRONEWEAVE_SLACKS_ITEM, 0, 0)));
+    assert_ne!(plain, tw_slacks);
+    assert!(tw_slacks.contains(&crate::compat::C_GOLD));
+    let slippers = render(Some(garb(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, crate::gear::BATTLEWEAVE_SLIPPERS_ITEM)));
+    assert_ne!(plain, slippers);
+    assert_ne!(pumps, slippers, "battleweave slippers are not pumps");
+    let tw_pumps = render(Some(garb(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, crate::gear::THRONEWEAVE_PUMPS_ITEM)));
+    assert_ne!(plain, tw_pumps);
+    assert_ne!(slippers, tw_pumps, "throneweave pumps are not battleweave slippers");
+    assert!(tw_pumps.contains(&crate::compat::C_GOLD));
+    let altar_slacks = render(Some(garb(0, 0, 0, 0, 0, 0, 0, 1, crate::gear::ALTARWEAVE_SLACKS_ITEM, 0, 0)));
+    assert_ne!(plain, altar_slacks);
+    assert_ne!(slacks, altar_slacks, "altarweave slacks are not battleweave paint");
+    assert!(altar_slacks.contains(&crate::compat::C_GOLD));
+    let altar_pumps = render(Some(garb(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, crate::gear::ALTARWEAVE_PUMPS_ITEM)));
+    assert_ne!(plain, altar_pumps);
+    assert_ne!(pumps, altar_pumps, "altarweave pumps are not battleweave paint");
+    assert!(altar_pumps.contains(&crate::compat::C_GOLD));
+    let raiment = render(Some(garb(0, 0, 0, 1, crate::gear::BATTLEWEAVE_RAIMENT_ITEM, 0, 0, 0, 0, 0, 0)));
+    assert_ne!(plain, raiment);
+    assert_ne!(robe, raiment);
+    assert!(raiment.contains(&crate::compat::C_STEEL));
+    let mut ori = garb(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    crate::gear::apply_offhand(&mut ori, crate::gear::ORICHALCUM_TARGE_ITEM);
+    let ori_face = render(Some(ori));
+    assert_ne!(plain, ori_face);
+    assert_ne!(dark_face, ori_face, "orichalcum targe is not darksteel paint");
+    assert!(ori_face.contains(&crate::compat::C_GOLD));
+    let throne = render(Some(garb(0, 0, 0, 0, 0, 1, crate::gear::THRONEWEAVE_HAT_ITEM, 0, 0, 0, 0)));
+    assert_ne!(plain, throne);
+    assert_ne!(hat, throne, "throneweave hat is not the generic cloth hat");
+    assert!(throne.contains(&crate::compat::C_GOLD));
+    for fam in 1..=7 { render(Some(garb(fam, 3, fam as u32, 1, 1, 1, 1, 1, 1, 0, 0))); }
 }
 
 #[test]
@@ -792,7 +1244,7 @@ fn pick_world_honors_the_persp_blend_on_raised_ground() {
     for persp in [0.0, 1.0] {
         s.cam.persp = persp;
         for (x, z) in [(-6.0, -7.0), (4.0, 3.0), (0.0, 0.0)] {
-            let (sx, sy) = s.world_to_screen(x, 2.0, z);
+            let (sx, sy, _) = s.world_to_screen(x, 2.0, z);
             let (px, pz) = s.pick_world(sx, sy);
             assert!((px - x).abs() < 0.05 && (pz - z).abs() < 0.05, "persp {persp}: ({x},{z}) -> ({px},{pz})");
         }
@@ -830,7 +1282,7 @@ fn follow_lift_is_the_same_on_screen_in_iso_and_3d() {
         s.follow(Some("me"));
         s.tick(0.0);
         let (_, _, feet) = s.anchor("me").unwrap();
-        let want = 360.0 * 0.55 - s.follow_lift_px;
+        let want = 360.0 * 0.55 - s.follow_lift_px * s.cam.zoom;
         assert!((feet - want).abs() < 0.05, "persp {persp}: feet {feet} want {want}");
     }
 }
@@ -956,7 +1408,7 @@ fn ground_pick_round_trips_in_3d_including_far_rows() {
         let mut checked = 0;
         for (ahead, side) in [(3.0, 0.0), (8.0, 2.0), (20.0, -4.0), (40.0, 6.0)] {
             let (x, z) = (f.0 * ahead + r.0 * side, f.1 * ahead + r.1 * side);
-            let (sx, sy) = s.world_to_screen(x, 2.0, z);
+            let (sx, sy, _) = s.world_to_screen(x, 2.0, z);
             if !(0.0..640.0).contains(&sx) || !(0.0..360.0).contains(&sy) {
                 continue;
             }
@@ -1447,4 +1899,197 @@ fn light_pass_is_local_and_skipped_when_bright() {
     s.draw();
     s.write_rgba(&mut night);
     assert_eq!(s.lighting.layer.allocs, 1);
+}
+
+#[test]
+fn play_zoom_stays_iso_tp_and_fp() {
+    let mut s = Scene::new(320, 180);
+    s.tick(1.0 / 60.0);
+    assert!((s.cam.zoom - 0.84).abs() < 1e-4, "iso zoom {}", s.cam.zoom);
+    s.set_cam_mode("tp");
+    for _ in 0..180 {
+        s.tick(1.0 / 60.0);
+    }
+    assert!((s.cam.zoom - 0.84).abs() < 1e-3, "tp zoom {}", s.cam.zoom);
+    s.set_cam_mode("fp");
+    for _ in 0..180 {
+        s.tick(1.0 / 60.0);
+    }
+    assert!((s.cam.zoom - 1.0).abs() < 1e-3, "fp zoom {}", s.cam.zoom);
+}
+
+#[test]
+fn draw_distance_scales_far_and_iso_box() {
+    let mut s = Scene::new(64, 36);
+    assert!((s.cam.far - 60.0).abs() < 1e-3);
+    assert!((s.cam.iso_prop - 56.0).abs() < 1e-3);
+    s.set_draw_distance(1.0);
+    assert!((s.cam.far - 90.0).abs() < 1e-3);
+    assert!((s.cam.iso_prop - 80.0).abs() < 1e-3);
+    assert!((s.cam.iso_margin - 26.0).abs() < 1e-3);
+    s.set_draw_distance(0.0);
+    assert!((s.cam.far - 36.0).abs() < 1e-3);
+    assert!((s.cam.iso_prop - 36.0).abs() < 1e-3);
+    assert!(s.cam.iso_margin >= 20.5, "Close must not drop the 12 m relief floor");
+}
+
+#[test]
+fn enemies_and_harvest_follow_draw_distance() {
+    let mut s = Scene::new(64, 36);
+    s.upsert_unit("me", unit(0.0, 0.0, "idle", "knight"));
+    s.follow(Some("me"));
+    s.tick(0.016);
+    s.upsert_unit("hare", unit(70.0, 0.0, "idle", "mob:ashboar"));
+    s.upsert_unit("flax", unit(70.0, 0.0, "idle", "gather:harvest"));
+    s.tick(0.016);
+    assert!(s.anchor("hare").is_none(), "default iso 56+4 hides a 70 m hare");
+    assert!(s.anchor("flax").is_none(), "harvest uses the same disc as enemies");
+    s.upsert_unit("hare", unit(40.0, 0.0, "idle", "mob:ashboar"));
+    s.upsert_unit("flax", unit(40.0, 0.0, "idle", "gather:harvest"));
+    s.tick(0.016);
+    assert!(s.anchor("hare").is_some(), "40 m hare stays in default iso reach");
+    assert!(s.anchor("flax").is_some(), "40 m flax yield icon can land");
+    s.set_draw_distance(1.0);
+    s.upsert_unit("hare", unit(70.0, 0.0, "idle", "mob:ashboar"));
+    s.upsert_unit("flax", unit(70.0, 0.0, "idle", "gather:harvest"));
+    s.tick(0.016);
+    assert!(s.anchor("hare").is_some(), "Clear vistas iso 80+4 shows a 70 m hare");
+    assert!(s.anchor("flax").is_some(), "Clear vistas shows 70 m harvest");
+    s.set_draw_distance(0.0);
+    s.tick(0.016);
+    assert!(s.anchor("hare").is_none(), "Close iso 36+4 hides a 70 m hare");
+    assert!(s.anchor("flax").is_none(), "Close hides 70 m harvest");
+}
+
+#[test]
+fn tp_haze_is_a_band_not_a_wall() {
+    let mut s = cam3d_scene("tp");
+    s.minimap.on = false;
+    s.set_atmosphere_amount(0.45);
+    let mut out = vec![0u8; s.fb.w * s.fb.h * 4];
+    s.write_rgba(&mut out);
+    let (w, h) = (s.fb.w, s.fb.h);
+    let sky = crate::atmosphere::SKY;
+    let mut luma = Vec::new();
+    for y in 0..h {
+        for x in 0..w {
+            if s.fb.color[y * w + x] == sky {
+                continue;
+            }
+            let i = (y * w + x) * 4;
+            luma.push((out[i] as i32 + out[i + 1] as i32 + out[i + 2] as i32) / 3);
+        }
+    }
+    assert!(luma.len() > 200, "expected ground in the TP frame");
+    let min = *luma.iter().min().unwrap();
+    let max = *luma.iter().max().unwrap();
+    assert!(max - min > 10, "haze should vary across ground, not a flat wall ({min}..{max})");
+}
+
+#[test]
+fn unproject_and_pick_unchanged_at_persp_0_and_1() {
+    let mut s = Scene::new(640, 360);
+    s.set_zone_for_test(raised_zone(0.0));
+    for persp in [0.0, 1.0] {
+        s.cam.persp = persp;
+        let (sx, sy, _) = s.world_to_screen(2.0, 0.0, -3.0);
+        let (ux, uz) = s.cam.unproject_ground(sx, sy);
+        assert!((ux - 2.0).abs() < 0.05 && (uz + 3.0).abs() < 0.05, "persp {persp} unproject ({ux},{uz})");
+        let (px, pz) = s.pick_world(sx, sy);
+        assert!((px - 2.0).abs() < 0.05 && (pz + 3.0).abs() < 0.05, "persp {persp} pick ({px},{pz})");
+    }
+}
+
+#[test]
+fn set_cam_mode_tp_drives_the_rig_not_legacy_persp() {
+    let mut s = Scene::new(64, 36);
+    s.set_cam_mode("tp");
+    assert_eq!(s.cam_mode(), "tp");
+    s.tick(1.0 / 60.0);
+    assert!(s.cam.view.is_some(), "CamRig writes cam.view");
+    assert!(s.cam.view.unwrap().skew > 0.5, "first blend frame is still iso-skewed");
+}
+
+#[test]
+fn iso_tp_mid_blend_is_not_a_milk_wall() {
+    let bytes = tiny_zone(80, 80, |_, _| (13, 0, 0));
+    let mut s = Scene::new(320, 180);
+    s.load_zone(&bytes).unwrap();
+    s.upsert_unit("me", unit(20.0, 20.0, "idle", "knight"));
+    s.follow(Some("me"));
+    s.tick(1.0 / 60.0);
+    s.set_cam_mode("tp");
+    s.tick(1.0 / 60.0);
+    let skew = s.cam.view.map(|v| v.skew).unwrap_or(0.0);
+    assert!(skew > 0.5, "mid-blend skew {skew}");
+    s.minimap.on = false;
+    s.draw();
+    let mut out = vec![0u8; s.fb.w * s.fb.h * 4];
+    s.write_rgba(&mut out);
+    let haze = crate::atmosphere::PALE_HOLLOW_LOOK.horizon;
+    let hr = ((haze >> 16) & 255) as i32;
+    let hg = ((haze >> 8) & 255) as i32;
+    let hb = (haze & 255) as i32;
+    let (w, h) = (s.fb.w, s.fb.h);
+    let mut near_d = 0i32;
+    let mut n = 0i32;
+    let y = (h as f32 * 0.7) as usize;
+    for x in w / 4..w * 3 / 4 {
+        if s.fb.color[y * w + x] == crate::atmosphere::SKY {
+            continue;
+        }
+        let i = (y * w + x) * 4;
+        near_d += (out[i] as i32 - hr).abs() + (out[i + 1] as i32 - hg).abs() + (out[i + 2] as i32 - hb).abs();
+        n += 1;
+    }
+    assert!(n > 20, "expected ground in the blend frame");
+    assert!(near_d / n > 40, "iso→TP blend must not sit on MIX_CAP haze, d={}", near_d / n);
+}
+
+#[test]
+fn lod2_trees_draw_past_old_cutoff() {
+    let bytes = tiny_zone(320, 320, |_, _| (13, 0, 0));
+    let mut s = Scene::new(640, 360);
+    s.load_zone(&bytes).unwrap();
+    s.upsert_unit("me", unit(80.0, 80.0, "idle", "knight"));
+    s.follow(Some("me"));
+    s.set_cam_mode("tp");
+    for _ in 0..240 {
+        s.tick(1.0 / 60.0);
+    }
+    s.minimap.on = false;
+    let v = s.cam.view.expect("settled TP");
+    let eye = v.eye().expect("eye");
+    let f = v.fwd();
+    let hz = (f.x * f.x + f.z * f.z).sqrt().max(1e-4);
+    let want = s.cam.far * 0.9;
+    let dy = eye.y - s.cam_y;
+    let along = (want * want - dy * dy).max(1.0).sqrt();
+    let (x, z) = (eye.x + f.x / hz * along, eye.z + f.z / hz * along);
+    let mut b = b"BAP1".to_vec();
+    b.extend_from_slice(&1u32.to_le_bytes());
+    b.push(0);
+    b.push(0);
+    for v in [x, z, 0.0f32, 0.0, 8.0, 1.0, 1.0, 1.0] {
+        b.extend_from_slice(&v.to_le_bytes());
+    }
+    assert_eq!(s.load_props(&b).unwrap(), 1);
+    s.draw();
+    let n = s.fb.color.iter().filter(|&&c| (palette::PINE_D..=palette::PINE_L).contains(&c) || c == palette::WOOD || c == palette::WOOD_D).count();
+    assert!(n > 8, "lod-2 pine at 0.9×FAR must still draw, pixels={n}");
+}
+
+#[test]
+fn far_units_skip_pick_and_anchors() {
+    let mut s = Scene::new(64, 36);
+    s.upsert_unit("me", unit(0.0, 0.0, "idle", "knight"));
+    s.follow(Some("me"));
+    s.tick(1.0 / 60.0);
+    s.set_draw_distance(0.0);
+    s.upsert_unit("mob", unit(50.0, 50.0, "idle", "mob:ashboar"));
+    s.set_fx("mob", crate::scene::UnitFx { fade: 1.0, ..Default::default() });
+    let (sx, sy, _) = s.world_to_screen(50.0, 0.0, 50.0);
+    assert_ne!(s.pick_unit(sx, sy), Some("mob"));
+    assert!(s.anchor("mob").is_none(), "nameplate must follow draw range");
+    assert!(s.anchor("me").is_some());
 }

@@ -76,18 +76,8 @@ function fromDef(d: PaleHollowMobDef): FieldMob {
   };
 }
 
-/** @deprecated use createPaleHollowMobs */
-export function createSegmentAMobs(): FieldMob[] {
-  return createPaleHollowMobs();
-}
-
 export function createPaleHollowMobs(): FieldMob[] {
   return PH_ALL_MOBS.map(fromDef);
-}
-
-/** @deprecated use createPaleHollowNodes */
-export function createSegmentANodes(): FieldNode[] {
-  return createPaleHollowNodes();
 }
 
 function shuffle<T>(arr: T[]): T[] {

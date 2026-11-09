@@ -132,6 +132,15 @@ pub struct Camera {
     /// (`view == None`) along the same view azimuth, so back-to-front draw
     /// order is unchanged and ground picking stays closed-form.
     pub persp: f32,
+    /// Screen-space pull-back around the view anchor (1 = default). Below 1
+    /// shows more world; first-person should stay at 1.
+    pub zoom: f32,
+    /// 3D far plane (metres). Pick, far-ground and ViewCull follow this; haze does not.
+    pub far: f32,
+    /// Iso ground cull margin (metres). Live default matches 12 m relief (~20.5).
+    pub iso_margin: f32,
+    /// Iso prop box half-extent (metres). Live default 56.
+    pub iso_prop: f32,
 }
 
 /// BA-Stick: perspective strength at `persp = 1` (per metre of view depth).
@@ -139,7 +148,18 @@ pub const PERSP_K: f32 = 0.045;
 
 impl Camera {
     pub fn new(w: usize, h: usize) -> Self {
-        Camera { cx: 0.0, cz: 0.0, w: w as f32, h: h as f32, view: None, persp: 0.0 }
+        Camera {
+            cx: 0.0,
+            cz: 0.0,
+            w: w as f32,
+            h: h as f32,
+            view: None,
+            persp: 0.0,
+            zoom: 1.0,
+            far: FAR,
+            iso_margin: 4.0 + 12.0 * HEIGHT_PX / ISO_Y / 2.0,
+            iso_prop: 56.0,
+        }
     }
 
     /// The view in effect (the iso view when none is set).
@@ -148,11 +168,38 @@ impl Camera {
     }
 
     pub fn project(&self, p: Vec3) -> P2 {
-        match &self.view {
+        let q = match &self.view {
             None if self.persp != 0.0 => self.project_iso_persp(p),
             None => Self::project_iso(self.cx, self.cz, self.w, self.h, p),
             Some(v) => Self::project_view(v, p),
+        };
+        self.apply_zoom(q)
+    }
+
+    /// View-space pixel under a framebuffer pixel (undoes `zoom`).
+    pub fn to_view_px(&self, sx: f32, sy: f32) -> (f32, f32) {
+        let z = self.zoom.max(0.05);
+        if (z - 1.0).abs() < 1e-5 {
+            return (sx, sy);
         }
+        let (ax, ay) = self.anchor();
+        (ax + (sx - ax) / z, ay + (sy - ay) / z)
+    }
+
+    fn anchor(&self) -> (f32, f32) {
+        match &self.view {
+            Some(v) => (v.ax, v.ay),
+            None => (self.w * 0.5, self.h * 0.55),
+        }
+    }
+
+    fn apply_zoom(&self, p: P2) -> P2 {
+        let z = self.zoom;
+        if (z - 1.0).abs() < 1e-5 {
+            return p;
+        }
+        let (ax, ay) = self.anchor();
+        P2 { x: ax + (p.x - ax) * z, y: ay + (p.y - ay) * z, d: p.d, s: p.s * z }
     }
 
     /// BA-Stick iso -> perspective blend (radius scaling is left to the
@@ -216,6 +263,7 @@ impl Camera {
     pub fn unproject_ground(&self, sx: f32, sy: f32) -> (f32, f32) {
         match &self.view {
             None => {
+                let (sx, sy) = self.to_view_px(sx, sy);
                 let yv = (sy - self.h * 0.55) / ISO_Y;
                 // y = v * s(v), s(v) = 1 / (1 - a v)  =>  v = y / (1 + a y)
                 let a = PERSP_K * self.persp;
@@ -223,6 +271,7 @@ impl Camera {
                 let u = (sx - self.w * 0.5) / (ISO_X * self.scale_at_v(v));
                 (self.cx + (u + v) * 0.5, self.cz + (v - u) * 0.5)
             }
+            // `pick_ground` already undoes `zoom`; do not call `to_view_px` first.
             Some(_) => self.pick_ground(sx, sy).unwrap_or((self.cx, self.cz)),
         }
     }
@@ -232,7 +281,8 @@ impl Camera {
         if self.view.is_none() {
             return Some(self.unproject_ground(sx, sy));
         }
-        let h = GroundMap::new(&self.effective_view());
+        let (sx, sy) = self.to_view_px(sx, sy);
+        let h = GroundMap::with_far(&self.effective_view(), self.far);
         h.at(sx, sy)
     }
 }
@@ -252,10 +302,14 @@ pub struct GroundMap {
     target: Vec3,
     fwd: Vec3,
     inv_d: f32,
+    far: f32,
 }
 
 impl GroundMap {
     pub fn new(v: &View) -> GroundMap {
+        Self::with_far(v, FAR)
+    }
+    pub fn with_far(v: &View, far: f32) -> GroundMap {
         let raw = |x: f32, y: f32| -> [f32; 3] {
             let (r, dn) = v.basis();
             let f = v.fwd();
@@ -269,7 +323,7 @@ impl GroundMap {
         let c0 = raw(0.0, 0.0);
         let (c1, c2) = (raw(1.0, 0.0), raw(0.0, 1.0));
         let sub = |a: [f32; 3], b: [f32; 3]| [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
-        GroundMap { c0, cx: sub(c1, c0), cy: sub(c2, c0), ax: v.ax, ay: v.ay, target: v.target, fwd: v.fwd(), inv_d: v.inv_d }
+        GroundMap { c0, cx: sub(c1, c0), cy: sub(c2, c0), ax: v.ax, ay: v.ay, target: v.target, fwd: v.fwd(), inv_d: v.inv_d, far }
     }
     /// Homogeneous ground coords for a pixel: (nx, nz, det).
     #[inline]
@@ -291,7 +345,7 @@ impl GroundMap {
         if self.inv_d > 0.0 {
             let z = qx * self.fwd.x - self.target.y * self.fwd.y + qz * self.fwd.z;
             let dist = 1.0 / self.inv_d + z;
-            if dist <= NEAR || dist > FAR {
+            if dist <= NEAR || dist > self.far {
                 return None;
             }
         }

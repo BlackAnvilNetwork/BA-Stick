@@ -15,6 +15,7 @@
  */
 
 import { fbShoreFillAt } from "./forest-basin-shore";
+import { slideMove } from "./slide-move";
 import { gradedCorridorY } from "./trail-geom";
 import { zoneLink } from "./zone-links";
 import {
@@ -201,6 +202,8 @@ export function forestBasinWalkable(x: number, z: number): boolean {
   const sf = shoreFill(x, z);
   if (sf != null) return sf - forestBasinGroundY(x, z) <= FB_WADE_DEPTH;
   const f = cellFlags(x, z);
+  // Bits 0–1 pick the overlay class: 3 is mountain, anything else is grass/meadow.
+  if ((f & 3) !== 3) return true;
   if (f & 8) return true;
   return (f & 4) === 0;
 }
@@ -301,8 +304,8 @@ export const FB_MAP_LABELS: readonly { text: string; x: number; z: number; kind:
 
 export function forestBasinClamp(x: number, z: number): { x: number; z: number } {
   return {
-    x: Math.max(FOREST_BASIN_BOUNDS.minX, Math.min(FOREST_BASIN_BOUNDS.maxX, x)),
-    z: Math.max(FOREST_BASIN_BOUNDS.minZ, Math.min(FOREST_BASIN_BOUNDS.maxZ, z)),
+    x: Math.max(FOREST_BASIN_BOUNDS.minX + PAD, Math.min(FOREST_BASIN_BOUNDS.maxX - PAD, x)),
+    z: Math.max(FOREST_BASIN_BOUNDS.minZ + PAD, Math.min(FOREST_BASIN_BOUNDS.maxZ - PAD, z)),
   };
 }
 
@@ -313,19 +316,7 @@ export function forestBasinClampMoveUsing(
   toX: number,
   toZ: number,
 ): { x: number; z: number } {
-  const end = forestBasinClamp(toX, toZ);
-  if (!walkable(fromX, fromZ) && walkable(end.x, end.z)) return end;
-  const dist = Math.hypot(end.x - fromX, end.z - fromZ);
-  if (dist < 1e-4) return { x: fromX, z: fromZ };
-  const steps = Math.max(1, Math.ceil(dist / 0.3));
-  let last = { x: fromX, z: fromZ };
-  for (let i = 1; i <= steps; i++) {
-    const t = i / steps;
-    const c = forestBasinClamp(fromX + (end.x - fromX) * t, fromZ + (end.z - fromZ) * t);
-    if (!walkable(c.x, c.z)) return last;
-    last = c;
-  }
-  return last;
+  return slideMove(forestBasinClamp, walkable, fromX, fromZ, toX, toZ, forestBasinInOpenWater);
 }
 
 export function forestBasinClampMove(

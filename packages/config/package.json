@@ -10,7 +10,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test src/network-profile.test.ts src/pvp-areas.test.ts src/pale-hollow-field.test.ts src/pale-hollow-weather.test.ts src/trail-geom.test.ts src/field-population.test.ts src/display-names.test.ts src/warp-unlocks.test.ts src/world-pois.test.ts src/pale-hollow-camp.test.ts src/seam-country-field.test.ts src/forest-basin-shore.test.ts src/forest-basin-quests.test.ts src/zone-lighting.test.ts"
+    "test": "tsx --test src/network-profile.test.ts src/pvp-areas.test.ts src/pale-hollow-field.test.ts src/pale-hollow-weather.test.ts src/trail-geom.test.ts src/field-population.test.ts src/display-names.test.ts src/warp-unlocks.test.ts src/world-pois.test.ts src/pale-hollow-camp.test.ts src/seam-country-field.test.ts src/forest-basin-shore.test.ts src/forest-basin-quests.test.ts src/zone-lighting.test.ts src/zone-atmosphere.test.ts src/slide-move.test.ts src/wenna-quests/thin-watch.test.ts src/wenna-quests/low-pile.test.ts src/wenna-quests/skirt-of-the-camp.test.ts src/wenna-quests/salt-for-emberwatch.test.ts src/wenna-quests/morning-chapter.test.ts"
   },
   "devDependencies": {
     "@types/node": "^22.13.10",

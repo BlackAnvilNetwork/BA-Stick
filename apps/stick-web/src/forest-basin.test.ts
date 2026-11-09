@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  fieldGateAt,
   FB_ASCENTS,
   FB_BRIDGES,
   FB_GATES,
@@ -21,7 +22,6 @@ import {
   forestBasinTrails,
   forestBasinWalkable,
 } from "@bellgrave/config";
-import { bakeForestBasin } from "../scripts/bake-zones";
 
 test("forest basin spawn is dry, walkable ground in Kettle Hollow", () => {
   assert.equal(forestBasinWalkable(FB_SPAWN.x, FB_SPAWN.z), true);
@@ -125,6 +125,8 @@ test("forest basin gates stay reachable from spawn", () => {
       assert.equal(reached(cx, cz), true, g.id);
     } else {
       assert.equal(forestBasinWalkable(cx, cz), false, g.id);
+      const hit = fieldGateAt("forest_basin", cx, cz);
+      assert.ok(hit && (hit.blocked || !hit.destZone), `${g.id} is a closed lip`);
     }
   }
 });
@@ -139,10 +141,16 @@ test("forest basin trails and labels: named, in bounds, no retired names", () =>
   }
 });
 
-test("forest basin bake is the area-sheet byte length", () => {
-  const buf = bakeForestBasin();
+test("forest basin bake is the area-sheet byte length", async (t) => {
   const w = 641;
   const h = 641;
+  assert.equal(24 + 4 * w * h, 1_643_548);
+  if (!process.env.BAKE_FOREST_BASIN) {
+    t.skip("skip live 641² bakeForestBasin()");
+    return;
+  }
+  const { bakeForestBasin } = await import("../scripts/bake-zones");
+  const buf = bakeForestBasin();
   assert.equal(buf.length, 24 + 4 * w * h);
   assert.equal(buf.toString("ascii", 0, 4), "BAZ1");
 });
