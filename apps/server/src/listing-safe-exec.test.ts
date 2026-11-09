@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { describe, test } from "node:test";
-import { createPublicClient, createWalletClient, encodeFunctionData, getAddress, http, keccak256, toBytes, type Hex } from "viem";
+import { createPublicClient, createTestClient, createWalletClient, encodeFunctionData, getAddress, http, keccak256, toBytes, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { foundry } from "viem/chains";
 import { markComesOnline, resetGuildSafesForTests, type LocalSafeContracts } from "./guild-safes";
@@ -101,8 +101,9 @@ describe("listing role call", { concurrency: false }, () => {
       const throughSafe = "0x0000000000000000000000000000000000005112" as const;
       const runtime = recorderRuntime();
       try {
-        await pub.request({ method: "anvil_setCode", params: [direct, runtime] });
-        await pub.request({ method: "anvil_setCode", params: [throughSafe, runtime] });
+        const anvilClient = createTestClient({ chain: foundry, mode: "anvil", transport: http(anvil.rpc) });
+        await anvilClient.setCode({ address: direct, bytecode: runtime });
+        await anvilClient.setCode({ address: throughSafe, bytecode: runtime });
         const directHash = await sendListingRoleCall({
           env: {},
           wallet,

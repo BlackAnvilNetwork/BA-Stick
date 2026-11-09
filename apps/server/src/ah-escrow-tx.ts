@@ -68,12 +68,12 @@ const AH_ABI = [
     name: "AskCancelled",
     inputs: [{ name: "listingId", type: "uint256", indexed: true }],
   },
-  { type: "error", name: "AskClosed" },
-  { type: "error", name: "AskExists" },
-  { type: "error", name: "BadAmount" },
-  { type: "error", name: "BadId" },
-  { type: "error", name: "Unauthorized" },
-  { type: "error", name: "EnforcedPause" },
+  { type: "error", name: "AskClosed", inputs: [] },
+  { type: "error", name: "AskExists", inputs: [] },
+  { type: "error", name: "BadAmount", inputs: [] },
+  { type: "error", name: "BadId", inputs: [] },
+  { type: "error", name: "Unauthorized", inputs: [] },
+  { type: "error", name: "EnforcedPause", inputs: [] },
 ] as const;
 
 /** keccak256("AskClosed()")[0:4] */

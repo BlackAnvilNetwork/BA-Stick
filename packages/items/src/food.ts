@@ -56,7 +56,7 @@ type FoodRank = {
 /** Cooked consumables — not bait, potions, or stillroom intermediates. */
 export function isFoodItem<T extends Pick<ItemDef, "kind" | "craftSkill">>(
   def: T | null | undefined,
-): def is T {
+): def is T & { kind: "consumable"; craftSkill: "cooking" } {
   return !!def && def.kind === "consumable" && def.craftSkill === "cooking";
 }
 

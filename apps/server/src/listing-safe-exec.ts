@@ -8,6 +8,7 @@
  * threshold-1 Safe transaction and pays the gas. The Safe is msg.sender.
  */
 import {
+  createPublicClient,
   encodeFunctionData,
   getAddress,
   isAddress,
@@ -18,7 +19,6 @@ import {
   type ContractFunctionArgs,
   type ContractFunctionName,
   type Hex,
-  type PublicClient,
   type WalletClient,
 } from "viem";
 
@@ -96,7 +96,7 @@ export async function sendListingRoleCall<
 >(opts: {
   env?: NodeJS.ProcessEnv;
   wallet: Pick<WalletClient, "writeContract">;
-  pub: PublicClient;
+  pub: Pick<ReturnType<typeof createPublicClient>, "readContract">;
   account: ListingAccount;
   chain: Chain | null | undefined;
   address: `0x${string}`;
@@ -123,7 +123,7 @@ export async function sendListingRoleCall<
     abi: opts.abi,
     functionName: opts.functionName,
     args: opts.args,
-  });
+  } as Parameters<typeof encodeFunctionData>[0]);
   const safeNonce = await opts.pub.readContract({
     address: safe,
     abi: SAFE_ABI,
