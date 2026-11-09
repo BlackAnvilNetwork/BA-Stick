@@ -721,3 +721,31 @@ test("a retired quantity buy does not fill an open book", async () => {
   assert.equal(lok.view(buyer.tokenId).listings.length, asks);
   assert.equal(lok.view(buyer.tokenId).inbox.length, 0);
 });
+
+test("a minted token is one spawn, and a second caller does not change the job", () => {
+  const lok = world();
+  const wallet = "0x1111111111111111111111111111111111111111";
+  const first = lok.ensureMintedSpawn("6", 4, wallet);
+  assert.equal(first.ok, true);
+  if (!first.ok) return;
+  assert.equal(first.created, true);
+  assert.equal(first.charId, "chain_6");
+  assert.equal(first.tokenId, "6");
+  assert.equal(lok.length, 1);
+  const again = lok.ensureMintedSpawn("6", 9, "0x2222222222222222222222222222222222222222");
+  assert.equal(again.ok, true);
+  if (!again.ok) return;
+  assert.equal(again.created, false);
+  assert.equal(again.charId, "chain_6");
+  assert.equal(lok.length, 1);
+  const line = readFileSync(lok.journalPath, "utf8").trim().split("\n").at(-1);
+  const entry = JSON.parse(line ?? "{}") as { cmd?: { op?: string; tokenId?: string; startingJob?: number } };
+  assert.deepEqual(entry.cmd, { op: "spawn", tokenId: "6", startingJob: 4 });
+  const prior = lok.spawn("c_old", "Mack", 2, wallet, { tokenId: "3" });
+  assert.equal(prior.ok, true);
+  const len = lok.length;
+  const kept = lok.ensureMintedSpawn("3", 0, wallet);
+  assert.equal(kept.ok && kept.created, false);
+  if (kept.ok) assert.equal(kept.charId, "c_old");
+  assert.equal(lok.length, len);
+});

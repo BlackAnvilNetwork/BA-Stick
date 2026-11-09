@@ -143,9 +143,7 @@ describe("guild registry", { concurrency: false }, () => {
           },
         },
       );
-      assert.equal(mode.mode, "validator");
-      assert.equal(mode.ticksWorld, false);
-      assert.equal(mode.leads, false);
+      assert.equal(mode.role, "observer");
 
       assert.deepEqual(joinGuild("guild:missing", "character-1"), { requested: false, feeWei: 0n });
       assert.deepEqual(joinGuild(guildId, "character-1"), { requested: true, feeWei: 0n });
@@ -314,12 +312,12 @@ describe("guild registry", { concurrency: false }, () => {
     }
   });
 
-  test("validators, light clients, phones, and the listing key do not become bonded operators", async () => {
+  test("observers, light clients, phones, and the listing key do not become bonded operators", async () => {
     reset();
     try {
       const mode = await installedGameMode({});
-      assert.equal(mode.mode, "validator");
-      assert.deepEqual(postReplicaBond("validator-1", mode.mode, 10n), { joined: false, amountWei: 0n });
+      assert.equal(mode.role, "observer");
+      assert.deepEqual(postReplicaBond("validator-1", mode.role, 10n), { joined: false, amountWei: 0n });
       assert.deepEqual(postReplicaBond("phone", "light", 25n), { joined: false, amountWei: 0n });
       assert.deepEqual(postReplicaBond("light-client", "light", 4n), { joined: false, amountWei: 0n });
       assert.deepEqual(postReplicaBond(PINNED_GNOSIS_LISTING_ADDRESS, "replica", 10n), {

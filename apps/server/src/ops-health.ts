@@ -51,6 +51,10 @@ export type OpsHealthDeps = {
   replacePendingOpenAsk?: typeof replacePendingOpenAsk;
   /** Allowlist view. Absent means no certified height and no peers yet. */
   replicaHealth?: () => ReplicaHealth;
+  /** Current world-sync state. Recomputed, not stored. */
+  worldSync?: () => { state: string; reason?: string; detail?: string; tokenIds?: string[] };
+  /** Leader-only signed spawn. Absent on an edge. */
+  acceptSpawn?: (body: unknown) => Promise<{ ok: boolean; error?: string; charId?: string; name?: string; tokenId?: string }>;
 };
 
 export type { ReplicaHealth, ReplicaPeer };
@@ -307,7 +311,20 @@ export function handleOpsHttp(
 
   try {
     if (pathname === "/health" || pathname === "/healthz") {
-      writeJson(res, 200, { ok: true });
+      writeJson(res, 200, { ok: true, sync: deps.worldSync?.() ?? null });
+      return true;
+    }
+
+    if (pathname === "/world/input" && req.method === "POST" && deps.acceptSpawn) {
+      const accept = deps.acceptSpawn;
+      void readJsonBody(req)
+        .then(async (body) => {
+          const result = await accept(body);
+          writeJson(res, result.ok ? 200 : 400, result);
+        })
+        .catch((err) => {
+          writeJson(res, 400, { ok: false, error: err instanceof Error ? err.message : "bad input" });
+        });
       return true;
     }
 

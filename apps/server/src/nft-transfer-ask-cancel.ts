@@ -618,6 +618,8 @@ export async function scanNftTransfers(opts: {
   nft: string;
   rpcCall: (method: string, params: unknown[]) => Promise<unknown>;
   onTransfer: (xfer: NftTransfer) => Promise<void>;
+  /** Transfer from the zero address. Ask-cancel does not run for a mint. */
+  onMint?: (xfer: NftTransfer) => Promise<void>;
   /** Blocks behind tip (default NFT_TRANSFER_CONFIRMATIONS). */
   confirmations?: bigint;
   /** When cursor is 0, begin here (deploy block) instead of tip. */
@@ -652,8 +654,11 @@ export async function scanNftTransfers(opts: {
     for (const log of logs) {
       const xfer = decodeErc721Transfer(log);
       if (!xfer) continue;
-      // Ignore mint (from zero) — no prior owner listings to fix.
-      if (xfer.from === "0x0000000000000000000000000000000000000000") continue;
+      // A mint has no prior owner. The leader records the spawn; ask-cancel does not run.
+      if (xfer.from === "0x0000000000000000000000000000000000000000") {
+        if (opts.onMint) await opts.onMint(xfer);
+        continue;
+      }
       // Self-transfer does not change ownership — do not cancel asks.
       if (xfer.from === xfer.to) continue;
       await opts.onTransfer(xfer);
@@ -711,13 +716,15 @@ export function startNftTransferAskCancelWatcher(
     env?: NodeJS.ProcessEnv;
     /** C-1: after finalized Transfer, update owner cache + rebind + kick sessions. */
     onOwnershipChange?: (change: NftOwnershipChange) => void | Promise<void>;
+    /** Mint (Transfer from the zero address) on the same scan. */
+    onMint?: (xfer: NftTransfer) => Promise<void>;
   },
-): void {
+): boolean {
   const env = opts?.env ?? process.env;
   const nft = nftAddress(env);
-  if (!nft) return;
-  if (!ahEscrowAddress(env)) return;
-  if (!(env.LOK_CHAIN_RPC?.trim() || env.LOK_CHAIN_RPC_URLS?.trim())) return;
+  if (!nft) return false;
+  if (!ahEscrowAddress(env)) return false;
+  if (!(env.LOK_CHAIN_RPC?.trim() || env.LOK_CHAIN_RPC_URLS?.trim())) return false;
 
   const rpc = settlementRpc(env);
   const dataDir = opts?.dataDir ?? defaultLokDir();
@@ -772,6 +779,7 @@ export function startNftTransferAskCancelWatcher(
         startBlock,
         preferFinalized: preferFinalizedTip(env),
         rpcCall: rpc.asCall(),
+        onMint: opts?.onMint,
         onTransfer: async (xfer) => {
           const block = xfer.blockNumber ?? "0";
           nftOwnerCache(dataDir).onTransfer(xfer.tokenId, xfer.to, block);
@@ -856,4 +864,5 @@ export function startNftTransferAskCancelWatcher(
     tick().catch((err) => console.error("[bellgrave] NFT transfer ask-cancel watcher", err));
   }, 5000);
   timer.unref?.();
+  return true;
 }

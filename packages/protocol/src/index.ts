@@ -62,6 +62,8 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
     mintSignature: z.string().min(130).max(200).optional(),
     mintChainId: z.number().int().positive().optional(),
     mintCharId: z.string().min(1).max(64).optional(),
+    /** Player signature over the spawn input. Required when this server is not the leader. */
+    inputSig: z.string().min(130).max(200).optional(),
   }),
   z.object({
     type: z.literal("char/enter"),

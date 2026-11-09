@@ -319,6 +319,35 @@ describe("scanNftTransfers", () => {
     assert.equal(next.cursor, 0x64n);
   });
 
+  it("hands a mint to onMint and does not treat it as an owner change", async () => {
+    const mints: string[] = [];
+    const owners: string[] = [];
+    const zero = "0x0000000000000000000000000000000000000000";
+    const to = "0x00000000000000000000000000000000000000bb";
+    const mintLog = {
+      topics: [ERC721_TRANSFER_TOPIC, padAddr(zero), padAddr(to), padId(6n)],
+      blockNumber: "0x64",
+    };
+    await scanNftTransfers({
+      cursor: 0x63n,
+      nft: "0x00000000000000000000000000000000000000ff",
+      confirmations: NFT_TRANSFER_CONFIRMATIONS,
+      rpcCall: async (method) => {
+        if (method === "eth_blockNumber") return "0x66";
+        if (method === "eth_getLogs") return [mintLog];
+        throw new Error(method);
+      },
+      onMint: async (xfer) => {
+        mints.push(xfer.tokenId + ":" + xfer.from);
+      },
+      onTransfer: async (xfer) => {
+        owners.push(xfer.tokenId);
+      },
+    });
+    assert.deepEqual(mints, ["6:" + zero]);
+    assert.deepEqual(owners, []);
+  });
+
   it("does not advance past unconfirmed tip blocks", async () => {
     const next = await scanNftTransfers({
       cursor: 100n,
