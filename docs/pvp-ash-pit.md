@@ -71,14 +71,11 @@ strike each other. Abilities aimed at another player use the same strike gate.
 
 - Bounty unit: **1 xDAI** (`BOUNTY_WEI = 1e18`)
 - Additive script: `DeployPvpBountyGnosis.s.sol` (+ `broadcast-deploy-pvp-bounty-gnosis.sh`)
-- Against official NFT `0x48aFeC…289F`; ADMIN `0x08cD…4e01`; OPERATOR = LISTING `0xbFa2…9E76`
-- Previous address `0x02bDDCaF5a19fD9Be7f39fC7419F794CECE9E64e` is the pre-fix
-  bytecode (single `claim`, pays current `ownerOf`). `deployments/gnosis.json`
-  keeps that address with `status: needs-redeploy`. Production boot reads
-  `claimDelay()` and refuses this contract. Redeploy with
-  `DeployPvpBountyGnosis` (60s `claimDelay`) and replace `LOK_PVP_BOUNTY`.
-- Env: `NETWORK=gnosis` fills `LOK_PVP_BOUNTY`
-- Operator: **`LOK_LISTING_KEY` only** (LISTING `0xbFa2…`). Never put the admin key on the server.
+- Against official NFT `0x6165…491cD`; ADMIN = Admin Safe `0x9f26…6c34`; OPERATOR = Listing Safe `0xe105…002B`
+- Live bounty `0x4D115A8a…65b30` (60s `claimDelay`). The October 13 address
+  `0x02bDDCaF…` is the abandoned EOA stack (`deployments/gnosis-eoa-2026-10-13.json`).
+- Env: `NETWORK=gnosis` fills `LOK_PVP_BOUNTY` and `LOK_LISTING_SAFE`
+- Operator: **`LOK_LISTING_KEY`** is the Listing Safe owner. Never put the admin key on the server.
 - Key placement: local → `apps/server/.env.local`; production → host secrets for the Node process on PORT 8787 (see `docs/gnosis-launch.md`).
 - Synthetic refused on Gnosis unless `LOK_PVP_SYNTHETIC=1` (never for production)
 - Local anvil only: `DeployPvpBountyAnvil` + `deployments/anvil.json` (dev)

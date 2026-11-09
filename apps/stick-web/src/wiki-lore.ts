@@ -57,7 +57,7 @@ export const LORE_PAGES: LorePage[] = [
     lines: [
       "Beyond the Hollow's north lip lie the open fields of the march, in the order a traveller meets them:",
       "- Hollow Road: a scrub track climbing out of the chalk.",
-      "- Forest Basin: dark timber and quiet clearings.",
+      "- Forest Basin: open meadow canvas (terrain reset; exits to Hollow Road and Spur Road).",
       "- Spur Road: a ridge path along the eastern spur.",
       "- Ring Ward: grazing land around an old stone circle. Shepherds swear it sings on still nights; the wardens prefer you leave it alone.",
       "- Islet Fords: shallow crossings and reed islands.",

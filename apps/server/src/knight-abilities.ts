@@ -11,6 +11,7 @@ import { signatureWeaponEquipped } from "./starter-kit";
 import { kitLevel } from "./support-job";
 import { withGearMab } from "./gear-combat";
 import { takeMobHit, type MobEnhanceHost } from "./mob-enhances";
+import { veiledByGhostStep } from "./pvp-foe";
 import type { AbilityId } from "@bellgrave/protocol";
 
 export type KnightPlayer = {
@@ -93,15 +94,13 @@ export function swordEquipped(p: KnightPlayer): boolean {
 /** Combined physical damage-taken multiplier from Knight DT buffs. */
 export function knightPhysDtMul(p: KnightPlayer, now: number): number {
   let mul = 1;
-  if (now < p.bulwarkUntil) mul = 0;
-  else {
-    if (now < p.sentinelUntil) mul *= 0.5;
-    if (now < p.coverUntil) mul *= 0.75;
-    if (now < p.rampartUntil) mul *= 0.75;
-    if (now < p.guardianUntil) mul *= 0.65;
-    if (now < p.protectUntil) mul *= p.protectPhysMul;
-  }
-  return Math.max(0, Math.min(1, mul));
+  if (now < p.bulwarkUntil) mul *= 0.4;
+  if (now < p.sentinelUntil) mul *= 0.5;
+  if (now < p.coverUntil) mul *= 0.75;
+  if (now < p.rampartUntil) mul *= 0.75;
+  if (now < p.guardianUntil) mul *= 0.65;
+  if (now < p.protectUntil) mul *= p.protectPhysMul;
+  return Math.max(0.15, Math.min(1, mul));
 }
 
 export function knightMagDtMul(p: KnightPlayer, now: number): number {
@@ -241,8 +240,7 @@ export function resolveKnightAbility(
   // —— Rest ——
   if (id === "rest") {
     if (p.anim === "rest") {
-      hooks.stopRest(p);
-      hooks.pushLog(p, "You stand.");
+      hooks.stopRest(p, "You stand.");
       return true;
     }
     p.moveTo = null;
@@ -263,7 +261,7 @@ export function resolveKnightAbility(
     spikeEnmity(p, 400);
     p.anim = "cast";
     p.animUntil = now + 600;
-    hooks.pushLog(p, `${def.label} — no steel shall pass.`);
+    hooks.pushLog(p, `${def.label} — the ward turns steel aside.`);
     return true;
   }
 
@@ -299,6 +297,10 @@ export function resolveKnightAbility(
     }
     if (hooks.dist(p.x, p.z, m.x, m.z) > (def.range ?? 3)) {
       hooks.pushLog(p, "Too far.");
+      return true;
+    }
+    if (veiledByGhostStep(m, now)) {
+      hooks.pushLog(p, "Violet smoke — the strike finds no one.");
       return true;
     }
     spend();
@@ -452,6 +454,7 @@ export function resolveKnightAbility(
     let hit = 0;
     for (const m of hooks.allMobs()) {
       if (!m.alive) continue;
+      if (veiledByGhostStep(m, now)) continue;
       if (hooks.dist(p.x, p.z, m.x, m.z) > r) continue;
       m.blindUntil = now + (def.durationMs ?? 12_000);
       m.targetId = p.wallet;
@@ -474,6 +477,10 @@ export function resolveKnightAbility(
     }
     if (hooks.dist(p.x, p.z, m.x, m.z) > (def.range ?? 12)) {
       hooks.pushLog(p, "Too far.");
+      return true;
+    }
+    if (veiledByGhostStep(m, now)) {
+      hooks.pushLog(p, "Violet smoke — the spell finds no one.");
       return true;
     }
     spend();

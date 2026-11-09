@@ -22,7 +22,7 @@ import {
   weaponCategoryId,
 } from "@bellgrave/ui/catalog-tree";
 import { formatJobs, ItemCatalogDetails } from "@bellgrave/ui/itemTip";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { WikiCraftPanel } from "./WikiCraftPanel";
 import { WikiLorePanel } from "./WikiLorePanel";
 import { WikiGearPreview } from "./WikiGearPreview";
@@ -70,6 +70,17 @@ export function WikiPage({ onClose }: Props) {
     setFocusId(itemId);
     itemSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      e.stopPropagation();
+      onClose();
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [onClose]);
 
   return (
     <div className="wiki-overlay" role="dialog" aria-label="Game wiki">

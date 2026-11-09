@@ -21,3 +21,10 @@ apps/*/tsconfig.tsbuildinfo
 engine/target/
 engine/ba-stick-render/pkg/
 apps/stick-web/public/zones/
+apps/stick-web/public/ba_stick_render.wasm
+apps/stick-web/engine/
+apps/server/tmp-*
+apps/stick-web/tmp-*
+packages/config/_tmp-*
+.cursor/boot-menu-loop.*
+.cursor/*.png

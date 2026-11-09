@@ -213,6 +213,12 @@ import {
   recipeMaterialsComplete,
   type CraftSkill,
   type ItemDef,
+  type ItemStats,
+  addItemStats,
+  FOOD_DURATION_SEC,
+  formatFoodBuffLine,
+  isFoodItem,
+  mealStatsFor,
 } from "@bellgrave/items";
 import {
   STARTER_POTION_AMOUNT,
@@ -473,6 +479,11 @@ type Player = {
   levelUpUntil: number;
   hasteUntil: number;
   hastePct: number;
+  /** Cooked meal — lasting stats until `foodUntil`. */
+  foodUntil: number;
+  foodTokenId: number;
+  foodHq: boolean;
+  foodStats: ItemStats;
   moveUntil: number;
   movePct: number;
   overclockUntil: number;
@@ -1133,6 +1144,19 @@ function applySaved(p: Player, saved: PlayerProgress) {
   }
   p.warpUnlocked = normalizeWarpUnlocked(saved.warpUnlocked);
   p.respawnHome = saved.respawnHome === undefined ? "hub" : normalizeRespawnHome(saved.respawnHome);
+  const meal = saved.foodMeal;
+  const mealDef = meal ? getItem(meal.tokenId) : undefined;
+  if (meal && meal.until > Date.now() && isFoodItem(mealDef)) {
+    p.foodUntil = meal.until;
+    p.foodTokenId = meal.tokenId;
+    p.foodHq = meal.hq === true;
+    p.foodStats = mealStatsFor(mealDef, p.foodHq);
+  } else {
+    p.foodUntil = 0;
+    p.foodTokenId = 0;
+    p.foodHq = false;
+    p.foodStats = {};
+  }
   const home = respawnStand(p.respawnHome, p.warpUnlocked);
   p.respawnHome = home.home;
   p.x = home.x;
@@ -1180,6 +1204,9 @@ function rememberPlayer(p: Player) {
       hollowQuest: { active: p.hollowQuest.active, done: [...p.hollowQuest.done] },
       warpUnlocked: [...p.warpUnlocked],
       respawnHome: p.respawnHome,
+      ...(p.foodUntil > Date.now() && p.foodTokenId
+        ? { foodMeal: { tokenId: p.foodTokenId, until: p.foodUntil, ...(p.foodHq ? { hq: true as const } : {}) } }
+        : {}),
       logItemsMoved: flags.logItemsMoved,
       logItemsCopied: flags.logItemsCopied,
       ...(flags.logCopied ? { logCopied: { ...flags.logCopied } } : {}),
@@ -3036,6 +3063,7 @@ function clearRoute(p: Player) {
 
 /** Click, gather, and blocked chase all share this. The path stops at the closest reachable cell. */
 function assignRoute(p: Player, x: number, z: number) {
+  interruptRestForMove(p);
   const gate = fieldGateAt(p.zoneId, x, z);
   if (gate && gate.destZone) {
     x = (gate.minX + gate.maxX) / 2;
@@ -3086,6 +3114,7 @@ function closeViaRoute(p: Player, toX: number, toZ: number) {
   const gz = toZ - (dz / d) * stop;
   const straight = clampPlayerMove(p.x, p.z, gx, gz, p.zoneId);
   if (Math.hypot(straight.x - gx, straight.z - gz) < 0.45) {
+    interruptRestForMove(p);
     p.moveTo = straight;
     p.movePath = [];
     p.navGoal = { x: gx, z: gz };
@@ -3707,6 +3736,16 @@ function snapshotFor(p: Player): SnapshotMessage {
       skillPrestige: p.skillPrestige,
       freeStatPoints: p.freeStatPoints,
       freeStats: { ...p.freeStats },
+      ...(Date.now() < p.foodUntil && p.foodTokenId
+        ? {
+            food: {
+              tokenId: p.foodTokenId,
+              until: p.foodUntil,
+              ...(p.foodHq ? { hq: true as const } : {}),
+              stats: p.foodStats,
+            },
+          }
+        : {}),
       questLog: [
         ...worldQuestLogEntries({
           zoneId: "pale_hollow",
@@ -3906,6 +3945,10 @@ function createPlayer(
     levelUpUntil: 0,
     hasteUntil: 0,
     hastePct: 0,
+    foodUntil: 0,
+    foodTokenId: 0,
+    foodHq: false,
+    foodStats: {},
     moveUntil: 0,
     movePct: 0,
     overclockUntil: 0,
@@ -4065,7 +4108,8 @@ function playerEquipmentStats(p: Player) {
     const id = p.equip[slot];
     if (id != null && p.equipHq[slot] && ownsQuality(p.inventory, id, true)) hqSlots[slot] = true;
   }
-  return aggregateEquipmentStatsScaled(p.equip, p.level, hqSlots);
+  const gear = aggregateEquipmentStatsScaled(p.equip, p.level, hqSlots);
+  return Date.now() < p.foodUntil ? addItemStats(gear, p.foodStats) : gear;
 }
 
 /** Recompute max HP/MP from job, skill-tree, and equipped catalog bonuses. */
@@ -4370,6 +4414,13 @@ function stopRest(p: Player, reason?: string) {
   p.animUntil = 0;
   if (reason) pushLog(p, reason);
   else pushLog(p, "You stop resting.");
+}
+
+/** WASD, click-to-move, dash resume, and chase all stand you up on the move packet. */
+function interruptRestForMove(p: Player) {
+  if (p.anim !== "rest") return;
+  stopRest(p, "You stand and break your rest.");
+  send(p.ws, snapshotFor(p));
 }
 
 function downPlayer(p: Player, now: number): "reraise" | "fallen" | "already" {
@@ -5339,8 +5390,8 @@ function handleNpcInteract(p: Player, npcId: string) {
       npcId: JOB_MASTER.id,
       title: canSub ? `${JOB_MASTER.name}, Job Master — Support Job` : `${JOB_MASTER.name}, Job Master`,
       body: canSub
-        ? `Main: ${JOBS[p.job].name} L${p.level}. Pick a support job (effective L${subjobLevel(p.level)}), or change your main below. Sprite stays your main.`
-        : `Change your main job. Support jobs unlock at level ${SUBJOB_UNLOCK_LEVEL} and stay available through max level.`,
+        ? `Main: ${JOBS[p.job].name} L${p.level} (set at creation). Pick a support job — effective L${subjobLevel(p.level)}.`
+        : `${JOBS[p.job].name} is your main, set at creation. Support jobs unlock at level ${SUBJOB_UNLOCK_LEVEL}.`,
       jobs: playable,
       subjobMode: canSub,
       subLevel: canSub ? subjobLevel(p.level) : 0,
@@ -5602,68 +5653,11 @@ function handleDebugMaxLevel(p: Player) {
   }
 }
 
-function handleJobChange(p: Player, job: JobId) {
-  if (unitZone(p.zoneId) !== "pale_hollow" || !canReachTownNpc(p.x, p.z, JOB_MASTER.x, JOB_MASTER.z)) {
-    pushLog(p, "You must speak with the Job Master to change jobs.");
-    return;
-  }
-  if (!isJobId(job)) {
-    pushLog(p, "Unknown job.");
-    return;
-  }
-  const def = JOBS[job];
-  if (!def.playable) {
-    pushLog(p, `${def.name} is not ready yet.`);
-    return;
-  }
-  if (p.job === job) {
-    pushLog(p, `You are already a ${def.name}.`);
-    return;
-  }
-  stopRest(p);
-  if (p.job === "druid" && p.druidForm !== 0) {
-    dropDruidForm(p, { pushLog, syncVitals }, "A new job sets the song down.");
-  }
-  clearJobBuffs(p);
-  if (p.subjob === job) p.subjob = null;
-  // Keep skillUnlocked as-is — main swap never strips nodes; new main heart is granted free.
-  p.job = job;
-  p.targetId = null;
-  // Auto-swap / grant starter loadout for the new job
-  if (job === "knight") {
-    if (invAmount(p.inventory, ITEM.SWORD_IRON) <= 0) addItem(p.inventory, ITEM.SWORD_IRON, 1);
-    if (invAmount(p.inventory, ITEM.MAIL_IRON) <= 0) addItem(p.inventory, ITEM.MAIL_IRON, 1);
-    p.equip.main = ITEM.SWORD_IRON;
-    p.equip.body = ITEM.MAIL_IRON;
-  } else if (job === "rogue") {
-    if (invAmount(p.inventory, ITEM.DAGGER_IRON) <= 0) addItem(p.inventory, ITEM.DAGGER_IRON, 1);
-    if (invAmount(p.inventory, ITEM.LEATHER_VEST) <= 0) addItem(p.inventory, ITEM.LEATHER_VEST, 1);
-    p.equip.main = ITEM.DAGGER_IRON;
-    p.equip.body = ITEM.LEATHER_VEST;
-  } else if (job === "fighter") {
-    if (invAmount(p.inventory, ITEM.GREATSWORD_IRON) <= 0) addItem(p.inventory, ITEM.GREATSWORD_IRON, 1);
-    if (invAmount(p.inventory, ITEM.SCALE_HARNESS) <= 0) addItem(p.inventory, ITEM.SCALE_HARNESS, 1);
-    p.equip.main = ITEM.GREATSWORD_IRON;
-    p.equip.body = ITEM.SCALE_HARNESS;
-  } else if (job === "time_mage" || job === "sorcerer" || job === "cleric" || job === "druid") {
-    if (invAmount(p.inventory, ITEM.STAFF_ASHBEAM) <= 0) addItem(p.inventory, ITEM.STAFF_ASHBEAM, 1);
-    if (invAmount(p.inventory, ITEM.ROBE_LINEN) <= 0) addItem(p.inventory, ITEM.ROBE_LINEN, 1);
-    p.equip.main = ITEM.STAFF_ASHBEAM;
-    p.equip.body = ITEM.ROBE_LINEN;
-  } else if (job === "battle_mage") {
-    if (invAmount(p.inventory, ITEM.SWORD_IRON) <= 0) addItem(p.inventory, ITEM.SWORD_IRON, 1);
-    if (invAmount(p.inventory, ITEM.MAIL_IRON) <= 0) addItem(p.inventory, ITEM.MAIL_IRON, 1);
-    p.equip.main = ITEM.SWORD_IRON;
-    p.equip.body = ITEM.MAIL_IRON;
-  }
-  delete p.equipHq.main;
-  delete p.equipHq.body;
-  reconcileEquipQuality(p);
-  syncVitals(p, true);
-  ensureJobHubs(p);
-  pushLog(p, `Main job — you are now a ${def.name}.`);
-  rememberPlayer(p);
-  send(p.ws, snapshotFor(p));
+function handleJobChange(p: Player, _job: JobId) {
+  pushLog(
+    p,
+    `Your main job is ${JOBS[p.job].name}, chosen at creation. The Job Master sets a support job at level ${SUBJOB_UNLOCK_LEVEL}.`,
+  );
 }
 
 function handleSubjob(p: Player, job: JobId | null) {
@@ -5805,7 +5799,8 @@ function handleUseItem(p: Player, tokenId: number, hq = false) {
     (consume.hp ?? 0) > 0 ||
     (consume.mp ?? 0) > 0 ||
     !!consume.statusClear ||
-    (consume.foodDurationSec ?? 0) > 0;
+    (consume.foodDurationSec ?? 0) > 0 ||
+    isFoodItem(def);
   if (!hasEffect) {
     pushLog(p, `${def.name} has no usable effect.`);
     return;
@@ -5845,8 +5840,17 @@ function handleUseItem(p: Player, tokenId: number, hq = false) {
     }
     parts.push("cleared ailments");
   }
-  if (consume.foodDurationSec && consume.foodDurationSec > 0) {
-    // Food buff stats are not simulated yet; still spend the item + any hp/mp.
+  if (isFoodItem(def)) {
+    const sec =
+      consume.foodDurationSec && consume.foodDurationSec > 0 ? consume.foodDurationSec : FOOD_DURATION_SEC;
+    p.foodUntil = now + sec * 1000;
+    p.foodTokenId = def.id;
+    p.foodHq = hq;
+    p.foodStats = mealStatsFor(def, hq);
+    syncVitals(p, false);
+    const meal = formatFoodBuffLine(p.foodStats);
+    parts.push(meal ? `meal 30m (${meal})` : "meal 30m");
+  } else if (consume.foodDurationSec && consume.foodDurationSec > 0) {
     parts.push(`meal (${consume.foodDurationSec}s)`);
   }
   const usedName = (hq ? "HQ " : "") + def.name;
@@ -5854,6 +5858,8 @@ function handleUseItem(p: Player, tokenId: number, hq = false) {
     p,
     parts.length ? `Used ${usedName}: ${parts.join(", ")}.` : `Used ${usedName}.`,
   );
+  rememberPlayer(p);
+  send(p.ws, snapshotFor(p));
 }
 
 function playerHastePct(p: Player, now: number): number {
@@ -6905,6 +6911,14 @@ function tickSimBody() {
   for (const p of players.values()) {
     // Catch overcapped XP (e.g. earned before leveling existed)
     tryLevelUp(p);
+    if (p.foodUntil > 0 && now >= p.foodUntil) {
+      p.foodUntil = 0;
+      p.foodTokenId = 0;
+      p.foodHq = false;
+      p.foodStats = {};
+      syncVitals(p, false);
+      pushLog(p, "Your meal wears off.");
+    }
 
     if (p.fallenUntil > 0 && p.hp <= 0 && now >= p.fallenUntil) {
       respawnAtHub(p);
@@ -6982,7 +6996,7 @@ function tickSimBody() {
         } else if (resume) assignRoute(p, resume.x, resume.z);
       }
     } else if (p.moveTo) {
-      stopRest(p, "You stand and break your rest.");
+      interruptRestForMove(p);
       const speed = playerMoveSpeed(p, now);
       let guard = 0;
       while (p.moveTo && guard++ < 4) {
@@ -8129,6 +8143,7 @@ function onMessage(ws: WebSocket, data: string) {
       // Manual move cancels engage so chase doesn't overwrite the click/WASD
       if (p.targetId) p.targetId = null;
       p.lastMoveInputAt = t;
+      interruptRestForMove(p);
       assignRoute(p, msg.x, msg.z);
       if (p.moveTo) warnSoftGate(p, p.movePath.at(-1)?.z ?? p.moveTo.z);
       else if (!p.moveTo && p.navHold) warnSoftGate(p, msg.z);

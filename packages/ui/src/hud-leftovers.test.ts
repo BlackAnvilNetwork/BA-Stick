@@ -272,14 +272,16 @@ test("create mint does not run after the form is left", () => {
   assert.equal(shouldRunCreateMint(true), false);
 });
 
-test("Job Master sends job/change for main job", () => {
+test("Job Master sets support job at L10 and never changes main", () => {
   const src = readFileSync(
     join(dirname(fileURLToPath(import.meta.url)), "NpcInteractMenu.tsx"),
     "utf8",
   );
-  assert.match(src, /send\(\{ type: "job\/change", job \}\)/);
-  assert.match(src, /Change Main/);
-  assert.match(src, /Change Alt/);
+  assert.doesNotMatch(src, /send\(\{ type: "job\/change"/);
+  assert.doesNotMatch(src, /Change Main/);
+  assert.match(src, /send\(\{ type: "job\/subjob", job \}\)/);
+  assert.match(src, /Come back at Lvl 10/);
+  assert.match(src, /set at creation/);
 });
 
 test("App capture skips Escape and clears the virtual stick on leave play", () => {

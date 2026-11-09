@@ -42,13 +42,13 @@ export const FEALTY_MAG_MUL = 0.5;
 /** Sorcerer Mana Wall magic DT (MP bleed still applies after). */
 export const MANA_WALL_MAG_MUL = 0.55;
 
-/** Physical DT: Bulwark immunity, Sentinel / Cover / Rampart / Guardian / Protect / Phalanx + tree physDt. */
+/** Physical DT: Bulwark, Sentinel / Cover / Rampart / Guardian / Protect / Phalanx + tree physDt. */
 export function physDtMul(p: PhysDtUnit, now: number, treePhysDt: number): number {
   const tree = 1 - treePhysDt;
-  // Bulwark — true physical immunity (bypass DT floor)
-  if (now < p.bulwarkUntil) return 0;
-
   let mul = 1;
+  // Bulwark is the heavy ward. It used to return 0 and skip the floor, so a
+  // Fighter's whole fight was a handful of damage.
+  if (now < p.bulwarkUntil) mul *= 0.4;
   if (now < p.sentinelUntil) mul *= 0.5;
   if (now < p.coverUntil) mul *= 0.75;
   if (now < p.rampartUntil) mul *= 0.75;

@@ -148,6 +148,7 @@ export function StickWorld() {
       let heading: number | null = null;
       let headingGoal: number | null = null;
       let lastWasd: { keys: string; heading: number; at: number; x: number; z: number; full?: boolean } | null = null;
+      let seenAnim: string | null = null;
       const view3d = () => camModeFromDataset(root.dataset.uiView) !== "iso";
       // One yaw for walking AND dashing. First person moves along the look (cam yaw includes
       // the look bias); third person along the client heading. Uses camModeFromDataset so a
@@ -281,7 +282,22 @@ export function StickWorld() {
           ? { x: (gateDest.minX + gateDest.maxX) / 2, z: (gateDest.minZ + gateDest.maxZ) / 2 }
           : c;
         if (heading !== null) headingGoal = headingToward(me, goal.x, goal.z);
-        lastWasd = null;
+        // Click-to-move while kneeling: predict walk so the rest pose does not linger
+        // until the snapshot. keys "click" is not a WASD hold — do not send a stop.
+        if (me.anim === "rest") {
+          const dir = headingToward(me, goal.x, goal.z) ?? me.facing;
+          lastWasd = {
+            keys: "click",
+            heading: dir,
+            at: performance.now(),
+            x: goal.x,
+            z: goal.z,
+            full: Math.hypot(goal.x - me.x, goal.z - me.z) > WASD_STEP - 0.3,
+          };
+          walkAhead = { x: me.x, z: me.z };
+        } else {
+          lastWasd = null;
+        }
         const keys = getKeyboardMoveKeys();
         clickHoldKeys = `${keys.w ? "w" : ""}${keys.a ? "a" : ""}${keys.s ? "s" : ""}${keys.d ? "d" : ""}`;
         send({ type: "move", x: goal.x, z: goal.z });
@@ -629,6 +645,11 @@ export function StickWorld() {
           }
         }
         const me = myUnit();
+        if (me?.anim === "rest" && seenAnim !== "rest") {
+          lastWasd = null;
+          walkAhead = null;
+        }
+        if (me) seenAnim = me.anim;
         if (snap) {
           for (const u of snap.units) {
             if (u.kind !== "player") continue;
@@ -734,7 +755,7 @@ export function StickWorld() {
               send({ type: "move", x: t.x, z: t.z });
               lastWasd = { keys: keyStr, heading: dir, at, x: t.x, z: t.z, full: Math.hypot(t.x - feet.x, t.z - feet.z) > WASD_STEP - 0.3 };
             } else if (!t && lastWasd && !keysDown) {
-              if (lastWasd.keys !== "") {
+              if (lastWasd.keys !== "" && lastWasd.keys !== "click") {
                 const p = stopTarget(feet, lastWasd);
                 send({ type: "move", x: p.x, z: p.z });
                 lastWasd = { keys: "", heading: lastWasd.heading, at, x: p.x, z: p.z };

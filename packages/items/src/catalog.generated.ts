@@ -6182,10 +6182,13 @@ export const CATALOG: ItemDef[] = [
       "materialsText": "Dried Ration Scrap×2, Pale Dust×1"
     },
     "stats": {
-      "hp": 29
+      "vit": 2,
+      "def": 1,
+      "hp": 8
     },
     "consume": {
-      "hp": 29
+      "hp": 29,
+      "foodDurationSec": 1800
     }
   },
   {
@@ -6216,7 +6219,9 @@ export const CATALOG: ItemDef[] = [
       "materialsText": "Dustgrain×2, Rock Salt×1, Pale Dust×1"
     },
     "stats": {
-      "hp": 33
+      "vit": 2,
+      "def": 1,
+      "hp": 11
     },
     "consume": {
       "hp": 33,
@@ -6251,8 +6256,13 @@ export const CATALOG: ItemDef[] = [
       "materialsText": "Fossil Minnow×2, Rock Salt×1, Pale Dust×1"
     },
     "stats": {
-      "str": 3,
-      "atk": 2
+      "str": 2,
+      "atk": 1,
+      "vit": 1
+    },
+    "consume": {
+      "hp": 24,
+      "foodDurationSec": 1800
     }
   },
   {
@@ -6325,7 +6335,10 @@ export const CATALOG: ItemDef[] = [
       "materialsText": "Clay Crab×1, Dustgrain×1, Ash Dust×1"
     },
     "stats": {
-      "hp": 35
+      "vit": 4,
+      "hp": 22,
+      "mnd": 2,
+      "def": 2
     },
     "consume": {
       "hp": 35,
@@ -6346,7 +6359,10 @@ export const CATALOG: ItemDef[] = [
       "materialsText": "Stone Scale×2, Bitter Spice×1, Ash Dust×1"
     },
     "stats": {
-      "hp": 38
+      "vit": 4,
+      "hp": 25,
+      "mnd": 2,
+      "def": 3
     },
     "consume": {
       "hp": 38,
@@ -6367,11 +6383,13 @@ export const CATALOG: ItemDef[] = [
       "materialsText": "Echo Carp×1, Rock Salt×1, Slag Dust×1"
     },
     "stats": {
-      "str": 5,
-      "atk": 5
+      "str": 6,
+      "atk": 4,
+      "vit": 3
     },
     "consume": {
-      "foodDurationSec": 1800
+      "foodDurationSec": 1800,
+      "hp": 56
     }
   },
   {
@@ -6402,7 +6420,10 @@ export const CATALOG: ItemDef[] = [
       "materialsText": "Dustgrain×1, Distilled Ash×1, Lapis×1, Slag Dust×1"
     },
     "stats": {
-      "hp": 65
+      "int": 6,
+      "mnd": 6,
+      "mp": 27,
+      "mab": 4
     },
     "consume": {
       "hp": 65,
@@ -6423,7 +6444,10 @@ export const CATALOG: ItemDef[] = [
       "materialsText": "Stone Scale×1, Bitter Spice×1, Slag Dust×1"
     },
     "stats": {
-      "hp": 50
+      "dex": 6,
+      "agi": 6,
+      "acc": 5,
+      "eva": 5
     },
     "consume": {
       "hp": 50,
@@ -6444,10 +6468,13 @@ export const CATALOG: ItemDef[] = [
       "materialsText": "Glass Eel×1, Bitter Spice×1, Slag Dust×1"
     },
     "stats": {
-      "hp": 59
+      "dex": 8,
+      "acc": 6,
+      "agi": 4
     },
     "consume": {
-      "hp": 59
+      "hp": 59,
+      "foodDurationSec": 1800
     }
   },
   {
@@ -6464,7 +6491,9 @@ export const CATALOG: ItemDef[] = [
       "materialsText": "Bell Koi×2, Bell Dust×1"
     },
     "stats": {
-      "hp": 62
+      "dex": 8,
+      "acc": 6,
+      "agi": 5
     },
     "consume": {
       "hp": 62,
@@ -6485,10 +6514,14 @@ export const CATALOG: ItemDef[] = [
       "materialsText": "Glass Eel×1, Dustgrain×1, Bell Dust×1"
     },
     "stats": {
-      "hp": 65
+      "dex": 9,
+      "vit": 5,
+      "hp": 57,
+      "acc": 6
     },
     "consume": {
-      "hp": 65
+      "hp": 65,
+      "foodDurationSec": 1800
     }
   },
   {
@@ -6511,8 +6544,11 @@ export const CATALOG: ItemDef[] = [
       "agi": 6,
       "int": 6,
       "mnd": 6,
-      "hp": 106,
-      "mp": 106
+      "hp": 70,
+      "mp": 50,
+      "atk": 4,
+      "def": 4,
+      "mab": 4
     },
     "consume": {
       "hp": 106,
@@ -6540,8 +6576,11 @@ export const CATALOG: ItemDef[] = [
       "agi": 7,
       "int": 7,
       "mnd": 7,
-      "hp": 114,
-      "mp": 114
+      "hp": 78,
+      "mp": 55,
+      "atk": 4,
+      "def": 4,
+      "mab": 4
     },
     "consume": {
       "hp": 114,

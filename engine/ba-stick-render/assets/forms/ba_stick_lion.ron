@@ -1,0 +1,24 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Baked Stick Lion. Longer body, neck ruff, short snout, tufted tail.
+// Spine + girth discs only. Generation leftovers (hair twigs, seed) are gone.
+(
+    id: "ba_stick_lion",
+    kit: "lion",
+    hip_along: -0.22,
+    sh_along: 0.18,
+    stance: 0.11,
+    leg_thick: 1.02,
+    // bias: 0 body / 1 withers / 2 skull / 3 snout / 4 tail
+    lobes: [
+        (along: -0.22, y: 0.36, r: 0.13, bias: 0),
+        (along: -0.08, y: 0.36, r: 0.13, bias: 0),
+        (along: 0.06, y: 0.38, r: 0.13, bias: 0),
+        (along: 0.18, y: 0.44, r: 0.11, bias: 1),
+        (along: 0.26, y: 0.50, r: 0.08, bias: 0),
+        (along: 0.38, y: 0.50, r: 0.06, bias: 2),
+        (along: 0.46, y: 0.46, r: 0.045, bias: 3),
+    ],
+)

@@ -49,8 +49,16 @@ export function steerMobStep(
   if (step <= 0) return { x, z, heading: direct, moved: false };
 
   if (!g.walkable(x, z)) {
-    const c = g.clamp(x + Math.sin(direct) * step, z + Math.cos(direct) * step);
-    return { x: c.x, z: c.z, heading: direct, moved: true };
+    // Bounds-only clamp walked through walls. Step toward the nearest dry cell.
+    const dry = g.placeOnDry(x, z);
+    const dx = dry.x - x;
+    const dz = dry.z - z;
+    const d = Math.hypot(dx, dz);
+    if (d > 1e-4 && g.walkable(dry.x, dry.z)) {
+      const k = Math.min(step, d) / d;
+      return { x: x + dx * k, z: z + dz * k, heading: Math.atan2(dx, dz), moved: true };
+    }
+    return { x, z, heading: direct, moved: false };
   }
 
   const fromInClearing = g.inClearing(x, z);

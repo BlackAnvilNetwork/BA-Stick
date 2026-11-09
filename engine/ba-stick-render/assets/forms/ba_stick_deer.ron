@@ -1,0 +1,25 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Baked Stick Deer. Taller slim envelope + antlers, metres at size 1.
+// Spine + girth discs only. Generation leftovers (hair twigs, seed) are gone.
+(
+    id: "ba_stick_deer",
+    kit: "deer",
+    hip_along: -0.20,
+    sh_along: 0.16,
+    stance: 0.09,
+    leg_thick: 0.88,
+    // bias: 0 body / 1 withers / 2 skull / 3 snout / 4 tail
+    lobes: [
+        (along: -0.28, y: 0.34, r: 0.05, bias: 4),
+        (along: -0.20, y: 0.40, r: 0.12, bias: 0),
+        (along: -0.06, y: 0.42, r: 0.13, bias: 0),
+        (along: 0.08, y: 0.44, r: 0.12, bias: 0),
+        (along: 0.16, y: 0.48, r: 0.10, bias: 1),
+        (along: 0.22, y: 0.58, r: 0.07, bias: 0),
+        (along: 0.28, y: 0.62, r: 0.08, bias: 2),
+        (along: 0.36, y: 0.58, r: 0.05, bias: 3),
+    ],
+)

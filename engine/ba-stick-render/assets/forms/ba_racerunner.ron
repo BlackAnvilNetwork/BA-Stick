@@ -1,0 +1,23 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Baked Racerunner. Low bound tube + ember tail, metres at size 1.
+// Spine + girth discs only. Generation leftovers (hair twigs, seed) are gone.
+(
+    id: "ba_racerunner",
+    kit: "racer",
+    hip_along: -0.14,
+    sh_along: 0.18,
+    stance: 0.07,
+    leg_thick: 0.82,
+    // bias: 0 body / 1 withers / 2 skull / 3 snout / 4 tail
+    lobes: [
+        (along: -0.24, y: 0.20, r: 0.06, bias: 4),
+        (along: -0.14, y: 0.22, r: 0.11, bias: 0),
+        (along: 0.00, y: 0.24, r: 0.11, bias: 0),
+        (along: 0.14, y: 0.25, r: 0.11, bias: 1),
+        (along: 0.26, y: 0.26, r: 0.09, bias: 2),
+        (along: 0.38, y: 0.22, r: 0.06, bias: 3),
+    ],
+)

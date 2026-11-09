@@ -481,9 +481,9 @@ describe("H-2 / M-7 production boot + dry-run denylist", () => {
     const env: NodeJS.ProcessEnv = { NETWORK: "gnosis" };
     applySettlementDeployFile(env);
     assert.equal(env.LOK_CHAIN_ID, "100");
-    assert.equal(env.LOK_NFT, "0x48aFeC17A56c5Bd32ABDbcAD57f16d3859b1289F");
-    assert.equal(env.LOK_AH_ESCROW, "0x4669488AE862D7cbf979878fCb1e1b9b80fba6Df");
-    assert.equal(env.LOK_PVP_BOUNTY, "0x02bDDCaF5a19fD9Be7f39fC7419F794CECE9E64e");
+    assert.equal(env.LOK_NFT, "0x6165040e7FE20Ae5Aac935898b9712818a3491cD");
+    assert.equal(env.LOK_AH_ESCROW, "0x699C6a3b94917e4bb8D87B004b77dDDA31B94446");
+    assert.equal(env.LOK_PVP_BOUNTY, "0x4D115A8aA456b0467C26C1F5eB1AE7b5DEA65b30");
     // Dry-run file is never auto-selected by the gnosis profile.
     assert.equal(isDryRunAddress(env.LOK_NFT!), false);
   });

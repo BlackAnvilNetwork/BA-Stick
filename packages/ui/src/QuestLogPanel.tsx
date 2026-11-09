@@ -50,9 +50,11 @@ export const QuestLogPanel = memo(function QuestLogPanel({ entries, onClose }: P
                   <div className="quest-log-bar" aria-hidden>
                     <i style={{ width: `${pct}%` }} />
                   </div>
-                  <span className="quest-log-count">
-                    {q.kills}/{q.need}
-                  </span>
+                  {q.need > 1 ? (
+                    <span className="quest-log-count">
+                      {q.kills}/{q.need}
+                    </span>
+                  ) : null}
                   {q.ready ? <span className="quest-log-ready">Ready to turn in</span> : null}
                 </div>
               </article>

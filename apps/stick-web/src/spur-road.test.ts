@@ -28,6 +28,56 @@ test("spur road spawn is dry ground", () => {
   assert.equal(SR_TRAIL_WIDTH, 3.3);
 });
 
+test("spur road grade is one hump with a camp shelf and banks", () => {
+  const y = (x: number, z: number) => spurRoadStandHeight(x, z);
+  assert.ok(Math.abs(y(0, 0) - 1.4) < 1e-9, `south ${y(0, 0)}`);
+  assert.ok(Math.abs(y(0, 100) - 3.2) < 1e-9, `crest ${y(0, 100)}`);
+  assert.ok(Math.abs(y(0, 200) - 1.6) < 1e-9, `north ${y(0, 200)}`);
+
+  // South lip stays flat on the grade. It meets the Forest Basin gate.
+  for (const x of [-6, -3, 0, 3, 6]) {
+    for (const z of [0, 5, 10]) {
+      assert.ok(Math.abs(y(x, z) - y(0, z)) < 1e-9, `south lip ${x},${z}`);
+    }
+  }
+  assert.ok(y(0, 10) < 1.5, `south lip climbed to ${y(0, 10)}`);
+
+  let prev = y(0, 0);
+  for (let z = 10; z <= 100; z += 10) {
+    const h = y(0, z);
+    assert.ok(h >= prev - 1e-9, `climb ${z}: ${h} < ${prev}`);
+    prev = h;
+  }
+  prev = y(0, 100);
+  for (let z = 110; z <= 200; z += 10) {
+    const h = y(0, z);
+    assert.ok(h <= prev + 1e-9, `fall ${z}: ${h} > ${prev}`);
+    prev = h;
+  }
+  assert.ok(y(0, 50) > 1.4 && y(0, 50) < 3.2);
+  assert.ok(y(0, 150) > 1.6 && y(0, 150) < 3.2);
+
+  // Camp props sit on one level shelf at the crest.
+  for (const [x, z] of [
+    [0, 100],
+    [-6, 97],
+    [6.5, 103],
+    [-5, 106],
+    [2.5, 101],
+    [5, 95],
+    [-4, 94],
+  ] as const) {
+    assert.ok(Math.abs(y(x, z) - 3.2) < 1e-6, `shelf ${x},${z} = ${y(x, z)}`);
+  }
+
+  // A 4 m bank beside the road clears the iso threshold (~0.5 m) and stays under 4 m.
+  assert.ok(y(12, 100) - y(0, 100) >= 0.5, `crest bank ${y(12, 100)}`);
+  assert.ok(y(12, 40) - y(0, 40) >= 0.5, `mid bank ${y(12, 40) - y(0, 40)}`);
+  assert.ok(y(12, 0) - y(0, 0) >= 0.5, `south bank ${y(12, 0) - y(0, 0)}`);
+  assert.ok(y(8, 40) === y(0, 40), "road crown stays flat");
+  assert.ok(y(16, 100) < 4 && y(-16, 40) < 4 && y(18, 0) < 4);
+});
+
 test("spur road relief stays under 4 m", () => {
   let minY = Infinity;
   let maxY = -Infinity;
