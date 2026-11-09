@@ -2,7 +2,9 @@ import {
   CATALOG,
   CRAFT_SKILL_LABEL,
   craftGoldCost,
+  formatFoodUseLine,
   getItem,
+  isFoodItem,
   itemIcon,
   recipeMaterialGroups,
   recipesUsingMaterial,
@@ -288,14 +290,16 @@ export function WikiPage({ onClose }: Props) {
                 {focus.consume ? (
                   <p className="lok-note">
                     <strong>Use:</strong>{" "}
-                    {[
-                      focus.consume.hp != null ? `+${focus.consume.hp} HP` : null,
-                      focus.consume.mp != null ? `+${focus.consume.mp} MP` : null,
-                      focus.consume.scrollSpellId ? `Scroll: ${focus.consume.scrollSpellId}` : null,
-                      focus.consume.foodDurationSec ? `Food ${focus.consume.foodDurationSec}s` : null,
-                    ]
-                      .filter(Boolean)
-                      .join(" · ") || "—"}
+                    {isFoodItem(focus)
+                      ? formatFoodUseLine(focus)
+                      : [
+                          focus.consume.hp != null ? `+${focus.consume.hp} HP` : null,
+                          focus.consume.mp != null ? `+${focus.consume.mp} MP` : null,
+                          focus.consume.scrollSpellId ? `Scroll: ${focus.consume.scrollSpellId}` : null,
+                          focus.consume.foodDurationSec ? `Food ${focus.consume.foodDurationSec}s` : null,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ") || "—"}
                   </p>
                 ) : null}
                 {focus.weaponFamily ? (

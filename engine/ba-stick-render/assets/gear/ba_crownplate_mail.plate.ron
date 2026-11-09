@@ -1,0 +1,42 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Steel mail stamp. Opaque steel field (e) with gold trim and a red
+// medallion. Not the iron mail '.' holes.
+(
+    id: "ba_crownplate_mail",
+    x0: -0.13,
+    y0: -0.38,
+    x1: 0.13,
+    y1: 0.0,
+    z: 0.06,
+    wrap: 0,
+    flow: 0,
+    arm_from: 0.04,
+    arm_to: 0.62,
+    arm_thick: 2.8,
+    cuff_from: 0.54,
+    cuff_to: 0.66,
+    cuff_thick: 1.15,
+    rows: [
+        "ggggggggggggggg",
+        "ggggg.....ggggg",
+        "ggg....g....ggg",
+        "ggg..g.g.g..ggg",
+        "ggg....g....ggg",
+        "ggg....g....ggg",
+        "ggg....r....ggg",
+        "ggg....g....ggg",
+        "gggg...g...gggg",
+        "gggg...g...gggg",
+        "ggggg..g..ggggg",
+        "ggggg..g..ggggg",
+        "ggggg.....ggggg",
+        "gggggg...gggggg",
+        "gggggg...gggggg",
+        "ggggggg.ggggggg",
+        "ggggggggggggggg",
+        "ggggggggggggggg",
+    ],
+)

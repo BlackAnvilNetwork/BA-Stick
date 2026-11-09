@@ -1,0 +1,19 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Battleweave gloves. Fighting cuff plus a steel cross wrap. No fingers.
+(
+    id: "ba_silk_gloves",
+    slot: Hands,
+    attach: Some("r_hand"),
+    material: Some("dust"),
+    thickness_mul: { "l_forearm": 1.22, "r_forearm": 1.22 },
+    shapes: [
+        Capsule(from: (0.0, -0.040, 0.0), to: (0.0, -0.004, 0.0), ramp: Material, thick: 1.8),
+        Capsule(from: (-0.022, -0.022, 0.008), to: (0.022, -0.022, 0.008), ramp: Trim, thick: 1.4),
+        Capsule(from: (0.0, -0.034, 0.010), to: (0.0, -0.010, 0.010), ramp: Trim, thick: 1.2),
+        Disc(at: Some("l_hand"), r: 0.024, ramp: Material),
+        Disc(at: Some("r_hand"), r: 0.024, ramp: Material),
+    ],
+)

@@ -701,7 +701,7 @@ test("the live tick calls the score and the payout gate", async () => {
     const scoreSrc = readFileSync(new URL("./guild-score.ts", import.meta.url), "utf8");
     assert.match(scoreSrc, /CHALLENGE_DELAY_MS/);
     assert.equal(scoreSrc.includes("claimDelay()"), false);
-    assert.equal(LOCAL_RULESET_WASM_SHA256, "546808d6d83697e94b9a04da3f4aeba052a9e8e4d659838249bbde9d2b1ca66d");
+    assert.equal(LOCAL_RULESET_WASM_SHA256, "d555a24fd55491901eee308c7d6edac74f86c5035a9baa8228daeb2100e943a6");
     assert.deepEqual(registryAdmin(), {
       registryOwner: "gnosis-safe",
       slashingAdmin: "gnosis-safe",

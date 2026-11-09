@@ -11,6 +11,6 @@ Design canon for the world. These files are for writers and builders, not player
 - [grounded-notes.md](grounded-notes.md): review notes that check the lore against the actual terrain.
 - [final-reveal-notes.md](final-reveal-notes.md): the endgame reveal. Spoilers.
 
-Forest Basin is being rebuilt from a blank map. Its places in these files (the Counting Ring, the Drowned Spoke, West Ridge Top, High Ridge Corner, the Sealed Pass Shrine) describe the earlier design and aren't in the game right now.
+Forest Basin is in the game now (live on the field chain after the 5174 / main merge).
 
 Reference images (heraldry guide, warp circle, periodic table) aren't committed here because each is 2 to 4 MB.

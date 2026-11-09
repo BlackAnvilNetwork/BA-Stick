@@ -5,7 +5,7 @@ Black Anvil with a new pixel/stick-figure frontend (`apps/stick-web` + `engine/`
 ---
 
 
-Browser game: wallet connect, a campaign world, and job combat. The Citadel hall fight (Time Mage vs Petrified Guard, keys **1–4** on the hotbar) still runs.
+Browser game: wallet connect, a campaign world, and job combat. The Citadel hall fight (Time Mage vs Petrified Guard) still runs. Live hotbar is **3×10** (`HOTBAR_SLOT_COUNT=30`; keys **1–0**, Shift+**1–0**, Alt+**1–0**).
 
 Formerly developed as Bellgrave / Legend of KEK. On-chain identifiers, engine ops, log schemas, and npm package names (`@bellgrave/*`) are unchanged so log replay and deployed contracts keep working.
 
@@ -41,7 +41,7 @@ pnpm dev
    - Areas: mobs + harvest/mine/fish nodes · Cities: NPCs + quests · Craft with gold + materials (8 crafts: Smithing, Woodworking, Leathercraft, Clothcraft, Bonecraft, Goldsmithing, Alchemy, Cooking)
    - Seven jobs: Time Mage, Knight, Rogue, Cleric, Sorcerer, Fighter, Battle Mage; support job at Lv10; level cap 75; 600-node skill tree
 4. Clear the campaign, then replay with enemies scaled to your level
-5. The Citadel hall fight vs Petrified Guard still runs (hotbar keys **1–4**)
+5. The Citadel hall fight vs Petrified Guard still runs (hotbar **3×10**, keys **1–0** / Shift / Alt)
 
 Using a potion removes it from the bag. That is not an on-chain burn. Settlement targets Gnosis (see [`docs/gnosis-launch.md`](docs/gnosis-launch.md)).
 

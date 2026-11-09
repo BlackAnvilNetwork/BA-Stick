@@ -10,7 +10,7 @@ Planned V1 surface (Robinhood Chain, ERC-4337):
 | `BellgraveBurnRelay` | Account-abstraction friendly consumable burn |
 | `BellgraveMarketplace` | Escrow buy/sell (equip stays offchain) |
 
-Do not implement here until Alchemy/AA keys and chain RPC are wired in `apps/web`.
+Do not implement here until Alchemy/AA keys and chain RPC are wired in `apps/stick-web`.
 
 ## lok-log (Foundry)
 

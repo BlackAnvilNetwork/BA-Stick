@@ -16,11 +16,17 @@ import {
   getItem,
   itemFitsEquipSlot,
   scaleGearStat,
+  type ItemStats,
 } from "@bellgrave/items";
 import { isFishingRod } from "./fishing";
 
 type GearEquip = Parameters<typeof aggregateEquipmentStats>[0];
-type Geared = { equip?: GearEquip | null; level?: number };
+type Geared = { equip?: GearEquip | null; level?: number; foodStats?: ItemStats };
+
+function foodBonus(p: Geared, key: keyof ItemStats): number {
+  const n = p.foodStats?.[key];
+  return typeof n === "number" && Number.isFinite(n) ? n : 0;
+}
 
 /**
  * Melee Attack: (main-hand Atk or 10) + Atk from every other slot except ranged/ammo.
@@ -30,8 +36,8 @@ type Geared = { equip?: GearEquip | null; level?: number };
 export function meleeAtkBonus(p: Geared): number {
   const equip = p.equip ?? null;
   const mainId = equip?.main;
-  if (mainId == null) return 0;
-  if (isFishingRod(mainId)) return 0;
+  if (mainId == null) return foodBonus(p, "atk");
+  if (isFishingRod(mainId)) return foodBonus(p, "atk");
   const main = getItem(mainId);
   if (!main || main.slot !== "main") return 0;
   const playerLevel = p.level ?? 100;
@@ -47,25 +53,25 @@ export function meleeAtkBonus(p: Geared): number {
     const slotIlvl = def.craftLevel ?? 1;
     gearAtk += scaleGearStat(def.stats?.atk ?? 0, playerLevel, slotIlvl);
   }
-  return weaponAtk + gearAtk;
+  return weaponAtk + gearAtk + foodBonus(p, "atk");
 }
 
 /** Summed `def` from equipped catalog gear, scaled by player level (#103). */
 export function gearDef(p: Geared): number {
   const playerLevel = p.level ?? 100;
-  return aggregateEquipmentStatsScaled(p.equip ?? {}, playerLevel).def ?? 0;
+  return (aggregateEquipmentStatsScaled(p.equip ?? {}, playerLevel).def ?? 0) + foodBonus(p, "def");
 }
 
 /** Summed `mab` from equipped catalog gear, scaled by player level (#103). */
 export function gearMab(p: Geared): number {
   const playerLevel = p.level ?? 100;
-  return aggregateEquipmentStatsScaled(p.equip ?? {}, playerLevel).mab ?? 0;
+  return (aggregateEquipmentStatsScaled(p.equip ?? {}, playerLevel).mab ?? 0) + foodBonus(p, "mab");
 }
 
 /** Summed `mdb` from equipped catalog gear, scaled by player level. Incoming magic consults this (#81). */
 export function gearMdb(p: Geared): number {
   const playerLevel = p.level ?? 100;
-  return Math.max(0, Math.floor(aggregateEquipmentStatsScaled(p.equip ?? {}, playerLevel).mdb ?? 0));
+  return Math.max(0, Math.floor((aggregateEquipmentStatsScaled(p.equip ?? {}, playerLevel).mdb ?? 0) + foodBonus(p, "mdb")));
 }
 
 /** VIT defense plus gear `def`; the same number the character sheet shows. */
@@ -76,7 +82,7 @@ export function playerDefenseWithGear(p: Geared, vit: number): number {
 /** Percent healing bonus from equipped `healPotency`, scaled by player level (#103). */
 export function gearHealPotency(p: Geared): number {
   const playerLevel = p.level ?? 100;
-  return Math.max(0, Math.floor(aggregateEquipmentStatsScaled(p.equip ?? {}, playerLevel).healPotency ?? 0));
+  return Math.max(0, Math.floor((aggregateEquipmentStatsScaled(p.equip ?? {}, playerLevel).healPotency ?? 0) + foodBonus(p, "healPotency")));
 }
 
 /** Apply percent `healPotency` to a finished heal amount (Cleric, TIM, Battlemage). */
@@ -89,7 +95,7 @@ export function withHealPotency(p: Geared, amount: number, potency = gearHealPot
 /** Flat HP/sec from equipped `regen`, scaled by player level (#103). */
 export function gearRegen(p: Geared): number {
   const playerLevel = p.level ?? 100;
-  return Math.max(0, Math.floor(aggregateEquipmentStatsScaled(p.equip ?? {}, playerLevel).regen ?? 0));
+  return Math.max(0, Math.floor((aggregateEquipmentStatsScaled(p.equip ?? {}, playerLevel).regen ?? 0) + foodBonus(p, "regen")));
 }
 
 /** Apply the caster's gear MAB to finished spell damage. */

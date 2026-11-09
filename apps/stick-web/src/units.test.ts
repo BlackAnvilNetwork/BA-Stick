@@ -223,7 +223,7 @@ import { routeUnitClick } from "./clicks";
 test("routeUnitClick matches the legacy click rules", () => {
   assert.deepEqual(routeUnitClick(unit({ id: "n", kind: "npc" }), "0xme"), { send: { type: "npc/interact", npcId: "n" } });
   assert.deepEqual(routeUnitClick(unit({ id: "m", kind: "mob" }), "0xme"), { select: "m", send: { type: "engage", targetId: "m" } });
-  assert.deepEqual(routeUnitClick(unit({ id: "m", kind: "mob", anim: "dead", hp: 0 }), "0xme"), {});
+  assert.deepEqual(routeUnitClick(unit({ id: "m", kind: "mob", anim: "dead", hp: 0 }), "0xme"), { ground: true });
   assert.deepEqual(routeUnitClick(unit({ id: "p" }), "0xme"), { select: "p" });
   assert.deepEqual(routeUnitClick(unit({ id: "p", pvpBounty: true }), "0xme"), { select: "p", send: { type: "engage", targetId: "p" } });
   assert.deepEqual(routeUnitClick(unit({ id: "0xME" }), "0xme"), { select: "0xME" });
@@ -310,7 +310,7 @@ test("gather nodes: method from authored defs, click sends gather, depleted is i
   assert.equal(gatherMethod({ name: "?", gatherYield: "?" }, defs), "harvest");
   const n = unit({ id: "ph-live-0", kind: "npc", gatherNode: true, hp: 1 });
   assert.deepEqual(routeUnitClick(n, null), { send: { type: "gather", nodeId: "ph-live-0" } });
-  assert.deepEqual(routeUnitClick({ ...n, hp: 0 }, null), {});
+  assert.deepEqual(routeUnitClick({ ...n, hp: 0 }, null), { ground: true });
   const atlas = { size: 16, cols: 32, index: { dustgrain: 3, "copper-ore": 40 } };
   assert.deepEqual(iconCell(atlas, "copper-ore"), { x: 128, y: 16 });
   assert.deepEqual(iconCell(atlas, "nope"), { x: 48, y: 0 });

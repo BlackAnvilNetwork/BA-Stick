@@ -31,6 +31,8 @@ export type PlayerProgress = {
   warpUnlocked?: string[];
   /** Where death returns them. Missing means the Scout Gate. */
   respawnHome?: "emberwatch" | "mayflower" | "hub";
+  /** Active cooked meal. Missing or expired means not well-fed. */
+  foodMeal?: { tokenId: number; until: number; hq?: true };
   /** Spendable log items were copied into the bag and exported off the log. */
   logItemsMoved: boolean;
   /**
