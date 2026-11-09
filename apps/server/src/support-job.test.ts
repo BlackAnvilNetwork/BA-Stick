@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 import {
   JOBS,
@@ -243,4 +246,12 @@ test("Knight support abilities gate on support level, not main level", () => {
   } as never);
   assert.equal(handled, true);
   assert.match(logs.at(-1) ?? "", /unlocks at level 15/);
+});
+
+test("main job is locked at creation; Job Master only sets support at L10", () => {
+  const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "index.ts"), "utf8");
+  assert.match(src, /chosen at creation/);
+  assert.doesNotMatch(src, /Main job — you are now a/);
+  assert.match(src, /Support jobs unlock at level \$\{SUBJOB_UNLOCK_LEVEL\}/);
+  assert.equal(SUBJOB_UNLOCK_LEVEL, 10);
 });

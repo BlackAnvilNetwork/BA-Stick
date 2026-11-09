@@ -1,6 +1,8 @@
 import {
   CRAFT_SKILL_LABEL,
+  formatFoodUseLine,
   getItem,
+  isFoodItem,
   itemIcon,
   rarityClass,
   scaleGearStat,
@@ -162,7 +164,7 @@ export function ItemCatalogDetails({ tokenId }: { tokenId: number }) {
   ) : (
     name
   );
-  const statsLine = formatPrimaryEffects(def?.stats, def?.consume?.hp);
+  const statsLine = isFoodItem(def) ? formatFoodUseLine(def) : formatPrimaryEffects(def?.stats, def?.consume?.hp);
   const jobsLine = formatJobs(def?.jobRestrict);
   const ilevel = def?.craftLevel;
   return (

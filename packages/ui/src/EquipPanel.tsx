@@ -14,10 +14,14 @@ import {
   type AttrKey,
 } from "@bellgrave/combat";
 import {
+  addItemStats,
   aggregateEquipmentStatsScaled,
+  formatFoodBuffLine,
+  formatFoodUseLine,
   getItem,
   hqAmount,
   hqStats,
+  isFoodItem,
   itemIcon,
   itemName,
   rarityClass,
@@ -35,6 +39,13 @@ import { statTooltip } from "./statTooltips";
 
 function formatSigned(v: number): string {
   return `${v > 0 ? "+" : ""}${v}`;
+}
+
+function formatFoodClock(until: number, now: number): string {
+  const left = Math.max(0, Math.ceil((until - now) / 1000));
+  const m = Math.floor(left / 60);
+  const s = left % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
 function isMatKind(kind: string | undefined): boolean {
@@ -89,7 +100,11 @@ export function EquipPanel({ you, me, onClose }: Props) {
     you.skillUnlocked ?? [],
     you.freeStats ?? {},
   );
-  const gearStats = aggregateEquipmentStatsScaled(you.equip, combatLv, you.equipHq);
+  const now = Date.now();
+  const food = you.food && you.food.until > now ? you.food : undefined;
+  const foodStats = food?.stats ?? {};
+  const wornStats = aggregateEquipmentStatsScaled(you.equip, combatLv, you.equipHq);
+  const gearStats = addItemStats(wornStats, foodStats);
   const stats = {
     str: derived.total.str + (gearStats.str ?? 0),
     dex: derived.total.dex + (gearStats.dex ?? 0),
@@ -98,7 +113,7 @@ export function EquipPanel({ you, me, onClose }: Props) {
     int: derived.total.int + (gearStats.int ?? 0),
     mnd: derived.total.mnd + (gearStats.mnd ?? 0),
   };
-  const weaponBonus = you.equip.main ? (gearStats.atk ?? 10) : 0;
+  const weaponBonus = (you.equip.main ? (wornStats.atk ?? 10) : 0) + (foodStats.atk ?? 0);
   const weaponAttack = meleeUsesWeaponAttack(job);
   const stance = weaponAttack ? "none" : me.buffs.flux ? "flux" : me.buffs.aether ? "aether" : "none";
   const attack =
@@ -112,7 +127,6 @@ export function EquipPanel({ you, me, onClose }: Props) {
   const freeStats = derived.free;
   const treeSpent = skillPointsSpentOnTree(you.skillUnlocked ?? [], job, sub);
   const treeBonusEntries = Object.entries(derived.tree).filter(([, value]) => value !== 0);
-  const now = Date.now();
   const tpPct = Math.min(100, Math.floor((me.tp / 3000) * 100));
   const xpNeed = xpToNextLevel(you.level);
   const xpHave = Math.max(0, you.xp);
@@ -184,7 +198,7 @@ export function EquipPanel({ you, me, onClose }: Props) {
             )}
           </div>
           <div className="equip-attr-legend" aria-hidden="true">
-            base · tree · free · gear
+            {food ? "base · tree · free · gear · food" : "base · tree · free · gear"}
           </div>
           {STAT_ORDER.map(([label, key]) => {
             const bonus = freeStats[key] ?? 0;
@@ -195,7 +209,7 @@ export function EquipPanel({ you, me, onClose }: Props) {
                 tip={statTooltip(job, key)}
                 value={stats[key]}
                 freeBonus={bonus}
-                breakdown={`base ${derived.base[key]} · tree ${formatSigned(derived.tree[key])} · free ${formatSigned(bonus)} · gear ${formatSigned(gearStats[key] ?? 0)}`}
+                breakdown={`base ${derived.base[key]} · tree ${formatSigned(derived.tree[key])} · free ${formatSigned(bonus)} · gear ${formatSigned(wornStats[key] ?? 0)}${food ? ` · food ${formatSigned(foodStats[key] ?? 0)}` : ""}`}
                 canInc={freeLeft > 0}
                 canDec={bonus > 0}
                 onInc={() => send({ type: "skill/freestat", attr: key as AttrKey, delta: 1 })}
@@ -234,6 +248,13 @@ export function EquipPanel({ you, me, onClose }: Props) {
                   : "STR + weapon"
             }
           />
+          {food ? (
+            <Row
+              label="Meal"
+              value={`${food.hq ? "HQ " : ""}${itemName(food.tokenId)}`}
+              hint={`${formatFoodClock(food.until, now)}${formatFoodBuffLine(food.stats) ? ` · ${formatFoodBuffLine(food.stats)}` : ""}`}
+            />
+          ) : null}
           <Row
             label="Defense"
             value={String(defense)}
@@ -292,9 +313,11 @@ function BagItemRow({
   const isUnderleveled = isEquipment && you.level < ilevel;
   const shownStats = item.hq ? hqStats(def?.stats) : def?.stats;
   const shownHp = item.hq && def?.consume?.hp ? hqAmount(def.consume.hp) : def?.consume?.hp;
-  const statsLine = isUnderleveled && shownStats
-    ? formatScaledStats(shownStats, you.level, ilevel)
-    : formatPrimaryEffects(shownStats, shownHp);
+  const statsLine = isFoodItem(def)
+    ? formatFoodUseLine(def, !!item.hq)
+    : isUnderleveled && shownStats
+      ? formatScaledStats(shownStats, you.level, ilevel)
+      : formatPrimaryEffects(shownStats, shownHp);
   const jobsLine = formatJobs(def?.jobRestrict);
   const actions = showActions ? bagItemActions(item, you) : null;
   const equipped = (Object.entries(you.equip) as [EquipSlot, number | null][]).some(

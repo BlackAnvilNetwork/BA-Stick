@@ -1,0 +1,30 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Linen skullcap helm: woven linen (l/d) stamp over the crown. Face stays open.
+(
+    id: "ba_mayflower_coif",
+    x0: -0.14,
+    y0: 0.02,
+    x1: 0.14,
+    y1: 0.16,
+    z: 0.02,
+    flow: 0.0,
+    sleeve_drop: 0.0,
+    wrap: 0.0,
+    arm_from: 0.0,
+    arm_to: 0.0,
+    arm_thick: 0.0,
+    cuff_from: 0.0,
+    cuff_to: 0.0,
+    cuff_thick: 0.0,
+    rows: [
+        "llllllllll",
+        "dddddddddd",
+        "llllllllll",
+        "dddddddddd",
+        "llllllllll",
+        "dddddddddd",
+    ],
+)

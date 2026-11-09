@@ -1,0 +1,171 @@
+{
+  "repo": "C:/Users/raxac/OneDrive/Desktop/apps/ba-stick",
+  "gearDir": "engine/ba-stick-render/assets/gear",
+  "iconDir": "apps/stick-web/public/icons/items",
+  "doNotEdit": [
+    "packages/items/src/catalog.json",
+    "packages/items/src/catalog.generated.ts",
+    "engine/ba-stick-render/src/gear.rs",
+    "engine/ba-stick-render/src/figure.rs",
+    "apps/stick-web/src/wiki-gear.ts"
+  ],
+  "bands": {
+    "20-24": {
+      "visible": [
+        {"slug": "dustweave-cap", "copyRon": "ba_linen_helm", "copyPlate": true, "copyIcon": "linen-helm.png"},
+        {"slug": "dustweave-socks", "copyRon": "ba_linen_socks", "copyPlate": false, "copyIcon": "linen-socks.png"},
+        {"slug": "dustweave-robe", "copyRon": "ba_linen_robe", "copyPlate": true, "copyIcon": "linen-robe.png"},
+        {"slug": "dustweave-slops", "copyRon": "ba_linen_slops", "copyPlate": true, "copyIcon": "linen-slops.png"},
+        {"slug": "dusthide-vest", "copyRon": "ba_leather_vest", "copyPlate": true, "copyIcon": "leather-vest.png"},
+        {"slug": "dusthide-sandals", "copyRon": "ba_leather_sandals", "copyPlate": false, "copyIcon": "leather-sandals.png"}
+      ],
+      "hidden": [
+        {"slug": "seam-glass-ring", "copyIcon": "copper-ring.png"},
+        {"slug": "marrow-stud", "copyIcon": "bone-earring.png"}
+      ]
+    },
+    "25-28": {
+      "visible": [
+        {"slug": "kettle-mitts", "copyRon": "ba_linen_cuffs", "copyPlate": false, "copyIcon": "linen-cuffs.png"},
+        {"slug": "kettle-robe", "copyRon": "ba_shade_robe", "copyPlate": true, "copyIcon": "shade-robe.png"},
+        {"slug": "briarhide-cap", "copyRon": "ba_leather_bandana", "copyPlate": true, "copyIcon": "leather-bandana.png"},
+        {"slug": "briarhide-gloves", "copyRon": "ba_shade_leather_gloves", "copyPlate": false, "copyIcon": "shade-leather-gloves.png"}
+      ],
+      "hidden": [
+        {"slug": "reedbone-earring", "copyIcon": "bone-earring.png"},
+        {"slug": "hollow-signet", "copyIcon": "mythril-ring.png"}
+      ]
+    },
+    "29-34": {
+      "visible": [
+        {"slug": "last-company-bandana", "copyRon": "ba_leather_bandana", "copyPlate": true, "copyIcon": "leather-bandana.png"},
+        {"slug": "last-company-gloves", "copyRon": "ba_shade_leather_gloves", "copyPlate": false, "copyIcon": "shade-leather-gloves.png"},
+        {"slug": "last-company-boots", "copyRon": "ba_shade_leather_boots", "copyPlate": false, "copyIcon": "shade-leather-boots.png"},
+        {"slug": "ash-linen-cowl", "copyRon": "ba_battleweave_hood", "copyPlate": false, "copyIcon": "battleweave-hood.png"}
+      ],
+      "hidden": [
+        {"slug": "ivory-band", "copyIcon": "bone-ring.png"},
+        {"slug": "mayflower-chain", "copyIcon": "goldsmith-earring.png"}
+      ]
+    },
+    "35-40": {
+      "visible": [
+        {"slug": "scale-coif", "copyRon": "ba_leather_bandana", "copyPlate": true, "copyIcon": "leather-bandana.png"},
+        {"slug": "ashbone-helm", "copyRon": "ba_bone_helm", "copyPlate": true, "copyIcon": "bone-helm.png"},
+        {"slug": "horncloth-hood", "copyRon": "ba_battleweave_hood", "copyPlate": false, "copyIcon": "battleweave-hood.png"},
+        {"slug": "ashbone-gloves", "copyRon": "ba_bone_gloves", "copyPlate": false, "copyIcon": "bone-gloves.png"},
+        {"slug": "scale-gloves", "copyRon": "ba_shade_leather_gloves", "copyPlate": false, "copyIcon": "shade-leather-gloves.png"},
+        {"slug": "horncloth-cuffs", "copyRon": "ba_shade_cuffs", "copyPlate": false, "copyIcon": "shade-cuffs.png"},
+        {"slug": "ashbone-harness", "copyRon": "ba_bone_harness", "copyPlate": true, "copyIcon": "bone-harness.png"}
+      ],
+      "hidden": [
+        {"slug": "wyrmglass-ring", "copyIcon": "mythril-ring.png"},
+        {"slug": "ivory-studs", "copyIcon": "goldsmith-earring.png"}
+      ]
+    },
+    "41-50": {
+      "visible": [
+        {"slug": "coilbone-greaves", "copyRon": "ba_bone_boots", "copyPlate": false, "copyIcon": "bone-boots.png"},
+        {"slug": "mayflower-gloves", "copyRon": "ba_shade_cuffs", "copyPlate": false, "copyIcon": "shade-cuffs.png"},
+        {"slug": "mayflower-coif", "copyRon": "ba_linen_helm", "copyPlate": true, "copyIcon": "linen-helm.png"},
+        {"slug": "mayflower-hose", "copyRon": "ba_shade_slops", "copyPlate": true, "copyIcon": "shade-slops.png"},
+        {"slug": "mayflower-shoes", "copyRon": "ba_shade_pumps", "copyPlate": false, "copyIcon": "shade-pumps.png"},
+        {"slug": "seamhide-chaps", "copyRon": "ba_leather_trousers", "copyPlate": true, "copyIcon": "leather-trousers.png"}
+      ],
+      "hidden": [
+        {"slug": "scriveners-earring", "copyIcon": "lapis-earring.png"},
+        {"slug": "lockkeeper-signet", "copyIcon": "palace-signet.png"}
+      ]
+    },
+    "51-60": {
+      "visible": [
+        {"slug": "duskweave-hat", "copyRon": "ba_silk_hat", "copyPlate": true, "copyIcon": "silk-hat.png"},
+        {"slug": "duskweave-coat", "copyRon": "ba_silk_coat", "copyPlate": true, "copyIcon": "silk-coat.png"},
+        {"slug": "white-caps-jack", "copyRon": "ba_shade_leather_vest", "copyPlate": true, "copyIcon": "shade-leather-vest.png"},
+        {"slug": "white-caps-gloves", "copyRon": "ba_fine_jerkin_gloves", "copyPlate": false, "copyIcon": "fine-jerkin-gloves.png"},
+        {"slug": "duskweave-slacks", "copyRon": "ba_silk_slacks", "copyPlate": true, "copyIcon": "silk-slacks.png"},
+        {"slug": "skull-harness", "copyRon": "ba_bone_harness", "copyPlate": true, "copyIcon": "bone-harness.png"}
+      ],
+      "hidden": [
+        {"slug": "stillmere-pearl", "copyIcon": "mythril-ring.png"},
+        {"slug": "marrowforged-ring", "copyIcon": "bone-ring.png"}
+      ]
+    },
+    "w2-20-24": {
+      "visible": [
+        {"slug": "chalkreed-cuffs", "copyRon": "ba_linen_cuffs", "copyPlate": false, "copyIcon": "linen-cuffs.png"},
+        {"slug": "pitstraw-chaps", "copyRon": "ba_leather_trousers", "copyPlate": true, "copyIcon": "leather-trousers.png"},
+        {"slug": "riverbone-mitts", "copyRon": "ba_bone_gloves", "copyPlate": false, "copyIcon": "bone-gloves.png"},
+        {"slug": "pitstraw-gloves", "copyRon": "ba_leather_gloves", "copyPlate": false, "copyIcon": "leather-gloves.png"}
+      ],
+      "hidden": [
+        {"slug": "chalk-bead", "copyIcon": "goldsmith-earring.png"},
+        {"slug": "sand-bone-ring", "copyIcon": "bone-ring.png"}
+      ]
+    },
+    "w2-25-28": {
+      "visible": [
+        {"slug": "fordcamp-slops", "copyRon": "ba_shade_slops", "copyPlate": true, "copyIcon": "shade-slops.png"},
+        {"slug": "thornreed-vest", "copyRon": "ba_shade_leather_vest", "copyPlate": true, "copyIcon": "shade-leather-vest.png"},
+        {"slug": "reed-greaves", "copyRon": "ba_bone_boots", "copyPlate": false, "copyIcon": "bone-boots.png"}
+      ],
+      "hidden": [
+        {"slug": "camp-glass-ring", "copyIcon": "copper-ring.png"},
+        {"slug": "camp-signet", "copyIcon": "mythril-ring.png"}
+      ]
+    },
+    "w2-29-34": {
+      "visible": [
+        {"slug": "cinderflax-slops", "copyRon": "ba_shade_slops", "copyPlate": true, "copyIcon": "shade-slops.png"},
+        {"slug": "coilhide-chaps", "copyRon": "ba_leather_trousers", "copyPlate": true, "copyIcon": "leather-trousers.png"},
+        {"slug": "ash-rib-trousers", "copyRon": "ba_bone_trousers", "copyPlate": true, "copyIcon": "bone-trousers.png"},
+        {"slug": "cinderflax-cuffs", "copyRon": "ba_shade_cuffs", "copyPlate": false, "copyIcon": "shade-cuffs.png"}
+      ],
+      "hidden": [
+        {"slug": "marrow-hoop", "copyIcon": "bone-ring.png"},
+        {"slug": "ford-bead", "copyIcon": "goldsmith-earring.png"}
+      ]
+    },
+    "w2-35-40": {
+      "visible": [
+        {"slug": "wicklinen-robe", "copyRon": "ba_shade_robe", "copyPlate": true, "copyIcon": "shade-robe.png"},
+        {"slug": "slaghide-boots", "copyRon": "ba_shade_leather_boots", "copyPlate": false, "copyIcon": "shade-leather-boots.png"},
+        {"slug": "slaghide-chaps", "copyRon": "ba_leather_trousers", "copyPlate": true, "copyIcon": "leather-trousers.png"},
+        {"slug": "wicklinen-slops", "copyRon": "ba_shade_slops", "copyPlate": true, "copyIcon": "shade-slops.png"}
+      ],
+      "hidden": [
+        {"slug": "slag-loop", "copyIcon": "mythril-ring.png"},
+        {"slug": "ember-glass-ring", "copyIcon": "copper-ring.png"}
+      ]
+    },
+    "w2-41-50": {
+      "visible": [
+        {"slug": "scarp-cowl", "copyRon": "ba_battleweave_hood", "copyPlate": false, "copyIcon": "battleweave-hood.png"},
+        {"slug": "driftpelt-gloves", "copyRon": "ba_fine_jerkin_gloves", "copyPlate": false, "copyIcon": "fine-jerkin-gloves.png"},
+        {"slug": "marshbone-harness", "copyRon": "ba_bone_harness", "copyPlate": true, "copyIcon": "bone-harness.png"},
+        {"slug": "driftpelt-boots", "copyRon": "ba_fine_jerkin_boots", "copyPlate": false, "copyIcon": "fine-jerkin-boots.png"},
+        {"slug": "scarp-cuffs", "copyRon": "ba_shade_cuffs", "copyPlate": false, "copyIcon": "shade-cuffs.png"},
+        {"slug": "marshbone-gloves", "copyRon": "ba_bone_gloves", "copyPlate": false, "copyIcon": "bone-gloves.png"},
+        {"slug": "scarp-hose", "copyRon": "ba_shade_slops", "copyPlate": true, "copyIcon": "shade-slops.png"}
+      ],
+      "hidden": [
+        {"slug": "tally-loop", "copyIcon": "mythril-ring.png"}
+      ]
+    },
+    "w2-51-60": {
+      "visible": [
+        {"slug": "saltjack-cap", "copyRon": "ba_leather_bandana", "copyPlate": true, "copyIcon": "leather-bandana.png"},
+        {"slug": "saltjack-boots", "copyRon": "ba_fine_jerkin_boots", "copyPlate": false, "copyIcon": "fine-jerkin-boots.png"},
+        {"slug": "crownbone-gloves", "copyRon": "ba_bone_gloves", "copyPlate": false, "copyIcon": "bone-gloves.png"},
+        {"slug": "nighweave-gloves", "copyRon": "ba_silk_cuffs", "copyPlate": false, "copyIcon": "silk-cuffs.png"},
+        {"slug": "nighweave-pumps", "copyRon": "ba_silk_pumps", "copyPlate": false, "copyIcon": "silk-pumps.png"},
+        {"slug": "crownbone-greaves", "copyRon": "ba_bone_boots", "copyPlate": false, "copyIcon": "bone-boots.png"},
+        {"slug": "saltjack-chaps", "copyRon": "ba_fine_jerkin_trousers", "copyPlate": true, "copyIcon": "fine-jerkin-trousers.png"}
+      ],
+      "hidden": [
+        {"slug": "ember-studs", "copyIcon": "goldsmith-earring.png"},
+        {"slug": "mere-loop", "copyIcon": "mythril-ring.png"}
+      ]
+    }
+  }
+}

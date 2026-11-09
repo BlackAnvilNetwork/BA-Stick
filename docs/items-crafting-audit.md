@@ -4,7 +4,7 @@ Applied from the Black Anvil crafting audit + 103-row stat CSV, plus support-rev
 
 ## Launch Items seed
 
-- `LIVE_BASE_SLUGS` / `EXPORTABLE_BASE_SLUGS` = **24** Pale Hollow obtainable bases (23 live + `desiccated-hide`).
+- `LIVE_BASE_SLUGS` = **24** Pale Hollow obtainable bases (23 live + `desiccated-hide`).
 - Equipment has **no** chain Items id yet; log-bag export still uses catalog ids. `catalogIdToChainFungibleId` only resolves live bases (mint/withdraw path not wired).
 - Heart Ring is goldsmithing **L12** (Rare) so it is obtainable on the live ladder.
 

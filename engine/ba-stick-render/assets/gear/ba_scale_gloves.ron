@@ -1,0 +1,76 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Fingered shade leather gloves, not mittens. A short wrist cuff and palm pad
+// sit on the attach hand; four finger tubes run from the knuckle line.
+// Hand discs are markers, not mitten blobs. Leather recipe: overlapping
+// capsules and discs, no buckle disc.
+// `thick` is a radius in pixels, matching Stick Engine capsules.
+(
+    id: "ba_scale_gloves",
+    slot: Hands,
+    attach: Some("r_hand"),
+    material: Some("leather"),
+    thickness_mul: {
+        "l_forearm": 1.18,
+        "r_forearm": 1.18,
+    },
+    shapes: [
+        // Wrist cuff, a short wrap just behind the fist.
+        Capsule(
+            from: (0.0, -0.032, 0.0),
+            to: (0.0, 0.0, 0.0),
+            ramp: Material,
+            thick: 1.5,
+        ),
+        // Palm pad. Short, so it does not swallow the fingers.
+        Capsule(
+            from: (0.0, -0.006, 0.01),
+            to: (0.0, 0.012, 0.01),
+            ramp: Material,
+            thick: 1.4,
+        ),
+        // Knuckle bar across the fist.
+        Capsule(
+            from: (-0.018, 0.012, 0.006),
+            to: (0.018, 0.012, 0.006),
+            ramp: Material,
+            thick: 1.4,
+        ),
+        // Four finger tubes from the knuckle line out to the tips.
+        Capsule(
+            from: (-0.016, 0.012, 0.008),
+            to: (-0.016, 0.040, 0.010),
+            ramp: Material,
+            thick: 1.0,
+        ),
+        Capsule(
+            from: (-0.005, 0.012, 0.008),
+            to: (-0.005, 0.040, 0.010),
+            ramp: Material,
+            thick: 1.0,
+        ),
+        Capsule(
+            from: (0.006, 0.012, 0.008),
+            to: (0.006, 0.040, 0.010),
+            ramp: Material,
+            thick: 1.0,
+        ),
+        Capsule(
+            from: (0.016, 0.012, 0.008),
+            to: (0.016, 0.040, 0.010),
+            ramp: Material,
+            thick: 1.0,
+        ),
+        // Thumb lump, overlapping the palm.
+        Capsule(
+            from: (-0.012, 0.0, 0.012),
+            to: (-0.028, 0.014, 0.018),
+            ramp: Material,
+            thick: 1.2,
+        ),
+        Disc(at: Some("l_hand"), r: 0.036, ramp: Material),
+        Disc(at: Some("r_hand"), r: 0.036, ramp: Material),
+    ],
+)
