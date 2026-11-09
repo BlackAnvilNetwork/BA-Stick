@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
 //
-// Mythril mail stamp. Trail field (w). The cuirass mesh only samples the
-// border, and empty cells would leave that mesh steel. Not gold, not steel.
+// Mythril mail stamp. Trail border (w) is what the cuirass mesh samples.
+// The blue field (n) fills the chest. Empty cells would leave the steel mesh.
+// Not gold, not steel.
 (
     id: "ba_mythril_mail",
     x0: -0.13,
@@ -21,21 +22,21 @@
     cuff_thick: 1.15,
     rows: [
         "wwwwwwwwwwwwwww",
-        "wwwwwwwwwwwwwww",
-        "wwwwwwwwwwwwwww",
-        "wwwwwwwwwwwwwww",
-        "wwwwwwwwwwwwwww",
-        "wwwwwwwwwwwwwww",
-        "wwwwwwwwwwwwwww",
-        "wwwwwwwwwwwwwww",
-        "wwwwwwwwwwwwwww",
-        "wwwwwwwwwwwwwww",
-        "wwwwwwwwwwwwwww",
-        "wwwwwwwwwwwwwww",
-        "wwwwwwwwwwwwwww",
-        "wwwwwwwwwwwwwww",
-        "wwwwwwwwwwwwwww",
-        "wwwwwwwwwwwwwww",
+        "wwwwwwnnnnnwwww",
+        "wwwwnnnwnnnnwww",
+        "wwwwnwnwnwnnwww",
+        "wwwwnnnwnnnnwww",
+        "wwwwnnnwnnnnwww",
+        "wwwwnnnnnnnnwww",
+        "wwwwnnnwnnnnwww",
+        "wwwwwnnwnnwwwww",
+        "wwwwwnnwnnwwwww",
+        "wwwwwwwnwnwwwww",
+        "wwwwwwwnwnwwwww",
+        "wwwwwwnnnnnwwww",
+        "wwwwwwwnnnwwwww",
+        "wwwwwwwnnnwwwww",
+        "wwwwwwwwnnwwwww",
         "wwwwwwwwwwwwwww",
         "wwwwwwwwwwwwwww",
     ],

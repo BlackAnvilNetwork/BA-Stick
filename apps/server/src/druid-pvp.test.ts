@@ -140,13 +140,13 @@ describe("Druid Ash Pit PvP resolver", () => {
     assert.ok((foe.druidBleedUntil ?? 0) > NOW);
   });
 
-  it("drops Racerunner when a non-travel song is used, and form HP stays a Druid song", () => {
+  it("bounds in place of a cast when a non-travel song is used in Racerunner", () => {
     const p = druid({ druidForm: 4 });
     const foe = foePlayer();
     const logs: string[] = [];
     resolveDruidAbility(p, "dr_dustmend", undefined, NOW, hooks(p, foe, logs));
-    assert.equal(p.druidForm, 0);
-    assert.ok(logs.some((m) => /racerunner startles/i.test(m)));
+    assert.equal(p.druidForm, 4);
+    assert.ok(logs.some((m) => /racerunner bounds/i.test(m)));
   });
 
   it("requires both fighters to stand in Ash Pit with a bounty", () => {

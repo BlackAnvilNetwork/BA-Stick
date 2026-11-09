@@ -62,28 +62,25 @@ test("iron mail reuses the iron cuirass recipe", () => {
   assert.ok(paint.z > 0);
 });
 
-test("bronze harness reuses the iron cuirass recipe", () => {
+test("bronze harness is a strap mesh, not a cuirass", () => {
   const g = parseGear(read("ba-stick-render/assets/gear/ba_bronze_harness.ron"));
   assert.equal(g.id, "ba_bronze_harness");
   assert.equal(g.slot, "Chest");
   assert.equal(g.attach, "chest");
   assert.equal(g.material, "steel");
-  assert.equal(g.thicknessMul.spine, 1.72);
-  assert.equal(g.shapes.length, 11);
-  const steel = g.shapes.filter((s) => s.kind === "Capsule" && s.ramp === "Material");
-  assert.ok(steel.length >= 3, "chest and waist overlap into one plate");
-  const shoulder = g.shapes.find((s) => s.at === "l_shoulder" && s.ramp === "Material");
-  const stud = g.shapes.find((s) => s.at === "l_shoulder" && s.ramp === "Trim");
-  assert.ok(shoulder && stud && shoulder.r === 0.075 && stud.r === 0.028);
+  assert.equal(g.thicknessMul.spine, 1.12);
+  assert.equal(g.shapes.length, 8);
+  assert.ok(g.shapes.every((s) => s.kind === "Capsule"));
   const paint = parsePlate(read("ba-stick-render/assets/gear/ba_bronze_harness.plate.ron"));
   assert.equal(paint.id, "ba_bronze_harness");
-  assert.equal(paint.wrap, 0);
+  assert.equal(paint.wrap, 0.32);
   assert.equal(paint.flow, 0);
-  assert.equal(paint.rows.length, 18);
+  assert.equal(paint.rows.length, 12);
   assert.equal(paint.rows[0]!.length, 15);
-  assert.ok(paint.rows.some((r) => r.includes(".")));
-  assert.ok(paint.rows.some((r) => r.includes("g")));
-  assert.ok(paint.rows.some((r) => r.includes("r")));
+  assert.ok(paint.rows.every((row) => !row.includes(".")));
+  assert.ok(paint.rows.some((r) => r.includes("o")));
+  assert.ok(paint.rows.some((r) => r.includes("i")));
+  assert.ok(paint.rows.some((r) => r.includes("k")));
   assert.ok(paint.z > 0);
 });
 
@@ -143,7 +140,9 @@ test("linen robe keeps the wizard robe flow and a linen retint", () => {
   assert.ok(paint.y0 < -1);
   assert.ok(paint.rows.every((row) => !row.includes(".")), "every robe pixel is painted");
   assert.ok(paint.rows.every((row) => !row.includes("k")), "k reads as a hole");
-  assert.ok(paint.rows.every((row) => row.split("").every((cell) => "bmc".includes(cell))));
+  assert.ok(paint.rows.some((row) => row.includes("l")), "undyed linen body");
+  assert.ok(paint.rows.some((row) => row.includes("d")), "fold and seam");
+  assert.ok(paint.rows.every((row) => row.split("").every((cell) => "ld".includes(cell))));
 });
 
 test("leather vest is a short mesh with shoulder straps", () => {
@@ -227,7 +226,8 @@ test("torque and circlet plates reskin the headband mesh", () => {
   assert.ok(bell.rows.some((row) => row.includes("g")));
   assert.ok(bell.rows.some((row) => row.includes("r")));
   const circlet = parsePlate(read("ba-stick-render/assets/gear/ba_circlet.plate.ron"));
-  assert.ok(circlet.rows.some((row) => row.includes("o")));
+  assert.ok(circlet.rows.some((row) => row.includes("e")));
+  assert.ok(circlet.rows.some((row) => row.includes("g")));
   assert.ok(circlet.rows.some((row) => row.includes("r")));
   const mythril = parsePlate(read("ba-stick-render/assets/gear/ba_mythril_torque.plate.ron"));
   assert.ok(mythril.rows.some((row) => row.includes("n")));
@@ -267,7 +267,8 @@ test("cloth hat is a pointed stack of invisible disks", () => {
 
 test("silk and velvet hats are solid fills on the cloth hat mesh", () => {
   const silk = parsePlate(read("ba-stick-render/assets/gear/ba_silk_hat.plate.ron"));
-  assert.ok(silk.rows.every((row) => row.split("").every((cell) => cell === "w")));
+  assert.ok(silk.rows.some((row) => row.includes("m")));
+  assert.ok(silk.rows.some((row) => row.split("").every((cell) => cell === "c")), "darker brim");
   const velvet = parsePlate(read("ba-stick-render/assets/gear/ba_velvet_hat.plate.ron"));
   assert.ok(velvet.rows.every((row) => row.split("").every((cell) => cell === "c")));
   assert.equal(silk.rows.length, velvet.rows.length);
@@ -310,10 +311,10 @@ test("bronze shield reuses the iron shield recipe", () => {
   assert.equal(paint.id, "ba_bronze_shield");
   assert.equal(paint.flow, 0);
   assert.equal(paint.wrap, 0);
-  assert.deepEqual(paint.rows, ironPaint.rows);
+  assert.notDeepEqual(paint.rows, ironPaint.rows);
   assert.ok(paint.rows.every((row) => row.length === paint.rows[0]!.length));
   assert.ok(paint.rows.every((row) => !row.includes(".") && !row.includes("i") && !row.includes("k")));
-  assert.ok(paint.rows.some((row) => row.includes("e")));
+  assert.ok(paint.rows.some((row) => row.includes("o")));
   assert.ok(paint.rows[paint.rows.length - 1]!.split("").every((cell) => cell === "g"));
 });
 
