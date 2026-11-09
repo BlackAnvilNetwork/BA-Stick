@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Druid forms</title>
+    <style>
+      :root { color-scheme: dark; }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        height: 100vh;
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+        background: #18161f;
+        color: #e8e2d0;
+        font: 13px/1.45 ui-monospace, Consolas, monospace;
+      }
+      header, footer {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        padding: 10px 14px;
+        background: #14121a;
+        border-bottom: 1px solid #34303f;
+        flex-wrap: wrap;
+      }
+      footer { border-bottom: 0; border-top: 1px solid #34303f; }
+      h1 { margin: 0; font-size: 14px; font-weight: 600; letter-spacing: 0.04em; }
+      header p { margin: 0; color: #7d7486; }
+      #stage { display: grid; place-items: center; min-height: 0; }
+      canvas {
+        width: min(100%, 520px);
+        height: auto;
+        background: #c9b98f;
+        image-rendering: pixelated;
+        cursor: grab;
+        touch-action: none;
+      }
+      canvas.dragging { cursor: grabbing; }
+      footer button {
+        color: inherit;
+        background: transparent;
+        border: 1px solid #34303f;
+        font: inherit;
+        padding: 6px 10px;
+        cursor: pointer;
+      }
+      footer button.on { border-color: #d9a441; color: #f4f7ff; }
+      label input { vertical-align: middle; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>DRUID FORMS</h1>
+      <p>All four forms are baked envelopes. Drag to turn.</p>
+    </header>
+    <div id="stage"><canvas id="view" width="120" height="160" role="img" aria-label="Druid form"></canvas></div>
+    <footer>
+      <button type="button" data-form="druid:stickbear" class="on">Bear</button>
+      <button type="button" data-form="druid:stickdeer">Deer</button>
+      <button type="button" data-form="druid:sticklion">Lion</button>
+      <button type="button" data-form="druid:racerunner">Racerunner</button>
+      <button type="button" id="walk">Walk</button>
+      <button type="button" id="rest">Rest</button>
+      <label>Facing <input id="yaw" type="range" min="0" max="360" value="34" /> <span id="yaw-read">34°</span></label>
+    </footer>
+    <script type="module" src="/src/form-viewer.ts"></script>
+  </body>
+</html>

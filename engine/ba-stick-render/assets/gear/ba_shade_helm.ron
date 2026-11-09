@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
 //
-// Shade helm. Same disk shell as iron helm; palette from the plate file.
+// Shade helm. Clothcraft skullcap shell; dust ramp, not steel.
 (
     id: "ba_shade_helm",
     slot: Head,
     attach: Some("head"),
-    material: Some("steel"),
+    material: Some("dust"),
     shapes: [],
 )

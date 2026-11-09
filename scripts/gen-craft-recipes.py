@@ -107,7 +107,7 @@ def main() -> None:
     for s, i in SKILL.items():
         lines.append(f'        {i} => Some("{s}"),')
     lines += ["        _ => None,", "    }", "}", ""]
-    OUT.write_text("\n".join(lines))
+    OUT.write_text("\n".join(lines), encoding="utf-8")
     print(f"craft_recipe_data.rs: {len(rows)} recipes")
 
 

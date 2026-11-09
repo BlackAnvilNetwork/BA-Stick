@@ -1,0 +1,20 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Ashbeam rod. Short thin dust shaft through the hand frame, +y along the shaft.
+// Grip wrap at the origin. Glow disc at the tip (0.05 above the shaft end).
+(
+    id: "ba_ashbeam_rod",
+    slot: MainHand,
+    attach: Some("r_hand"),
+    stance: Some("staff"),
+    reach: 0.45,
+    swing_weight: 1.05,
+    material: Some("dust"),
+    shapes: [
+        Capsule(from: (0.0, -0.18, 0.0), to: (0.0, 0.45, 0.0), ramp: Material, thick: 1.1),
+        Capsule(from: (0.0, -0.08, 0.0), to: (0.0, 0.05, 0.0), ramp: Material, thick: 1.7),
+        Disc(at: None, center: (0.0, 0.50, 0.0), r: 0.032, ramp: Glow),
+    ],
+)

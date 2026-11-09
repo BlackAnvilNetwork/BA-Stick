@@ -62,6 +62,9 @@ importers:
       '@bellgrave/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@bellgrave/items':
+        specifier: workspace:*
+        version: link:../../packages/items
       '@bellgrave/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
@@ -78,9 +81,6 @@ importers:
         specifier: ^5.0.3
         version: 5.0.15(@types/react@19.3.0)(react@19.3.0)(use-sync-external-store@1.7.0(react@19.3.0))
     devDependencies:
-      '@bellgrave/items':
-        specifier: workspace:*
-        version: link:../../packages/items
       '@napi-rs/canvas':
         specifier: ^1.0.13
         version: 1.0.13

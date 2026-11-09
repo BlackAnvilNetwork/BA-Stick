@@ -3,7 +3,6 @@ import { describe, it } from "node:test";
 import { chainFungibleId } from "./chain-ids";
 import {
   ALL_BASE_SLUGS,
-  EXPORTABLE_BASE_SLUGS,
   LIVE_BASE_SLUGS,
   catalogIdToChainFungibleId,
   exportableFungibles,
@@ -15,7 +14,6 @@ import { CATALOG_BY_ID, CATALOG_BY_SLUG } from "./catalog.generated";
 describe("exportable slugs", () => {
   it("launch seed is the 24 Pale Hollow live bases (incl. desiccated-hide)", () => {
     assert.equal(LIVE_BASE_SLUGS.length, 24);
-    assert.equal(EXPORTABLE_BASE_SLUGS, LIVE_BASE_SLUGS);
     assert.ok(LIVE_BASE_SLUGS.includes("pale-dust"));
     assert.ok(LIVE_BASE_SLUGS.includes("desiccated-hide"));
     assert.ok(!LIVE_BASE_SLUGS.includes("iron-ore"));

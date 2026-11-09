@@ -1,0 +1,23 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Bellwood crozier. Name-skin of the bellwood staff: full-length shaft plus a
+// hooked head. Dust baton through the hand frame, +y along the shaft. Grip
+// wrap at the origin. Glow disc sits in the crook.
+(
+    id: "ba_bellwood_crozier",
+    slot: MainHand,
+    attach: Some("r_hand"),
+    stance: Some("staff"),
+    reach: 0.75,
+    swing_weight: 1.3,
+    material: Some("dust"),
+    shapes: [
+        Capsule(from: (0.0, -0.75, 0.0), to: (0.0, 0.68, 0.0), ramp: Material, thick: 1.4),
+        Capsule(from: (0.0, -0.10, 0.0), to: (0.0, 0.06, 0.0), ramp: Material, thick: 2.0),
+        Capsule(from: (0.0, 0.68, 0.0), to: (0.14, 0.78, 0.0), ramp: Material, thick: 1.35),
+        Capsule(from: (0.14, 0.78, 0.0), to: (0.08, 0.88, 0.0), ramp: Material, thick: 1.25),
+        Disc(at: None, center: (0.08, 0.88, 0.0), r: 0.042, ramp: Glow),
+    ],
+)

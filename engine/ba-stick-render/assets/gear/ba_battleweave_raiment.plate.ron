@@ -1,0 +1,34 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Battleweave raiment face. Same fighting-coat family: cloth (b/m/c) with
+// steel seams (e/k). Short hem flow.
+(
+    id: "ba_battleweave_raiment",
+    x0: -0.26,
+    y0: -0.72,
+    x1: 0.26,
+    y1: 0.0,
+    z: 0.07,
+    flow: 0.42,
+    sleeve_drop: 0.18,
+    arm_from: 0.0,
+    arm_to: 1.0,
+    arm_thick: 2.6,
+    cuff_from: 0.0,
+    cuff_to: 0.16,
+    cuff_thick: 3.4,
+    rows: [
+        "cbbbbbbbbbbbbc",
+        "cbkkeeeeeekkbc",
+        "cbkbbbbbbbbkbc",
+        "cbkbmmmmmmbkbc",
+        "cbkbbbeeebbkbc",
+        "ceeeeeeeeeeeec",
+        "cbkbbmmmbbbkbc",
+        "cbkbbbbbbbbkbc",
+        "cbkkbbbbbbkkbc",
+        "cbbbbbbbbbbbbc",
+    ],
+)

@@ -94,8 +94,8 @@ export type WeaponFamily =
   | "club"
   | "knuckles";
 
-/** Derived from craft level (or drop rarity). */
-export type ItemRarity = "Common" | "Uncommon" | "Rare" | "Epic";
+/** Quality label. Independent of iLvl — all five appear across every level band. */
+export type ItemRarity = "Common" | "Uncommon" | "Rare" | "Epic" | "Legendary";
 
 export type ItemStats = {
   str?: number;

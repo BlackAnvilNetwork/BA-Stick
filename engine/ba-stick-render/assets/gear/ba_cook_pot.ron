@@ -6,10 +6,10 @@
 (
     id: "ba_cook_pot",
     slot: Feet,
-    material: Some("void"),
+    material: Some("steel"),
     shapes: [
-        Capsule(from: (-0.20, 0.02, 0.0), to: (0.20, 0.03, 0.0), ramp: Glow, thick: 3.2),
-        Capsule(from: (0.0, 0.02, -0.14), to: (0.0, 0.03, 0.10), ramp: Glow, thick: 2.8),
+        Capsule(from: (-0.20, 0.02, 0.0), to: (0.20, 0.03, 0.0), ramp: Outline, thick: 3.2),
+        Capsule(from: (0.0, 0.02, -0.14), to: (0.0, 0.03, 0.10), ramp: Outline, thick: 2.8),
         Capsule(from: (0.0, 0.04, 0.04), to: (0.0, 0.09, 0.03), ramp: Outline, thick: 3.0),
         Capsule(from: (-0.03, 0.05, 0.05), to: (-0.02, 0.13, 0.04), ramp: Trim, thick: 2.2),
         Capsule(from: (0.04, 0.05, 0.05), to: (0.03, 0.14, 0.04), ramp: Trim, thick: 2.0),

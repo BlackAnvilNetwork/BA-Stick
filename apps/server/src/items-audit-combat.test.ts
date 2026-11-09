@@ -41,4 +41,9 @@ describe("melee Atk bonus", () => {
     const withBow = { ...emptyEquipment(), main: 4, ranged: 186, ring: 1063 };
     assert.equal(meleeAtkBonus({ equip: withBow }), swordAtk + 6);
   });
+
+  it("fishing rods are utility and grant no auto-attack Atk", () => {
+    const rod = { ...emptyEquipment(), main: 39 };
+    assert.equal(meleeAtkBonus({ equip: rod }), 0);
+  });
 });

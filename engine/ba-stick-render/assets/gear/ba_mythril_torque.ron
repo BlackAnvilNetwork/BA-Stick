@@ -2,11 +2,48 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
 //
-// Mythril torque. Same forehead ring stack as the linen headband.
+// Mythril neck torque, not a forehead band. A rigid steel ring on the
+// neck bone: overlapping capsules wrap the throat into a closed hoop,
+// with one steel disc and one gold rivet. No chest drop, no buckle.
+// `thick` is a radius in pixels, matching Stick Engine capsules.
 (
     id: "ba_mythril_torque",
     slot: Head,
-    attach: Some("head"),
+    attach: Some("neck"),
     material: Some("steel"),
-    shapes: [],
+    thickness_mul: {
+        "neck": 1.28,
+    },
+    shapes: [
+        // Front collar band under the chin.
+        Capsule(
+            from: (-0.038, 0.008, 0.042),
+            to: (0.038, 0.008, 0.042),
+            ramp: Material,
+            thick: 1.6,
+        ),
+        // Rear nape band. Overlaps the side wraps.
+        Capsule(
+            from: (-0.036, 0.004, -0.038),
+            to: (0.036, 0.004, -0.038),
+            ramp: Material,
+            thick: 1.5,
+        ),
+        // Left wrap, closes the ring.
+        Capsule(
+            from: (-0.042, 0.006, -0.022),
+            to: (-0.040, 0.006, 0.028),
+            ramp: Material,
+            thick: 1.55,
+        ),
+        // Right wrap, closes the ring.
+        Capsule(
+            from: (0.042, 0.006, -0.022),
+            to: (0.040, 0.006, 0.028),
+            ramp: Material,
+            thick: 1.55,
+        ),
+        Disc(at: Some("neck"), r: 0.040, ramp: Material),
+        Disc(at: Some("neck"), r: 0.016, ramp: Trim),
+    ],
 )

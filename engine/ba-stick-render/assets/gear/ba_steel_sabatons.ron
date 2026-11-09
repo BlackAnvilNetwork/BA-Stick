@@ -1,0 +1,107 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Iron sabatons. One foot in foot-local metres: origin is the foot
+// joint, +y up the shin, +z toward the toe, +x the character's right.
+// The viewer and draw path instance this pair on l_foot and r_foot so
+// the soles walk with the stride. Tiny discs mark each joint.
+// Full iron plate sabaton at mythril layout scale, plus an ankle cuff.
+// `thick` is a radius in pixels.
+(
+    id: "ba_steel_sabatons",
+    slot: Feet,
+    attach: Some("pelvis"),
+    material: Some("steel"),
+    thickness_mul: {
+        "l_shin": 1.14,
+        "r_shin": 1.14,
+    },
+    shapes: [
+        // Platform sole width (front).
+        Capsule(
+            from: (-0.042, -0.028, 0.03),
+            to: (0.042, -0.028, 0.03),
+            ramp: Material,
+            thick: 3.2,
+        ),
+        // Platform heel width.
+        Capsule(
+            from: (-0.038, -0.028, -0.04),
+            to: (0.038, -0.028, -0.04),
+            ramp: Material,
+            thick: 3.0,
+        ),
+        // Platform length, heel to ball.
+        Capsule(
+            from: (0.0, -0.028, -0.05),
+            to: (0.0, -0.028, 0.03),
+            ramp: Material,
+            thick: 3.0,
+        ),
+        // Platform length, ball to toe.
+        Capsule(
+            from: (0.0, -0.028, 0.01),
+            to: (0.0, -0.028, 0.11),
+            ramp: Material,
+            thick: 2.8,
+        ),
+        // Midsole lift, overlapping the platform.
+        Capsule(
+            from: (0.0, -0.010, -0.04),
+            to: (0.0, -0.010, 0.06),
+            ramp: Material,
+            thick: 2.6,
+        ),
+        // Heavy vamp slab, sole up over the instep.
+        Capsule(
+            from: (0.0, -0.018, 0.04),
+            to: (0.0, 0.055, 0.04),
+            ramp: Material,
+            thick: 2.6,
+        ),
+        // Heavy vamp cover across the instep.
+        Capsule(
+            from: (-0.036, 0.028, 0.03),
+            to: (0.036, 0.028, 0.03),
+            ramp: Material,
+            thick: 2.4,
+        ),
+        // Vamp toe wrap, overlapping platform and instep.
+        Capsule(
+            from: (0.0, -0.010, 0.07),
+            to: (0.0, 0.022, 0.10),
+            ramp: Material,
+            thick: 2.2,
+        ),
+        // Ankle cuff — iron plate rises above the vamp.
+        Capsule(
+            from: (-0.030, 0.058, 0.012),
+            to: (0.030, 0.058, 0.012),
+            ramp: Material,
+            thick: 2.2,
+        ),
+        // Steel instep rivet bar — not on iron sabatons.
+        Capsule(
+            from: (-0.028, 0.040, 0.04),
+            to: (0.028, 0.040, 0.04),
+            ramp: Trim,
+            thick: 2.2,
+        ),
+        // Shin greave rise — gold plate above the iron cuff height.
+        Capsule(
+            from: (-0.026, 0.092, 0.010),
+            to: (0.026, 0.092, 0.010),
+            ramp: Trim,
+            thick: 2.4,
+        ),
+        Capsule(
+            from: (0.0, 0.062, 0.012),
+            to: (0.0, 0.118, 0.012),
+            ramp: Trim,
+            thick: 2.2,
+        ),
+        Disc(at: Some("l_foot"), r: 0.014, ramp: Material),
+        Disc(at: Some("r_foot"), r: 0.014, ramp: Material),
+    ],
+)
