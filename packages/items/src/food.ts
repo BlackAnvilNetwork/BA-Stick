@@ -1,4 +1,4 @@
-import { hqStats, type ItemDef, type ItemStats } from "./types";
+import { hqAmount, hqStats, type ItemDef, type ItemStats } from "./types";
 
 /** Every cooked dish lasts half an hour. */
 export const FOOD_DURATION_SEC = 1800;
