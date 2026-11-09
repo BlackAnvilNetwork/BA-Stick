@@ -9,14 +9,17 @@ import {
   WEAPON_TP_COST,
   attackFromStats,
   defenseFromVit,
-  fStr,
   jobStatsAtLevel,
   physicalDamage,
   weaponTpBonusMul,
-  weaponTypeFromTokenId,
+  weaponTypeForCombat,
+  druidFormWsLabel,
   type JobId,
 } from "@bellgrave/combat";
 import { takeMobHit, type MobEnhanceHost } from "./mob-enhances";
+import { autoAttackFStr } from "./auto-attack-traits";
+import { isPvpVictim, veiledByGhostStep } from "./pvp-foe";
+import { fighterAttackMul as fighterAttackMulFromKit } from "./fighter-abilities";
 
 export type WeaponTpPlayer = {
   wallet: string;
@@ -26,6 +29,8 @@ export type WeaponTpPlayer = {
   tp: number;
   level: number;
   job: string;
+  subjob?: string | null;
+  druidForm?: number;
   equip: import("@bellgrave/items").Equipment;
   anim: string;
   animUntil: number;
@@ -71,6 +76,8 @@ export type WeaponTpCtx = {
   };
   /** Skill-tree atk bonus (same as autos). Per-weapon combat skills deferred (#106). */
   playerTreeAtk: (p: WeaponTpPlayer) => number;
+  /** Racerunner JA: a real dash that stays in form. */
+  dashToward?: (p: WeaponTpPlayer, range: number, now: number) => void;
 };
 
 function applyEffects(mob: WeaponTpMob, def: WeaponTpDef, now: number) {
@@ -99,23 +106,39 @@ export function resolveWeaponTpAbility(
     ctx.pushLog(p, "Unknown weapon skill.");
     return;
   }
+  const label = druidFormWsLabel(id, p.job === "druid" ? p.druidForm : 0) ?? def.label;
 
-  const wtype: WeaponType | null = weaponTypeFromTokenId(p.equip.main);
-  if (!wtype || wtype !== def.weapon) {
-    ctx.pushLog(p, `${def.label} requires a ${def.weapon} equipped.`);
+  if (p.job === "druid" && p.druidForm === 4) {
+    ctx.dashToward?.(p, 8, now);
+    ctx.stopRest(p);
+    ctx.pushLog(p, "The racerunner bounds.");
+    return;
+  }
+  const wtype: WeaponType | null = weaponTypeForCombat(p.job, p.druidForm, p.equip.main);
+  if (!wtype) {
+    ctx.pushLog(p, `${label} needs a weapon.`);
+    return;
+  }
+  if (wtype !== def.weapon) {
+    ctx.pushLog(
+      p,
+      p.job === "druid" && (p.druidForm ?? 0) !== 0
+        ? `${label} is not this form's weapon skill.`
+        : `${label} requires a ${def.weapon} equipped.`,
+    );
     return;
   }
   if (p.level < def.unlockLevel) {
-    ctx.pushLog(p, `${def.label} unlocks at level ${def.unlockLevel}.`);
+    ctx.pushLog(p, `${label} unlocks at level ${def.unlockLevel}.`);
     return;
   }
   if (p.tp < WEAPON_TP_COST) {
-    ctx.pushLog(p, `Need ${WEAPON_TP_COST} TP for ${def.label} (you have ${p.tp}).`);
+    ctx.pushLog(p, `Need ${WEAPON_TP_COST} TP for ${label} (you have ${p.tp}).`);
     return;
   }
   const readyAt = p.recasts[id as AbilityId] ?? 0;
   if (now < readyAt) {
-    ctx.pushLog(p, `${def.label} is not ready.`);
+    ctx.pushLog(p, `${label} is not ready.`);
     return;
   }
 
@@ -127,6 +150,10 @@ export function resolveWeaponTpAbility(
   }
   if (ctx.dist(p.x, p.z, mob.x, mob.z) > ctx.meleeRange + 0.35) {
     ctx.pushLog(p, "Too far for a weapon skill.");
+    return;
+  }
+  if (veiledByGhostStep(mob, now)) {
+    ctx.pushLog(p, `${label} — violet smoke. The strike finds no one.`);
     return;
   }
 
@@ -145,8 +172,14 @@ export function resolveWeaponTpAbility(
   let att = attackFromStats(stats, "none", ctx.playerWeaponBonus(p), { physical: true });
   // Skill-tree atk (mirrors autos). Dedicated per-weapon combat skill levels: deferred (#106).
   att += ctx.playerTreeAtk(p);
-  const mobStats = jobStatsAtLevel(mob.job, mob.level);
-  let defStat = defenseFromVit(mobStats.vit);
+  att = Math.max(1, Math.floor(att * fighterAttackMulFromKit(p as never, now)));
+  const pvp = isPvpVictim(mob);
+  const mobStats = pvp
+    ? { vit: (mob as { pvpVit?: number }).pvpVit ?? 1 }
+    : jobStatsAtLevel(mob.job, mob.level);
+  let defStat = pvp
+    ? ((mob as { pvpDef?: number }).pvpDef ?? 1)
+    : defenseFromVit(mobStats.vit);
   if (now < mob.diaUntil) defStat = Math.max(1, Math.floor(defStat * 0.7));
 
   const hits = Math.max(1, def.hits);
@@ -158,7 +191,7 @@ export function resolveWeaponTpAbility(
     const base = physicalDamage(
       att,
       defStat,
-      fStr(stats.str, mobStats.vit),
+      autoAttackFStr(p, stats, mobStats.vit, "none"),
       false,
     );
     const core = Math.max(1, Math.floor(base * def.ftp));
@@ -179,7 +212,7 @@ export function resolveWeaponTpAbility(
       : "";
   ctx.pushLog(
     p,
-    `${def.label}! ${parts.join("+")}=${total} (${hits} hit${hits > 1 ? "s" : ""}, TP x${tpMul.toFixed(2)} +${totalBonus})${fxNote}`,
+    `${label}! ${parts.join("+")}=${total} (${hits} hit${hits > 1 ? "s" : ""}, TP x${tpMul.toFixed(2)} +${totalBonus})${fxNote}`,
   );
 
   if (mob.hp <= 0) {

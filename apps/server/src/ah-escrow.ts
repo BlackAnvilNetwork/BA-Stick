@@ -47,9 +47,6 @@ export const ASK_FILLED_TOPIC = "0x7f623940623393c52bf22f242ae3b57d9fbb8e603232b
 export const ASK_CANCELLED_TOPIC =
   "0x5ab6d218303bd8dc01c2c5e812dcbbadcfc2eb5b1fb91111e0b0ae87888ac568";
 
-/** @deprecated Prefer settlementConfirmations(env). Kept for tests / callers. */
-export const ASK_FILL_CONFIRMATIONS = 2n;
-
 export type AskFilled = {
   listingId: string;
   buyer: string;
@@ -209,12 +206,6 @@ export function applyAskFilled(
   return { ok: false, kind: "quarantine", error: res.error, reason };
 }
 
-/** @deprecated use applyAskFilled result kinds; kept for older tests that only check ok. */
-export function classifyAskFilledFailure(error: string): "replay" | "quarantine" {
-  if (/already mirrored|already (applied|consumed)/i.test(error)) return "replay";
-  return "quarantine";
-}
-
 export function ahEscrowAddress(env: NodeJS.ProcessEnv = process.env): string | null {
   const addr = env.LOK_AH_ESCROW?.trim();
   return addr && /^0x[0-9a-fA-F]{40}$/.test(addr) ? addr : null;
@@ -287,14 +278,14 @@ export async function scanAskFilled(opts: {
   rpcCall: (method: string, params: unknown[]) => Promise<unknown>;
   apply: (fill: AskFilled, fillKey: string, log: RpcLog) => ApplyAskFilledResult;
   quarantine?: AskFilledQuarantine;
-  /** Blocks behind tip (default ASK_FILL_CONFIRMATIONS / settlementConfirmations). */
+  /** Blocks behind tip (default settlementConfirmations(env)). */
   confirmations?: bigint;
   /** When cursor is 0, begin here (deploy block) instead of genesis. */
   startBlock?: bigint;
   /** Prefer eth_getBlockByNumber("finalized") as safe head (Gnosis). */
   preferFinalized?: boolean;
 }): Promise<{ cursor: bigint }> {
-  const confirmations = opts.confirmations ?? ASK_FILL_CONFIRMATIONS;
+  const confirmations = opts.confirmations ?? settlementConfirmations();
   const head = await settlementSafeHead({
     rpcCall: opts.rpcCall,
     confirmations,

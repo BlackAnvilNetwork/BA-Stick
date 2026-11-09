@@ -161,8 +161,6 @@ import {
 
 } from "./battlemage-kit";
 
-
-
 import {
 
   ABILITY_CATEGORY_TABS,
@@ -194,6 +192,8 @@ import {
   isWeaponTpAbilityId,
   weaponTpAbilityIconUrl,
   weaponTpAbilityTooltip,
+  withFormWeaponSkills,
+  druidFormWsLabel,
   type WeaponTpAbilityId,
 } from "./weapon-tp";
 
@@ -215,24 +215,10 @@ export {
 
 import { SHARED_ABILITY_ICON } from "./shared-icons";
 
-/**
- * Map-builder kit lives on PR #139, not this checkout. Keep the protocol ids
- * and a local predicate so silence / AbilityId checks do not throw.
- */
-export const MAP_BUILDER_ABILITY_IDS = [
-  "map_enter",
-  "map_undo",
-  "map_raise",
-  "map_lower",
-  "map_flat",
-  "map_smooth",
-  "map_biome_grass",
-  "map_biome_meadow",
-  "map_biome_mountain",
-  "map_walk",
-  "map_block",
-] as const;
 
+
+/** Map-builder tools. Not a job kit — listed so protocol/silence can name them. */
+export const MAP_BUILDER_ABILITY_IDS = ["map_raise"] as const;
 export type MapBuilderAbilityId = (typeof MAP_BUILDER_ABILITY_IDS)[number];
 
 export function isMapBuilderAbilityId(id: string): id is MapBuilderAbilityId {
@@ -262,15 +248,12 @@ export const ALL_ABILITY_IDS = Array.from(
     ...DRUID_ABILITY_IDS,
 
     ...WEAPON_TP_ABILITY_IDS,
-
     ...MAP_BUILDER_ABILITY_IDS,
 
 
   ]),
 
 ) as [string, ...string[]];
-
-
 
 export type AbilityId =
 
@@ -337,8 +320,8 @@ export { SHARED_ABILITY_ICON, SHARED_SPELL_ICON_CONCEPTS } from "./shared-icons"
 
 
 
-export function abilityIconUrl(id: AbilityId | string): string {
-  if (isWeaponTpAbilityId(id)) return weaponTpAbilityIconUrl(id);
+export function abilityIconUrl(id: AbilityId | string, form: number = 0): string {
+  if (isWeaponTpAbilityId(id)) return weaponTpAbilityIconUrl(id, form);
   const shared = SHARED_ABILITY_ICON[id];
 
   if (shared) return shared;
@@ -373,7 +356,9 @@ export function abilityIconUrl(id: AbilityId | string): string {
 
 
 
-export function abilityLabel(id: AbilityId): string {
+export function abilityLabel(id: AbilityId, form: number = 0): string {
+  const skinned = druidFormWsLabel(id, form);
+  if (skinned) return skinned;
   if (isWeaponTpAbilityId(id)) return WEAPON_TP_ABILITIES[id].label;
 
   if (isTimAbilityId(id)) return TIM_ABILITIES[id].label;
@@ -417,8 +402,8 @@ export function abilityGlyph(id: AbilityId): string {
 
 
 
-export function abilityTooltip(id: AbilityId): AbilityTooltip | string {
-  if (isWeaponTpAbilityId(id)) return weaponTpAbilityTooltip(id);
+export function abilityTooltip(id: AbilityId, form: number = 0): AbilityTooltip | string {
+  if (isWeaponTpAbilityId(id)) return weaponTpAbilityTooltip(id, form);
 
   if (isTimAbilityId(id)) return timAbilityTooltip(id);
 
@@ -819,6 +804,11 @@ export function abilityUnlockLevel(id: AbilityId): number {
   if (isBattleMageAbilityId(id)) return BATTLEMAGE_ABILITIES[id].unlockLevel;
   if (isDruidAbilityId(id)) return DRUID_ABILITIES[id].unlockLevel;
   return 1;
+}
+
+/** True when an area's effective level is below this weapon skill's unlock. */
+export function weaponSkillSealedByLevel(id: AbilityId, effectiveLevel: number): boolean {
+  return isWeaponTpAbilityId(id) && abilityUnlockLevel(id) > effectiveLevel;
 }
 
 /** All ability ids belonging to a job kit (excludes weapon skills). */

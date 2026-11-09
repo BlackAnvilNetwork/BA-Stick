@@ -22,6 +22,11 @@ function itemName(tokenId: number): string {
   return getItem(tokenId)?.name ?? "Item " + tokenId;
 }
 
+/** Harvest nodes credit the bag, not the AH book. */
+function isHarvestMat(tokenId: number): boolean {
+  return /^Harvest\b/i.test(getItem(tokenId)?.obtainedFrom ?? "");
+}
+
 function cellsOf(inventory: InventorySlot[], logItems: LokItemBalance[]): Cell[] {
   const cells: Cell[] = [];
   const seenLog = new Set<number>();
@@ -166,6 +171,9 @@ export function ProvisionerBag({ inventory, logItems, inbox, others }: Props) {
                     onChange={(e) => setMinPrice(e.target.value)}
                   />
                   {listFeeNote && <p className="lok-note">{listFeeNote}</p>}
+                  {isHarvestMat(cell.tokenId) ? (
+                    <p className="lok-note">Harvest stays in the bag. It is not listed on the auction house.</p>
+                  ) : (
                   <button
                     type="button"
                     className="cmd-pill-tab"
@@ -188,6 +196,7 @@ export function ProvisionerBag({ inventory, logItems, inbox, others }: Props) {
                   >
                     List on Market
                   </button>
+                  )}
                   <button
                     type="button"
                     className="cmd-pill-tab"

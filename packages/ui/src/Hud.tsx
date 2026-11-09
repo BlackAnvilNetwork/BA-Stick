@@ -2,6 +2,7 @@ import { FigurePreview } from "./FigurePreview";
 import {
   JOBS,
   JOB_IDS,
+  mintableStartingJobs,
   SUBJOB_UNLOCK_LEVEL,
   abilityCategory,
   abilityIconUrl,
@@ -9,6 +10,7 @@ import {
   abilityMp,
   resolveAbilityTargetId,
   isHostileTabUnit,
+  TAB_HOSTILE_RANGE,
   enemyTargetLabel,
   abilityRecastMs,
   abilityTooltip,
@@ -19,15 +21,20 @@ import {
   isJobId,
   type DruidForm,
   isTimAbilityId,
+  xpToNextLevel,
+  withFormWeaponSkills,
   type AbilityId as CombatAbilityId,
   type JobId,
 } from "@bellgrave/combat";
+import { isStoredLocalBurnerWallet } from "@bellgrave/client-core/burner-identity";
 import { clearPendingMint, mintCharacterWithWallet } from "@bellgrave/client-core/character-mint";
-import { ITEM, normalizeCharacterName, characterNameKey, explorerTxUrl } from "@bellgrave/config";
-import { getItem } from "@bellgrave/items";
-import type { AbilityId, UnitSnapshot } from "@bellgrave/protocol";
-import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent } from "react";
+import { readPendingMint } from "@bellgrave/client-core/pending-mint";
+import { DASH_COOLDOWN_MS, normalizeCharacterName, characterNameKey, explorerTxUrl } from "@bellgrave/config";
+import { getItem, ITEM } from "@bellgrave/items";
+import { CHAT_MAX_LEN, parseChatCommand, type AbilityId, type UnitSnapshot } from "@bellgrave/protocol";
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { AbilityIcon } from "./AbilityIcon";
+import { applyChromeDockStyle, chromeDockStyle, readChromeViewport } from "./hudChrome";
 import { chromaKeyIconUrl } from "./chroma-icons";
 import { CraftingPanel } from "./CraftingPanel";
 import { ExplorerPanel } from "./ExplorerPanel";
@@ -46,20 +53,27 @@ import {
   UI_CAM_OPTIONS,
   UI_VIEW_OPTIONS,
   UI_SETTINGS_EVENT,
+  VISTA_PRESETS,
+  VISTA_SUBCOPY,
+  PHONE_HAZE_COPY,
+  applyUiSettings,
   layoutUsesArcadeControls,
   loadUiSettings,
+  matchVistaPreset,
   persistAndApplyUiSettings,
+  pointerIsCoarse,
   type UiColorId,
   type UiFontId,
   type UiLayoutId,
   type UiSettings,
 } from "./uiSettings";
-import { MobileArcadeControls } from "./MobileArcadeControls";
+import { ARCADE_FACE_COUNT, MobileArcadeControls } from "./MobileArcadeControls";
 import { AshPitPanel, AshPitSlainBanner } from "./AshPitPanel";
 import { clearVirtualStick } from "./moveInput";
 import {
   HOTBAR_DRAG_MIME,
   HOTBAR_ROW_LEN,
+  HOTBAR_ROWS,
   HOTBAR_SLOT_COUNT,
   HOTBAR_SLOT_MIME,
   assignHotbarSlot,
@@ -71,22 +85,97 @@ import {
 } from "./hotbar";
 import { useAppKit, useAppKitAccount, useAppKitState } from "@reown/appkit/react";
 import { appKitConfigured } from "@bellgrave/client-core/appkit-config";
+import { hasPersistedAuthForWallet } from "@bellgrave/client-core/auth-session";
 import {
   checkCharacterNameAvailable,
+  isAuthInFlight,
   isServerAuthed,
+  kickLeftoverBurnerToAuth,
   loginWithWalletConnect,
   characterEnterMessage,
   logoutToMenu,
+  needsHelloAfterLogout,
   send,
   walletConnectLoginAvailable,
 } from "@bellgrave/client-core/net";
 import { enterZoneMusic } from "./zoneMusic";
 import { MENU_MUSIC } from "@bellgrave/config";
 import { useGame } from "@bellgrave/client-core/state";
+import {
+  appKitModalView,
+  applyStayOpenToggle,
+  createSubmitLabel,
+  hideBootScreen,
+  playEscapeLayer,
+  shouldAcceptWalletConnectClick,
+  shouldAutoLoginAppKit,
+  shouldDisableWalletControl,
+  shouldForceWalletLogin,
+  shouldHelloOnConnectedWalletChip,
+  shouldHideWalletControlWhileModal,
+  shouldKickLeftoverBurnerToAuth,
+  shouldResetPlayOverlays,
+  shouldRunCreateMint,
+  shouldSendMintWallet,
+  shouldSkipCreateNameCheck,
+  walletControlLabel,
+} from "./hud-leftovers";
 // NpcInteractMenu mounts world-anchored under the NPC in WorldScene.
+
+const OOC_MAP_MS = 20_000;
+const CHAT_IDLE_MS = 20_000;
+const TP_MAX = 3000;
+
+function toggleStickMapFull() {
+  const btn = document.querySelector(".stick-map-full") as HTMLElement | null;
+  if (!btn) return;
+  btn.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, cancelable: true }));
+}
+
+function persistUiPatch(patch: Partial<UiSettings>): UiSettings {
+  const next = { ...loadUiSettings(), ...patch };
+  persistAndApplyUiSettings(next);
+  return next;
+}
 
 const HOTBAR_KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"] as const;
 const HOTBAR_SHIFT_KEYS = ["S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8", "S9", "S0"] as const;
+const HOTBAR_ALT_KEYS = ["A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A9", "A0"] as const;
+
+/** Framed hotbar art is 1024×533. Wells are inner pixels: slots 1–10, Rest, Potion. */
+const HUD_FRAME = { w: 1024, h: 533 } as const;
+const HUD_WELLS: readonly (readonly [number, number, number, number])[] = [
+  [144, 422, 195, 476],
+  [206, 422, 257, 476],
+  [268, 422, 319, 476],
+  [329, 422, 381, 476],
+  [391, 422, 444, 476],
+  [453, 422, 506, 476],
+  [515, 422, 568, 476],
+  [578, 422, 628, 476],
+  [639, 422, 690, 476],
+  [699, 422, 748, 476],
+  [761, 422, 811, 476],
+  [823, 422, 875, 476],
+];
+/** Menu medallion, just right of Potion on the 1024×533 plate. */
+const HUD_MENU_WELL = [890, 422, 942, 476] as const;
+const MENU_HOLD_MS = 480;
+
+function hudWellStyle(index: number): {
+  left: string;
+  top: string;
+  width: string;
+  height: string;
+} {
+  const [x0, y0, x1, y1] = HUD_WELLS[index]!;
+  return {
+    left: `${(x0 / HUD_FRAME.w) * 100}%`,
+    top: `${(y0 / HUD_FRAME.h) * 100}%`,
+    width: `${((x1 - x0) / HUD_FRAME.w) * 100}%`,
+    height: `${((y1 - y0) / HUD_FRAME.h) * 100}%`,
+  };
+}
 
 /** Live slots for keybinds (updated by Hud). */
 let liveHotbarSlots: HotbarSlots = Array.from({ length: HOTBAR_SLOT_COUNT }, () => null);
@@ -116,12 +205,12 @@ function abilityTargetId(id: AbilityId, selected: string | null): string | undef
   return resolveAbilityTargetId(id, selected, wallet, combatTargetId, snap.units);
 }
 
-function hudAbilityTip(id: CombatAbilityId): { title: string; body: string; meta: string } {
-  const raw = abilityTooltip(id);
+function hudAbilityTip(id: CombatAbilityId, form: DruidForm = 0): { title: string; body: string; meta: string } {
+  const raw = abilityTooltip(id, form);
   if (typeof raw === "object" && raw !== null && "title" in raw) {
     return raw;
   }
-  const label = abilityLabel(id);
+  const label = abilityLabel(id, form);
   const metaBits: string[] = [];
   const mp = abilityMp(id);
   const recast = abilityRecastMs(id);
@@ -211,6 +300,16 @@ function abilityBuffActive(id: CombatAbilityId, me: UnitSnapshot, now: number): 
   ) {
     return b.hasteUntil > now;
   }
+  if (id === "dr_ringwake") return b.druidRingwakeUntil > now;
+  if (id === "dr_ash_brace" || id === "dr_ash_brace_ii") return b.druidAshBraceUntil > now;
+  if (id === "dr_bundle_thicken" || id === "dr_kiln_shoulder") return b.druidBundleThickenUntil > now;
+  if (id === "dr_bracken_root") return b.druidBrackenRootUntil > now;
+  if (id === "dr_mere_veil" || id === "dr_mere_veil_ii") return b.druidMereVeilUntil > now;
+  if (id === "dr_mane_dust" || id === "dr_mane_dust_ii" || id === "dr_mane_fury") return b.druidManeDustUntil > now;
+  if (id === "dr_ember_tail" || id === "dr_long_run" || id === "dr_ember_run") return b.druidEmberTailUntil > now;
+  if (id === "dr_antler_hum" || id === "dr_antler_hum_ii") return b.druidAntlerHumUntil > now;
+  if (id === "dr_chalk_ward" || id === "dr_chalk_ward_ii") return b.druidChalkWardUntil > now;
+  if (id === "dr_ring_split") return b.druidRingSplitUntil > now;
   return false;
 }
 
@@ -290,6 +389,7 @@ function SkillButton({
   draggable = true,
   hotbarIndex,
   onHotbarDrop,
+  appearance = "default",
 }: {
   id: CombatAbilityId;
   keyLabel?: string;
@@ -302,9 +402,12 @@ function SkillButton({
   /** When set, this button is a hotbar slot (drop target + optional rearrange). */
   hotbarIndex?: number;
   onHotbarDrop?: (slotIndex: number, abilityId: CombatAbilityId | null, fromSlot: number | null) => void;
+  /** `well` is an icon in the framed bar. `mark` is a clear hit target over baked art (Rest). */
+  appearance?: "default" | "well" | "mark";
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
-  const tip = hudAbilityTip(id);
+  const form = unitDruidForm(me.job, me.buffs);
+  const tip = hudAbilityTip(id, form);
   const until = recasts[id] ?? 0;
   const cdLeftMs = Math.max(0, until - now);
   const onCd = cdLeftMs > 0;
@@ -374,6 +477,8 @@ function SkillButton({
           hasteOn ? "quicken-on" : "",
           onCd ? "on-cd" : "",
           hotbarIndex != null ? "hotbar-slot" : "",
+          appearance === "well" ? "frame-well" : "",
+          appearance === "mark" ? "frame-mark" : "",
         ]
           .filter(Boolean)
           .join(" ")}
@@ -395,9 +500,9 @@ function SkillButton({
         onDragOver={onDragOver}
         onDrop={onDrop}
       >
-        {keyLabel != null && <span className="skill-key">{keyLabel}</span>}
-        <AbilityIcon id={id} />
-        <span className="skill-name">{abilityLabel(id)}</span>
+        {appearance === "default" && keyLabel != null && <span className="skill-key">{keyLabel}</span>}
+        {appearance !== "mark" && <AbilityIcon id={id} form={form} />}
+        {appearance === "default" && <span className="skill-name">{abilityLabel(id, form)}</span>}
         {onCd && (
           <span className="skill-cd" style={{ ["--cd" as string]: String(cdPct) }} aria-label={`${cdSec}s cooldown`}>
             <span className="skill-cd-veil" />
@@ -421,20 +526,20 @@ function SkillButton({
 }
 
 /** Build a floating skill-slot element used as the HTML5 drag image. */
-function makeSkillDragGhost(id: CombatAbilityId): HTMLElement {
+function makeSkillDragGhost(id: CombatAbilityId, form: DruidForm = 0): HTMLElement {
   const ghost = document.createElement("div");
   ghost.className = "skill-slot skill-drag-ghost";
   const img = document.createElement("img");
   img.className = "skill-icon";
-  img.src = abilityIconUrl(id);
+  img.src = abilityIconUrl(id, form);
   img.alt = "";
   img.draggable = false;
-  void chromaKeyIconUrl(abilityIconUrl(id)).then((url) => {
+  void chromaKeyIconUrl(abilityIconUrl(id, form)).then((url) => {
     img.src = url;
   });
   const name = document.createElement("span");
   name.className = "skill-name";
-  name.textContent = abilityLabel(id);
+  name.textContent = abilityLabel(id, form);
   ghost.appendChild(img);
   ghost.appendChild(name);
   ghost.style.position = "absolute";
@@ -458,7 +563,8 @@ function SpellbookRow({
   recasts: Partial<Record<AbilityId, number>>;
   me: UnitSnapshot;
 }) {
-  const tip = hudAbilityTip(id);
+  const form = unitDruidForm(me.job, me.buffs);
+  const tip = hudAbilityTip(id, form);
   const until = recasts[id] ?? 0;
   const cdLeftMs = Math.max(0, until - now);
   const onCd = cdLeftMs > 0;
@@ -478,7 +584,7 @@ function SpellbookRow({
     }
     e.dataTransfer.setData(HOTBAR_DRAG_MIME, id);
     e.dataTransfer.effectAllowed = "copy";
-    const ghost = makeSkillDragGhost(id);
+    const ghost = makeSkillDragGhost(id, form);
     ghostRef.current = ghost;
     e.dataTransfer.setDragImage(ghost, 34, 34);
   };
@@ -508,10 +614,10 @@ function SpellbookRow({
       onDragEnd={onDragEnd}
     >
       <span className="spellbook-row-glyph">
-        <AbilityIcon id={id} />
+        <AbilityIcon id={id} form={form} />
       </span>
       <span className="spellbook-row-main">
-        <span className="spellbook-row-name">{abilityLabel(id)}</span>
+        <span className="spellbook-row-name">{abilityLabel(id, form)}</span>
         <span className="spellbook-row-blurb">{tip.body}</span>
       </span>
       <span className="spellbook-row-meta">
@@ -526,10 +632,13 @@ function EmptyHotbarSlot({
   keyLabel,
   slotIndex,
   onHotbarDrop,
+  appearance = "default",
 }: {
   keyLabel: string;
   slotIndex: number;
   onHotbarDrop: (slotIndex: number, abilityId: CombatAbilityId | null, fromSlot: number | null) => void;
+  /** `well` leaves the baked numeral visible. */
+  appearance?: "default" | "well";
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const dismissTip = () => {
@@ -550,7 +659,7 @@ function EmptyHotbarSlot({
     >
       <button
         type="button"
-        className="skill-slot hotbar-slot empty"
+        className={`skill-slot hotbar-slot empty${appearance === "well" ? " frame-well" : ""}`}
         aria-label={`Empty hotbar slot ${keyLabel}. Drop an ability here.`}
         onClick={dismissTip}
         onDragOver={(e) => {
@@ -572,8 +681,12 @@ function EmptyHotbarSlot({
           dismissTip();
         }}
       >
-        <span className="skill-key">{keyLabel}</span>
-        <span className="skill-glyph empty-glyph">·</span>
+        {appearance === "default" && (
+          <>
+            <span className="skill-key">{keyLabel}</span>
+            <span className="skill-glyph empty-glyph">·</span>
+          </>
+        )}
       </button>
       <div className="skill-tip" role="tooltip">
         <div className="skill-tip-title">Empty slot</div>
@@ -587,9 +700,8 @@ function EmptyHotbarSlot({
 export function Hud() {
   const snapshot = useGame((s) => s.snapshot);
   const logs = useGame((s) => s.logs);
-  const connected = useGame((s) => s.connected);
+  const chats = useGame((s) => s.chats);
   const phase = useGame((s) => s.phase);
-  const storedLight = useGame((s) => s.light);
   const wallet = useGame((s) => s.wallet);
   const selectedTarget = useGame((s) => s.selectedTarget);
   const npcDialog = useGame((s) => s.npcDialog);
@@ -600,6 +712,7 @@ export function Hud() {
     if (!w || !snap) return null;
     return snap.units.find((u) => u.id.toLowerCase() === w.toLowerCase() && u.kind === "player") ?? null;
   });
+  const dashLastAt = useGame((s) => s.dashLastAt);
   const [bagOpen, setBagOpen] = useState(false);
   const [craftOpen, setCraftOpen] = useState(false);
   const [lokOpen, setLokOpen] = useState(false);
@@ -625,12 +738,156 @@ export function Hud() {
     Array.from({ length: HOTBAR_SLOT_COUNT }, () => null),
   );
   const logEnd = useRef<HTMLDivElement>(null);
+  const chatEnd = useRef<HTMLDivElement>(null);
+  const chatInput = useRef<HTMLInputElement>(null);
+  const [chatDraft, setChatDraft] = useState("");
+  const chatDraftRef = useRef(chatDraft);
+  chatDraftRef.current = chatDraft;
+  const [leftPane, setLeftPane] = useState<"log" | "map">(() =>
+    loadUiSettings().minimap ? "map" : "log",
+  );
+  const [chatExpanded, setChatExpanded] = useState(false);
+  const [arcadePage, setArcadePage] = useState(0);
+  const leftPaneIntent = useRef<"auto" | "log" | "map">("auto");
+  const lastMinimapSetting = useRef(loadUiSettings().minimap);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuLocked, setMenuLocked] = useState(false);
+
+  useEffect(() => {
+    if (!shouldResetPlayOverlays(phase)) return;
+    setBagOpen(false);
+    setCraftOpen(false);
+    setLokOpen(false);
+    setBookOpen(false);
+    setTreeOpen(false);
+    setSettingsOpen(false);
+    setPartyOpen(false);
+    setExplorerOpen(false);
+    setQuestOpen(false);
+    setAshPitOpen(false);
+    setMenuOpen(false);
+    setMenuLocked(false);
+  }, [phase]);
+  useEffect(() => {
+    const d = document.documentElement.dataset;
+    d.uiBag = bagOpen ? "1" : "";
+    d.uiCraft = craftOpen ? "1" : "";
+    d.uiNpc = npcDialog ? "1" : "";
+  }, [bagOpen, craftOpen, npcDialog]);
+  const menuHoldTimer = useRef<number | null>(null);
+  const menuHoldFired = useRef(false);
+  const lastCombatAt = useRef(Date.now());
+  const inCombatRef = useRef(false);
+
+  const clearMenuHold = useCallback(() => {
+    if (menuHoldTimer.current == null) return;
+    window.clearTimeout(menuHoldTimer.current);
+    menuHoldTimer.current = null;
+  }, []);
+
+  const onMenuPointerDown = useCallback((e: ReactPointerEvent<HTMLButtonElement>) => {
+    if (e.button !== 0) return;
+    menuHoldFired.current = false;
+    clearMenuHold();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    menuHoldTimer.current = window.setTimeout(() => {
+      menuHoldFired.current = true;
+      setMenuLocked((v) => {
+        const next = !v;
+        if (next) setMenuOpen(false);
+        return next;
+      });
+      menuHoldTimer.current = null;
+    }, MENU_HOLD_MS);
+  }, [clearMenuHold]);
+
+  const onMenuPointerUp = useCallback(() => {
+    clearMenuHold();
+  }, [clearMenuHold]);
+
+  const onMenuClick = useCallback(() => {
+    const held = menuHoldFired.current;
+    menuHoldFired.current = false;
+    if (held || menuLocked) return;
+    setMenuOpen((v) => !v);
+  }, [menuLocked]);
+
+  useEffect(() => () => clearMenuHold(), [clearMenuHold]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const place = () => {
+      const chrome = document.querySelector(".hud-chrome") as HTMLElement | null;
+      const btn = document.querySelector(".hud-menu-btn") as HTMLElement | null;
+      if (!chrome || !btn) return;
+      applyChromeDockStyle(chrome, chromeDockStyle(btn.getBoundingClientRect(), readChromeViewport(window)));
+    };
+    place();
+    window.addEventListener("resize", place);
+    window.addEventListener("orientationchange", place);
+    const vv = window.visualViewport;
+    vv?.addEventListener("resize", place);
+    vv?.addEventListener("scroll", place);
+    return () => {
+      window.removeEventListener("resize", place);
+      window.removeEventListener("orientationchange", place);
+      vv?.removeEventListener("resize", place);
+      vv?.removeEventListener("scroll", place);
+    };
+  }, [menuOpen]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDown = (e: PointerEvent) => {
+      const t = e.target as Node | null;
+      if (!t) return;
+      if ((e.target as HTMLElement | null)?.closest(".hud-menu-dock, .hud-menu-btn")) return;
+      setMenuOpen(false);
+    };
+    window.addEventListener("pointerdown", onDown, true);
+    return () => {
+      window.removeEventListener("pointerdown", onDown, true);
+    };
+  }, [menuOpen]);
+
+  useEffect(() => {
+    const onMinimap = () => {
+      const next = loadUiSettings().minimap;
+      if (next === lastMinimapSetting.current) return;
+      lastMinimapSetting.current = next;
+      if (inCombatRef.current) return;
+      leftPaneIntent.current = "auto";
+      setLeftPane(next ? "map" : "log");
+    };
+    window.addEventListener(UI_SETTINGS_EVENT, onMinimap);
+    return () => window.removeEventListener(UI_SETTINGS_EVENT, onMinimap);
+  }, []);
+
+  const craftStayOpen = useRef(false);
+  const lokStayOpen = useRef(false);
 
   useEffect(() => {
     const onToggle = () => setBagOpen((v) => !v);
     const onBook = () => setBookOpen((v) => !v);
-    const onCraft = () => setCraftOpen((v) => !v);
-    const onLok = () => setLokOpen((v) => !v);
+    const onCraft = () => {
+      const near = useGame.getState().snapshot?.you.nearCrafter;
+      setCraftOpen((open) => {
+        if (!open && !near) {
+          useGame.getState().pushLog("You must be near Brann Coldiron in the Eightfold to craft.");
+          return false;
+        }
+        const r = applyStayOpenToggle(open, craftStayOpen.current);
+        craftStayOpen.current = r.stayOpen;
+        return r.open;
+      });
+    };
+    const onLok = () => {
+      setLokOpen((open) => {
+        const r = applyStayOpenToggle(open, lokStayOpen.current);
+        lokStayOpen.current = r.stayOpen;
+        return r.open;
+      });
+    };
     const onQuest = () => setQuestOpen((v) => !v);
     window.addEventListener("bellgrave:toggle-bag", onToggle);
     window.addEventListener("bellgrave:toggle-spellbook", onBook);
@@ -647,16 +904,50 @@ export function Hud() {
   }, []);
 
   useEffect(() => {
-    if (npcDialog?.craftOpen) setCraftOpen(true);
+    if (npcDialog?.craftOpen) {
+      setCraftOpen(true);
+      craftStayOpen.current = true;
+    }
   }, [npcDialog?.craftOpen, npcDialog?.npcId]);
 
   useEffect(() => {
-    if (npcDialog?.lokOpen) setLokOpen(true);
+    if (craftOpen && snapshot?.you.nearCrafter === false) {
+      setCraftOpen(false);
+      craftStayOpen.current = false;
+    }
+  }, [craftOpen, snapshot?.you.nearCrafter]);
+
+  useEffect(() => {
+    if (npcDialog?.lokOpen) {
+      setLokOpen(true);
+      lokStayOpen.current = true;
+    }
   }, [npcDialog?.lokOpen, npcDialog?.npcId]);
 
   useEffect(() => {
     logEnd.current?.scrollIntoView({ behavior: "smooth" });
   }, [logs]);
+
+  useEffect(() => {
+    chatEnd.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chats]);
+
+  useEffect(() => {
+    const onFocus = (e: Event) => {
+      const seed = (e as CustomEvent<{ seed?: string }>).detail?.seed;
+      setChatExpanded(true);
+      if (seed && !chatDraftRef.current.trim()) setChatDraft(seed);
+      requestAnimationFrame(() => chatInput.current?.focus());
+    };
+    window.addEventListener("bellgrave:focus-chat", onFocus);
+    return () => window.removeEventListener("bellgrave:focus-chat", onFocus);
+  }, []);
+
+  useEffect(() => {
+    if (!chatExpanded || !layoutUsesArcadeControls(uiSettings.layout)) return;
+    const id = window.setTimeout(() => setChatExpanded(false), CHAT_IDLE_MS);
+    return () => window.clearTimeout(id);
+  }, [chatExpanded, chatDraft, uiSettings.layout]);
 
   useEffect(() => {
     if (phase !== "play") return;
@@ -665,28 +956,79 @@ export function Hud() {
   }, [phase]);
 
   useEffect(() => {
-    if (!layoutUsesArcadeControls(uiSettings.layout)) clearVirtualStick();
+    if (!layoutUsesArcadeControls(uiSettings.layout)) {
+      clearVirtualStick();
+      setChatExpanded(false);
+      setArcadePage(0);
+    }
   }, [uiSettings.layout]);
 
   useEffect(() => {
-    if (!settingsOpen) return;
+    if (phase !== "play") return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
+      const layer = playEscapeLayer({
+        settings: settingsOpen,
+        commands: menuOpen,
+        bag: bagOpen,
+        craft: craftOpen,
+        spellbook: bookOpen,
+        party: partyOpen,
+        skills: treeOpen,
+        exchange: lokOpen,
+        quest: questOpen,
+        explorer: explorerOpen,
+        ashPit: ashPitOpen,
+      });
+      if (layer === "npc" || layer === "disengage") return;
       e.preventDefault();
       e.stopPropagation();
-      setSettingsOpen(false);
+      e.stopImmediatePropagation();
+      if (layer === "settings") setSettingsOpen(false);
+      else if (layer === "commands") setMenuOpen(false);
+      else if (layer === "bag") setBagOpen(false);
+      else if (layer === "craft") setCraftOpen(false);
+      else if (layer === "spellbook") setBookOpen(false);
+      else if (layer === "party") setPartyOpen(false);
+      else if (layer === "skills") setTreeOpen(false);
+      else if (layer === "exchange") setLokOpen(false);
+      else if (layer === "quest") setQuestOpen(false);
+      else if (layer === "explorer") setExplorerOpen(false);
+      else if (layer === "ashPit") setAshPitOpen(false);
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [settingsOpen]);
+  }, [
+    phase,
+    settingsOpen,
+    menuOpen,
+    bagOpen,
+    craftOpen,
+    bookOpen,
+    partyOpen,
+    treeOpen,
+    lokOpen,
+    questOpen,
+    explorerOpen,
+    ashPitOpen,
+  ]);
 
   // Re-sync from localStorage when entering play / when another tab changes settings.
   // Keeps Mobile sticks visible after remounts and across refresh.
   useEffect(() => {
     if (phase !== "play") return;
-    setUiSettings(loadUiSettings());
+    const cur = loadUiSettings();
+    applyUiSettings(cur);
+    setUiSettings(cur);
+    leftPaneIntent.current = "auto";
+    setLeftPane(cur.minimap ? "map" : "log");
     const onStorage = (e: StorageEvent) => {
-      if (e.key === UI_SETTINGS_KEY || e.key === null) setUiSettings(loadUiSettings());
+      if (e.key === UI_SETTINGS_KEY || e.key === null) {
+        const next = loadUiSettings();
+        applyUiSettings(next);
+        setUiSettings(next);
+        setLeftPane(next.minimap ? "map" : "log");
+      }
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
@@ -696,8 +1038,15 @@ export function Hud() {
     if (!snapshot || !dualHasSpellbook(snapshot.you.job, snapshot.you.subjob)) {
       return [] as CombatAbilityId[];
     }
-    return (snapshot.you.unlocked as CombatAbilityId[]).filter((id) => isAbilityId(id));
-  }, [snapshot]);
+    const ids = (snapshot.you.unlocked as CombatAbilityId[]).filter((id) => isAbilityId(id));
+    const form = me && snapshot.you.job === "druid" ? unitDruidForm(snapshot.you.job, me.buffs) : 0;
+    return withFormWeaponSkills(ids, {
+      job: snapshot.you.job,
+      form,
+      equipMain: snapshot.you.equip.main,
+      level: snapshot.you.level,
+    });
+  }, [snapshot, me]);
 
   // Load / refresh custom hotbar when wallet, job, subjob, or unlock set changes.
   // Do NOT depend on full `snapshot` — it changes every WS tick and would thrash setState.
@@ -717,10 +1066,13 @@ export function Hud() {
     }
     const snap = useGame.getState().snapshot;
     if (!snap) return;
-    const unlocked = snap.you.unlocked as CombatAbilityId[];
     const sub = snap.you.subjob && isJobId(snap.you.subjob) ? snap.you.subjob : null;
     const self = snap.units.find((u) => u.id.toLowerCase() === (wallet ?? "").toLowerCase() && u.kind === "player");
     const form = unitDruidForm(snap.you.job, self?.buffs);
+    const unlocked = withFormWeaponSkills(
+      (snap.you.unlocked as CombatAbilityId[]).filter((id) => isAbilityId(id)),
+      { job: snap.you.job, form, equipMain: snap.you.equip.main, level: snap.you.level },
+    );
     const next = loadHotbar(wallet, snap.you.job, unlocked, sub, form);
     setHotbarSlots((prev) => {
       if (prev.length === next.length && prev.every((v, i) => v === next[i])) return prev;
@@ -760,7 +1112,8 @@ export function Hud() {
   };
 
   const hotbarRow1 = hotbarSlots.slice(0, HOTBAR_ROW_LEN);
-  const hotbarRow2 = hotbarSlots.slice(HOTBAR_ROW_LEN, HOTBAR_SLOT_COUNT);
+  const hotbarRow2 = hotbarSlots.slice(HOTBAR_ROW_LEN, HOTBAR_ROW_LEN * 2);
+  const hotbarRow3 = hotbarSlots.slice(HOTBAR_ROW_LEN * 2, HOTBAR_SLOT_COUNT);
   const restUnlocked = (snapshot?.you.unlocked ?? []).includes("rest");
 
   const bookByCategory = useMemo(() => {
@@ -798,102 +1151,140 @@ export function Hud() {
     return u;
   }, [snapshot, selectedTarget, wallet]);
 
+  const focusAlly = useMemo(() => {
+    if (!snapshot || !selectedTarget || !wallet || focusEnemy) return null;
+    const u = snapshot.units.find((x) => x.id === selectedTarget);
+    if (!u || u.kind !== "player") return null;
+    return u;
+  }, [snapshot, selectedTarget, wallet, focusEnemy]);
+
+  const inCombat = Boolean(
+    me?.targetId ||
+      (wallet &&
+        me &&
+        snapshot?.units.some((u) => {
+          if (!isHostileTabUnit(u, wallet) || !u.targetId) return false;
+          if (u.targetId.toLowerCase() !== wallet.toLowerCase()) return false;
+          const dx = u.x - me.x;
+          const dz = u.z - me.z;
+          return dx * dx + dz * dz <= TAB_HOSTILE_RANGE * TAB_HOSTILE_RANGE;
+        })),
+  );
+  inCombatRef.current = inCombat;
+  useEffect(() => {
+    if (inCombat) {
+      lastCombatAt.current = Date.now();
+      setLeftPane("log");
+      setChatExpanded(false);
+      const full = document.querySelector(".stick-map-full[data-full='1']");
+      if (full) toggleStickMapFull();
+    }
+  }, [inCombat]);
+
+  useEffect(() => {
+    if (inCombat) return;
+    const id = window.setTimeout(() => {
+      if (leftPaneIntent.current === "log") {
+        setLeftPane("log");
+        return;
+      }
+      if (leftPaneIntent.current === "map") {
+        setLeftPane("map");
+        return;
+      }
+      setLeftPane(loadUiSettings().minimap ? "map" : "log");
+    }, OOC_MAP_MS);
+    return () => window.clearTimeout(id);
+  }, [inCombat]);
+
   if (phase !== "play" || !snapshot || !me) return null;
   const you = snapshot.you;
+  const xpNeed = xpToNextLevel(you.level);
+  const xpHave = Math.max(0, you.xp);
+  const meters = (
+    <div className="hud-meter-stack">
+      <HudMeter kind="tp" label="TP" value={me.tp} max={TP_MAX} />
+      <HudMeter kind="xp" label="XP" value={xpHave} max={xpNeed} />
+    </div>
+  );
+  const menuButton = (
+    <button
+      type="button"
+      className={`hud-menu-btn${menuOpen ? " open" : ""}${menuLocked ? " locked" : ""}`}
+      style={{
+        left: `${(HUD_MENU_WELL[0] / HUD_FRAME.w) * 100}%`,
+        top: `${(HUD_MENU_WELL[1] / HUD_FRAME.h) * 100}%`,
+        width: `${((HUD_MENU_WELL[2] - HUD_MENU_WELL[0]) / HUD_FRAME.w) * 100}%`,
+        height: `${((HUD_MENU_WELL[3] - HUD_MENU_WELL[1]) / HUD_FRAME.h) * 100}%`,
+      }}
+      aria-label={
+        menuLocked
+          ? "Commands menu locked. Hold to unlock."
+          : menuOpen
+            ? "Close commands menu. Hold to lock closed."
+            : "Commands menu. Hold to lock closed."
+      }
+      aria-expanded={menuOpen}
+      aria-pressed={menuLocked}
+      onPointerDown={onMenuPointerDown}
+      onPointerUp={onMenuPointerUp}
+      onPointerCancel={clearMenuHold}
+      onClick={onMenuClick}
+    >
+      <span className="hud-menu-bars" aria-hidden="true">
+        <i />
+        <i />
+        <i />
+      </span>
+    </button>
+  );
   const potions = you.inventory.reduce((n, i) => n + (i.tokenId === ITEM.POTION ? i.amount : 0), 0);
-  const shortWallet = wallet ? `${wallet.slice(0, 6)}…${wallet.slice(-4)}` : "";
-  const hpPct = (me.hp / me.maxHp) * 100;
-  const mpPct = me.maxMp ? (me.mp / me.maxMp) * 100 : 0;
-  const tpPct = Math.min(100, (me.tp / 3000) * 100);
   const recasts = you.recasts ?? {};
-  const form = unitDruidForm(you.job, me?.buffs);
-  const jobName =
-    you.job === "druid"
-      ? `${JOBS[you.job]?.name ?? you.job} · ${DRUID_FORM_LABEL[form]}`
-      : (JOBS[you.job]?.name ?? you.job);
-  const subName =
-    you.subjob && you.subLevel > 0
-      ? ` / ${JOBS[you.subjob]?.name ?? you.subjob} L${you.subLevel}`
-      : "";
-
-  const posX = me.x.toFixed(1);
-  const posY = me.y.toFixed(1);
-  const posZ = me.z.toFixed(1);
 
   const mobileLayout = layoutUsesArcadeControls(uiSettings.layout);
+  const arcadeFaces = hotbarSlots.slice(
+    arcadePage * HOTBAR_ROW_LEN,
+    arcadePage * HOTBAR_ROW_LEN + ARCADE_FACE_COUNT,
+  );
+  const mobileDock = mobileLayout ? (chatExpanded ? "chat" : leftPane === "log" ? "log" : "map") : undefined;
+  const lastChat = chats.length > 0 ? chats[chats.length - 1] : null;
+  const chatChipText = lastChat
+    ? `${lastChat.channel === "party" ? "[Party] " : ""}${lastChat.fromName}: ${lastChat.text}`
+    : "Say…";
+  const hazeUi = !pointerIsCoarse();
+  const vistaId = matchVistaPreset(uiSettings);
 
+  const focusUnit = focusEnemy ?? focusAlly;
   const focusHpPct =
-    focusEnemy && focusEnemy.maxHp > 0
-      ? Math.max(0, Math.min(100, (focusEnemy.hp / focusEnemy.maxHp) * 100))
+    focusUnit && focusUnit.maxHp > 0
+      ? Math.max(0, Math.min(100, (focusUnit.hp / focusUnit.maxHp) * 100))
       : 0;
 
   return (
     <div
       className={`hud-root${mobileLayout ? " hud-layout-mobile" : ""}`}
       data-ui-layout={uiSettings.layout}
+      data-mobile-dock={mobileDock}
     >
-      {focusEnemy && (
-        <div className="target-focus-plate" role="status" aria-live="polite">
-          <div className="target-focus-name">{enemyTargetLabel(focusEnemy)}</div>
+      {focusUnit && (
+        <div
+          className={`target-focus-plate${focusAlly && !focusEnemy ? " ally" : ""}`}
+          role="status"
+          aria-live="polite"
+        >
+          <div className="target-focus-name">
+            {focusEnemy ? enemyTargetLabel(focusEnemy) : focusUnit.name}
+          </div>
           <div className="target-focus-bar">
             <i style={{ width: `${focusHpPct}%` }} />
           </div>
           <div className="target-focus-num">
-            {focusEnemy.hp}/{focusEnemy.maxHp}
+            {focusUnit.hp}/{focusUnit.maxHp}
           </div>
         </div>
       )}
+      {menuOpen && (
       <div className="hud-chrome">
-        <div className="hud-corner-left">
-          <div className="hud-vitals-dock">
-          <div className="hud-identity">
-            {you.name} · Lv.{you.level} · <span className="job">{jobName}{subName}</span>
-            <span className="provisional" data-leader-view={storedLight.leaderView}>
-              {" "}
-              · provisional
-            </span>
-            {storedLight.committed ? (
-              <span className="committed" data-committed-view="committed">
-                {" "}
-                · committed
-              </span>
-            ) : null}
-            {!connected && <span className="offline"> · OFFLINE</span>}
-            <span className="wallet">{shortWallet}</span>
-          </div>
-          <div className="hud-vitals">
-            <div className="vital">
-              <span className="vital-label">HP</span>
-              <div className="vital-bar hp">
-                <i style={{ width: `${hpPct}%` }} />
-              </div>
-              <span className="vital-num">
-                {me.hp}/{me.maxHp}
-              </span>
-            </div>
-            <div className="vital">
-              <span className="vital-label">MP</span>
-              <div className="vital-bar mp">
-                <i style={{ width: `${mpPct}%` }} />
-              </div>
-              <span className="vital-num">
-                {me.mp}/{me.maxMp}
-              </span>
-            </div>
-            <div className="vital">
-              <span className="vital-label">TP</span>
-              <div className="vital-bar tp">
-                <i style={{ width: `${tpPct}%` }} />
-              </div>
-              <span className="vital-num">{me.tp}</span>
-            </div>
-          </div>
-          </div>
-          <div className="hud-pos" aria-label={`World position X ${posX}, Y ${posY}, Z ${posZ}`}>
-            X {posX}&nbsp;&nbsp;Y {posY}&nbsp;&nbsp;Z {posZ}
-          </div>
-        </div>
-
         <div className="hud-menu-dock" role="menu" aria-label="Commands" onKeyDownCapture={(e) => {
           if (e.key === "Tab") {
             e.preventDefault();
@@ -901,7 +1292,15 @@ export function Hud() {
           }
         }}>
           <div className="hud-commands-kicker">Black Anvil</div>
-          <div className="hud-commands-header">Commands</div>
+          <button
+            type="button"
+            className="hud-commands-header"
+            aria-expanded={true}
+            onClick={() => setMenuOpen(false)}
+          >
+            Commands
+            <span className="hud-commands-caret" aria-hidden="true">×</span>
+          </button>
           {dualHasSpellbook(you.job, you.subjob) && (
             <button
               type="button"
@@ -941,7 +1340,7 @@ export function Hud() {
             onFocus={() => setMenuFocus("crafting")}
             onClick={() => {
               setMenuFocus("crafting");
-              setCraftOpen((v) => !v);
+              window.dispatchEvent(new CustomEvent("bellgrave:toggle-craft"));
             }}
           >
             Crafting
@@ -955,10 +1354,24 @@ export function Hud() {
             onFocus={() => setMenuFocus("questlog")}
             onClick={() => {
               setMenuFocus("questlog");
-              setQuestOpen((v) => !v);
+              window.dispatchEvent(new CustomEvent("bellgrave:toggle-questlog"));
             }}
           >
             Quest log
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            tabIndex={-1}
+            className={`hud-cmd-btn${menuFocus === "wiki" ? " selected" : ""}`}
+            onMouseEnter={() => setMenuFocus("wiki")}
+            onFocus={() => setMenuFocus("wiki")}
+            onClick={() => {
+              setMenuFocus("wiki");
+              window.dispatchEvent(new CustomEvent("bellgrave:toggle-wiki"));
+            }}
+          >
+            Wiki
           </button>
           <button
             type="button"
@@ -988,6 +1401,20 @@ export function Hud() {
             }}
           >
             Party
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            tabIndex={-1}
+            className={`hud-cmd-btn${menuFocus === "exchange" ? " selected" : ""}`}
+            onMouseEnter={() => setMenuFocus("exchange")}
+            onFocus={() => setMenuFocus("exchange")}
+            onClick={() => {
+              setMenuFocus("exchange");
+              window.dispatchEvent(new CustomEvent("bellgrave:toggle-lok"));
+            }}
+          >
+            Exchange
           </button>
           <button
             type="button"
@@ -1029,6 +1456,7 @@ export function Hud() {
             onFocus={() => setMenuFocus("settings")}
             onClick={() => {
               setMenuFocus("settings");
+              setMenuOpen(false);
               setSettingsOpen((v) => !v);
             }}
           >
@@ -1053,6 +1481,7 @@ export function Hud() {
           )}
         </div>
       </div>
+      )}
 
       {bagOpen && <EquipPanel you={you} me={me} onClose={() => setBagOpen(false)} />}
       {craftOpen && <CraftingPanel onClose={closeCraftPanel} />}
@@ -1090,7 +1519,7 @@ export function Hud() {
         <div className="settings-panel">
           <div className="settings-panel-head">
             <div>
-              <div className="settings-kicker">Hud appearance</div>
+              <div className="settings-kicker">HUD and world</div>
               <div className="settings-panel-title">Settings</div>
               <div className="settings-panel-sub">Color, font &amp; layout for the HUD</div>
             </div>
@@ -1101,7 +1530,7 @@ export function Hud() {
           <div className="settings-section settings-card">
             <div className="settings-section-label">Layout</div>
             <div className="settings-panel-sub" style={{ marginBottom: 8 }}>
-              Mobile adds arcade sticks and moves hotkeys nearby for touch play.
+              Mobile is a touch overlay: move stick, ability icons, and collapsible map/chat over the full-bleed world.
             </div>
             <div className="cmd-seg" role="listbox" aria-label="UI layout">
               {UI_LAYOUT_OPTIONS.map((opt) => {
@@ -1115,9 +1544,8 @@ export function Hud() {
                     className={active ? "on" : undefined}
                     title={opt.hint}
                     onClick={() => {
-                      const next = { ...uiSettings, layout: opt.id as UiLayoutId };
+                      const next = persistUiPatch({ layout: opt.id as UiLayoutId });
                       setUiSettings(next);
-                      persistAndApplyUiSettings(next);
                     }}
                   >
                     {opt.label}
@@ -1138,9 +1566,8 @@ export function Hud() {
                     aria-selected={uiSettings.view === opt.id}
                     className={`settings-option${uiSettings.view === opt.id ? " active" : ""}`}
                     onClick={() => {
-                      const next = { ...uiSettings, view: opt.id };
+                      const next = persistUiPatch({ view: opt.id });
                       setUiSettings(next);
-                      persistAndApplyUiSettings(next);
                     }}
                   >
                     {opt.label}
@@ -1153,9 +1580,11 @@ export function Hud() {
                   className={`settings-option${uiSettings.minimap ? " active" : ""}`}
                   title="Toggle with M"
                   onClick={() => {
-                    const next = { ...uiSettings, minimap: !uiSettings.minimap };
+                    const next = persistUiPatch({ minimap: !loadUiSettings().minimap });
                     setUiSettings(next);
-                    persistAndApplyUiSettings(next);
+                    lastMinimapSetting.current = next.minimap;
+                    leftPaneIntent.current = "auto";
+                    setLeftPane(next.minimap ? "map" : "log");
                   }}
                 >
                   Minimap (M)
@@ -1176,10 +1605,9 @@ export function Hud() {
                       aria-selected={active}
                       className={active ? "on" : undefined}
                       onClick={() => {
-                        const next = { ...uiSettings, cam: opt.id };
-                        setUiSettings(next);
-                        persistAndApplyUiSettings(next);
-                      }}
+                      const next = persistUiPatch({ cam: opt.id });
+                      setUiSettings(next);
+                    }}
                     >
                       {opt.label}
                     </button>
@@ -1195,14 +1623,74 @@ export function Hud() {
                     aria-selected={uiSettings.pixel === opt.id}
                     className={`settings-option${uiSettings.pixel === opt.id ? " active" : ""}`}
                     onClick={() => {
-                      const next = { ...uiSettings, pixel: opt.id };
+                      const next = persistUiPatch({ pixel: opt.id });
                       setUiSettings(next);
-                      persistAndApplyUiSettings(next);
                     }}
                   >
                     {opt.label}
                   </button>
                 ))}
+              </div>
+              <div className="settings-section-label" style={{ marginTop: 10 }}>World</div>
+              <div className="settings-panel-sub" style={{ marginBottom: 8 }}>
+                {hazeUi ? VISTA_SUBCOPY : PHONE_HAZE_COPY}
+              </div>
+              <label className="settings-slider-row">
+                <span>Draw distance</span>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  value={uiSettings.drawDistance}
+                  aria-label="Draw distance"
+                  onChange={(e) => {
+                    const next = persistUiPatch({ drawDistance: Number(e.target.value) });
+                    setUiSettings(next);
+                  }}
+                />
+              </label>
+              <label className={`settings-slider-row${hazeUi ? "" : " settings-slider-disabled"}`}>
+                <span>Haze</span>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  value={uiSettings.atmosphere}
+                  aria-label="Haze"
+                  disabled={!hazeUi}
+                  onChange={(e) => {
+                    const next = persistUiPatch({ atmosphere: Number(e.target.value) });
+                    setUiSettings(next);
+                  }}
+                />
+              </label>
+              <div className="settings-option-grid vista-preset-row" role="listbox" aria-label="Vista presets">
+                {VISTA_PRESETS.map((opt) => {
+                  const active = vistaId === opt.id;
+                  const dim = !hazeUi && opt.id !== "clear";
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      role="option"
+                      aria-selected={active}
+                      className={`settings-option${active ? " active" : ""}${dim ? " vista-dim" : ""}`}
+                      onClick={() => {
+                        const next = persistUiPatch({ drawDistance: opt.drawDistance, atmosphere: opt.atmosphere });
+                        setUiSettings(next);
+                      }}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
+                {vistaId === "custom" && (
+                  <button type="button" role="option" aria-selected className="settings-option active" disabled>
+                    Custom
+                  </button>
+                )}
               </div>
             </div>
           )}
@@ -1219,9 +1707,8 @@ export function Hud() {
                     aria-selected={active}
                     className={`settings-option${active ? " active" : ""}`}
                     onClick={() => {
-                      const next = { ...uiSettings, color: opt.id as UiColorId };
+                      const next = persistUiPatch({ color: opt.id as UiColorId });
                       setUiSettings(next);
-                      persistAndApplyUiSettings(next);
                     }}
                   >
                     <span className="settings-swatch" style={{ background: opt.swatch }} />
@@ -1246,9 +1733,8 @@ export function Hud() {
                     className={`settings-option${active ? " active" : ""}`}
                     style={{ fontFamily }}
                     onClick={() => {
-                      const next = { ...uiSettings, font: opt.id as UiFontId };
+                      const next = persistUiPatch({ font: opt.id as UiFontId });
                       setUiSettings(next);
-                      persistAndApplyUiSettings(next);
                     }}
                   >
                     {opt.label}
@@ -1284,7 +1770,9 @@ export function Hud() {
               <div>Spellbook</div>
               <div className="spellbook-sub">
                 {bookIds.length} unlocked
-                {you.subjob && you.subLevel > 0
+                {you.job === "druid"
+                  ? ` · ${JOBS[you.job]?.name} · ${DRUID_FORM_LABEL[unitDruidForm(you.job, me?.buffs)]}`
+                  : you.subjob && you.subLevel > 0
                   ? ` · ${JOBS[you.job]?.name} + ${JOBS[you.subjob]?.name} L${you.subLevel}`
                   : ""}{" "}
                 · drag onto hotbar
@@ -1329,7 +1817,7 @@ export function Hud() {
           <div className="spellbook-list mmo-scroll" role="tabpanel">
             {bookIds.length === 0 && (
               <p className="spellbook-empty">
-                No abilities yet — buy from the Trainer (west tent).
+                No abilities yet — buy from the Trainer at the Turning Yard.
               </p>
             )}
             {tabIds.map((id) => (
@@ -1341,52 +1829,238 @@ export function Hud() {
 
       {questOpen && <QuestLogPanel entries={questLogEntries} onClose={closeQuestLog} />}
 
-      <div style={{ flex: 1 }} />
+      <div style={{ flex: 1, pointerEvents: "none" }} />
 
       <div className="hud-bottom">
+        <div className={`hud-log-frame hud-combat-log${leftPane === "map" ? " hud-pane-map" : ""}`}>
+          <div className="hud-log-head">
+            <span className="hud-log-title">{leftPane === "map" ? "Minimap" : "Combat Log"}</span>
+            <div className="hud-pane-toggle" role="tablist" aria-label="Combat log or minimap">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={leftPane === "log"}
+                className={leftPane === "log" ? "active" : ""}
+                onClick={() => {
+                  lastCombatAt.current = Date.now();
+                  leftPaneIntent.current = "log";
+                  setLeftPane("log");
+                  if (mobileLayout) setChatExpanded(false);
+                }}
+              >
+                Log
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={leftPane === "map"}
+                className={leftPane === "map" ? "active" : ""}
+                onClick={() => {
+                  if (mobileLayout && chatExpanded) setChatExpanded(false);
+                  if (mobileLayout && leftPane === "map") {
+                    toggleStickMapFull();
+                    return;
+                  }
+                  leftPaneIntent.current = "map";
+                  setLeftPane("map");
+                  const next = persistUiPatch({ minimap: true });
+                  lastMinimapSetting.current = next.minimap;
+                }}
+              >
+                Map
+              </button>
+            </div>
+          </div>
+          {leftPane === "log" ? (
+            <div className="hud-log-body mmo-scroll">
+              {logs.map((l, i) => (
+                <div key={`${i}-${l.slice(0, 24)}`} className={logClass(l)}>
+                  {l}
+                </div>
+              ))}
+              <div ref={logEnd} />
+            </div>
+          ) : (
+            <div
+              className="hud-minimap-well"
+              aria-hidden={mobileLayout ? undefined : true}
+              aria-label={mobileLayout ? "Expand map" : undefined}
+              role={mobileLayout ? "button" : undefined}
+              onClick={
+                mobileLayout
+                  ? () => {
+                      if (chatExpanded) setChatExpanded(false);
+                      toggleStickMapFull();
+                    }
+                  : undefined
+              }
+            >
+              <canvas className="hud-minimap-canvas" />
+            </div>
+          )}
+        </div>
         {mobileLayout ? (
-          <MobileArcadeControls
-            potions={potions}
-            onCastSlot={(index) => {
-              const id = hotbarAbilityAt(index, 0);
-              if (id) castAbility(id);
-            }}
-            onCastRest={() => {
-              if (restUnlocked) castAbility("rest");
-            }}
-            onPotion={() => send({ type: "item/use", tokenId: ITEM.POTION })}
-          />
+          <div className="hud-action-mobile">
+            <div className="hud-mobile-top">
+              {meters}
+              <button
+                type="button"
+                className={`hud-menu-btn hud-menu-btn-flow${menuOpen ? " open" : ""}${menuLocked ? " locked" : ""}`}
+                aria-label={
+                  menuLocked
+                    ? "Commands menu locked. Hold to unlock."
+                    : menuOpen
+                      ? "Close commands menu. Hold to lock closed."
+                      : "Commands menu. Hold to lock closed."
+                }
+                aria-expanded={menuOpen}
+                aria-pressed={menuLocked}
+                onPointerDown={onMenuPointerDown}
+                onPointerUp={onMenuPointerUp}
+                onPointerCancel={clearMenuHold}
+                onClick={onMenuClick}
+              >
+                <span className="hud-menu-bars" aria-hidden="true">
+                  <i />
+                  <i />
+                  <i />
+                </span>
+              </button>
+            </div>
+          </div>
         ) : (
-          <div className="hud-hotbar-stack">
-            {hotbarRow1.map((id, i) =>
-              id ? (
+          <div className="hud-action-plate">
+            {meters}
+            <img className="hud-action-frame" src="/ui/hud/hotbar.png" alt="" draggable={false} />
+            <CrescentFill kind="hp" src="/ui/hud/health.png" value={me.hp} max={me.maxHp} />
+            <CrescentFill kind="mp" src="/ui/hud/mana.png" value={me.mp} max={me.maxMp} />
+            <div
+              className="hud-crescent-read hp"
+              role="meter"
+              aria-label="Health"
+              aria-valuemin={0}
+              aria-valuemax={me.maxHp}
+              aria-valuenow={me.hp}
+            >
+              <span className="hud-crescent-k">HP</span>
+              <span className="hud-crescent-n">{me.hp}</span>
+              <span className="hud-crescent-m">/ {me.maxHp}</span>
+            </div>
+            <div
+              className="hud-crescent-read mp"
+              role="meter"
+              aria-label="Mana"
+              aria-valuemin={0}
+              aria-valuemax={me.maxMp}
+              aria-valuenow={me.mp}
+            >
+              <span className="hud-crescent-k">MP</span>
+              <span className="hud-crescent-n">{me.mp}</span>
+              <span className="hud-crescent-m">/ {me.maxMp}</span>
+            </div>
+            <div className="hud-aux-rows">
+              <div className="hud-aux-row" aria-label="Alt hotbar">
+                {hotbarRow3.map((id, i) => {
+                  const slotIndex = HOTBAR_ROW_LEN * 2 + i;
+                  return id ? (
+                    <SkillButton
+                      key={`r2-${i}`}
+                      id={id}
+                      keyLabel={HOTBAR_ALT_KEYS[i]}
+                      now={now}
+                      recasts={recasts}
+                      me={me}
+                      hotbarIndex={slotIndex}
+                      onHotbarDrop={handleHotbarDrop}
+                    />
+                  ) : (
+                    <EmptyHotbarSlot
+                      key={`r2-${i}`}
+                      keyLabel={HOTBAR_ALT_KEYS[i]!}
+                      slotIndex={slotIndex}
+                      onHotbarDrop={handleHotbarDrop}
+                    />
+                  );
+                })}
+              </div>
+              <div className="hud-aux-row" aria-label="Shift hotbar">
+                {hotbarRow2.map((id, i) => {
+                  const slotIndex = HOTBAR_ROW_LEN + i;
+                  return id ? (
+                    <SkillButton
+                      key={`r1-${i}`}
+                      id={id}
+                      keyLabel={HOTBAR_SHIFT_KEYS[i]}
+                      now={now}
+                      recasts={recasts}
+                      me={me}
+                      hotbarIndex={slotIndex}
+                      onHotbarDrop={handleHotbarDrop}
+                    />
+                  ) : (
+                    <EmptyHotbarSlot
+                      key={`r1-${i}`}
+                      keyLabel={HOTBAR_SHIFT_KEYS[i]!}
+                      slotIndex={slotIndex}
+                      onHotbarDrop={handleHotbarDrop}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+            {hotbarRow1.map((id, i) => (
+              <div key={`r0-${i}`} className="hud-action-well" style={hudWellStyle(i)}>
+                {id ? (
+                  <SkillButton
+                    id={id}
+                    keyLabel={HOTBAR_KEYS[i]}
+                    now={now}
+                    recasts={recasts}
+                    me={me}
+                    hotbarIndex={i}
+                    onHotbarDrop={handleHotbarDrop}
+                    appearance="well"
+                  />
+                ) : (
+                  <EmptyHotbarSlot
+                    keyLabel={HOTBAR_KEYS[i]!}
+                    slotIndex={i}
+                    onHotbarDrop={handleHotbarDrop}
+                    appearance="well"
+                  />
+                )}
+              </div>
+            ))}
+            <div className="hud-action-well" style={hudWellStyle(10)}>
+              {restUnlocked ? (
                 <SkillButton
-                  key={`r0-${i}`}
-                  id={id}
-                  keyLabel={HOTBAR_KEYS[i]}
+                  id="rest"
+                  keyLabel="R"
                   now={now}
                   recasts={recasts}
                   me={me}
-                  hotbarIndex={i}
-                  onHotbarDrop={handleHotbarDrop}
+                  draggable={false}
+                  appearance="mark"
                 />
               ) : (
-                <EmptyHotbarSlot
-                  key={`r0-${i}`}
-                  keyLabel={HOTBAR_KEYS[i]!}
-                  slotIndex={i}
-                  onHotbarDrop={handleHotbarDrop}
-                />
-              ),
-            )}
-            <div className="hud-hotbar-utility">
-              {restUnlocked ? (
-                <SkillButton id="rest" keyLabel="R" now={now} recasts={recasts} me={me} draggable={false} />
-              ) : (
-                <div className="skill-wrap" aria-hidden>
-                  <div className="skill-slot empty" style={{ visibility: "hidden" }} />
-                </div>
+                <div className="frame-locked" title="Rest is locked" />
               )}
+            </div>
+            {(() => {
+              const dashLeft = Math.max(0, dashLastAt + DASH_COOLDOWN_MS - now);
+              const dashOn = dashLeft > 0;
+              const dashSec = Math.ceil(dashLeft / 1000);
+              const dashPct = dashOn ? Math.min(1, dashLeft / DASH_COOLDOWN_MS) : 0;
+              return (
+                <div className="hud-dash-cd" hidden={!dashOn} aria-hidden={!dashOn}>
+                  <span className="skill-cd" style={{ ["--cd" as string]: String(dashPct) }} aria-label={`Dash ready in ${dashSec}s`}>
+                    <span className="skill-cd-veil" />
+                    <span className="skill-cd-num">{dashSec}</span>
+                  </span>
+                </div>
+              );
+            })()}
+            <div className="hud-action-well" style={hudWellStyle(11)}>
               <div
                 className="skill-wrap tip-above"
                 onPointerLeave={(e) => e.currentTarget.classList.remove("tip-dismissed")}
@@ -1394,17 +2068,15 @@ export function Hud() {
               >
                 <button
                   type="button"
-                  className="skill-slot potion"
-                  aria-label="Potion. Restore HP. Key Q."
+                  className="skill-slot frame-mark frame-potion"
+                  aria-label={`Potion. Restore HP. Key Q. ${potions} left.`}
                   onClick={(e) => {
                     send({ type: "item/use", tokenId: ITEM.POTION });
                     e.currentTarget.closest(".skill-wrap")?.classList.add("tip-dismissed");
                     e.currentTarget.blur();
                   }}
                 >
-                    <span className="skill-key">Q</span>
-                    <AbilityIcon id="potion" />
-                    <span className="skill-name">Potion×{potions}</span>
+                  <span className="frame-potion-count">{potions}</span>
                 </button>
                 <div className="skill-tip" role="tooltip">
                   <div className="skill-tip-title">Potion</div>
@@ -1415,58 +2087,350 @@ export function Hud() {
                 </div>
               </div>
             </div>
-            {hotbarRow2.map((id, i) => {
-              const slotIndex = HOTBAR_ROW_LEN + i;
-              return id ? (
-                <SkillButton
-                  key={`r1-${i}`}
-                  id={id}
-                  keyLabel={HOTBAR_SHIFT_KEYS[i]}
-                  now={now}
-                  recasts={recasts}
-                  me={me}
-                  hotbarIndex={slotIndex}
-                  onHotbarDrop={handleHotbarDrop}
-                />
-              ) : (
-                <EmptyHotbarSlot
-                  key={`r1-${i}`}
-                  keyLabel={HOTBAR_SHIFT_KEYS[i]!}
-                  slotIndex={slotIndex}
-                  onHotbarDrop={handleHotbarDrop}
-                />
-              );
-            })}
-            <div className="hud-hotbar-utility hud-hotbar-utility-spacer" aria-hidden>
-              <div className="skill-wrap">
-                <div className="skill-slot" />
-              </div>
-              <div className="skill-wrap">
-                <div className="skill-slot" />
-              </div>
-            </div>
+            {menuButton}
           </div>
         )}
-
-        <div className="hud-log-frame">
+        <div
+          className={`hud-log-frame hud-chat-log${mobileLayout && !chatExpanded ? " hud-chat-collapsed" : ""}`}
+          data-chat-chip={mobileLayout && !chatExpanded ? "1" : undefined}
+        >
+          {mobileLayout && !chatExpanded ? (
+            <button
+              type="button"
+              className="hud-chat-chip"
+              aria-label="Open chat"
+              onClick={() => {
+                setChatExpanded(true);
+                requestAnimationFrame(() => chatInput.current?.focus());
+              }}
+            >
+              {chatChipText}
+            </button>
+          ) : null}
           <div className="hud-log-head">
-            <span>Combat Log</span>
-            <span className="hud-log-hints">
-              {mobileLayout
-                ? "Sticks · Face 1–8 · Flick Skills stick · R Rest · Q Potion · K Book · B Character"
-                : "WASD · Drag book→bar · 1–0 · Shift+1–0 · R Rest · Q Potion · K Book · B Character · C Craft"}
-            </span>
+            <span>Chat</span>
+            <span className="hud-log-hints">Enter · /p party</span>
           </div>
           <div className="hud-log-body mmo-scroll">
-            {logs.map((l, i) => (
-              <div key={`${i}-${l.slice(0, 24)}`} className={logClass(l)}>
-                {l}
+            {chats.length === 0 && (
+              <div className="hud-log-line system">No one has spoken nearby.</div>
+            )}
+            {chats.map((c) => (
+              <div
+                key={`${c.t}-${c.fromId}-${c.text.slice(0, 16)}`}
+                className={`hud-log-line hud-chat-line ${c.channel}`}
+              >
+                {c.channel === "party" ? (
+                  <span className="hud-chat-chan">[Party] </span>
+                ) : null}
+                <span className="hud-chat-name">{c.fromName}</span>
+                <span className="hud-chat-sep">: </span>
+                <span className="hud-chat-text">{c.text}</span>
               </div>
             ))}
-            <div ref={logEnd} />
+            <div ref={chatEnd} />
           </div>
+          <form
+            className="hud-chat-compose"
+            onSubmit={(e: FormEvent) => {
+              e.preventDefault();
+              const parsed = parseChatCommand(chatDraft);
+              if (!parsed) return;
+              send({ type: "chat", text: parsed.text, channel: parsed.channel });
+              setChatDraft("");
+              if (mobileLayout) setChatExpanded(false);
+            }}
+          >
+            <input
+              ref={chatInput}
+              className="hud-chat-input"
+              type="text"
+              maxLength={CHAT_MAX_LEN}
+              value={chatDraft}
+              placeholder="Say…"
+              aria-label="Chat message"
+              autoComplete="off"
+              onChange={(e) => setChatDraft(e.target.value)}
+              onFocus={() => {
+                if (mobileLayout) setChatExpanded(true);
+              }}
+              onBlur={(e) => {
+                if (!mobileLayout) return;
+                const next = e.relatedTarget as Node | null;
+                if (next && e.currentTarget.form?.contains(next)) return;
+                setChatExpanded(false);
+              }}
+              onKeyDown={(e) => {
+                if (e.key !== "Escape") return;
+                e.preventDefault();
+                e.stopPropagation();
+                chatInput.current?.blur();
+              }}
+            />
+            {(!mobileLayout || chatExpanded) && (
+              <button type="submit" className="hud-chat-send">
+                Send
+              </button>
+            )}
+          </form>
         </div>
       </div>
+      {mobileLayout && (
+        <MobileArcadeControls
+          potions={potions}
+          dashCdMs={Math.max(0, dashLastAt + DASH_COOLDOWN_MS - now)}
+          hotbarFaces={arcadeFaces}
+          recasts={recasts}
+          now={now}
+          form={unitDruidForm(you.job, me.buffs)}
+          restUnlocked={restUnlocked}
+          page={arcadePage}
+          onCastSlot={(index) => {
+            const id = hotbarAbilityAt(index, arcadePage);
+            if (id) castAbility(id);
+          }}
+          onCastRest={() => {
+            if (restUnlocked) castAbility("rest");
+          }}
+          onDash={() => window.dispatchEvent(new CustomEvent("bellgrave:dash"))}
+          onPotion={() => send({ type: "item/use", tokenId: ITEM.POTION })}
+          onPage={() => setArcadePage((p) => (p + 1) % HOTBAR_ROWS)}
+        />
+      )}
+    </div>
+  );
+}
+
+function prefersReducedMotion() {
+  return typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+const CRES_TOP = 0.105066;
+const CRES_SPAN = 0.592871;
+const HUD_W = 1024;
+const HUD_H = 533;
+
+function liquidSurfacePoints(p: number, phase: number, amp: number, tilt: number) {
+  const top = CRES_TOP * HUD_H;
+  const span = CRES_SPAN * HUD_H;
+  const bottom = top + span;
+  const cut = top + span * (1 - Math.max(0, Math.min(1, p)));
+  const n = 22;
+  const pts: { x: number; y: number }[] = [];
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
+    let y =
+      cut +
+      Math.sin(t * Math.PI * 5.5 + phase) * amp +
+      Math.sin(t * Math.PI * 11 + phase * 1.3) * amp * 0.42 +
+      Math.sin(t * Math.PI * 17 + phase * 0.7) * amp * 0.16 +
+      (t - 0.5) * tilt;
+    y = Math.min(bottom - 0.5, Math.max(top + 0.5, y));
+    pts.push({ x: t * HUD_W, y });
+  }
+  return { pts, bottom };
+}
+
+function smoothThrough(pts: { x: number; y: number }[]) {
+  if (pts.length === 0) return "";
+  const p0 = pts[0]!;
+  let d = `M${p0.x.toFixed(2)},${p0.y.toFixed(2)}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i === 0 ? 0 : i - 1]!;
+    const b = pts[i]!;
+    const c = pts[i + 1]!;
+    const e = pts[i + 2] ?? c;
+    const c1x = b.x + (c.x - a.x) / 6;
+    const c1y = b.y + (c.y - a.y) / 6;
+    const c2x = c.x - (e.x - b.x) / 6;
+    const c2y = c.y - (e.y - b.y) / 6;
+    d += ` C${c1x.toFixed(2)},${c1y.toFixed(2)} ${c2x.toFixed(2)},${c2y.toFixed(2)} ${c.x.toFixed(2)},${c.y.toFixed(2)}`;
+  }
+  return d;
+}
+
+function liquidSurfacePath(p: number, phase: number, amp: number, tilt: number) {
+  const { pts, bottom } = liquidSurfacePoints(p, phase, amp, tilt);
+  return `M0,${bottom.toFixed(2)} ${smoothThrough(pts).replace(/^M/, "L")} L${HUD_W},${bottom.toFixed(2)} Z`;
+}
+
+function liquidSurfaceStroke(p: number, phase: number, amp: number, tilt: number) {
+  return smoothThrough(liquidSurfacePoints(p, phase, amp, tilt).pts);
+}
+
+function CrescentFill({
+  kind,
+  src,
+  value,
+  max,
+}: {
+  kind: "hp" | "mp";
+  src: string;
+  value: number;
+  max: number;
+}) {
+  const target = Math.max(0, Math.min(1, max > 0 ? value / max : 0));
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const sheet = useRef<HTMLImageElement | null>(null);
+  const sim = useRef({ p: target, v: 0, target, phase: kind === "mp" ? 1.7 : 0, last: 0, raf: 0 });
+  const paintRef = useRef<() => void>(() => {});
+  const kickRef = useRef<() => void>(() => {});
+
+  useEffect(() => {
+    sim.current.target = target;
+    if (prefersReducedMotion()) {
+      sim.current.p = target;
+      sim.current.v = 0;
+      paintRef.current();
+    } else {
+      kickRef.current();
+    }
+  }, [target]);
+
+  useEffect(() => {
+    const img = new Image();
+    img.src = src;
+    img.onload = () => {
+      sheet.current = img;
+      paintRef.current();
+    };
+    if (img.complete) {
+      sheet.current = img;
+      paintRef.current();
+    }
+  }, [src]);
+
+  useEffect(() => {
+    const s = sim.current;
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const paint = () => {
+      const canvas = canvasRef.current;
+      const bmp = sheet.current;
+      if (!canvas || !bmp) return;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      const quiet = mq.matches;
+      const amp = quiet ? 0 : 11 + Math.min(14, Math.abs(s.v) * 70);
+      const tilt = quiet ? 0 : s.v * 28;
+      const fill = liquidSurfacePath(s.p, s.phase, amp, tilt);
+      ctx.clearRect(0, 0, HUD_W, HUD_H);
+      ctx.save();
+      ctx.imageSmoothingEnabled = true;
+      ctx.clip(new Path2D(fill));
+      ctx.drawImage(bmp, 0, 0, HUD_W, HUD_H);
+      ctx.globalCompositeOperation = "source-atop";
+      ctx.strokeStyle = kind === "hp" ? "rgba(220, 255, 230, 0.32)" : "rgba(220, 244, 255, 0.32)";
+      ctx.lineWidth = 2;
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+      ctx.stroke(new Path2D(liquidSurfaceStroke(s.p, s.phase, amp, tilt)));
+      ctx.restore();
+      ctx.globalCompositeOperation = "destination-in";
+      ctx.drawImage(bmp, 0, 0, HUD_W, HUD_H);
+      ctx.globalCompositeOperation = "source-over";
+      canvas.classList.toggle("slosh", !quiet && Math.abs(s.v) > 0.012);
+    };
+    paintRef.current = paint;
+    const stop = () => {
+      if (s.raf) cancelAnimationFrame(s.raf);
+      s.raf = 0;
+    };
+    const step = (now: number) => {
+      const dt = s.last ? Math.min(0.033, (now - s.last) / 1000) : 1 / 60;
+      s.last = now;
+      if (mq.matches) {
+        s.p = s.target;
+        s.v = 0;
+        paint();
+        s.raf = 0;
+        return;
+      }
+      s.v += (s.target - s.p) * 20 * dt - s.v * 8.4 * dt;
+      s.p += s.v * dt;
+      s.phase += dt * (1.55 + Math.min(3.2, Math.abs(s.v) * 7));
+      paint();
+      if (Math.abs(s.v) < 0.0008 && Math.abs(s.p - s.target) < 0.002) {
+        s.v = 0;
+        s.p = s.target;
+        s.raf = 0;
+        return;
+      }
+      s.raf = requestAnimationFrame(step);
+    };
+    const kick = () => {
+      if (s.raf) return;
+      s.last = 0;
+      s.raf = requestAnimationFrame(step);
+    };
+    kickRef.current = kick;
+    paint();
+    if (!mq.matches) kick();
+    const onMotion = () => {
+      stop();
+      s.last = 0;
+      if (mq.matches) {
+        s.p = s.target;
+        s.v = 0;
+        paint();
+      } else {
+        kick();
+      }
+    };
+    mq.addEventListener("change", onMotion);
+    return () => {
+      stop();
+      mq.removeEventListener("change", onMotion);
+      paintRef.current = () => {};
+    };
+  }, [kind]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      className={`hud-action-fill ${kind}`}
+      width={HUD_W}
+      height={HUD_H}
+      aria-hidden
+    />
+  );
+}
+
+function HudMeter({
+  kind,
+  label,
+  value,
+  max,
+}: {
+  kind: "tp" | "xp";
+  label: string;
+  value: number;
+  max: number;
+}) {
+  const pct = max > 0 ? Math.max(0, Math.min(100, (value / max) * 100)) : 0;
+  const read = kind === "tp" ? `${Math.round(pct)}%` : `${value} / ${max}`;
+  const [tick, setTick] = useState(false);
+  const prev = useRef(value);
+  useEffect(() => {
+    if (prev.current === value) return;
+    prev.current = value;
+    setTick(true);
+    const id = window.setTimeout(() => setTick(false), 420);
+    return () => window.clearTimeout(id);
+  }, [value]);
+  return (
+    <div
+      className={`hud-meter ${kind}${tick ? " tick" : ""}`}
+      role="meter"
+      aria-label={label}
+      aria-valuemin={0}
+      aria-valuemax={max}
+      aria-valuenow={value}
+    >
+      <span className="hud-meter-k">{label}</span>
+      <div className="hud-meter-track">
+        <i style={{ width: `${pct}%` }} />
+      </div>
+      <span className="hud-meter-n">{read}</span>
     </div>
   );
 }
@@ -1478,54 +2442,120 @@ function WalletConnectButton() {
 }
 
 /**
- * Docs path (https://docs.reown.com/appkit/overview): useAppKit().open for the
- * pre-built modal (EIP-6963 / WalletConnect / Coinbase). Login+sign runs once
- * useAppKitAccount reports connected (open() alone only shows the modal).
+ * Docs path (https://docs.reown.com/appkit/overview): useAppKit().open.
+ * Disconnected → Connect. Connected → Account (switch / disconnect).
+ * Game hello runs once per address after AppKit reports connected.
  */
 function AppKitConnectButton() {
   const pushLog = useGame((s) => s.pushLog);
+  const sessionWallet = useGame((s) => s.wallet);
   const { open } = useAppKit();
   const { address, isConnected } = useAppKitAccount();
   const { open: modalOpen } = useAppKitState();
   const [busy, setBusy] = useState(false);
-  const loginStarted = useRef(false);
+  const [clickTick, setClickTick] = useState(0);
+  const userClicked = useRef(false);
+  const startedFor = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!busy || !isConnected || !address || loginStarted.current) return;
-    loginStarted.current = true;
-    // Modal already open via useAppKit — do not call connectWithAppKit / raw WC QR.
-    void loginWithWalletConnect({ appKitAlreadyOpen: true }).then((res) => {
+    if (address && startedFor.current && startedFor.current !== address.toLowerCase()) {
+      startedFor.current = null;
+    }
+    const sameWallet =
+      !!address && !!sessionWallet && sessionWallet.toLowerCase() === address.toLowerCase();
+    const liveNonBurner = !!address && !isStoredLocalBurnerWallet(address);
+    const accountSwitch = !!sessionWallet && liveNonBurner && !sameWallet;
+    if (
+      !shouldAutoLoginAppKit({
+        connected: isConnected,
+        address,
+        persisted: !!address && hasPersistedAuthForWallet(address),
+        userClicked: userClicked.current,
+        alreadyAuthed: isServerAuthed() && sameWallet,
+        startedFor: startedFor.current,
+        authInFlight: isAuthInFlight(),
+        leftoverReplace:
+          !!sessionWallet && isStoredLocalBurnerWallet(sessionWallet) && liveNonBurner,
+        unsignedLive: !sessionWallet && liveNonBurner,
+        accountSwitch,
+        skipRestoreUntilConnect: needsHelloAfterLogout(),
+      })
+    ) {
+      return;
+    }
+    const addr = address!.toLowerCase();
+    const force = shouldForceWalletLogin(userClicked.current) || accountSwitch;
+    startedFor.current = addr;
+    userClicked.current = false;
+    setBusy(true);
+    void loginWithWalletConnect({
+      appKitAlreadyOpen: true,
+      ...(force ? { force: true } : {}),
+    }).then((res) => {
       setBusy(false);
-      loginStarted.current = false;
-      if (!res.ok) pushLog("Wallet: " + res.error);
-      else pushLog("Wallet: " + res.address.slice(0, 6) + "…" + res.address.slice(-4));
+      if (!res.ok) {
+        startedFor.current = null;
+        pushLog("Wallet: " + res.error);
+      } else pushLog("Wallet: " + walletControlLabel({ busy: false, connected: true, address: res.address }));
     });
-  }, [busy, isConnected, address, pushLog]);
+  }, [isConnected, address, clickTick, pushLog, sessionWallet]);
 
   // User dismissed the modal without connecting.
   useEffect(() => {
-    if (busy && !modalOpen && !isConnected && !loginStarted.current) {
+    if (busy && !modalOpen && !isConnected && !startedFor.current) {
       setBusy(false);
+      userClicked.current = false;
     }
   }, [busy, modalOpen, isConnected]);
 
+  const view = appKitModalView(isConnected);
+  if (shouldHideWalletControlWhileModal(modalOpen)) return null;
   return (
     <button
       type="button"
-      className="boot-primary"
-      disabled={busy}
-      style={{ marginTop: "0.75rem", width: "100%" }}
+      data-wallet-control="appkit"
+      className={["boot-primary", "boot-wallet", isConnected ? "is-connected" : ""]
+        .filter(Boolean)
+        .join(" ")}
+      disabled={shouldDisableWalletControl(busy, isConnected)}
       onClick={() => {
-        if (busy) return;
+        if (
+          isConnected &&
+          !shouldHelloOnConnectedWalletChip({
+            serverAuthed: isServerAuthed(),
+            skipRestoreUntilConnect: needsHelloAfterLogout(),
+          })
+        ) {
+          void open({ view: "Account" }).catch((err: unknown) => {
+            pushLog("Wallet: " + (err instanceof Error ? err.message : String(err)));
+          });
+          return;
+        }
+        if (!shouldAcceptWalletConnectClick(busy)) return;
+        userClicked.current = true;
         setBusy(true);
-        loginStarted.current = false;
-        void open({ view: "Connect" }).catch((err: unknown) => {
+        setClickTick((n) => n + 1);
+        if (isConnected) {
+          void loginWithWalletConnect({ force: true, appKitAlreadyOpen: true }).then((res) => {
+            setBusy(false);
+            if (!res.ok) {
+              startedFor.current = null;
+              userClicked.current = false;
+              pushLog("Wallet: " + res.error);
+            } else {
+              pushLog("Wallet: " + walletControlLabel({ busy: false, connected: true, address: res.address }));
+            }
+          });
+          return;
+        }
+        void open({ view }).catch((err: unknown) => {
           setBusy(false);
+          userClicked.current = false;
           pushLog("Wallet: " + (err instanceof Error ? err.message : String(err)));
         });
       }}
     >
-      {busy ? "Opening wallet…" : "Connect Wallet"}
+      {walletControlLabel({ busy, connected: isConnected, address })}
     </button>
   );
 }
@@ -1537,9 +2567,10 @@ function FallbackConnectButton() {
     return (
       <button
         type="button"
-        className="boot-primary"
+        className="boot-primary boot-wallet"
+        data-wallet-control="unavailable"
         disabled
-        style={{ marginTop: "0.75rem", width: "100%", opacity: 0.75 }}
+        style={{ opacity: 0.75 }}
         title="Set VITE_WALLETCONNECT_PROJECT_ID (Reown) in apps/stick-web/.env.local, or install a browser wallet"
       >
         Connect Wallet (set Reown project ID or install MetaMask)
@@ -1549,13 +2580,13 @@ function FallbackConnectButton() {
   return (
     <button
       type="button"
-      className="boot-primary"
+      className="boot-primary boot-wallet"
+      data-wallet-control="fallback"
       disabled={busy}
-      style={{ marginTop: "0.75rem", width: "100%" }}
       onClick={() => {
-        if (busy) return;
+        if (!shouldAcceptWalletConnectClick(busy)) return;
         setBusy(true);
-        void loginWithWalletConnect().then((res) => {
+        void loginWithWalletConnect({ force: true }).then((res) => {
           setBusy(false);
           if (!res.ok) pushLog("Wallet: " + res.error);
           else pushLog("Wallet: " + res.address.slice(0, 6) + "…" + res.address.slice(-4));
@@ -1572,9 +2603,18 @@ export function BootScreens() {
   const connected = useGame((s) => s.connected);
   const hasCharacter = useGame((s) => s.hasCharacter);
   const characterPreview = useGame((s) => s.characterPreview);
-  const snapshot = useGame((s) => s.snapshot);
+  const sessionWallet = useGame((s) => s.wallet);
+  const leftover = !!sessionWallet && isStoredLocalBurnerWallet(sessionWallet);
 
-  if (phase === "play" && snapshot) return null;
+  useEffect(() => {
+    if (shouldKickLeftoverBurnerToAuth(sessionWallet, leftover)) {
+      kickLeftoverBurnerToAuth();
+    }
+  }, [sessionWallet, leftover]);
+
+  if (hideBootScreen(phase)) return null;
+
+  const stayOnAuth = leftover || !connected || phase === "boot" || phase === "auth";
 
   return (
     <div className="boot-screen">
@@ -1588,32 +2628,21 @@ export function BootScreens() {
             />
             <span className="boot-brand-fallback">Black Anvil</span>
           </h1>
-          {!connected || phase === "boot" || phase === "auth" ? (
-            <>
-              <p className="boot-sub">
-                {!connected
-                  ? "Connecting to server…"
-                  : phase === "auth"
-                    ? "Connect a wallet to sign in."
-                    : "Signing in…"}
-              </p>
-              <WalletConnectButton />
-            </>
+          <WalletConnectButton />
+          {stayOnAuth ? (
+            <p className="boot-sub">
+              {!connected
+                ? "Connecting to server…"
+                : leftover || phase === "auth"
+                  ? "Connect a wallet to sign in."
+                  : "Signing in…"}
+            </p>
           ) : phase === "create" ? (
-            <>
-              <WalletConnectButton />
-              <CreatePanel />
-            </>
+            <CreatePanel />
           ) : phase === "select" || hasCharacter ? (
-            <>
-              <WalletConnectButton />
-              <SelectPanel preview={characterPreview} />
-            </>
+            <SelectPanel preview={characterPreview} />
           ) : (
-            <>
-              <WalletConnectButton />
-              <CreatePanel />
-            </>
+            <CreatePanel />
           )}
         </div>
       </div>
@@ -1642,6 +2671,7 @@ function SelectPanel({
     job: JobId;
     level: number;
     gender?: "male" | "female" | "pepeka";
+    tokenId?: string;
   } | null;
 }) {
   const characters = useGame((s) => s.characters);
@@ -1683,9 +2713,12 @@ function SelectPanel({
               >
                 <img className="boot-char-portrait" src={appearancePortrait(g)} alt="" width={72} height={72} />
                 <div className="boot-char-meta">
-                  <div className="boot-char-name">{c.name}</div>
+                  <div className="boot-char-name">
+                    <span>{c.name}</span>
+                    <span className="boot-char-level">Lv.{c.level}</span>
+                  </div>
                   <div className="boot-char-detail">
-                    Lv.{c.level} {jobName} · {appearanceLabel(g)}
+                    {jobName} · {appearanceLabel(g)}
                   </div>
                 </div>
               </button>
@@ -1693,7 +2726,7 @@ function SelectPanel({
           })}
         </div>
       ) : (
-        <p className="boot-sub">Loading character…</p>
+        <p className="boot-sub">Reading characters from your wallet…</p>
       )}
       <button
         type="button"
@@ -1711,9 +2744,11 @@ function SelectPanel({
         type="button"
         className="boot-secondary"
         onClick={() => {
-          useGame.getState().setPendingCreateEnter(false);
-          useGame.getState().clearSnapshot();
-          useGame.getState().setPhase("create");
+          const g = useGame.getState();
+          g.setPendingCreateEnter(false);
+          g.clearSnapshot();
+          g.setPhase("create");
+          if (g.characterMint) send({ type: "char/syncOwned" });
         }}
       >
         Create new character
@@ -1731,7 +2766,30 @@ function CreatePanel() {
   const characters = useGame((s) => s.characters);
   const pushLog = useGame((s) => s.pushLog);
   const mintCfg = useGame((s) => s.characterMint ?? s.snapshot?.you?.lok?.characterMint ?? null);
-  const playableJobs = (Object.keys(JOBS) as JobId[]).filter((j) => JOBS[j].playable);
+  const playableJobs = mintableStartingJobs(mintCfg?.startingJobs);
+  const mintTimer = useRef<number | null>(null);
+  const leftCreate = useRef(false);
+
+  const cancelCreateMint = useCallback(() => {
+    leftCreate.current = true;
+    if (mintTimer.current != null) {
+      window.clearTimeout(mintTimer.current);
+      mintTimer.current = null;
+    }
+    useGame.getState().setPendingCreateEnter(false);
+    setCreating(false);
+  }, []);
+
+  useEffect(() => {
+    leftCreate.current = false;
+    return () => {
+      leftCreate.current = true;
+      if (mintTimer.current != null) {
+        window.clearTimeout(mintTimer.current);
+        mintTimer.current = null;
+      }
+    };
+  }, []);
 
   return (
     <form
@@ -1778,7 +2836,6 @@ function CreatePanel() {
             ...(extra?.mintChainId != null ? { mintChainId: extra.mintChainId } : {}),
             ...(extra?.mintCharId ? { mintCharId: extra.mintCharId } : {}),
           });
-          window.setTimeout(() => send({ type: "claim/starter" }), 100);
           setCreating(false);
         };
 
@@ -1788,7 +2845,19 @@ function CreatePanel() {
           setCreating(false);
           return;
         }
-        void checkCharacterNameAvailable(name).then((avail) => {
+        if (isStoredLocalBurnerWallet(useGame.getState().wallet ?? "")) {
+          kickLeftoverBurnerToAuth();
+          useGame.getState().setPendingCreateEnter(false);
+          setCreating(false);
+          return;
+        }
+        const pendingMint = readPendingMint(useGame.getState().wallet);
+        void (
+          shouldSkipCreateNameCheck(!!pendingMint)
+            ? Promise.resolve({ ok: true as const })
+            : checkCharacterNameAvailable(name)
+        ).then((avail) => {
+          if (!shouldRunCreateMint(leftCreate.current)) return;
           if (!avail.ok) {
             pushLog(avail.error);
             useGame.getState().setPendingCreateEnter(false);
@@ -1810,14 +2879,21 @@ function CreatePanel() {
             return;
           }
           if (mintCfg.devFaucet) send({ type: "dev/faucet" });
-          window.setTimeout(() => {
+          mintTimer.current = window.setTimeout(() => {
+            mintTimer.current = null;
+            if (!shouldRunCreateMint(leftCreate.current)) return;
             void mintCharacterWithWallet({
               mint: mintCfg,
               job: jobIndex < 0 ? 0 : jobIndex,
               gameWallet,
               charId: name,
               allowReuse: true,
+              boundTokenIds: useGame
+                .getState()
+                .characters.map((c) => c.tokenId)
+                .filter((id): id is string => !!id),
             }).then((res) => {
+              if (!shouldRunCreateMint(leftCreate.current)) return;
               if (!res.ok) {
                 pushLog("Character mint: " + res.error);
                 useGame.getState().setPendingCreateEnter(false);
@@ -1843,7 +2919,9 @@ function CreatePanel() {
               }
               finish({
                 tokenId: res.tokenId,
-                mintWallet: res.payer,
+                ...(shouldSendMintWallet(res.payer, gameWallet)
+                  ? { mintWallet: res.payer }
+                  : {}),
                 ...(res.mintSignature
                   ? {
                       mintNonce: res.mintNonce,
@@ -1875,9 +2953,9 @@ function CreatePanel() {
         <p className="boot-sub">
           Character NFT mint fee: {(Number(mintCfg.mintFee) / 1e18).toFixed(4)}{" "}
           {mintCfg.currency?.symbol ??
-            (mintCfg.chainId === 100 || mintCfg.chainId === 10200 ? "xDAI" : "ETH")}{" "}
-          (native, paid from your
-          wallet before the character is created)
+            (mintCfg.chainId === 100 || mintCfg.chainId === 10200 ? "xDAI" : "ETH")}
+          . Paid from this wallet. If you already minted, Create binds that NFT and
+          does not charge again
           {mintCfg.devFaucet ? ". Local faucet can fund the burner on anvil 31337." : ""}.
         </p>
       ) : null}
@@ -1934,13 +3012,16 @@ function CreatePanel() {
         Lv.{SUBJOB_UNLOCK_LEVEL}+ unlocks a support job (half main level). Your sprite stays main.
       </p>
       <button type="submit" className="boot-primary">
-        Create {JOBS[job]?.name ?? "Adventurer"} · Claim starter
+        {createSubmitLabel(JOBS[job]?.name ?? "Adventurer", !!mintCfg)}
       </button>
       {characters.length > 0 && (
         <button
           type="button"
           className="boot-secondary"
-          onClick={() => useGame.getState().setPhase("select")}
+          onClick={() => {
+            cancelCreateMint();
+            useGame.getState().setPhase("select");
+          }}
         >
           Back to character select
         </button>
@@ -1949,7 +3030,7 @@ function CreatePanel() {
   );
 }
 
-/** Exported for App keybinds — row 0 = 1–0, row 1 = Shift+1–0. */
+/** Exported for App keybinds — row 0 = 1–0, row 1 = Shift+1–0, row 2 = Alt+1–0. */
 export function hotbarAbilityAt(index: number, row = 0): AbilityId | null {
   return liveHotbarSlots[row * HOTBAR_ROW_LEN + index] ?? null;
 }

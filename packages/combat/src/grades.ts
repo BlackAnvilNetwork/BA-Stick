@@ -261,6 +261,3 @@ export function jobVitalsAtLevel(job: JobId, level: number): Vitals {
 
   return { maxHp, maxMp };
 }
-
-/** @deprecated Prefer jobStatsAtLevel("time_mage", 1) */
-export const TIM_L1: AttrStats = jobStatsAtLevel("time_mage", 1);

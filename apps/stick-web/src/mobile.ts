@@ -1,11 +1,28 @@
 import type { UiSettings } from "@bellgrave/ui/uiSettings";
 
+function savedHasLayout(saved: string | null): boolean {
+  if (saved == null || saved === "") return false;
+  try {
+    const parsed = JSON.parse(saved) as { layout?: unknown };
+    return parsed != null && typeof parsed === "object" && "layout" in parsed;
+  } catch {
+    return false;
+  }
+}
+
 /**
- * First visit on a touch-first device (no saved settings) starts in the
- * arcade layout: joystick + face-button hotbar. A saved choice always wins.
+ * First visit on a touch-first *narrow* device (no saved layout) starts in
+ * the mobile touch overlay. iPad landscape (coarse but wide) stays Regular.
+ * An explicit saved layout wins; an empty `{}` blob does not trap Regular.
  */
-export function initialUiSettings(saved: string | null, loaded: UiSettings, coarsePointer: boolean): UiSettings {
-  if (saved == null && coarsePointer) return { ...loaded, layout: "mobile" };
+export function initialUiSettings(
+  saved: string | null,
+  loaded: UiSettings,
+  coarsePointer: boolean,
+  viewportWidth = 0,
+): UiSettings {
+  const narrow = viewportWidth > 0 ? viewportWidth < 820 : true;
+  if (!savedHasLayout(saved) && coarsePointer && narrow) return { ...loaded, layout: "mobile" };
   return loaded;
 }
 

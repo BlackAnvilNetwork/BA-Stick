@@ -1,7 +1,6 @@
 # @bellgrave/client-core
 
-Renderer-agnostic Black Anvil client code, extracted from `apps/web` so both the
-legacy R3F client and `apps/stick-web` share it:
+Renderer-agnostic Black Anvil client code used by `apps/stick-web`:
 
 - `net` + `state`: WebSocket protocol client (auth handshake, `ClientMessage` sends, snapshot store in zustand)
 - `wallet`, `appkit`, `appkit-config`, `walletconnect`, `injected-login`, `burner-identity`: wallet login and signing

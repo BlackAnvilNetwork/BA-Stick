@@ -2,16 +2,25 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { atmosphereFor, initialUiSettings, keylightFor } from "./mobile.ts";
 
-const base = { color: "gold", font: "cinzel", layout: "regular", view: "iso", cam: "numpad", pixel: "crisp", minimap: true } as const;
+const base = { color: "gold", font: "cinzel", layout: "regular", view: "iso", cam: "numpad", pixel: "crisp", minimap: true, drawDistance: 0.55, atmosphere: 0.45 } as const;
 
 test("touch devices default to the arcade layout", () => {
-  assert.equal(initialUiSettings(null, base, true).layout, "mobile");
+  assert.equal(initialUiSettings(null, base, true, 390).layout, "mobile");
 });
 test("fine pointers keep regular", () => {
-  assert.equal(initialUiSettings(null, base, false).layout, "regular");
+  assert.equal(initialUiSettings(null, base, false, 390).layout, "regular");
 });
-test("a saved choice wins", () => {
-  assert.equal(initialUiSettings("{}", base, true).layout, "regular");
+test("an explicit saved layout wins", () => {
+  assert.equal(initialUiSettings('{"layout":"regular"}', base, true, 390).layout, "regular");
+});
+test("empty saved blob does not trap Regular on a coarse phone", () => {
+  assert.equal(initialUiSettings("{}", base, true, 390).layout, "mobile");
+});
+test("iPad landscape does not auto-force arcade", () => {
+  assert.equal(initialUiSettings(null, base, true, 1180).layout, "regular");
+});
+test("coarse and narrow still defaults to arcade", () => {
+  assert.equal(initialUiSettings(null, base, true).layout, "mobile");
 });
 
 import { fbFromClient, fbToClient } from "./fit.ts";
@@ -25,6 +34,13 @@ test("cover mapping round-trips on a portrait phone", () => {
 test("contain letterbox puts a portrait tap above the image", () => {
   const [, fy] = fbFromClient({ left: 0, top: 0, width: 393, height: 851 }, 200, 260, false);
   assert.ok(fy < 0);
+});
+test("cover fills a wide desktop window without letterbox hits", () => {
+  const r = { left: 0, top: 0, width: 1920, height: 900 };
+  const [fx, fy] = fbFromClient(r, 960, 450, true);
+  assert.ok(fx >= 0 && fx <= 640 && fy >= 0 && fy <= 360);
+  const [cx, cy] = fbToClient(1920, 900, fx, fy, true);
+  assert.ok(Math.abs(cx - 960) < 1e-6 && Math.abs(cy - 450) < 1e-6);
 });
 
 test("atmosphere off on touch, overridable", () => {

@@ -62,9 +62,6 @@ export function walletConnectChainIds(): number[] {
   return [...ids].sort((a, b) => a - b);
 }
 
-/** @deprecated Use walletConnectChainIds() — list is dynamic from SETTLEMENT_BY_CHAIN. */
-export const WALLETCONNECT_CHAIN_IDS = [100, 10200, 4663, 31337] as const;
-
 export function walletConnectProjectId(): string | null {
   const env = (import.meta as { env?: Record<string, string | undefined> }).env;
   const id = env?.VITE_WALLETCONNECT_PROJECT_ID?.trim();

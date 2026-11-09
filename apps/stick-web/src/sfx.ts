@@ -1,8 +1,9 @@
+import { getItem } from "@bellgrave/items";
 import type { UnitSnapshot } from "@bellgrave/protocol";
 
 export type SfxEvent =
   | { kind: "enemySwing"; volume: number }
-  | { kind: "jobSwing"; job: UnitSnapshot["job"]; volume: number }
+  | { kind: "jobSwing"; job: UnitSnapshot["job"]; volume: number; weaponFamily?: string }
   | { kind: "temporalDistortion"; until: number };
 
 /** Legacy distance falloff: 0.6 near, 0.15 floor, ~28 units out. */
@@ -28,7 +29,14 @@ export class AnimEdges {
         this.melee.set(u.id, u.animUntil);
         const vol = swingVolume(listener ? Math.hypot(listener.x - u.x, listener.z - u.z) : 0);
         if (u.kind === "mob") out.push({ kind: "enemySwing", volume: vol });
-        else if (u.kind === "player") out.push({ kind: "jobSwing", job: u.job, volume: vol });
+        else if (u.kind === "player") {
+          const family = u.equip?.main != null ? getItem(u.equip.main)?.weaponFamily : undefined;
+          out.push(
+            family
+              ? { kind: "jobSwing", job: u.job, volume: vol, weaponFamily: family }
+              : { kind: "jobSwing", job: u.job, volume: vol },
+          );
+        }
       } else if (u.anim !== "melee") {
         this.melee.delete(u.id);
       }

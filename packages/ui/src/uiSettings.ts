@@ -6,7 +6,7 @@ export const UI_SETTINGS_KEY = "bellgrave.uiSettings";
 
 export type UiColorId = "cyan" | "gold" | "navy" | "ember" | "teal" | "crimson";
 export type UiFontId = "source" | "cinzel" | "trebuchet" | "verdana" | "georgia";
-/** Regular = desktop HUD; Mobile = arcade sticks + hotkeys clustered for touch. */
+/** Regular = desktop HUD; Mobile = touch overlay (stick + icons over the world). */
 export type UiLayoutId = "regular" | "mobile";
 
 /** World camera (stick client). Default is isometric. `3d` in saved settings means third person. */
@@ -26,7 +26,49 @@ export type UiSettings = {
   pixel: UiPixelId;
   /** Minimap overlay on/off (M key or Settings). */
   minimap: boolean;
+  /** Iso prop reach + 3D FAR together, 0..1. Default 0.55. */
+  drawDistance: number;
+  /** Optical-depth slider, 0..1. Default 0.45. Phones ignore this when atmosphere is off. */
+  atmosphere: number;
 };
+
+export type VistaPresetId = "classic" | "default" | "clear";
+
+export const VISTA_PRESETS: { id: VistaPresetId; label: string; drawDistance: number; atmosphere: number }[] = [
+  { id: "classic", label: "Classic", drawDistance: 0.55, atmosphere: 0.72 },
+  { id: "default", label: "Default", drawDistance: 0.55, atmosphere: 0.45 },
+  { id: "clear", label: "Clear", drawDistance: 1, atmosphere: 0.18 },
+];
+
+export const VISTA_SUBCOPY = "Draw distance is terrain, props, enemies, and harvest. Haze never lowers detail.";
+export const PHONE_HAZE_COPY = "Haze is off on this device for performance. Draw distance still applies.";
+
+export function pointerIsCoarse(): boolean {
+  return typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
+}
+
+/** Piecewise iso-prop / 3D FAR knots matching the renderer. */
+export function vistaReach(t: number): { far: number; isoProp: number } {
+  const clamp = Math.min(1, Math.max(0, t));
+  const p = (y0: number, y55: number, y1: number) =>
+    clamp <= 0.55 ? y0 + (y55 - y0) * (clamp / 0.55) : y55 + (y1 - y55) * ((clamp - 0.55) / 0.45);
+  return { far: p(36, 60, 90), isoProp: p(36, 56, 80) };
+}
+
+export function clampUnit(v: unknown, fallback: number): number {
+  const n = typeof v === "number" ? v : typeof v === "string" ? Number(v) : NaN;
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(1, Math.max(0, n));
+}
+
+export function matchVistaPreset(s: Pick<UiSettings, "drawDistance" | "atmosphere">): VistaPresetId | "custom" {
+  for (const p of VISTA_PRESETS) {
+    if (Math.abs(s.drawDistance - p.drawDistance) < 0.005 && Math.abs(s.atmosphere - p.atmosphere) < 0.005) {
+      return p.id;
+    }
+  }
+  return "custom";
+}
 
 export const UI_VIEW_OPTIONS: { id: UiViewId; label: string }[] = [
   { id: "iso", label: "Isometric" },
@@ -44,7 +86,7 @@ export const UI_PIXEL_OPTIONS: { id: UiPixelId; label: string }[] = [
 
 export const UI_LAYOUT_OPTIONS: { id: UiLayoutId; label: string; hint: string }[] = [
   { id: "regular", label: "Regular", hint: "Current desktop HUD & hotbar" },
-  { id: "mobile", label: "Mobile", hint: "Arcade sticks + hotkeys nearby" },
+  { id: "mobile", label: "Mobile", hint: "Touch overlay — stick and hotkeys over the world" },
 ];
 
 export const UI_COLOR_OPTIONS: { id: UiColorId; label: string; swatch: string }[] = [
@@ -73,7 +115,17 @@ export const UI_FONT_OPTIONS: { id: UiFontId; label: string; sample: string }[] 
   { id: "georgia", label: "Georgia", sample: "Aa Bb 123" },
 ];
 
-const DEFAULTS: UiSettings = { color: "gold", font: "cinzel", layout: "regular", view: "iso", cam: "numpad", pixel: "crisp", minimap: true };
+const DEFAULTS: UiSettings = {
+  color: "gold",
+  font: "cinzel",
+  layout: "regular",
+  view: "iso",
+  cam: "numpad",
+  pixel: "crisp",
+  minimap: true,
+  drawDistance: 0.55,
+  atmosphere: 0.45,
+};
 
 /** Saved `3d` is the old single perspective toggle; it is third person now. */
 export function normalizeView(v: unknown): UiViewId {
@@ -113,6 +165,8 @@ export function loadUiSettings(): UiSettings {
       cam: parsed.cam === "mouse" ? "mouse" : DEFAULTS.cam,
       pixel: parsed.pixel === "smooth" || parsed.pixel === "crisp" ? parsed.pixel : DEFAULTS.pixel,
       minimap: typeof parsed.minimap === "boolean" ? parsed.minimap : DEFAULTS.minimap,
+      drawDistance: clampUnit(parsed.drawDistance, DEFAULTS.drawDistance),
+      atmosphere: clampUnit(parsed.atmosphere, DEFAULTS.atmosphere),
     };
   } catch {
     return { ...DEFAULTS };
@@ -133,6 +187,8 @@ export function applyUiSettings(settings: UiSettings): void {
   root.dataset.uiCam = settings.cam;
   root.dataset.uiPixel = settings.pixel;
   root.dataset.uiMinimap = settings.minimap ? "on" : "off";
+  root.dataset.uiDrawDistance = String(settings.drawDistance);
+  root.dataset.uiAtmosphere = String(settings.atmosphere);
   root.style.setProperty("--ui-font", UI_FONT_STACKS[settings.font]);
 }
 
@@ -175,7 +231,7 @@ export function toggleMinimap(): UiSettings {
   return next;
 }
 
-/** True when Settings → Layout is Mobile (arcade sticks + clustered hotkeys). */
+/** True when Settings → Layout is Mobile (touch overlay). */
 export function layoutUsesArcadeControls(layout: UiLayoutId): boolean {
   return layout === "mobile";
 }

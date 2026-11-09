@@ -24,6 +24,7 @@ export function worldStatusIcons(unit: UnitSnapshot, now = Date.now()): WorldSta
     if (b.timeSealUntil > now) out.push({ id: "time_seal", kind: "buff" });
     if (b.perpetualUntil > now) out.push({ id: "perpetual_motion", kind: "buff" });
     if (b.ghostStepUntil > now) out.push({ id: "ghost_step", kind: "buff" });
+    if (b.reraiseUntil > now) out.push({ id: "cl_reraise", kind: "buff" });
     if (b.backbladeUntil > now) out.push({ id: "backblade", kind: "buff" });
     if (b.killEdgeUntil > now) out.push({ id: "kill_edge", kind: "buff" });
     if (b.shadowPassUntil > now) out.push({ id: "shadow_pass", kind: "buff" });
@@ -50,6 +51,24 @@ export function worldStatusIcons(unit: UnitSnapshot, now = Date.now()): WorldSta
     if (b.healAbsorbUntil > now && b.healAbsorbHp > 0) out.push({ id: "solace_rite", kind: "buff" });
     if (b.regenUntil > now) out.push({ id: "cl_regen", kind: "buff" });
     if (b.solaceRite) out.push({ id: "solace_rite", kind: "buff" });
+    if (b.berserkUntil > now) out.push({ id: "berserk", kind: "buff" });
+    if (b.warcryUntil > now) out.push({ id: "warcry", kind: "buff" });
+    if (b.spellbladeUntil > now) out.push({ id: "spellblade", kind: "buff" });
+    if (b.enSpellUntil > now) out.push({ id: "bm_flame_edge", kind: "buff" });
+    if (b.phalanxUntil > now) out.push({ id: "bm_phalanx", kind: "buff" });
+    if (b.stoneskinUntil > now) out.push({ id: "bm_stoneskin", kind: "buff" });
+    if (b.druidRingwakeUntil > now) out.push({ id: "dr_ringwake", kind: "buff" });
+    if (b.druidAshBraceUntil > now) out.push({ id: "dr_ash_brace", kind: "buff" });
+    if (b.druidMereVeilUntil > now && b.druidMereVeilHp > 0) out.push({ id: "dr_mere_veil", kind: "buff" });
+    if (b.paraUntil > now) out.push({ id: "paralyga", kind: "debuff" });
+    if (b.blindUntil > now) out.push({ id: "kn_flash", kind: "debuff" });
+    if (b.silenceUntil > now) out.push({ id: "silencega", kind: "debuff" });
+    if (b.petrifyUntil > now) out.push({ id: "temporal_distortion", kind: "debuff" });
+    if (b.bioUntil > now) out.push({ id: "bm_bio", kind: "debuff" });
+    if (b.sleepUntil > now) out.push({ id: "bm_sleep", kind: "debuff" });
+    if (b.bindUntil > now) out.push({ id: "bind", kind: "debuff" });
+    if (b.diseaseUntil > now) out.push({ id: "cl_viruna", kind: "debuff" });
+    if (b.curseUntil > now) out.push({ id: "cl_cursna", kind: "debuff" });
   }
 
   if (unit.kind === "mob") {
@@ -87,6 +106,7 @@ export function hasWorldStatusIcons(buffs: BuffState, kind: UnitSnapshot["kind"]
       buffs.perpetualUntil > now ||
       (buffs.moveUntil > now && buffs.movePct > 0) ||
       buffs.ghostStepUntil > now ||
+      buffs.reraiseUntil > now ||
       buffs.backbladeUntil > now ||
       buffs.killEdgeUntil > now ||
       buffs.shadowPassUntil > now ||
@@ -102,7 +122,25 @@ export function hasWorldStatusIcons(buffs: BuffState, kind: UnitSnapshot["kind"]
       buffs.asylumUntil > now ||
       (buffs.healAbsorbUntil > now && buffs.healAbsorbHp > 0) ||
       buffs.regenUntil > now ||
-      buffs.solaceRite
+      buffs.solaceRite ||
+      buffs.berserkUntil > now ||
+      buffs.warcryUntil > now ||
+      buffs.spellbladeUntil > now ||
+      buffs.enSpellUntil > now ||
+      buffs.phalanxUntil > now ||
+      buffs.stoneskinUntil > now ||
+      buffs.druidRingwakeUntil > now ||
+      buffs.druidAshBraceUntil > now ||
+      (buffs.druidMereVeilUntil > now && buffs.druidMereVeilHp > 0) ||
+      buffs.paraUntil > now ||
+      buffs.blindUntil > now ||
+      buffs.silenceUntil > now ||
+      buffs.petrifyUntil > now ||
+      buffs.bioUntil > now ||
+      buffs.sleepUntil > now ||
+      buffs.bindUntil > now ||
+      buffs.diseaseUntil > now ||
+      buffs.curseUntil > now
     );
   }
   if (kind === "mob") {

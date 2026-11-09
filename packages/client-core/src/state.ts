@@ -1,6 +1,7 @@
 import type {
   AbilityId,
   CharacterPreview,
+  ChatChannel,
   JobId,
   LokEventView,
   LokExploreScope,
@@ -10,6 +11,7 @@ import type {
 } from "@bellgrave/protocol";
 import { create } from "zustand";
 import { allowlistGeneration, checkWebLightClient, lightClientFromSnapshot, type WebLightResult } from "./light-client";
+import { npcDialogAfterSnapshot } from "./net-leftovers";
 
 type Phase = "boot" | "auth" | "create" | "select" | "play";
 
@@ -23,6 +25,14 @@ export type ExplorerView = {
   hasMore: boolean;
 };
 
+export type ChatLine = {
+  channel: ChatChannel;
+  fromId: string;
+  fromName: string;
+  text: string;
+  t: number;
+};
+
 export type NpcDialog = {
   npcId: string;
   title: string;
@@ -33,6 +43,7 @@ export type NpcDialog = {
   subLevel?: number;
   craftOpen?: boolean;
   lokOpen?: boolean;
+  questCue?: "accept" | "complete";
 };
 
 let lightMemoKey = "";
@@ -110,6 +121,8 @@ type GameState = {
   /** Leader snapshots stay provisional. A passing light proof is the committed view. */
   light: { leaderView: "provisional"; committed: Extract<WebLightResult, { ok: true }> | null };
   logs: string[];
+  /** Nearby / party chat — separate from the combat log. */
+  chats: ChatLine[];
   /** Client-side lines (errors, wallet prompts) kept across snapshots for LOCAL_LOG_MS. */
   localLogs: { m: string; t: number }[];
   selectedTarget: string | null;
@@ -132,16 +145,37 @@ type GameState = {
   setCharacterMint: (c: GameState["characterMint"]) => void;
   setSnapshot: (s: SnapshotMessage) => void;
   clearSnapshot: () => void;
-  pushLog: (m: string) => void;
+  pushLog: (m: string, opts?: { local?: boolean }) => void;
+  pushChat: (line: Omit<ChatLine, "t"> & { t?: number }) => void;
   setSelectedTarget: (id: string | null) => void;
   setNpcDialog: (d: NpcDialog | null) => void;
   setExplorer: (page: ExplorerView) => void;
   setPvpSlainPrompt: (p: GameState["pvpSlainPrompt"]) => void;
+  /** Client dash clock: `performance.now()` when the last local dash started. */
+  dashLastAt: number;
+  setDashLastAt: (t: number) => void;
   me: () => UnitSnapshot | null;
 };
 
 /** How long a client-side log line survives server snapshots. */
 export const LOCAL_LOG_MS = 10_000;
+
+function unitFormKey(s: SnapshotMessage): string {
+  return s.units.map((u) => `${u.id}:${u.job ?? ""}:${u.buffs?.druidForm ?? 0}`).join("|");
+}
+
+/** Same-tick snapshots that still change what the world should draw or the sheet. */
+export function sameTickSnapshotApplies(prev: SnapshotMessage, next: SnapshotMessage): boolean {
+  if (JSON.stringify(prev.you.equip) !== JSON.stringify(next.you.equip)) return true;
+  if (JSON.stringify(prev.you.equipHq ?? {}) !== JSON.stringify(next.you.equipHq ?? {})) return true;
+  if (JSON.stringify(prev.you.inventory) !== JSON.stringify(next.you.inventory)) return true;
+  if (unitFormKey(prev) !== unitFormKey(next)) return true;
+  if (JSON.stringify(prev.partyInvite) !== JSON.stringify(next.partyInvite)) return true;
+  const prevLog = prev.log ?? [];
+  const nextLog = next.log ?? [];
+  if (prevLog.at(-1) !== nextLog.at(-1) || prevLog.length !== nextLog.length) return true;
+  return false;
+}
 
 export const useGame = create<GameState>((set, get) => ({
   phase: "boot",
@@ -156,11 +190,13 @@ export const useGame = create<GameState>((set, get) => ({
   snapshot: null,
   light: { leaderView: "provisional", committed: null },
   logs: [],
+  chats: [],
   localLogs: [],
   selectedTarget: null,
   npcDialog: null,
   explorer: null,
   pvpSlainPrompt: null,
+  dashLastAt: -Infinity,
   setPhase: (phase) => set({ phase }),
   setWallet: (wallet) => set({ wallet: wallet ? wallet.toLowerCase() : null }),
   setConnected: (connected) => set({ connected }),
@@ -170,17 +206,21 @@ export const useGame = create<GameState>((set, get) => ({
   setCharacterPreview: (characterPreview) => set({ characterPreview }),
   setPendingCreateEnter: (pendingCreateEnter) => set({ pendingCreateEnter }),
   setCharacterMint: (characterMint) => set({ characterMint }),
-  clearSnapshot: () => set({ snapshot: null, selectedTarget: null, explorer: null }),
+  clearSnapshot: () =>
+    set({
+      snapshot: null,
+      selectedTarget: null,
+      explorer: null,
+      chats: [],
+      npcDialog: null,
+      pvpSlainPrompt: null,
+    }),
   setSnapshot: (snapshot) => {
     const prev = get().snapshot;
-    // Skip identical-tick no-ops (reconnect / duplicate floods).
-    if (prev && prev.tick === snapshot.tick) {
-      const sheetChanged =
-        JSON.stringify(prev.you.equip) !== JSON.stringify(snapshot.you.equip) ||
-        JSON.stringify(prev.you.equipHq ?? {}) !== JSON.stringify(snapshot.you.equipHq ?? {}) ||
-        JSON.stringify(prev.you.inventory) !== JSON.stringify(snapshot.you.inventory);
-      if (!sheetChanged) return;
-    }
+    // Skip identical-tick no-ops (reconnect / duplicate floods). Equip, form,
+    // and combat-log changes on the same tick still apply — Stick Bear is a
+    // buffs.druidForm swap, not a sheet change.
+    if (prev && prev.tick === snapshot.tick && !sameTickSnapshotApplies(prev, snapshot)) return;
     const w = get().wallet?.toLowerCase();
     const me = w
       ? snapshot.units.find((u) => u.id.toLowerCase() === w && u.kind === "player")
@@ -217,24 +257,33 @@ export const useGame = create<GameState>((set, get) => ({
     const now = Date.now();
     const localLogs = get().localLogs.filter((l) => now - l.t < LOCAL_LOG_MS);
     const serverLog = snapshot.log ?? prev?.log;
+    const extras = serverLog
+      ? localLogs.filter((l) => !serverLog.includes(l.m)).map((l) => l.m)
+      : [];
     set({
       ...(mint !== undefined ? { characterMint: mint ?? null } : {}),
       light,
       snapshot,
       localLogs,
-      logs: serverLog ? [...serverLog, ...localLogs.map((l) => l.m)] : get().logs,
+      logs: serverLog ? [...serverLog, ...extras] : get().logs,
       selectedTarget,
+      npcDialog: npcDialogAfterSnapshot(prev?.you.zoneId, snapshot.you.zoneId, get().npcDialog),
     });
   },
-  pushLog: (message) =>
+  pushLog: (message, opts) =>
     set((s) => ({
       logs: [...s.logs.slice(-30), message],
       localLogs: [...s.localLogs.slice(-7), { m: message, t: Date.now() }],
+    })),
+  pushChat: (line) =>
+    set((s) => ({
+      chats: [...s.chats.slice(-79), { ...line, t: line.t ?? Date.now() }],
     })),
   setSelectedTarget: (selectedTarget) => set({ selectedTarget }),
   setNpcDialog: (npcDialog) => set({ npcDialog }),
   setExplorer: (explorer) => set({ explorer }),
   setPvpSlainPrompt: (pvpSlainPrompt) => set({ pvpSlainPrompt }),
+  setDashLastAt: (dashLastAt) => set({ dashLastAt }),
   me: () => {
     const s = get().snapshot;
     const w = get().wallet;

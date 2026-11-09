@@ -126,6 +126,20 @@ export function hitChance(acc: number, eva: number): number {
   return Math.min(0.95, Math.max(0.2, 0.75 + (acc - eva) / 200));
 }
 
+/** Lengthen a swing when Slow's penalty is actually running. A zero penalty leaves the delay alone. */
+export function slowedSwingDelay(delayMs: number, penalty: number): number {
+  if (!(penalty > 0)) return delayMs;
+  return Math.max(1, Math.floor(delayMs * (1 + penalty)));
+}
+
+/**
+ * Distract lowers the afflicted unit's accuracy and opens them up.
+ * `selfPenalty` is your own Distract. `targetOpening` is the target's.
+ */
+export function accuracyWithDistract(acc: number, selfPenalty: number, targetOpening: number): number {
+  return acc - Math.max(0, selfPenalty) + Math.max(0, targetOpening);
+}
+
 export function physicalDamage(
   att: number,
   def: number,
@@ -176,15 +190,6 @@ export function meleeFStr(
   if (job === "sorcerer" || job === "cleric") return Math.max(-1, fStr(stats.str, targetVit));
   return fStr(stats.str, targetVit);
 }
-
-/** @deprecated Use TIM_ABILITIES — kept for older imports. */
-export const ABILITIES = {
-  flux: { mp: 0, recastMs: 30_000 },
-  quicken: { mp: 12, recastMs: 15_000, durationMs: 90_000, haste: 0.35 },
-  slow: { mp: 15, recastMs: 20_000, durationMs: 30_000, hastePenalty: 0.25 },
-  cure: { mp: 8, recastMs: 6_000, heal: 45 },
-  rest: { mp: 0, recastMs: 0 },
-} as const;
 
 /** Fallback auto-attack delay (ms) when no weapon delayMs is equipped. */
 export const SWING_BASE_MS = 1600;
@@ -240,12 +245,6 @@ export function xpToNextLevel(level: number): number {
   const lv = Math.max(1, Math.min(XP_TO_NEXT.length, Math.floor(level)));
   return XP_TO_NEXT[lv - 1]!;
 }
-
-/** @deprecated Vitals come from jobVitalsAtLevel — kept for older imports. */
-export const LEVEL_UP_BONUS = {
-  maxHp: 10,
-  maxMp: 6,
-} as const;
 
 export const MAX_LEVEL = 75;
 

@@ -548,6 +548,39 @@ export function weaponTypeFromTokenId(tokenId: number | null | undefined): Weapo
   return WEAPON_TOKEN_TYPES[tokenId] ?? TOKEN_WEAPON_FALLBACK[tokenId] ?? null;
 }
 
+/**
+ * Druid forms hide the staff. WS families follow the form's role, not the
+ * equipped token: Bear tank (sword), Deer heal/support (club), Lion DPS (dagger).
+ * Racerunner has no weapon skills. Human keeps the equipped family.
+ */
+export function weaponTypeForDruidForm(
+  form: number | undefined,
+  equipped: WeaponType | null,
+): WeaponType | null {
+  switch (form) {
+    case 1:
+      return "sword";
+    case 2:
+      return "club";
+    case 3:
+      return "dagger";
+    case 4:
+      return null;
+    default:
+      return equipped;
+  }
+}
+
+export function weaponTypeForCombat(
+  job: string | undefined,
+  form: number | undefined,
+  equippedTokenId: number | null | undefined,
+): WeaponType | null {
+  const equipped = weaponTypeFromTokenId(equippedTokenId);
+  if (job === "druid") return weaponTypeForDruidForm(form, equipped);
+  return equipped;
+}
+
 export function weaponTpUnlocked(
   weapon: WeaponType | null | undefined,
   level: number,
@@ -560,25 +593,102 @@ export function weaponTpUnlocked(
   }) as WeaponTpAbilityId[];
 }
 
-export function weaponTpAbilityIconUrl(id: WeaponTpAbilityId): string {
-  return `/icons/abilities/${id}.png`;
+type FormWsSkin = { label: string; blurb: string };
+
+/** Display-only names for form WS. Original WEAPON_TP_ABILITIES stay unchanged. */
+const BEAR_WS_SKIN: Record<string, FormWsSkin> = {
+  ws_sword_fast_blade: { label: "Ferocious Maul", blurb: "A heavy maul. TP lifts the bonus damage, not the base." },
+  ws_sword_flat_blade: { label: "Hide Guard", blurb: "A braced swipe. Stuns briefly." },
+  ws_sword_circle_blade: { label: "Twin Swipes", blurb: "Two circling claws." },
+  ws_sword_vorpal_blade: { label: "Shoulder Crash", blurb: "A shoulder crash. Attack Down." },
+  ws_sword_swift_blade: { label: "Triple Rake", blurb: "Three raking blows." },
+  ws_sword_savage_blade: { label: "Den Breaker", blurb: "A den-breaking slam. Slow." },
+  ws_sword_death_blossom: { label: "Fur Storm", blurb: "Four wild swipes." },
+  ws_sword_knights_round: { label: "Bruin Round", blurb: "Five dwelling mauls. Stun on the last." },
+};
+
+const DEER_WS_SKIN: Record<string, FormWsSkin> = {
+  ws_club_shiny_strike: { label: "Buck", blurb: "A hart's buck. TP lifts the bonus damage, not the base." },
+  ws_club_brainshaker: { label: "Grove Rattle", blurb: "A grove-rattle. Stuns briefly." },
+  ws_club_starlight: { label: "Twin Tines", blurb: "Two tine gleams." },
+  ws_club_moonlight: { label: "Stillmere Knock", blurb: "A stillmere knock. Attack Down." },
+  ws_club_skullbreaker: { label: "Henge Tap", blurb: "A henge tap. Paralyze." },
+  ws_club_true_strike: { label: "Three Boughs", blurb: "Three true antler hits." },
+  ws_club_judgment: { label: "Hart's Word", blurb: "A spoken hart's word. Slow." },
+  ws_club_black_halo: { label: "Ring of Tines", blurb: "Four pale tine-rings. Stun." },
+};
+
+const LION_WS_SKIN: Record<string, FormWsSkin> = {
+  ws_dg_wasp_sting: { label: "Blazing Bite", blurb: "A blazing bite. One hit." },
+  ws_dg_gust_slash: { label: "Twin Claws", blurb: "Two flickering claws." },
+  ws_dg_shadowstitch: { label: "Spine Latch", blurb: "A spine latch. Paralyze." },
+  ws_dg_viper_bite: { label: "Blood Fang", blurb: "A blooded fang. Attack Down." },
+  ws_dg_cyclone: { label: "Kill Flurry", blurb: "Three killing whirls." },
+  ws_dg_energy_steal: { label: "Throat Rake", blurb: "A throat rake. Slow." },
+  ws_dg_evisceration: { label: "Five Talons", blurb: "Five talon jabs." },
+  ws_dg_rudras_storm: { label: "Pride Gale", blurb: "A pride gale. Stun." },
+};
+
+const FORM_WS_SKIN: Record<1 | 2 | 3, Record<string, FormWsSkin>> = {
+  1: BEAR_WS_SKIN,
+  2: DEER_WS_SKIN,
+  3: LION_WS_SKIN,
+};
+
+export function druidFormWsSkin(id: string, form: number | undefined): FormWsSkin | undefined {
+  if (form !== 1 && form !== 2 && form !== 3) return undefined;
+  return FORM_WS_SKIN[form][id];
 }
 
-export function weaponTpAbilityTooltip(id: WeaponTpAbilityId): {
+export function druidFormWsLabel(id: string, form: number | undefined): string | undefined {
+  return druidFormWsSkin(id, form)?.label;
+}
+
+/** Form-only HUD icons. Original `/icons/abilities/ws_*.png` files stay untouched. */
+export function druidFormWsIconUrl(id: string, form: number | undefined): string | undefined {
+  if (!druidFormWsSkin(id, form)) return undefined;
+  return `/icons/abilities/dr_form${form}_${id}.png`;
+}
+
+function formWsWeaponWord(form: number | undefined): string | undefined {
+  if (form === 1) return "claws";
+  if (form === 2) return "antlers";
+  if (form === 3) return "fangs";
+  return undefined;
+}
+
+/** Swap staff (or any) WS in an unlocked list for this druid form's family. */
+export function withFormWeaponSkills<T extends string>(
+  unlocked: readonly T[],
+  opts: { job: string; form?: number; equipMain?: number | null; level: number },
+): T[] {
+  if (opts.job !== "druid") return [...unlocked];
+  const rest = unlocked.filter((id) => !isWeaponTpAbilityId(id));
+  const wtype = weaponTypeForCombat(opts.job, opts.form ?? 0, opts.equipMain ?? null);
+  return [...rest, ...(weaponTpUnlocked(wtype, opts.level) as T[])];
+}
+
+export function weaponTpAbilityIconUrl(id: WeaponTpAbilityId, form: number = 0): string {
+  return druidFormWsIconUrl(id, form) ?? `/icons/abilities/${id}.png`;
+}
+
+export function weaponTpAbilityTooltip(id: WeaponTpAbilityId, form: number = 0): {
   title: string;
   body: string;
   meta: string;
 } {
   const d = WEAPON_TP_ABILITIES[id]!;
+  const skin = druidFormWsSkin(id, form);
   const fx =
     d.effects?.map((e) => e.kind.replace("_", " ")).join(", ") || "damage";
   return {
-    title: d.label,
-    body: d.blurb,
+    title: skin?.label ?? d.label,
+    body: skin?.blurb ?? d.blurb,
     meta: (() => {
       const mulMinPct = Math.round(WEAPON_TP_BONUS_MUL_MIN * 100);
       const mulMaxPct = Math.round(WEAPON_TP_BONUS_MUL_MAX * 100);
-      return `Weapon Skill · ${d.weapon} · Lv${d.unlockLevel} · ${d.hits} hit${d.hits > 1 ? "s" : ""} · ${fx} · Cost ${WEAPON_TP_COST} TP · TP bonus +${mulMinPct}%–+${mulMaxPct}% of hit (${WEAPON_TP_COST}–${WEAPON_TP_BONUS_CAP} TP)`;
+      const weapon = formWsWeaponWord(form) ?? d.weapon;
+      return `Weapon Skill · ${weapon} · Lv${d.unlockLevel} · ${d.hits} hit${d.hits > 1 ? "s" : ""} · ${fx} · Cost ${WEAPON_TP_COST} TP · TP bonus +${mulMinPct}%–+${mulMaxPct}% of hit (${WEAPON_TP_COST}–${WEAPON_TP_BONUS_CAP} TP)`;
     })(),
   };
 }

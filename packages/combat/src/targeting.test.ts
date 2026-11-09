@@ -62,6 +62,14 @@ describe("tab targeting", () => {
     assert.deepEqual(list.map((u) => u.id), ["0xme", "0xally"]);
   });
 
+  it("keeps fallen allied players on Ctrl-Tab for Raise", () => {
+    const down = { ...ally("0xdown", 4, 0), hp: 0, anim: "dead" as const };
+    const units = [me, down];
+    const list = listFriendlyTabTargets(units, me, "0xme");
+    assert.deepEqual(list.map((u) => u.id), ["0xme", "0xdown"]);
+    assert.equal(resolveAbilityTargetId("cl_raise", "0xdown", "0xme", null, units), "0xdown");
+  });
+
   it("engage only on hostile selection", () => {
     const units = [me, mob("m1", 4, 0), ally("0xally", 4, 0)];
     assert.equal(canEngageSelected(units, "m1", "0xme"), true);

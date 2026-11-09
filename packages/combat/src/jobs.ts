@@ -76,6 +76,19 @@ export function isJobId(v: string): v is JobId {
   return (JOB_IDS as readonly string[]).includes(v);
 }
 
+/**
+ * Playable jobs the factory will mint.
+ * Missing allow-list → every playable job (old callers / no mint config).
+ * Empty allow-list → none (do not treat [] as "all" and mint into BadJob).
+ */
+export function mintableStartingJobs(startingJobs?: readonly number[] | null): JobId[] {
+  const playable = JOB_IDS.filter((id) => JOBS[id].playable);
+  if (startingJobs == null) return playable;
+  if (startingJobs.length === 0) return [];
+  const allowed = new Set(startingJobs);
+  return playable.filter((id) => allowed.has(JOB_IDS.indexOf(id)));
+}
+
 /** Melee swing SFX family — staff casters vs blade jobs. */
 export type JobWeapon = "staff" | "sword";
 

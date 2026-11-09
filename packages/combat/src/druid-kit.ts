@@ -5,6 +5,7 @@
  * FX: dust, ash-gold, incomplete heptad — not TIM teal.
  */
 
+import { pickHotbarLines } from "./hotbar-lines";
 import { isTrainerFreeAbility } from "./trainer";
 
 export const DRUID_FORM = {
@@ -41,6 +42,30 @@ export const DRUID_SHIFT_IDS = [
   "dr_racerunner",
   "dr_ring_walk",
 ] as const;
+
+/**
+ * Using a form leaves that song ready to toggle. Sibling forms share the
+ * family recast. Ring Split skips the family lock for the next shift.
+ */
+export function applyDruidShiftRecast(
+  recasts: Partial<Record<string, number>>,
+  usedId: string,
+  now: number,
+  skipFamily = false,
+): void {
+  if (skipFamily) {
+    delete recasts[usedId];
+    return;
+  }
+  const until = now + DRUID_SHIFT_RECAST_MS;
+  for (const id of DRUID_SHIFT_IDS) {
+    if (id === usedId) {
+      delete recasts[id];
+      continue;
+    }
+    recasts[id] = until;
+  }
+}
 
 export const DRUID_ABILITY_IDS = [
   "rest",
@@ -289,6 +314,7 @@ export const DRUID_ABILITIES: Record<DruidAbilityId, DruidAbilityDef> = {
     recastMs: 30_000,
     potency: 28,
     aoe: 4,
+    needsTarget: true,
     form: 1,
     category: "bear",
   }),
@@ -318,6 +344,7 @@ export const DRUID_ABILITIES: Record<DruidAbilityId, DruidAbilityDef> = {
     recastMs: 30_000,
     potency: 48,
     aoe: 4,
+    needsTarget: true,
     form: 1,
     category: "bear",
   }),
@@ -570,32 +597,74 @@ export function druidAbilitiesUnlocked(
   });
 }
 
-const FORM_PREFER: Record<DruidForm, DruidAbilityId[]> = {
-  0: ["dr_dustmend", "dr_sour_hum", "dr_chalk_ward", "dr_hollow_listen", "dr_ringwake", "dr_stickbear", "dr_stickdeer", "dr_racerunner", "dr_sticklion", "dr_ring_walk"],
-  1: ["dr_stick_clamour", "dr_ash_brace", "dr_bracken_root", "dr_stick_maul", "dr_bundle_thicken", "dr_ringwake", "dr_ring_walk", "dr_stickdeer", "dr_sticklion", "dr_racerunner"],
-  2: ["dr_still_water", "dr_antler_hum", "dr_mere_veil", "dr_pair_mend", "dr_still_water_ii", "dr_ringwake", "dr_ring_walk", "dr_stickbear", "dr_sticklion", "dr_racerunner"],
-  3: ["dr_stick_rake", "dr_mane_dust", "dr_stick_pounce", "dr_long_pounce", "dr_mane_fury", "dr_ringwake", "dr_ring_walk", "dr_stickbear", "dr_stickdeer", "dr_racerunner"],
-  4: ["dr_tail_dash", "dr_ember_tail", "dr_tail_dash_ii", "dr_long_run", "dr_ember_run", "dr_ring_walk", "dr_stickbear", "dr_stickdeer", "dr_sticklion"],
+/** One JA per line, best-first. Other-form songs stay in the book. */
+const FORM_LINES: Record<DruidForm, readonly (readonly DruidAbilityId[])[]> = {
+  0: [
+    ["dr_dustmend_ii", "dr_dustmend"],
+    ["dr_sour_hum_ii", "dr_sour_hum"],
+    ["dr_chalk_ward_ii", "dr_chalk_ward"],
+    ["dr_hollow_listen"],
+    ["dr_unstruck_echo"],
+    ["dr_mirror_glaze"],
+    ["dr_ring_split"],
+    ["dr_ringwake"],
+    ["dr_stickbear"],
+    ["dr_stickdeer"],
+    ["dr_racerunner"],
+    ["dr_sticklion"],
+    ["dr_ring_walk"],
+  ],
+  1: [
+    ["dr_stick_clamour_ii", "dr_stick_clamour"],
+    ["dr_ash_brace_ii", "dr_ash_brace"],
+    ["dr_bracken_root"],
+    ["dr_stick_maul_ii", "dr_stick_maul"],
+    ["dr_bundle_thicken"],
+    ["dr_kiln_shoulder"],
+    ["dr_ring_of_stakes"],
+    ["dr_ringwake"],
+    ["dr_ring_walk"],
+    ["dr_stickdeer"],
+    ["dr_sticklion"],
+    ["dr_racerunner"],
+  ],
+  2: [
+    ["dr_still_water_iv", "dr_still_water_iii", "dr_still_water_ii", "dr_still_water"],
+    ["dr_antler_hum_ii", "dr_antler_hum"],
+    ["dr_mere_veil_ii", "dr_mere_veil"],
+    ["dr_pair_mend_ii", "dr_pair_mend"],
+    ["dr_heptad_hum"],
+    ["dr_ringwake"],
+    ["dr_ring_walk"],
+    ["dr_stickbear"],
+    ["dr_sticklion"],
+    ["dr_racerunner"],
+  ],
+  3: [
+    ["dr_stick_rake_iii", "dr_stick_rake_ii", "dr_stick_rake"],
+    ["dr_mane_fury", "dr_mane_dust_ii", "dr_mane_dust"],
+    ["dr_long_pounce", "dr_stick_pounce"],
+    ["dr_ringwake"],
+    ["dr_ring_walk"],
+    ["dr_stickbear"],
+    ["dr_stickdeer"],
+    ["dr_racerunner"],
+  ],
+  4: [
+    ["dr_tail_dash_ii", "dr_tail_dash"],
+    ["dr_ember_run", "dr_long_run", "dr_ember_tail"],
+    ["dr_ring_walk"],
+    ["dr_stickbear"],
+    ["dr_stickdeer"],
+    ["dr_sticklion"],
+  ],
 };
 
 export function druidHotbarOrder(
   unlocked: readonly DruidAbilityId[],
   form: DruidForm = 0,
 ): DruidAbilityId[] {
-  const set = new Set(unlocked);
-  const out: DruidAbilityId[] = [];
-  const prefer = FORM_PREFER[form] ?? FORM_PREFER[0];
-  for (const id of prefer) {
-    if (!set.has(id) || id === "rest") continue;
-    if (id === "dr_ringwake" && form === 4) continue;
-    out.push(id);
-  }
-  for (const id of unlocked) {
-    if (id === "rest") continue;
-    if (id === "dr_ringwake" && form === 4) continue;
-    if (!out.includes(id)) out.push(id);
-  }
-  return out;
+  return pickHotbarLines(unlocked, FORM_LINES[form] ?? FORM_LINES[0]);
 }
 
 export function druidFormHp(humanHp: number, form: DruidForm, knightHp: number): number {
