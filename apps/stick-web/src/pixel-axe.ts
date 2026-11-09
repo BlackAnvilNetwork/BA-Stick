@@ -270,10 +270,6 @@ export function pixelAxeLayoutForGearId(id: string): PixelAxeLayout | null {
   return LAYOUTS[id] ?? null;
 }
 
-/** @deprecated use layout.haft */
-export const BRONZE_AXE_HAFT: [number, number] = LAYOUTS.ba_bronze_axe!.haft;
-export const BRONZE_AXE_WING_BOTTOM_Y = BASE_WING_BOTTOM_Y;
-
 export function pixelAxeBounds(id: string): Array<[number, number, number]> {
   const lay = pixelAxeLayoutForGearId(id);
   if (!lay) return [];

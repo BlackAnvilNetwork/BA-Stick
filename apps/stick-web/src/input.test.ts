@@ -2,12 +2,18 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
 
-import { test } from "node:test";
+import { afterEach, test } from "node:test";
 import assert from "node:assert/strict";
-import { engageHeadingGoal, headingEase, headingStep, headingTarget, headingToward, isoScreenPick, shouldResend, DashClock, dashDirection, STOP_LEAD, stopTarget, TURN_RATE, WASD_STEP, wasdIntent, wasdTarget } from "./input";
+import { clearKeyboardMove, clearVirtualStick, getMoveKeys, setKeyboardMoveKey, setVirtualStick } from "@bellgrave/ui/moveInput";
+import { analogScreenTarget, blendToward, engageHeadingGoal, headingEase, headingStep, headingTarget, headingToward, isoScreenPick, shouldResend, DashClock, dashDirection, DASH_PRED_HOLD, RECONCILE_SNAP, STOP_LEAD, stopTarget, TURN_RATE, WASD_STEP, wasdIntent, wasdTarget } from "./input";
 
 const none = { w: false, a: false, s: false, d: false };
 const free = (_ax: number, _az: number, x: number, z: number) => ({ x, z });
+
+afterEach(() => {
+  clearKeyboardMove();
+  clearVirtualStick();
+});
 // Fake iso: screen right = +x/-z, screen down = +x/+z.
 const pick = (sx: number, sy: number): [number, number] => [(sx / 32 + sy / 16) / 2, (sy / 16 - sx / 32) / 2];
 
@@ -68,7 +74,7 @@ test("shouldResend throttles held W/S but reacts to changes", () => {
   assert.equal(shouldResend(null, { keys: "w", heading: 0, at: 0 }, me), true);
   assert.equal(shouldResend(prev, { keys: "w", heading: 0, at: 1100 }, me), false);
   assert.equal(shouldResend(prev, { keys: "wa", heading: 0, at: 1060 }, me), true);
-  assert.equal(shouldResend(prev, { keys: "w", heading: 0.1, at: 1060 }, me), true);
+  assert.equal(shouldResend(prev, { keys: "w", heading: 0.4, at: 1060 }, me), true);
   assert.equal(shouldResend(prev, { keys: "w", heading: 0, at: 1060 }, { x: 0, z: 2.5 }), true);
   assert.equal(shouldResend(prev, { keys: "w", heading: 0, at: 1250 }, me), true);
 });
@@ -122,6 +128,89 @@ test("dash direction: heading in 3D (S = back), WASD then cursor then facing in 
   assert.ok(Math.abs(cur.dz + 1) < 1e-9);
   const face = dashDirection(none, me, null, null, [0.01, 0]);
   assert.ok(Math.abs(face.dx - 1) < 1e-9, "cursor on the feet falls back to facing");
+  const analogFwd = dashDirection(none, me, 0, null, null, { nx: 0, ny: 1 });
+  assert.ok(Math.abs(analogFwd.dx) < 1e-9 && Math.abs(analogFwd.dz - 1) < 1e-9, "3D analog up dashes along heading");
+  const analogBack = dashDirection(none, me, 0, null, null, { nx: 0, ny: -1 });
+  assert.ok(Math.abs(analogBack.dz + 1) < 1e-9, "3D analog down dashes back");
+});
+
+test("analog stick up matches iso W, not facing", () => {
+  const me = { x: 3, z: 40 };
+  const analog = analogScreenTarget({ nx: 0, ny: 1 }, me, pick, [320, 180], free)!;
+  const keyW = wasdTarget({ ...none, w: true }, me, pick, [320, 180], free)!;
+  assert.ok(Math.abs(analog.x - keyW.x) < 1e-9 && Math.abs(analog.z - keyW.z) < 1e-9);
+});
+
+test("iso stick-right is screen-right (+x −z); 3D +nx strafe is screen-right after negate", () => {
+  const me = { x: 0, z: 0 };
+  setVirtualStick(1, 0);
+  const isoKeys = getMoveKeys();
+  assert.equal(isoKeys.d, true);
+  assert.equal(isoKeys.a, false);
+  const iso = wasdTarget(isoKeys, me, pick, [320, 180], free)!;
+  assert.ok(iso.x > 0 && iso.z < 0, "iso D is screen-right (+x −z)");
+  const h = 0;
+  const right = headingTarget(isoKeys, me, h, free, -1)!;
+  assert.ok(right.x < 0 && Math.abs(right.z) < 1e-9, "negated +nx is −X = View.basis screen-right at yaw 0");
+  const unflipped = headingTarget(isoKeys, me, h, free, 1)!;
+  assert.ok(unflipped.x > 0, "un-negated +nx is heading-right / screen-left");
+  clearVirtualStick();
+});
+
+test("W then S reverses instead of coasting on lastWasd", () => {
+  setKeyboardMoveKey("w", true);
+  setVirtualStick(0, -1);
+  const keys = getMoveKeys();
+  assert.equal(keys.w, false);
+  assert.equal(keys.s, true);
+  const me = { x: 0, z: 0 };
+  const t = headingTarget(keys, me, 0, free)!;
+  assert.ok(t.z < 0, "S against heading 0 is −Z");
+  assert.equal(headingTarget({ w: true, a: false, s: true, d: false }, me, 0, free), null, "uncancelled W+S is idle");
+  clearKeyboardMove();
+  clearVirtualStick();
+});
+
+test("keyboard WASD is unchanged without a stick", () => {
+  clearVirtualStick();
+  setKeyboardMoveKey("w", true);
+  setKeyboardMoveKey("d", true);
+  assert.deepEqual(getMoveKeys(), { w: true, a: false, s: false, d: true });
+  const me = { x: 3, z: 40 };
+  assert.deepEqual(
+    wasdIntent({ view: "iso", keys: getMoveKeys(), me, heading: 0, pick, center: [320, 180], clamp: free }),
+    wasdTarget({ w: true, a: false, s: false, d: true }, me, pick, [320, 180], free),
+  );
+  clearKeyboardMove();
+});
+
+test("zone change and overlay dash gates are wired in StickWorld", async () => {
+  const { readFileSync } = await import("node:fs");
+  const src = readFileSync(new URL("./StickWorld.tsx", import.meta.url), "utf8");
+  assert.match(src, /localDash = null/);
+  assert.match(src, /cancelDash/);
+  assert.match(src, /playOverlayBlocksDash/);
+  assert.match(src, /clickHoldKeys/);
+  assert.match(src, /getKeyboardMoveKeys/);
+  assert.match(src, /arcadeBlocksGroundClick/);
+  assert.match(src, /virtualStickHeld/);
+  assert.match(src, /DASH_PRED_HOLD/);
+  assert.match(src, /stick \? -stick\.nx : 0/);
+  assert.match(src, /minimapEngineDock/);
+  assert.match(src, /clickHoldKeys = null/);
+  assert.match(src, /resume: !\(virtualStickHeld\(\) \|\| analog\) && !hudClick/);
+  assert.match(src, /analogScreenTarget/);
+  assert.match(src, /virtualStickReleasedRecently/);
+  assert.match(src, /stopTarget\(feet, lastWasd\)/);
+  assert.match(src, /shouldResend\(lastWasd, \{ keys: keyStr, heading: dir, at \}, feet\)/);
+  assert.doesNotMatch(src, /analogDest/);
+  assert.doesNotMatch(src, /clickHoldKeys !== null/);
+  assert.doesNotMatch(src, /err > 2\.5/);
+  assert.doesNotMatch(src, /\[8, 248, 148, 104\]/);
+});
+
+test("DASH_PRED_HOLD outlasts one snapshot", () => {
+  assert.equal(DASH_PRED_HOLD, 400);
 });
 
 test("DashClock: local cooldown, confirm, and refusal release", () => {
@@ -136,4 +225,31 @@ test("DashClock: local cooldown, confirm, and refusal release", () => {
   assert.equal(c.refused(5200, false), false);
   assert.equal(c.refused(5500, false), true, "never confirmed: drop the prediction");
   assert.ok(c.ready(5500), "a refused dash does not lock the key");
+});
+
+test("blendToward eases a predicted pose onto the snapshot without a teleport", () => {
+  const a = blendToward({ x: 0, z: 0 }, { x: 3, z: 0 }, 1);
+  assert.equal(a.done, false);
+  assert.ok(Math.abs(a.x - 1) < 1e-9 && Math.abs(a.z) < 1e-9);
+  const b = blendToward({ x: 0, z: 0 }, { x: RECONCILE_SNAP / 2, z: 0 }, 1);
+  assert.equal(b.done, true);
+  assert.equal(b.x, RECONCILE_SNAP / 2);
+});
+
+test("shouldResend: a wall-clipped step is not topped up every tick", () => {
+  const me = { x: 0, z: 0 };
+  const clipped = { keys: "w", heading: 0, at: 1000, x: 0, z: 1.2, full: false };
+  assert.equal(shouldResend(clipped, { keys: "w", heading: 0, at: 1050 }, me), false, "no 20 Hz spam against a wall");
+  assert.equal(shouldResend(clipped, { keys: "w", heading: 0, at: 1250 }, me), true, "keep-alive still fires");
+  assert.equal(shouldResend({ ...clipped, full: true }, { keys: "w", heading: 0, at: 1050 }, me), true, "a full step is still topped up");
+});
+
+test("StickWorld: walk and dash share one yaw, and modifier chords are not movement", async () => {
+  const { readFileSync } = await import("node:fs");
+  const src = readFileSync(new URL("./StickWorld.tsx", import.meta.url), "utf8");
+  assert.match(src, /const moveYaw = \(\): number =>/);
+  assert.match(src, /dashDirection\(keys, me, heading === null \? null : moveYaw\(\)/);
+  assert.match(src, /!e\.ctrlKey && !e\.metaKey && !e\.altKey/);
+  assert.match(src, /clearVirtualStick\(\);/);
+  assert.match(src, /blendToward\(walkAhead, me, pace\)/);
 });

@@ -18,8 +18,11 @@ import {
   paleHollowOnBridge,
   paleHollowRiverCenterX,
   paleHollowWalkable,
+  paleHollowWaterSurfaceY,
   PH_RIVER_MAIN,
+  PH_TRAINER,
 } from "./pale-hollow.ts";
+import { encodePhWaterLayout } from "./pale-hollow-water.ts";
 import {
   PH_ALL_MOBS,
   PH_QUESTS,
@@ -31,6 +34,7 @@ import {
   paleHollowQuestTalk,
   paleHollowQuestTalkNpc,
   paleHollowQuestVisit,
+  questTalkCue,
 } from "./pale-hollow-field.ts";
 import { WENNA_NPC_ID, WENNA_QUESTS } from "./wenna-quests.ts";
 
@@ -94,6 +98,41 @@ describe("pale hollow field", () => {
         assert.ok(neighbor <= 12, a.id);
       }
     }
+  });
+
+  it("lets you walk the grass around Ilse Morrowglass", () => {
+    assert.equal(paleHollowWalkable(PH_TRAINER.x, PH_TRAINER.z), true);
+    assert.equal(paleHollowBiome(PH_TRAINER.x, PH_TRAINER.z), "grass");
+    for (let a = 0; a < 24; a++) {
+      const ang = (a / 24) * Math.PI * 2;
+      const x = 192 + Math.cos(ang) * 13.5;
+      const z = 150 + Math.sin(ang) * 13.5;
+      const at = `${x.toFixed(1)},${z.toFixed(1)}`;
+      assert.equal(paleHollowBiome(x, z), "grass", at);
+      assert.equal(paleHollowWalkable(x, z), true, at);
+    }
+    assert.equal(paleHollowWalkable(198.5, 154.5), false, "sundial tower stays masonry");
+  });
+
+  it("lets you walk grass and open aprons around Mayflower", () => {
+    const aprons: { x: number; z: number; r: number }[] = [
+      { x: 196, z: 178, r: 12 },
+      { x: 192, z: 150, r: 14 },
+      { x: 214, z: 194, r: 10 },
+      { x: 206, z: 214, r: 11 },
+      { x: 238, z: 214, r: 16 },
+      { x: 232, z: 246, r: 11 },
+    ];
+    for (const a of aprons) {
+      for (const [dx, dz] of [[a.r, 0], [-a.r, 0], [0, a.r], [0, -a.r]] as const) {
+        const x = a.x + dx;
+        const z = a.z + dz;
+        assert.equal(paleHollowBiome(x, z), "grass", `${x},${z}`);
+        assert.equal(paleHollowWalkable(x, z), true, `${x},${z}`);
+      }
+    }
+    assert.equal(paleHollowWalkable(217, 196.5), false, "strongroom vault stays masonry");
+    assert.equal(paleHollowWalkable(238 + 4.5, 214 + 0.5), false, "great forge hall stays masonry");
   });
 
   it("keeps Skirt of the Camp on the grass around Emberwatch", () => {
@@ -254,5 +293,36 @@ describe("pale hollow field", () => {
     };
     assert.equal(paleHollowOnBridge(underArch.x, underArch.z), false, "beside-deck");
     assert.equal(paleHollowInOpenWater(underArch.x, underArch.z), true, "channel-under-arch");
+  });
+});
+
+describe("Pale Hollow water layout", () => {
+  it("encodes river spines inside the water mask, not the lake", () => {
+    const buf = encodePhWaterLayout();
+    assert.equal(String.fromCharCode(buf[0]!, buf[1]!, buf[2]!, buf[3]!), "WFL1");
+    const v = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+    const nseg = v.getUint16(4, true);
+    assert.ok(nseg > 8, `expected river segs, got ${nseg}`);
+    let lakeHits = 0;
+    let dryHits = 0;
+    for (let i = 0; i < nseg; i++) {
+      const o = 8 + i * 24;
+      const ax = v.getFloat32(o, true);
+      const az = v.getFloat32(o + 4, true);
+      const bx = v.getFloat32(o + 12, true);
+      const bz = v.getFloat32(o + 16, true);
+      if (paleHollowLakeDist(ax, az) <= PH_LAKE.r || paleHollowLakeDist(bx, bz) <= PH_LAKE.r) lakeHits++;
+      if (paleHollowWaterSurfaceY(ax, az) == null || paleHollowWaterSurfaceY(bx, bz) == null) dryHits++;
+    }
+    assert.equal(lakeHits, 0, "no lake strokes");
+    assert.equal(dryHits, 0, "spines stay in the river mask");
+  });
+});
+
+describe("quest talk cues", () => {
+  it("accepts a new active id and completes on gold or done", () => {
+    assert.equal(questTalkCue({ active: [], done: [] }, { active: [{ id: "q1" }], done: [] }, 0), "accept");
+    assert.equal(questTalkCue({ active: [{ id: "q1" }], done: [] }, { active: [], done: ["q1"] }, 12), "complete");
+    assert.equal(questTalkCue({ active: [{ id: "q1" }], done: [] }, { active: [{ id: "q1" }], done: [] }, 0), undefined);
   });
 });

@@ -275,27 +275,40 @@ pub(crate) fn behind_eye(cam: &Camera, p: Vec3, radius: f32) -> bool {
 }
 
 /// 3D-only prop culling. A prop is skipped when its bounding sphere lies
-/// wholly behind the eye, or past the engine's `FAR` plane where the ground
+/// wholly behind the eye, or past the camera's far plane where the ground
 /// ends in sky. Before this, 3D had no draw distance (every tree in the zone,
 /// hundreds at ~30 us each, was drawn each frame), and a base behind the eye
 /// projects to (0, 0) with s = 0, which passed the on-screen test.
 pub(crate) struct ViewCull {
     eye: Vec3,
     fwd: Vec3,
+    far: f32,
+    target: Vec3,
 }
 
 impl ViewCull {
     /// None for iso (`view == None`) and orthographic views.
     pub(crate) fn new(cam: &Camera) -> Option<ViewCull> {
         let v = cam.view?;
-        Some(ViewCull { eye: v.eye()?, fwd: v.fwd() })
+        Some(ViewCull { eye: v.eye()?, fwd: v.fwd(), far: cam.far, target: v.target })
     }
 
     pub(crate) fn skips(&self, p: Vec3, reach: f32) -> bool {
         let q = p - self.eye;
-        let far = stick_engine::camera::FAR + reach;
+        let far = self.far + reach;
         // Behind: 6 m of slack for tall props whose top can still reach the view.
-        q.dot(q) > far * far || q.dot(self.fwd) + reach + 6.0 < stick_engine::camera::NEAR
+        if q.dot(self.fwd) + reach + 6.0 < stick_engine::camera::NEAR {
+            return true;
+        }
+        let in_eye = q.dot(q) <= far * far;
+        // Iso→TP dolly: keep the target disc while the boom is still long.
+        let boom = (self.target - self.eye).len();
+        if boom > 0.5 * self.far {
+            let t = p - self.target;
+            let in_target = t.x * t.x + t.z * t.z <= far * far;
+            return !(in_eye || in_target);
+        }
+        !in_eye
     }
 }
 
@@ -316,6 +329,13 @@ const BACK_SIGN: f32 = -1.0;
 const LOD_FAR_PX: f32 = 40.0;
 const LOD_MID_PX: f32 = 96.0;
 
+fn is_lod_tree(kind: u8) -> bool {
+    matches!(kind, 0..=4 | kind::SAPLING | kind::HOLLOW_OAK)
+}
+
+/// Standing trees (pine, spruce, cypress, ash, sapling, hollow oak) vs baked `s`.
+const TREE_HEIGHT: f32 = 2.5;
+
 fn reach(p: &Prop) -> f32 {
     match p.kind {
         kind::PEAK => 6.0 * p.s,
@@ -332,15 +352,9 @@ fn reach(p: &Prop) -> f32 {
 }
 
 /// Iso draw box around the camera (m). Farther props cannot reach 640×360.
-pub(crate) const ISO_PROP_VIEW_M: f32 = 56.0;
-
 pub(crate) fn iso_view_box(cam: &Camera) -> (f32, f32, f32, f32) {
-    (
-        cam.cx - ISO_PROP_VIEW_M,
-        cam.cx + ISO_PROP_VIEW_M,
-        cam.cz - ISO_PROP_VIEW_M,
-        cam.cz + ISO_PROP_VIEW_M,
-    )
+    let r = cam.iso_prop;
+    (cam.cx - r, cam.cx + r, cam.cz - r, cam.cz + r)
 }
 
 pub(crate) fn prop_in_box(p: &Prop, x0: f32, x1: f32, z0: f32, z1: f32) -> bool {
@@ -1044,16 +1058,17 @@ fn tier_y_range(s: f32, tier: &crate::tree::TreeTier, tier_i: usize, seed: f32) 
 fn draw_conifer(c: &mut Ctx, p: &Prop, def: &crate::tree::TreeDef, dark: u8, mid: u8, lit: u8) {
     let seed = hash(p.x + p.kind as f32 * 17.0, p.z);
     let s = p.s.max(0.4);
+    let h = s * TREE_HEIGHT;
     let lean = (
         (hash(seed, 8.0) - 0.5) * 0.10,
         (hash(seed, 9.0) - 0.5) * 0.10,
     );
-    let top = s * def.trunk_y * (0.9 + 0.2 * hash(seed, 1.5));
+    let top = h * def.trunk_y * (0.9 + 0.2 * hash(seed, 1.5));
     let base_r = s * def.trunk_r * (0.88 + 0.28 * hash(seed, 1.7));
     let mut y_lo = f32::MAX;
     let mut y_hi = f32::MIN;
     for (i, tier) in def.tiers.iter().enumerate() {
-        let (a, b) = tier_y_range(s, tier, i, seed);
+        let (a, b) = tier_y_range(h, tier, i, seed);
         y_lo = y_lo.min(a);
         y_hi = y_hi.max(b);
     }
@@ -1061,7 +1076,7 @@ fn draw_conifer(c: &mut Ctx, p: &Prop, def: &crate::tree::TreeDef, dark: u8, mid
     c.tree_y_hi = y_hi;
     draw_trunk(c, seed, lean, top, base_r);
     for (i, tier) in def.tiers.iter().enumerate() {
-        draw_tier(c, s, tier, i, seed, lean, def.droop, def.lump, dark, mid, lit);
+        draw_tier(c, s, h, tier, i, seed, lean, def.droop, def.lump, dark, mid, lit);
     }
 }
 
@@ -1172,6 +1187,7 @@ fn bough_grow(seed: f32, tier: usize, i: usize, n: usize, lump: f32) -> f32 {
 fn draw_tier(
     c: &mut Ctx,
     s: f32,
+    h: f32,
     tier: &crate::tree::TreeTier,
     tier_i: usize,
     seed: f32,
@@ -1182,7 +1198,7 @@ fn draw_tier(
     mid: u8,
     lit: u8,
 ) {
-    let (y0, y1) = tier_y_range(s, tier, tier_i, seed);
+    let (y0, y1) = tier_y_range(h, tier, tier_i, seed);
     let r0 = s * tier.r * (0.86 + 0.28 * hash(seed, 40.0 + tier_i as f32));
     let y_top = c.tree_y_hi;
     draw_core(c, y0, y1, r0, lean, seed, tier_i, droop, lump, dark, mid, lit);
@@ -1370,15 +1386,27 @@ pub fn draw(
         let pad = reach(p) * 40.0 + 40.0;
         let tall = match p.kind {
             kind::BRIDGE => 120.0 + p.s * 16.0,
-            kind::HOLLOW_OAK | kind::FALLS | kind::ROCK_WALL | kind::WATER_LIFT => (p.s + p.h) * HEIGHT_PX + 40.0,
+            kind::HOLLOW_OAK => (p.s * TREE_HEIGHT + p.h) * HEIGHT_PX + 40.0,
+            kind::FALLS | kind::ROCK_WALL | kind::WATER_LIFT => (p.s + p.h) * HEIGHT_PX + 40.0,
             kind::CAIRN => p.s * 1.3 * HEIGHT_PX + 30.0,
             kind::PEAK => p.h * HEIGHT_PX + 40.0,
-            0..=4 => p.s * HEIGHT_PX + 20.0,
+            0..=4 => p.s * TREE_HEIGHT * HEIGHT_PX + 20.0,
+            kind::SAPLING => p.s * TREE_HEIGHT * HEIGHT_PX + 20.0,
             _ => 120.0,
         };
         if sp.x < -pad || sp.x > w + pad || sp.y < -pad || sp.y - tall > h + pad {
             continue;
         }
+        let tree_h = match p.kind {
+            kind::HOLLOW_OAK => p.s.max(3.0) * TREE_HEIGHT,
+            k if is_lod_tree(k) => p.s * TREE_HEIGHT,
+            _ => p.s,
+        };
+        let lod = if eye.is_some() && is_lod_tree(p.kind) {
+            tree_lod(cam, base, sp, tree_h)
+        } else {
+            0
+        };
         let f = v3(p.yaw.sin(), 0.0, p.yaw.cos());
         let r = v3(p.yaw.cos(), 0.0, -p.yaw.sin());
         let mut c = Ctx {
@@ -1396,7 +1424,7 @@ pub fn draw(
             snow_melting,
             tree_y_lo: 0.0,
             tree_y_hi: 0.0,
-            lod: if eye.is_some() && p.kind <= 4 { tree_lod(cam, base, sp, p.s) } else { 0 },
+            lod,
             cull_back: eye.is_some(),
             eye_y: eye.as_ref().map_or(0.0, |e| e.eye.y - base.y),
         };
@@ -1593,7 +1621,8 @@ fn draw_one(c: &mut Ctx, p: &Prop, time: f32) {
         }
         kind::ASH_MED | kind::ASH_TALL => {
             let seed = hash(p.x, p.z);
-            let top = s * 0.62;
+            let h = s * TREE_HEIGHT;
+            let top = h * 0.62;
             c.cap(up(c, 0.0), up(c, top), 1.8 + s * 0.2, WOOD_D);
             c.cap(
                 up(c, top * 0.7),
@@ -1608,13 +1637,13 @@ fn draw_one(c: &mut Ctx, p: &Prop, time: f32) {
                 (0.06, 0.88, 0.17, ASH_L),
                 (-0.08, 0.84, 0.15, ASH),
             ];
-            let y_top = s * 0.95;
-            c.tree_y_lo = s * 0.55;
+            let y_top = h * 0.95;
+            c.tree_y_lo = h * 0.55;
             c.tree_y_hi = y_top;
             for (bi, (dx, dy, rr, col)) in blobs.iter().enumerate() {
-                let q = c.p(dx * s, dy * s, 0.0);
+                let q = c.p(dx * s, dy * h, 0.0);
                 let lit = if *col == ASH_D { ASH } else { ASH_L };
-                let fill = canopy_disc_col(c, *col, lit, dy * s, y_top, seed + bi as f32);
+                let fill = canopy_disc_col(c, *col, lit, dy * h, y_top, seed + bi as f32);
                 c.fb.disc(
                     P2 { d: q.d - 0.3, ..q },
                     rr * s * 26.0,
@@ -1685,11 +1714,12 @@ fn draw_one(c: &mut Ctx, p: &Prop, time: f32) {
             }
         }
         kind::SAPLING => {
-            c.tree_y_lo = s * 0.35;
-            c.tree_y_hi = s * 0.8;
-            c.cap(up(c, 0.0), up(c, s * 0.7), 1.0, WOOD);
-            let q = up(c, s * 0.75);
-            let fill = canopy_disc_col(c, ASH, ASH_L, s * 0.75, s * 0.8, hash(p.x, p.z));
+            let h = s * TREE_HEIGHT;
+            c.tree_y_lo = h * 0.35;
+            c.tree_y_hi = h * 0.8;
+            c.cap(up(c, 0.0), up(c, h * 0.7), 1.0, WOOD);
+            let q = up(c, h * 0.75);
+            let fill = canopy_disc_col(c, ASH, ASH_L, h * 0.75, h * 0.8, hash(p.x, p.z));
             c.fb.disc(q, s * 6.0, fill, Some(C_OUTLINE));
         }
         kind::STONE | kind::ROCK => {
@@ -2196,7 +2226,7 @@ fn draw_one(c: &mut Ctx, p: &Prop, time: f32) {
         }
         kind::WATER_LIFT => draw_water_lift(c, p, time),
         kind::HOLLOW_OAK => {
-            let hgt = s.max(3.0);
+            let hgt = s.max(3.0) * TREE_HEIGHT;
             let r = p.w.max(0.6);
             let seed = p.x * 0.37 + p.z * 0.11;
             let top = hgt * 0.55;
@@ -2455,8 +2485,8 @@ mod tests {
     fn pine_draws_a_shaded_volume() {
         use stick_engine::camera::Camera;
         use stick_engine::raster::Framebuffer;
-        let mut fb = Framebuffer::new(220, 200);
-        let cam = Camera::new(220, 200);
+        let mut fb = Framebuffer::new(220, 400);
+        let cam = Camera::new(220, 400);
         let prop = Prop {
             kind: kind::PINE,
             var: 0,
@@ -2476,6 +2506,7 @@ mod tests {
         let mut wood = 0;
         let mut lit_bark = 0;
         let (mut x0, mut x1) = (i32::MAX, i32::MIN);
+        let (mut y0, mut y1) = (i32::MAX, i32::MIN);
         let (mut wx0, mut wx1) = (i32::MAX, i32::MIN);
         for y in 0..fb.h {
             for x in 0..fb.w {
@@ -2497,6 +2528,8 @@ mod tests {
                 if col == PINE || col == PINE_L || col == PINE_D {
                     x0 = x0.min(x as i32);
                     x1 = x1.max(x as i32);
+                    y0 = y0.min(y as i32);
+                    y1 = y1.max(y as i32);
                 }
             }
         }
@@ -2504,6 +2537,7 @@ mod tests {
         assert!(wood > 30 && lit_bark > 0, "the trunk has a shaded face, wood {wood}");
         assert!(wx1 - wx0 > 6, "the trunk is wider than a twig");
         assert!(x1 - x0 > 12, "the crown is wider than a line");
+        assert!(y1 - y0 > 90, "2.5× height must stand taller than the old crown, span {}", y1 - y0);
     }
 
     #[test]

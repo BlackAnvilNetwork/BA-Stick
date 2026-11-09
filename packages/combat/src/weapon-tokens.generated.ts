@@ -28,11 +28,16 @@ export const WEAPON_TOKEN_TYPES: Record<number, WeaponType> = {
   138: "axe", // darksteel-great-axe
   151: "sword", // orichalcum-sword
   158: "axe", // palace-great-axe
+  170: "staff", // ashbeam-wand
   172: "staff", // ashbeam-rod
+  175: "staff", // ashbeam-quarterstaff
+  181: "staff", // bloodbeam-wand
   183: "club", // ashbeam-club
+  189: "staff", // bloodbeam-crook
   195: "staff", // bellwood-staff
   206: "staff", // chrono-staff
   207: "staff", // mana-staff
+  316: "knuckles", // bone-knuckles
   317: "dagger", // bone-dagger
   1064: "sword", // decayed-sword
   1065: "axe", // decayed-axe
@@ -60,4 +65,42 @@ export const WEAPON_TOKEN_TYPES: Record<number, WeaponType> = {
   1134: "axe", // orichalcum-axe
   1135: "axe", // orichalcum-great-axe
   1137: "greatsword", // palace-greatsword
+  1232: "club", // iron-mace
+  1233: "club", // mythril-mace
+  1234: "club", // orichalcum-mace
+  1235: "club", // palace-cudgel
+  1241: "sword", // orichalcum-war-sword
+  1242: "sword", // bronze-shortsword
+  1243: "sword", // steel-shortsword
+  1244: "sword", // mythril-shortsword
+  1245: "dagger", // bronze-kris
+  1246: "dagger", // mythril-kris
+  1302: "staff", // seedwood-staff
+  1303: "staff", // paleoak-staff
+  1304: "staff", // rivetsteel-staff
+  1305: "sword", // pitiron-sword
+  1329: "staff", // forgeoak-staff
+  1330: "club", // fordoak-club
+  1331: "staff", // kilnoak-staff
+  1332: "dagger", // reedsteel-dagger
+  1333: "dagger", // forgeoak-kris
+  1334: "dagger", // fordoak-kris
+  1362: "staff", // glenoak-staff
+  1363: "club", // quillsteel-club
+  1364: "club", // meresteel-club
+  1365: "staff", // gleniron-staff
+  1423: "club", // runeoak-club
+  1424: "club", // hexoak-club
+  1425: "staff", // spellsteel-staff
+  1426: "dagger", // coilsteel-dagger
+  1427: "staff", // runeoak-rod
+  1428: "dagger", // hexoak-kris
+  1493: "staff", // voidoak-staff
+  1494: "staff", // aetheroak-staff
+  1495: "staff", // stormsteel-staff
+  1496: "club", // crownsteel-club
+  1497: "dagger", // voidoak-kris
+  1498: "dagger", // aetheroak-kris
+  1499: "dagger", // stormsteel-kris
+  1500: "dagger", // crownsteel-kris
 } as const;

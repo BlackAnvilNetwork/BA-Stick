@@ -21,7 +21,7 @@ pnpm --filter @bellgrave/items test
 
 ```bash
 py -3 scripts/build-item-catalog.py
-py -3 scripts/bake-item-icons.py
+pnpm --filter @bellgrave/stick-web exec tsx scripts/bake-icons.ts
 ```
 
 

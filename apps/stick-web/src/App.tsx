@@ -1,5 +1,6 @@
 import { useEffect } from "react";
-import { ITEM, MENU_MUSIC, musicForZone } from "@bellgrave/config";
+import { MENU_MUSIC, musicForZone } from "@bellgrave/config";
+import { ITEM } from "@bellgrave/items";
 import { FigurePreviewContext } from "@bellgrave/ui/FigurePreview";
 import { StickPreview } from "./StickPreview";
 import { BootScreens, Hud, castAbility, hotbarAbilityAt, hotbarIndexFromCode } from "@bellgrave/ui/Hud";

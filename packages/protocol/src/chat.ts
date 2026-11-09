@@ -4,9 +4,12 @@ export const CHAT_MAX_LEN = 140;
 export const ChatChannelSchema = z.enum(["say", "party"]);
 export type ChatChannel = z.infer<typeof ChatChannelSchema>;
 
-/** Strip controls, collapse space, and cap length. Empty after trim is rejected. */
+/** Strip controls and bidi marks, collapse space, and cap length. Empty after trim is rejected. */
 export function sanitizeChatText(raw: string, max = CHAT_MAX_LEN): string | null {
-  const cleaned = raw.replace(/[\u0000-\u001F\u007F]/g, "").replace(/\s+/g, " ").trim();
+  const cleaned = raw
+    .replace(/[\p{Cf}\p{Cc}\p{Mn}\p{Me}]/gu, "")
+    .replace(/\s+/g, " ")
+    .trim();
   if (!cleaned) return null;
   return cleaned.length > max ? cleaned.slice(0, max) : cleaned;
 }

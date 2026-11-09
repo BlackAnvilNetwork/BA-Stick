@@ -523,6 +523,35 @@ mod perspective {
     }
 
     #[test]
+    fn scaled_far_widens_pick_and_leaves_iso_unproject() {
+        let iso = Camera::new(640, 360);
+        let (x0, z0) = iso.unproject_ground(400.0, 200.0);
+        let mut stretched = iso;
+        stretched.far = 90.0;
+        let (x1, z1) = stretched.unproject_ground(400.0, 200.0);
+        assert!((x0 - x1).abs() < 1e-5 && (z0 - z1).abs() < 1e-5);
+
+        let v = tp(v3(0.0, 1.0, 0.0), 0.0, 6.0);
+        let c36 = Camera { view: Some(v), far: 36.0, ..Camera::new(640, 360) };
+        let c90 = Camera { view: Some(v), far: 90.0, ..Camera::new(640, 360) };
+        let mut extra_long = 0;
+        let mut extra_short = 0;
+        // 30° down: far ground sits above the 55% look-at row, toward the horizon.
+        for y in 0..360 {
+            let a = c36.pick_ground(320.0, y as f32);
+            let b = c90.pick_ground(320.0, y as f32);
+            if a.is_none() && b.is_some() {
+                extra_long += 1;
+            }
+            if a.is_some() && b.is_none() {
+                extra_short += 1;
+            }
+        }
+        assert_eq!(extra_short, 0, "raising FAR must not lose ground picks");
+        assert!(extra_long > 0, "raising FAR must pick more distant ground");
+    }
+
+    #[test]
     fn perspective_projection_math() {
         let v = tp(v3(0.0, 1.0, 0.0), 0.0, 5.0);
         let c = Camera { view: Some(v), ..Camera::new(640, 360) };

@@ -188,6 +188,13 @@
   "bioUntil": {
    "vfx": "dot"
   },
+  "diseaseUntil": {
+   "vfx": "dot",
+   "why": "reuse poison path"
+  },
+  "curseUntil": {
+   "vfx": "enfeeble"
+  },
   "atkDownUntil": {
    "vfx": "enfeeble"
   },
@@ -205,7 +212,7 @@
    "vfx": "ward"
   },
   "enSpellUntil": {
-   "vfx": "none"
+   "vfx": "flash"
   },
   "enSpellElement": {
    "vfx": "none"
@@ -244,6 +251,10 @@
   },
   "regenUntil": {
    "vfx": "regen"
+  },
+  "reraiseUntil": {
+   "vfx": "none",
+   "why": "Ember Vigil timer — HUD / status icon, not a world VFX"
   },
   "druidForm": {
    "vfx": "none",

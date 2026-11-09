@@ -2,8 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
 //
-// Shield face. 'e' steel, 'g' gold rim. One solid field, no dark bands.
-// Row 0 is the boss edge. The last row is the rim.
+// Shield face. 'n' mythril blue, 'w' white rim. Same pair as the sword.
 (
     id: "ba_mythril_shield",
     x0: -0.24,
@@ -21,10 +20,10 @@
     cuff_to: 0.0,
     cuff_thick: 0.0,
     rows: [
-        "eeeeeeeeeeee",
-        "eeeeeeeeeeee",
-        "eeeeeeeeeeee",
-        "eeeeeeeeeeee",
-        "gggggggggggg",
+        "nnnnnnnnnnnn",
+        "nnnnnnnnnnnn",
+        "nnnnnnnnnnnn",
+        "nnnnnnnnnnnn",
+        "wwwwwwwwwwww",
     ],
 )

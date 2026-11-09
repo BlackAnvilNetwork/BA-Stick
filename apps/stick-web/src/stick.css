@@ -50,7 +50,16 @@ html, body, #root {
   display: grid; place-items: center; padding: 0; margin: 0; cursor: pointer;
   border: 1px solid #9a7d45; background: rgba(13, 11, 20, 0.55); pointer-events: auto;
 }
-.stick-map-full[data-full="1"] { z-index: 25; background: rgba(13, 11, 20, 0.88); }
+.stick-map-full[data-full="1"] {
+  position: fixed;
+  left: max(8px, env(safe-area-inset-left, 0px));
+  top: max(8px, env(safe-area-inset-top, 0px));
+  z-index: 60;
+  width: 44px;
+  height: 44px;
+  transform: none;
+  background: rgba(13, 11, 20, 0.88);
+}
 .map-full-mark {
   width: 12px; height: 12px; display: block;
   background:

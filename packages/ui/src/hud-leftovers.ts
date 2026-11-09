@@ -121,6 +121,14 @@ export function appKitModalView(isConnected: boolean): "Account" | "Connect" {
   return isConnected ? "Account" : "Connect";
 }
 
+/** After logout a warm AppKit chip must hello/resume, not open Account. */
+export function shouldHelloOnConnectedWalletChip(opts: {
+  serverAuthed: boolean;
+  skipRestoreUntilConnect: boolean;
+}): boolean {
+  return opts.skipRestoreUntilConnect || !opts.serverAuthed;
+}
+
 /** Only a real click replaces an existing session. Auto-login must not force. */
 export function shouldForceWalletLogin(userClicked: boolean): boolean {
   return userClicked;
@@ -150,8 +158,10 @@ export function shouldAutoLoginAppKit(opts: {
   leftoverReplace?: boolean;
   unsignedLive?: boolean;
   accountSwitch?: boolean;
+  skipRestoreUntilConnect?: boolean;
 }): boolean {
   if (!opts.connected || !opts.address) return false;
+  if (opts.skipRestoreUntilConnect && !opts.userClicked) return false;
   const addr = opts.address.toLowerCase();
   const replace = opts.userClicked || !!opts.accountSwitch;
   if (opts.startedFor && opts.startedFor.toLowerCase() === addr && !replace) {

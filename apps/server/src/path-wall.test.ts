@@ -4,6 +4,7 @@ import {
   PH_HUB,
   PH_HUB_REAR_WALL,
   PH_HUB_SPAWN,
+  fieldNav,
   paleHollowClampMove,
   paleHollowInHubRearWall,
   paleHollowWalkable,
@@ -15,7 +16,7 @@ import { paleHollowFindPath } from "./nav-grid";
 const OX = PH_HUB.minX + 14;
 const OZ = PH_HUB.minZ + 6;
 
-/** Visual HubRearRockWall block centers in PaleHollowMap (x, z). */
+/** Visual HubRearRockWall block centers from `apps/stick-web/scripts/bake-props.ts` (x, z). */
 const WALL_CENTERS: readonly (readonly [number, number])[] = [
   [-7.5, 8.6],
   [-5.2, 9.1],
@@ -78,7 +79,7 @@ test("a straight-line slide cannot cross the rear wall (#120)", () => {
 });
 
 test("click path goes around the rear wall (#120)", () => {
-  const path = paleHollowFindPath(OX, 2 + OZ, OX, 16 + OZ);
+  const path = paleHollowFindPath(OX, 2 + OZ, OX, 16 + OZ, fieldNav("pale_hollow")!);
   assert.ok(path.length >= 2, "expected a detour, not a single blocked slide");
   const end = path[path.length - 1]!;
   assert.ok(Math.hypot(end.x - OX, end.z - (16 + OZ)) < 1.25, `ended at ${end.x},${end.z}`);
@@ -108,20 +109,21 @@ test("click path goes around the rear wall (#120)", () => {
 
 test("unreachable click stops at the closest reachable cell (#120)", () => {
   // Inside the cliff. The pathfinder must not append this point or walk through.
-  const path = paleHollowFindPath(OX, 2 + OZ, OX, 9 + OZ);
+  const path = paleHollowFindPath(OX, 2 + OZ, OX, 9 + OZ, fieldNav("pale_hollow")!);
   assert.ok(path.length >= 1);
   const end = path[path.length - 1]!;
   assert.ok(paleHollowWalkable(end.x, end.z));
   assert.ok(!paleHollowInHubRearWall(end.x, end.z));
   assert.ok(end.z < PH_HUB_REAR_WALL.minZ, `went past the wall to z=${end.z}`);
   const dist = Math.hypot(end.x - OX, end.z - (9 + OZ));
-  assert.ok(dist < 2.6, `not the near face (dist ${dist})`);
+  // fieldNav is roomy (0.5 m side samples), so the near face is one cell south of the raw wall.
+  assert.ok(dist < 3.2, `not the near face (dist ${dist})`);
   assert.ok(dist < Math.hypot(12, 0), "side gap is farther than the near face");
   for (const p of path) assert.ok(!paleHollowInHubRearWall(p.x, p.z));
 });
 
 test("the camp stays enterable around the cliff (#121)", () => {
-  const into = paleHollowFindPath(OX, 16 + OZ, GATE.x, GATE.z);
+  const into = paleHollowFindPath(OX, 16 + OZ, GATE.x, GATE.z, fieldNav("pale_hollow")!);
   const end = into[into.length - 1];
   assert.ok(end, "no path back into camp");
   assert.ok(Math.hypot(end.x - GATE.x, end.z - GATE.z) < 1.25);

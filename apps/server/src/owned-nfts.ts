@@ -31,7 +31,7 @@ export async function collectOwnedCharacterNfts(opts: {
 }): Promise<OwnedCharacterNft[]> {
   const owner = opts.owner.toLowerCase();
   if (!/^0x[0-9a-f]{40}$/.test(owner) || opts.lastId < 1n) return [];
-  const limit = Math.max(1, Math.min(opts.maxScan ?? 64, 64));
+  const limit = Math.max(1, Math.min(opts.maxScan ?? 64, 64)); // same window as client OWNED_NFT_SCAN_WINDOW
   const found: OwnedCharacterNft[] = [];
   let id = opts.lastId;
   for (let i = 0; i < limit && id >= 1n; i++, id -= 1n) {

@@ -19,6 +19,7 @@ type Props = {
   className?: string;
   style?: CSSProperties;
   preferIcon?: boolean;
+  form?: number;
 };
 
 function glyphFor(id: AbilityId | "potion"): string {
@@ -42,9 +43,9 @@ function glyphFor(id: AbilityId | "potion"): string {
  * Ability icon — knocks magenta/hot-pink to transparent at display time
  * so chroma-key backgrounds never show in the HUD (source PNGs unchanged).
  */
-export function AbilityIcon({ id, className = "", style, preferIcon = true }: Props) {
+export function AbilityIcon({ id, className = "", style, preferIcon = true, form = 0 }: Props) {
   const glyph = glyphFor(id);
-  const rawSrc = id === "potion" ? "/icons/abilities/potion.png" : abilityIconUrl(id);
+  const rawSrc = id === "potion" ? "/icons/abilities/potion.png" : abilityIconUrl(id, form);
   const [displaySrc, setDisplaySrc] = useState<string | null>(null);
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
   const failed = failedSrc === rawSrc;

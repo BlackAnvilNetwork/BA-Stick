@@ -3,15 +3,15 @@ import { describe, it } from "node:test";
 import { ASH_PIT } from "@bellgrave/config";
 import { ITEM, type Equipment } from "@bellgrave/items";
 import { BATTLEMAGE_ABILITIES, DRUID_SHIFT_RECAST_MS, isDruidAbilityId } from "@bellgrave/combat";
-import { pvpAbilityAllowed, canPvpStrike } from "./pvp.ts";
-import { pvpFoeView } from "./pvp-foe.ts";
+import { pvpAbilityAllowed, canPvpStrike } from "./pvp";
+import { pvpFoeView } from "./pvp-foe";
 import {
   dropDruidForm,
   resolveDruidAbility,
   type DruidHooks,
   type DruidMob,
   type DruidPlayer,
-} from "./druid-abilities.ts";
+} from "./druid-abilities";
 
 const NOW = 80_000;
 
@@ -164,6 +164,12 @@ describe("Druid Ash Pit PvP resolver", () => {
     assert.equal(noBounty.ok, false);
     const outside = canPvpStrike({ x: 0, z: 0 }, { x: ASH_PIT.spawn.x, z: ASH_PIT.spawn.z }, true);
     assert.equal(outside.ok, false);
+    const otherZone = canPvpStrike(
+      { x: ASH_PIT.spawn.x, z: ASH_PIT.spawn.z, zoneId: "forest_basin" },
+      { x: ASH_PIT.spawn.x + 2, z: ASH_PIT.spawn.z, zoneId: "forest_basin" },
+      true,
+    );
+    assert.equal(otherZone.ok, false);
   });
 
   it("lets a used form toggle while sibling forms recast", () => {
@@ -188,6 +194,29 @@ describe("Druid Ash Pit PvP resolver", () => {
     resolveDruidAbility(p, "dr_stickdeer", undefined, NOW + 150, h);
     assert.equal(p.druidForm, 1);
     assert.ok(logs.slice(before).some((m) => m.includes("not ready")));
+  });
+
+  it("refuses Unstruck Echo beyond kit range and does not spend", () => {
+    const p = druid({ mp: 200 });
+    const foe = foePlayer();
+    foe.x = p.x + 40;
+    const logs: string[] = [];
+    resolveDruidAbility(p, "dr_unstruck_echo", foe.id, NOW, hooks(p, foe, logs));
+    assert.equal(foe.stunUntil, 0);
+    assert.equal(p.mp, 200);
+    assert.ok(logs.some((m) => /too far/i.test(m)));
+  });
+
+  it("dustmend does not heal a party member beyond kit range", () => {
+    const p = druid({ hp: 200, maxHp: 280 });
+    const far = druid({ wallet: "0xally", name: "Ally", x: p.x + 40, z: p.z, hp: 80, maxHp: 280 });
+    const foe = foePlayer();
+    const logs: string[] = [];
+    const h = hooks(p, foe, logs);
+    h.allPlayers = () => [p, far];
+    resolveDruidAbility(p, "dr_dustmend", far.wallet, NOW, h);
+    assert.equal(far.hp, 80);
+    assert.ok(p.hp > 200);
   });
 
   it("lets Ring-Walk put the song down", () => {

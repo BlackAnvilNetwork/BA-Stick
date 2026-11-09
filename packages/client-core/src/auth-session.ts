@@ -72,6 +72,21 @@ export function hasPersistedWalletAuth(): boolean {
   return loadAuthSession() != null;
 }
 
+/** Other tabs: logout in tab B must drop tab A's in-memory session. */
+export function subscribeAuthSessionStorage(
+  onChange: (session: AuthSession | null) => void,
+): () => void {
+  if (typeof window === "undefined" || typeof window.addEventListener !== "function") {
+    return () => {};
+  }
+  const handler = (e: StorageEvent) => {
+    if (e.key != null && e.key !== AUTH_SESSION_KEY) return;
+    onChange(loadAuthSession());
+  };
+  window.addEventListener("storage", handler);
+  return () => window.removeEventListener("storage", handler);
+}
+
 /** True only when the persisted row is this address — not "any connected non-burner". */
 export function hasPersistedAuthForWallet(address: string): boolean {
   if (!WALLET_RE.test(address)) return false;

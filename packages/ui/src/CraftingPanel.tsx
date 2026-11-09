@@ -3,6 +3,7 @@
   CRAFT_SKILL_LABEL,
   CATALOG_BY_SLUG,
   closeCraftRecipes,
+  craftGoldCost,
   craftXpToNext,
   emptyCraftSkills,
   getItem,
@@ -64,6 +65,7 @@ export const CraftingPanel = memo(function CraftingPanel({ onClose }: Props) {
   }, [dataSig, skill]);
 
   const you = useGame.getState().snapshot?.you;
+  const nearCrafter = useGame((s) => s.snapshot?.you.nearCrafter === true);
   if (!you) return null;
 
   const focusSkill: CraftSkill | null = skill === "all" ? null : skill;
@@ -76,7 +78,9 @@ export const CraftingPanel = memo(function CraftingPanel({ onClose }: Props) {
         <div>
           <div className="cmd-kicker">Synthesis</div>
           <div className="cmd-panel-title">Crafting</div>
-          <div className="cmd-panel-sub">Close to craft · your materials</div>
+          <div className="cmd-panel-sub">
+            {nearCrafter ? "Close to craft · your materials" : "Walk to Brann Coldiron in the Eightfold to craft"}
+          </div>
         </div>
         <button type="button" onClick={onClose} className="cmd-close-btn">
           Close
@@ -131,7 +135,7 @@ export const CraftingPanel = memo(function CraftingPanel({ onClose }: Props) {
         {closeList.map((c) => {
           const pct = Math.round(c.matFrac * 100);
           const groups = c.materialGroups ?? c.materials.map((m) => ({ options: [m] }));
-          const goldCost = c.def.recipe?.gold ?? 0;
+          const goldCost = craftGoldCost(c.def.craftLevel ?? 0);
           let goldBal = 0n;
           try {
             goldBal = BigInt(lokGold);
@@ -181,8 +185,8 @@ export const CraftingPanel = memo(function CraftingPanel({ onClose }: Props) {
               </div>
               <button
                 type="button"
-                className={`cmd-mini-btn${ready ? " on" : ""}`}
-                disabled={!ready}
+                className={`cmd-mini-btn${ready && nearCrafter ? " on" : ""}`}
+                disabled={!ready || !nearCrafter}
                 onClick={() => {
                   if (
                     c.def.craftSkill === "leathercraft" ||

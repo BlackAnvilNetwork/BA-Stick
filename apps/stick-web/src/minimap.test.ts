@@ -11,6 +11,10 @@ import {
   shouldBlitMinimap,
   shouldDrawHudMinimap,
   shouldRemeasureMinimapDock,
+  minimapEngineDock,
+  MINIMAP_BLIT_DOCK,
+  MINIMAP_LEGACY_FALLBACK,
+  applyMapData,
 } from "./minimap";
 
 test("named Pale Hollow roads appear on the minimap", () => {
@@ -60,6 +64,30 @@ test("HUD well blit skips a collapsed dock", () => {
     blitMinimapToWell({} as CanvasImageSource, { width: 0, height: 0 } as HTMLCanvasElement, [0, 0, 8, 8]),
     false,
   );
+});
+
+test("mobile never uses the leftover MOVE fallback dock", () => {
+  assert.deepEqual(minimapEngineDock({ mobile: true, wellDock: null }), MINIMAP_BLIT_DOCK);
+  assert.deepEqual(minimapEngineDock({ mobile: true, wellDock: [10, 20, 30, 40] }), MINIMAP_BLIT_DOCK);
+  assert.deepEqual(minimapEngineDock({ mobile: false, wellDock: null }), MINIMAP_LEGACY_FALLBACK);
+  assert.notDeepEqual(MINIMAP_BLIT_DOCK, MINIMAP_LEGACY_FALLBACK);
+});
+
+test("peek applyMapData can omit labels", () => {
+  const titles: string[] = [];
+  const labels: string[] = [];
+  const r = {
+    clearMapData() {},
+    setMapTitle(t: string) { titles.push(t); },
+    addMapRoad() {},
+    addMapLabel(text: string) { labels.push(text); },
+  };
+  applyMapData(r, "pale_hollow", { labels: false });
+  assert.equal(titles.at(-1), "");
+  assert.equal(labels.length, 0);
+  applyMapData(r, "pale_hollow", { labels: true });
+  assert.ok((titles.at(-1) ?? "").length > 0);
+  assert.ok(labels.length >= 10);
 });
 
 test("dock remasure waits, blit skips an unchanged panel", () => {

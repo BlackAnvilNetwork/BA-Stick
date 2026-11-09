@@ -100,6 +100,22 @@ export function fetchProps(id: string): Promise<Uint8Array | null> {
   return p;
 }
 
+const waterCache = new Map<string, Promise<Uint8Array | null>>();
+/** Fetch river spines (`public/zones/<id>.wfl`). 404 means flags-only still water. */
+export function fetchWaterLayout(id: string): Promise<Uint8Array | null> {
+  let p = waterCache.get(id);
+  if (!p) {
+    p = fetch(`${import.meta.env.BASE_URL}zones/${id}.wfl`)
+      .then(async (res) => (res.ok ? new Uint8Array(await res.arrayBuffer()) : null))
+      .catch(() => {
+        waterCache.delete(id);
+        return null;
+      });
+    waterCache.set(id, p);
+  }
+  return p;
+}
+
 /** Server zone id → baked zone (see zones.ts). */
 export function bakedZoneFor(zoneId: string | undefined): string | null {
   return zoneRender(zoneId).baked;
@@ -115,21 +131,16 @@ export async function placeAllZones(r: {
   placeProps(bytes: Uint8Array, ox: number, oz: number): number;
   setWaterLayout?(bytes: Uint8Array, ox: number, oz: number): void;
 }): Promise<void> {
-  const jobs = new Map(WORLD_ZONE_IDS.map((id) => [id, Promise.all([fetchZone(id), fetchProps(id)] as const)]));
+  const jobs = new Map(
+    WORLD_ZONE_IDS.map((id) => [id, Promise.all([fetchZone(id), fetchProps(id), fetchWaterLayout(id)] as const)]),
+  );
   const place = async (id: string) => {
     try {
-      const [baz, bap] = await jobs.get(id)!;
+      const [baz, bap, wfl] = await jobs.get(id)!;
       const o = zoneOrigin(id);
       r.placeZone(baz, o.x, o.z);
       if (bap) r.placeProps(bap, o.x, o.z);
-      if (id === "forest_basin" && r.setWaterLayout) {
-        try {
-          const res = await fetch(`${import.meta.env.BASE_URL}zones/forest_basin.wfl`);
-          if (res.ok) r.setWaterLayout(new Uint8Array(await res.arrayBuffer()), o.x, o.z);
-        } catch (err) {
-          console.warn("forest basin water layout stayed offline", err);
-        }
-      }
+      if (wfl && r.setWaterLayout) r.setWaterLayout(wfl, o.x, o.z);
     } catch (err) {
       console.warn(`zone ${id} stayed offline`, err);
     }

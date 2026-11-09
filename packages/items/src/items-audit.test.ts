@@ -42,11 +42,39 @@ describe("items audit catalog patches", () => {
     assert.equal(craftGoldCost(50), 1050);
   });
 
-  it("live-mat filler ladder restored; equipment has rarity", () => {
-    const fillerRecipes = CATALOG.filter((i) => i.kind === "filler" && i.recipe).length;
-    assert.ok(fillerRecipes >= 40, "expected restored progression fillers, got " + fillerRecipes);
+  it("crafted synth stock lives under materials, not filler", () => {
+    const leftover = CATALOG.filter((i) => i.kind === "filler");
+    assert.equal(leftover.length, 0, leftover.map((i) => i.slug).join(", "));
+    assert.equal(CATALOG_BY_ID[19]!.kind, "base");
+    assert.equal(CATALOG_BY_ID[19]!.slug, "ashbeam-peg");
+    assert.equal(CATALOG_BY_ID[316]!.slug, "bone-knuckles");
+    assert.equal(CATALOG_BY_ID[316]!.kind, "equipment");
+    assert.equal(CATALOG_BY_ID[119]!.kind, "equipment");
+    assert.ok(CATALOG_BY_ID[119]!.recipe);
+    assert.equal(CATALOG_BY_ID[440]!.kind, "base");
+    assert.ok(CATALOG_BY_ID[440]!.recipe);
     const gear = CATALOG.filter((i) => i.kind === "equipment");
     assert.ok(gear.every((i) => i.rarity));
+    assert.ok(
+      gear.every((i) => i.stats && Object.values(i.stats).some((v) => typeof v === "number" && v !== 0)),
+    );
+  });
+
+  it("promoted synth armor and weapons have rarity, stats, and a slot", () => {
+    const ids = [
+      110, 119, 133, 145, 163, 170, 175, 178, 181, 189, 199, 210, 218, 244, 263, 274, 292, 295, 303,
+      306, 316, 344, 348,
+    ];
+    for (const id of ids) {
+      const def = CATALOG_BY_ID[id]!;
+      assert.equal(def.kind, "equipment", def.slug);
+      assert.ok(def.rarity, def.slug);
+      assert.ok(def.slot, def.slug);
+      assert.ok(def.stats && Object.values(def.stats).some((v) => typeof v === "number" && v !== 0), def.slug);
+    }
+    assert.equal(CATALOG_BY_ID[316]!.weaponFamily, "knuckles");
+    assert.equal(CATALOG_BY_ID[119]!.slot, "sub");
+    assert.equal(CATALOG_BY_ID[170]!.weaponFamily, "staff");
   });
 
   it("Rogue Bone Dagger and Cleric Ashbeam Club are Pale Hollow craftable", () => {
@@ -58,8 +86,63 @@ describe("items audit catalog patches", () => {
   });
 
   it("bows dropped melee atk so they cannot stack into weaponBonus", () => {
-    assert.equal(CATALOG_BY_ID[186]!.stats?.atk, undefined);
-    assert.equal(CATALOG_BY_ID[204]!.stats?.atk, undefined);
+    for (const id of [163, 178, 186, 199, 204]) {
+      assert.equal(CATALOG_BY_ID[id]!.stats?.atk, undefined, CATALOG_BY_ID[id]!.slug);
+    }
+  });
+
+  it("job gear-set fills close knight plate, cleric clubs, and druid cloth", () => {
+    const breast = CATALOG_BY_ID[1228]!;
+    assert.equal(breast.slug, "orichalcum-breastplate");
+    assert.equal(breast.rarity, "Epic");
+    assert.equal(breast.stats?.def, 52);
+    const mace = CATALOG_BY_ID[1232]!;
+    assert.equal(mace.weaponFamily, "club");
+    assert.deepEqual(mace.jobRestrict, ["cleric"]);
+    const robe = CATALOG_BY_ID[1237]!;
+    assert.equal(robe.slug, "ringweave-robe");
+    assert.deepEqual(robe.jobRestrict, ["druid"]);
+    assert.equal(robe.stats?.mnd, 22);
+    assert.equal(CATALOG_BY_ID[1241]!.weaponFamily, "sword");
+    assert.deepEqual(CATALOG_BY_ID[1241]!.jobRestrict, ["fighter"]);
+    assert.equal(CATALOG_BY_ID[1245]!.weaponFamily, "dagger");
+  });
+
+  it("every job has at least five items per armor/weapon/shield slot in each iLv band", () => {
+    const jobs = ["knight", "rogue", "cleric", "sorcerer", "fighter", "battlemage", "tim", "druid"] as const;
+    const slots = ["head", "body", "hands", "legs", "feet", "main", "sub"] as const;
+    const bands = [
+      [1, 20],
+      [21, 40],
+      [41, 60],
+      [61, 80],
+      [81, 100],
+    ] as const;
+    const wears = (it: (typeof CATALOG)[number], job: string) => {
+      const jr = it.jobRestrict as string[] | undefined;
+      return !jr || jr.includes(job);
+    };
+    for (const job of jobs) {
+      for (const [lo, hi] of bands) {
+        for (const slot of slots) {
+          const n = CATALOG.filter(
+            (it) =>
+              it.kind === "equipment" &&
+              it.slot === slot &&
+              (it.craftLevel ?? 0) >= lo &&
+              (it.craftLevel ?? 0) <= hi &&
+              wears(it, job),
+          ).length;
+          assert.ok(n >= 5, `${job} ${slot} ${lo}-${hi} has ${n}`);
+        }
+      }
+    }
+  });
+
+  it("Druid wears shared caster staffs, not job-unique books", () => {
+    assert.ok(CATALOG_BY_ID[1]!.jobRestrict?.includes("druid"));
+    assert.deepEqual(CATALOG_BY_ID[1075]!.jobRestrict, ["tim"]);
+    assert.deepEqual(CATALOG_BY_ID[1074]!.jobRestrict, ["cleric"]);
   });
 
   it("Druid wears shared caster staffs, not job-unique books", () => {

@@ -699,3 +699,17 @@ export function paleHollowQuestTalk(
   const last = qs[qs.length - 1]!;
   return { state: st, title: last.title, body: last.done, gold: 0 };
 }
+
+export type QuestTalkCue = "accept" | "complete";
+
+/** Accept when a new active id appears; complete when gold or done[] grows. */
+export function questTalkCue(
+  before: { active: readonly { id: string }[]; done: readonly string[] },
+  after: { active: readonly { id: string }[]; done: readonly string[] },
+  gold: number,
+): QuestTalkCue | undefined {
+  if (gold > 0 || after.done.length > before.done.length) return "complete";
+  const had = new Set(before.active.map((a) => a.id));
+  if (after.active.some((a) => !had.has(a.id))) return "accept";
+  return undefined;
+}

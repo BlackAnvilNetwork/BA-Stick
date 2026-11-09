@@ -40,4 +40,13 @@ describe("forest basin world", () => {
     assert.equal(msg.type, "char/enter");
     assert.equal(msg.zone, "forest_basin");
   });
+
+  it("accepts char/enter for every live field", () => {
+    for (const zone of ["spur_road", "ring_ward", "islet_fords", "green_reach", "coil_pass", "coil_ridge"] as const) {
+      const msg = parseClientMessage({ type: "char/enter", characterId: "c_test", zone });
+      assert.ok(msg, zone);
+      assert.equal(msg?.type, "char/enter");
+      if (msg && msg.type === "char/enter") assert.equal(msg.zone, zone);
+    }
+  });
 });

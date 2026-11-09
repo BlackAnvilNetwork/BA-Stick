@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
 //
-// Mythril neck torque. Small collar stamp: steel (e/i) with gold (g).
+// Mythril neck torque. Light blue (n) with a white (w) band. No gold.
 (
     id: "ba_mythril_torque",
     x0: -0.10,
@@ -20,8 +20,8 @@
     cuff_to: 0.0,
     cuff_thick: 0.0,
     rows: [
-        "eeeggeee",
-        "iiggggii",
-        "eeeggeee",
+        "nnnwwnnn",
+        "nwwwwwwn",
+        "nnnwwnnn",
     ],
 )

@@ -26,4 +26,15 @@ describe("chat text", () => {
     const msg = parseClientMessage({ type: "chat", text: "hello" });
     assert.deepEqual(msg, { type: "chat", text: "hello" });
   });
+
+  it("strips bidi and format marks like character names", () => {
+    assert.equal(sanitizeChatText("hel\u202Elo"), "hello");
+    assert.equal(sanitizeChatText("\u200B\u200F"), null);
+  });
+
+  it("rejects non-finite move coordinates", () => {
+    assert.equal(parseClientMessage({ type: "move", x: Infinity, z: 0 }), null);
+    assert.equal(parseClientMessage({ type: "move", x: 1, z: Number.NaN }), null);
+    assert.deepEqual(parseClientMessage({ type: "move", x: 1.5, z: -2 }), { type: "move", x: 1.5, z: -2 });
+  });
 });

@@ -43,6 +43,7 @@ export type NpcDialog = {
   subLevel?: number;
   craftOpen?: boolean;
   lokOpen?: boolean;
+  questCue?: "accept" | "complete";
 };
 
 let lightMemoKey = "";
@@ -150,6 +151,9 @@ type GameState = {
   setNpcDialog: (d: NpcDialog | null) => void;
   setExplorer: (page: ExplorerView) => void;
   setPvpSlainPrompt: (p: GameState["pvpSlainPrompt"]) => void;
+  /** Client dash clock: `performance.now()` when the last local dash started. */
+  dashLastAt: number;
+  setDashLastAt: (t: number) => void;
   me: () => UnitSnapshot | null;
 };
 
@@ -166,6 +170,7 @@ export function sameTickSnapshotApplies(prev: SnapshotMessage, next: SnapshotMes
   if (JSON.stringify(prev.you.equipHq ?? {}) !== JSON.stringify(next.you.equipHq ?? {})) return true;
   if (JSON.stringify(prev.you.inventory) !== JSON.stringify(next.you.inventory)) return true;
   if (unitFormKey(prev) !== unitFormKey(next)) return true;
+  if (JSON.stringify(prev.partyInvite) !== JSON.stringify(next.partyInvite)) return true;
   const prevLog = prev.log ?? [];
   const nextLog = next.log ?? [];
   if (prevLog.at(-1) !== nextLog.at(-1) || prevLog.length !== nextLog.length) return true;
@@ -191,6 +196,7 @@ export const useGame = create<GameState>((set, get) => ({
   npcDialog: null,
   explorer: null,
   pvpSlainPrompt: null,
+  dashLastAt: -Infinity,
   setPhase: (phase) => set({ phase }),
   setWallet: (wallet) => set({ wallet: wallet ? wallet.toLowerCase() : null }),
   setConnected: (connected) => set({ connected }),
@@ -277,6 +283,7 @@ export const useGame = create<GameState>((set, get) => ({
   setNpcDialog: (npcDialog) => set({ npcDialog }),
   setExplorer: (explorer) => set({ explorer }),
   setPvpSlainPrompt: (pvpSlainPrompt) => set({ pvpSlainPrompt }),
+  setDashLastAt: (dashLastAt) => set({ dashLastAt }),
   me: () => {
     const s = get().snapshot;
     const w = get().wallet;

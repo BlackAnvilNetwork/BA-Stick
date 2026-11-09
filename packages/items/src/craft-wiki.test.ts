@@ -10,6 +10,29 @@ import {
 } from "./craft";
 import { CATALOG_BY_ID } from "./catalog.generated";
 
+test("mythril ore is mined; ingot and gear are goldsmithing", () => {
+  const ore = CATALOG_BY_ID[1003];
+  assert.ok(ore);
+  assert.equal(ore!.slug, "mythril-ore");
+  assert.equal(ore!.kind, "base");
+  assert.equal(ore!.craftSkill, undefined);
+  assert.equal(ore!.recipe, undefined);
+
+  const gold = [124, 126, 127, 1115];
+  for (const id of gold) {
+    const def = CATALOG_BY_ID[id];
+    assert.ok(def, `missing ${id}`);
+    assert.equal(def!.craftSkill, "goldsmithing", def!.slug);
+    assert.ok(recipeMaterialsComplete(def!), def!.slug);
+    assert.ok(craftablesForSkill("goldsmithing").some((i) => i.id === id), def!.slug);
+    assert.ok(!craftablesForSkill("smithing").some((i) => i.id === id), def!.slug);
+  }
+
+  assert.equal(CATALOG_BY_ID[13]!.craftSkill, "smithing");
+  assert.equal(CATALOG_BY_ID[14]!.craftSkill, "smithing");
+  assert.equal(CATALOG_BY_ID[21]!.craftSkill, "woodworking");
+});
+
 test("craftablesForSkill lists recipes in ascending craft level", () => {
   const smith = craftablesForSkill("smithing");
   assert.ok(smith.length > 0);
@@ -624,6 +647,108 @@ test("smithing has craft recipes at levels 2 and 4", () => {
   assert.ok(smith.some((i) => i.id === 1067 && i.craftLevel === 4));
   assert.ok(recipeMaterialsComplete(getCraftableItem(1066)!));
   assert.ok(recipeMaterialsComplete(getCraftableItem(1067)!));
+});
+
+test("non-smith armor 1142-1186 fills craft gaps and resolves materials", () => {
+  const ids = Array.from({ length: 45 }, (_, i) => 1142 + i);
+  for (const id of ids) {
+    const def = CATALOG_BY_ID[id];
+    assert.ok(def, `missing catalog ${id}`);
+    assert.equal(def!.kind, "equipment");
+    assert.ok(["Uncommon", "Rare", "Epic", "Legendary"].includes(def!.rarity ?? ""));
+    assert.ok(["clothcraft", "leathercraft", "bonecraft", "goldsmithing"].includes(def!.craftSkill ?? ""));
+    assert.ok((def!.craftLevel ?? 0) >= 20 && (def!.craftLevel ?? 0) <= 60);
+    assert.ok(recipeMaterialsComplete(def!), `${def!.name} materials`);
+    assert.ok(craftablesForSkill(def!.craftSkill!).some((i) => i.id === id));
+  }
+  assert.equal(CATALOG_BY_ID[1144]!.slot, "body");
+  assert.equal(CATALOG_BY_ID[1170]!.rarity, "Epic");
+  assert.equal(CATALOG_BY_ID[1180]!.slot, "body");
+  assert.equal(CATALOG_BY_ID[1186]!.rarity, "Legendary");
+});
+
+test("non-smith armor 1187-1226 fills remaining craft gaps and resolves materials", () => {
+  const ids = Array.from({ length: 40 }, (_, i) => 1187 + i);
+  for (const id of ids) {
+    const def = CATALOG_BY_ID[id];
+    assert.ok(def, `missing catalog ${id}`);
+    assert.equal(def!.kind, "equipment");
+    assert.ok(["Uncommon", "Rare", "Epic", "Legendary"].includes(def!.rarity ?? ""));
+    assert.ok(["clothcraft", "leathercraft", "bonecraft", "goldsmithing"].includes(def!.craftSkill ?? ""));
+    assert.ok((def!.craftLevel ?? 0) >= 20 && (def!.craftLevel ?? 0) <= 60);
+    assert.ok(recipeMaterialsComplete(def!), `${def!.name} materials`);
+    assert.ok(craftablesForSkill(def!.craftSkill!).some((i) => i.id === id));
+  }
+  assert.equal(CATALOG_BY_ID[1187]!.slot, "hands");
+  assert.equal(CATALOG_BY_ID[1204]!.rarity, "Rare");
+  assert.equal(CATALOG_BY_ID[1212]!.slot, "body");
+  assert.equal(CATALOG_BY_ID[1218]!.rarity, "Epic");
+  assert.equal(CATALOG_BY_ID[1222]!.rarity, "Legendary");
+});
+
+test("remaining component synth-stock still crafts as materials", () => {
+  const ids = [150, 152, 440];
+  for (const id of ids) {
+    const def = CATALOG_BY_ID[id];
+    assert.ok(def, `missing catalog ${id}`);
+    assert.equal(def!.kind, "base", def!.slug);
+    assert.ok(recipeMaterialsComplete(def!), `${def!.name} materials`);
+    assert.equal(getCraftableItem(def!.id), def);
+    assert.ok(craftablesForSkill(def!.craftSkill!).some((i) => i.id === id));
+  }
+});
+
+test("band-five fills craft as equipment", () => {
+  for (let id = 1255; id <= 1505; id++) {
+    const def = CATALOG_BY_ID[id];
+    assert.ok(def, `missing catalog ${id}`);
+    assert.equal(def!.kind, "equipment", def!.slug);
+    assert.ok(def!.rarity, def!.slug);
+    assert.ok(def!.slot, def!.slug);
+    assert.ok(def!.stats, def!.slug);
+    assert.ok(recipeMaterialsComplete(def!), `${def!.name} materials`);
+    assert.equal(getCraftableItem(def!.id), def);
+    assert.ok(craftablesForSkill(def!.craftSkill!).some((i) => i.id === id));
+    if (def!.slot === "main") assert.ok(def!.weaponFamily, def!.slug);
+  }
+});
+
+test("job gear-set gap fills craft as equipment", () => {
+  const ids = Array.from({ length: 28 }, (_, i) => 1227 + i);
+  for (const id of ids) {
+    const def = CATALOG_BY_ID[id];
+    assert.ok(def, `missing catalog ${id}`);
+    assert.equal(def!.kind, "equipment", def!.slug);
+    assert.ok(def!.rarity, def!.slug);
+    assert.ok(def!.slot, def!.slug);
+    assert.ok(def!.stats, def!.slug);
+    assert.ok(recipeMaterialsComplete(def!), `${def!.name} materials`);
+    assert.equal(getCraftableItem(def!.id), def);
+    assert.ok(craftablesForSkill(def!.craftSkill!).some((i) => i.id === id));
+  }
+  assert.equal(CATALOG_BY_ID[1228]!.slot, "body");
+  assert.deepEqual(CATALOG_BY_ID[1228]!.jobRestrict, ["knight"]);
+  assert.equal(CATALOG_BY_ID[1232]!.weaponFamily, "club");
+  assert.equal(CATALOG_BY_ID[1237]!.slot, "body");
+  assert.deepEqual(CATALOG_BY_ID[1237]!.jobRestrict, ["druid"]);
+  assert.equal(CATALOG_BY_ID[1241]!.weaponFamily, "sword");
+  assert.equal(CATALOG_BY_ID[1242]!.weaponFamily, "sword");
+  assert.equal(CATALOG_BY_ID[1245]!.weaponFamily, "dagger");
+  assert.equal(CATALOG_BY_ID[1234]!.recipe!.materialsText.includes("Orichalcum Mace Head"), true);
+});
+
+test("promoted gear-named synths craft as equipment", () => {
+  const ids = [119, 133, 145, 170, 175, 178, 181, 189, 199, 244, 274, 292, 295, 303, 306, 344];
+  for (const id of ids) {
+    const def = CATALOG_BY_ID[id];
+    assert.ok(def, `missing catalog ${id}`);
+    assert.equal(def!.kind, "equipment", def!.slug);
+    assert.ok(def!.rarity, def!.slug);
+    assert.ok(def!.stats, def!.slug);
+    assert.ok(recipeMaterialsComplete(def!), `${def!.name} materials`);
+    assert.equal(getCraftableItem(def!.id), def);
+    assert.ok(craftablesForSkill(def!.craftSkill!).some((i) => i.id === id));
+  }
 });
 
 test("allCraftableRecipes is sorted by level then name", () => {

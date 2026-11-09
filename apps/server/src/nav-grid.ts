@@ -18,9 +18,10 @@ import {
 export type NavPoint = { x: number; z: number };
 
 const CELL = 1;
-const MAX_EXPAND = 8000;
-/** Local snap when the click itself is unwalkable (wall, water). */
-const GOAL_SNAP_RADIUS = 12;
+const MAX_EXPAND = 16000;
+/** Local snap when the click itself is unwalkable (wall, water). Match WASD unstuck. */
+const GOAL_SNAP_RADIUS = 6;
+const START_SNAP_RADIUS = 6;
 const KEY_STRIDE = 4096;
 const SQRT2 = Math.SQRT2;
 
@@ -89,7 +90,9 @@ type ClampMove = (fx: number, fz: number, tx: number, tz: number) => { x: number
 /** Straight-line check with the zone's own movement clamp (fields are not Pale Hollow). */
 function lineClear(ax: number, az: number, bx: number, bz: number, move: ClampMove = paleHollowStraightMove): boolean {
   const c = move(ax, az, bx, bz);
-  return Math.hypot(c.x - bx, c.z - bz) < 0.25;
+  // Last sample must actually reach the dest. 0.25 m slack treated a wall-short
+  // path as clear, then follow pinned on the last metre.
+  return Math.hypot(c.x - bx, c.z - bz) < 0.05;
 }
 
 function simplify(points: NavPoint[], move?: ClampMove): NavPoint[] {
@@ -189,7 +192,7 @@ export function paleHollowFindPath(
     return best;
   };
 
-  const start = nearest(Math.round(from.x / CELL), Math.round(from.z / CELL), from.x, from.z, 3);
+  const start = nearest(Math.round(from.x / CELL), Math.round(from.z / CELL), from.x, from.z, START_SNAP_RADIUS);
   if (!start) return [];
 
   const exactWalk = zone.walkable(to.x, to.z);

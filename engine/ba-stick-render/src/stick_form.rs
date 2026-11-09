@@ -99,14 +99,95 @@ pub struct FormLayout {
     pub head: Vec3,
 }
 
+/// Per-kit rest sit. Distinct from death flatten (`Pose.dead`).
+#[derive(Clone, Copy, Debug)]
+pub struct RestKit {
+    pub hip_drop: f32,
+    pub sh_drop: f32,
+    pub head_drop: f32,
+    /// Rear-leg tuck 0..1.
+    pub tuck: f32,
+    /// Foreleg tuck scale (bear ~0 plants the paws).
+    pub plant_fore: f32,
+}
+
+pub fn rest_kit(kind: u8) -> RestKit {
+    match kind {
+        1 => RestKit {
+            hip_drop: 0.58,
+            sh_drop: 0.55,
+            head_drop: 0.42,
+            tuck: 0.92,
+            plant_fore: 1.0,
+        }, // deer: legs folded under
+        2 => RestKit {
+            hip_drop: 0.50,
+            sh_drop: 0.38,
+            head_drop: 0.16,
+            tuck: 0.82,
+            plant_fore: 0.72,
+        }, // lion: loaf
+        3 => RestKit {
+            hip_drop: 0.62,
+            sh_drop: 0.58,
+            head_drop: 0.48,
+            tuck: 0.88,
+            plant_fore: 1.0,
+        }, // racer: coil low
+        _ => RestKit {
+            hip_drop: 0.42,
+            sh_drop: 0.12,
+            head_drop: 0.18,
+            tuck: 0.78,
+            plant_fore: 0.18,
+        }, // bear: sit on haunches, forelegs planted
+    }
+}
+
+fn rest_amt(ps: &Pose) -> f32 {
+    if ps.dead > 0.01 {
+        0.0
+    } else {
+        ps.rest.clamp(0.0, 1.0)
+    }
+}
+
+/// Hip / head height in local metres (size 1). Rest sits lower than idle; dead is a different flatten.
+pub fn form_anchor_y(kind: u8, rest: f32, dead: f32) -> (f32, f32) {
+    let def = form_def(kind);
+    let kit = rest_kit(kind);
+    let rest = if dead > 0.01 { 0.0 } else { rest.clamp(0.0, 1.0) };
+    let flat = 1.0 - dead * 0.72;
+    let hip = y_at(def, def.hip_along) * flat * (1.0 - rest * kit.hip_drop);
+    let head = def
+        .lobes
+        .iter()
+        .find(|l| l.bias == 2)
+        .map(|l| l.y)
+        .unwrap_or(0.5)
+        * flat
+        * (1.0 - rest * kit.head_drop);
+    (hip, head)
+}
+
+pub fn form_leg_tuck(kind: u8, rest: f32, dead: f32, fore: bool) -> f32 {
+    if dead > 0.01 {
+        return 0.0;
+    }
+    let kit = rest_kit(kind);
+    rest.clamp(0.0, 1.0) * kit.tuck * if fore { kit.plant_fore } else { 1.0 }
+}
+
 /// Draw a stick-form envelope. kind 0 bear / 1 deer / 2 lion / 3 racerunner.
 pub fn draw_form(fb: &mut Framebuffer, cam: &Camera, kind: u8, s: f32, ps: &Pose) -> FormLayout {
     let def = form_def(kind);
+    let kit = rest_kit(kind);
+    let rest = rest_amt(ps);
     let f = v3(ps.yaw.sin(), 0.0, ps.yaw.cos());
     let right = v3(ps.yaw.cos(), 0.0, -ps.yaw.sin());
     let up = v3(0.0, 1.0, 0.0);
     let flat = 1.0 - ps.dead * 0.72;
-    let trot = (ps.phase * 2.0).sin() * 0.03 * s * ps.moving;
+    let trot = (ps.phase * 2.0).sin() * 0.03 * s * ps.moving * (1.0 - rest);
     let base = ps.pos + up * trot.abs();
     let p = |v: Vec3| cam.project(v);
     let o = Some(C_OUTLINE);
@@ -116,8 +197,20 @@ pub fn draw_form(fb: &mut Framebuffer, cam: &Camera, kind: u8, s: f32, ps: &Pose
         let a1 = def.lobes.last().map(|l| l.along).unwrap_or(0.0);
         (a0 + a1) * 0.5
     };
+    let drop_y = |along: f32, y: f32| {
+        let hip_w = 1.0 - ((along - def.hip_along).abs() / 0.35).min(1.0);
+        let sh_w = 1.0 - ((along - def.sh_along).abs() / 0.35).min(1.0);
+        let head_w = def
+            .lobes
+            .iter()
+            .find(|l| l.bias == 2)
+            .map(|l| 1.0 - ((along - l.along).abs() / 0.28).min(1.0))
+            .unwrap_or(0.0);
+        let drop = kit.hip_drop * hip_w + kit.sh_drop * sh_w + kit.head_drop * head_w;
+        y * (1.0 - rest * drop.min(0.95))
+    };
     let at = |along: f32, y: f32, side: f32| {
-        base + f * ((along - mid_along) * s) + up * (y * s * flat) + right * (side * s)
+        base + f * ((along - mid_along) * s) + up * (drop_y(along, y) * s * flat) + right * (side * s)
     };
 
     let mut prev: Option<Vec3> = None;
@@ -158,17 +251,23 @@ pub fn draw_form(fb: &mut Framebuffer, cam: &Camera, kind: u8, s: f32, ps: &Pose
                 let puff = mane + right * (0.05 * side * s) - f * (0.015 * s);
                 fb.disc(p(puff), (0.09 * s * HEIGHT_PX).max(2.2), WOOD, o);
             }
-            let sway = (ps.phase).sin() * 0.03 * s;
-            let tail_m = hip_lobe + f * -(0.18 * s) + up * (0.08 * s * flat) + right * sway;
-            let tail_t = hip_lobe + f * -(0.34 * s) + up * (0.03 * s * flat) + right * (sway * 1.2);
+            let sway = (ps.phase).sin() * 0.03 * s * (1.0 - rest);
+            let wrap = rest;
+            let tail_m = hip_lobe + f * -((0.18 - 0.10 * wrap) * s) + up * ((0.08 - 0.06 * wrap) * s * flat)
+                + right * (sway + 0.16 * wrap * s);
+            let tail_t = hip_lobe + f * -((0.34 - 0.40 * wrap) * s) + up * ((0.03 - 0.02 * wrap) * s * flat)
+                + right * (sway * 1.2 + 0.22 * wrap * s);
             fb.capsule(p(hip_lobe), p(tail_m), 1.1, WOOD_D, o);
             fb.capsule(p(tail_m), p(tail_t), 0.95, WOOD, o);
             fb.disc(p(tail_t), 2.3, WOOD, o);
         }
         "racer" => {
-            let wave = (ps.phase * 1.6).sin() * 0.05 * s * (0.35 + 0.65 * ps.moving);
-            let mid = hip_lobe + f * -(0.18 * s) + right * wave + up * (0.06 * s * flat);
-            let tip = hip_lobe + f * -(0.38 * s) + right * (wave * 1.4) + up * (0.05 * s * flat);
+            let wave = (ps.phase * 1.6).sin() * 0.05 * s * (0.35 + 0.65 * ps.moving) * (1.0 - rest);
+            let coil = rest;
+            let mid = hip_lobe + f * -((0.18 - 0.22 * coil) * s) + right * (wave + 0.18 * coil * s)
+                + up * ((0.06 - 0.04 * coil) * s * flat);
+            let tip = hip_lobe + f * -((0.38 - 0.46 * coil) * s) + right * (wave * 1.4 + 0.10 * coil * s)
+                + up * ((0.05 - 0.03 * coil) * s * flat);
             fb.capsule(p(hip_lobe), p(mid), 1.1, WOOD_D, o);
             fb.capsule(p(mid), p(tip), 0.95, WOOD, o);
             let glow = 0.55 + 0.45 * (ps.time * 6.0).sin();
@@ -250,5 +349,30 @@ mod tests {
             assert!(def.lobes.iter().any(|l| l.bias == 2));
             assert!(def.lobes.iter().any(|l| l.bias == 3));
         }
+    }
+
+    #[test]
+    fn rest_sits_lower_than_idle_and_tucks_legs() {
+        for kind in 0u8..4 {
+            let (idle_hip, idle_head) = form_anchor_y(kind, 0.0, 0.0);
+            let (rest_hip, rest_head) = form_anchor_y(kind, 1.0, 0.0);
+            let (dead_hip, _) = form_anchor_y(kind, 1.0, 1.0);
+            assert!(rest_hip < idle_hip - 0.04, "kind {kind} hip rest {rest_hip} idle {idle_hip}");
+            assert!(rest_head < idle_head - 0.02, "kind {kind} head rest {rest_head} idle {idle_head}");
+            assert!(
+                (dead_hip - rest_hip).abs() > 0.02,
+                "kind {kind} dead {dead_hip} must not match rest {rest_hip}"
+            );
+            assert!(form_leg_tuck(kind, 1.0, 0.0, false) > form_leg_tuck(kind, 0.0, 0.0, false) + 0.4);
+            assert!(form_leg_tuck(kind, 1.0, 1.0, false) < 0.01, "dead ignores rest tuck");
+        }
+        let bear = rest_kit(0);
+        let deer = rest_kit(1);
+        let lion = rest_kit(2);
+        let racer = rest_kit(3);
+        assert!(bear.plant_fore < 0.3, "bear plants forelegs");
+        assert!(deer.tuck > bear.tuck, "deer folds further than bear sit");
+        assert!(lion.head_drop < deer.head_drop, "lion loaf keeps the head up");
+        assert!(racer.hip_drop > lion.hip_drop, "racer coils lower than loaf");
     }
 }

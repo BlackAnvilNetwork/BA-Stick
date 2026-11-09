@@ -1,4 +1,4 @@
-import { isTrainerFreeAbility, trainerAbilityGoldCost } from "./trainer";
+import { isTrainerFreeAbility } from "./trainer";
 /**
  * Full Time Mage ability kit (design §9), with MVP-feel numbers where noted.
  * Non-starter abilities are bought from the Trainer (gold 500–10000).
@@ -573,17 +573,6 @@ export function timAbilityIconUrl(id: TimAbilityId | string): string {
   if (shared) return shared;
   if (isTimAbilityId(id) && TIM_ABILITIES[id].icon) return TIM_ABILITIES[id].icon!;
   return `/icons/abilities/${id}.png`;
-}
-
-/** Category helper — scroll-style TIM spells (legacy; Trainer now sells all non-free). */
-export function isTimSpell(id: TimAbilityId): boolean {
-  const cat = TIM_ABILITIES[id].category;
-  return cat === "time" || cat === "enhance" || cat === "enfeeble" || cat === "heal";
-}
-
-/** Gold cost to learn a spell scroll. */
-export function timSpellGoldCost(id: TimAbilityId): number {
-  return trainerAbilityGoldCost(TIM_ABILITIES[id].unlockLevel);
 }
 
 /**

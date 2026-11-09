@@ -54,14 +54,29 @@ const JOB_SPELL: Record<string, string> = {
   sorcerer: "fire",
   cleric: "holy",
   time_mage: "time",
-  battle_mage: "volt",
-  knight: "holy",
+  battle_mage: "teal",
+  knight: "silver",
   rogue: "dark",
-  fighter: "physical",
+  fighter: "iron",
+  druid: "ash",
 };
 
 /** Instant categories play on send; spells wait for the cast window. */
-const SPELL_PREFIX = /^(sc_|cl_|kn_|bm_|cure|haste|slow|gravity|bind|dispel|distract|frazzle|addle|paralyga|silencega|quicken|tempo|allegro)/;
+export function waitsCastPose(abilityId: string): boolean {
+  return (
+    /^(sc_|cl_|kn_|bm_|dr_)/.test(abilityId) ||
+    /^(sacred_mercy|temporal_distortion)$/.test(abilityId) ||
+    /^(berserk|warcry|killing_storm|aggressor|defender|restraint|blood_rage|brazen_rush)$/.test(
+      abilityId,
+    ) ||
+    /^(ghost_step|shadow_pass|backblade|kill_edge|dust_runner|blame_shift|false_guard)$/.test(
+      abilityId,
+    ) ||
+    /^(cure|haste|slow|gravity|bind|dispel|distract|frazzle|addle|paralyga|silencega|quicken|tempo|allegro)/.test(
+      abilityId,
+    )
+  );
+}
 
 /** Rising burst at the caster when a cast window opens (old client `castBurst`). */
 export const CAST_BURST: VfxStep = { prim: "burst", at: "self", color: "physical", count: 16, radius: 0.45, rise: true };
@@ -74,7 +89,7 @@ export class VfxDirector {
 
   /** Our own ability message went out. Returns steps to play now (instant). */
   request(abilityId: string, target: string | null | undefined, now: number): VfxStep[] | null {
-    if (SPELL_PREFIX.test(abilityId)) {
+    if (waitsCastPose(abilityId)) {
       this.pending = { id: abilityId, target, at: now, started: false };
       return null;
     }

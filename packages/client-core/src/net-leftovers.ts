@@ -38,12 +38,14 @@ export function shouldStayOnCreateAfterAuthOk(
   return pendingCreateEnter && createEnterId == null;
 }
 
-/** Empty roster on a mint chain — ask the server to bind Character NFTs this wallet already owns. */
+/** Empty roster, or creating another character — scan for unbound Character NFTs. */
 export function shouldRequestOwnedNftSync(opts: {
   rosterCount: number;
   hasMintConfig: boolean;
+  creating?: boolean;
 }): boolean {
-  return opts.rosterCount === 0 && opts.hasMintConfig;
+  if (!opts.hasMintConfig) return false;
+  return opts.rosterCount === 0 || !!opts.creating;
 }
 
 export function phaseAfterOwnedRoster(opts: {

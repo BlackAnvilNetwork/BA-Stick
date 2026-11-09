@@ -1,10 +1,12 @@
 /**
  * Shared walk clamp: sample a segment, stop at walls, then slide on the axes.
  *
- * Play movement has no runtime A*. Client prediction, the server, dash, and
- * mob steer all call a zone clampMove. Those copies used to teleport from any
- * unwalkable start to a walkable dest (clip through walls) and stop dead on a
- * diagonal into a corridor wall.
+ * Every per-step mover (client prediction, the server walk tick, dash, and
+ * mob steer) goes through a zone clampMove built on this. Only the server's
+ * click-to-move `assignRoute` plans a path (A*), and only when the straight
+ * slide cannot reach the goal. Older copies of this clamp teleported from any
+ * unwalkable start to a walkable dest (clipping through walls) and stopped
+ * dead on a diagonal into a corridor wall.
  */
 
 /** Under DASH_SUBSTEP and typical wall thickness (river solid ~0.59 m). */
@@ -16,6 +18,23 @@ export const UNSTUCK_RADIUS = 6;
 export type ClampPoint = (x: number, z: number) => { x: number; z: number };
 export type WalkableAt = (x: number, z: number) => boolean;
 
+function crossesOpenWater(
+  ax: number,
+  az: number,
+  bx: number,
+  bz: number,
+  openWater: WalkableAt,
+): boolean {
+  const dist = Math.hypot(bx - ax, bz - az);
+  if (dist < 1e-4) return false;
+  const steps = Math.max(2, Math.ceil(dist / MOVE_SAMPLE));
+  for (let i = 1; i < steps; i++) {
+    const t = i / steps;
+    if (openWater(ax + (bx - ax) * t, az + (bz - az) * t)) return true;
+  }
+  return false;
+}
+
 /** Closest walkable point within `maxR`, or null if the start is boxed in. */
 export function nearestWalkable(
   clamp: ClampPoint,
@@ -23,6 +42,7 @@ export function nearestWalkable(
   x: number,
   z: number,
   maxR = UNSTUCK_RADIUS,
+  openWater?: WalkableAt,
 ): { x: number; z: number } | null {
   const c = clamp(x, z);
   if (walkable(c.x, c.z)) return c;
@@ -34,6 +54,7 @@ export function nearestWalkable(
       const a = (k / n) * Math.PI * 2;
       const q = clamp(c.x + Math.sin(a) * r, c.z + Math.cos(a) * r);
       if (!walkable(q.x, q.z)) continue;
+      if (openWater && crossesOpenWater(c.x, c.z, q.x, q.z, openWater)) continue;
       const d = Math.hypot(q.x - c.x, q.z - c.z);
       if (d < bestD) {
         bestD = d;
@@ -92,11 +113,12 @@ export function slideMove(
   fromZ: number,
   toX: number,
   toZ: number,
+  openWater?: WalkableAt,
 ): { x: number; z: number } {
   let fx = fromX;
   let fz = fromZ;
   if (!walkable(fx, fz)) {
-    const snap = nearestWalkable(clamp, walkable, fx, fz);
+    const snap = nearestWalkable(clamp, walkable, fx, fz, UNSTUCK_RADIUS, openWater);
     if (!snap) return { x: fx, z: fz };
     fx = snap.x;
     fz = snap.z;

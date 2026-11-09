@@ -23,6 +23,7 @@ export const PIXEL_SWORD_GEAR_IDS = new Set([
   "ba_bronze_greatsword",
   "ba_bronze_sword",
   "ba_palace_sword",
+  "ba_palace_greatsword",
   "ba_darksteel_blade",
   "ba_mythril_sword",
   "ba_orichalcum_sword",
@@ -51,6 +52,38 @@ export type SwordArt =
   | "neolithic"
   | "fang"
   | "decayed";
+
+export function isPixelDaggerGear(id: string): boolean {
+  return PIXEL_DAGGER_GEAR_IDS.has(id) || /_(dagger|kris)$/.test(id);
+}
+
+export function isPixelGreatswordGear(id: string): boolean {
+  return PIXEL_GREATSWORD_GEAR_IDS.has(id) || /_greatsword$/.test(id);
+}
+
+export function isPixelBladeGear(id: string): boolean {
+  return PIXEL_SWORD_GEAR_IDS.has(id) || isPixelDaggerGear(id) || isPixelGreatswordGear(id)
+    || /_(sword|shortsword|blade)$/.test(id);
+}
+
+/** Palette from the gear id / item name tokens. */
+export function swordArtFromName(id: string): SwordArt {
+  const n = id.replace(/^ba_/, "");
+  if (/decayed/.test(n)) return "decayed";
+  if (/orichalcum|palace|crownsteel/.test(n)) return "orichalcum";
+  if (/voidoak|seedwood|paleoak|forgeoak|runeoak|aetheroak|kilnoak/.test(n)) return "bone";
+  if (/darksteel|voidplate|voidtarge|voidguard|hexplate/.test(n) || /void(?!oak|braid|hide)/.test(n)) {
+    return "darksteel";
+  }
+  if (/mythril|aetherplate|aethertarge|paletarge/.test(n)) return "mythril";
+  if (/bronze|copperbind|forgeplate/.test(n)) return "bronze";
+  if (/neolithic/.test(n)) return "neolithic";
+  if (/fang/.test(n)) return "fang";
+  if (/bone|skull|ashbone/.test(n)) return "bone";
+  if (/steel|ironbind|rivetmail|pitiron|ashbind/.test(n)) return "steel";
+  if (/iron/.test(n)) return "iron";
+  return "steel";
+}
 
 export function swordArtForGearId(id: string): SwordArt | null {
   switch (id) {
@@ -93,7 +126,7 @@ export function swordArtForGearId(id: string): SwordArt | null {
     case "ba_iron_greatsword":
       return "iron";
     default:
-      return null;
+      return isPixelBladeGear(id) ? swordArtFromName(id) : null;
   }
 }
 
@@ -127,8 +160,25 @@ export const SWORD_ART_COLORS: Record<SwordArt, SwordArtColors> = {
 
 /** Capsule ramp color in gear-viewer (`strokeShape` material). */
 export function swordMeshMaterial(gearId: string, gearMaterial?: string): string | undefined {
-  if (swordArtForGearId(gearId) === "decayed") return "decayed";
+  const art = swordArtForGearId(gearId);
+  if (art === "decayed") return "decayed";
+  if (art === "bronze" || gearId.startsWith("ba_bronze_")) return "bronze";
+  if (art === "darksteel") return "darksteel";
+  if (art === "mythril") return "mythril";
+  if (art === "orichalcum") return "orichalcum";
+  if (art === "bone") return "bone";
   return gearMaterial;
+}
+
+/** Solids color in the gear viewer from the item name. */
+export function viewerMaterialFromGearId(id: string, fallback?: string): string | undefined {
+  if (/decayed/.test(id)) return "decayed";
+  if (/orichalcum|palace|crownplate|crownsteel|crowntarge/.test(id)) return "orichalcum";
+  if (/darksteel|voidplate|voidtarge|voidguard|hexplate/.test(id)) return "darksteel";
+  if (/aetherplate|aethertarge/.test(id)) return "aether";
+  if (/mythril/.test(id)) return "mythril";
+  if (/bronze|copperbind|forgeplate/.test(id)) return "bronze";
+  return fallback;
 }
 
 /** Hand-frame layout for pixel sword draw (matches `figure.rs`). */
@@ -195,8 +245,8 @@ function layoutGreatFrom1h(base: SwordLayout): SwordLayout {
 const LAYOUT_GREAT = layoutGreatFrom1h(LAYOUT_1H);
 
 export function swordLayoutForGearId(id: string): SwordLayout {
-  if (PIXEL_GREATSWORD_GEAR_IDS.has(id)) return LAYOUT_GREAT;
-  if (PIXEL_DAGGER_GEAR_IDS.has(id)) return LAYOUT_DAGGER;
+  if (isPixelGreatswordGear(id)) return LAYOUT_GREAT;
+  if (isPixelDaggerGear(id)) return LAYOUT_DAGGER;
   return LAYOUT_1H;
 }
 

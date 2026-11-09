@@ -35,5 +35,7 @@ test("zone retry places terrain at the world origin", () => {
   const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "StickWorld.tsx"), "utf8");
   assert.match(src, /r\.placeZone\(b, origin\.x, origin\.z\)/);
   assert.match(src, /r\.placeProps\(p, origin\.x, origin\.z\)/);
+  assert.match(src, /fetchWaterLayout\(want\)/);
+  assert.match(src, /r\.setWaterLayout\(wfl, origin\.x, origin\.z\)/);
   assert.equal(src.includes("r.loadZone(b)"), false);
 });

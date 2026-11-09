@@ -52,9 +52,8 @@ export function pvpFoeView<T extends object>(foe: T, stats: PvpVictimStats): T {
 }
 
 /** Ghost Step hides the body from aimed spells and weapon skills, not only autos. */
-export function veiledByGhostStep(
-  host: { ghostStepUntil?: number } | null | undefined,
-  now: number,
-): boolean {
-  return !!host && now < (host.ghostStepUntil ?? 0);
+export function veiledByGhostStep(host: unknown, now: number): boolean {
+  if (host == null || typeof host !== "object") return false;
+  const until = (host as { ghostStepUntil?: number }).ghostStepUntil;
+  return typeof until === "number" && now < until;
 }

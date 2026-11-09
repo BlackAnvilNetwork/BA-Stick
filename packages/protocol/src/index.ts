@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { EQUIP_SLOTS, type Equipment } from "@bellgrave/items";
+import { EQUIP_SLOTS, type Equipment, type ItemStats } from "@bellgrave/items";
 import {
   ALL_ABILITY_IDS,
   JOB_IDS,
@@ -68,7 +68,19 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
     /** Which roster slot to play; omit to enter the last-active character. */
     characterId: z.string().min(1).max(64).optional(),
     /** Play this field. The server only accepts a baked zone and a walkable point. */
-    zone: z.enum(["pale_hollow", "hollow_road", "forest_basin"]).optional(),
+    zone: z
+      .enum([
+        "pale_hollow",
+        "hollow_road",
+        "forest_basin",
+        "spur_road",
+        "ring_ward",
+        "islet_fords",
+        "green_reach",
+        "coil_pass",
+        "coil_ridge",
+      ])
+      .optional(),
     x: z.number().finite().optional(),
     z: z.number().finite().optional(),
   }),
@@ -81,9 +93,15 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("char/syncOwned"),
   }),
-  z.object({ type: z.literal("move"), x: z.number(), z: z.number() }),
+  z.object({ type: z.literal("move"), x: z.number().finite(), z: z.number().finite() }),
   /** General dash: a direction only. The server picks the distance and checks walls and cooldown. */
-  z.object({ type: z.literal("dash"), dx: z.number().finite(), dz: z.number().finite() }),
+  z.object({
+    type: z.literal("dash"),
+    dx: z.number().finite(),
+    dz: z.number().finite(),
+    /** When false, do not walk back to a pre-dash click. Analog / HUD dash must send false. Default true. */
+    resume: z.boolean().optional(),
+  }),
   /** Step onto a ring this character has already opened. A locked or unknown id is refused. */
   z.object({ type: z.literal("warp/use"), id: z.string().min(1).max(64) }),
   /** Bind death. Mayflower is refused until that ring is open and the body is standing in it. */
@@ -106,7 +124,7 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
     hq: z.boolean().optional(),
   }),
   z.object({ type: z.literal("claim/starter") }),
-  /** Change main job (Job Master). Sprite follows main. */
+  /** Legacy main-job swap. Server refuses — main is locked at creation. */
   z.object({ type: z.literal("job/change"), job: JobId }),
   /** Set support job at L10+ (Job Master). Level = floor(main/2). */
   z.object({ type: z.literal("job/subjob"), job: JobId.nullable() }),
@@ -347,6 +365,9 @@ export type BuffState = {
   /** Battle Mage Dia / Bio on foes */
   diaUntil: number;
   bioUntil: number;
+  /** Player ailments — HUD reuses the poison/enfeeble icons. */
+  diseaseUntil: number;
+  curseUntil: number;
   /** Weapon skill Attack Down on foes */
   atkDownUntil: number;
   atkDownMul: number;
@@ -371,6 +392,8 @@ export type BuffState = {
   healAbsorbHp: number;
   /** Cleric regen */
   regenUntil: number;
+  /** Cleric Ember Vigil — auto-recall once if the bearer falls. */
+  reraiseUntil: number;
   /** Druid form: 0 Ring-Walker, 1 Stick Bear, 2 Stick Deer, 3 Stick Lion, 4 Racerunner */
   druidForm: 0 | 1 | 2 | 3 | 4;
   druidFormUntil: number;
@@ -414,6 +437,11 @@ export type UnitSnapshot = {
   meleeSwing?: "slash" | "overhead" | "spin";
   /** Set while this player is mid-dash (general ability): the server-validated landing point. */
   dashTo?: { x: number; z: number };
+  /**
+   * Players only: the server's current run speed in m/s (haste, flux, druid form, slows, zone
+   * multiplier). The client predicts walking and dash length from it instead of re-deriving it.
+   */
+  speed?: number;
   /** Set while this unit is gathering. The sword is stowed and this tool is in the hand. */
   gatherTool?: "shovel" | "pick";
   /** Enemy spell splash radius. Present only while an AoE cast is winding up. */
@@ -440,6 +468,8 @@ export type UnitSnapshot = {
   deathAt?: number;
   /** Player has an open PvP head-bounty (Ash Pit) — clickable for engage. */
   pvpBounty?: boolean;
+  /** Worn gear for other players (same shape as you.equip). Omitted on mobs/NPCs. */
+  equip?: Equipment;
 };
 
 export type InventorySlot = { tokenId: number; amount: number; starter?: boolean; hq?: boolean };
@@ -700,6 +730,8 @@ export type SnapshotMessage = {
     craftSkills: Record<string, { level: number; xp: number }>;
     /** Active field zone id. */
     zoneId: string;
+    /** True when standing in Pale Hollow within reach of Brann Coldiron. */
+    nearCrafter?: boolean;
     /** AbilityId → ready-at unix ms (Date.now()). Absent / past = ready. */
     recasts: Partial<Record<AbilityId, number>>;
     /** Unlocked ability ids for current job/level (hotbar + spellbook). */
@@ -716,6 +748,13 @@ export type SnapshotMessage = {
     freeStatPoints: number;
     /** Allocated free attribute points. */
     freeStats: { str: number; dex: number; vit: number; agi: number; int: number; mnd: number };
+    /** Active 30-minute meal. Absent when not well-fed. */
+    food?: {
+      tokenId: number;
+      until: number;
+      hq?: boolean;
+      stats: ItemStats;
+    };
     /** Hash-chained lok balances. Settlement Key::Kek is historical; new AH pays on-chain. */
     lok?: LokSnapshot;
     /** Rings this character has walked into. */
@@ -822,6 +861,7 @@ export type ServerMessage =
       chainId: number;
     }
   | { type: "pvp/left"; areaId: string }
+  | { type: "session/taken" }
   | {
       type: "pvp/slain";
       slayerName: string;
@@ -883,6 +923,8 @@ export type ServerMessage =
       craftOpen?: boolean;
       /** Provisioner — client may open the lok exchange. */
       lokOpen?: boolean;
+      /** Fired when this talk accepted a quest or turned one in. */
+      questCue?: "accept" | "complete";
     };
 
 export function parseClientMessage(raw: unknown): ClientMessage | null {
@@ -952,6 +994,8 @@ export function emptyBuffs(): BuffState {
     sleepUntil: 0,
     diaUntil: 0,
     bioUntil: 0,
+    diseaseUntil: 0,
+    curseUntil: 0,
     atkDownUntil: 0,
     atkDownMul: 1,
     spellbladeUntil: 0,
@@ -970,6 +1014,7 @@ export function emptyBuffs(): BuffState {
     healAbsorbUntil: 0,
     healAbsorbHp: 0,
     regenUntil: 0,
+    reraiseUntil: 0,
     druidForm: 0,
     druidFormUntil: 0,
     druidRingwakeUntil: 0,

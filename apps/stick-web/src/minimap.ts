@@ -183,12 +183,31 @@ export function shouldBlitMinimap(prev: MinimapBlitKey | null, next: MinimapBlit
   );
 }
 
+/** Engine panel size. Peek blits this 148×104 with CSS contain instead of cover-mapping the well. */
+export const MINIMAP_PANEL_W = 148;
+export const MINIMAP_PANEL_H = 104;
+/** Dedicated blit source in the framebuffer (top-left). Not the leftover MOVE-overlapping fallback. */
+export const MINIMAP_BLIT_DOCK: [number, number, number, number] = [0, 0, MINIMAP_PANEL_W, MINIMAP_PANEL_H];
+/** Desktop-only leftover if the well cannot be mapped. Never use this on Mobile. */
+export const MINIMAP_LEGACY_FALLBACK: [number, number, number, number] = [8, 248, 148, 104];
+
+/** Where the engine should composite the dock panel. Mobile always uses the blit dock. */
+export function minimapEngineDock(opts: {
+  mobile: boolean;
+  wellDock: [number, number, number, number] | null;
+}): [number, number, number, number] | null {
+  if (opts.mobile) return MINIMAP_BLIT_DOCK;
+  return opts.wellDock ?? MINIMAP_LEGACY_FALLBACK;
+}
+
 /** Push map data into the renderer; it bakes the static layer once on the next draw. */
-export function applyMapData(r: MapSink, baked: string | null): void {
+export function applyMapData(r: MapSink, baked: string | null, opts?: { labels?: boolean }): void {
   r.clearMapData();
   const d = mapDataFor(baked);
   if (!d) return;
-  r.setMapTitle(d.title);
-  for (const road of d.roads) r.addMapRoad(road.name, road.pts);
-  for (const l of d.labels) r.addMapLabel(l.text, l.x, l.z, l.kind);
+  r.setMapTitle(opts?.labels === false ? "" : d.title);
+  for (const road of d.roads) r.addMapRoad(opts?.labels === false ? "" : road.name, road.pts);
+  if (opts?.labels !== false) {
+    for (const l of d.labels) r.addMapLabel(l.text, l.x, l.z, l.kind);
+  }
 }

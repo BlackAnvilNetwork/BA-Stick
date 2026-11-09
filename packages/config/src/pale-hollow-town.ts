@@ -8,8 +8,8 @@
  * Shared by server and client through `paleHollowHeight` / `paleHollowWalkable`:
  *   - terraces are level floors with wobbly (non-straight) edges;
  *   - streets are ramped ribbons between terrace levels (grade <= ~0.25);
- *   - where a terrace or street sits more than `WALL_DROP` off the natural ground, its
- *     edge band is a retaining wall (not walkable): the town is entered by its streets;
+ *   - terrace and street edges still slope to natural ground, but grass and open
+ *     aprons are walkable (the town is not a walled compound);
  *   - building footprints (the only straight lines: real masonry) are not walkable.
  * Props (`MAYFLOWER_PROPS`) are client-visual data only.
  *
@@ -247,8 +247,7 @@ export function mayflowerSample(
   if (edge >= BAND) return null;
   const g = ground();
   const y = edgeLevel + (g - edgeLevel) * smooth01(edge / BAND);
-  const wall = Math.abs(edgeLevel - g) > WALL_DROP;
-  return { y, walk: !wall && !inBuilding(x, z), district: null, onStreet: false };
+  return { y, walk: !inBuilding(x, z), district: null, onStreet: false };
 }
 
 /** Client-visual prop placements (kind names map to renderer PropKind in bake-props). */
@@ -433,4 +432,11 @@ export function mayflowerInBuilding(x: number, z: number, pad = 0): boolean {
 /** True inside the town's influence (terraces, streets, wall bands). */
 export function mayflowerInTown(x: number, z: number): boolean {
   return mayflowerSample(x, z, () => 0, () => 0) != null;
+}
+
+/** Open grass around Mayflower, including Ilse's Turning Yard and the other district aprons. */
+export function mayflowerOpenGrass(x: number, z: number): boolean {
+  const b = MAYFLOWER_BBOX;
+  const pad = 16;
+  return x >= b.minX - pad && x <= b.maxX + pad && z >= b.minZ - pad && z <= b.maxZ + pad;
 }

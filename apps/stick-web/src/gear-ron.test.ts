@@ -557,6 +557,8 @@ test("ashbeam club is a dust shaft through the hand and a thick head", () => {
   const head = g.shapes[2]!;
   assert.ok((head.from[1] ?? 0) > 0 && (head.to[1] ?? 0) > (head.from[1] ?? 0), "head sits on +y");
   assert.ok((head.thick ?? 0) > (shaft.thick ?? 0), "head is thicker than the shaft");
+  const frame = gearFrame(g, solveIdle(0.6));
+  assert.ok(frame.y.y > 0.85, "club +y is upright, not the down-pointing swing");
 });
 
 test("ashbeam staff is a dust shaft through the hand and an orb", () => {

@@ -2,9 +2,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { parseGear } from "./gear-ron.ts";
+import { CATALOG } from "../../../packages/items/src/index.ts";
+import { parseGear, parsePlate } from "./gear-ron.ts";
 import { gearRonForSlug, GEAR_RON_IDS } from "./wiki-gear.ts";
-import { swordLayoutForGearId } from "./pixel-sword.ts";
+import { isPixelDaggerGear, swordArtFromName, swordLayoutForGearId } from "./pixel-sword.ts";
 
 const gearDir = join(import.meta.dirname, "../../../engine/ba-stick-render/assets/gear");
 
@@ -120,6 +121,59 @@ test("tier helms map to their own ba_*_helm gear files", () => {
   assert.equal(gearRonForSlug("rogues-gloves"), "ba_rogues_gloves");
   assert.equal(gearRonForSlug("rogues-boots"), "ba_rogues_boots");
   assert.equal(gearRonForSlug("orichalcum-dagger"), "ba_orichalcum_dagger");
+  assert.equal(gearRonForSlug("dustweave-robe"), "ba_dustweave_robe");
+  assert.equal(gearRonForSlug("duskweave-coat"), "ba_duskweave_coat");
+  assert.equal(gearRonForSlug("skull-harness"), "ba_skull_harness");
+  assert.equal(gearRonForSlug("last-company-bandana"), "ba_last_company_bandana");
+  assert.equal(gearRonForSlug("chalkreed-cuffs"), "ba_chalkreed_cuffs");
+  assert.equal(gearRonForSlug("marshbone-harness"), "ba_marshbone_harness");
+  assert.equal(gearRonForSlug("crownbone-gloves"), "ba_crownbone_gloves");
+  assert.equal(gearRonForSlug("nighweave-pumps"), "ba_nighweave_pumps");
+  assert.equal(gearRonForSlug("saltjack-cap"), "ba_saltjack_cap");
+  assert.equal(gearRonForSlug("seam-glass-ring"), null);
+  assert.equal(gearRonForSlug("marrowforged-ring"), null);
+  assert.equal(gearRonForSlug("chalk-bead"), null);
+  assert.equal(gearRonForSlug("mere-loop"), null);
+});
+
+const VISIBLE_RON_SLOTS = new Set(["head", "body", "hands", "legs", "feet", "main", "sub", "ranged", "grip"]);
+
+test("every visible equipment slug has a skinned gear ron", () => {
+  for (const item of CATALOG) {
+    if (item.kind !== "equipment" || !VISIBLE_RON_SLOTS.has(item.slot ?? "")) continue;
+    const id = gearRonForSlug(item.slug);
+    assert.ok(id, item.slug);
+    const g = parseGear(readFileSync(join(gearDir, `${id}.ron`), "utf8"));
+    assert.equal(g.id, id, item.slug);
+  }
+});
+
+test("name tokens skin plate letters", () => {
+  const copper = parsePlate(readFileSync(join(gearDir, "ba_copperbind_mail.plate.ron"), "utf8"));
+  assert.ok(copper.rows.some((r) => r.includes("o")), "copperbind uses bronze letters");
+  const voidt = parsePlate(readFileSync(join(gearDir, "ba_voidtarge.plate.ron"), "utf8"));
+  assert.ok(voidt.rows.some((r) => r.includes("k")), "voidtarge uses dark letters");
+  const crown = parsePlate(readFileSync(join(gearDir, "ba_crownplate_mail.plate.ron"), "utf8"));
+  assert.ok(crown.rows.some((r) => r.includes("g")), "crownplate uses gold letters");
+  const seed = parsePlate(readFileSync(join(gearDir, "ba_seedcloth_cowl.plate.ron"), "utf8"));
+  assert.ok(seed.rows.some((r) => r.includes("l")), "seedcloth keeps linen letters");
+  const dusk = parsePlate(readFileSync(join(gearDir, "ba_duskweave_hat.plate.ron"), "utf8"));
+  assert.ok(dusk.rows.some((r) => r.includes("n")), "duskweave hat uses dusk letters");
+  assert.equal(swordArtFromName("ba_pitiron_sword"), "steel");
+  assert.equal(swordArtFromName("ba_copperbind_kris"), "bronze");
+  assert.ok(isPixelDaggerGear("ba_voidoak_kris"));
+  const aetherHelm = parsePlate(readFileSync(join(gearDir, "ba_aetherplate_helm.plate.ron"), "utf8"));
+  assert.ok(aetherHelm.rows.some((r) => r.includes("w")), "aetherplate helm is white");
+  const aetherMail = parsePlate(readFileSync(join(gearDir, "ba_aetherplate_mail.plate.ron"), "utf8"));
+  assert.ok(aetherMail.rows.some((r) => r.includes("w")), "aetherplate mail chest is white");
+  assert.ok(!aetherMail.rows.some((r) => r.includes("e")), "aetherplate mail has no steel field");
+  const mythrilHelm = parsePlate(readFileSync(join(gearDir, "ba_mythril_helm.plate.ron"), "utf8"));
+  assert.ok(mythrilHelm.rows.some((r) => r.includes("n")), "mythril helm is blue");
+  assert.ok(mythrilHelm.rows.some((r) => r.includes("w")), "mythril helm is white");
+  assert.ok(mythrilHelm.rows.every((r) => !r.includes("g")), "mythril helm has no gold");
+  const mythrilMail = parsePlate(readFileSync(join(gearDir, "ba_mythril_mail.plate.ron"), "utf8"));
+  assert.ok(mythrilMail.rows.some((r) => r.includes("n")), "mythril mail is blue");
+  assert.ok(mythrilMail.rows.some((r) => r.includes("w")), "mythril mail is white");
 });
 
 test("bundled gear files exist for wiki dagger previews", () => {

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
 //
-// One cuisse face, painted on each thigh. 'e' steel, 'g' gold rim.
+// One cuisse face, painted on each thigh. 'o' bronze, 'g' gold rim.
 // Row 0 is the hip edge. The last row stops above the knee.
 (
     id: "ba_bronze_leggings",
@@ -22,9 +22,9 @@
     cuff_thick: 0.0,
     rows: [
         "gggggggg",
-        "geeeeeeg",
-        "geeeeeeg",
-        "geeeeeeg",
+        "goooooog",
+        "goooooog",
+        "goooooog",
         "gggggggg",
     ],
 )

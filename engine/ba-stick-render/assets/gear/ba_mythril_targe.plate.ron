@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
 //
-// Mythril targe face. Trail field (w) with a water boss and gold rim.
+// Mythril targe face. Blue field (n), white boss, white rim.
 (
     id: "ba_mythril_targe",
     x0: -0.24,
@@ -20,10 +20,10 @@
     cuff_to: 0.0,
     cuff_thick: 0.0,
     rows: [
+        "nnnnnnnnnnnn",
+        "nnnnnnnnnnnn",
+        "nnnnwwnnnnnn",
+        "nnnnnnnnnnnn",
         "wwwwwwwwwwww",
-        "wwwwwwwwwwww",
-        "wwwwbbwwwwww",
-        "wwwwwwwwwwww",
-        "gggggggggggg",
     ],
 )

@@ -162,19 +162,6 @@ import {
 } from "./battlemage-kit";
 
 import {
-  DRUID_ABILITIES,
-  DRUID_ABILITY_IDS,
-  DRUID_CATEGORY_TABS,
-  isDruidAbilityId,
-  druidAbilitiesUnlocked,
-  druidAbilityIconUrl,
-  druidAbilityTooltip,
-  druidHotbarOrder,
-  type DruidAbilityId,
-  type DruidForm,
-} from "./druid-kit";
-
-import {
 
   ABILITY_CATEGORY_TABS,
 
@@ -205,6 +192,8 @@ import {
   isWeaponTpAbilityId,
   weaponTpAbilityIconUrl,
   weaponTpAbilityTooltip,
+  withFormWeaponSkills,
+  druidFormWsLabel,
   type WeaponTpAbilityId,
 } from "./weapon-tp";
 
@@ -331,8 +320,8 @@ export { SHARED_ABILITY_ICON, SHARED_SPELL_ICON_CONCEPTS } from "./shared-icons"
 
 
 
-export function abilityIconUrl(id: AbilityId | string): string {
-  if (isWeaponTpAbilityId(id)) return weaponTpAbilityIconUrl(id);
+export function abilityIconUrl(id: AbilityId | string, form: number = 0): string {
+  if (isWeaponTpAbilityId(id)) return weaponTpAbilityIconUrl(id, form);
   const shared = SHARED_ABILITY_ICON[id];
 
   if (shared) return shared;
@@ -341,7 +330,6 @@ export function abilityIconUrl(id: AbilityId | string): string {
 
   if (isDruidAbilityId(id)) return druidAbilityIconUrl(id);
   if (isBattleMageAbilityId(id)) return battleMageAbilityIconUrl(id);
-  if (isDruidAbilityId(id)) return druidAbilityIconUrl(id);
   if (isClericAbilityId(id)) return clericAbilityIconUrl(id);
 
   if (isSorcererAbilityId(id)) return sorcererAbilityIconUrl(id);
@@ -368,7 +356,9 @@ export function abilityIconUrl(id: AbilityId | string): string {
 
 
 
-export function abilityLabel(id: AbilityId): string {
+export function abilityLabel(id: AbilityId, form: number = 0): string {
+  const skinned = druidFormWsLabel(id, form);
+  if (skinned) return skinned;
   if (isWeaponTpAbilityId(id)) return WEAPON_TP_ABILITIES[id].label;
 
   if (isTimAbilityId(id)) return TIM_ABILITIES[id].label;
@@ -412,8 +402,8 @@ export function abilityGlyph(id: AbilityId): string {
 
 
 
-export function abilityTooltip(id: AbilityId): AbilityTooltip | string {
-  if (isWeaponTpAbilityId(id)) return weaponTpAbilityTooltip(id);
+export function abilityTooltip(id: AbilityId, form: number = 0): AbilityTooltip | string {
+  if (isWeaponTpAbilityId(id)) return weaponTpAbilityTooltip(id, form);
 
   if (isTimAbilityId(id)) return timAbilityTooltip(id);
 

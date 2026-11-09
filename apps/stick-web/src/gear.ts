@@ -12,6 +12,12 @@ export const MAT: Record<string, number> = { clothcraft: 1, leathercraft: 2, smi
 
 export function materialOf(item: ItemDef | undefined): number {
   if (!item) return 0;
+  // Mythril is goldsmithing stock, but worn blades/plate still use the metal mesh.
+  const slug = item.slug ?? "";
+  const slot = item.slot ?? "";
+  if (slug.includes("mythril") && slot && !/^(ring|earring)$/.test(slot) && !/(torque|chain|circlet)/.test(slug)) {
+    return MAT.smithing;
+  }
   return MAT[item.craftSkill ?? ""] ?? 1;
 }
 

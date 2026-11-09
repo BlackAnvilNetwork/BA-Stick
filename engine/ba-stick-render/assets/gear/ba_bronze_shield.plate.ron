@@ -3,7 +3,7 @@
 // Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
 // Modified: 2026-11-04 — shield family copy of ba_iron_shield.plate.ron.
 //
-// Shield face. 'e' steel, 'g' gold rim. One solid field, no dark bands.
+// Shield face. 'o' bronze, 'g' gold rim. One solid field, no dark bands.
 // Row 0 is the boss edge. The last row is the rim.
 (
     id: "ba_bronze_shield",
@@ -22,10 +22,10 @@
     cuff_to: 0.0,
     cuff_thick: 0.0,
     rows: [
-        "eeeeeeeeeeee",
-        "eeeeeeeeeeee",
-        "eeeeeeeeeeee",
-        "eeeeeeeeeeee",
+        "oooooooooooo",
+        "oooooooooooo",
+        "oooooooooooo",
+        "oooooooooooo",
         "gggggggggggg",
     ],
 )

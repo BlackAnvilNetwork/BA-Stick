@@ -44,6 +44,7 @@ function snap(tick: number, main: number | null): SnapshotMessage {
       freeStatPoints: 0,
       freeStats: {},
       questLog: [],
+      nearCrafter: false,
     },
     units: [],
     log: [],

@@ -22,7 +22,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test src/uiSettings.test.ts src/MobileArcadeControls.test.ts src/catalog-tree.test.ts src/hud-leftovers.test.ts"
+    "test": "tsx --test src/uiSettings.test.ts src/MobileArcadeControls.test.ts src/catalog-tree.test.ts src/hud-leftovers.test.ts src/statusIcons.test.ts src/moveInput.test.ts src/hudChrome.test.ts"
   },
   "dependencies": {
     "@bellgrave/client-core": "workspace:*",

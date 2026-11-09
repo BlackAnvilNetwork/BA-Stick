@@ -30,6 +30,8 @@ pub struct Pose {
     pub ready: bool,
     /// Melee progress 0..1 (1 = done / not attacking).
     pub attack: f32,
+    /// 0..1 Druid-form rest sit (ignored while dead). Bipeds use the rest clip.
+    pub rest: f32,
 }
 
 /// Duration of a creature melee lunge.
@@ -510,11 +512,13 @@ fn stick_leg(
     col: u8,
     limb: f32,
     s: f32,
+    tuck: f32,
 ) {
-    let sw = (ps.phase + off).sin() * 0.14 * s * ps.moving;
-    let fl = (ps.phase + off).cos().max(0.0) * 0.05 * s * ps.moving;
+    let rest = if ps.dead > 0.01 { 0.0 } else { ps.rest.clamp(0.0, 1.0) };
+    let sw = (ps.phase + off).sin() * 0.14 * s * ps.moving * (1.0 - rest);
+    let fl = (ps.phase + off).cos().max(0.0) * 0.05 * s * ps.moving * (1.0 - rest);
     let foot = v3(top.x, ps.pos.y + fl, top.z) + f * sw;
-    let foot = foot + (top - foot) * (ps.dead * 0.55);
+    let foot = foot + (top - foot) * (ps.dead * 0.55 + tuck * 0.72);
     let q = |v: Vec3| cam.project(v);
     fb.capsule(q(top), q(foot), limb * 0.65, col, Some(C_OUTLINE));
     fb.disc(q(top), 1.1, FX_TELL_DARK, None);
@@ -527,12 +531,14 @@ fn stick_form(fb: &mut Framebuffer, cam: &Camera, kind: u8, s: f32, ps: &Pose) {
     let limb = (1.5 + s * 1.1).max(1.3);
     let layout = crate::stick_form::draw_form(fb, cam, kind, s, ps);
     let def = crate::stick_form::form_def(kind);
-    let stance = def.stance * s;
+    let stance = def.stance * s * (1.0 - 0.35 * if ps.dead > 0.01 { 0.0 } else { ps.rest.clamp(0.0, 1.0) });
     let thick = limb * def.leg_thick;
-    stick_leg(fb, cam, ps, f, layout.hip - r * stance, 0.0, WOOD_D, thick, s);
-    stick_leg(fb, cam, ps, f, layout.hip + r * stance, std::f32::consts::PI, WOOD, thick, s);
-    stick_leg(fb, cam, ps, f, layout.sh - r * (stance * 0.92), std::f32::consts::PI, WOOD_D, thick, s);
-    stick_leg(fb, cam, ps, f, layout.sh + r * (stance * 0.92), 0.0, WOOD, thick, s);
+    let rear = crate::stick_form::form_leg_tuck(kind, ps.rest, ps.dead, false);
+    let fore = crate::stick_form::form_leg_tuck(kind, ps.rest, ps.dead, true);
+    stick_leg(fb, cam, ps, f, layout.hip - r * stance, 0.0, WOOD_D, thick, s, rear);
+    stick_leg(fb, cam, ps, f, layout.hip + r * stance, std::f32::consts::PI, WOOD, thick, s, rear);
+    stick_leg(fb, cam, ps, f, layout.sh - r * (stance * 0.92), std::f32::consts::PI, WOOD_D, thick, s, fore);
+    stick_leg(fb, cam, ps, f, layout.sh + r * (stance * 0.92), 0.0, WOOD, thick, s, fore);
 }
 
 /// Gather node marker: ground glow + a small prop per method + twinkles.

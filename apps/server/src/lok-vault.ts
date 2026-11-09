@@ -26,7 +26,7 @@ export type { OwnedCharacterNft };
  * deployments/gnosis.json) does not match this bundle. Re-propose before that ruleset is used.
  * This change does not submit that transaction.
  */
-export const LOCAL_RULESET_WASM_SHA256 = "546808d6d83697e94b9a04da3f4aeba052a9e8e4d659838249bbde9d2b1ca66d";
+export const LOCAL_RULESET_WASM_SHA256 = "d555a24fd55491901eee308c7d6edac74f86c5035a9baa8228daeb2100e943a6";
 
 /**
  * SP1 verifying key of `contracts/lok-log/sp1` (sp1-zkvm 6.9.0).

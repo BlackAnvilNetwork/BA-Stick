@@ -1,14 +1,21 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 import {
   DASH_COOLDOWN_MS,
   DASH_DISTANCE,
   DASH_MIN,
+  DASH_MS,
   PH_HUB,
   PH_HUB_REAR_WALL,
   PH_HUB_SPAWN,
+  dashDurationMs,
   dashPos,
   paleHollowClampMove,
+  paleHollowMoveMul,
+  paleHollowRiverCenterX,
   paleHollowWalkable,
   planDash,
 } from "@bellgrave/config";
@@ -75,4 +82,56 @@ test("zone bounds: a clamp that holds the edge ends the dash at the edge", () =>
   const slide = (_fx: number, _fz: number, tx: number, tz: number) => ({ x: tx, z: Math.min(tz, 0) });
   const s = planDash({ x: 0, z: -1 }, { dx: 1, dz: 1 }, slide, 0, undefined);
   assert.ok(s.ok && s.run.tz <= 0);
+});
+
+test("dash duration scales with travelled distance (local pred and server agree)", () => {
+  assert.equal(dashDurationMs(DASH_DISTANCE), DASH_MS);
+  assert.equal(dashDurationMs(DASH_DISTANCE / 2), DASH_MS / 2);
+  const p = planDash({ x: 0, z: 0 }, { dx: 1, dz: 0 }, open, 0, undefined);
+  assert.ok(p.ok);
+  assert.ok(Math.abs(p.run.end - p.run.start - dashDurationMs(DASH_DISTANCE)) < 1e-6);
+});
+
+test("water move mul shortens a planned dash the same way walk slows", () => {
+  const z = 80;
+  const x = paleHollowRiverCenterX(z);
+  const mul = paleHollowMoveMul(x, z);
+  assert.ok(mul < 1, "expected a river/bank cell");
+  const full = planDash({ x, z }, { dx: 0, dz: 1 }, open, 0, undefined);
+  const slow = planDash({ x, z }, { dx: 0, dz: 1 }, open, 0, undefined, DASH_DISTANCE * mul);
+  assert.ok(full.ok && slow.ok);
+  const fullD = Math.hypot(full.run.tx - x, full.run.tz - z);
+  const slowD = Math.hypot(slow.run.tx - x, slow.run.tz - z);
+  assert.ok(Math.abs(slowD - fullD * mul) < 0.05);
+});
+
+test("ability dash uses kit range instead of DASH_DISTANCE", () => {
+  const p = planDash({ x: 0, z: 0 }, { dx: 1, dz: 0 }, open, 0, undefined, 8);
+  assert.ok(p.ok);
+  assert.ok(Math.abs(p.run.tx - 8) < 1e-6);
+  const short = planDash({ x: 0, z: 0 }, { dx: 1, dz: 0 }, open, 0, undefined, 6);
+  assert.ok(short.ok);
+  assert.ok(Math.abs(short.run.tx - 6) < 1e-6);
+});
+
+test("handleDash refuses bind the same as stun", () => {
+  const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "index.ts"), "utf8");
+  assert.match(src, /if \(now < p\.bindUntil\)/);
+  assert.match(src, /You are bound\./);
+  assert.match(src, /p\.gathering && now < p\.animUntil/);
+  assert.match(src, /resumeNav \? \(routeLive \? p\.navGoal : null\) : null/);
+  assert.match(src, /const routeLive = p\.moveTo != null/);
+  assert.match(src, /const selfSpeed = playerMoveSpeed\(p, nowUnits\)/);
+  assert.match(src, /pl\.wallet === p\.wallet \? \{ speed: selfSpeed \}/);
+  assert.match(src, /playerMoveSpeed\(p, nowUnits\)/);
+  assert.doesNotMatch(src, /speed: playerMoveSpeed\(pl,/);
+  assert.match(src, /Math\.min\(0\.2, Math\.max\(TICK_MS \/ 1000, wall\)\)/);
+  assert.match(src, /const step = speed \* simDt/);
+  assert.match(src, /function armWorldTick\(/);
+  assert.match(src, /if \(tickDue < now\) tickDue = now \+ TICK_MS/);
+  assert.match(src, /pulse1s/);
+  assert.match(src, /x\.toFixed\(2\) \+ ":" \+ z\.toFixed\(2\)/);
+  assert.match(src, /const idle = flushed\.ok && committed\.length === 0 && guildEvents\.length === 0;/);
+  assert.match(src, /bodyMs < 20 \|\| sealStale/);
+  assert.match(src, /short \|\| Math\.hypot\(hit\.x - x, hit\.z - z\) < 0\.2/);
 });

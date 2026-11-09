@@ -297,6 +297,14 @@ textarea {
   padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
 
+html[data-ui-layout="mobile"] .hud-layout-mobile {
+  padding: 0;
+  --arcade-thumb-inset: 44px;
+}
+html[data-ui-layout="mobile"] .hud-layout-mobile[data-mobile-dock="chat"] {
+  --arcade-thumb-inset: 108px;
+}
+
 /* Host for drei Html nameplates — always under .hud-root */
 .world-html-root {
   position: absolute;
@@ -349,6 +357,14 @@ textarea {
   transition: width 0.12s linear;
 }
 
+.target-focus-plate.ally .target-focus-bar {
+  border-color: rgba(110, 186, 122, 0.5);
+}
+
+.target-focus-plate.ally .target-focus-bar > i {
+  background: linear-gradient(180deg, #b6e3b0 0%, #6eba7a 100%);
+}
+
 .target-focus-num {
   margin-top: 4px;
   font-family: var(--ui-font);
@@ -368,7 +384,7 @@ textarea {
   bottom: 24%;
   top: auto;
   padding: 0;
-  z-index: 40;
+  z-index: 45;
 }
 
 .hud-corner-left {
@@ -419,6 +435,9 @@ textarea {
   padding: 12px 14px 14px;
   min-width: 164px;
   max-width: 196px;
+  max-height: inherit;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   background:
     linear-gradient(165deg, var(--cmd-dock-inner), transparent 55%),
     var(--cmd-dock-bg);
@@ -939,6 +958,52 @@ textarea {
 .settings-option.active .settings-font-sample {
   color: var(--cmd-accent);
   margin-right: 8px;
+}
+.settings-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 6px 0;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--cmd-pill-text);
+}
+.settings-slider-row span {
+  min-width: 7.5em;
+}
+.settings-slider-row input[type="range"] {
+  flex: 1;
+  accent-color: var(--cmd-accent);
+}
+.settings-slider-disabled {
+  opacity: 0.45;
+}
+.settings-slider-disabled input[type="range"] {
+  pointer-events: none;
+}
+.vista-preset-row {
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+.vista-preset-row .settings-option {
+  width: auto;
+  flex: 1 1 5.5rem;
+}
+.vista-dim {
+  opacity: 0.45;
+}
+html[data-ui-layout="mobile"] .settings-panel {
+  left: max(8px, env(safe-area-inset-left, 0px));
+  right: max(8px, env(safe-area-inset-right, 0px));
+  top: max(8px, env(safe-area-inset-top, 0px));
+  bottom: max(8px, env(safe-area-inset-bottom, 0px));
+  width: auto;
+  max-width: none;
+  max-height: none;
+  height: auto;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 .settings-session {
   margin-bottom: 0;
@@ -4485,55 +4550,178 @@ button.equip-stat-label:focus-visible {
 }
 
 /* —— Mobile / arcade layout (Settings → Layout → Mobile) —— */
-/* In-flow under .hud-bottom (not absolute) so sticks stay visible on desktop
-   mouse / resize / re-render — absolute overlay was vanishing after the hotbar unmounted. */
+/* Overlay on .hud-root (absolute inset 0). Host outlives the hotbar ternary.
+   Empty overlay space is pointer-events:none so world taps reach the canvas. */
 html[data-ui-layout="mobile"] .hud-layout-mobile .hud-bottom {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 6px;
-  padding-bottom: 4px;
+  position: absolute;
+  inset: 0;
+  display: block;
+  pointer-events: none;
+  padding: 0;
+  gap: 0;
+  background: transparent;
 }
-html[data-ui-layout="mobile"] .hud-layout-mobile .arcade-controls {
-  order: 1;
+html[data-ui-layout="mobile"] .hud-layout-mobile .hud-action-mobile {
+  position: absolute;
+  top: max(4px, constant(safe-area-inset-top));
+  top: max(4px, env(safe-area-inset-top, 0px));
+  left: max(8px, constant(safe-area-inset-left));
+  left: max(8px, env(safe-area-inset-left, 0px));
+  right: max(8px, constant(safe-area-inset-right));
+  right: max(8px, env(safe-area-inset-right, 0px));
+  height: 36px;
+  z-index: 30;
+  pointer-events: none;
+  min-width: 0;
+  gap: 0;
 }
-html[data-ui-layout="mobile"] .hud-layout-mobile .hud-combat-log {
-  order: 2;
+html[data-ui-layout="mobile"] .hud-layout-mobile .hud-mobile-top {
+  height: 36px;
+  min-height: 36px;
+  pointer-events: none;
 }
-html[data-ui-layout="mobile"] .hud-layout-mobile .hud-chat-log {
-  order: 3;
+html[data-ui-layout="mobile"] .hud-layout-mobile .hud-menu-btn-flow {
+  pointer-events: auto;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  box-sizing: content-box;
+  padding: 8px;
+  margin: -8px -8px -8px 0;
 }
 html[data-ui-layout="mobile"] .hud-layout-mobile .hud-log-frame {
-  flex: 1 1 auto;
-  width: 100%;
+  position: absolute;
+  flex: none;
+  width: min(168px, 42vw);
   min-width: 0;
   height: 88px;
-  max-height: 88px;
+  max-height: 96px;
+  background: rgba(12, 10, 8, 0.38);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+html[data-ui-layout="mobile"] .hud-layout-mobile .hud-combat-log {
+  top: max(40px, calc(constant(safe-area-inset-top) + 36px));
+  top: max(40px, calc(env(safe-area-inset-top, 0px) + 36px));
+  left: max(8px, constant(safe-area-inset-left));
+  left: max(8px, env(safe-area-inset-left, 0px));
+  z-index: 25;
 }
 html[data-ui-layout="mobile"] .hud-layout-mobile .hud-combat-log.hud-pane-map {
-  height: 168px;
-  max-height: 168px;
+  height: 132px;
+  max-height: 140px;
+  background: transparent;
+}
+html[data-ui-layout="mobile"] .hud-layout-mobile .hud-minimap-well {
+  min-height: 96px;
+  max-height: 120px;
+  height: 100%;
+  pointer-events: auto;
+  cursor: pointer;
+}
+html[data-ui-layout="mobile"] .hud-layout-mobile .hud-minimap-canvas {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+}
+html[data-ui-layout="mobile"] .hud-layout-mobile .hud-pane-map .hud-log-title {
+  display: none;
+}
+html[data-ui-map-full="1"][data-ui-layout="mobile"] .hud-layout-mobile .hud-combat-log {
+  display: none;
 }
 html[data-ui-layout="mobile"] .hud-layout-mobile .hud-log-body {
-  max-height: 52px;
+  max-height: none;
+}
+html[data-ui-layout="mobile"] .hud-layout-mobile[data-mobile-dock="chat"] .hud-combat-log {
+  display: none;
+}
+html[data-ui-layout="mobile"] .hud-layout-mobile .hud-chat-log {
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+  bottom: max(8px, constant(safe-area-inset-bottom));
+  bottom: max(8px, env(safe-area-inset-bottom, 0px));
+  top: auto;
+  width: min(280px, calc(100% - 200px));
+  height: auto;
+  max-height: 160px;
+  z-index: 28;
+}
+html[data-ui-layout="mobile"] .hud-layout-mobile .hud-chat-log.hud-chat-collapsed {
+  height: 32px;
+  max-height: 32px;
+  width: min(240px, calc(100% - 200px));
+}
+@media (max-width: 520px) {
+  html[data-ui-layout="mobile"] .hud-layout-mobile .hud-chat-log.hud-chat-collapsed {
+    left: max(8px, env(safe-area-inset-left, 0px));
+    transform: none;
+    top: max(176px, calc(env(safe-area-inset-top, 0px) + 172px));
+    bottom: auto;
+    width: min(168px, 42vw);
+  }
+}
+html[data-ui-layout="mobile"] .hud-layout-mobile .hud-chat-collapsed .hud-log-head,
+html[data-ui-layout="mobile"] .hud-layout-mobile .hud-chat-collapsed .hud-log-body,
+html[data-ui-layout="mobile"] .hud-layout-mobile .hud-chat-collapsed .hud-chat-compose {
+  display: none;
+}
+html[data-ui-layout="mobile"] .hud-layout-mobile[data-mobile-dock="chat"] .hud-chat-log {
+  width: min(420px, calc(100% - 24px));
+  height: 140px;
+  max-height: 160px;
+}
+
+.hud-chat-chip {
+  pointer-events: auto;
+  display: block;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0 12px;
+  border: 0;
+  background: transparent;
+  color: var(--ash);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+html[data-ui-layout="mobile"] .hud-layout-mobile .arcade-controls {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+  display: block;
+  width: auto;
+  height: auto;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  opacity: 1;
+  visibility: visible;
 }
 
 .arcade-controls {
-  pointer-events: auto;
-  position: relative;
-  z-index: 2;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 12px 16px;
-  width: 100%;
-  min-height: 160px;
-  margin: 0 auto 4px;
-  padding: 8px 10px 6px;
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: block;
+  width: auto;
+  height: auto;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  background: transparent;
   opacity: 1;
   visibility: visible;
-  touch-action: manipulation;
   box-sizing: border-box;
 }
 
@@ -4542,14 +4730,27 @@ html[data-ui-layout="mobile"] .hud-layout-mobile .hud-log-body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 0;
   flex: 0 0 auto;
+}
+
+.arcade-stick-move {
+  position: absolute;
+  left: max(12px, constant(safe-area-inset-left));
+  left: max(12px, env(safe-area-inset-left, 0px));
+  bottom: max(var(--arcade-thumb-inset, 20px), constant(safe-area-inset-bottom));
+  bottom: max(var(--arcade-thumb-inset, 20px), env(safe-area-inset-bottom, 0px));
+  pointer-events: auto;
+  padding: 24px;
+  margin: -24px;
 }
 
 .arcade-stick-pad {
   position: relative;
-  width: min(148px, 28vw);
-  height: min(148px, 28vw);
+  width: min(88px, 22vw);
+  height: min(88px, 22vw);
+  min-width: 88px;
+  min-height: 88px;
   border-radius: 50%;
   touch-action: none;
   user-select: none;
@@ -4560,64 +4761,100 @@ html[data-ui-layout="mobile"] .hud-layout-mobile .hud-log-body {
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  border: 2px solid color-mix(in srgb, var(--cmd-accent) 55%, transparent);
+  border: 1px solid color-mix(in srgb, var(--cmd-accent) 40%, transparent);
   background:
-    radial-gradient(circle at 50% 45%, rgba(255, 255, 255, 0.08), transparent 55%),
-    color-mix(in srgb, var(--cmd-dock-bg) 82%, transparent);
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.45), 0 10px 28px rgba(0, 0, 0, 0.45);
+    radial-gradient(circle at 50% 45%, rgba(255, 255, 255, 0.06), transparent 55%),
+    color-mix(in srgb, var(--cmd-dock-bg) 28%, transparent);
+  box-shadow: none;
+  opacity: 0.9;
+}
+.arcade-stick-pad[data-arcade-held] .arcade-stick-ring {
+  background:
+    radial-gradient(circle at 50% 45%, rgba(255, 255, 255, 0.1), transparent 55%),
+    color-mix(in srgb, var(--cmd-dock-bg) 42%, transparent);
+  border-color: color-mix(in srgb, var(--cmd-accent) 55%, transparent);
 }
 
 .arcade-stick-knob {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 42%;
-  height: 42%;
-  margin: -21% 0 0 -21%;
+  width: 36%;
+  height: 36%;
+  margin: -18% 0 0 -18%;
   border-radius: 50%;
-  background: linear-gradient(165deg, color-mix(in srgb, var(--cmd-accent) 70%, #fff), var(--cmd-accent));
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+  background: color-mix(in srgb, var(--cmd-accent) 55%, transparent);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: none;
+  opacity: 0.55;
   will-change: transform;
+}
+.arcade-stick-pad[data-arcade-held] .arcade-stick-knob {
+  opacity: 0.85;
 }
 
 .arcade-stick-label {
-  font-family: var(--ui-font);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--cmd-text-muted);
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+  display: none;
 }
 
 .arcade-face-cluster {
-  pointer-events: auto;
-  display: grid;
-  grid-template-columns: repeat(5, minmax(44px, 52px));
-  gap: 8px;
-  align-content: end;
-  justify-content: center;
-  padding: 8px 10px;
-  border-radius: 16px;
-  border: 1px solid var(--cmd-panel-edge);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--cmd-dock-inner) 80%, transparent), transparent 50%),
-    color-mix(in srgb, var(--cmd-panel-bg) 88%, transparent);
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+  position: absolute;
+  right: max(12px, constant(safe-area-inset-right));
+  right: max(12px, env(safe-area-inset-right, 0px));
+  bottom: max(var(--arcade-thumb-inset, 20px), constant(safe-area-inset-bottom));
+  bottom: max(var(--arcade-thumb-inset, 20px), env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
   touch-action: manipulation;
+}
+.arcade-face-utils {
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.arcade-face-grid {
+  pointer-events: none;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(44px, 48px));
+  grid-template-rows: repeat(3, minmax(44px, 48px));
+  gap: 6px;
+}
+.arcade-pager-chip {
+  pointer-events: auto;
+  position: absolute;
+  top: -22px;
+  right: 0;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--cmd-panel-bg) 45%, transparent);
+  color: var(--cmd-text-muted);
+  cursor: pointer;
 }
 
 .arcade-face-btn {
+  position: relative;
   width: 100%;
   aspect-ratio: 1;
+  min-width: 44px;
   min-height: 44px;
-  border-radius: 12px;
+  border-radius: 10px;
   border: 1px solid var(--panel-edge);
-  background: var(--slot);
+  background: color-mix(in srgb, var(--slot) 78%, transparent);
   color: var(--text);
   font-family: var(--ui-font);
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 800;
   letter-spacing: 0.04em;
   cursor: pointer;
@@ -4626,50 +4863,130 @@ html[data-ui-layout="mobile"] .hud-layout-mobile .hud-log-body {
   align-items: center;
   justify-content: center;
   line-height: 1.05;
+  overflow: hidden;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
   -webkit-tap-highlight-color: transparent;
+  pointer-events: auto;
 }
 .arcade-face-btn:active {
-  transform: translateY(1px) scale(0.97);
+  transform: none;
+  filter: brightness(1.12);
   border-color: var(--cmd-accent);
   color: var(--cmd-accent);
 }
 .arcade-face-btn.arcade-face-util {
   border-color: color-mix(in srgb, var(--cmd-accent) 45%, var(--panel-edge));
 }
+.arcade-face-btn.arcade-face-empty {
+  opacity: 0.4;
+  cursor: default;
+  background: color-mix(in srgb, var(--slot) 40%, transparent);
+}
+.arcade-face-btn:disabled {
+  cursor: default;
+}
+.arcade-face-btn .skill-icon,
+.arcade-face-btn .skill-glyph {
+  width: 28px;
+  height: 28px;
+  font-size: 11px;
+}
+.arcade-face-key {
+  position: absolute;
+  top: 2px;
+  left: 3px;
+  z-index: 1;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0;
+  color: rgba(236, 220, 180, 0.7);
+  text-shadow: 0 1px 1px #000;
+}
 .arcade-face-sub {
   display: block;
-  margin-top: 2px;
+  margin-top: 1px;
   font-size: 9px;
   font-weight: 700;
   opacity: 0.75;
 }
-
-@media (max-width: 720px) {
-  .arcade-controls {
-    min-height: 140px;
-    gap: 8px 10px;
-    padding: 6px 6px 4px;
-  }
-  .arcade-face-cluster {
-    grid-template-columns: repeat(5, minmax(38px, 46px));
-    gap: 6px;
-    padding: 6px;
-  }
-  .arcade-stick-pad {
-    width: min(128px, 30vw);
-    height: min(128px, 30vw);
-  }
+.arcade-dash-glyph {
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -0.12em;
+  color: var(--cmd-accent);
+  line-height: 1;
+}
+.arcade-pager-mark {
+  font-size: 18px;
+  line-height: 0.7;
+  color: var(--cmd-text-muted);
+}
+.arcade-face-empty-mark {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1px dashed color-mix(in srgb, var(--cmd-accent) 35%, transparent);
+  opacity: 0.5;
 }
 
-@media (max-width: 520px) {
-  .arcade-controls {
-    min-height: 0;
+html[data-ui-layout="mobile"] .hud-chrome {
+  top: calc(36px + env(safe-area-inset-top, 0px));
+  right: max(8px, env(safe-area-inset-right, 0px));
+  bottom: auto;
+  z-index: 45;
+}
+html[data-ui-layout="mobile"] .hud-menu-dock {
+  max-height: calc(100dvh - 48px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  overflow-y: auto;
+}
+html[data-ui-layout="mobile"] .target-focus-plate {
+  top: calc(40px + env(safe-area-inset-top, 0px));
+  min-width: min(220px, 56vw);
+  max-width: min(220px, 56vw);
+}
+html[data-ui-layout="mobile"] .party-invite-toast {
+  top: calc(40px + env(safe-area-inset-top, 0px));
+  max-width: calc(100vw - 16px);
+  flex-wrap: wrap;
+}
+html[data-ui-layout="mobile"] .hud-mobile-top .hud-meter-n,
+html[data-ui-layout="mobile"] .hud-mobile-top .hud-meter-k {
+  font-size: 11px;
+}
+html[data-ui-layout="mobile"] .hud-mobile-top .hud-meter-track {
+  height: 7px;
+}
+html[data-ui-layout="mobile"] .spellbook-panel,
+html[data-ui-layout="mobile"] .equip-panel,
+html[data-ui-layout="mobile"] .craft-panel,
+html[data-ui-layout="mobile"] .party-panel,
+html[data-ui-layout="mobile"] .explorer-panel,
+html[data-ui-layout="mobile"] .lok-panel,
+html[data-ui-layout="mobile"] .ash-pit-panel {
+  left: max(8px, env(safe-area-inset-left, 0px));
+  right: max(8px, env(safe-area-inset-right, 0px));
+  top: calc(40px + env(safe-area-inset-top, 0px));
+  width: auto;
+  max-width: none;
+  max-height: calc(100dvh - 44px - var(--arcade-thumb-inset, 44px) - env(safe-area-inset-bottom, 0px));
+  overflow: auto;
+}
+html[data-ui-layout="mobile"] .skill-tree-overlay {
+  inset: 44px 10px max(8px, var(--arcade-thumb-inset, 44px), env(safe-area-inset-bottom, 0px));
+  z-index: 50;
+}
+html[data-ui-layout="mobile"] .ash-pit-slain-banner {
+  bottom: max(120px, calc(var(--arcade-thumb-inset, 44px) + 88px + env(safe-area-inset-bottom, 0px)));
+}
+
+@media (max-width: 720px) {
+  .arcade-face-grid {
+    grid-template-columns: repeat(2, minmax(44px, 46px));
+    gap: 5px;
   }
-  .arcade-face-cluster {
-    order: 3;
-    width: 100%;
-    grid-template-columns: repeat(5, minmax(40px, 1fr));
+  .arcade-stick-pad {
+    width: min(88px, 22vw);
+    height: min(88px, 22vw);
   }
 }
 
@@ -4826,6 +5143,19 @@ html[data-ui-layout="mobile"] .hud-layout-mobile .hud-log-body {
   position: absolute;
   z-index: 2;
   pointer-events: auto;
+}
+.hud-dash-cd {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  z-index: 3;
+  pointer-events: none;
+  width: 36px;
+  height: 36px;
+}
+.hud-dash-cd .skill-cd {
+  width: 100%;
+  height: 100%;
 }
 .hud-action-well .skill-wrap {
   width: 100%;

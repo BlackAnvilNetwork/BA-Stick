@@ -1,4 +1,4 @@
-import { DRUID_FORM_PRESET, isDruidForm, swordSwingRendererAnim, type DruidForm } from "@bellgrave/combat";
+import { DRUID_FORM_PRESET, isDruidForm, type DruidForm } from "@bellgrave/combat";
 import { gatherInteractMs, gatherMethod } from "./gather";
 import type { UnitSnapshot } from "@bellgrave/protocol";
 
@@ -68,8 +68,10 @@ export function animFor(u: UnitWithCraft, now: number): string {
       return "walk";
     case "rest":
       return "rest";
+    case "dead":
+      return "dead";
     default:
-      return "idle"; // dead gets a dedicated pose later
+      return "idle";
   }
 }
 

@@ -14,6 +14,7 @@ import {
   syncUnits,
   type UnitSink,
 } from "./units";
+import { ZONE_LINKS } from "@bellgrave/config";
 import { moveKeyFromCode, wasdTarget } from "./input";
 
 const unit = (o: Partial<UnitWithCraft>): UnitWithCraft => ({
@@ -61,7 +62,7 @@ test("animFor holds melee/cast only until animUntil", () => {
   assert.equal(animFor(unit({ anim: "melee", animUntil: 2000 }), 3000), "idle");
   assert.equal(animFor(unit({ anim: "walk" }), 0), "walk");
   assert.equal(animFor(unit({ anim: "rest" }), 0), "rest");
-  assert.equal(animFor(unit({ anim: "dead" }), 0), "idle");
+  assert.equal(animFor(unit({ anim: "dead" }), 0), "dead");
   assert.equal(animFor(unit({ anim: "cast", animUntil: 2000, gatherTool: "shovel" }), 1000), "harvest");
   assert.equal(animFor(unit({ anim: "cast", animUntil: 2000, gatherTool: "pick" }), 1000), "mine");
   assert.equal(animFor(unit({ anim: "cast", animUntil: 2000, gatherTool: "shovel" }), 3000), "idle");
@@ -313,6 +314,13 @@ test("gather nodes: method from authored defs, click sends gather, depleted is i
   const atlas = { size: 16, cols: 32, index: { dustgrain: 3, "copper-ore": 40 } };
   assert.deepEqual(iconCell(atlas, "copper-ore"), { x: 128, y: 16 });
   assert.deepEqual(iconCell(atlas, "nope"), { x: 48, y: 0 });
+});
+
+test("E–W spawn facing on ring-to-fords / fords-to-reach / reach-to-fords", () => {
+  const link = (id: string) => ZONE_LINKS.find((l) => l.id === id)!;
+  assert.equal(link("ring-to-fords").spawn.facing, Math.PI / 2);
+  assert.equal(link("fords-to-reach").spawn.facing, Math.PI / 2);
+  assert.equal(link("reach-to-fords").spawn.facing, -Math.PI / 2);
 });
 
 test("Seam Country landmarks render as a standing stone and click to read", () => {

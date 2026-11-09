@@ -118,6 +118,11 @@ test("talk → kill → read → turn in, with the read saved", () => {
   assert.deepEqual(free.credited, []); assert.match(free.body, /numeral/);
 });
 
+test("worldQuestLogEntries omits unknown ids so Forest Basin rows are not stubbed", () => {
+  const st = { ...C.emptyPaleHollowQuests(), active: [{ id: "fb-cold-hearth", kills: 0 }] };
+  assert.deepEqual(C.worldQuestLogEntries(st), []);
+});
+
 test("fragment quests wait for the previous fragment", () => {
   const st = C.emptyPaleHollowQuests();
   const t = C.worldQuestTalk(st, "npc-sr-hesk");

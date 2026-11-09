@@ -46,6 +46,50 @@
  ],
  "abilities": {
   "rest": [],
+  "quest_accept": [
+   {
+    "prim": "ring",
+    "at": "self",
+    "color": "ash_gold",
+    "count": 28,
+    "radius": 1.15,
+    "rise": true
+   },
+   {
+    "prim": "burst",
+    "at": "self",
+    "color": "dust",
+    "count": 18,
+    "radius": 0.42,
+    "rise": true
+   }
+  ],
+  "quest_complete": [
+   {
+    "prim": "ring",
+    "at": "self",
+    "color": "holy",
+    "count": 36,
+    "radius": 1.45,
+    "rise": true
+   },
+   {
+    "prim": "burst",
+    "at": "self",
+    "color": "ash_gold",
+    "count": 22,
+    "radius": 0.55,
+    "from": "sky"
+   },
+   {
+    "prim": "burst",
+    "at": "self",
+    "color": "heal",
+    "count": 14,
+    "radius": 0.38,
+    "rise": true
+   }
+  ],
   "bulwark": [
    {
     "prim": "ring",

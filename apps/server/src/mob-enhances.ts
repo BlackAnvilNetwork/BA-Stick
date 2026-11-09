@@ -121,6 +121,14 @@ type PvpVictimHost = MobEnhanceHost & {
   sleepUntil?: number;
   miseryRite?: boolean;
   miseryEmpowerUntil?: number;
+  druidAshBraceUntil?: number;
+  druidAshBraceMul?: number;
+  druidBundleThickenUntil?: number;
+  druidBundleThickenMul?: number;
+  druidChalkWardUntil?: number;
+  druidChalkWardMul?: number;
+  druidMereVeilUntil?: number;
+  druidMereVeilHp?: number;
 };
 
 function soakStoneskin(host: PvpVictimHost, now: number, raw: number): number {
@@ -160,6 +168,29 @@ function victimDefenseMul(host: PvpVictimHost, now: number): number {
   return mul;
 }
 
+/** Ash Brace / Bundle / Chalk Ward — same stack as autos (`druidPhysDt`). */
+function pvpDruidPhysDt(host: PvpVictimHost, now: number): number {
+  let mul = 1;
+  if (now < (host.druidAshBraceUntil ?? 0)) mul = Math.min(mul, host.druidAshBraceMul || 0.78);
+  if (now < (host.druidBundleThickenUntil ?? 0)) mul = Math.min(mul, host.druidBundleThickenMul || 0.7);
+  if (now < (host.druidChalkWardUntil ?? 0)) mul *= host.druidChalkWardMul || 1;
+  return mul;
+}
+
+function soakMereVeil(host: PvpVictimHost, now: number, raw: number): number {
+  if (now >= (host.druidMereVeilUntil ?? 0) || (host.druidMereVeilHp ?? 0) <= 0) {
+    if (now >= (host.druidMereVeilUntil ?? 0)) host.druidMereVeilHp = 0;
+    return raw;
+  }
+  const soaked = Math.min(host.druidMereVeilHp ?? 0, raw);
+  host.druidMereVeilHp = (host.druidMereVeilHp ?? 0) - soaked;
+  if ((host.druidMereVeilHp ?? 0) <= 0) {
+    host.druidMereVeilHp = 0;
+    host.druidMereVeilUntil = 0;
+  }
+  return raw - soaked;
+}
+
 /**
  * Player wards for a PvP stand-in. Mob enhances use the branch below this.
  * Bulwark still returns 0. Magic resistance runs before Asylum / Shell / Mana Wall.
@@ -178,8 +209,10 @@ function takePvpVictimHit(host: PvpVictimHost, raw: number, kind: "physical" | "
         }),
     ),
   );
+  if (kind === "physical") dmg = Math.max(0, Math.floor(dmg * pvpDruidPhysDt(host, now)));
   dmg = soakStoneskin(host, now, dmg);
   dmg = soakHealShield(host, now, dmg);
+  dmg = soakMereVeil(host, now, dmg);
   dmg = Math.max(0, Math.floor(dmg * victimDefenseMul(host, now)));
   dmg = bleedManaWall(host, now, dmg);
   dmg = curseTaken(dmg, host.curseUntil ?? 0, now);

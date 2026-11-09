@@ -1,7 +1,9 @@
 import { useEffect, useRef } from "react";
 import { playSteps, stepsFor } from "./vfx";
-import { createRenderer, fetchProps, fetchZone, fromFramebuffer } from "./renderer";
+import { createRenderer, fromFramebuffer, placeAllZones } from "./renderer";
 import { isCoarsePointer, keylightFor } from "./mobile";
+import { applyWorldLighting } from "./lighting";
+import { applyWorldAtmosphere } from "./atmosphere";
 import { applyMapData } from "./minimap";
 import { crowdUnits, demoUnits, rosterUnits } from "./demo";
 
@@ -19,20 +21,16 @@ export function DemoApp() {
     const zone = q.get("zone");
     const ox = Number(q.get("x") ?? "0") || 0;
     const oz = Number(q.get("z") ?? "0") || 0;
-    void Promise.all([createRenderer(ref.current!), zone ? fetchZone(zone) : null, zone ? fetchProps(zone) : null]).then(async ([r, bytes, props]) => {
-      if (!alive) return;
-      if (bytes) r.loadZone(bytes);
-      if (props) r.loadProps(props);
-      if (zone === "forest_basin" && bytes) {
-        try {
-          const res = await fetch(`${import.meta.env.BASE_URL}zones/forest_basin.wfl`);
-          if (res.ok && alive) r.setWaterLayout(new Uint8Array(await res.arrayBuffer()), 0, 0);
-        } catch (err) {
-          console.warn("forest basin water layout stayed offline", err);
-        }
+    void createRenderer(ref.current!).then(async (r) => {
+      if (!alive) {
+        r.free();
+        return;
       }
+      await placeAllZones(r);
       if (!alive) return;
-      if (bytes) applyMapData(r, zone);
+      applyWorldLighting(r, zone ?? "pale_hollow");
+      applyWorldAtmosphere(r, zone ?? "pale_hollow");
+      applyMapData(r, zone);
       if (q.has("nomap")) r.setMinimap(false);
       r.setCamera(ox, oz);
       const view = q.get("view");

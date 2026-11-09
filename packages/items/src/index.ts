@@ -25,7 +25,21 @@ export {
   type ItemRarity,
 } from "./types";
 export { CATALOG, CATALOG_BY_ID, CATALOG_BY_SLUG } from "./catalog.generated";
-export { ITEM_RARITIES, pepperRarity, rarityFromName, rarityClass } from "./rarity";
+export {
+  FOOD_DURATION_MS,
+  FOOD_DURATION_SEC,
+  addItemStats,
+  foodBiteHeal,
+  foodKindOf,
+  foodRank,
+  foodStatsFor,
+  formatFoodBuffLine,
+  formatFoodUseLine,
+  isFoodItem,
+  mealStatsFor,
+  type FoodKind,
+} from "./food";
+export { ITEM_RARITIES, rarityFromName, rarityClass } from "./rarity";
 export {
   CRAFT_SKILLS,
   CRAFT_SKILL_LABEL,
@@ -60,7 +74,6 @@ export {
 export { npcSellUnitGold, npcSellTotalGold } from "./npc-sell";
 export { chainFungibleId, chainUniqueId, chainFungibleIdHex } from "./chain-ids";
 export {
-  EXPORTABLE_BASE_SLUGS,
   LIVE_BASE_SLUGS,
   ALL_BASE_SLUGS,
   catalogIdToChainFungibleId,

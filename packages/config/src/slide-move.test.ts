@@ -1,14 +1,19 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  FB_LAKE,
   PH_HUB,
   PH_HUB_REAR_WALL,
   ZONE_FIELDS,
   fieldClampMove,
+  fieldGateAt,
+  fieldNav,
   forestBasinWalkable,
+  paleHollowBiome,
   paleHollowClampMove,
   paleHollowInHubRearWall,
+  paleHollowInOpenWater,
+  paleHollowOnBridge,
+  paleHollowRiverCenterX,
   paleHollowWalkable,
   slideMove,
 } from "./index";
@@ -29,13 +34,41 @@ test("clamp does not teleport through the hub rear wall", () => {
 });
 
 test("field clampMove does not teleport across the mere", () => {
-  const { x, z } = FB_LAKE;
-  assert.equal(forestBasinWalkable(x, z), false);
-  const destZ = z + 40;
-  const jumped = fieldClampMove("forest_basin", x, z, x, destZ);
+  let deep: { x: number; z: number } | null = null;
+  for (let x = 60; x <= 100 && !deep; x += 1) {
+    for (let z = 5; z <= 40 && !deep; z += 1) {
+      if (!forestBasinWalkable(x, z)) deep = { x, z };
+    }
+  }
+  assert.ok(deep, "Stillmere has a blocked cell");
+  let dest: { x: number; z: number } | null = null;
+  for (let z = deep.z + 40; z <= deep.z + 80 && !dest; z += 1) {
+    if (forestBasinWalkable(deep.x, z)) dest = { x: deep.x, z };
+  }
+  assert.ok(dest, "far shore is land");
+  const jumped = fieldClampMove("forest_basin", deep.x, deep.z, dest.x, dest.z);
   assert.ok(jumped);
-  assert.ok(Math.hypot(jumped.x - x, jumped.z - destZ) > 20, "must not teleport across the mere");
-  assert.ok(Math.hypot(jumped.x - x, jumped.z - z) < 0.5, "no near bank: stay put");
+  assert.ok(Math.hypot(jumped.x - dest.x, jumped.z - dest.z) > 15, "must not teleport across the mere");
+  assert.ok(Math.hypot(jumped.x - deep.x, jumped.z - deep.z) < 8, "unstuck stays on the near bank");
+});
+
+test("islet_fords clampMove does not teleport across the channel", () => {
+  let deep: { x: number; z: number } | null = null;
+  for (let x = 40; x <= 80 && !deep; x += 1) {
+    for (let z = 12; z <= 24 && !deep; z += 1) {
+      if (!ZONE_FIELDS.islet_fords!.walkable(x, z)) deep = { x, z };
+    }
+  }
+  assert.ok(deep, "channel has a blocked cell");
+  let dest: { x: number; z: number } | null = null;
+  for (let z = -6; z <= 6 && !dest; z += 1) {
+    if (ZONE_FIELDS.islet_fords!.walkable(deep.x, z)) dest = { x: deep.x, z };
+  }
+  assert.ok(dest, "islet is land");
+  const jumped = fieldClampMove("islet_fords", deep.x, deep.z, dest.x, dest.z);
+  assert.ok(jumped);
+  assert.ok(Math.hypot(jumped.x - dest.x, jumped.z - dest.z) > 4, "must not teleport across the channel");
+  assert.ok(Math.hypot(jumped.x - deep.x, jumped.z - deep.z) < 8, "unstuck stays on the near bank");
 });
 
 test("axis slide follows a corridor wall instead of pinning", () => {
@@ -57,8 +90,35 @@ test("blocked field gates stay unwalkable so they cannot strand a body", () => {
       const x = (g.minX + g.maxX) / 2;
       const z = (g.minZ + g.maxZ) / 2;
       assert.equal(field.walkable(x, z), false, `${field.id}:${g.id} center must block`);
+      const hit = fieldGateAt(field.id, x, z);
+      assert.ok(hit && (hit.blocked || !hit.destZone), `${field.id}:${g.id} is a closed lip`);
       checked += 1;
     }
   }
   assert.ok(checked >= 4, "forest basin still has closed lips");
+});
+
+test("paleHollowWalkable does not punch a biome-river hole through dry grass", () => {
+  let found = false;
+  for (let z = 60; z <= 200 && !found; z += 2) {
+    const cx = paleHollowRiverCenterX(z);
+    for (const x of [cx + 10, cx - 10, cx + 14, cx - 14]) {
+      if (paleHollowOnBridge(x, z) || paleHollowInOpenWater(x, z)) continue;
+      if (paleHollowBiome(x, z) === "river") continue;
+      assert.equal(paleHollowWalkable(x, z), true, `dry strip ${x},${z}`);
+      found = true;
+      break;
+    }
+  }
+  assert.ok(found, "found a dry grass strip beside the meander");
+});
+
+test("fieldNav last metre keeps side clearance when the start is open", () => {
+  const nav = fieldNav("pale_hollow");
+  assert.ok(nav);
+  const from = { x: PH_HUB.minX + 14, z: PH_HUB.minZ + 8 };
+  const wallZ = PH_HUB_REAR_WALL.minZ + 0.2;
+  const step = nav.clampMove(from.x, from.z, from.x, wallZ + 8);
+  assert.ok(nav.walkable(step.x, step.z) || paleHollowWalkable(step.x, step.z));
+  assert.ok(step.z < PH_HUB_REAR_WALL.minZ + 0.4, `last-metre slipped into the wall z=${step.z}`);
 });

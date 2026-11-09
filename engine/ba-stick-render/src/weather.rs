@@ -9,7 +9,7 @@ use stick_engine::camera::Camera;
 use stick_engine::math::v3;
 use stick_engine::raster::Framebuffer;
 
-use crate::atmosphere::{FOG_DEPTH_SANITY, SKY};
+use crate::atmosphere::SKY;
 use crate::ground::{cell_hash, fill_tri, perspective_ground, project_tri_plain, tri_ok, view_cells};
 use crate::palette::{ROCK, ROCK_L, WALL_L};
 use crate::zone::{F_BRIDGE, F_WATER, Zone};
@@ -121,6 +121,11 @@ pub fn draw_snow_ground(
             if !land_cell(zone, i, j) {
                 continue;
             }
+            let wx = zone.min_x + (i as f32 + 0.5) * c;
+            let wz = zone.min_z + (j as f32 + 0.5) * c;
+            if !in_draw_disc(cam, wx, wz) {
+                continue;
+            }
             let (w00, w10, w01, w11) = (wpt(i, j), wpt(i + 1, j), wpt(i, j + 1), wpt(i + 1, j + 1));
             let (p00, p10, p01, p11) = (pt(i, j), pt(i + 1, j), pt(i, j + 1), pt(i + 1, j + 1));
             if crate::ground::quad_off_screen(fb, p00, p10, p01, p11) {
@@ -179,27 +184,53 @@ fn precip_hash(x: i32, y: i32, t: i32) -> f32 {
     (n >> 8) as f32 / 16_777_216.0
 }
 
+/// Same disc as iso props (`iso_prop`) and 3D FAR: weather must not paint past LoD.
+pub(crate) fn in_draw_disc(cam: &Camera, x: f32, z: f32) -> bool {
+    if let Some(eye) = cam.view.and_then(|v| v.eye()) {
+        let dx = x - eye.x;
+        let dz = z - eye.z;
+        let lim = cam.far;
+        dx * dx + dz * dz <= lim * lim
+    } else {
+        let dx = x - cam.cx;
+        let dz = z - cam.cz;
+        let lim = cam.iso_prop;
+        dx * dx + dz * dz <= lim * lim
+    }
+}
+
+fn precip_screen_in_range(cam: &Camera, sx: f32, sy: f32) -> bool {
+    let (x, z) = if cam.view.is_some() {
+        match cam.pick_ground(sx, sy) {
+            Some(p) => p,
+            None => return false,
+        }
+    } else {
+        cam.unproject_ground(sx, sy)
+    };
+    in_draw_disc(cam, x, z)
+}
+
 /// Rain and/or falling snow in screen space (after the world, before RGBA).
 pub fn draw_precip(
     fb: &mut Framebuffer,
+    cam: &Camera,
     time: f64,
     cover: f32,
     rain_intensity: f32,
     snow_intensity: f32,
 ) {
     if rain_intensity > 0.01 {
-        draw_rain(fb, time, rain_intensity);
+        draw_rain(fb, cam, time, rain_intensity);
     }
     if snow_intensity > 0.01 {
-        draw_falling_snow(fb, time, cover, snow_intensity);
+        draw_falling_snow(fb, cam, time, cover, snow_intensity);
     }
 }
 
 /// Plot one weather pixel.
-/// Terrain is filled colour-only (`fill_tri` never writes depth), so bare ground has no
-/// usable depth: write the colour straight in and leave the depth buffer alone. Over an
-/// object (finite depth in range, the same test atmosphere.rs uses) draw depth-tested just
-/// in front of it. Sky is never touched.
+/// Ground `fill_tri` writes interpolated depth; depth-test just in front of it.
+/// Sky is never touched.
 fn weather_px(fb: &mut Framebuffer, x: i32, y: i32, c: u8) {
     if x < 0 || y < 0 || x >= fb.w as i32 || y >= fb.h as i32 {
         return;
@@ -209,11 +240,10 @@ fn weather_px(fb: &mut Framebuffer, x: i32, y: i32, c: u8) {
         return;
     }
     let d = fb.depth[idx];
-    if d.is_finite() && d > 0.0 && d < FOG_DEPTH_SANITY {
+    if d.is_finite() {
         fb.plot(x, y, d - 0.001, c);
         return;
     }
-    // Bare terrain (no depth written): streak on ground colour only.
     fb.color[idx] = c;
 }
 
@@ -234,7 +264,7 @@ fn fall_phase_f64(time: f64, period: f64, off: f64) -> (i32, f64) {
 /// Each drop: fall to a ground spot, splash there, rest, then pick a new spot.
 /// Every drop has its own period, and the head moves at a constant speed, so it lands
 /// exactly where it splashes. The streak is a pure function of `time` (no state).
-fn draw_rain(fb: &mut Framebuffer, time: f64, intensity: f32) {
+fn draw_rain(fb: &mut Framebuffer, cam: &Camera, time: f64, intensity: f32) {
     let w = fb.w as f64;
     let hf = fb.h as f64;
     let sc = (hf / 180.0).max(1.0);
@@ -260,6 +290,9 @@ fn draw_rain(fb: &mut Framebuffer, time: f64, intensity: f32) {
 
         let ground_y = hf * (0.38 + precip_hash(n, cyc, 5) as f64 * 0.58) - len as f64 * 0.5;
         let land_x = precip_hash(n, cyc, 4) as f64 * w;
+        if !precip_screen_in_range(cam, land_x as f32, ground_y as f32) {
+            continue;
+        }
         let fall_d = (ground_y + len as f64) / speed; // this cycle's fall time
 
         if t < fall_d {
@@ -291,7 +324,7 @@ fn draw_rain(fb: &mut Framebuffer, time: f64, intensity: f32) {
     }
 }
 
-fn draw_falling_snow(fb: &mut Framebuffer, time: f64, cover: f32, intensity: f32) {
+fn draw_falling_snow(fb: &mut Framebuffer, cam: &Camera, time: f64, cover: f32, intensity: f32) {
     let w = fb.w as i32;
     let h = fb.h as i32;
     let hf = h as f64;
@@ -317,6 +350,9 @@ fn draw_falling_snow(fb: &mut Framebuffer, time: f64, cover: f32, intensity: f32
             * amp)
             .round();
         let x = (precip_hash(n, cyc, 11) * w as f32 + sway) as i32;
+        if !precip_screen_in_range(cam, x as f32, y as f32) {
+            continue;
+        }
         let size = if near {
             ((2.0 * sc).round() as i32).max(2)
         } else {
@@ -327,5 +363,23 @@ fn draw_falling_snow(fb: &mut Framebuffer, time: f64, cover: f32, intensity: f32
                 wplot!(fb, x + dx, y + dy, WALL_L);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use stick_engine::camera::Camera;
+
+    #[test]
+    fn iso_weather_disc_matches_iso_prop() {
+        let mut cam = Camera::new(64, 36);
+        cam.cx = 0.0;
+        cam.cz = 0.0;
+        cam.iso_prop = 36.0;
+        assert!(in_draw_disc(&cam, 20.0, 0.0));
+        assert!(in_draw_disc(&cam, 0.0, 35.0));
+        assert!(!in_draw_disc(&cam, 40.0, 0.0));
+        assert!(!in_draw_disc(&cam, 30.0, 30.0));
     }
 }

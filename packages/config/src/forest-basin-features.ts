@@ -13,6 +13,8 @@
  * monotonically from its first point to its last.
  */
 
+import { encodeWaterLayout } from "./water-layout";
+
 export type WaterTier = "ford" | "deep" | "lake";
 
 /** A river vertex: centre, surface height, half-width and depth below surface at the centre. */
@@ -845,27 +847,7 @@ export function encodeFbWaterLayout(): Uint8Array {
       segs.push(a.x, a.z, a.y, b.x, b.z, b.y);
     }
   }
-  const falls = fbFallSpans();
-  const buf = new Uint8Array(8 + segs.length * 4 + falls.length * 32);
-  const v = new DataView(buf.buffer);
-  buf[0] = 0x57; // W
-  buf[1] = 0x46; // F
-  buf[2] = 0x4c; // L
-  buf[3] = 0x31; // 1
-  v.setUint16(4, segs.length / 6, true);
-  v.setUint16(6, falls.length, true);
-  let o = 8;
-  for (const n of segs) {
-    v.setFloat32(o, n, true);
-    o += 4;
-  }
-  for (const f of falls) {
-    for (const n of [f.lipX, f.lipZ, f.lipY, f.lipW, f.poolX, f.poolZ, f.poolY, f.poolW]) {
-      v.setFloat32(o, n, true);
-      o += 4;
-    }
-  }
-  return buf;
+  return encodeWaterLayout(segs, fbFallSpans());
 }
 
 /** Water depth below the surface at (x,z) by design (0 = dry). */

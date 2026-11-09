@@ -2,16 +2,25 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { atmosphereFor, initialUiSettings, keylightFor } from "./mobile.ts";
 
-const base = { color: "gold", font: "cinzel", layout: "regular", view: "iso", cam: "numpad", pixel: "crisp", minimap: true } as const;
+const base = { color: "gold", font: "cinzel", layout: "regular", view: "iso", cam: "numpad", pixel: "crisp", minimap: true, drawDistance: 0.55, atmosphere: 0.45 } as const;
 
 test("touch devices default to the arcade layout", () => {
-  assert.equal(initialUiSettings(null, base, true).layout, "mobile");
+  assert.equal(initialUiSettings(null, base, true, 390).layout, "mobile");
 });
 test("fine pointers keep regular", () => {
-  assert.equal(initialUiSettings(null, base, false).layout, "regular");
+  assert.equal(initialUiSettings(null, base, false, 390).layout, "regular");
 });
-test("a saved choice wins", () => {
-  assert.equal(initialUiSettings("{}", base, true).layout, "regular");
+test("an explicit saved layout wins", () => {
+  assert.equal(initialUiSettings('{"layout":"regular"}', base, true, 390).layout, "regular");
+});
+test("empty saved blob does not trap Regular on a coarse phone", () => {
+  assert.equal(initialUiSettings("{}", base, true, 390).layout, "mobile");
+});
+test("iPad landscape does not auto-force arcade", () => {
+  assert.equal(initialUiSettings(null, base, true, 1180).layout, "regular");
+});
+test("coarse and narrow still defaults to arcade", () => {
+  assert.equal(initialUiSettings(null, base, true).layout, "mobile");
 });
 
 import { fbFromClient, fbToClient } from "./fit.ts";

@@ -34,7 +34,7 @@ export function enemyTargetLabel(u: UnitSnapshot): string {
 
 export function isFriendlyTabUnit(u: UnitSnapshot, wallet: string): boolean {
   if (u.kind !== "player") return false;
-  if (u.hp <= 0 || u.anim === "dead") return false;
+  if (u.hp <= 0 || u.anim === "dead") return !isHostileTabUnit(u, wallet);
   return true;
 }
 

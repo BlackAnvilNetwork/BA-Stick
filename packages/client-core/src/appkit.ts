@@ -31,14 +31,6 @@ export type AppKitSessionOpts = {
   rpcUrl?: string;
 };
 
-export function getAppKit(): AppKit | null {
-  return ensureAppKit();
-}
-
-export function initAppKit(): void {
-  ensureAppKit();
-}
-
 function isAddress(a: unknown): a is `0x${string}` {
   return typeof a === "string" && /^0x[0-9a-fA-F]{40}$/.test(a);
 }

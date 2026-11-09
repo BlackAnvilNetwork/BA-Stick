@@ -72,6 +72,8 @@ describe("item rarity follows the name", () => {
     assert.equal(rarityFromName("Darksteel Axe"), "Epic");
     assert.equal(rarityFromName("Bone Gloves"), "Common");
     assert.equal(rarityFromName("Bone Boots"), "Common");
+    assert.equal(rarityFromName("Bone Bracer"), "Common");
+    assert.equal(rarityFromName("Scale Leather Chaps"), "Uncommon");
     assert.equal(rarityFromName("Orichalcum Axe"), "Epic");
     assert.equal(rarityFromName("Orichalcum Great Axe"), "Epic");
     assert.equal(rarityFromName("Orichalcum Shield"), "Epic");
@@ -82,6 +84,28 @@ describe("item rarity follows the name", () => {
     assert.equal(rarityFromName("Fine Leather Belt"), "Uncommon");
     assert.equal(rarityFromName("Decayed Axe"), "Epic");
     assert.equal(rarityFromName("Ashbeam Fishing Rod"), "Common");
+    assert.equal(rarityFromName("Dustweave Cap"), "Uncommon");
+    assert.equal(rarityFromName("Duskweave Coat"), "Epic");
+    assert.equal(rarityFromName("Skull Harness"), "Legendary");
+    assert.equal(rarityFromName("Last-Company Gloves"), "Legendary");
+    assert.equal(rarityFromName("Mantle of the Last Company"), "Legendary");
+    assert.equal(rarityFromName("Mayflower Ear-Drop"), "Rare");
+    assert.equal(rarityFromName("Chalkreed Cuffs"), "Uncommon");
+    assert.equal(rarityFromName("Wicklinen Robe"), "Rare");
+    assert.equal(rarityFromName("Saltjack Cap"), "Epic");
+    assert.equal(rarityFromName("Crownbone Gloves"), "Legendary");
+    assert.equal(rarityFromName("Nighweave Pumps"), "Rare");
+    assert.equal(rarityFromName("Ringweave Robe"), "Rare");
+    assert.equal(rarityFromName("Iron Mace"), "Common");
+    assert.equal(rarityFromName("Orichalcum Helm"), "Epic");
+    assert.equal(rarityFromName("Palace Cudgel"), "Legendary");
+    assert.equal(rarityFromName("Bronze Shortsword"), "Common");
+    assert.equal(rarityFromName("Bronze Kris"), "Common");
+    assert.equal(rarityFromName("Last-Company Trousers"), "Legendary");
+    assert.equal(rarityFromName("Seedcloth Cowl"), "Uncommon");
+    assert.equal(rarityFromName("Voidbraid Robe"), "Epic");
+    assert.equal(rarityFromName("Crownplate Mail"), "Legendary");
+    assert.equal(rarityFromName("Pitiron Sword"), "Uncommon");
   });
 
   it("catalog rarity matches the name", () => {

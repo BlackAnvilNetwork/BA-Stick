@@ -1,5 +1,5 @@
 import { PIXEL_AXE_GEAR_IDS } from "./pixel-axe.ts";
-import { PIXEL_SWORD_GEAR_IDS } from "./pixel-sword.ts";
+import { isPixelBladeGear } from "./pixel-sword.ts";
 
 /**
  * Stick Engine gear RON: the subset used by chest, hand, and shield files
@@ -452,13 +452,22 @@ export function acrossHand(forearm: Vec3): Vec3 {
 export function gearFrame(gear: GearDef, fig: Figure): Frame {
   const o = fig.joints[gear.attach] ?? fig.joints.chest!;
   let y = norm(sub(fig.joints.chest!, fig.joints.pelvis!));
-  // Staffs stand upright through the hand. Blades follow the swing (+y = wpn).
-  if (gear.stance !== "staff") {
-    if (gear.attach === "r_hand") y = norm(fig.wpnR);
-    else if (gear.attach === "l_hand") y = norm(fig.wpnL);
+  // Staffs and clubs stand on world up. Idle wpn pitch is −55° (sword hang);
+  // following that puts the orb in the dirt.
+  const poleCarry =
+    gear.stance === "staff" ||
+    gear.id === "ba_ashbeam_staff" ||
+    gear.id === "ba_ashbeam_club" ||
+    /_(club|mace|cudgel|staff|wand|crook|crozier)$/.test(gear.id);
+  if (poleCarry) {
+    y = UP;
+  } else if (gear.attach === "r_hand") {
+    y = norm(fig.wpnR);
+  } else if (gear.attach === "l_hand") {
+    y = norm(fig.wpnL);
   }
   const flatTool =
-    PIXEL_SWORD_GEAR_IDS.has(gear.id) ||
+    isPixelBladeGear(gear.id) ||
     PIXEL_AXE_GEAR_IDS.has(gear.id) ||
     gear.id === "ba_iron_shovel" ||
     gear.id === "ba_iron_pickaxe";

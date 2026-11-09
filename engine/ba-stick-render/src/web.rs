@@ -146,12 +146,6 @@ impl StickRenderer {
     #[wasm_bindgen(js_name = firstPerson)]
     pub fn first_person(&self) -> bool { self.scene.first_person() }
 
-    /// Legacy toggle: true = third person, false = isometric.
-    #[wasm_bindgen(js_name = setView3d)]
-    pub fn set_view3d(&mut self, on: bool) {
-        self.scene.set_cam_mode(if on { "tp" } else { "iso" });
-    }
-
     /// L2 directional key light (off by default).
     #[wasm_bindgen(js_name = setKeylight)]
     pub fn set_keylight(&mut self, on: bool) {
@@ -161,6 +155,64 @@ impl StickRenderer {
     #[wasm_bindgen(js_name = setAtmosphere)]
     pub fn set_atmosphere(&mut self, on: bool) {
         self.scene.atmosphere = on;
+    }
+
+    /// Draw-distance slider 0..1. Scales iso prop box, iso ground margin, 3D FAR,
+    /// and the same disc for enemies and harvest nodes.
+    #[wasm_bindgen(js_name = setDrawDistance)]
+    pub fn set_draw_distance(&mut self, t: f32) {
+        self.scene.set_draw_distance(t);
+    }
+
+    /// Atmosphere slider 0..1 (optical depth). The boolean master switch still kills the pass.
+    #[wasm_bindgen(js_name = setAtmosphereAmount)]
+    pub fn set_atmosphere_amount(&mut self, t: f32) {
+        self.scene.set_atmosphere_amount(t);
+    }
+
+    /// When true, Pale Hollow weather multiplies hazeBase. Seam / Forest Basin leave this off.
+    #[wasm_bindgen(js_name = setWeatherHaze)]
+    pub fn set_weather_haze(&mut self, on: bool) {
+        self.scene.set_weather_haze(on);
+    }
+
+    /// Zone aerial look from `@bellgrave/config` ZONE_ATMOSPHERE.
+    #[wasm_bindgen(js_name = setZoneAtmosphere)]
+    pub fn set_zone_atmosphere(&mut self, haze_base: f32, valley_beta: f32, scale_h: f32, horizon: u32) {
+        self.scene.set_zone_atmosphere(haze_base, valley_beta, scale_h, horizon);
+    }
+
+    /// A place with its own aerial (Ash Pit lake, Mayflower density). World metres.
+    #[wasm_bindgen(js_name = addAtmosphereArea)]
+    #[allow(clippy::too_many_arguments)]
+    pub fn add_atmosphere_area(
+        &mut self,
+        x: f32,
+        z: f32,
+        radius: f32,
+        feather: f32,
+        haze_base: f32,
+        valley_beta: f32,
+        scale_h: f32,
+        horizon: u32,
+        density: f32,
+    ) {
+        self.scene.add_atmosphere_area(crate::atmosphere::AreaLook {
+            x,
+            z,
+            r: radius,
+            feather,
+            haze_base,
+            valley_beta,
+            scale_h,
+            horizon,
+            density,
+        });
+    }
+
+    #[wasm_bindgen(js_name = clearAtmosphereAreas)]
+    pub fn clear_atmosphere_areas(&mut self) {
+        self.scene.clear_atmosphere_areas();
     }
 
     /// Light pass on/off (phones, `?lights=0`). Off keeps every mood's ambient tint.

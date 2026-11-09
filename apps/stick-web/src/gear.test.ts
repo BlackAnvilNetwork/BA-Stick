@@ -10,6 +10,48 @@ test("every equipment item maps to a look", () => {
   }
 });
 
+test("mythril plate and blades stay metal; jewelry stays gold", () => {
+  const helm = getItem(127)!;
+  assert.equal(helm.craftSkill, "goldsmithing");
+  assert.equal(materialOf(helm), 3);
+  const sword = getItem(126)!;
+  assert.equal(sword.craftSkill, "goldsmithing");
+  assert.equal(materialOf(sword), 3);
+  const mail = getItem(1115)!;
+  assert.equal(mail.craftSkill, "goldsmithing");
+  assert.equal(materialOf(mail), 3);
+  const torque = getItem(315)!;
+  assert.equal(torque.craftSkill, "goldsmithing");
+  assert.equal(materialOf(torque), 6);
+  const ring = getItem(367)!;
+  assert.equal(ring.craftSkill, "goldsmithing");
+  assert.equal(materialOf(ring), 6);
+});
+
+test("gap-fill weapons map to club, sword, and dagger families", () => {
+  const mace = getItem(1232)!;
+  assert.equal(mace.slug, "iron-mace");
+  assert.equal(familyOf(mace), FAMILY.club);
+  const sword = getItem(1242)!;
+  assert.equal(sword.slug, "bronze-shortsword");
+  assert.equal(familyOf(sword), FAMILY.sword);
+  const kris = getItem(1245)!;
+  assert.equal(kris.slug, "bronze-kris");
+  assert.equal(familyOf(kris), FAMILY.dagger);
+  const war = getItem(1241)!;
+  assert.equal(familyOf(war), FAMILY.sword);
+});
+
+test("bone knuckles use knuckles family", () => {
+  const kn = getItem(316)!;
+  assert.equal(kn.slug, "bone-knuckles");
+  assert.equal(kn.weaponFamily, "knuckles");
+  assert.equal(familyOf(kn), FAMILY.knuckles);
+  const a = gearArgs({ main: 316 }, getItem);
+  assert.equal(a[0], FAMILY.knuckles);
+  assert.equal(a[2], 316);
+});
+
 test("decayed axe uses axe family for in-world pixel draw", () => {
   const decayed = getItem(1065)!;
   assert.equal(decayed.slug, "decayed-axe");

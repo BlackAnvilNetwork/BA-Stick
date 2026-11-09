@@ -35,6 +35,7 @@ test("rejected or missing-wallet sign returns to auth", () => {
   assert.match(src, /shouldAdoptLiveWallet\(live, persisted\.wallet\)/);
   assert.match(src, /shouldResetSessionOnWalletSwitch\(prevWallet, address\)/);
   assert.match(src, /dropGameSessionForWalletSwitch\(\)/);
+  assert.match(src, /dropGameSessionForWalletSwitch[\s\S]{0,200}type: "auth\/logout"/);
   assert.match(src, /shouldAllowSilentHello\("resume-miss"\)/);
   assert.match(src, /shouldBeginAuthHello\(/);
   assert.doesNotMatch(src, /allowSilentHello = true;\s*if \(msg\.resumeToken\)/);
@@ -154,6 +155,7 @@ test("empty mint-chain roster syncs wallet NFTs onto select", () => {
   assert.equal(shouldRequestOwnedNftSync({ rosterCount: 0, hasMintConfig: true }), true);
   assert.equal(shouldRequestOwnedNftSync({ rosterCount: 1, hasMintConfig: true }), false);
   assert.equal(shouldRequestOwnedNftSync({ rosterCount: 0, hasMintConfig: false }), false);
+  assert.equal(shouldRequestOwnedNftSync({ rosterCount: 1, hasMintConfig: true, creating: true }), true);
   assert.equal(
     phaseAfterOwnedRoster({ rosterCount: 1, pendingCreateEnter: false, phase: "select" }),
     "select",

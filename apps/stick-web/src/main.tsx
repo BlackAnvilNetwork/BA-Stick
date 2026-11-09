@@ -12,7 +12,7 @@ import { DemoApp } from "./DemoApp";
 document.documentElement.dataset.renderer = "stick";
 {
   const saved = localStorage.getItem(UI_SETTINGS_KEY);
-  const initial = initialUiSettings(saved, loadUiSettings(), isCoarsePointer());
+  const initial = initialUiSettings(saved, loadUiSettings(), isCoarsePointer(), window.innerWidth);
   if (saved == null && initial.layout === "mobile") saveUiSettings(initial);
   applyUiSettings(initial);
 }

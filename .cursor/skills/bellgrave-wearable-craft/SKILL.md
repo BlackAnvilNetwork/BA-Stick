@@ -99,7 +99,7 @@ Optional full manifest regen (xlsx source of truth): `python scripts/build-item-
 Path: **`apps/stick-web/public/icons/items/{slug}.png`** (96×96, magenta key).
 
 ```bash
-python scripts/bake-item-icons.py
+pnpm --filter @bellgrave/stick-web exec tsx scripts/bake-icons.ts
 ```
 
 Or add art manually at the path referenced by `icon` in catalog.

@@ -272,14 +272,16 @@ test("create mint does not run after the form is left", () => {
   assert.equal(shouldRunCreateMint(true), false);
 });
 
-test("Job Master sends job/change for main job", () => {
+test("Job Master sets support job at L10 and never changes main", () => {
   const src = readFileSync(
     join(dirname(fileURLToPath(import.meta.url)), "NpcInteractMenu.tsx"),
     "utf8",
   );
-  assert.match(src, /send\(\{ type: "job\/change", job \}\)/);
-  assert.match(src, /Change Job/);
-  assert.match(src, /Change Alt/);
+  assert.doesNotMatch(src, /send\(\{ type: "job\/change"/);
+  assert.doesNotMatch(src, /Change Main/);
+  assert.match(src, /send\(\{ type: "job\/subjob", job \}\)/);
+  assert.match(src, /Come back at Lvl 10/);
+  assert.match(src, /set at creation/);
 });
 
 test("App capture skips Escape and clears the virtual stick on leave play", () => {
@@ -290,6 +292,20 @@ test("App capture skips Escape and clears the virtual stick on leave play", () =
   assert.match(src, /clearVirtualStick\(\)/);
   assert.match(src, /if \(e\.key === "Escape"\) return;/);
   assert.match(src, /addEventListener\("keydown", onEscapeBubble\)/);
+});
+
+test("settings wrap haze copy and applyUiSettings on play/storage", () => {
+  const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "Hud.tsx"), "utf8");
+  assert.match(src, /applyUiSettings\(cur\)/);
+  assert.match(src, /applyUiSettings\(next\)/);
+  assert.match(src, /vista-preset-row/);
+  assert.match(src, /HUD and world/);
+  assert.match(src, />Haze</);
+  assert.match(src, /PHONE_HAZE_COPY/);
+  assert.match(src, /Custom/);
+  const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "styles.css"), "utf8");
+  assert.match(css, /html\[data-ui-layout="mobile"\] \.settings-panel/);
+  assert.match(css, /html\[data-ui-layout="mobile"\] \.settings-panel \{[\s\S]*?bottom:\s*max\(8px, env\(safe-area-inset-bottom/);
 });
 
 test("boot wiki closes off menu phases and WikiPage consumes Escape", () => {

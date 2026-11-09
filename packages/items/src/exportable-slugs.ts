@@ -40,12 +40,6 @@ export const LIVE_BASE_SLUGS: readonly string[] = Object.freeze([
   "tin-ore",
 ]);
 
-/**
- * Launch Items.sol seed — live bases only.
- * @deprecated Prefer LIVE_BASE_SLUGS; kept as the DeployItems default name.
- */
-export const EXPORTABLE_BASE_SLUGS: readonly string[] = LIVE_BASE_SLUGS;
-
 /** Every `kind: "base"` slug (for audits / future zones — not the launch seed). */
 export const ALL_BASE_SLUGS: readonly string[] = Object.freeze(
   CATALOG.filter((i) => i.kind === "base")
@@ -54,7 +48,7 @@ export const ALL_BASE_SLUGS: readonly string[] = Object.freeze(
 );
 
 /** Default seed for DeployItems ITEMS_SEED_SLUGS (comma-separated). */
-export function itemsSeedSlugsCsv(slugs: readonly string[] = EXPORTABLE_BASE_SLUGS): string {
+export function itemsSeedSlugsCsv(slugs: readonly string[] = LIVE_BASE_SLUGS): string {
   return slugs.join(",");
 }
 
@@ -65,7 +59,7 @@ export type ExportableFungible = {
 };
 
 export function exportableFungibles(
-  slugs: readonly string[] = EXPORTABLE_BASE_SLUGS,
+  slugs: readonly string[] = LIVE_BASE_SLUGS,
 ): ExportableFungible[] {
   return slugs.map((slug) => ({
     slug,

@@ -396,12 +396,6 @@ export function isKnightAbilityId(id: string): id is KnightAbilityId {
   return Object.prototype.hasOwnProperty.call(KNIGHT_ABILITIES, id);
 }
 
-/** Knight scroll-style categories (legacy helper). */
-export function isKnightSpell(id: KnightAbilityId): boolean {
-  const cat = KNIGHT_ABILITIES[id].category;
-  return cat === "heal" || cat === "divine" || cat === "enhance" || cat === "enfeeble";
-}
-
 export function knightAbilitiesUnlocked(
   level: number,
   learned: readonly string[] = [],

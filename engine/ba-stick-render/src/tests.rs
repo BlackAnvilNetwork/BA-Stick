@@ -141,7 +141,18 @@ fn rain_weather_keeps_figure_and_meadow_grass() {
     let meadow = crate::palette::MEADOW;
     assert!(s.fb.color.iter().filter(|&&c| c == meadow).count() > 80, "meadow blades");
     let body = crate::compat::C_BODY;
-    assert!(s.fb.color.iter().filter(|&&c| c == body).count() > 40, "figure pixels");
+    let body_far = crate::compat::C_BODY_FAR;
+    let figure = s
+        .fb
+        .color
+        .iter()
+        .filter(|&&c| c == body || c == body_far)
+        .count();
+    let (sx, sy, _) = s.world_to_screen(5.0, 0.0, 5.0);
+    assert!(
+        figure > 20 || s.pick_unit(sx, sy - 24.0) == Some("me"),
+        "figure pixels ({figure}) or pick at ({sx:.1},{sy:.1})"
+    );
     let rain_px = s
         .fb
         .color
@@ -149,6 +160,46 @@ fn rain_weather_keeps_figure_and_meadow_grass() {
         .filter(|&&c| c == crate::palette::ROCK || c == crate::palette::ROCK_L)
         .count();
     assert!(rain_px > 20, "rain streaks ({rain_px})");
+}
+
+#[test]
+fn rain_stays_inside_draw_distance() {
+    let bytes = tiny_zone(160, 160, |_, _| (15, 0, 200));
+    let mut s = Scene::new(320, 180);
+    s.load_zone(&bytes).unwrap();
+    s.upsert_unit("me", unit(20.0, 20.0, "idle", "knight"));
+    s.follow(Some("me"));
+    for _ in 0..30 {
+        s.tick(1.0 / 60.0);
+    }
+    s.set_draw_distance(0.0);
+    s.set_weather(1, 0.0);
+    for _ in 0..180 {
+        s.tick(1.0 / 60.0);
+    }
+    s.draw();
+    let (w, h) = (s.fb.w, s.fb.h);
+    let lim = s.cam.iso_prop + 1.0;
+    let mut near = 0;
+    let mut far = 0;
+    for y in 0..h {
+        for x in 0..w {
+            let c = s.fb.color[y * w + x];
+            if c != crate::palette::ROCK && c != crate::palette::ROCK_L {
+                continue;
+            }
+            let (wx, wz) = s.cam.unproject_ground(x as f32 + 0.5, y as f32 + 0.5);
+            let dx = wx - s.cam.cx;
+            let dz = wz - s.cam.cz;
+            if dx * dx + dz * dz > lim * lim {
+                far += 1;
+            } else {
+                near += 1;
+            }
+        }
+    }
+    assert!(near > 10, "Close disc still has rain ({near})");
+    assert_eq!(far, 0, "rain must not paint past iso_prop ({far})");
 }
 
 #[test]
@@ -1848,4 +1899,197 @@ fn light_pass_is_local_and_skipped_when_bright() {
     s.draw();
     s.write_rgba(&mut night);
     assert_eq!(s.lighting.layer.allocs, 1);
+}
+
+#[test]
+fn play_zoom_stays_iso_tp_and_fp() {
+    let mut s = Scene::new(320, 180);
+    s.tick(1.0 / 60.0);
+    assert!((s.cam.zoom - 0.84).abs() < 1e-4, "iso zoom {}", s.cam.zoom);
+    s.set_cam_mode("tp");
+    for _ in 0..180 {
+        s.tick(1.0 / 60.0);
+    }
+    assert!((s.cam.zoom - 0.84).abs() < 1e-3, "tp zoom {}", s.cam.zoom);
+    s.set_cam_mode("fp");
+    for _ in 0..180 {
+        s.tick(1.0 / 60.0);
+    }
+    assert!((s.cam.zoom - 1.0).abs() < 1e-3, "fp zoom {}", s.cam.zoom);
+}
+
+#[test]
+fn draw_distance_scales_far_and_iso_box() {
+    let mut s = Scene::new(64, 36);
+    assert!((s.cam.far - 60.0).abs() < 1e-3);
+    assert!((s.cam.iso_prop - 56.0).abs() < 1e-3);
+    s.set_draw_distance(1.0);
+    assert!((s.cam.far - 90.0).abs() < 1e-3);
+    assert!((s.cam.iso_prop - 80.0).abs() < 1e-3);
+    assert!((s.cam.iso_margin - 26.0).abs() < 1e-3);
+    s.set_draw_distance(0.0);
+    assert!((s.cam.far - 36.0).abs() < 1e-3);
+    assert!((s.cam.iso_prop - 36.0).abs() < 1e-3);
+    assert!(s.cam.iso_margin >= 20.5, "Close must not drop the 12 m relief floor");
+}
+
+#[test]
+fn enemies_and_harvest_follow_draw_distance() {
+    let mut s = Scene::new(64, 36);
+    s.upsert_unit("me", unit(0.0, 0.0, "idle", "knight"));
+    s.follow(Some("me"));
+    s.tick(0.016);
+    s.upsert_unit("hare", unit(70.0, 0.0, "idle", "mob:ashboar"));
+    s.upsert_unit("flax", unit(70.0, 0.0, "idle", "gather:harvest"));
+    s.tick(0.016);
+    assert!(s.anchor("hare").is_none(), "default iso 56+4 hides a 70 m hare");
+    assert!(s.anchor("flax").is_none(), "harvest uses the same disc as enemies");
+    s.upsert_unit("hare", unit(40.0, 0.0, "idle", "mob:ashboar"));
+    s.upsert_unit("flax", unit(40.0, 0.0, "idle", "gather:harvest"));
+    s.tick(0.016);
+    assert!(s.anchor("hare").is_some(), "40 m hare stays in default iso reach");
+    assert!(s.anchor("flax").is_some(), "40 m flax yield icon can land");
+    s.set_draw_distance(1.0);
+    s.upsert_unit("hare", unit(70.0, 0.0, "idle", "mob:ashboar"));
+    s.upsert_unit("flax", unit(70.0, 0.0, "idle", "gather:harvest"));
+    s.tick(0.016);
+    assert!(s.anchor("hare").is_some(), "Clear vistas iso 80+4 shows a 70 m hare");
+    assert!(s.anchor("flax").is_some(), "Clear vistas shows 70 m harvest");
+    s.set_draw_distance(0.0);
+    s.tick(0.016);
+    assert!(s.anchor("hare").is_none(), "Close iso 36+4 hides a 70 m hare");
+    assert!(s.anchor("flax").is_none(), "Close hides 70 m harvest");
+}
+
+#[test]
+fn tp_haze_is_a_band_not_a_wall() {
+    let mut s = cam3d_scene("tp");
+    s.minimap.on = false;
+    s.set_atmosphere_amount(0.45);
+    let mut out = vec![0u8; s.fb.w * s.fb.h * 4];
+    s.write_rgba(&mut out);
+    let (w, h) = (s.fb.w, s.fb.h);
+    let sky = crate::atmosphere::SKY;
+    let mut luma = Vec::new();
+    for y in 0..h {
+        for x in 0..w {
+            if s.fb.color[y * w + x] == sky {
+                continue;
+            }
+            let i = (y * w + x) * 4;
+            luma.push((out[i] as i32 + out[i + 1] as i32 + out[i + 2] as i32) / 3);
+        }
+    }
+    assert!(luma.len() > 200, "expected ground in the TP frame");
+    let min = *luma.iter().min().unwrap();
+    let max = *luma.iter().max().unwrap();
+    assert!(max - min > 10, "haze should vary across ground, not a flat wall ({min}..{max})");
+}
+
+#[test]
+fn unproject_and_pick_unchanged_at_persp_0_and_1() {
+    let mut s = Scene::new(640, 360);
+    s.set_zone_for_test(raised_zone(0.0));
+    for persp in [0.0, 1.0] {
+        s.cam.persp = persp;
+        let (sx, sy, _) = s.world_to_screen(2.0, 0.0, -3.0);
+        let (ux, uz) = s.cam.unproject_ground(sx, sy);
+        assert!((ux - 2.0).abs() < 0.05 && (uz + 3.0).abs() < 0.05, "persp {persp} unproject ({ux},{uz})");
+        let (px, pz) = s.pick_world(sx, sy);
+        assert!((px - 2.0).abs() < 0.05 && (pz + 3.0).abs() < 0.05, "persp {persp} pick ({px},{pz})");
+    }
+}
+
+#[test]
+fn set_cam_mode_tp_drives_the_rig_not_legacy_persp() {
+    let mut s = Scene::new(64, 36);
+    s.set_cam_mode("tp");
+    assert_eq!(s.cam_mode(), "tp");
+    s.tick(1.0 / 60.0);
+    assert!(s.cam.view.is_some(), "CamRig writes cam.view");
+    assert!(s.cam.view.unwrap().skew > 0.5, "first blend frame is still iso-skewed");
+}
+
+#[test]
+fn iso_tp_mid_blend_is_not_a_milk_wall() {
+    let bytes = tiny_zone(80, 80, |_, _| (13, 0, 0));
+    let mut s = Scene::new(320, 180);
+    s.load_zone(&bytes).unwrap();
+    s.upsert_unit("me", unit(20.0, 20.0, "idle", "knight"));
+    s.follow(Some("me"));
+    s.tick(1.0 / 60.0);
+    s.set_cam_mode("tp");
+    s.tick(1.0 / 60.0);
+    let skew = s.cam.view.map(|v| v.skew).unwrap_or(0.0);
+    assert!(skew > 0.5, "mid-blend skew {skew}");
+    s.minimap.on = false;
+    s.draw();
+    let mut out = vec![0u8; s.fb.w * s.fb.h * 4];
+    s.write_rgba(&mut out);
+    let haze = crate::atmosphere::PALE_HOLLOW_LOOK.horizon;
+    let hr = ((haze >> 16) & 255) as i32;
+    let hg = ((haze >> 8) & 255) as i32;
+    let hb = (haze & 255) as i32;
+    let (w, h) = (s.fb.w, s.fb.h);
+    let mut near_d = 0i32;
+    let mut n = 0i32;
+    let y = (h as f32 * 0.7) as usize;
+    for x in w / 4..w * 3 / 4 {
+        if s.fb.color[y * w + x] == crate::atmosphere::SKY {
+            continue;
+        }
+        let i = (y * w + x) * 4;
+        near_d += (out[i] as i32 - hr).abs() + (out[i + 1] as i32 - hg).abs() + (out[i + 2] as i32 - hb).abs();
+        n += 1;
+    }
+    assert!(n > 20, "expected ground in the blend frame");
+    assert!(near_d / n > 40, "iso→TP blend must not sit on MIX_CAP haze, d={}", near_d / n);
+}
+
+#[test]
+fn lod2_trees_draw_past_old_cutoff() {
+    let bytes = tiny_zone(320, 320, |_, _| (13, 0, 0));
+    let mut s = Scene::new(640, 360);
+    s.load_zone(&bytes).unwrap();
+    s.upsert_unit("me", unit(80.0, 80.0, "idle", "knight"));
+    s.follow(Some("me"));
+    s.set_cam_mode("tp");
+    for _ in 0..240 {
+        s.tick(1.0 / 60.0);
+    }
+    s.minimap.on = false;
+    let v = s.cam.view.expect("settled TP");
+    let eye = v.eye().expect("eye");
+    let f = v.fwd();
+    let hz = (f.x * f.x + f.z * f.z).sqrt().max(1e-4);
+    let want = s.cam.far * 0.9;
+    let dy = eye.y - s.cam_y;
+    let along = (want * want - dy * dy).max(1.0).sqrt();
+    let (x, z) = (eye.x + f.x / hz * along, eye.z + f.z / hz * along);
+    let mut b = b"BAP1".to_vec();
+    b.extend_from_slice(&1u32.to_le_bytes());
+    b.push(0);
+    b.push(0);
+    for v in [x, z, 0.0f32, 0.0, 8.0, 1.0, 1.0, 1.0] {
+        b.extend_from_slice(&v.to_le_bytes());
+    }
+    assert_eq!(s.load_props(&b).unwrap(), 1);
+    s.draw();
+    let n = s.fb.color.iter().filter(|&&c| (palette::PINE_D..=palette::PINE_L).contains(&c) || c == palette::WOOD || c == palette::WOOD_D).count();
+    assert!(n > 8, "lod-2 pine at 0.9×FAR must still draw, pixels={n}");
+}
+
+#[test]
+fn far_units_skip_pick_and_anchors() {
+    let mut s = Scene::new(64, 36);
+    s.upsert_unit("me", unit(0.0, 0.0, "idle", "knight"));
+    s.follow(Some("me"));
+    s.tick(1.0 / 60.0);
+    s.set_draw_distance(0.0);
+    s.upsert_unit("mob", unit(50.0, 50.0, "idle", "mob:ashboar"));
+    s.set_fx("mob", crate::scene::UnitFx { fade: 1.0, ..Default::default() });
+    let (sx, sy, _) = s.world_to_screen(50.0, 0.0, 50.0);
+    assert_ne!(s.pick_unit(sx, sy), Some("mob"));
+    assert!(s.anchor("mob").is_none(), "nameplate must follow draw range");
+    assert!(s.anchor("me").is_some());
 }

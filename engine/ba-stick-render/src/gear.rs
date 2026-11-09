@@ -178,6 +178,101 @@ pub const PALACE_GREATSWORD_ITEM: u32 = 1137;
 pub const PALACE_TARGE_ITEM: u32 = 1138;
 pub const SILK_HAT_ITEM: u32 = 284;
 pub const VELVET_HAT_ITEM: u32 = 296;
+pub const ASHBEAM_STAFF_ITEM: u32 = 1;
+pub const ASHBEAM_CLUB_ITEM: u32 = 183;
+pub const BRONZE_MITTENS_ITEM: u32 = 105;
+pub const BRONZE_HARNESS_ITEM: u32 = 106;
+pub const BRONZE_SUBLIGAR_ITEM: u32 = 107;
+pub const BRONZE_LEGGINGS_ITEM: u32 = 108;
+pub const BRONZE_SHIELD_ITEM: u32 = 109;
+pub const IRON_MITTENS_ITEM: u32 = 115;
+pub const MYTHRIL_MITTENS_ITEM: u32 = 128;
+pub const MYTHRIL_SABATONS_ITEM: u32 = 131;
+pub const MYTHRIL_SHIELD_ITEM: u32 = 132;
+pub const DARKSTEEL_MITTENS_ITEM: u32 = 140;
+pub const DARKSTEEL_GREAVES_ITEM: u32 = 143;
+pub const DARKSTEEL_SHIELD_ITEM: u32 = 144;
+pub const PALACE_GAUNTLETS_ITEM: u32 = 154;
+pub const PALACE_SABATONS_ITEM: u32 = 157;
+pub const LEATHER_GLOVES_ITEM: u32 = 212;
+pub const LEATHER_SANDALS_ITEM: u32 = 213;
+pub const SHADE_LEATHER_GLOVES_ITEM: u32 = 222;
+pub const SHADE_LEATHER_BOOTS_ITEM: u32 = 224;
+pub const FINE_JERKIN_GLOVES_ITEM: u32 = 236;
+pub const FINE_JERKIN_BOOTS_ITEM: u32 = 238;
+pub const SCALE_MAIL_GLOVES_ITEM: u32 = 246;
+pub const SCALE_MAIL_BOOTS_ITEM: u32 = 249;
+pub const LINEN_CUFFS_ITEM: u32 = 265;
+pub const LINEN_SOCKS_ITEM: u32 = 266;
+pub const SHADE_CUFFS_ITEM: u32 = 278;
+pub const SHADE_PUMPS_ITEM: u32 = 280;
+pub const SILK_CUFFS_ITEM: u32 = 286;
+pub const SILK_PUMPS_ITEM: u32 = 288;
+pub const VELVET_CUFFS_ITEM: u32 = 298;
+pub const VELVET_PUMPS_ITEM: u32 = 300;
+pub const SHELL_SHIELD_ITEM: u32 = 335;
+pub const DUSTWEAVE_CAP_ITEM: u32 = 1142;
+pub const DUSTWEAVE_SOCKS_ITEM: u32 = 1143;
+pub const DUSTWEAVE_ROBE_ITEM: u32 = 1144;
+pub const DUSTWEAVE_SLOPS_ITEM: u32 = 1145;
+pub const DUSTHIDE_VEST_ITEM: u32 = 1146;
+pub const DUSTHIDE_SANDALS_ITEM: u32 = 1147;
+pub const KETTLE_MITTS_ITEM: u32 = 1150;
+pub const KETTLE_ROBE_ITEM: u32 = 1151;
+pub const BRIARHIDE_CAP_ITEM: u32 = 1152;
+pub const BRIARHIDE_GLOVES_ITEM: u32 = 1153;
+pub const LAST_COMPANY_BANDANA_ITEM: u32 = 1156;
+pub const LAST_COMPANY_GLOVES_ITEM: u32 = 1157;
+pub const LAST_COMPANY_BOOTS_ITEM: u32 = 1158;
+pub const ASH_LINEN_COWL_ITEM: u32 = 1159;
+pub const SCALE_COIF_ITEM: u32 = 1162;
+pub const ASHBONE_HELM_ITEM: u32 = 1163;
+pub const HORNCLOTH_HOOD_ITEM: u32 = 1164;
+pub const ASHBONE_GLOVES_ITEM: u32 = 1165;
+pub const SCALE_GLOVES_ITEM: u32 = 1167;
+pub const HORNCLOTH_CUFFS_ITEM: u32 = 1168;
+pub const ASHBONE_HARNESS_ITEM: u32 = 1170;
+pub const COILBONE_GREAVES_ITEM: u32 = 1171;
+pub const MAYFLOWER_GLOVES_ITEM: u32 = 1172;
+pub const MAYFLOWER_COIF_ITEM: u32 = 1173;
+pub const MAYFLOWER_HOSE_ITEM: u32 = 1174;
+pub const MAYFLOWER_SHOES_ITEM: u32 = 1175;
+pub const SEAMHIDE_CHAPS_ITEM: u32 = 1177;
+pub const DUSKWEAVE_HAT_ITEM: u32 = 1179;
+pub const DUSKWEAVE_COAT_ITEM: u32 = 1180;
+pub const WHITE_CAPS_JACK_ITEM: u32 = 1182;
+pub const WHITE_CAPS_GLOVES_ITEM: u32 = 1183;
+pub const DUSKWEAVE_SLACKS_ITEM: u32 = 1185;
+pub const SKULL_HARNESS_ITEM: u32 = 1186;
+pub const CHALKREED_CUFFS_ITEM: u32 = 1187;
+pub const PITSTRAW_CHAPS_ITEM: u32 = 1188;
+pub const RIVERBONE_MITTS_ITEM: u32 = 1190;
+pub const PITSTRAW_GLOVES_ITEM: u32 = 1191;
+pub const FORDCAMP_SLOPS_ITEM: u32 = 1193;
+pub const THORNREED_VEST_ITEM: u32 = 1194;
+pub const REED_GREAVES_ITEM: u32 = 1196;
+pub const CINDERFLAX_SLOPS_ITEM: u32 = 1198;
+pub const COILHIDE_CHAPS_ITEM: u32 = 1199;
+pub const ASH_RIB_TROUSERS_ITEM: u32 = 1201;
+pub const CINDERFLAX_CUFFS_ITEM: u32 = 1202;
+pub const WICKLINEN_ROBE_ITEM: u32 = 1204;
+pub const SLAGHIDE_BOOTS_ITEM: u32 = 1205;
+pub const SLAGHIDE_CHAPS_ITEM: u32 = 1206;
+pub const WICKLINEN_SLOPS_ITEM: u32 = 1207;
+pub const SCARP_COWL_ITEM: u32 = 1210;
+pub const DRIFTPELT_GLOVES_ITEM: u32 = 1211;
+pub const MARSHBONE_HARNESS_ITEM: u32 = 1212;
+pub const DRIFTPELT_BOOTS_ITEM: u32 = 1213;
+pub const SCARP_CUFFS_ITEM: u32 = 1214;
+pub const MARSHBONE_GLOVES_ITEM: u32 = 1215;
+pub const SCARP_HOSE_ITEM: u32 = 1217;
+pub const SALTJACK_CAP_ITEM: u32 = 1218;
+pub const SALTJACK_BOOTS_ITEM: u32 = 1220;
+pub const CROWNBONE_GLOVES_ITEM: u32 = 1222;
+pub const NIGHWEAVE_GLOVES_ITEM: u32 = 1223;
+pub const NIGHWEAVE_PUMPS_ITEM: u32 = 1224;
+pub const CROWNBONE_GREAVES_ITEM: u32 = 1225;
+pub const SALTJACK_CHAPS_ITEM: u32 = 1226;
 
 /// Brow wrap, crown drape, knot, and tails (`ba_leather_bandana` mesh).
 const BANDANA_MESH_ITEMS: &[u32] = &[
@@ -186,6 +281,12 @@ const BANDANA_MESH_ITEMS: &[u32] = &[
     FINE_JERKIN_HELM_ITEM,
     LINEN_HELM_ITEM,
     SKULL_BANDANA_ITEM,
+    DUSTWEAVE_CAP_ITEM,
+    BRIARHIDE_CAP_ITEM,
+    LAST_COMPANY_BANDANA_ITEM,
+    SCALE_COIF_ITEM,
+    MAYFLOWER_COIF_ITEM,
+    SALTJACK_CAP_ITEM,
 ];
 
 pub fn uses_bandana_mesh(item_id: u32) -> bool {
@@ -201,13 +302,24 @@ const HEADBAND_MESH_ITEMS: &[u32] = &[
     BELL_TORQUE_BAND_ITEM,
     MYTHRIL_TORQUE_ITEM,
     CIRCLET_ITEM,
+    DUSTWEAVE_CAP_ITEM,
+    BRIARHIDE_CAP_ITEM,
+    LAST_COMPANY_BANDANA_ITEM,
+    SCALE_COIF_ITEM,
+    MAYFLOWER_COIF_ITEM,
+    SALTJACK_CAP_ITEM,
 ];
 
 pub fn uses_headband_mesh(item_id: u32) -> bool {
     HEADBAND_MESH_ITEMS.contains(&item_id)
 }
 
-const HOOD_MESH_ITEMS: &[u32] = &[BATTLEWEAVE_HOOD_ITEM];
+const HOOD_MESH_ITEMS: &[u32] = &[
+    BATTLEWEAVE_HOOD_ITEM,
+    ASH_LINEN_COWL_ITEM,
+    HORNCLOTH_HOOD_ITEM,
+    SCARP_COWL_ITEM,
+];
 
 pub fn uses_hood_mesh(item_id: u32) -> bool {
     HOOD_MESH_ITEMS.contains(&item_id)
@@ -225,6 +337,7 @@ const IRON_HELM_MESH_ITEMS: &[u32] = &[
     ROGUES_HELM_ITEM,
     SHADE_HELM_ITEM,
     BONE_HELM_ITEM,
+    ASHBONE_HELM_ITEM,
 ];
 
 pub fn uses_iron_helm_mesh(item_id: u32) -> bool {
@@ -243,6 +356,28 @@ const CATALOG_FEET_MESH_ITEMS: &[u32] = &[
     THRONEWEAVE_PUMPS_ITEM,
     STEEL_SABATONS_ITEM,
     BONE_BOOTS_ITEM,
+    PALACE_SABATONS_ITEM,
+    MYTHRIL_SABATONS_ITEM,
+    DARKSTEEL_GREAVES_ITEM,
+    LEATHER_SANDALS_ITEM,
+    SHADE_LEATHER_BOOTS_ITEM,
+    FINE_JERKIN_BOOTS_ITEM,
+    SCALE_MAIL_BOOTS_ITEM,
+    LINEN_SOCKS_ITEM,
+    SHADE_PUMPS_ITEM,
+    SILK_PUMPS_ITEM,
+    VELVET_PUMPS_ITEM,
+    DUSTWEAVE_SOCKS_ITEM,
+    DUSTHIDE_SANDALS_ITEM,
+    LAST_COMPANY_BOOTS_ITEM,
+    COILBONE_GREAVES_ITEM,
+    MAYFLOWER_SHOES_ITEM,
+    REED_GREAVES_ITEM,
+    SLAGHIDE_BOOTS_ITEM,
+    DRIFTPELT_BOOTS_ITEM,
+    SALTJACK_BOOTS_ITEM,
+    NIGHWEAVE_PUMPS_ITEM,
+    CROWNBONE_GREAVES_ITEM,
 ];
 
 pub fn uses_catalog_feet_mesh(item_id: u32) -> bool {
@@ -253,6 +388,7 @@ const CATALOG_COAT_MESH_ITEMS: &[u32] = &[
     BATTLEWEAVE_COAT_ITEM,
     ALTARWEAVE_COAT_ITEM,
     BATTLEWEAVE_RAIMENT_ITEM,
+    DUSKWEAVE_COAT_ITEM,
 ];
 
 pub fn uses_catalog_coat_mesh(item_id: u32) -> bool {
@@ -279,6 +415,10 @@ const ROUND_SHIELD_ITEMS: &[u32] = &[
     MYTHRIL_TARGE_ITEM,
     ORICHALCUM_SHIELD_ITEM,
     PALACE_TARGE_ITEM,
+    BRONZE_SHIELD_ITEM,
+    MYTHRIL_SHIELD_ITEM,
+    DARKSTEEL_SHIELD_ITEM,
+    SHELL_SHIELD_ITEM,
 ];
 
 pub fn uses_round_shield_mesh(item_id: u32) -> bool {
@@ -300,6 +440,36 @@ const CATALOG_HANDS_MESH_ITEMS: &[u32] = &[
     THRONEWEAVE_CUFFS_ITEM,
     STEEL_MITTENS_ITEM,
     BONE_GLOVES_ITEM,
+    PALACE_GAUNTLETS_ITEM,
+    BRONZE_MITTENS_ITEM,
+    IRON_MITTENS_ITEM,
+    MYTHRIL_MITTENS_ITEM,
+    DARKSTEEL_MITTENS_ITEM,
+    LEATHER_GLOVES_ITEM,
+    SHADE_LEATHER_GLOVES_ITEM,
+    FINE_JERKIN_GLOVES_ITEM,
+    SCALE_MAIL_GLOVES_ITEM,
+    LINEN_CUFFS_ITEM,
+    SHADE_CUFFS_ITEM,
+    SILK_CUFFS_ITEM,
+    VELVET_CUFFS_ITEM,
+    KETTLE_MITTS_ITEM,
+    BRIARHIDE_GLOVES_ITEM,
+    LAST_COMPANY_GLOVES_ITEM,
+    ASHBONE_GLOVES_ITEM,
+    SCALE_GLOVES_ITEM,
+    HORNCLOTH_CUFFS_ITEM,
+    MAYFLOWER_GLOVES_ITEM,
+    WHITE_CAPS_GLOVES_ITEM,
+    CHALKREED_CUFFS_ITEM,
+    RIVERBONE_MITTS_ITEM,
+    PITSTRAW_GLOVES_ITEM,
+    CINDERFLAX_CUFFS_ITEM,
+    DRIFTPELT_GLOVES_ITEM,
+    SCARP_CUFFS_ITEM,
+    MARSHBONE_GLOVES_ITEM,
+    CROWNBONE_GLOVES_ITEM,
+    NIGHWEAVE_GLOVES_ITEM,
 ];
 
 const CATALOG_LEGS_MESH_ITEMS: &[u32] = &[
@@ -310,6 +480,21 @@ const CATALOG_LEGS_MESH_ITEMS: &[u32] = &[
     ORICHALCUM_WAR_CUISSES_ITEM,
     THRONEWEAVE_SLACKS_ITEM,
     STEEL_SUBLIGAR_ITEM,
+    DUSTWEAVE_SLOPS_ITEM,
+    MAYFLOWER_HOSE_ITEM,
+    SEAMHIDE_CHAPS_ITEM,
+    DUSKWEAVE_SLACKS_ITEM,
+    PITSTRAW_CHAPS_ITEM,
+    FORDCAMP_SLOPS_ITEM,
+    CINDERFLAX_SLOPS_ITEM,
+    COILHIDE_CHAPS_ITEM,
+    ASH_RIB_TROUSERS_ITEM,
+    SLAGHIDE_CHAPS_ITEM,
+    WICKLINEN_SLOPS_ITEM,
+    SCARP_HOSE_ITEM,
+    SALTJACK_CHAPS_ITEM,
+    BRONZE_SUBLIGAR_ITEM,
+    BRONZE_LEGGINGS_ITEM,
 ];
 
 pub fn uses_catalog_legs_mesh(item_id: u32) -> bool {
@@ -324,10 +509,17 @@ const CATALOG_STAFF_RON_ITEMS: &[u32] = &[
     BLOODBEAM_CROZIER_ITEM,
     ASHBEAM_TOME_ITEM,
     BELLWOOD_CROZIER_ITEM,
+    ASHBEAM_STAFF_ITEM,
 ];
 
 pub fn uses_catalog_staff_ron(item_id: u32) -> bool {
     CATALOG_STAFF_RON_ITEMS.contains(&item_id)
+}
+
+const CATALOG_CLUB_RON_ITEMS: &[u32] = &[ASHBEAM_CLUB_ITEM];
+
+pub fn uses_catalog_club_ron(item_id: u32) -> bool {
+    CATALOG_CLUB_RON_ITEMS.contains(&item_id)
 }
 
 /// Apply off-hand and hands catalog ids after `garb()` (setGear 12th / 13th seeds).
@@ -444,6 +636,8 @@ pub struct Garb {
     pub legs_item: u32,
     /// Catalog id for a wrap hauberk (`ba_orichalcum_mail`), or 0.
     pub hauberk_item: u32,
+    /// Catalog id of the worn body piece, or 0. Selects a name-skinned robe/vest/harness plate.
+    pub body_item: u32,
 }
 
 /// Build a garb from wasm args. `family` 0 = keep preset weapon,
@@ -495,11 +689,11 @@ pub fn garb(
             let crest = [C_ACCENT, C_GOLD, C_DASH, C_STEEL][(hash(hseed) % 4) as usize];
             (style, c, crest)
         }),
-        plate: bm == Mat::Metal && !uses_catalog_hauberk_mesh(bseed),
+        plate: bm == Mat::Metal && !uses_catalog_hauberk_mesh(bseed) && bseed != BRONZE_HARNESS_ITEM,
         plate_item: if uses_catalog_plate_mesh(bseed) { bseed } else { 0 },
         hauberk_item: if uses_catalog_hauberk_mesh(bseed) { bseed } else { 0 },
         robe: bm == Mat::Cloth && !uses_catalog_coat_mesh(bseed),
-        vest: bm == Mat::Leather,
+        vest: bm == Mat::Leather || bseed == BRONZE_HARNESS_ITEM,
         harness: bm == Mat::Bone,
         helm_item: if uses_iron_helm_mesh(hseed) { hseed } else { 0 },
         hat_item: (hm == Mat::Cloth && !uses_headband_mesh(hseed) && !uses_hood_mesh(hseed)).then_some(hseed),
@@ -518,5 +712,6 @@ pub fn garb(
         },
         coat_item: if uses_catalog_coat_mesh(bseed) { bseed } else { 0 },
         hands_item: 0,
+        body_item: if bm != Mat::None { bseed } else { 0 },
     }
 }

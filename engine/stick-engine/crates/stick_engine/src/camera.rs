@@ -135,6 +135,12 @@ pub struct Camera {
     /// Screen-space pull-back around the view anchor (1 = default). Below 1
     /// shows more world; first-person should stay at 1.
     pub zoom: f32,
+    /// 3D far plane (metres). Pick, far-ground and ViewCull follow this; haze does not.
+    pub far: f32,
+    /// Iso ground cull margin (metres). Live default matches 12 m relief (~20.5).
+    pub iso_margin: f32,
+    /// Iso prop box half-extent (metres). Live default 56.
+    pub iso_prop: f32,
 }
 
 /// BA-Stick: perspective strength at `persp = 1` (per metre of view depth).
@@ -142,7 +148,18 @@ pub const PERSP_K: f32 = 0.045;
 
 impl Camera {
     pub fn new(w: usize, h: usize) -> Self {
-        Camera { cx: 0.0, cz: 0.0, w: w as f32, h: h as f32, view: None, persp: 0.0, zoom: 1.0 }
+        Camera {
+            cx: 0.0,
+            cz: 0.0,
+            w: w as f32,
+            h: h as f32,
+            view: None,
+            persp: 0.0,
+            zoom: 1.0,
+            far: FAR,
+            iso_margin: 4.0 + 12.0 * HEIGHT_PX / ISO_Y / 2.0,
+            iso_prop: 56.0,
+        }
     }
 
     /// The view in effect (the iso view when none is set).
@@ -265,7 +282,7 @@ impl Camera {
             return Some(self.unproject_ground(sx, sy));
         }
         let (sx, sy) = self.to_view_px(sx, sy);
-        let h = GroundMap::new(&self.effective_view());
+        let h = GroundMap::with_far(&self.effective_view(), self.far);
         h.at(sx, sy)
     }
 }
@@ -285,10 +302,14 @@ pub struct GroundMap {
     target: Vec3,
     fwd: Vec3,
     inv_d: f32,
+    far: f32,
 }
 
 impl GroundMap {
     pub fn new(v: &View) -> GroundMap {
+        Self::with_far(v, FAR)
+    }
+    pub fn with_far(v: &View, far: f32) -> GroundMap {
         let raw = |x: f32, y: f32| -> [f32; 3] {
             let (r, dn) = v.basis();
             let f = v.fwd();
@@ -302,7 +323,7 @@ impl GroundMap {
         let c0 = raw(0.0, 0.0);
         let (c1, c2) = (raw(1.0, 0.0), raw(0.0, 1.0));
         let sub = |a: [f32; 3], b: [f32; 3]| [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
-        GroundMap { c0, cx: sub(c1, c0), cy: sub(c2, c0), ax: v.ax, ay: v.ay, target: v.target, fwd: v.fwd(), inv_d: v.inv_d }
+        GroundMap { c0, cx: sub(c1, c0), cy: sub(c2, c0), ax: v.ax, ay: v.ay, target: v.target, fwd: v.fwd(), inv_d: v.inv_d, far }
     }
     /// Homogeneous ground coords for a pixel: (nx, nz, det).
     #[inline]
@@ -324,7 +345,7 @@ impl GroundMap {
         if self.inv_d > 0.0 {
             let z = qx * self.fwd.x - self.target.y * self.fwd.y + qz * self.fwd.z;
             let dist = 1.0 / self.inv_d + z;
-            if dist <= NEAR || dist > FAR {
+            if dist <= NEAR || dist > self.far {
                 return None;
             }
         }

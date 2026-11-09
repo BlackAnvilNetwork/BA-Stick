@@ -35,6 +35,19 @@ test("findNewestOwnedToken skips missing ids and other owners", async () => {
   assert.equal(found, "2");
 });
 
+test("findNewestOwnedToken skips roster-bound ids so a second mint is a new NFT", async () => {
+  const found = await findNewestOwnedToken({
+    owner: "0x0c8F70DF8a57b08C0F1A5F516B5277b8a1e9620b",
+    lastId: 5n,
+    boundTokenIds: ["5"],
+    ownerOf: async (id) => {
+      if (id === 5n || id === 2n) return "0x0c8F70DF8a57b08C0F1A5F516B5277b8a1e9620b";
+      throw new Error("missing");
+    },
+  });
+  assert.equal(found, "2");
+});
+
 test("findNewestOwnedToken is empty when the wallet holds nothing", async () => {
   const found = await findNewestOwnedToken({
     owner: "0x0c8F70DF8a57b08C0F1A5F516B5277b8a1e9620b",

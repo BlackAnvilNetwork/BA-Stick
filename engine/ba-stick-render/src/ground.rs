@@ -3,7 +3,7 @@
 // Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
 
 //! Height-aware iso ground: painter's-order quads over the baked zone grid.
-use stick_engine::camera::{Camera, P2, View, HEIGHT_PX, ISO_Y, NEAR};
+use stick_engine::camera::{Camera, P2, View, NEAR};
 use stick_engine::math::{v3, Vec3};
 use stick_engine::raster::Framebuffer;
 
@@ -114,7 +114,16 @@ pub(crate) fn project_tri_plain(fb: &mut Framebuffer, cam: &Camera, v: &View, tr
 }
 
 
-/// Fill a triangle into the colour buffer (no depth).
+#[inline]
+fn stamp_colour_depth(fb: &mut Framebuffer, x: i32, y: i32, col: u8, d: f32) {
+    let i = y as usize * fb.w + x as usize;
+    fb.color[i] = col;
+    if d.is_finite() {
+        fb.depth[i] = d;
+    }
+}
+
+/// Fill a triangle into colour and interpolated view/iso depth (for aerial s).
 pub fn fill_tri(fb: &mut Framebuffer, a: P2, b: P2, c: P2, col: u8) {
     let min_x = a.x.min(b.x).min(c.x).floor().max(0.0) as i32;
     let max_x = a.x.max(b.x).max(c.x).ceil().min(fb.w as f32 - 1.0) as i32;
@@ -127,17 +136,16 @@ pub fn fill_tri(fb: &mut Framebuffer, a: P2, b: P2, c: P2, col: u8) {
     if area.abs() < 1e-6 {
         return;
     }
-    let s = area.signum();
-    let w = fb.w;
+    let inv = 1.0 / area;
     for y in min_y..=max_y {
         let py = y as f32 + 0.5;
         for x in min_x..=max_x {
             let px = x as f32 + 0.5;
-            let w0 = ((b.x - a.x) * (py - a.y) - (b.y - a.y) * (px - a.x)) * s;
-            let w1 = ((c.x - b.x) * (py - b.y) - (c.y - b.y) * (px - b.x)) * s;
-            let w2 = ((a.x - c.x) * (py - c.y) - (a.y - c.y) * (px - c.x)) * s;
+            let w0 = ((b.x - px) * (c.y - py) - (b.y - py) * (c.x - px)) * inv;
+            let w1 = ((c.x - px) * (a.y - py) - (c.y - py) * (a.x - px)) * inv;
+            let w2 = 1.0 - w0 - w1;
             if w0 >= 0.0 && w1 >= 0.0 && w2 >= 0.0 {
-                fb.color[y as usize * w + x as usize] = col;
+                stamp_colour_depth(fb, x, y, col, w0 * a.d + w1 * b.d + w2 * c.d);
             }
         }
     }
@@ -232,7 +240,6 @@ fn fill_tri_edge(fb: &mut Framebuffer, a: P2, b: P2, c: P2, ua: (f32, f32), ub: 
         return;
     }
     let inv = 1.0 / area;
-    let w = fb.w;
     let (edge_band, k) = (band.0, band.1 / band.0);
     for y in min_y..=max_y {
         let py = y as f32 + 0.5;
@@ -263,8 +270,14 @@ fn fill_tri_edge(fb: &mut Framebuffer, a: P2, b: P2, c: P2, ua: (f32, f32), ub: 
                     }
                 }
             }
-            fb.color[y as usize * w + x as usize] =
-                if best > 0.0 && crate::dither::on(x - org.0, y - org.1, best) { col } else { own };
+            let d = w0 * a.d + w1 * b.d + w2 * c.d;
+            stamp_colour_depth(
+                fb,
+                x,
+                y,
+                if best > 0.0 && crate::dither::on(x - org.0, y - org.1, best) { col } else { own },
+                d,
+            );
         }
     }
 }
@@ -299,7 +312,6 @@ fn fill_tri_cobble(
         return;
     }
     let inv = 1.0 / area;
-    let w = fb.w;
     let (edge_band, k) = (STONE_BAND.0, STONE_BAND.1 / STONE_BAND.0);
     for y in min_y..=max_y {
         let py = y as f32 + 0.5;
@@ -324,8 +336,13 @@ fn fill_tri_cobble(
                 }
             }
             let stone = cobble(origin.0 + (ij.0 as f32 + u) * cell, origin.1 + (ij.1 as f32 + v) * cell, shade);
-            fb.color[y as usize * w + x as usize] =
-                if best > 0.0 && crate::dither::on(x - org.0, y - org.1, best) { col } else { stone };
+            stamp_colour_depth(
+                fb,
+                x,
+                y,
+                if best > 0.0 && crate::dither::on(x - org.0, y - org.1, best) { col } else { stone },
+                w0 * a.d + w1 * b.d + w2 * c.d,
+            );
         }
     }
 }
@@ -358,7 +375,6 @@ fn fill_tri_road(
         return;
     }
     let inv = 1.0 / area;
-    let w = fb.w;
     let (edge_band, k) = (TRAIL_BAND.0, TRAIL_BAND.1 / TRAIL_BAND.0);
     for y in min_y..=max_y {
         let py = y as f32 + 0.5;
@@ -386,8 +402,13 @@ fn fill_tri_road(
                 }
             }
             let dirt = trail_dirt_px(ij.0, ij.1, u, v, x - org.0, y - org.1, ramp);
-            fb.color[y as usize * w + x as usize] =
-                if best > 0.0 && crate::dither::on(x - org.0, y - org.1, best) { col } else { dirt };
+            stamp_colour_depth(
+                fb,
+                x,
+                y,
+                if best > 0.0 && crate::dither::on(x - org.0, y - org.1, best) { col } else { dirt },
+                w0 * a.d + w1 * b.d + w2 * c.d,
+            );
         }
     }
 }
@@ -498,7 +519,7 @@ fn cell_color(z: &Zone, i: i32, j: i32, _time: f32, shade: u8) -> u8 {
 /// span stops one cell short of the grid edge.
 /// World rect (x0, x1, z0, z1, padded) of the detailed ground pass.
 fn detail_world_rect(fb: &Framebuffer, cam: &Camera) -> (f32, f32, f32, f32) {
-    let margin_m = 4.0 + 12.0 * HEIGHT_PX / ISO_Y / 2.0;
+    let margin_m = cam.iso_margin;
     let corners = [(0.0, 0.0), (fb.w as f32, 0.0), (0.0, fb.h as f32), (fb.w as f32, fb.h as f32)];
     let (mut x0, mut x1, mut z0, mut z1) = (f32::MAX, f32::MIN, f32::MAX, f32::MIN);
     for (sx, sy) in corners {
@@ -513,6 +534,8 @@ fn detail_world_rect(fb: &Framebuffer, cam: &Camera) -> (f32, f32, f32, f32) {
     // so the detailed pass covers a fixed square around the ground just ahead
     // of the eye instead. Ground past it is the coarse far pass. While the eye
     // is still far out (iso -> tp dolly) centre on the followed target.
+    // The 22 m disc is a cost cap: do not scale it with cam.far (Clear 90 m
+    // would explode the detailed heightfield).
     if let Some(v) = cam.view {
         let r = 22.0;
         let (mut mx, mut mz) = (cam.cx, cam.cz);
@@ -540,7 +563,7 @@ fn detail_world_rect(fb: &Framebuffer, cam: &Camera) -> (f32, f32, f32, f32) {
 pub(crate) fn view_world_rect(fb: &Framebuffer, cam: &Camera) -> (f32, f32, f32, f32) {
     if let Some(v) = cam.view {
         let c = v.eye().unwrap_or(v.target);
-        let r = stick_engine::camera::FAR + 2.0;
+        let r = cam.far + 2.0;
         return (c.x - r, c.x + r, c.z - r, c.z + r);
     }
     detail_world_rect(fb, cam)
@@ -1539,7 +1562,7 @@ const FAR_BLOCK: i32 = 4;
 fn draw_zone_far(fb: &mut Framebuffer, cam: &Camera, zone: &Zone, cam_y: f32, time: f32, near: Option<(i32, i32, i32, i32)>) {
     let Some(v) = cam.view else { return };
     let Some(eye) = v.eye() else { return };
-    let far = stick_engine::camera::FAR;
+    let far = cam.far;
     let (ei0, ej0) = zone.cell_of(eye.x - far, eye.z - far);
     let (ei1, ej1) = zone.cell_of(eye.x + far, eye.z + far);
     let k = FAR_BLOCK;

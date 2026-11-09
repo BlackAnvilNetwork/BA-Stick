@@ -45,7 +45,8 @@ type BagRow = { tokenId: number; amount: number; starter?: boolean; hq?: boolean
 
 type SlotDef = { id: EquipSlot; label: string };
 
-/** Catalog-backed paperdoll slots. Equip from the bag; click a filled slot to remove it. */
+/** Catalog-backed paperdoll slots. Equip from the bag; click a filled slot to remove it.
+ * Ammo stays: catalog has crafted arrow stacks (slot:ammo). Hide only if that count hits 0. */
 const SLOTS: SlotDef[] = [
   { id: "main", label: "Main" },
   { id: "sub", label: "Sub" },
@@ -80,14 +81,15 @@ type Props = {
 export function EquipPanel({ you, me, onClose }: Props) {
   const job = isJobId(you.job) ? you.job : "time_mage";
   const sub = you.subjob && isJobId(you.subjob) ? you.subjob : null;
+  const combatLv = you.combatLevel ?? you.level;
   const derived = deriveCharacterAttributes(
     job,
-    you.level,
+    combatLv,
     sub,
     you.skillUnlocked ?? [],
     you.freeStats ?? {},
   );
-  const gearStats = aggregateEquipmentStatsScaled(you.equip, you.level, you.equipHq);
+  const gearStats = aggregateEquipmentStatsScaled(you.equip, combatLv, you.equipHq);
   const stats = {
     str: derived.total.str + (gearStats.str ?? 0),
     dex: derived.total.dex + (gearStats.dex ?? 0),
@@ -157,7 +159,7 @@ export function EquipPanel({ you, me, onClose }: Props) {
           <div className="cmd-kicker">Character</div>
           <div className="cmd-panel-title">{you.name}</div>
           <div className="cmd-panel-sub">
-            Lv.{you.level} {jobName}
+            Lv.{you.level}{combatLv !== you.level ? ` · combat ${combatLv}` : ""} {jobName}
             {sub ? ` / ${JOBS[sub]?.name ?? sub} L${you.subLevel || Math.floor(you.level / 2)}` : ""}
             {stanceLabel}
           </div>

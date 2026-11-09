@@ -3,10 +3,12 @@ import { loadRenderer } from "./renderer";
 const canvas = document.querySelector<HTMLCanvasElement>("#view")!;
 const yawEl = document.querySelector<HTMLInputElement>("#yaw")!;
 const yawRead = document.querySelector("#yaw-read")!;
-const walkBtn = document.querySelector("#walk")!;
+const walkBtn = document.querySelector<HTMLButtonElement>("#walk")!;
+const restBtn = document.querySelector<HTMLButtonElement>("#rest")!;
 const formBtns = [...document.querySelectorAll<HTMLButtonElement>("button[data-form]")];
 
 let walk = false;
+let rest = false;
 let dragging = false;
 let lastX = 0;
 let preset = "druid:stickbear";
@@ -23,7 +25,7 @@ void loadRenderer().then(async () => {
   const frame = (now: number) => {
     const dt = Math.min(0.1, (now - last) / 1000);
     last = now;
-    r.upsertUnit("p", 0, 0, 0, yaw, walk ? "walk" : "idle", preset);
+    r.upsertUnit("p", 0, 0, 0, yaw, rest ? "rest" : walk ? "walk" : "idle", preset);
     r.tick(dt);
     r.draw();
     requestAnimationFrame(frame);
@@ -36,6 +38,14 @@ void loadRenderer().then(async () => {
   });
   walkBtn.addEventListener("click", () => {
     walk = !walk;
+    if (walk) rest = false;
+    walkBtn.classList.toggle("on", walk);
+    restBtn.classList.toggle("on", rest);
+  });
+  restBtn.addEventListener("click", () => {
+    rest = !rest;
+    if (rest) walk = false;
+    restBtn.classList.toggle("on", rest);
     walkBtn.classList.toggle("on", walk);
   });
   for (const btn of formBtns) {

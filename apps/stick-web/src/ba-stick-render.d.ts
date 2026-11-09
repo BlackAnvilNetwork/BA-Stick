@@ -27,6 +27,22 @@ declare module "ba-stick-render" {
     addFloater(id: string, kind: number, value: number): void;
     isWading(id: string): boolean;
     setAtmosphere(on: boolean): void;
+    setDrawDistance(t: number): void;
+    setAtmosphereAmount(t: number): void;
+    setWeatherHaze(on: boolean): void;
+    setZoneAtmosphere(hazeBase: number, valleyBeta: number, scaleH: number, horizon: number): void;
+    addAtmosphereArea(
+      x: number,
+      z: number,
+      radius: number,
+      feather: number,
+      hazeBase: number,
+      valleyBeta: number,
+      scaleH: number,
+      horizon: number,
+      density: number,
+    ): void;
+    clearAtmosphereAreas(): void;
     /** 0 clear, 1 rain, 2 fog, 3 snow; snowCover 0..1. */
     setWeather(kind: number, snowCover: number): void;
     /** Time of day 0..1 (0 midnight, 0.5 noon) for the 3D pixel sky. */
@@ -39,8 +55,6 @@ declare module "ba-stick-render" {
     setLook(yaw: number, pitch: number): void;
     addLook(dx: number, dy: number): void;
     firstPerson(): boolean;
-    /** Legacy: true = third person, false = isometric. */
-    setView3d(on: boolean): void;
     setKeylight(on: boolean): void;
     setLights(on: boolean): void;
     setLightMood(r: number, g: number, b: number, playerR: number, playerK: number, glow: number, night: number, snap: boolean): void;

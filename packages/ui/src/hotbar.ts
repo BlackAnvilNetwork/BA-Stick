@@ -21,7 +21,7 @@ export type HotbarSlots = (AbilityId | null)[];
 
 function storageKey(wallet: string, job: string, sub: string | null, form: DruidForm = 0): string {
   const formBit = job === "druid" ? `:${form}` : "";
-  return `bellgrave-hotbar-v3:${wallet.toLowerCase()}:${job}:${sub ?? "-"}${formBit}`;
+  return `bellgrave-hotbar-v4:${wallet.toLowerCase()}:${job}:${sub ?? "-"}${formBit}`;
 }
 
 function emptySlots(): HotbarSlots {

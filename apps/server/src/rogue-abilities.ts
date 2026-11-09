@@ -5,15 +5,15 @@ import {
   ROGUE_ABILITIES,
   isRogueAbilityId,
   physicalDamage,
-  fStr,
   defenseFromVit,
   jobStatsAtLevel,
   isJobId,
   type JobId,
 } from "@bellgrave/combat";
+import { autoAttackFStr } from "./auto-attack-traits";
 import { signatureWeaponEquipped } from "./starter-kit";
 import { takeMobHit } from "./mob-enhances";
-import { veiledByGhostStep } from "./pvp-foe";
+import { isPvpVictim, veiledByGhostStep } from "./pvp-foe";
 import { kitLevel } from "./support-job";
 import type { AbilityId } from "@bellgrave/protocol";
 import { rollIndex } from "./game-roll";
@@ -21,6 +21,7 @@ import { rollIndex } from "./game-roll";
 export type RoguePlayer = {
   level: number;
   job: string;
+  subjob?: string | null;
   hp: number;
   maxHp: number;
   tp: number;
@@ -211,6 +212,10 @@ export function resolveRogueAbility(
       hooks.pushLog(p, "Violet smoke — the strike finds no one.");
       return true;
     }
+    if (isPvpVictim(m)) {
+      hooks.pushLog(p, "Purse Cut will not lift gold from a bounty fighter.");
+      return true;
+    }
     spend();
     p.facing = hooks.facingTo(p.x, p.z, m.x, m.z);
     const stolen = 8 + rollIndex("rogue.purse-cut", 13);
@@ -238,13 +243,23 @@ export function resolveRogueAbility(
     }
     spend();
     p.facing = hooks.facingTo(p.x, p.z, m.x, m.z);
-    const { str, dex } = hooks.playerCombatStats(p);
-    const att = Math.max(1, Math.floor(str + dex * 0.4 + 10));
+    const stats = hooks.playerCombatStats(p);
+    const att = Math.max(1, Math.floor(stats.str + stats.dex * 0.4 + 10));
+    const pvp = isPvpVictim(m);
     const job: JobId = isJobId(String(m.job)) ? (m.job as JobId) : "fighter";
     const level = Math.max(1, m.level ?? 1);
-    const mobStats = jobStatsAtLevel(job, level);
-    const mobDef = defenseFromVit(mobStats.vit);
-    const dmg = takeMobHit(m, physicalDamage(att, mobDef, fStr(str, mobStats.vit), false), "physical", now);
+    const mobStats = pvp
+      ? { vit: (m as { pvpVit?: number }).pvpVit ?? 1 }
+      : jobStatsAtLevel(job, level);
+    const mobDef = pvp
+      ? ((m as { pvpDef?: number }).pvpDef ?? 1)
+      : defenseFromVit(mobStats.vit);
+    const dmg = takeMobHit(
+      m,
+      physicalDamage(att, mobDef, autoAttackFStr(p, stats, mobStats.vit, "none"), false),
+      "physical",
+      now,
+    );
     m.hp -= dmg;
     const heal = Math.min(p.maxHp - p.hp, Math.floor(dmg * 0.85));
     p.hp += heal;
