@@ -9,6 +9,7 @@ export function loadLokEnv(env: NodeJS.ProcessEnv = process.env, paths?: string[
   const files =
     paths ??
     [
+      join(here, "../.env"),
       join(here, "../.env.local"),
       join(here, "../../../.env.local"),
       // Cloud Agent secure store (never committed).

@@ -1,0 +1,36 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Linen wrist cuffs, not gloves. Two overlapping capsules wrap the wrist
+// only: a short band behind the fist plus a cross wrap. Tiny hand discs
+// are markers, not mitten blobs. No palm bag, no fingers, no buckle, no Glow.
+// `thick` is a radius in pixels, matching Stick Engine capsules.
+(
+    id: "ba_coilweave_cuffs",
+    slot: Hands,
+    attach: Some("r_hand"),
+    material: Some("dust"),
+    thickness_mul: {
+        "l_forearm": 1.18,
+        "r_forearm": 1.18,
+    },
+    shapes: [
+        // Wrist wrap, a short linen band just behind the fist.
+        Capsule(
+            from: (0.0, -0.036, 0.0),
+            to: (0.0, -0.008, 0.0),
+            ramp: Material,
+            thick: 1.6,
+        ),
+        // Cross wrap. Overlaps the band so the cuff reads as a ring.
+        Capsule(
+            from: (-0.018, -0.022, 0.008),
+            to: (0.018, -0.022, 0.008),
+            ramp: Material,
+            thick: 1.4,
+        ),
+        Disc(at: Some("l_hand"), r: 0.024, ramp: Material),
+        Disc(at: Some("r_hand"), r: 0.024, ramp: Material),
+    ],
+)

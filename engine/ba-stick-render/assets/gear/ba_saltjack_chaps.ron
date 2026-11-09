@@ -1,0 +1,15 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Fine Jerkin trousers. Same thigh-shell as ba_leather_trousers: a plate over
+// each hip and around the thigh, front, outside, and back. The inner thigh
+// stays open. The knee stays clear. The arcs are not drawn. A stride carries
+// the thigh; the hip cap stays at the waist. Leather ramp.
+(
+    id: "ba_saltjack_chaps",
+    slot: Legs,
+    attach: Some("pelvis"),
+    material: Some("leather"),
+    shapes: [],
+)

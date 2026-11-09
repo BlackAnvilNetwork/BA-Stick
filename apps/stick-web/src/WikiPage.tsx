@@ -2,7 +2,9 @@ import {
   CATALOG,
   CRAFT_SKILL_LABEL,
   craftGoldCost,
+  formatFoodUseLine,
   getItem,
+  isFoodItem,
   itemIcon,
   recipeMaterialGroups,
   recipesUsingMaterial,
@@ -22,7 +24,7 @@ import {
   weaponCategoryId,
 } from "@bellgrave/ui/catalog-tree";
 import { formatJobs, ItemCatalogDetails } from "@bellgrave/ui/itemTip";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { WikiCraftPanel } from "./WikiCraftPanel";
 import { WikiLorePanel } from "./WikiLorePanel";
 import { WikiGearPreview } from "./WikiGearPreview";
@@ -70,6 +72,17 @@ export function WikiPage({ onClose }: Props) {
     setFocusId(itemId);
     itemSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      e.stopPropagation();
+      onClose();
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [onClose]);
 
   return (
     <div className="wiki-overlay" role="dialog" aria-label="Game wiki">
@@ -277,14 +290,16 @@ export function WikiPage({ onClose }: Props) {
                 {focus.consume ? (
                   <p className="lok-note">
                     <strong>Use:</strong>{" "}
-                    {[
-                      focus.consume.hp != null ? `+${focus.consume.hp} HP` : null,
-                      focus.consume.mp != null ? `+${focus.consume.mp} MP` : null,
-                      focus.consume.scrollSpellId ? `Scroll: ${focus.consume.scrollSpellId}` : null,
-                      focus.consume.foodDurationSec ? `Food ${focus.consume.foodDurationSec}s` : null,
-                    ]
-                      .filter(Boolean)
-                      .join(" · ") || "—"}
+                    {isFoodItem(focus)
+                      ? formatFoodUseLine(focus)
+                      : [
+                          focus.consume.hp != null ? `+${focus.consume.hp} HP` : null,
+                          focus.consume.mp != null ? `+${focus.consume.mp} MP` : null,
+                          focus.consume.scrollSpellId ? `Scroll: ${focus.consume.scrollSpellId}` : null,
+                          focus.consume.foodDurationSec ? `Food ${focus.consume.foodDurationSec}s` : null,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ") || "—"}
                   </p>
                 ) : null}
                 {focus.weaponFamily ? (

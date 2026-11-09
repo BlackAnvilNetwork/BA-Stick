@@ -1,7 +1,10 @@
 import {
   CRAFT_SKILL_LABEL,
+  formatFoodUseLine,
   getItem,
+  isFoodItem,
   itemIcon,
+  rarityClass,
   scaleGearStat,
   usedInRecipes,
   type ItemDef,
@@ -154,8 +157,14 @@ export function ItemCatalogDetails({ tokenId }: { tokenId: number }) {
   const def = getItem(tokenId);
   const name = def?.name ?? "Item " + tokenId;
   const rarity = def?.rarity;
-  const title = rarity ? `${name} [${rarity}]` : name;
-  const statsLine = formatPrimaryEffects(def?.stats, def?.consume?.hp);
+  const title = rarity ? (
+    <>
+      {name} <span className={rarityClass(rarity)}>[{rarity}]</span>
+    </>
+  ) : (
+    name
+  );
+  const statsLine = isFoodItem(def) ? formatFoodUseLine(def) : formatPrimaryEffects(def?.stats, def?.consume?.hp);
   const jobsLine = formatJobs(def?.jobRestrict);
   const ilevel = def?.craftLevel;
   return (

@@ -5,6 +5,7 @@
  */
 
 import { SHARED_ABILITY_ICON } from "./shared-icons";
+import { pickHotbarLines } from "./hotbar-lines";
 import { isTrainerFreeAbility } from "./trainer";
 
 export const SORCERER_ABILITY_IDS = [
@@ -117,6 +118,12 @@ export type SorcererAbilityDef = {
   isGa?: boolean;
 };
 
+/** Single-target tiers from MP, area spells a step slower. A zero recast let every nuke land on the next cast. */
+function nukeRecast(mp: number, isGa?: boolean): number {
+  const single = mp < 30 ? 4_000 : mp < 50 ? 6_000 : mp < 75 ? 8_000 : 10_000;
+  return isGa ? single + 2_000 : single;
+}
+
 function nukeRow(
   id: SorcererAbilityId,
   label: string,
@@ -133,7 +140,7 @@ function nukeRow(
     glyph,
     unlockLevel,
     mp,
-    recastMs: 0,
+    recastMs: nukeRecast(mp, opts?.isGa),
     category: "elemental",
     element,
     potency,
@@ -291,7 +298,7 @@ export const SORCERER_ABILITIES: Record<SorcererAbilityId, SorcererAbilityDef> =
     glyph: "Ms",
     unlockLevel: 20,
     mp: 15,
-    recastMs: 0,
+    recastMs: 45_000,
     category: "enfeeble",
     durationMs: 45_000,
     range: 12,
@@ -304,7 +311,7 @@ export const SORCERER_ABILITIES: Record<SorcererAbilityId, SorcererAbilityDef> =
     glyph: "Ml",
     unlockLevel: 35,
     mp: 38,
-    recastMs: 0,
+    recastMs: 30_000,
     category: "enfeeble",
     durationMs: 30_000,
     aoe: 8,
@@ -318,7 +325,7 @@ export const SORCERER_ABILITIES: Record<SorcererAbilityId, SorcererAbilityDef> =
     glyph: "Mb",
     unlockLevel: 18,
     mp: 12,
-    recastMs: 0,
+    recastMs: 20_000,
     category: "enfeeble",
     durationMs: 90_000,
     range: 12,
@@ -331,7 +338,7 @@ export const SORCERER_ABILITIES: Record<SorcererAbilityId, SorcererAbilityDef> =
     glyph: "Rs",
     unlockLevel: 11,
     mp: 14,
-    recastMs: 0,
+    recastMs: 60_000,
     category: "enfeeble",
     durationMs: 60_000,
     range: 12,
@@ -344,7 +351,7 @@ export const SORCERER_ABILITIES: Record<SorcererAbilityId, SorcererAbilityDef> =
     glyph: "Uw",
     unlockLevel: 32,
     mp: 18,
-    recastMs: 0,
+    recastMs: 15_000,
     category: "enfeeble",
     range: 12,
     needsTarget: true,
@@ -356,7 +363,7 @@ export const SORCERER_ABILITIES: Record<SorcererAbilityId, SorcererAbilityDef> =
     glyph: "Ll",
     unlockLevel: 36,
     mp: 28,
-    recastMs: 0,
+    recastMs: 8_000,
     category: "dark",
     potency: 45,
     range: 8,
@@ -369,7 +376,7 @@ export const SORCERER_ABILITIES: Record<SorcererAbilityId, SorcererAbilityDef> =
     glyph: "Sp",
     unlockLevel: 25,
     mp: 0,
-    recastMs: 0,
+    recastMs: 12_000,
     category: "dark",
     range: 8,
     needsTarget: true,
@@ -509,35 +516,30 @@ export function sorcererAbilitiesUnlocked(
 }
 
 export function sorcererHotbarOrder(unlocked: readonly SorcererAbilityId[]): SorcererAbilityId[] {
-  const prefer: SorcererAbilityId[] = [
-    "elemental_seal",
-    "arcane_flood",
-    "focal_neve",
-    "sc_ember_lance",
-    "sc_gravel_shard",
-    "sc_volt_arc",
-    "sc_rime_needle",
-    "sc_gale_cut",
-    "sc_tidebreak",
-    "manawell",
-    "cascade",
-    "enmity_douse",
-    "sc_morrow_sleep",
-    "sc_root_sigil",
-    "sc_unweave",
-    "sc_life_leech",
-    "sc_gloom_stun",
-  ];
-  const set = new Set(unlocked);
-  const out: SorcererAbilityId[] = [];
-  for (const id of prefer) {
-    if (set.has(id)) out.push(id);
-  }
-  for (const id of unlocked) {
-    if (id === "rest") continue;
-    if (!out.includes(id)) out.push(id);
-  }
-  return out;
+  return pickHotbarLines(unlocked, [
+    ["elemental_seal"],
+    ["arcane_flood"],
+    ["focal_neve"],
+    ["manawell"],
+    ["cascade"],
+    ["sc_ember_lance_iv", "sc_ember_lance_iii", "sc_ember_lance_ii", "sc_ember_lance"],
+    ["sc_gravel_shard_iv", "sc_gravel_shard_iii", "sc_gravel_shard_ii", "sc_gravel_shard"],
+    ["sc_tidebreak_iv", "sc_tidebreak_iii", "sc_tidebreak_ii", "sc_tidebreak"],
+    ["sc_gale_cut_iv", "sc_gale_cut_iii", "sc_gale_cut_ii", "sc_gale_cut"],
+    ["sc_rime_needle_iv", "sc_rime_needle_iii", "sc_rime_needle_ii", "sc_rime_needle"],
+    ["sc_volt_arc_iv", "sc_volt_arc_iii", "sc_volt_arc_ii", "sc_volt_arc"],
+    ["sc_ember_nova", "sc_ember_rain_iii", "sc_ember_rain_ii", "sc_ember_rain"],
+    ["sc_gravel_cataclysm", "sc_gravel_storm_iii", "sc_gravel_storm_ii", "sc_gravel_storm"],
+    ["sc_tide_maelstrom", "sc_tide_surge_iii", "sc_tide_surge_ii", "sc_tide_surge"],
+    ["sc_gale_maelstrom", "sc_gale_front_iii", "sc_gale_front_ii", "sc_gale_front"],
+    ["sc_rime_cataclysm", "sc_rime_squall_iii", "sc_rime_squall_ii", "sc_rime_squall"],
+    ["sc_volt_nova", "sc_volt_chain_iii", "sc_volt_chain_ii", "sc_volt_chain"],
+    ["sc_morrow_slumber", "sc_morrow_sleep"],
+    ["sc_root_sigil"],
+    ["sc_unweave"],
+    ["sc_life_leech"],
+    ["sc_mist_blind"],
+  ]);
 }
 
 export function sorcererAbilityTooltip(id: SorcererAbilityId): {

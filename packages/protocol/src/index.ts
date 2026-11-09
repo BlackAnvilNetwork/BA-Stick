@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { EQUIP_SLOTS, type Equipment } from "@bellgrave/items";
+import { EQUIP_SLOTS, type Equipment, type ItemStats } from "@bellgrave/items";
 import {
   ALL_ABILITY_IDS,
   JOB_IDS,
@@ -126,7 +126,7 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
     hq: z.boolean().optional(),
   }),
   z.object({ type: z.literal("claim/starter") }),
-  /** Change main job (Job Master). Sprite follows main. */
+  /** Legacy main-job swap. Server refuses — main is locked at creation. */
   z.object({ type: z.literal("job/change"), job: JobId }),
   /** Set support job at L10+ (Job Master). Level = floor(main/2). */
   z.object({ type: z.literal("job/subjob"), job: JobId.nullable() }),
@@ -750,6 +750,13 @@ export type SnapshotMessage = {
     freeStatPoints: number;
     /** Allocated free attribute points. */
     freeStats: { str: number; dex: number; vit: number; agi: number; int: number; mnd: number };
+    /** Active 30-minute meal. Absent when not well-fed. */
+    food?: {
+      tokenId: number;
+      until: number;
+      hq?: boolean;
+      stats: ItemStats;
+    };
     /** Hash-chained lok balances. Settlement Key::Kek is historical; new AH pays on-chain. */
     lok?: LokSnapshot;
     /** Rings this character has walked into. */

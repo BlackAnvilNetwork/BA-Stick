@@ -1,0 +1,87 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Linen socks. One foot in foot-local metres: origin is the foot
+// joint, +y up the shin, +z toward the toe, +x the character's right.
+// The viewer and draw path instance this pair on l_foot and r_foot so
+// the soles walk with the stride. Tiny discs mark each joint.
+// Thin dust sock over a thin sole — not ankle blobs.
+// `thick` is a radius in pixels.
+(
+    id: "ba_dustweave_socks",
+    slot: Feet,
+    attach: Some("pelvis"),
+    material: Some("dust"),
+    thickness_mul: {
+        "l_shin": 1.08,
+        "r_shin": 1.08,
+    },
+    shapes: [
+        // Thin sole width (front).
+        Capsule(
+            from: (-0.038, -0.016, 0.03),
+            to: (0.038, -0.016, 0.03),
+            ramp: Material,
+            thick: 2.0,
+        ),
+        // Thin heel width.
+        Capsule(
+            from: (-0.033, -0.016, -0.04),
+            to: (0.033, -0.016, -0.04),
+            ramp: Material,
+            thick: 1.8,
+        ),
+        // Sole length, heel to ball.
+        Capsule(
+            from: (0.0, -0.016, -0.05),
+            to: (0.0, -0.016, 0.03),
+            ramp: Material,
+            thick: 1.8,
+        ),
+        // Sole length, ball to toe.
+        Capsule(
+            from: (0.0, -0.016, 0.01),
+            to: (0.0, -0.016, 0.11),
+            ramp: Material,
+            thick: 1.7,
+        ),
+        // Sock length over the instep, heel to ball.
+        Capsule(
+            from: (0.0, 0.012, -0.04),
+            to: (0.0, 0.012, 0.03),
+            ramp: Material,
+            thick: 1.8,
+        ),
+        // Sock length over the instep, ball to toe.
+        Capsule(
+            from: (0.0, 0.010, 0.01),
+            to: (0.0, 0.008, 0.10),
+            ramp: Material,
+            thick: 1.6,
+        ),
+        // Sock wrap across the ball.
+        Capsule(
+            from: (-0.034, 0.018, 0.03),
+            to: (0.034, 0.018, 0.03),
+            ramp: Material,
+            thick: 1.6,
+        ),
+        // Sock wrap across the heel.
+        Capsule(
+            from: (-0.030, 0.016, -0.038),
+            to: (0.030, 0.016, -0.038),
+            ramp: Material,
+            thick: 1.5,
+        ),
+        // Thin cuff at the ankle, not a blob.
+        Capsule(
+            from: (0.0, 0.012, -0.02),
+            to: (0.0, 0.072, -0.02),
+            ramp: Material,
+            thick: 1.4,
+        ),
+        Disc(at: Some("l_foot"), r: 0.014, ramp: Material),
+        Disc(at: Some("r_foot"), r: 0.014, ramp: Material),
+    ],
+)

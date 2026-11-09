@@ -24,6 +24,8 @@ type DeployFile = {
   /** First contract-creation block — watchers backfill from here when set. */
   deployBlock?: number;
   status?: string;
+  /** Listing Safe (or EOA) that holds LISTING_ROLE. Fills LOK_LISTING_SAFE. */
+  listingRole?: string;
 };
 
 function defaultDeployPath(profile: NetworkProfile): string {
@@ -134,6 +136,9 @@ export function applySettlementDeployFile(env: NodeJS.ProcessEnv = process.env):
       continue;
     }
     fill(env, key, value);
+  }
+  if (parsed.listingRole && /^0x[0-9a-fA-F]{40}$/.test(parsed.listingRole)) {
+    fill(env, "LOK_LISTING_SAFE", parsed.listingRole);
   }
   // Anvil local: deployer key is the PvpBounty OPERATOR (and often LISTING).
   if (chainId === 31337) {

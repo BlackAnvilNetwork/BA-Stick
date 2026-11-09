@@ -65,6 +65,10 @@ describe("pvp bounty env gate", () => {
     const cancelFn = bounty.slice(bounty.indexOf("function cancel"), bounty.indexOf("function proposeClaim"));
     assert.equal(cancelFn.includes("claimDelay"), false);
     assert.match(tx, /const gate = chainBoundSendGate\(\);/);
+    const index = readFileSync(join(root, "index.ts"), "utf8");
+    const tickCancel = index.slice(index.indexOf("function tickPvpBountyArea"), index.indexOf("function clearJobBuffs"));
+    assert.match(tickCancel, /const gate = chainBoundSendGate\(\);/);
+    assert.match(tickCancel, /pvpAreaCancelGateTold/);
     assert.match(tx, /functionName: "claimDelay"/);
     assert.match(tx, /const waitMs = Number\(delay\) \* 1000 \+ 1500;/);
   });

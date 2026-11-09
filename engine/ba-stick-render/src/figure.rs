@@ -4932,9 +4932,10 @@ mod plate_tests {
         assert!(p.flow > 0.2);
         assert!(p.sleeve_drop > 0.2);
         assert!(!p.cells.contains(&crate::compat::C_SHADOW), "k reads as a hole");
-        assert!(p.cells.contains(&crate::palette::WATER));
-        assert!(p.cells.contains(&(crate::palette::WATER + 1)));
-        assert!(p.cells.contains(&27));
+        assert!(p.cells.contains(&crate::palette::GEAR_LEATHER), "undyed linen body");
+        assert!(p.cells.contains(&crate::palette::GEAR_LEATHER_FAR), "fold and seam");
+        assert!(!p.cells.contains(&crate::palette::WATER), "no wizard blue");
+        assert!(!p.cells.contains(&27));
         assert!(!p.cells.contains(&0), "every robe pixel is painted");
         let g = super::linen_robe();
         assert_eq!(g.id, "ba_linen_robe");
@@ -5074,8 +5075,10 @@ mod plate_tests {
         let iron_plate = super::shield_plate();
         assert_eq!(plate.flow, 0.0);
         assert_eq!(plate.wrap, 0.0);
-        assert_eq!(plate.cells, iron_plate.cells);
-        assert!(plate.cells.contains(&super::C_STEEL));
+        assert_eq!(plate.w, iron_plate.w);
+        assert_eq!(plate.h, iron_plate.h);
+        assert_ne!(plate.cells, iron_plate.cells, "bronze paint is not the iron stamp");
+        assert!(plate.cells.contains(&crate::palette::GEAR_BRONZE));
         assert!(plate.cells.contains(&super::C_GOLD));
         assert!(!plate.cells.contains(&0));
         assert!(!plate.cells.contains(&13));
@@ -5767,10 +5770,14 @@ mod plate_tests {
         assert!(camp.cells.contains(&crate::palette::GEAR_LEATHER));
         assert!(!camp.cells.contains(&crate::palette::WATER));
         let scarp = super::scarp_hose_plate();
-        assert!(scarp.cells.contains(&crate::compat::C_STEEL));
+        assert!(scarp.cells.contains(&crate::palette::GEAR_LEATHER));
+        assert!(scarp.cells.contains(&crate::palette::GEAR_LEATHER_FAR));
+        assert!(!scarp.cells.contains(&crate::compat::C_STEEL));
         assert!(!scarp.cells.contains(&crate::palette::WATER));
         let salt = super::saltjack_cap_plate();
-        assert!(salt.cells.contains(&crate::palette::CR_HARE));
+        assert!(salt.cells.contains(&crate::palette::GEAR_LEATHER));
+        assert!(salt.cells.contains(&crate::palette::GEAR_LEATHER_FAR));
+        assert!(salt.cells.contains(&crate::compat::C_SHADOW), "the knot is a shadow");
         assert_eq!(super::catalog_hands_tint(crate::gear::NIGHWEAVE_GLOVES_ITEM)(stick_engine::color::ColorSlot::Material), 27);
         assert_eq!(super::catalog_feet_tint(crate::gear::NIGHWEAVE_PUMPS_ITEM)(stick_engine::color::ColorSlot::Material), 27);
         assert!(!std::ptr::eq(

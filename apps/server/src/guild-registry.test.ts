@@ -266,7 +266,7 @@ describe("guild registry", { concurrency: false }, () => {
         assert.match(sol, /uint256 public constant FEE_BPS = 500;/);
         assert.equal(
           LOCAL_RULESET_WASM_SHA256,
-          "546808d6d83697e94b9a04da3f4aeba052a9e8e4d659838249bbde9d2b1ca66d",
+          "d555a24fd55491901eee308c7d6edac74f86c5035a9baa8228daeb2100e943a6",
         );
         assert.equal("payout" in (opened.guild ?? {}), false);
         assert.equal("payoutWei" in (opened.guild ?? {}), false);

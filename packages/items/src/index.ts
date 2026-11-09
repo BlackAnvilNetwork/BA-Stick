@@ -25,6 +25,20 @@ export {
   type ItemRarity,
 } from "./types";
 export { CATALOG, CATALOG_BY_ID, CATALOG_BY_SLUG } from "./catalog.generated";
+export {
+  FOOD_DURATION_MS,
+  FOOD_DURATION_SEC,
+  addItemStats,
+  foodBiteHeal,
+  foodKindOf,
+  foodRank,
+  foodStatsFor,
+  formatFoodBuffLine,
+  formatFoodUseLine,
+  isFoodItem,
+  mealStatsFor,
+  type FoodKind,
+} from "./food";
 export { ITEM_RARITIES, rarityFromName, rarityClass } from "./rarity";
 export {
   CRAFT_SKILLS,

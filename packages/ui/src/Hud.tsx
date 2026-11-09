@@ -3009,7 +3009,7 @@ function CreatePanel() {
         </div>
       </label>
       <p className="boot-hint">
-        Lv.{SUBJOB_UNLOCK_LEVEL}+ unlocks a support job (half main level). Your sprite stays main.
+        This is your main job for this character. Support job unlocks at L{SUBJOB_UNLOCK_LEVEL} (half main level).
       </p>
       <button type="submit" className="boot-primary">
         {createSubmitLabel(JOBS[job]?.name ?? "Adventurer", !!mintCfg)}

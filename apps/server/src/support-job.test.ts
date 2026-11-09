@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 import {
   JOBS,
@@ -51,6 +54,13 @@ test("support level is floor(main / 2) and only active from the unlock level", (
   assert.equal(activeSubjobLevel("knight", SUBJOB_UNLOCK_LEVEL - 1, "time_mage"), 0);
   assert.equal(activeSubjobLevel("knight", 40, null), 0);
   assert.equal(activeSubjobLevel("knight", 40, "knight"), 0);
+});
+
+test("Druid cannot be a support job even above the unlock level", () => {
+  assert.equal(activeSubjobLevel("knight", 40, "druid"), 0);
+  assert.deepEqual(combinedJobStats("knight", 40, "druid"), jobStatsAtLevel("knight", 40));
+  assert.deepEqual(combinedJobVitals("knight", 40, "druid"), jobVitalsAtLevel("knight", 40));
+  assert.ok(activeSubjobLevel("druid", 40, "knight") > 0);
 });
 
 test("kit level: main kit at full level, support kit at half, inactive below L10", () => {
@@ -236,4 +246,12 @@ test("Knight support abilities gate on support level, not main level", () => {
   } as never);
   assert.equal(handled, true);
   assert.match(logs.at(-1) ?? "", /unlocks at level 15/);
+});
+
+test("main job is locked at creation; Job Master only sets support at L10", () => {
+  const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "index.ts"), "utf8");
+  assert.match(src, /chosen at creation/);
+  assert.doesNotMatch(src, /Main job — you are now a/);
+  assert.match(src, /Support jobs unlock at level \$\{SUBJOB_UNLOCK_LEVEL\}/);
+  assert.equal(SUBJOB_UNLOCK_LEVEL, 10);
 });

@@ -13,11 +13,11 @@ export const PREVIEW_H = 110;
  * backdrop, the figure idling and slowly turning. Used on character
  * create/select and beside the paperdoll (with equipped gear via #14).
  */
-export function StickPreview({ job, gender, equip, size = 140, className }: FigurePreviewProps) {
+export function StickPreview({ job, gender, form, equip, size = 140, className }: FigurePreviewProps) {
   const ref = useRef<HTMLCanvasElement>(null);
   const r = useRef<StickRenderer | null>(null);
-  const want = useRef({ job, gender, equip });
-  want.current = { job, gender, equip };
+  const want = useRef({ job, gender, form, equip });
+  want.current = { job, gender, form, equip };
 
   useEffect(() => {
     let raf = 0;
@@ -37,7 +37,7 @@ export function StickPreview({ job, gender, equip, size = 140, className }: Figu
         last = now;
         yaw += dt * 0.6;
         const w = want.current;
-        const preset = previewPreset(w.job, w.gender);
+        const preset = previewPreset(w.job, w.gender, w.form);
         rr.upsertUnit("p", 0, 0, 0, yaw, "idle", preset);
         const g = gearArgs(w.equip ?? undefined, getItem);
         const k = preset + g.join(",");

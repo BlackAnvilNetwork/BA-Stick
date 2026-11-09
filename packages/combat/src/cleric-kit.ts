@@ -5,6 +5,7 @@
  */
 
 import { SHARED_ABILITY_ICON } from "./shared-icons";
+import { pickHotbarLines } from "./hotbar-lines";
 import { isTrainerFreeAbility } from "./trainer";
 
 export const CLERIC_ABILITY_IDS = [
@@ -401,7 +402,7 @@ export const CLERIC_ABILITIES: Record<ClericAbilityId, ClericAbilityDef> = {
     glyph: "Ev",
     unlockLevel: 33,
     mp: 80,
-    recastMs: 0,
+    recastMs: 60_000,
     category: "raise",
     durationMs: 600_000,
     allyTarget: true,
@@ -454,7 +455,7 @@ export const CLERIC_ABILITIES: Record<ClericAbilityId, ClericAbilityDef> = {
     glyph: "Sw",
     unlockLevel: 10,
     mp: 12,
-    recastMs: 0,
+    recastMs: 10_000,
     category: "enhance",
     durationMs: 180_000,
     physDt: 0.88,
@@ -467,7 +468,7 @@ export const CLERIC_ABILITIES: Record<ClericAbilityId, ClericAbilityDef> = {
     glyph: "S2",
     unlockLevel: 25,
     mp: 26,
-    recastMs: 0,
+    recastMs: 10_000,
     category: "enhance",
     durationMs: 180_000,
     physDt: 0.8,
@@ -480,7 +481,7 @@ export const CLERIC_ABILITIES: Record<ClericAbilityId, ClericAbilityDef> = {
     glyph: "S3",
     unlockLevel: 52,
     mp: 44,
-    recastMs: 0,
+    recastMs: 10_000,
     category: "enhance",
     durationMs: 180_000,
     physDt: 0.7,
@@ -493,7 +494,7 @@ export const CLERIC_ABILITIES: Record<ClericAbilityId, ClericAbilityDef> = {
     glyph: "Sm",
     unlockLevel: 70,
     mp: 70,
-    recastMs: 0,
+    recastMs: 10_000,
     category: "enhance",
     durationMs: 180_000,
     physDt: 0.75,
@@ -505,7 +506,7 @@ export const CLERIC_ABILITIES: Record<ClericAbilityId, ClericAbilityDef> = {
     glyph: "Ba",
     unlockLevel: 12,
     mp: 14,
-    recastMs: 0,
+    recastMs: 10_000,
     category: "enhance",
     durationMs: 180_000,
     magDt: 0.88,
@@ -518,7 +519,7 @@ export const CLERIC_ABILITIES: Record<ClericAbilityId, ClericAbilityDef> = {
     glyph: "B2",
     unlockLevel: 28,
     mp: 28,
-    recastMs: 0,
+    recastMs: 10_000,
     category: "enhance",
     durationMs: 180_000,
     magDt: 0.8,
@@ -531,7 +532,7 @@ export const CLERIC_ABILITIES: Record<ClericAbilityId, ClericAbilityDef> = {
     glyph: "B3",
     unlockLevel: 55,
     mp: 46,
-    recastMs: 0,
+    recastMs: 10_000,
     category: "enhance",
     durationMs: 180_000,
     magDt: 0.7,
@@ -544,7 +545,7 @@ export const CLERIC_ABILITIES: Record<ClericAbilityId, ClericAbilityDef> = {
     glyph: "Bm",
     unlockLevel: 75,
     mp: 72,
-    recastMs: 0,
+    recastMs: 10_000,
     category: "enhance",
     durationMs: 180_000,
     magDt: 0.75,
@@ -571,7 +572,7 @@ export const CLERIC_ABILITIES: Record<ClericAbilityId, ClericAbilityDef> = {
     glyph: "Dr",
     unlockLevel: 8,
     mp: 14,
-    recastMs: 0,
+    recastMs: 8_000,
     category: "divine",
     potency: 65,
     range: 12,
@@ -583,7 +584,7 @@ export const CLERIC_ABILITIES: Record<ClericAbilityId, ClericAbilityDef> = {
     glyph: "D2",
     unlockLevel: 58,
     mp: 52,
-    recastMs: 0,
+    recastMs: 8_000,
     category: "divine",
     potency: 155,
     range: 12,
@@ -731,35 +732,30 @@ export function clericAbilitiesUnlocked(
 }
 
 export function clericHotbarOrder(unlocked: readonly ClericAbilityId[]): ClericAbilityId[] {
-  const prefer: ClericAbilityId[] = [
-    "cl_cure",
-    "cl_curaga",
-    "cl_regen",
-    "cl_protect",
-    "cl_shell",
-    "cl_raise",
-    "cl_poisona",
-    "cl_erase",
-    "divine_seal",
-    "sacred_mercy",
-    "cl_haste",
-    "cl_banish",
-    "cl_holy",
-    "cl_flash",
-    "solace_rite",
-    "martyr",
-    "asylum",
-  ];
-  const set = new Set(unlocked);
-  const out: ClericAbilityId[] = [];
-  for (const id of prefer) {
-    if (set.has(id) && id !== "rest") out.push(id);
-  }
-  for (const id of unlocked) {
-    if (id === "rest") continue;
-    if (!out.includes(id)) out.push(id);
-  }
-  return out;
+  return pickHotbarLines(unlocked, [
+    ["divine_seal"],
+    ["sacred_mercy"],
+    ["solace_rite"],
+    ["asylum"],
+    ["martyr"],
+    ["cl_cure_v", "cl_cure_iv", "cl_cure_iii", "cl_cure_ii", "cl_cure"],
+    ["cl_curaga_iii", "cl_curaga_ii", "cl_curaga"],
+    ["cl_regen_iii", "cl_regen_ii", "cl_regen"],
+    ["cl_protect_iii", "cl_protect_ii", "cl_protect"],
+    ["cl_protectra"],
+    ["cl_shell_iii", "cl_shell_ii", "cl_shell"],
+    ["cl_shellra"],
+    ["cl_haste"],
+    ["cl_holy"],
+    ["cl_banish_ii", "cl_banish"],
+    ["cl_raise_ii", "cl_raise"],
+    ["cl_reraise"],
+    ["cl_flash"],
+    ["cl_erase"],
+    ["cl_slow"],
+    ["cl_paralyze"],
+    ["cl_silence"],
+  ]);
 }
 
 export function clericAbilityTooltip(id: ClericAbilityId): {

@@ -63,38 +63,18 @@ export function NpcInteractMenu() {
   const jobs = (dialog.jobs ?? []) as JobId[];
   const canSub = (you?.level ?? 0) >= SUBJOB_UNLOCK_LEVEL;
   const mainJob = you?.job;
-  const mainJobs = jobs.filter((j) => JOBS[j]?.playable);
   const supportJobs = jobs.filter((j) => j !== mainJob && j !== "druid" && JOBS[j]?.playable);
 
   const close = () => useGame.getState().setNpcDialog(null);
 
-  // Job Master: main-job change is always available; Change Alt stays L10+.
+  // Job Master: main is locked at creation. Support job from L10.
   if (isJobMaster) {
     return (
       <div className="npc-dialog npc-dialog-world npc-dialog-slim">
         <div className="npc-dialog-card npc-dialog-card-slim">
-          <div className="npc-subjob-header">Change Main</div>
-          <div className="npc-subjob-list">
-            {mainJobs.map((job) => {
-              const def = JOBS[job];
-              const current = mainJob === job;
-              return (
-                <button
-                  key={`main-${job}`}
-                  type="button"
-                  className={["npc-subjob-btn", current ? "current" : ""].filter(Boolean).join(" ")}
-                  disabled={current}
-                  onClick={() => {
-                    send({ type: "job/change", job });
-                    close();
-                  }}
-                >
-                  {def.name}
-                </button>
-              );
-            })}
-          </div>
-          <div className="npc-subjob-header">Change Alt</div>
+          <div className="npc-subjob-header">Main</div>
+          <p className="npc-subjob-gate">{mainJob ? JOBS[mainJob]?.name ?? mainJob : "—"} — set at creation</p>
+          <div className="npc-subjob-header">Support job</div>
           <div className="npc-subjob-list">
             {canSub ? (
               <>

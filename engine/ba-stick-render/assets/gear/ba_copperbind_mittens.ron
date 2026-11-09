@@ -1,0 +1,53 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Iron mittens. A steel palm disc and gold rivet sit on each fist so the
+// pair follows the hands, not the chest. Short overlapping capsules add a
+// wrist cuff and finger bag inside the attach-hand disc. Metal-body recipe:
+// overlapping capsules and discs, steel plus trim studs.
+// `thick` is a radius in pixels, matching Stick Engine capsules.
+(
+    id: "ba_copperbind_mittens",
+    slot: Hands,
+    attach: Some("r_hand"),
+    material: Some("steel"),
+    thickness_mul: {
+        "l_forearm": 1.18,
+        "r_forearm": 1.18,
+    },
+    shapes: [
+        // Wrist cuff, a short wrap just behind the fist.
+        Capsule(
+            from: (0.0, -0.032, 0.0),
+            to: (0.0, 0.0, 0.0),
+            ramp: Material,
+            thick: 1.5,
+        ),
+        // Palm and finger bag. Overlaps the cuff so there is no gap.
+        Capsule(
+            from: (0.0, -0.006, 0.01),
+            to: (0.0, 0.034, 0.012),
+            ramp: Material,
+            thick: 1.6,
+        ),
+        // Knuckle bar across the fist.
+        Capsule(
+            from: (-0.018, 0.012, 0.006),
+            to: (0.018, 0.012, 0.006),
+            ramp: Material,
+            thick: 1.4,
+        ),
+        // Thumb lump, overlapping the palm.
+        Capsule(
+            from: (-0.012, 0.0, 0.012),
+            to: (-0.028, 0.014, 0.018),
+            ramp: Material,
+            thick: 1.2,
+        ),
+        Disc(at: Some("l_hand"), r: 0.08, ramp: Material),
+        Disc(at: Some("r_hand"), r: 0.08, ramp: Material),
+        Disc(at: Some("l_hand"), r: 0.028, ramp: Trim),
+        Disc(at: Some("r_hand"), r: 0.028, ramp: Trim),
+    ],
+)

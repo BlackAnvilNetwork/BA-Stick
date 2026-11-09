@@ -3,8 +3,11 @@
 // Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
 
 //! Pixel particle VFX (#13): projectile / line / burst / ring primitives.
-//! Particles are true-colour and blended additively over the palette image
-//! after lighting, so they glow and don't consume palette slots.
+//! Ability motes stamp a few pixels (diamond, plus flare, short streak, or a
+//! bright pixel with a darker neighbour) instead of a lone dot. A few cores
+//! use the larger `big` plus. Particles stay true-colour and blend additively
+//! over the palette image after lighting, so they glow and don't consume
+//! palette slots.
 use stick_engine::camera::Camera;
 use stick_engine::math::{v3, Vec3};
 
@@ -29,6 +32,33 @@ impl Prim {
     }
 }
 
+/// Pixel stamp. Ambient motes stay a single dot; ability spawns pick a shape.
+const GLYPH_DOT: u8 = 0;
+const GLYPH_DIAMOND: u8 = 1;
+const GLYPH_FLARE: u8 = 2;
+const GLYPH_STREAK: u8 = 3;
+const GLYPH_OUTLINE: u8 = 4;
+const GLYPH_CORE: u8 = 5;
+
+/// 5 px gem. Shade is 0..=255 of the mote colour; the last value scales alpha.
+/// The centre is not `big` — that plus is `GLYPH_CORE`, so these don't double-draw.
+const DIAMOND: [(i32, i32, u8, f32); 5] = [
+    (-1, -1, 210, 0.72),
+    (1, -1, 230, 0.78),
+    (0, 0, 255, 1.0),
+    (-1, 1, 160, 0.55),
+    (1, 1, 130, 0.42),
+];
+
+/// 5 px plus flare, brighter at the core and dimmer on the lower arm.
+const FLARE: [(i32, i32, u8, f32); 5] = [
+    (0, -1, 235, 0.82),
+    (-1, 0, 200, 0.7),
+    (0, 0, 255, 1.0),
+    (1, 0, 200, 0.7),
+    (0, 1, 165, 0.52),
+];
+
 #[derive(Clone, Copy)]
 struct Particle {
     pos: Vec3,
@@ -38,6 +68,7 @@ struct Particle {
     rgb: [u8; 3],
     grav: f32,
     big: bool,
+    glyph: u8,
 }
 
 /// A travelling emitter (projectile head) that leaves a trail and bursts on arrival.
@@ -71,6 +102,23 @@ pub struct Vfx {
 
 fn rgb_of(c: u32) -> [u8; 3] {
     [(c >> 16) as u8, (c >> 8) as u8, c as u8]
+}
+
+fn scale_rgb(rgb: [u8; 3], shade: u8) -> [u8; 3] {
+    [
+        (rgb[0] as u16 * shade as u16 / 255) as u8,
+        (rgb[1] as u16 * shade as u16 / 255) as u8,
+        (rgb[2] as u16 * shade as u16 / 255) as u8,
+    ]
+}
+
+fn dir_unit(d: Vec3) -> Vec3 {
+    let len = (d.x * d.x + d.y * d.y + d.z * d.z).sqrt();
+    if len > 1e-3 {
+        d * (1.0 / len)
+    } else {
+        v3(0.0, 1.0, 0.0)
+    }
 }
 
 impl Vfx {
@@ -120,11 +168,12 @@ impl Vfx {
                 });
             }
             Prim::Line => {
+                let along = dir_unit(to - from);
                 for i in 0..n {
                     let k = i as f32 / n as f32;
                     let j = v3(self.sym(), self.sym(), self.sym()) * 0.05;
                     let life = 0.25 + self.rnd() * 0.2;
-                    let vel = v3(self.sym(), self.sym() + 0.4, self.sym()) * 0.4;
+                    let vel = along * 0.45 + v3(self.sym(), self.sym(), self.sym()) * 0.06;
                     self.push(Particle {
                         pos: from + (to - from) * k + j,
                         vel,
@@ -132,7 +181,8 @@ impl Vfx {
                         life,
                         rgb,
                         grav: 0.0,
-                        big: i % 2 == 0,
+                        big: false,
+                        glyph: if i % 7 == 0 { GLYPH_DIAMOND } else { GLYPH_STREAK },
                     });
                 }
                 self.burst(to, rgb, n / 3 + 4, 0.3, false);
@@ -149,6 +199,13 @@ impl Vfx {
                         0.25 + self.rnd() * 0.3
                     };
                     let life = 0.6 + self.rnd() * 0.35;
+                    let glyph = if i % 8 == 0 {
+                        GLYPH_CORE
+                    } else if i % 8 == 4 {
+                        GLYPH_DIAMOND
+                    } else {
+                        GLYPH_OUTLINE
+                    };
                     self.push(Particle {
                         pos: to + dir * (r * 0.8) + v3(0.0, 0.05, 0.0),
                         vel: dir * (r * 0.3) + v3(0.0, up, 0.0),
@@ -156,7 +213,8 @@ impl Vfx {
                         life,
                         rgb,
                         grav: 0.0,
-                        big: i % 2 == 0,
+                        big: false,
+                        glyph,
                     });
                 }
             }
@@ -188,6 +246,7 @@ impl Vfx {
                     rgb,
                     grav: if steam { 0.08 } else { 0.45 },
                     big: i % 2 == 0,
+                    glyph: GLYPH_DOT,
                 });
             }
         }
@@ -217,6 +276,7 @@ impl Vfx {
                 rgb: EMBER_RGB,
                 grav: 0.2,
                 big: false,
+                glyph: GLYPH_DOT,
             });
         }
     }
@@ -243,6 +303,7 @@ impl Vfx {
                     rgb: GOLD,
                     grav: 1.2,
                     big: false,
+                    glyph: GLYPH_DOT,
                 });
             }
         }
@@ -274,6 +335,7 @@ impl Vfx {
             rgb,
             grav: -0.04,
             big: false,
+            glyph: GLYPH_DOT,
         });
     }
 
@@ -300,6 +362,7 @@ impl Vfx {
             rgb,
             grav: -0.12,
             big: false,
+            glyph: GLYPH_DOT,
         });
     }
 
@@ -320,6 +383,7 @@ impl Vfx {
             rgb,
             grav: 0.0,
             big: false,
+            glyph: GLYPH_DOT,
         });
     }
 
@@ -356,6 +420,7 @@ impl Vfx {
             rgb,
             grav: -0.08,
             big,
+            glyph: GLYPH_DOT,
         });
     }
 
@@ -380,6 +445,7 @@ impl Vfx {
             rgb: SPARK,
             grav: -0.05,
             big: false,
+            glyph: GLYPH_DOT,
         });
     }
 
@@ -410,6 +476,7 @@ impl Vfx {
             rgb,
             grav: -0.22,
             big,
+            glyph: GLYPH_DOT,
         });
     }
 
@@ -427,6 +494,7 @@ impl Vfx {
             rgb: LAVA,
             grav: 1.4,
             big: false,
+            glyph: GLYPH_DOT,
         });
     }
 
@@ -452,6 +520,7 @@ impl Vfx {
             rgb: SPARK,
             grav: 0.65,
             big: false,
+            glyph: GLYPH_DOT,
         });
     }
 
@@ -481,6 +550,7 @@ impl Vfx {
                 rgb,
                 grav: 0.85,
                 big: i % 4 == 0,
+                glyph: GLYPH_DOT,
             });
         }
     }
@@ -499,6 +569,12 @@ impl Vfx {
                 (dir * sp, 5.0)
             };
             let p = at + v3(self.sym(), self.rnd() * 2.0, self.sym()) * (spread * 0.3);
+            let glyph = match i % 10 {
+                0 | 1 => GLYPH_CORE,
+                2 | 3 | 4 => GLYPH_DIAMOND,
+                5 | 6 => GLYPH_FLARE,
+                _ => GLYPH_OUTLINE,
+            };
             self.push(Particle {
                 pos: p,
                 vel,
@@ -506,7 +582,8 @@ impl Vfx {
                 life,
                 rgb,
                 grav,
-                big: i % 2 == 0,
+                big: false,
+                glyph,
             });
         }
     }
@@ -520,28 +597,31 @@ impl Vfx {
             let head = b.from
                 + (b.to - b.from) * k
                 + v3(0.0, (k * std::f32::consts::PI).sin() * 0.25, 0.0);
+            let dir = dir_unit(b.to - b.from);
             b.acc += dt * b.count as f32 / b.dur;
             while b.acc >= 1.0 {
                 b.acc -= 1.0;
-                trail.push((head, b.rgb));
+                trail.push((head, b.rgb, dir));
             }
             if k >= 1.0 {
                 arrived.push((b.to, b.rgb, b.count));
             }
         }
         self.bolts.retain(|b| b.t < b.dur);
-        for (p, rgb) in trail {
+        for (p, rgb, dir) in trail {
             let j = v3(self.sym(), self.sym(), self.sym()) * 0.04;
-            let v = v3(self.sym(), self.sym(), self.sym()) * 0.3;
             let life = 0.22 + self.rnd() * 0.12;
+            let glitter = self.rnd() > 0.84;
+            let jitter = v3(self.sym(), self.sym(), self.sym()) * 0.08;
             self.push(Particle {
                 pos: p + j,
-                vel: v,
+                vel: dir * 0.7 + jitter,
                 age: 0.0,
                 life,
                 rgb,
                 grav: 0.0,
-                big: true,
+                big: false,
+                glyph: if glitter { GLYPH_DIAMOND } else { GLYPH_STREAK },
             });
         }
         for (to, rgb, n) in arrived {
@@ -559,7 +639,8 @@ impl Vfx {
     /// Project + depth-test against the scene (call after units are drawn).
     pub fn project(&mut self, cam: &Camera, cam_y: f32, depth: &[f32], w: usize, h: usize) {
         self.sparks.clear();
-        for p in &self.parts {
+        for i in 0..self.parts.len() {
+            let p = self.parts[i];
             let q = cam.project(v3(p.pos.x, p.pos.y - cam_y, p.pos.z));
             let (x, y) = (q.x as i32, q.y as i32);
             if x < 0 || y < 0 || x >= w as i32 || y >= h as i32 {
@@ -570,13 +651,85 @@ impl Vfx {
                 continue;
             }
             let a = (1.0 - (p.age / p.life).powi(2)) * 1.6;
-            self.sparks.push(Spark {
-                x,
-                y,
-                rgb: p.rgb,
-                a,
-                big: p.big,
-            });
+            self.stamp(cam, cam_y, &p, x, y, a);
+        }
+    }
+
+    fn push_spark(&mut self, x: i32, y: i32, rgb: [u8; 3], a: f32, big: bool) {
+        if a < 0.05 {
+            return;
+        }
+        self.sparks.push(Spark { x, y, rgb, a, big });
+    }
+
+    fn paint(&mut self, x: i32, y: i32, rgb: [u8; 3], a: f32, offs: &[(i32, i32, u8, f32)]) {
+        for &(dx, dy, shade, fade) in offs {
+            self.push_spark(x + dx, y + dy, scale_rgb(rgb, shade), a * fade, false);
+        }
+    }
+
+    /// One screen step along the mote's horizontal velocity (ring thickness).
+    fn outward_step(&self, cam: &Camera, cam_y: f32, p: &Particle) -> (i32, i32) {
+        let len = (p.vel.x * p.vel.x + p.vel.z * p.vel.z).sqrt();
+        let (dx, dz) = if len > 1e-3 {
+            (p.vel.x / len, p.vel.z / len)
+        } else {
+            (1.0, 0.0)
+        };
+        let q0 = cam.project(v3(p.pos.x, p.pos.y - cam_y, p.pos.z));
+        let q1 = cam.project(v3(p.pos.x + dx * 0.15, p.pos.y - cam_y, p.pos.z + dz * 0.15));
+        let sx = (q1.x - q0.x).round() as i32;
+        let sy = (q1.y - q0.y).round() as i32;
+        if sx == 0 && sy == 0 {
+            (1, 0)
+        } else {
+            (sx.signum(), sy.signum())
+        }
+    }
+
+    fn streak(&mut self, cam: &Camera, cam_y: f32, p: &Particle, x: i32, y: i32, a: f32) {
+        let q0 = cam.project(v3(p.pos.x, p.pos.y - cam_y, p.pos.z));
+        let q1 = cam.project(v3(
+            p.pos.x + p.vel.x * 0.08,
+            p.pos.y - cam_y + p.vel.y * 0.08,
+            p.pos.z + p.vel.z * 0.08,
+        ));
+        let mut dx = q1.x - q0.x;
+        let mut dy = q1.y - q0.y;
+        let len = (dx * dx + dy * dy).sqrt();
+        if len < 0.75 {
+            dx = 1.0;
+            dy = 0.0;
+        } else {
+            dx /= len;
+            dy /= len;
+        }
+        const SHADE: [u8; 3] = [255, 188, 112];
+        for i in 0..3 {
+            let k = i as f32;
+            let shade = SHADE[i];
+            self.push_spark(
+                x - (dx * k).round() as i32,
+                y - (dy * k).round() as i32,
+                scale_rgb(p.rgb, shade),
+                a * (1.0 - k * 0.22),
+                false,
+            );
+        }
+    }
+
+    fn stamp(&mut self, cam: &Camera, cam_y: f32, p: &Particle, x: i32, y: i32, a: f32) {
+        match p.glyph {
+            GLYPH_DIAMOND => self.paint(x, y, p.rgb, a, &DIAMOND),
+            GLYPH_FLARE => self.paint(x, y, p.rgb, a, &FLARE),
+            GLYPH_STREAK => self.streak(cam, cam_y, p, x, y, a),
+            GLYPH_OUTLINE => {
+                self.push_spark(x, y, p.rgb, a, false);
+                let (ox, oy) = self.outward_step(cam, cam_y, p);
+                self.push_spark(x + ox, y + oy, scale_rgb(p.rgb, 110), a * 0.5, false);
+            }
+            GLYPH_CORE => self.push_spark(x, y, p.rgb, a, true),
+            _ => self.push_spark(x, y, p.rgb, a, p.big),
         }
     }
 }
@@ -598,6 +751,58 @@ pub fn blend(sparks: &[Spark], w: usize, h: usize, out: &mut [u8]) {
             for (dx, dy) in [(1, 0), (-1, 0), (0, 1), (0, -1)] {
                 add(out, s.x + dx, s.y + dy, s.rgb, s.a * 0.55);
             }
+            // Darker corners so a core reads as a shaded gem, not a flat cross.
+            let edge = [s.rgb[0] / 2, s.rgb[1] / 2, s.rgb[2] / 2];
+            for (dx, dy) in [(1, 1), (1, -1), (-1, 1), (-1, -1)] {
+                add(out, s.x + dx, s.y + dy, edge, s.a * 0.32);
+            }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use stick_engine::camera::Camera;
+    use stick_engine::math::v3;
+
+    fn project_at_origin(v: &mut Vfx) {
+        let cam = Camera::new(160, 120);
+        let depth = vec![1.0e6_f32; 160 * 120];
+        v.project(&cam, 0.0, &depth, 160, 120);
+    }
+
+    #[test]
+    fn stamps_are_multi_pixel_and_particle_count_stays_capped() {
+        let mut one = Vfx::default();
+        one.spawn(Prim::Burst, v3(0.0, 0.9, 0.0), v3(0.0, 0.9, 0.0), 0xff4d5c, 1, 0.2, false);
+        one.tick(0.0);
+        assert_eq!(one.count(), 1);
+        project_at_origin(&mut one);
+        let mut buf = vec![0u8; 160 * 120 * 4];
+        blend(&one.sparks, 160, 120, &mut buf);
+        let lit = buf.chunks(4).filter(|px| px[0] > 0 || px[1] > 0 || px[2] > 0).count();
+        assert!((5..=9).contains(&lit), "core stamp lit {lit}");
+
+        let mut ring = Vfx::default();
+        ring.spawn(Prim::Ring, v3(0.0, 0.0, 0.0), v3(0.0, 0.0, 0.0), 0xe4eef8, 16, 1.1, false);
+        let n = ring.count();
+        ring.tick(0.0);
+        project_at_origin(&mut ring);
+        assert!(ring.sparks.len() > n, "ring outlines span more than one pixel");
+
+        let mut flood = Vfx::default();
+        for _ in 0..30 {
+            flood.spawn(
+                Prim::Burst,
+                v3(0.0, 0.0, 0.0),
+                v3(0.0, 0.0, 0.0),
+                0xffffff,
+                400,
+                1.0,
+                false,
+            );
+        }
+        assert_eq!(flood.count(), MAX_PARTICLES);
     }
 }

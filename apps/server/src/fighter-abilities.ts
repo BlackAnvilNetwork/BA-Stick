@@ -337,9 +337,7 @@ export function resolveFighterAbility(
 
     if (p.anim === "rest") {
 
-      hooks.stopRest(p);
-
-      hooks.pushLog(p, "You stand.");
+      hooks.stopRest(p, "You stand.");
 
       return true;
 

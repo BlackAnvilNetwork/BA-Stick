@@ -104,9 +104,9 @@ test("physical hits use phys DT (Protect), not mag DT", () => {
   const shelled = { ...bare(), shellUntil: LATER, shellMagMul: 0.75, asylumUntil: LATER, fealtyUntil: LATER };
   // Shell / Asylum / Fealty do nothing vs physical.
   assert.equal(pendingHitDtMul(shelled, NOW, false, noTree), 1);
-  // Bulwark is physical-only immunity.
+  // Bulwark is a heavy physical ward, not immunity. Magic ignores it.
   const bulwark = { ...bare(), bulwarkUntil: LATER };
-  assert.equal(pendingHitDtMul(bulwark, NOW, false, noTree), 0);
+  assert.equal(pendingHitDtMul(bulwark, NOW, false, noTree), 0.4);
   assert.equal(pendingHitDtMul(bulwark, NOW, true, noTree), 1);
 });
 

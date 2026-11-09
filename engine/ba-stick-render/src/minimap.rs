@@ -10,8 +10,10 @@ use crate::mapfont;
 use crate::props::{kind, Prop};
 use crate::zone::{Zone, F_BLOCKED, F_BRIDGE, F_STONE, F_TRAIL, F_WATER};
 
-/// Texels per metre of world.
+/// Texels per metre of world (before the bake size cap).
 pub const PX_PER_M: f32 = 1.0;
+/// Longest baked edge. Pale Hollow at 1 px/m is ~740² and hitches the thread.
+pub const MAX_TEX: usize = 256;
 /// Panel size in framebuffer pixels.
 pub const PANEL_W: usize = 148;
 pub const PANEL_H: usize = 104;
@@ -51,6 +53,8 @@ pub struct Minimap {
     pub on: bool,
     /// Panel fills the framebuffer. The corner control toggles this.
     pub full: bool,
+    /// HUD dock in framebuffer pixels (x, y, w, h). None = default top-right.
+    dock: Option<(usize, usize, usize, usize)>,
     pub title: String,
     pub roads: Vec<Road>,
     pub labels: Vec<Label>,
@@ -58,9 +62,11 @@ pub struct Minimap {
     tex: Vec<[u8; 4]>,
     tw: usize,
     th: usize,
-    /// Map-space offset: texel = (x - z) * K - ox, (x + z) * K - oy.
+    /// Map-space offset: texel = (x - z) * tex_k - ox, (x + z) * tex_k - oy.
     ox: f32,
     oy: f32,
+    /// Fitted metres→texels for this bake. 0 means the default `K`.
+    tex_k: f32,
     /// Labels actually placed by the last bake (after collision culling).
     pub placed: Vec<String>,
     pub bakes: u32,
@@ -121,22 +127,38 @@ impl Minimap {
         (self.tw, self.th)
     }
 
+    fn map_k(&self) -> f32 {
+        if self.tex_k > 0.0 {
+            self.tex_k
+        } else {
+            K
+        }
+    }
+
     /// World point to texel.
     pub fn to_tex(&self, x: f32, z: f32) -> (f32, f32) {
-        ((x - z) * K - self.ox, (x + z) * K - self.oy)
+        let k = self.map_k();
+        ((x - z) * k - self.ox, (x + z) * k - self.oy)
     }
 
     fn to_world(&self, tx: f32, ty: f32) -> (f32, f32) {
-        let u = (tx + self.ox) / K;
-        let v = (ty + self.oy) / K;
+        let k = self.map_k();
+        let u = (tx + self.ox) / k;
+        let v = (ty + self.oy) / k;
         ((u + v) * 0.5, (v - u) * 0.5)
     }
 
     /// Bake the static layer. Called once per zone (and when map data changes).
     pub fn bake(&mut self, zone: &Zone, props: &[Prop]) {
+        self.bake_at(zone, props, 0.0, 0.0);
+    }
+
+    /// Bake a world-space zone as local by subtracting `ox`/`oz`. Props stay
+    /// in world metres and are not copied.
+    pub fn bake_at(&mut self, zone: &Zone, props: &[Prop], ox: f32, oz: f32) {
         self.dirty = false;
         self.bakes += 1;
-        let (x0, z0) = (zone.min_x, zone.min_z);
+        let (x0, z0) = (zone.min_x - ox, zone.min_z - oz);
         let (x1, z1) = (
             x0 + zone.w as f32 * zone.cell,
             z0 + zone.h as f32 * zone.cell,
@@ -145,10 +167,13 @@ impl Minimap {
         let vs = [x0 + z0, x0 + z1, x1 + z0, x1 + z1];
         let fmin = |a: &[f32; 4]| a.iter().cloned().fold(f32::MAX, f32::min);
         let fmax = |a: &[f32; 4]| a.iter().cloned().fold(f32::MIN, f32::max);
-        self.ox = fmin(&us) * K;
-        self.oy = fmin(&vs) * K;
-        self.tw = ((fmax(&us) * K - self.ox).ceil() as usize).max(1);
-        self.th = ((fmax(&vs) * K - self.oy).ceil() as usize).max(1);
+        let span = (fmax(&us) - fmin(&us)).max(fmax(&vs) - fmin(&vs)).max(1.0);
+        self.tex_k = K * (MAX_TEX as f32 / (span * K)).min(1.0);
+        let k = self.tex_k;
+        self.ox = fmin(&us) * k;
+        self.oy = fmin(&vs) * k;
+        self.tw = ((fmax(&us) * k - self.ox).ceil() as usize).max(1).min(MAX_TEX);
+        self.th = ((fmax(&vs) * k - self.oy).ceil() as usize).max(1).min(MAX_TEX);
         let (tw, th) = (self.tw, self.th);
         self.tex = vec![BG; tw * th];
 
@@ -168,7 +193,8 @@ impl Minimap {
                 if x < x0 || z < z0 || x >= x1 || z >= z1 {
                     continue;
                 }
-                let (i, j) = zone.cell_of(x, z);
+                let (wx, wz) = (x + ox, z + oz);
+                let (i, j) = zone.cell_of(wx, wz);
                 let id = zone.idx(i, j);
                 let f = zone.flags[id];
                 let b = zone.biome[id] as usize & 15;
@@ -177,7 +203,7 @@ impl Minimap {
                 if f & F_BLOCKED != 0 && b == 11 {
                     continue;
                 }
-                let h = zone.height_at(x, z);
+                let h = zone.height_at(wx, wz);
                 let c = if f & F_BRIDGE != 0 {
                     bridge_c
                 } else if f & F_WATER != 0 {
@@ -191,12 +217,12 @@ impl Minimap {
                     }
                 } else {
                     let base = rgb(crate::palette::BIOME_BASE[b]);
-                    let hs =
-                        zone.height_at(x + sun.0, z + sun.1) - zone.height_at(x - sun.0, z - sun.1);
+                    let hs = zone.height_at(wx + sun.0, wz + sun.1)
+                        - zone.height_at(wx - sun.0, wz - sun.1);
                     let mut k = (1.0 + hs * 0.35).clamp(0.62, 1.32);
                     let band = |hh: f32| (hh / 1.5).floor();
-                    if band(zone.height_at(x + 0.7, z)) != band(h)
-                        || band(zone.height_at(x, z + 0.7)) != band(h)
+                    if band(zone.height_at(wx + 0.7, wz)) != band(h)
+                        || band(zone.height_at(wx, wz + 0.7)) != band(h)
                     {
                         k *= 0.86;
                     }
@@ -215,13 +241,18 @@ impl Minimap {
             }
         }
 
-        // Props: canopy dots, rocks, walls, bridges, camp gear.
+        // Props: canopy dots, rocks, walls, bridges, camp gear. World list is
+        // filtered in place so a nine-zone bag is not cloned each bake.
         for p in props {
+            let (lx, lz) = (p.x - ox, p.z - oz);
+            if lx < x0 - 8.0 || lx >= x1 + 8.0 || lz < z0 - 8.0 || lz >= z1 + 8.0 {
+                continue;
+            }
             match p.kind {
                 0..=4 => {
                     let r = (0.9 + p.s * 0.25).min(2.2) * PX_PER_M * 0.5;
-                    self.disc(p.x, p.z, r, mul(rgb(0x2c3a26), 1.0), 0.85);
-                    let (tx, ty) = self.to_tex(p.x - 0.3, p.z + 0.3);
+                    self.disc(lx, lz, r, mul(rgb(0x2c3a26), 1.0), 0.85);
+                    let (tx, ty) = self.to_tex(lx - 0.3, lz + 0.3);
                     self.put(tx as i32, ty as i32, rgb(0x56704a), 0.9);
                 }
                 kind::ROCK | kind::STONE | kind::PEAK => {
@@ -230,11 +261,11 @@ impl Minimap {
                     } else {
                         0.7
                     };
-                    self.disc(p.x, p.z, r * PX_PER_M * 0.5, rgb(0x7d7871), 0.8);
+                    self.disc(lx, lz, r * PX_PER_M * 0.5, rgb(0x7d7871), 0.8);
                 }
                 kind::WALL_BLOCK => self.obox(
-                    p.x,
-                    p.z,
+                    lx,
+                    lz,
                     p.yaw,
                     p.w.max(0.5),
                     p.d.max(0.5),
@@ -242,8 +273,8 @@ impl Minimap {
                     1.0,
                 ),
                 kind::RIVER_WALL => self.obox(
-                    p.x,
-                    p.z,
+                    lx,
+                    lz,
                     p.yaw,
                     p.w.max(0.6),
                     p.s.max(0.5),
@@ -251,15 +282,15 @@ impl Minimap {
                     1.0,
                 ),
                 kind::BRIDGE => {
-                    self.obox(p.x, p.z, p.yaw, p.w + 0.8, p.s + 0.4, rgb(0x2e2a25), 1.0);
-                    self.obox(p.x, p.z, p.yaw, p.w, p.s, rgb(0xb8aa8c), 1.0);
+                    self.obox(lx, lz, p.yaw, p.w + 0.8, p.s + 0.4, rgb(0x2e2a25), 1.0);
+                    self.obox(lx, lz, p.yaw, p.w, p.s, rgb(0xb8aa8c), 1.0);
                 }
                 kind::TENT | kind::LEAN_TO | kind::STALL | kind::TRAINER => {
-                    self.obox(p.x, p.z, p.yaw, 2.0, 2.0, rgb(0x8c6a44), 1.0)
+                    self.obox(lx, lz, p.yaw, 2.0, 2.0, rgb(0x8c6a44), 1.0)
                 }
                 kind::FIRE_PIT => {
-                    self.disc(p.x, p.z, 2.5, rgb(0xf0a040), 0.35);
-                    self.disc(p.x, p.z, 1.2, rgb(0xffd070), 1.0);
+                    self.disc(lx, lz, 2.5, rgb(0xf0a040), 0.35);
+                    self.disc(lx, lz, 1.2, rgb(0xffd070), 1.0);
                 }
                 _ => {}
             }
@@ -525,17 +556,44 @@ impl Minimap {
         (fw.saturating_sub(PANEL_W + MARGIN), MARGIN)
     }
 
+    /// Place the corner panel in a HUD slot. `w`/`h` <= 0 clears the dock.
+    pub fn set_dock(&mut self, x: i32, y: i32, w: i32, h: i32) {
+        if w <= 0 || h <= 0 {
+            self.dock = None;
+            return;
+        }
+        self.dock = Some((
+            x.max(0) as usize,
+            y.max(0) as usize,
+            w as usize,
+            h as usize,
+        ));
+    }
+
+    fn docked_rect(&self, fw: usize, fh: usize) -> Option<(usize, usize, usize, usize)> {
+        let (x, y, w, h) = self.dock?;
+        let x = x.min(fw.saturating_sub(16));
+        let y = y.min(fh.saturating_sub(16));
+        let w = w.min(fw.saturating_sub(x)).max(16);
+        let h = h.min(fh.saturating_sub(y)).max(16);
+        Some((x, y, w, h))
+    }
+
     fn panel_size(&self, fw: usize, fh: usize) -> (usize, usize) {
         if self.full {
             (fw.saturating_sub(MARGIN * 2), fh.saturating_sub(MARGIN * 2))
+        } else if let Some((_, _, w, h)) = self.docked_rect(fw, fh) {
+            (w, h)
         } else {
             (PANEL_W, PANEL_H)
         }
     }
 
-    fn origin(&self, fw: usize, pw: usize) -> (usize, usize) {
+    fn origin(&self, fw: usize, fh: usize, pw: usize) -> (usize, usize) {
         if self.full {
             (MARGIN, MARGIN)
+        } else if let Some((x, y, _, _)) = self.docked_rect(fw, fh) {
+            (x, y)
         } else {
             (fw.saturating_sub(pw + MARGIN), MARGIN)
         }
@@ -547,7 +605,7 @@ impl Minimap {
             return false;
         }
         let (pw, ph) = self.panel_size(fw, fh);
-        let (px, py) = self.origin(fw, pw);
+        let (px, py) = self.origin(fw, fh, pw);
         if pw < 16 || ph < 16 || px + pw > fw || py + ph > fh {
             return false;
         }
@@ -562,7 +620,7 @@ impl Minimap {
             return false;
         }
         let (pw, _) = self.panel_size(fw, fh);
-        let (px, py) = self.origin(fw, pw);
+        let (px, py) = self.origin(fw, fh, pw);
         let x = sx.round() as i32 - px as i32;
         let y = sy.round() as i32 - py as i32;
         (2..12).contains(&x) && (1..10).contains(&y)
@@ -582,8 +640,13 @@ impl Minimap {
         marks: &[Marker],
     ) {
         let (pw, ph) = self.panel_size(fw, fh);
-        let (px, py) = self.origin(fw, pw);
-        if !self.on || self.tex.is_empty() || pw < 16 || ph < 16 || px + pw > fw || py + ph > fh {
+        let (px, py) = self.origin(fw, fh, pw);
+        if !self.on || self.tex.is_empty() || px >= fw || py >= fh {
+            return;
+        }
+        let pw = pw.min(fw.saturating_sub(px));
+        let ph = ph.min(fh.saturating_sub(py));
+        if pw < 16 || ph < 16 {
             return;
         }
         let (ctx, cty) = self.to_tex(cx, cz);
@@ -668,7 +731,8 @@ impl Minimap {
         }
         // Player arrow: forward (sin yaw, cos yaw) in map space.
         let (fx, fz) = (yaw.sin(), yaw.cos());
-        let (dx, dy) = ((fx - fz) * K, (fx + fz) * K);
+        let mk = self.map_k();
+        let (dx, dy) = ((fx - fz) * mk, (fx + fz) * mk);
         let l = dx.hypot(dy).max(1e-6);
         let (ux, uy) = (dx / l, dy / l);
         let (cx0, cy0) = if self.full {
@@ -863,6 +927,20 @@ mod tests {
         assert!(m.button_hit(fw, fh, (MARGIN + 4) as f32, (MARGIN + 3) as f32));
         assert!(m.panel_hit(fw, fh, (fw / 2) as f32, (fh / 2) as f32));
         assert!(!m.panel_hit(fw, fh, 0.0, 0.0));
+        m.full = false;
+        m.set_dock(20, 200, 80, 70);
+        let mut docked = vec![7u8; fw * fh * 4];
+        m.composite(&mut docked, fw, fh, 0.0, 0.0, 0.0, &[]);
+        assert_eq!(docked[0], 7);
+        assert_ne!(docked[((200 + 35) * fw + 20 + 40) * 4], 7);
+        let (tr_x, tr_y) = Minimap::panel_origin(fw);
+        assert_eq!(docked[((tr_y + PANEL_H / 2) * fw + tr_x + PANEL_W / 2) * 4], 7);
+        assert!(m.panel_hit(fw, fh, 30.0, 210.0));
+        assert!(!m.panel_hit(fw, fh, (tr_x + 8) as f32, (tr_y + 8) as f32));
+        m.set_dock(8, 300, 120, 120);
+        let mut clipped = vec![7u8; fw * fh * 4];
+        m.composite(&mut clipped, fw, fh, 0.0, 0.0, 0.0, &[]);
+        assert_ne!(clipped[((330) * fw + 40) * 4], 7);
     }
 
     #[test]
@@ -871,5 +949,61 @@ mod tests {
         m.title = "Pale Hollow".into();
         m.clear();
         assert!(m.title.is_empty());
+    }
+
+    fn wide() -> Zone {
+        let (w, h) = (400, 400);
+        Zone {
+            min_x: -100.0,
+            min_z: -100.0,
+            cell: 0.5,
+            w,
+            h,
+            biome: vec![13; w * h],
+            flags: vec![0u8; w * h],
+            height: vec![0.0; w * h],
+            vy: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn bake_caps_tex_and_keeps_world_props_uncloned() {
+        let mut m = Minimap::new();
+        let zone = wide();
+        // Far props sit in other zones; they must not enlarge the tex.
+        let props = [
+            Prop {
+                kind: 0,
+                var: 0,
+                x: 0.0,
+                z: 0.0,
+                y: 0.0,
+                yaw: 0.0,
+                s: 1.0,
+                w: 1.0,
+                h: 1.0,
+                d: 1.0,
+                j: [0.0; 6],
+            },
+            Prop {
+                kind: 0,
+                var: 0,
+                x: 900.0,
+                z: 900.0,
+                y: 0.0,
+                yaw: 0.0,
+                s: 1.0,
+                w: 1.0,
+                h: 1.0,
+                d: 1.0,
+                j: [0.0; 6],
+            },
+        ];
+        m.bake_at(&zone, &props, 0.0, 0.0);
+        let (tw, th) = m.tex_size();
+        assert!(tw <= MAX_TEX && th <= MAX_TEX, "{tw}x{th}");
+        assert!(!m.needs_bake());
+        // Same zone again is a caller concern; bake_at always rasters once.
+        assert_eq!(m.bakes, 1);
     }
 }

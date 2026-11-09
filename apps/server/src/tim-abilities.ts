@@ -13,6 +13,7 @@ import { signatureWeaponEquipped } from "./starter-kit";
 import { kitLevel } from "./support-job";
 import { withGearMab, withHealPotency } from "./gear-combat";
 import { takeMobHit, type MobEnhanceHost } from "./mob-enhances";
+import { veiledByGhostStep } from "./pvp-foe";
 import type { AbilityId } from "@bellgrave/protocol";
 
 export type TimPlayer = {
@@ -104,7 +105,7 @@ function temporalDistortionDamage(
   stats: { mnd: number; int: number },
 ): number {
   const { mnd, int } = stats;
-  let base = 80 + mnd * 6 + int * 2;
+  let base = 36 + mnd * 3 + int * 1.2;
   if (now < target.frazzleUntil) base = Math.floor(base * 1.35);
   return withGearMab(p, Math.max(1, Math.floor(base * aetherAmp(p))));
 }
@@ -230,7 +231,7 @@ export function resolveTimAbility(
   // Rest toggle
   if (id === "rest") {
     if (p.anim === "rest") {
-      hooks.stopRest();
+      hooks.stopRest("You stand.");
       return true;
     }
     if (p.moveTo) {
@@ -239,7 +240,7 @@ export function resolveTimAbility(
     }
     p.targetId = null;
     p.anim = "rest";
-    p.animUntil = Number.POSITIVE_INFINITY;
+    p.animUntil = now + 60_000;
     hooks.pushLog("You kneel and rest — HP/MP recover, TP fades.");
     return true;
   }
@@ -399,7 +400,7 @@ export function resolveTimAbility(
 
     if (id === "temporal_distortion") {
       const radius = aoe || range;
-      const hits = mobsInRadius(mobs, p.x, p.z, radius);
+      const hits = mobsInRadius(mobs, p.x, p.z, radius).filter((m) => !veiledByGhostStep(m, now));
       if (hits.length === 0) {
         hooks.pushLog("No enemies in range of Temporal Distortion.");
         if (!opts.free) {
@@ -436,7 +437,7 @@ export function resolveTimAbility(
 
     // AoE enfeebles (ga): hit all in radius of caster
     if (aoe > 0 && def.category === "enfeeble") {
-      const hits = mobsInRadius(mobs, p.x, p.z, aoe);
+      const hits = mobsInRadius(mobs, p.x, p.z, aoe).filter((m) => !veiledByGhostStep(m, now));
       if (hits.length === 0) {
         hooks.pushLog("No enemies in range.");
         if (!opts.free) {
@@ -487,6 +488,14 @@ export function resolveTimAbility(
     const d = dist(p.x, p.z, primary.x, primary.z);
     if (d > range) {
       hooks.pushLog("Target out of range.");
+      if (!opts.free) {
+        p.mp += def.mp;
+        delete p.recasts[id];
+      }
+      return false;
+    }
+    if (veiledByGhostStep(primary, now)) {
+      hooks.pushLog("Violet smoke — the spell finds no one.");
       if (!opts.free) {
         p.mp += def.mp;
         delete p.recasts[id];

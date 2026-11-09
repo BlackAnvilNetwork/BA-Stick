@@ -1,0 +1,29 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Rogue's boots. Scale-mail foot layout; gold instep rivets (Trim).
+(
+    id: "ba_coilbone_greaves",
+    slot: Feet,
+    attach: Some("pelvis"),
+    material: Some("bone"),
+    thickness_mul: {
+        "l_shin": 1.12,
+        "r_shin": 1.12,
+    },
+    shapes: [
+        Capsule(from: (-0.042, -0.028, 0.03), to: (0.042, -0.028, 0.03), ramp: Material, thick: 3.2),
+        Capsule(from: (-0.038, -0.028, -0.04), to: (0.038, -0.028, -0.04), ramp: Material, thick: 3.0),
+        Capsule(from: (0.0, -0.028, -0.05), to: (0.0, -0.028, 0.03), ramp: Material, thick: 3.0),
+        Capsule(from: (0.0, -0.028, 0.01), to: (0.0, -0.028, 0.11), ramp: Material, thick: 2.8),
+        Capsule(from: (0.0, -0.010, -0.04), to: (0.0, -0.010, 0.06), ramp: Material, thick: 2.6),
+        Capsule(from: (0.0, -0.018, 0.04), to: (0.0, 0.055, 0.04), ramp: Material, thick: 2.4),
+        Capsule(from: (-0.036, 0.028, 0.03), to: (0.036, 0.028, 0.03), ramp: Material, thick: 2.2),
+        Capsule(from: (0.0, -0.010, 0.07), to: (0.0, 0.022, 0.10), ramp: Material, thick: 2.0),
+        Disc(at: Some("l_foot"), r: 0.014, ramp: Material),
+        Disc(at: Some("r_foot"), r: 0.014, ramp: Material),
+        Disc(at: None, center: (0.0, 0.028, 0.03), r: 0.012, ramp: Accent),
+        Disc(at: None, center: (0.0, 0.010, 0.06), r: 0.010, ramp: Accent),
+    ],
+)

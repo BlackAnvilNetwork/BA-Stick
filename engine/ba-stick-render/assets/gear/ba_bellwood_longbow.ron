@@ -1,0 +1,27 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// War Bow. Epic sibling of the composite recurve: same D-stave in the hand
+// frame, taller and thicker. Grip at the origin. Limbs along ±y with a −z
+// belly (string toward the figure); tips fall back toward the y-axis.
+// Staff stance keeps +y upright (chest-pelvis), not the wpnR down-swing.
+(
+    id: "ba_bellwood_longbow",
+    slot: MainHand,
+    attach: Some("r_hand"),
+    stance: Some("staff"),
+    reach: 0.85,
+    swing_weight: 1.35,
+    material: Some("dust"),
+    shapes: [
+        Capsule(from: (0.0, -0.12, 0.0), to: (0.0, 0.12, 0.0), ramp: Material, thick: 2.2),
+        Capsule(from: (0.0, 0.06, -0.02), to: (0.0, 0.30, -0.10), ramp: Material, thick: 1.8),
+        Capsule(from: (0.0, 0.30, -0.10), to: (0.0, 0.52, -0.14), ramp: Material, thick: 1.7),
+        Capsule(from: (0.0, 0.52, -0.14), to: (0.0, 0.70, -0.05), ramp: Material, thick: 1.6),
+        Capsule(from: (0.0, -0.06, -0.02), to: (0.0, -0.30, -0.10), ramp: Material, thick: 1.8),
+        Capsule(from: (0.0, -0.30, -0.10), to: (0.0, -0.52, -0.14), ramp: Material, thick: 1.7),
+        Capsule(from: (0.0, -0.52, -0.14), to: (0.0, -0.70, -0.05), ramp: Material, thick: 1.6),
+        Line(from: (0.0, 0.70, -0.05), to: (0.0, -0.70, -0.05), ramp: Material, thick: 1.0),
+    ],
+)

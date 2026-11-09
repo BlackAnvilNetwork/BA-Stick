@@ -1,0 +1,26 @@
+// Copyright (c) 2026 Black Anvil Network
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Licensed under the GNU Affero General Public License v3.0 or later. See LICENSE.
+//
+// Baked Stick Bear. Hunched quadruped envelope, metres at size 1.
+// Spine + girth discs only. Generation leftovers (hair twigs, seed) are gone.
+(
+    id: "ba_stick_bear",
+    kit: "bear",
+    hip_along: -0.22,
+    sh_along: 0.18,
+    stance: 0.14,
+    leg_thick: 1.35,
+    // bias: 0 body / 1 hump / 2 skull / 3 snout / 4 tail
+    lobes: [
+        (along: -0.34, y: 0.30, r: 0.06, bias: 4),
+        (along: -0.24, y: 0.36, r: 0.18, bias: 0),
+        (along: -0.12, y: 0.38, r: 0.20, bias: 0),
+        (along: 0.00, y: 0.40, r: 0.22, bias: 0),
+        (along: 0.11, y: 0.44, r: 0.20, bias: 0),
+        (along: 0.18, y: 0.58, r: 0.16, bias: 1),
+        (along: 0.26, y: 0.50, r: 0.10, bias: 0),
+        (along: 0.35, y: 0.48, r: 0.13, bias: 2),
+        (along: 0.44, y: 0.44, r: 0.07, bias: 3),
+    ],
+)

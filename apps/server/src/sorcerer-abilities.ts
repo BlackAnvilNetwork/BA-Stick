@@ -14,6 +14,7 @@ import { kitLevel } from "./support-job";
 import { withGearMab } from "./gear-combat";
 import type { AbilityId } from "@bellgrave/protocol";
 import { activeMobEnhances, stripMobEnhances, takeMobHit } from "./mob-enhances";
+import { veiledByGhostStep } from "./pvp-foe";
 
 export type SorcererPlayer = {
   level: number;
@@ -185,8 +186,7 @@ export function resolveSorcererAbility(
 
   if (id === "rest") {
     if (p.anim === "rest") {
-      hooks.stopRest(p);
-      hooks.pushLog(p, "You stand.");
+      hooks.stopRest(p, "You stand.");
       return true;
     }
     p.moveTo = null;
@@ -313,6 +313,10 @@ export function resolveSorcererAbility(
         hooks.pushLog(p, "Too far.");
         return true;
       }
+      if (veiledByGhostStep(anchor, now)) {
+        hooks.pushLog(p, "Violet smoke — the spell finds no one.");
+        return true;
+      }
       const cx = anchor.x;
       const cz = anchor.z;
       if (!spendMp(p, mpCost, now)) {
@@ -331,6 +335,7 @@ export function resolveSorcererAbility(
       let hits = 0;
       let dealt = 0;
       for (const m of mobsInRadius(hooks.allMobs(), cx, cz, def.aoe)) {
+        if (veiledByGhostStep(m, now)) continue;
         dealt += applyNukeHit(p, m, dmg, def.element, now);
         hits += 1;
         if (m.hp <= 0) hooks.onMobKill(p, m, now);
@@ -347,6 +352,10 @@ export function resolveSorcererAbility(
     }
     if (hooks.dist(p.x, p.z, m.x, m.z) > (def.range ?? 12)) {
       hooks.pushLog(p, "Too far.");
+      return true;
+    }
+    if (veiledByGhostStep(m, now)) {
+      hooks.pushLog(p, "Violet smoke — the spell finds no one.");
       return true;
     }
     if (!spendMp(p, mpCost, now)) {
@@ -378,6 +387,10 @@ export function resolveSorcererAbility(
     }
     if (hooks.dist(p.x, p.z, mob.x, mob.z) > (def.range ?? 12)) {
       hooks.pushLog(p, "Too far.");
+      return true;
+    }
+    if (veiledByGhostStep(mob, now)) {
+      hooks.pushLog(p, "Violet smoke — the spell finds no one.");
       return true;
     }
     if (id === "sc_unweave") {

@@ -16,6 +16,7 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { listingRoleKey } from "./ah-escrow";
+import { sendListingRoleCall } from "./listing-safe-exec";
 import { opsAlert } from "./ops-log";
 import { withOwnerKeyQueue } from "./owner-tx-queue";
 import type { LokResult } from "./lok-world";
@@ -256,13 +257,16 @@ export async function chainPvpCancel(
     return await withOwnerKeyQueue(async () => {
       return withOperatorWallet(env, async ({ wallet, public: pub, account, bounty }) => {
         try {
-          const hash = await wallet.writeContract({
+          const hash = await sendListingRoleCall({
+            env,
+            wallet,
+            pub,
+            account,
+            chain: wallet.chain,
             address: bounty,
             abi: PVP_BOUNTY_ABI,
             functionName: "cancel",
             args: [BigInt(tokenId)],
-            account,
-            chain: wallet.chain,
           });
           broadcast = true;
           const conf = Number(settlementConfirmations(env));
@@ -389,13 +393,16 @@ export async function chainPvpClaim(
             delay.toString(),
           dedupeKey: "pvp-propose-" + victimTokenId,
         });
-        const proposedHash = await wallet.writeContract({
+        const proposedHash = await sendListingRoleCall({
+          env,
+          wallet,
+          pub,
+          account,
+          chain: wallet.chain,
           address: bounty,
           abi: PVP_BOUNTY_ABI,
           functionName: "proposeClaim",
           args: [BigInt(victimTokenId), BigInt(slayerTokenId), expectedSlayer as Hex],
-          account,
-          chain: wallet.chain,
         });
         const conf = Number(settlementConfirmations(env));
         const proposed = await pub.waitForTransactionReceipt({
@@ -420,13 +427,16 @@ export async function chainPvpClaim(
         let claimSent = false;
         const release = () => releaseEpochXdai(bountyWei, chargedEpoch);
         try {
-          const hash = await wallet.writeContract({
+          const hash = await sendListingRoleCall({
+            env,
+            wallet,
+            pub,
+            account,
+            chain: wallet.chain,
             address: bounty,
             abi: PVP_BOUNTY_ABI,
             functionName: "executeClaim",
             args: [BigInt(victimTokenId)],
-            account,
-            chain: wallet.chain,
           });
           claimSent = true;
           const receipt = await pub.waitForTransactionReceipt({
