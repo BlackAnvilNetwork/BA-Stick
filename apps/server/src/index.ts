@@ -65,6 +65,15 @@ import {
   swordSwingReachMul,
   SWORD_SPIN_SPLASH_DAMAGE_MUL,
   SWORD_SPIN_SPLASH_RADIUS_MUL,
+  ATTACK_ARC,
+  ATTACK_RANGE,
+  HEAVY_ATTACK_ARC,
+  HEAVY_ATTACK_RANGE,
+  SWING_WHIFF_RECOVERY_MS,
+  inAttackFan,
+  canMeleeHit,
+  swingCloseOrigin,
+  swingReachSq,
   type SwordSwingKind,
   abilityIdsForJob,
   weaponTpUnlocked,
@@ -80,6 +89,7 @@ import {
 import {
   MELEE_RANGE,
   MOB_DEATH_FADE_MS,
+  BOSS_DEATH_FADE_MS,
   MOB_RESPAWN_MS,
   PH_HUB,
   PH_HUB_NPCS,
@@ -92,6 +102,7 @@ import {
   PLAYER_SPEED,
   PLAYER_SPEED_FLUX,
   TICK_MS,
+  SNAPSHOT_MS,
   paleHollowBiome,
   paleHollowClampMove,
   paleHollowGateSoftLevel,
@@ -106,6 +117,10 @@ import {
   paleHollowQuestTalk,
   paleHollowQuestTalkNpc,
   questTalkCue,
+  startTalk,
+  stepTalk,
+  talkFromLines,
+  talkViewAt,
   paleHollowQuestVisit,
   forestBasinQuestById,
   forestBasinQuestByNpc,
@@ -136,8 +151,12 @@ import {
   PVP_BOUNTY_WEI,
   FB_SPAWN,
   SNAPSHOT_INTEREST_M,
+  zoneMoveClamp,
 } from "@bellgrave/config";
 import { paleHollowFindPath } from "./nav-grid";
+import { anyPointWithin, minDist } from "./entity-sim";
+import { simLodShouldStep, simLodTier } from "./sim-lod";
+import { encodeSnapshotPayloads } from "./snapshot-isolate";
 import {
   ASH_PIT as ASH_PIT_AREA,
   areaAtPlayer,
@@ -260,6 +279,7 @@ import {
 import { interruptCastOnDamage } from "./mob-cast-interrupt";
 import type {
   AbilityId,
+  BuffState,
   Equipment,
   EquipSlot,
   InventorySlot,
@@ -267,7 +287,7 @@ import type {
   SnapshotMessage,
   UnitSnapshot,
 } from "@bellgrave/protocol";
-import { emptyBuffs, parseChatCommand, parseClientMessage } from "@bellgrave/protocol";
+import { compactBuffs, emptyBuffs, parseChatCommand, parseClientMessage } from "@bellgrave/protocol";
 import { createServer } from "node:http";
 import { WebSocketServer, type WebSocket } from "ws";
 import { handleOpsHttp } from "./ops-health";
@@ -338,6 +358,7 @@ import {
   resolveListSellerPayout,
   LOCAL_RULESET_HASH,
   serverMintCharacterFor,
+  sponsorMintCharacterFor,
   verifyCharacterNftOwner,
   type CharacterMintClientConfig,
 } from "./lok-vault";
@@ -381,11 +402,15 @@ import {
 } from "./production-boot";
 import {
   WS_AUTH_DEADLINE_MS,
+  WS_AUTH_SIGN_DEADLINE_MS,
   WS_MAX_PAYLOAD,
+  armAuthDeadline,
+  clearAuthDeadline,
   clearWsMessageBudget,
   consumeWsMessage,
   noteWsConnect,
   noteWsDisconnect,
+  shouldSkipSnapshotSend,
   wsIpExemptFromCaps,
 } from "./ws-limits";
 import {
@@ -399,7 +424,14 @@ import { guardedGoldMove, withPlayerCharge } from "./gold-guard";
 import { characterNameKey, normalizeCharacterName } from "./character-name";
 import { randomBytes } from "node:crypto";
 import { hexToBytes } from "viem";
-import { acceptAuthResume, authAllowlist, authVerifyClient, clientAddress, dropAuthConnection, dropAuthResume, issueAuthChallenge, issueAuthResume, resolveAuthOrigin, verifyAuthLogin, isEthAddress } from "./wallet-auth";
+import { acceptAuthResume, authAllowlist, authVerifyClient, clientAddress, consumeLoginAttempt, dropAuthConnection, dropAuthResume, issueAuthChallenge, issueAuthResume, resolveAuthOrigin, verifyAuthLogin, isEthAddress } from "./wallet-auth";
+import { discordUserFromAccessToken } from "./discord-oauth";
+import {
+  appendDiscordMintJournal,
+  discordAccountByWallet,
+  ensureDiscordAccount,
+} from "./discord-accounts";
+import { refundSponsorMintFee, retryPendingDiscordMintRefunds } from "./treasury-refund";
 import { defaultLokDir, LokWorld } from "./lok-world";
 import { flushGameRoll, loadGameRoll, rollIndex, rollUnit } from "./game-roll";
 import { observeSignedBatch } from "./equivocation-watch";
@@ -471,6 +503,8 @@ type Player = {
   dust: number;
   /** Pale Hollow kill tasks — several may be active. Old saves used a single `active`. */
   hollowQuest: { active: { id: string; kills: number; seen?: string[] }[]; done: string[] };
+  /** Open NPC conversation node. Memory only. */
+  npcTalk?: { npcId: string; nodeId: string };
   /** Rings walked into. The server is the only writer. */
   warpUnlocked: string[];
   /** Death home. `hub` keeps older characters at the Scout Gate. */
@@ -659,10 +693,16 @@ type Player = {
   swordComboStep: number;
   /** Pose for the current melee swing when wielding a sword / greatsword. */
   meleeSwing?: SwordSwingKind;
+  /** Next swing is a heavy (overhead + fan splash). */
+  pendingHeavy: boolean;
+  /** Keep mouse-look facing through this swing instead of turning to the target. */
+  holdFacingUntil: number;
   /** Keep walk pose briefly after a waypoint so WASD/net gaps don't flicker idle. */
   walkUntil: number;
-  /** Wall time of the last `move` packet; held WASD refreshes it every 50ms (#436). */
+  /** Wall time of the last held `move` packet; keepalive refreshes it while a key is down. */
   lastMoveInputAt: number;
+  /** Last applied client move seq; stale/late packets are ignored. */
+  lastMoveSeq: number;
   /** Cached unlocked abilities (job + weapon skills). */
   unlockCacheKey: string;
   unlockCache: AbilityId[];
@@ -670,6 +710,14 @@ type Player = {
   lastLog: string[];
   lastChatAt?: number;
   ws: WebSocket;
+  /** Snapshot skipped for WS backpressure — send the latest when the socket drains. */
+  snapPending?: boolean;
+  /** First lok/lightClient you-block has gone out. */
+  heavyYouSent?: boolean;
+  lastHeavyLogLength?: number;
+  /** First bag/equip/quest you-block has gone out. */
+  sheetYouSent?: boolean;
+  lastSheetKey?: string;
 };
 
 type Mob = {
@@ -807,6 +855,31 @@ const players = new Map<string, Player>();
 const walletToPlayer = new Map<string, string>();
 /** Per-wallet character roster — live progress objects (same refs as active when online). */
 const accountRoster = new Map<string, Map<string, Player>>();
+
+function accountWalletKey(wallet: string): string {
+  return wallet.trim().toLowerCase();
+}
+
+/** Roster slots for this wallet, merging leftover mixed-case keys from older sessions. */
+function rosterFor(wallet: string): Map<string, Player> | undefined {
+  const key = accountWalletKey(wallet);
+  let slots = accountRoster.get(key);
+  for (const [rosterWallet, other] of [...accountRoster.entries()]) {
+    if (rosterWallet === key) continue;
+    if (rosterWallet.toLowerCase() !== key) continue;
+    if (!slots) {
+      slots = other;
+      accountRoster.set(key, other);
+    } else {
+      for (const [id, p] of other) {
+        p.wallet = key;
+        slots.set(id, p);
+      }
+    }
+    accountRoster.delete(rosterWallet);
+  }
+  return slots;
+}
 /** char/nameCheck rate limits (wallet + IP; maps are pruned each consume). */
 const nameCheckBudgetByWallet = new Map<string, { count: number; resetAt: number }>();
 const nameCheckBudgetByIp = new Map<string, { count: number; resetAt: number }>();
@@ -867,6 +940,7 @@ let pulse1s = false;
 let pulse2s = false;
 let pulse3s = false;
 let tickDue = 0;
+let snapshotDue = 0;
 /** Pinned ruleset hash the live seal presents to acceptBatch. */
 const SEAL_RULESET_HASH = hexToBytes(LOCAL_RULESET_HASH);
 /**
@@ -1744,7 +1818,7 @@ function refuseFundCustody(p: Player, action: string) {
     action +
       " is closed. The log does not hold " +
       settlementUnit() +
-      " — auction house and PvP pay on-chain via EEZ. Nothing was changed.",
+      ": the auction house and PvP pay on-chain via EEZ. Nothing was changed.",
   );
   send(p.ws, snapshotFor(p));
 }
@@ -2672,13 +2746,33 @@ function mobsIn(zoneId: string | null | undefined): Mob[] {
   return inZone(mobs, zoneId);
 }
 
+let swingMobsByZone: Map<string, Mob[]> | null = null;
+let swingMobsByZoneTick = -1;
+
+/** Alive mobs in one zone. Rebuilt once per tick so click-spam does not scan the world pack. */
+function aliveMobsInZone(zoneId: string | null | undefined): Mob[] {
+  const z = unitZone(zoneId);
+  if (swingMobsByZoneTick !== tick || !swingMobsByZone) {
+    const byZone = new Map<string, Mob[]>();
+    for (const m of mobs) {
+      if (!m.alive) continue;
+      const list = byZone.get(m.zoneId);
+      if (list) list.push(m);
+      else byZone.set(m.zoneId, [m]);
+    }
+    swingMobsByZone = byZone;
+    swingMobsByZoneTick = tick;
+  }
+  return swingMobsByZone.get(z) ?? [];
+}
+
 /** A mob by id, only if it shares the given zone. */
 function findMobIn(zoneId: string | null | undefined, id: string | null | undefined): Mob | undefined {
   const m = findMob(id);
   return m && m.zoneId === unitZone(zoneId) ? m : undefined;
 }
 
-/** Bounds + walkability. Registered fields use their own mask. Pale Hollow remains the fallback. */
+/** Bounds + walkability. Same clamp as client prediction (`zoneMoveClamp`). */
 function clampPlayerMove(
   fromX: number,
   fromZ: number,
@@ -2686,15 +2780,11 @@ function clampPlayerMove(
   toZ: number,
   zoneId?: string,
 ): { x: number; z: number } {
-  const stepped = fieldClampMove(zoneId, fromX, fromZ, toX, toZ);
-  if (stepped) return stepped;
-  if (zoneId && zoneId !== "pale_hollow") return { x: fromX, z: fromZ };
-  return paleHollowClampMove(fromX, fromZ, toX, toZ);
+  return zoneMoveClamp(zoneId, fromX, fromZ, toX, toZ);
 }
 
 const standYMemo = new WeakMap<object, { x: number; z: number; y: number; zone: string }>();
 const staticStandY = new Map<string, number>();
-const SNAP_NPC_BUFFS = emptyBuffs();
 
 function syncUnitY(u: { x: number; y: number; z: number; zoneId?: string }) {
   const zone = u.zoneId || "";
@@ -2800,16 +2890,37 @@ function playersByZone(): Map<string, Player[]> {
   return byZone;
 }
 
-/** Combat and snapshot-bubble roam. Empty-zone / far-field AI was blowing the 50 ms tick. */
-function mobInPlay(mob: Mob, zonePlayers: Map<string, Player[]>, now: number): boolean {
-  if (!mob.alive) return false;
-  if (mob.targetId || now < (mob.fleeUntil ?? 0)) return true;
+function liveMobPrey(mob: Mob): Player | undefined {
+  if (!mob.targetId) return undefined;
+  const pl = players.get(mob.targetId) ?? players.get(mob.targetId.toLowerCase());
+  if (!pl || pl.hp <= 0) return undefined;
+  if (unitZone(pl.zoneId) !== mob.zoneId) return undefined;
+  return pl;
+}
+
+function mobWatched(mob: Mob, zonePlayers: Map<string, Player[]>): boolean {
   const watchers = zonePlayers.get(mob.zoneId);
   if (!watchers || watchers.length === 0) return false;
-  for (const pl of watchers) {
-    if (dist(mob.x, mob.z, pl.x, pl.z) <= SNAPSHOT_INTEREST_M) return true;
+  return anyPointWithin(mob.x, mob.z, watchers, SNAPSHOT_INTEREST_M);
+}
+
+/** Combat and snapshot-bubble roam. Empty-zone / far-field AI was blowing the 50 ms tick. */
+function mobInPlay(mob: Mob, zonePlayers: Map<string, Player[]>): boolean {
+  if (!mob.alive) return false;
+  // fleeUntil / stale targetId must not keep a hare in play worldwide.
+  if (liveMobPrey(mob)) return true;
+  return mobWatched(mob, zonePlayers);
+}
+
+/** Respawn, DoT, or in-play — skip the rest of the global mob walk. */
+function mobNeedsMaintain(mob: Mob, zonePlayers: Map<string, Player[]>, now: number): boolean {
+  if (!mob.alive) {
+    if (mob.shinyClone) return false;
+    return now >= mob.respawnAt;
   }
-  return false;
+  if (pulse1s && now < mob.druidBleedUntil && mob.druidBleedPot > 0) return true;
+  if (pulse1s && now < mob.bioUntil && mob.bioTick > 0) return true;
+  return mobInPlay(mob, zonePlayers);
 }
 
 /** Idle wander near spawn — used by hares always, and by other mobs when not aggroed. */
@@ -3068,6 +3179,7 @@ function partyLookup(id: string) {
     mp: pl.mp,
     maxMp: pl.maxMp,
     online: true,
+    zoneId: pl.zoneId,
   };
 }
 
@@ -3235,6 +3347,95 @@ function handleDash(p: Player, dx: number, dz: number, resumeNav = true) {
   p.facing = plan.facing;
 }
 
+/** First/third-person directional attack. Hits hostiles in the facing fan. */
+function handleSwing(p: Player, heavy: boolean, facing: number | undefined) {
+  const now = Date.now();
+  if (p.hp <= 0 || p.anim === "dead" || now < p.fallenUntil) return;
+  if (now < p.petrifyUntil) {
+    pushLog(p, "You are petrified.");
+    return;
+  }
+  if (now < p.sleepUntil) {
+    pushLog(p, "You are asleep.");
+    return;
+  }
+  if (now < p.stunUntil) {
+    pushLog(p, "You are stunned.");
+    return;
+  }
+  if (p.anim === "cast" && now < p.animUntil) {
+    pushLog(p, "You can't swing while casting.");
+    return;
+  }
+  if (p.gathering && now < p.animUntil) return;
+  stopRest(p, "You break rest to swing.");
+  if (now < p.nextSwingAt) {
+    p.pendingHeavy = false;
+    return;
+  }
+  if (Number.isFinite(facing)) {
+    p.facing = facing as number;
+    p.holdFacingUntil = now + 480;
+  }
+  p.pendingHeavy = heavy;
+  const range = heavy ? HEAVY_ATTACK_RANGE : ATTACK_RANGE;
+  const from = swingCloseOrigin({ x: p.x, z: p.z }, p.moveTo);
+  const reach2 = swingReachSq(range);
+  let bestMob: Mob | undefined;
+  let bestPlayer: Player | undefined;
+  let bestD = Infinity;
+  for (const mob of aliveMobsInZone(p.zoneId)) {
+    const dx = mob.x - from.x;
+    const dz = mob.z - from.z;
+    if (dx * dx + dz * dz > reach2) continue;
+    if (!canMeleeHit(from, p.facing, mob, range)) continue;
+    const d = dist(from.x, from.z, mob.x, mob.z);
+    if (d < bestD) {
+      bestD = d;
+      bestMob = mob;
+      bestPlayer = undefined;
+    }
+  }
+  for (const foe of players.values()) {
+    if (foe.wallet === p.wallet || foe.hp <= 0) continue;
+    if (!playerHasOpenBounty(foe)) continue;
+    if (foe.zoneId !== p.zoneId) continue;
+    const dx = foe.x - from.x;
+    const dz = foe.z - from.z;
+    if (dx * dx + dz * dz > reach2) continue;
+    if (!canMeleeHit(from, p.facing, foe, range)) continue;
+    const d = dist(from.x, from.z, foe.x, foe.z);
+    if (d < bestD) {
+      bestD = d;
+      bestPlayer = foe;
+      bestMob = undefined;
+    }
+  }
+  if (bestMob) {
+    p.targetId = bestMob.id;
+    pullMobOn(bestMob, p.wallet, now);
+    noteMobHit(bestMob, p.wallet);
+    playerSwing(p, now);
+    return;
+  }
+  if (bestPlayer) {
+    p.targetId = bestPlayer.wallet;
+    playerSwing(p, now);
+    return;
+  }
+  const haste = playerHastePct(p, now);
+  const weaponDelay = p.equip.main ? getItem(p.equip.main)?.delayMs : undefined;
+  let delay = resolveSwingDelayMs(weaponDelay, haste);
+  if (heavy) delay = Math.floor(delay * 1.28);
+  if (now < p.slowUntil) {
+    const slowAmt =
+      p.swingPenalty > 0 ? p.swingPenalty : now < p.moveUntil && p.movePct < 0 ? -p.movePct : 0.22;
+    delay = slowedSwingDelay(delay, slowAmt);
+  }
+  p.nextSwingAt = now + SWING_WHIFF_RECOVERY_MS;
+  beginPlayerMeleeAnim(p, now, delay);
+}
+
 function clearRoute(p: Player) {
   p.moveTo = null;
   p.movePath = [];
@@ -3256,7 +3457,7 @@ function assignRoute(p: Player, x: number, z: number) {
   const field = fieldById(p.zoneId);
   const slide = field?.clampMove ?? (p.zoneId === "pale_hollow" ? paleHollowClampMove : undefined);
   if (slide) {
-    const hit = slide(p.x, p.z, x, z);
+    const hit = clampPlayerMove(p.x, p.z, x, z, p.zoneId);
     const short = Math.hypot(x - p.x, z - p.z) <= 5.5;
     // WASD is a 4.5 m step. A* around a 0.2 m slide miss sends the first
     // waypoint behind the player and the client rubber-bands onto that snapshot.
@@ -3289,7 +3490,7 @@ function closeViaRoute(p: Player, toX: number, toZ: number) {
   const dx = toX - p.x;
   const dz = toZ - p.z;
   const d = Math.hypot(dx, dz);
-  const stop = MELEE_RANGE * 0.85;
+  const stop = playerSwingReach(p, Date.now());
   if (d <= stop) return;
   const gx = toX - (dx / d) * stop;
   const gz = toZ - (dz / d) * stop;
@@ -3308,10 +3509,12 @@ function closeViaRoute(p: Player, toX: number, toZ: number) {
 
 /** Keep closing on engaged target until in swing range. */
 function chaseEngaged(p: Player) {
+  const now = Date.now();
+  if (!shouldAutoEngage(moveInputHeld(now, p.lastMoveInputAt))) return;
   const mob = findMobIn(p.zoneId, p.targetId);
   if (mob && mob.alive) {
     const d = dist(p.x, p.z, mob.x, mob.z);
-    if (d <= MELEE_RANGE) return;
+    if (d <= playerSwingReach(p, now)) return;
     closeViaRoute(p, mob.x, mob.z);
     return;
   }
@@ -3324,54 +3527,15 @@ function chaseEngaged(p: Player) {
 /** Close on an engaged PvP target. */
 function chaseEngagedPlayer(p: Player, foe: Player) {
   const d = dist(p.x, p.z, foe.x, foe.z);
-  if (d <= MELEE_RANGE) return;
+  if (d <= playerSwingReach(p, Date.now())) return;
   closeViaRoute(p, foe.x, foe.z);
 }
-
-/** How far to look for the next fight after a kill. */
-const AUTO_ENGAGE_RANGE = 14;
 
 function angleDelta(a: number, b: number): number {
   let d = a - b;
   while (d > Math.PI) d -= Math.PI * 2;
   while (d < -Math.PI) d += Math.PI * 2;
   return d;
-}
-
-/** Nearest alive mob — prefers what the player is facing. */
-function findNextHostile(p: Player, excludeId?: string): Mob | null {
-  let best: Mob | null = null;
-  let bestScore = Infinity;
-  for (const m of mobsIn(p.zoneId)) {
-    if (!m.alive || m.id === excludeId) continue;
-    const d = dist(p.x, p.z, m.x, m.z);
-    if (d > AUTO_ENGAGE_RANGE) continue;
-    const toMob = facingTo(p.x, p.z, m.x, m.z);
-    const face = Math.abs(angleDelta(toMob, p.facing));
-    // In front of you beats a closer mob behind your back.
-    const score = d + face * 3;
-    if (score < bestScore) {
-      bestScore = score;
-      best = m;
-    }
-  }
-  return best;
-}
-
-/** After a kill, keep fighting if another hostiles is nearby. */
-function autoEngageNext(p: Player, deadId: string) {
-  // #445: held WASD is steering; do not yank the route toward the next hostile.
-  if (!shouldAutoEngage(moveInputHeld(Date.now(), p.lastMoveInputAt))) return;
-  const next = findNextHostile(p, deadId);
-  if (!next) return;
-  p.targetId = next.id;
-  chaseEngaged(p);
-  pushLog(
-    p,
-    dist(p.x, p.z, next.x, next.z) > MELEE_RANGE
-      ? `Engaged ${next.name} — closing in.`
-      : `Engaged ${next.name}.`,
-  );
 }
 
 function pushLog(p: Player, message: string) {
@@ -3431,8 +3595,38 @@ function handleChat(p: Player, raw: string, requested?: "say" | "party") {
   }
 }
 
-function send(ws: WebSocket, msg: ServerMessage) {
-  if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(msg));
+function playerBySocket(ws: WebSocket): Player | undefined {
+  for (const p of players.values()) {
+    if (p.ws === ws) return p;
+  }
+  return undefined;
+}
+
+function send(ws: WebSocket, msg: ServerMessage): boolean {
+  if (ws.readyState !== ws.OPEN) return false;
+  if (msg.type === "snapshot") {
+    const p = playerBySocket(ws);
+    if (shouldSkipSnapshotSend(ws.bufferedAmount)) {
+      if (p) p.snapPending = true;
+      return false;
+    }
+    if (!p) {
+      ws.send(JSON.stringify(msg));
+      return true;
+    }
+    pumpSnapshotEncode([
+      {
+        p,
+        payload: msg,
+        built: performance.now(),
+        noteHeavy: !!(msg.lightClient || msg.you.lok),
+        noteSheet: !!msg.you.inventory,
+      },
+    ]);
+    return true;
+  }
+  ws.send(JSON.stringify(msg));
+  return true;
 }
 
 function invAmount(inv: InventorySlot[], tokenId: number): number {
@@ -3471,7 +3665,7 @@ function takeItem(inv: InventorySlot[], tokenId: number, amount: number): boolea
   return takeStack(inv, tokenId, amount);
 }
 
-function playerBuffs(p: Player): UnitSnapshot["buffs"] {
+function playerBuffs(p: Player): BuffState {
   const now = Date.now();
   return {
     ...emptyBuffs(),
@@ -3576,7 +3770,7 @@ function playerBuffs(p: Player): UnitSnapshot["buffs"] {
   };
 }
 
-function mobBuffs(m: Mob): UnitSnapshot["buffs"] {
+function mobBuffs(m: Mob): BuffState {
   const now = Date.now();
   return {
     ...emptyBuffs(),
@@ -3667,6 +3861,42 @@ function lightClientFor(p: Player) {
   return msg;
 }
 
+/** LOK listings + light proof are bulky; 20 Hz was the snapshot stall. */
+function youHeaviesDue(p: Player): boolean {
+  return !p.heavyYouSent || p.lastHeavyLogLength !== lok.length;
+}
+
+function noteHeavyYouSent(p: Player) {
+  p.heavyYouSent = true;
+  p.lastHeavyLogLength = lok.length;
+}
+
+function youSheetKey(p: Player): string {
+  let s = `${p.xp}|${p.level}|${p.dust}|${p.job}|${p.subjob ?? ""}|${p.claimedStarter ? 1 : 0}|${p.learned.length}|${p.skillPoints}|${p.skillPrestige}|${p.freeStatPoints}|${p.foodTokenId ?? ""}|${p.foodUntil}|${p.warpUnlocked.length}`;
+  for (const q of p.hollowQuest.active) s += `|qa${q.id}:${q.kills}`;
+  for (const id of p.hollowQuest.done) s += `|qd${id}`;
+  for (const row of p.inventory) s += `|i${row.tokenId}:${row.amount}:${row.hq ? 1 : 0}`;
+  const e = p.equip;
+  s += `|e${e.head}:${e.body}:${e.hands}:${e.legs}:${e.feet}:${e.ring}:${e.ring2}:${e.earring}:${e.main}:${e.sub}:${e.grip}:${e.ranged}:${e.ammo}`;
+  for (const slot of Object.keys(p.equipHq)) s += `|q${slot}`;
+  for (const k of Object.keys(p.baseMats)) s += `|m${k}:${p.baseMats[k]}`;
+  for (const k of Object.keys(p.craftSkills)) {
+    const c = p.craftSkills[k]!;
+    s += `|c${k}:${c.level}:${c.xp}`;
+  }
+  for (const id of p.skillUnlocked) s += `|s${id}`;
+  return s;
+}
+
+function youSheetDue(p: Player): boolean {
+  return !p.sheetYouSent || p.lastSheetKey !== youSheetKey(p);
+}
+
+function noteSheetYouSent(p: Player) {
+  p.sheetYouSent = true;
+  p.lastSheetKey = youSheetKey(p);
+}
+
 function snapshotFor(p: Player): SnapshotMessage {
   const builtAt = performance.now();
   const units: UnitSnapshot[] = [];
@@ -3708,8 +3938,9 @@ function snapshotFor(p: Player): SnapshotMessage {
       targetId: pl.targetId,
       job: pl.job,
       gender: pl.gender ?? "male",
-      buffs: playerBuffs(pl),
+      buffs: compactBuffs(playerBuffs(pl)) as UnitSnapshot["buffs"],
       pvpBounty: playerHasOpenBounty(pl) || undefined,
+      // TODO: tick-scoped equip cache when slots + hq flags are unchanged (avoid spread per unit).
       equip: { ...pl.equip },
     });
   }
@@ -3719,7 +3950,7 @@ function snapshotFor(p: Player): SnapshotMessage {
     if (mob.zoneId !== snapZone) continue;
     const nowMob = Date.now();
     if (!mob.alive) {
-      if (!mob.deathAt || nowMob >= mob.deathAt + MOB_DEATH_FADE_MS) continue;
+      if (!mob.deathAt || nowMob >= mob.deathAt + mobCorpseMs(mob)) continue;
     }
     // Always include engaged target / self-target even if slightly outside bubble
     const engaged =
@@ -3742,7 +3973,7 @@ function snapshotFor(p: Player): SnapshotMessage {
       animUntil: mob.alive ? mob.animUntil : 0,
       targetId: mob.alive ? mob.targetId : null,
       castAoe: mob.alive && mob.pendingCastAoe > 0 ? mob.pendingCastAoe : undefined,
-      buffs: mobBuffs(mob),
+      buffs: compactBuffs(mobBuffs(mob)) as UnitSnapshot["buffs"],
       archetype: mob.archetype,
       job: mob.job,
       level: mob.level,
@@ -3782,7 +4013,6 @@ function snapshotFor(p: Player): SnapshotMessage {
       anim: "idle",
       animUntil: 0,
       targetId: null,
-      buffs: SNAP_NPC_BUFFS,
       npcRole: npc.role,
     });
   }
@@ -3807,7 +4037,6 @@ function snapshotFor(p: Player): SnapshotMessage {
         anim: "idle",
         animUntil: 0,
         targetId: null,
-        buffs: SNAP_NPC_BUFFS,
         npcRole: u.role,
         archetype: isLandmarkId(u.id) ? "landmark" : undefined,
       });
@@ -3837,7 +4066,6 @@ function snapshotFor(p: Player): SnapshotMessage {
       anim: "idle",
       animUntil: 0,
       targetId: null,
-      buffs: SNAP_NPC_BUFFS,
       gatherNode: true,
       gatherYield: node.yields[0],
     });
@@ -3850,7 +4078,9 @@ function snapshotFor(p: Player): SnapshotMessage {
     ensureSkillPointBank(p);
     ensureJobHubs(p);
   }
-  const lightClient = lightClientFor(p);
+  const heavyYou = youHeaviesDue(p);
+  const sheetYou = youSheetDue(p);
+  const lightClient = heavyYou ? lightClientFor(p) : undefined;
   if (unitsAt - builtAt > 8) {
     tickLaps.push("units " + (unitsAt - builtAt).toFixed(1));
   }
@@ -3860,6 +4090,9 @@ function snapshotFor(p: Player): SnapshotMessage {
     tick,
     you: {
       wallet: p.wallet,
+      moveSeq: p.lastMoveSeq,
+      simAt: Date.now(),
+      lastDashAt: p.lastDashAt,
       characterId: p.charId,
       name: p.name,
       job: p.job,
@@ -3884,25 +4117,48 @@ function snapshotFor(p: Player): SnapshotMessage {
           bountyOpen: !!bounty,
           bountyAreaId: bounty?.areaId ?? null,
           bountyWei: bounty?.amountWei ?? null,
-          ashPit: {
-            id: ASH_PIT_AREA.id,
-            name: ASH_PIT_AREA.name,
-            bounds: ASH_PIT_AREA.bounds,
-            spawn: ASH_PIT_AREA.spawn,
-            levelCap: ASH_PIT_AREA.levelCap,
-            blurb: ASH_PIT_AREA.blurb,
-          },
-          escrow: pvpBountyClientConfig(),
+          ...(sheetYou
+            ? {
+                ashPit: {
+                  id: ASH_PIT_AREA.id,
+                  name: ASH_PIT_AREA.name,
+                  bounds: ASH_PIT_AREA.bounds,
+                  spawn: ASH_PIT_AREA.spawn,
+                  levelCap: ASH_PIT_AREA.levelCap,
+                  blurb: ASH_PIT_AREA.blurb,
+                },
+                escrow: pvpBountyClientConfig(),
+              }
+            : {}),
         };
       })(),
       xp: p.xp,
       dust: p.dust,
       claimedStarter: p.claimedStarter,
-      inventory: p.inventory,
-      equip: p.equip,
-      equipHq: { ...p.equipHq },
-      baseMats: { ...p.baseMats },
-      craftSkills: cloneCraftSkills(p.craftSkills),
+      ...(sheetYou
+        ? {
+            inventory: p.inventory,
+            equip: p.equip,
+            equipHq: { ...p.equipHq },
+            baseMats: { ...p.baseMats },
+            craftSkills: cloneCraftSkills(p.craftSkills),
+            unlocked,
+            learned: [...p.learned] as AbilityId[],
+            skillUnlocked: [...p.skillUnlocked],
+            questLog: [
+              ...worldQuestLogEntries({
+                zoneId: "pale_hollow",
+                active: p.hollowQuest.active,
+                done: p.hollowQuest.done,
+              }),
+              ...forestBasinQuestLogEntries(p.hollowQuest),
+            ],
+            warpRings: p.warpUnlocked.flatMap((id) => {
+              const ring = warpCircleById(id);
+              return ring ? [{ id: ring.id, name: ring.name, zoneId: ring.zoneId }] : [];
+            }),
+          }
+        : {}),
       zoneId: p.zoneId,
       nearCrafter: (() => {
         if (unitZone(p.zoneId) !== "pale_hollow") return false;
@@ -3910,14 +4166,11 @@ function snapshotFor(p: Player): SnapshotMessage {
         return !!crafter && canReachTownNpc(p.x, p.z, crafter.x, crafter.z);
       })(),
       recasts: { ...p.recasts },
-      unlocked,
-      learned: [...p.learned] as AbilityId[],
-      skillUnlocked: [...p.skillUnlocked],
       skillPoints: skillPointsRemaining(p),
       skillPrestige: p.skillPrestige,
       freeStatPoints: p.freeStatPoints,
       freeStats: { ...p.freeStats },
-      ...(Date.now() < p.foodUntil && p.foodTokenId
+      ...(sheetYou && Date.now() < p.foodUntil && p.foodTokenId
         ? {
             food: {
               tokenId: p.foodTokenId,
@@ -3927,46 +4180,133 @@ function snapshotFor(p: Player): SnapshotMessage {
             },
           }
         : {}),
-      questLog: [
-        ...worldQuestLogEntries({
-          zoneId: "pale_hollow",
-          active: p.hollowQuest.active,
-          done: p.hollowQuest.done,
-        }),
-        ...forestBasinQuestLogEntries(p.hollowQuest),
-      ],
-      warpRings: p.warpUnlocked.flatMap((id) => {
-        const ring = warpCircleById(id);
-        return ring ? [{ id: ring.id, name: ring.name, zoneId: ring.zoneId }] : [];
-      }),
-      lok: (() => {
-        const view = cachedLokView(lokToken(p));
-        return {
-          ...view,
-          ahEscrow: ahEscrowClientConfig(),
-          pvpBounty: pvpBountyClientConfig(),
-          eezSyncBuy: cachedEezSyncBuy,
-          characterMint: cachedCharacterMint,
-          withdrawDelaySec: null,
-          queues: [],
-        };
-      })(),
+      ...(heavyYou
+        ? {
+            lok: (() => {
+              const view = cachedLokView(lokToken(p));
+              return {
+                ...view,
+                ahEscrow: ahEscrowClientConfig(),
+                pvpBounty: pvpBountyClientConfig(),
+                eezSyncBuy: cachedEezSyncBuy,
+                characterMint: cachedCharacterMint,
+                withdrawDelaySec: null,
+                queues: [],
+              };
+            })(),
+          }
+        : {}),
     },
     units,
     log: (p.lastLog ?? []).slice(-12),
     weather: offPaleHollow(p.zoneId) ? undefined : paleHollowWeatherSnapshot(),
     party: buildPartySnapshot(p.wallet, partyLookup),
     partyInvite: buildInviteView(p.wallet, partyNameOf),
-    lightClient,
-  };
+    ...(lightClient ? { lightClient } : {}),
+  } as SnapshotMessage;
 }
 
-function broadcastSnapshots() {
+type SnapshotJob = {
+  p: Player;
+  payload: SnapshotMessage;
+  text?: string;
+  built: number;
+  noteHeavy: boolean;
+  noteSheet: boolean;
+};
+
+const snapDrainWired = new WeakSet<WebSocket>();
+
+/** Encode / flush snapPending sockets before everyone else so backpressure clears faster. */
+function snapshotJobsPendingFirst(jobs: SnapshotJob[]): SnapshotJob[] {
+  const pending: SnapshotJob[] = [];
+  const rest: SnapshotJob[] = [];
+  for (const job of jobs) {
+    if (job.p.snapPending) pending.push(job);
+    else rest.push(job);
+  }
+  return pending.length ? [...pending, ...rest] : jobs;
+}
+
+/**
+ * snapPending: a snapshot was withheld while `bufferedAmount` exceeded SNAPSHOT_BACKPRESSURE_BYTES.
+ * Those clients skip expensive rebuilds until the socket drains, then run first in the encode queue;
+ * `drain` also schedules an immediate catch-up so we do not wait for the next snapshot tick.
+ * World sim stays at TICK_HZ regardless.
+ */
+function pushSnapshotJob(jobs: SnapshotJob[], p: Player) {
+  const msg = snapshotFor(p);
+  jobs.push({
+    p,
+    payload: msg,
+    built: performance.now(),
+    noteHeavy: !!(msg.lightClient || msg.you.lok),
+    noteSheet: !!msg.you.inventory,
+  });
+}
+
+function collectSnapshotJobsFor(targets: Iterable<Player>): SnapshotJob[] {
+  const jobs: SnapshotJob[] = [];
+  for (const p of targets) {
+    if (p.ws.readyState !== p.ws.OPEN) {
+      p.snapPending = false;
+      continue;
+    }
+    if (shouldSkipSnapshotSend(p.ws.bufferedAmount)) {
+      p.snapPending = true;
+      continue;
+    }
+    pushSnapshotJob(jobs, p);
+  }
+  return jobs;
+}
+
+function collectSnapshotJobs(): SnapshotJob[] {
+  const pending: Player[] = [];
+  const rest: Player[] = [];
   for (const p of players.values()) {
-    const built = performance.now();
-    const msg = snapshotFor(p);
+    if (p.ws.readyState !== p.ws.OPEN) {
+      p.snapPending = false;
+      continue;
+    }
+    if (shouldSkipSnapshotSend(p.ws.bufferedAmount)) {
+      p.snapPending = true;
+      continue;
+    }
+    if (p.snapPending) pending.push(p);
+    else rest.push(p);
+  }
+  return collectSnapshotJobsFor([...pending, ...rest]);
+}
+
+function wireSnapBackpressureDrain(ws: WebSocket) {
+  if (snapDrainWired.has(ws)) return;
+  snapDrainWired.add(ws);
+  ws.on("drain", () => {
+    const p = playerBySocket(ws);
+    if (!p?.snapPending) return;
+    if (shouldSkipSnapshotSend(ws.bufferedAmount)) return;
+    pumpSnapshotEncode(collectSnapshotJobsFor([p]));
+  });
+}
+
+function flushSnapshotJobs(jobs: SnapshotJob[]) {
+  for (const job of jobs) {
+    const { p, text, built, noteHeavy, noteSheet } = job;
+    if (!text) continue;
+    if (p.ws.readyState !== p.ws.OPEN) {
+      p.snapPending = true;
+      continue;
+    }
+    if (shouldSkipSnapshotSend(p.ws.bufferedAmount)) {
+      p.snapPending = true;
+      continue;
+    }
     const encoded = performance.now();
-    send(p.ws, msg);
+    p.ws.send(text);
+    p.snapPending = false;
+    if (noteHeavy) noteHeavyYouSent(p);
+    if (noteSheet) noteSheetYouSent(p);
     const sent = performance.now();
     if (encoded - built > 8 || sent - encoded > 8) {
       tickLaps.push(
@@ -3976,12 +4316,52 @@ function broadcastSnapshots() {
   }
 }
 
+let snapEncodeBusy = false;
+let snapEncodeQueued: SnapshotJob[] | null = null;
+
+function pumpSnapshotEncode(jobs?: SnapshotJob[]) {
+  if (jobs) {
+    const incoming = snapshotJobsPendingFirst(jobs);
+    if (!snapEncodeQueued || snapEncodeQueued.length === 0) {
+      snapEncodeQueued = incoming;
+    } else {
+      const byWs = new Map<WebSocket, SnapshotJob>();
+      for (const job of snapEncodeQueued) byWs.set(job.p.ws, job);
+      for (const job of incoming) byWs.set(job.p.ws, job);
+      snapEncodeQueued = snapshotJobsPendingFirst([...byWs.values()]);
+    }
+  }
+  if (snapEncodeBusy) return;
+  const next = snapEncodeQueued;
+  snapEncodeQueued = null;
+  if (!next) return;
+  snapEncodeBusy = true;
+  void encodeAndFlushSnapshots(next).finally(() => {
+    snapEncodeBusy = false;
+    pumpSnapshotEncode();
+  });
+}
+
+async function encodeAndFlushSnapshots(jobs: SnapshotJob[]) {
+  const { texts } = await encodeSnapshotPayloads(jobs.map((j) => j.payload));
+  for (let i = 0; i < jobs.length; i++) jobs[i]!.text = texts[i];
+  flushSnapshotJobs(jobs);
+}
+
+/** Capture immutable payloads; stringify on a worker so the sim tick never waits. */
+function broadcastSnapshots() {
+  pumpSnapshotEncode(collectSnapshotJobs());
+}
+
 function ensurePlayer(wallet: string, ws: WebSocket): Player | undefined {
+  wallet = accountWalletKey(wallet);
   const id = walletToPlayer.get(wallet);
   if (!id) return undefined;
   const p = players.get(id);
   if (!p) return undefined;
   p.ws = ws;
+  wireSnapBackpressureDrain(ws);
+  p.lastMoveSeq = 0;
   if (!Array.isArray(p.lastLog)) p.lastLog = [];
   if (!p.recasts || typeof p.recasts !== "object") p.recasts = {};
   if (!Array.isArray(p.learned)) p.learned = [];
@@ -4002,10 +4382,12 @@ function ensurePlayer(wallet: string, ws: WebSocket): Player | undefined {
 }
 
 function registerAccountChar(p: Player) {
-  let slots = accountRoster.get(p.wallet);
+  const key = accountWalletKey(p.wallet);
+  p.wallet = key;
+  let slots = rosterFor(key);
   if (!slots) {
     slots = new Map();
-    accountRoster.set(p.wallet, slots);
+    accountRoster.set(key, slots);
   }
   slots.set(p.charId, p);
 }
@@ -4018,7 +4400,7 @@ function accountPreviews(wallet: string): {
   gender: "male" | "female" | "pepeka";
   tokenId?: string;
 }[] {
-  const slots = accountRoster.get(wallet);
+  const slots = rosterFor(wallet);
   if (!slots) return [];
   return [...slots.values()].map((p) => {
     const tokenId = lok.tokenFor(p.charId);
@@ -4034,14 +4416,17 @@ function accountPreviews(wallet: string): {
 }
 
 function activateCharacter(wallet: string, charId: string, ws: WebSocket): Player | undefined {
-  const slots = accountRoster.get(wallet);
+  const key = accountWalletKey(wallet);
+  const slots = rosterFor(key);
   const p = slots?.get(charId);
   if (!p) return undefined;
   p.ws = ws;
+  p.lastMoveSeq = 0;
+  p.wallet = key;
   if (!Array.isArray(p.lastLog)) p.lastLog = [];
   if (!p.recasts || typeof p.recasts !== "object") p.recasts = {};
-  players.set(wallet, p);
-  walletToPlayer.set(wallet, wallet);
+  players.set(key, p);
+  walletToPlayer.set(key, key);
   return p;
 }
 
@@ -4073,6 +4458,7 @@ function createPlayer(
   gender: "male" | "female" | "pepeka" = "male",
   existingCharId?: string,
 ): Player {
+  wallet = accountWalletKey(wallet);
   // Replace only this wallet's live session — other players stay in the world (multiplayer).
   const prev = players.get(wallet);
   if (prev && prev.ws !== ws) {
@@ -4261,8 +4647,11 @@ function createPlayer(
     nextSwingAt: 0,
     animUntil: 0,
     swordComboStep: 0,
+    pendingHeavy: false,
+    holdFacingUntil: 0,
     walkUntil: 0,
     lastMoveInputAt: 0,
+    lastMoveSeq: 0,
     unlockCacheKey: "",
     unlockCache: [],
     recasts: {},
@@ -4274,6 +4663,7 @@ function createPlayer(
     if (saved) applySaved(p, saved);
   }
   registerAccountChar(p);
+  wireSnapBackpressureDrain(ws);
   players.set(wallet, p);
   walletToPlayer.set(wallet, wallet);
   for (const abilityId of p.skillUnlocked) logLokAbility(p, abilityId);
@@ -4441,7 +4831,7 @@ function rewardMobKill(p: Player, mob: Mob, now: number) {
   }
   if (mob.hitBy) mob.hitBy.clear();
   // Fade out, then wait MOB_RESPAWN_MS after vanishing before returning.
-  mob.respawnAt = now + MOB_DEATH_FADE_MS + MOB_RESPAWN_MS;
+  mob.respawnAt = now + mobCorpseMs(mob) + MOB_RESPAWN_MS;
   const wasTarget = p.targetId === mob.id;
   if (wasTarget) p.targetId = null;
   const shareRecipients: Player[] = [p];
@@ -4468,7 +4858,7 @@ function rewardMobKill(p: Player, mob: Mob, now: number) {
     if (recip.wallet === p.wallet) {
       killXp = xpGain;
       killGold = goldDrop;
-    } else pushLog(recip, `Party credit — ${mob.name} down. +${goldDrop} gold, +${xpGain} XP.`);
+    } else pushLog(recip, `Party credit: ${mob.name} down. +${goldDrop} gold, +${xpGain} XP.`);
   }
   const dropNotes: string[] = [];
   const killIndex = logLokKill(p, mob.name);
@@ -4517,15 +4907,17 @@ function rewardMobKill(p: Player, mob: Mob, now: number) {
     if (hq) hq.cloneIds = hq.cloneIds.filter((id) => id !== mob.id);
   }
   rememberPlayer(p);
-  // Pale Hollow tasks count Pale Hollow kills only (field mobs share coordinates, not ids).
-  if (p.zoneId === mob.zoneId && p.hollowQuest.active.length > 0 && (p.zoneId === "pale_hollow" || p.zoneId === "forest_basin")) {
+  // Credit only in the zone the mob died in (field packs reuse coordinates across maps).
+  // Seam Country (Wick Tallow / Tithe-Takers, etc.) uses worldQuestCredit — it used
+  // to sit behind a Pale Hollow / Forest Basin gate, so those kills never counted.
+  if (p.zoneId === mob.zoneId && p.hollowQuest.active.length > 0) {
     const prev = p.hollowQuest.active;
     const bag = { active: prev, done: p.hollowQuest.done };
     const st = { zoneId: "pale_hollow" as const, ...bag };
     const next = p.zoneId === "forest_basin"
       ? forestBasinQuestCredit(bag, mob.id)
-      : mob.zoneId === "pale_hollow"
-        ? (p.zoneId === "pale_hollow" ? paleHollowQuestCredit(st, mob.id) : st)
+      : p.zoneId === "pale_hollow"
+        ? paleHollowQuestCredit(st, mob.id)
         : worldQuestCredit(st, mob.id);
     if (next.active !== prev) {
       for (const row of next.active) {
@@ -4547,7 +4939,6 @@ function rewardMobKill(p: Player, mob: Mob, now: number) {
       ? `${mob.name} defeated. +${killGold} gold, +${killXp} XP. Loot: ${dropNotes.join(", ")}.`
       : `${mob.name} defeated. +${killGold} gold, +${killXp} XP.`,
   );
-  if (wasTarget) autoEngageNext(p, mob.id);
 }
 
 function claimStarter(p: Player) {
@@ -4609,7 +5000,7 @@ function downPlayer(p: Player, now: number): "reraise" | "fallen" | "already" {
   if (outcome === "reraise") {
     p.sacredLightUntil = now + 2200;
     p.anim = "idle";
-    pushLog(p, "Ember Vigil — you rise in sacred light!");
+    pushLog(p, "Ember Vigil: you rise in sacred light!");
   } else if (outcome === "fallen") {
     clearRoute(p);
     p.targetId = null;
@@ -4825,7 +5216,7 @@ function handlePvpJoin(p: Player, areaId = ASH_PIT_AREA.id, placeTxHash?: string
   }
   if (lok.hasPvpBounty(tokenId)) {
     warpIntoPit(p, pit, false);
-    pushLog(p, `Already marked — returned to ${pit.name}.`);
+    pushLog(p, `Already marked. Returned to ${pit.name}.`);
     send(p.ws, snapshotFor(p));
     return;
   }
@@ -4887,9 +5278,9 @@ function handlePvpJoin(p: Player, areaId = ASH_PIT_AREA.id, placeTxHash?: string
     }
 
     warpIntoPit(p, pit, true);
-    pushLog(p, `Joined ${pit.name} — 1 xDAI on your head.`);
+    pushLog(p, `Joined ${pit.name}. 1 xDAI is on your head.`);
     pushLog(p, formatCapNotice(pit, p.level));
-    pushLog(p, "Click marked players to fight. If you fall, your bounty pays the slayer — then rejoin.");
+    pushLog(p, "Click marked players to fight. If you fall, your bounty pays the slayer. Then rejoin.");
     send(p.ws, {
       type: "pvp/joined",
       areaId: pit.id,
@@ -4934,7 +5325,7 @@ function handlePvpLeave(p: Player) {
         }
       }
     }
-    respawnAtHub(p, "You leave the Ash Pit — bounty reclaimed. Rejoin anytime.");
+    respawnAtHub(p, "You leave the Ash Pit and your bounty is reclaimed. Rejoin anytime.");
     send(p.ws, { type: "pvp/left", areaId: open?.areaId ?? ASH_PIT_AREA.id });
     send(p.ws, snapshotFor(p));
   })().catch((err) => {
@@ -4993,7 +5384,7 @@ function handlePvpSlay(slayer: Player, victim: Player, areaId: string) {
       txHash = receipt.txHash;
       logIndex = receipt.logIndex;
     } else {
-      pushLog(slayer, "PvP kill failed — escrow not configured.");
+      pushLog(slayer, "PvP kill failed: escrow is not configured.");
       kickPvpLoser(victim, null, "You fall… and wake in the Shard Dwellings.");
       return;
     }
@@ -5018,7 +5409,7 @@ function handlePvpSlay(slayer: Player, victim: Player, areaId: string) {
         areaId,
         bountyWei: open.amountWei,
       },
-      `${slayer.name} claimed your bounty. Kicked to the Shard Dwellings — Join again to fight.`,
+      `${slayer.name} claimed your bounty. Kicked to the Shard Dwellings. Join again to fight.`,
     );
     send(slayer.ws, snapshotFor(slayer));
   })().catch((err) => {
@@ -5085,7 +5476,7 @@ function tickPvpBountyArea(p: Player) {
       }
       const res = lok.pvpBountyCancel(tokenId, open.areaId, cancelled.txHash, cancelled.logIndex);
       if (res.ok) {
-        pushLog(p, "You left the arena — bounty reclaimed.");
+        pushLog(p, "You left the arena and your bounty is reclaimed.");
         syncVitals(p, false);
       } else {
         pushLog(p, res.error ?? "Bounty cancel failed.");
@@ -5430,7 +5821,161 @@ function handleAbility(p: Player, id: AbilityId, targetId?: string) {
   pushLog(p, "You cannot use that ability.");
 }
 
-function creditQuestTalkNpc(p: Player, npcId: string): string[] {
+function questBag(p: Player) {
+  return { active: p.hollowQuest.active, done: p.hollowQuest.done };
+}
+
+function sendTalkView(
+  p: Player,
+  view: { npcId: string; title: string; nodeId: string; body: string; choices: { id: string; label: string }[]; action?: string },
+  extra: Record<string, unknown> = {},
+) {
+  if (view.action === "close") {
+    p.npcTalk = undefined;
+    send(p.ws, { type: "npc/dialog", npcId: view.npcId, title: view.title, body: "", end: true });
+    return;
+  }
+  p.npcTalk = { npcId: view.npcId, nodeId: view.nodeId };
+  send(p.ws, {
+    type: "npc/dialog",
+    npcId: view.npcId,
+    title: view.title,
+    body: view.body,
+    choices: view.choices,
+    ...extra,
+  });
+}
+
+function openConversation(p: Player, npcId: string, name: string, lines?: string) {
+  ensureHollowQuest(p);
+  const credit = creditQuestTalkNpc(p, npcId);
+  if (credit.credited.length && credit.body) pushLog(p, "Maudry has heard Emberwatch.");
+  let view =
+    credit.credited.length && credit.body && talkViewAt(npcId, "salt", questBag(p))
+      ? talkViewAt(npcId, "salt", questBag(p))
+      : startTalk(npcId, questBag(p));
+  if (!view && (credit.body || lines)) {
+    view = talkFromLines(npcId, name, credit.body || lines || "…");
+  }
+  if (!view) {
+    send(p.ws, { type: "npc/dialog", npcId, title: name, body: lines ?? "…" });
+    return;
+  }
+  sendTalkView(p, view);
+}
+
+function npcSpot(p: Player, npcId: string): { x: number; z: number; name: string; zoneId: string } | null {
+  const field = fieldNpcById(npcId);
+  if (field) return { x: field.x, z: field.z, name: field.name, zoneId: field.zoneId };
+  if (npcId === PH_STORAGE_CHEST.id) {
+    return { x: PH_STORAGE_CHEST.x, z: PH_STORAGE_CHEST.z, name: PH_STORAGE_CHEST.name, zoneId: "pale_hollow" };
+  }
+  if (npcId === JOB_MASTER.id) {
+    return { x: JOB_MASTER.x, z: JOB_MASTER.z, name: JOB_MASTER.name, zoneId: "pale_hollow" };
+  }
+  if (npcId === TRAINER.id) {
+    return { x: TRAINER.x, z: TRAINER.z, name: TRAINER.name, zoneId: "pale_hollow" };
+  }
+  const hub = PH_HUB_NPCS.find((n) => n.id === npcId);
+  if (hub) return { x: hub.x, z: hub.z, name: hub.name, zoneId: "pale_hollow" };
+  const yard = PH_FIELD_NPCS.find((n) => n.id === npcId);
+  if (yard) return { x: yard.x, z: yard.z, name: yard.name, zoneId: "pale_hollow" };
+  return null;
+}
+
+function sendJobBoard(p: Player) {
+  const canSub = p.level >= SUBJOB_UNLOCK_LEVEL;
+  const playable = (Object.keys(JOBS) as JobId[]).filter((j) => JOBS[j].playable);
+  p.npcTalk = undefined;
+  send(p.ws, {
+    type: "npc/dialog",
+    npcId: JOB_MASTER.id,
+    title: canSub ? `${JOB_MASTER.name}, Job Master, Support Job` : `${JOB_MASTER.name}, Job Master`,
+    body: canSub
+      ? `That's your main. ${JOBS[p.job].name} L${p.level}. I don't change mains. Pick a support, which will sit at L${subjobLevel(p.level)}. Every hand's good for something. Let's find out what yours remembers.`
+      : `${JOBS[p.job].name} is your main. I don't change that. Support jobs unlock at level ${SUBJOB_UNLOCK_LEVEL}. Come back then. I'll still be here, matching hands.`,
+    jobs: playable,
+    subjobMode: canSub,
+    subLevel: canSub ? subjobLevel(p.level) : 0,
+  });
+}
+
+function sendSpellShop(p: Player) {
+  const subLv = p.subjob && p.level >= SUBJOB_UNLOCK_LEVEL ? subjobLevel(p.level) : 0;
+  const offers = trainerOffersForJobs(p.job, p.level, p.subjob, subLv, p.learned);
+  const jobNote = p.subjob
+    ? `${JOBS[p.job].name} L${p.level} (main) + ${JOBS[p.subjob].name} L${subLv} (support half level)`
+    : `${JOBS[p.job].name} L${p.level} (main - all abilities up to your level)`;
+  p.npcTalk = undefined;
+  send(p.ws, {
+    type: "npc/dialog",
+    npcId: TRAINER.id,
+    title: `${TRAINER.name}, Trainer`,
+    body: `Turn with the blade, not after it. Gold for what you can hold. ${jobNote}. Rest and the first signature are free. I don't tell the Spire story. Ask Orrin while the sun is up, if you like being told.`,
+    spells: offers,
+  });
+}
+
+function handleNpcReply(p: Player, npcId: string, choiceId: string) {
+  const talk = p.npcTalk;
+  if (!talk || talk.npcId !== npcId) return;
+  const spot = npcSpot(p, npcId);
+  if (!spot) return;
+  const inTown = unitZone(p.zoneId) === "pale_hollow" && unitZone(spot.zoneId) === "pale_hollow";
+  const reach = inTown ? canReachTownNpc(p.x, p.z, spot.x, spot.z) : dist(p.x, p.z, spot.x, spot.z) <= NPC_INTERACT_RANGE;
+  if (!reach) {
+    pushLog(p, `Move closer to speak with ${spot.name}.`);
+    return;
+  }
+  if (talk.nodeId === "lines" && choiceId === "go") {
+    p.npcTalk = undefined;
+    send(p.ws, { type: "npc/dialog", npcId, title: spot.name, body: "", end: true });
+    return;
+  }
+  const view = stepTalk(npcId, talk.nodeId, choiceId, questBag(p));
+  if (!view) return;
+  if (view.action === "close") {
+    sendTalkView(p, view);
+    return;
+  }
+  if (view.action === "quest") {
+    speakHollowQuest(p, npcId, spot.x, spot.z, spot.name, spot.zoneId, true);
+    return;
+  }
+  if (view.action === "jobs") {
+    sendJobBoard(p);
+    return;
+  }
+  if (view.action === "spells") {
+    sendSpellShop(p);
+    return;
+  }
+  if (view.action === "craft") {
+    p.npcTalk = undefined;
+    send(p.ws, {
+      type: "npc/dialog",
+      npcId,
+      title: spot.name,
+      body: view.body || "The bench is yours.",
+      craftOpen: true,
+    });
+    return;
+  }
+  if (view.action === "trade") {
+    p.npcTalk = undefined;
+    send(p.ws, {
+      type: "npc/dialog",
+      npcId,
+      title: spot.name,
+      body: view.body || "Yours go on the honest pair.",
+      lokOpen: true,
+    });
+    return;
+  }
+  sendTalkView(p, view);
+}
+
+function creditQuestTalkNpc(p: Player, npcId: string): { credited: string[]; body: string } {
   ensureHollowQuest(p);
   const credit = paleHollowQuestTalkNpc(
     { zoneId: "pale_hollow", active: p.hollowQuest.active, done: p.hollowQuest.done },
@@ -5440,10 +5985,10 @@ function creditQuestTalkNpc(p: Player, npcId: string): string[] {
     p.hollowQuest = { active: credit.state.active, done: p.hollowQuest.done };
     rememberPlayer(p);
   }
-  return credit.credited;
+  return { credited: credit.credited, body: credit.body };
 }
 
-function speakHollowQuest(p: Player, npcId: string, nx: number, nz: number, name: string, zoneId = "pale_hollow") {
+function speakHollowQuest(p: Player, npcId: string, nx: number, nz: number, name: string, zoneId = "pale_hollow", fromReply = false) {
   if (unitZone(p.zoneId) !== zoneId) return;
   const reach = zoneId === "pale_hollow" ? canReachTownNpc(p.x, p.z, nx, nz) : dist(p.x, p.z, nx, nz) <= NPC_INTERACT_RANGE;
   if (!reach) {
@@ -5454,8 +5999,12 @@ function speakHollowQuest(p: Player, npcId: string, nx: number, nz: number, name
   ensureHollowQuest(p);
   const before = { active: p.hollowQuest.active, done: p.hollowQuest.done };
   const state = { zoneId: "pale_hollow" as const, active: p.hollowQuest.active, done: p.hollowQuest.done };
-  // Pale Hollow givers (Wenna chains via requires); Seam Country givers chain the same way.
-  const result = zoneId === "pale_hollow" ? paleHollowQuestTalk(state, npcId) : worldQuestTalk(state, npcId);
+  const fb = zoneId !== "pale_hollow" && forestBasinQuestByNpc(npcId);
+  const result = fb
+    ? forestBasinQuestTalk({ active: p.hollowQuest.active, done: p.hollowQuest.done }, npcId)
+    : zoneId === "pale_hollow"
+      ? paleHollowQuestTalk(state, npcId)
+      : worldQuestTalk(state, npcId);
   p.hollowQuest = { active: result.state.active, done: result.state.done };
   rememberPlayer(p);
   if (result.gold > 0) {
@@ -5464,6 +6013,20 @@ function speakHollowQuest(p: Player, npcId: string, nx: number, nz: number, name
   }
   creditQuestTalkNpc(p, npcId);
   const cue = questTalkCue(before, result.state, result.gold);
+  const after = fromReply ? talkViewAt(npcId, "after", questBag(p)) : null;
+  if (after && after.choices.length) {
+    p.npcTalk = { npcId, nodeId: "after" };
+    send(p.ws, {
+      type: "npc/dialog",
+      npcId,
+      title: result.title,
+      body: result.body,
+      choices: after.choices,
+      ...(cue ? { questCue: cue } : {}),
+    });
+    return;
+  }
+  p.npcTalk = undefined;
   send(p.ws, { type: "npc/dialog", npcId, title: result.title, body: result.body, ...(cue ? { questCue: cue } : {}) });
 }
 
@@ -5507,35 +6070,12 @@ function speakFieldNpc(p: Player, npcId: string): boolean {
     readLandmark(p, npc.id);
     return true;
   }
-  if (isWorldQuestGiver(npc.id)) {
-    speakHollowQuest(p, npc.id, npc.x, npc.z, npc.name, npc.zoneId);
-    return true;
-  }
   if (dist(p.x, p.z, npc.x, npc.z) > NPC_INTERACT_RANGE) {
     pushLog(p, `Move closer to speak with ${npc.name}.`);
     return true;
   }
   p.facing = facingTo(p.x, p.z, npc.x, npc.z);
-  if (npc.role === "quest_giver" && forestBasinQuestByNpc(npc.id)) {
-    ensureHollowQuest(p);
-    const before = { active: p.hollowQuest.active, done: p.hollowQuest.done };
-    const result = forestBasinQuestTalk(
-      { active: p.hollowQuest.active, done: p.hollowQuest.done },
-      npc.id,
-    );
-    p.hollowQuest = { active: result.state.active, done: result.state.done };
-    rememberPlayer(p);
-    if (result.gold > 0) {
-      earnLogGold(p, "quest", result.gold);
-      pushLog(p, `${result.title} complete. +${result.gold} gold.`);
-    }
-    creditQuestTalkNpc(p, npc.id);
-    const cue = questTalkCue(before, result.state, result.gold);
-    send(p.ws, { type: "npc/dialog", npcId: npc.id, title: result.title, body: result.body, ...(cue ? { questCue: cue } : {}) });
-    return true;
-  }
-  creditQuestTalkNpc(p, npc.id);
-  send(p.ws, { type: "npc/dialog", npcId: npc.id, title: npc.name, body: npc.lines ?? "…" });
+  openConversation(p, npc.id, npc.name, npc.lines);
   return true;
 }
 
@@ -5553,7 +6093,7 @@ function handleNpcInteract(p: Player, npcId: string) {
       return;
     }
     p.facing = facingTo(p.x, p.z, PH_STORAGE_CHEST.x, PH_STORAGE_CHEST.z);
-    pushLog(p, "Storage — coming soon");
+    openConversation(p, PH_STORAGE_CHEST.id, PH_STORAGE_CHEST.name);
     return;
   }
 
@@ -5563,20 +6103,7 @@ function handleNpcInteract(p: Player, npcId: string) {
       return;
     }
     p.facing = facingTo(p.x, p.z, JOB_MASTER.x, JOB_MASTER.z);
-    creditQuestTalkNpc(p, JOB_MASTER.id);
-    const canSub = p.level >= SUBJOB_UNLOCK_LEVEL;
-    const playable = (Object.keys(JOBS) as JobId[]).filter((j) => JOBS[j].playable);
-    send(p.ws, {
-      type: "npc/dialog",
-      npcId: JOB_MASTER.id,
-      title: canSub ? `${JOB_MASTER.name}, Job Master — Support Job` : `${JOB_MASTER.name}, Job Master`,
-      body: canSub
-        ? `Main: ${JOBS[p.job].name} L${p.level} (set at creation). Pick a support job — effective L${subjobLevel(p.level)}.`
-        : `${JOBS[p.job].name} is your main, set at creation. Support jobs unlock at level ${SUBJOB_UNLOCK_LEVEL}.`,
-      jobs: playable,
-      subjobMode: canSub,
-      subLevel: canSub ? subjobLevel(p.level) : 0,
-    });
+    openConversation(p, JOB_MASTER.id, JOB_MASTER.name);
     return;
   }
 
@@ -5586,20 +6113,7 @@ function handleNpcInteract(p: Player, npcId: string) {
       return;
     }
     p.facing = facingTo(p.x, p.z, TRAINER.x, TRAINER.z);
-    creditQuestTalkNpc(p, TRAINER.id);
-    const subLv =
-      p.subjob && p.level >= SUBJOB_UNLOCK_LEVEL ? subjobLevel(p.level) : 0;
-    const offers = trainerOffersForJobs(p.job, p.level, p.subjob, subLv, p.learned);
-    const jobNote = p.subjob
-      ? `${JOBS[p.job].name} L${p.level} (main) + ${JOBS[p.subjob].name} L${subLv} (support half level)`
-      : `${JOBS[p.job].name} L${p.level} (main - all abilities up to your level)`;
-    send(p.ws, {
-      type: "npc/dialog",
-      npcId: TRAINER.id,
-      title: `${TRAINER.name}, Trainer`,
-      body: `Buy job abilities with gold (${jobNote}). Main: up to your level; support: up to floor(level/2). Costs scale 500-10000 by unlock level. Starter kit (Rest + L1 signature) is free.`,
-      spells: offers,
-    });
+    openConversation(p, TRAINER.id, TRAINER.name);
     return;
   }
 
@@ -5614,38 +6128,18 @@ function handleNpcInteract(p: Player, npcId: string) {
       handleNpcInteract(p, JOB_MASTER.id);
       return;
     }
-    if (hub.role === "quest_giver") {
-      speakHollowQuest(p, hub.id, hub.x, hub.z, hub.name);
-      return;
-    }
-    const bodies: Record<string, string> = {
-      guide:
-        "Wenna keeps Emberwatch's fire. Speak with her if the camp still has work.",
-      crafter:
-        "Bring base mats from the field. Synth at my bench — I'll rank your crafts as you work.",
-      vendor:
-        "Two sets of scales on this counter: the Crown's, and the honest ones. Yours go on the honest pair. Sell me what you've brought in from the field, or send it on to a friend. I only trade in what the field gives.",
-    };
-    let body = bodies[hub.role] ?? "…";
-    const credited = creditQuestTalkNpc(p, hub.id);
-    if (credited.length && hub.role === "vendor") {
-      body = `${body} Tell Wenna the salt is counted.`;
-      pushLog(p, "Maudry has heard Emberwatch.");
-    }
-    send(p.ws, {
-      type: "npc/dialog",
-      npcId: hub.id,
-      title: hub.name,
-      body,
-      craftOpen: hub.role === "crafter",
-      lokOpen: hub.role === "vendor",
-    });
+    openConversation(p, hub.id, hub.name);
     return;
   }
 
   const field = PH_FIELD_NPCS.find((n) => n.id === npcId);
   if (field) {
-    speakHollowQuest(p, field.id, field.x, field.z, field.name);
+    if (!canReachTownNpc(p.x, p.z, field.x, field.z)) {
+      pushLog(p, `Move closer to speak with ${field.name}.`);
+      return;
+    }
+    p.facing = facingTo(p.x, p.z, field.x, field.z);
+    openConversation(p, field.id, field.name);
     return;
   }
 
@@ -5751,7 +6245,7 @@ function handleSkillUnlock(p: Player, nodeId: string) {
   const node = SKILL_NODES[nodeId]!;
   pushLog(
     p,
-    `Skill: ${node.label} — ${node.blurb} (${skillPointsRemaining(p)} points left).`,
+    `Skill: ${node.label}. ${node.blurb} (${skillPointsRemaining(p)} points left).`,
   );
 }
 
@@ -5824,7 +6318,7 @@ function handleDebugMaxLevel(p: Player) {
   if (p.level >= SUBJOB_UNLOCK_LEVEL) {
     pushLog(
       p,
-      `Support job unlocked (L${SUBJOB_UNLOCK_LEVEL}+). Speak with the Job Master to pick one — effective L${subjobLevel(p.level)}.`,
+      `Support job unlocked (L${SUBJOB_UNLOCK_LEVEL}+). Speak with the Job Master to pick one, effective L${subjobLevel(p.level)}.`,
     );
   }
   send(p.ws, snapshotFor(p));
@@ -5883,7 +6377,7 @@ function handleSubjob(p: Player, job: JobId | null) {
   const subLv = subjobLevel(p.level);
   pushLog(
     p,
-    `Support job set — ${JOBS[job].name} L${subLv} (half of main L${p.level}). ${JOBS[job].name} Heart unlocked on the skill tree. Sprite remains ${JOBS[p.job].name}.`,
+    `Support job set: ${JOBS[job].name} L${subLv} (half of main L${p.level}). ${JOBS[job].name} Heart unlocked on the skill tree. Sprite remains ${JOBS[p.job].name}.`,
   );
   rememberPlayer(p);
   send(p.ws, snapshotFor(p));
@@ -6088,18 +6582,43 @@ function peekPlayerMeleeReach(p: Player): number {
   return MELEE_RANGE * swordSwingReachMul(kind);
 }
 
+function playerSwingReach(p: Player, now: number): number {
+  const aimed =
+    now < p.holdFacingUntil
+      ? p.pendingHeavy
+        ? HEAVY_ATTACK_RANGE
+        : ATTACK_RANGE
+      : peekPlayerMeleeReach(p);
+  // Iso engage and FP swing share a floor so lock-on is not a shorter reach.
+  return Math.max(aimed, ATTACK_RANGE);
+}
+
+function applySwingFacing(p: Player, tx: number, tz: number, now: number): void {
+  if (now >= p.holdFacingUntil) p.facing = facingTo(p.x, p.z, tx, tz);
+}
+
 function beginPlayerMeleeAnim(p: Player, now: number, delay: number): void {
   p.anim = "melee";
-  p.animUntil = now + Math.max(160, Math.min(delay * 0.9, 520));
+  p.animUntil = now + Math.max(160, Math.min(delay * (p.pendingHeavy ? 1.05 : 0.9), p.pendingHeavy ? 640 : 520));
   const family = playerMainWeaponFamily(p);
   if (isSwordSwingFamily(family)) {
-    const step = p.swordComboStep ?? 0;
-    const { kind, nextStep } = nextSwordSwing(step);
-    p.swordComboStep = nextStep;
-    p.meleeSwing = kind;
+    if (p.pendingHeavy) {
+      p.meleeSwing = "overhead";
+      p.swordComboStep = 0;
+    } else {
+      const step = p.swordComboStep ?? 0;
+      const { kind, nextStep } = nextSwordSwing(step);
+      p.swordComboStep = nextStep;
+      p.meleeSwing = kind;
+    }
   } else {
     p.meleeSwing = undefined;
   }
+  p.pendingHeavy = false;
+}
+
+function mobCorpseMs(mob: Pick<Mob, "shiny" | "shinyClone">): number {
+  return mob.shiny && !mob.shinyClone ? BOSS_DEATH_FADE_MS : MOB_DEATH_FADE_MS;
 }
 
 function playerSwingPvp(p: Player, foe: Player, now: number) {
@@ -6111,8 +6630,8 @@ function playerSwingPvp(p: Player, foe: Player, now: number) {
   if (block) return;
   const gate = canPvpStrike(p, foe, playerHasOpenBounty(foe));
   if (!gate.ok) return;
-  const d = dist(p.x, p.z, foe.x, foe.z);
-  if (d > peekPlayerMeleeReach(p)) return;
+  const feet = swingCloseOrigin({ x: p.x, z: p.z }, p.moveTo);
+  if (!canMeleeHit(feet, p.facing, foe, playerSwingReach(p, now))) return;
   if (now < p.nextSwingAt) return;
   if (now < p.paraUntil && rollUnit("combat.player.para") < 0.35) {
     p.nextSwingAt = now + 800;
@@ -6123,13 +6642,14 @@ function playerSwingPvp(p: Player, foe: Player, now: number) {
   const haste = playerHastePct(p, now);
   const weaponDelay = p.equip.main ? getItem(p.equip.main)?.delayMs : undefined;
   let delay = resolveSwingDelayMs(weaponDelay, haste);
+  if (p.pendingHeavy) delay = Math.floor(delay * 1.28);
   if (now < p.slowUntil) {
     const slowAmt =
       p.swingPenalty > 0 ? p.swingPenalty : now < p.moveUntil && p.movePct < 0 ? -p.movePct : 0.22;
     delay = slowedSwingDelay(delay, slowAmt);
   }
   p.nextSwingAt = now + delay;
-  p.facing = facingTo(p.x, p.z, foe.x, foe.z);
+  applySwingFacing(p, foe.x, foe.z, now);
   beginPlayerMeleeAnim(p, now, delay);
   if (now < foe.ghostStepUntil) {
     pushLog(p, "Your swing passes through violet smoke.");
@@ -6212,7 +6732,7 @@ function playerSwingPvp(p: Player, foe: Player, now: number) {
     }
     if (best) {
       best.enmity = Math.min(10_000, best.enmity + 500);
-      pushLog(p, `Shadow Pass — hate slips to ${best.name}.`);
+      pushLog(p, `Shadow Pass: hate slips to ${best.name}.`);
     }
   }
   if (now < p.perpetualUntil) dmg = Math.floor(dmg * 1.15);
@@ -6284,8 +6804,8 @@ function playerSwing(p: Player, now: number) {
   }
   const mob = findMobIn(p.zoneId, p.targetId);
   if (!mob || !mob.alive) return;
-  const d = dist(p.x, p.z, mob.x, mob.z);
-  if (d > peekPlayerMeleeReach(p)) return;
+  const feet = swingCloseOrigin({ x: p.x, z: p.z }, p.moveTo);
+  if (!canMeleeHit(feet, p.facing, mob, playerSwingReach(p, now))) return;
   if (now < p.nextSwingAt) return;
   if (now < p.petrifyUntil) {
     p.nextSwingAt = now + 800;
@@ -6301,13 +6821,14 @@ function playerSwing(p: Player, now: number) {
   const haste = playerHastePct(p, now);
   const weaponDelay = p.equip.main ? getItem(p.equip.main)?.delayMs : undefined;
   let delay = resolveSwingDelayMs(weaponDelay, haste);
+  if (p.pendingHeavy) delay = Math.floor(delay * 1.28);
   if (now < p.slowUntil) {
     const slowAmt =
       p.swingPenalty > 0 ? p.swingPenalty : now < p.moveUntil && p.movePct < 0 ? -p.movePct : 0.22;
     delay = slowedSwingDelay(delay, slowAmt);
   }
   p.nextSwingAt = now + delay;
-  p.facing = facingTo(p.x, p.z, mob.x, mob.z);
+  applySwingFacing(p, mob.x, mob.z, now);
   beginPlayerMeleeAnim(p, now, delay);
   const swingKind = p.meleeSwing;
 
@@ -6385,7 +6906,7 @@ function playerSwing(p: Player, now: number) {
     }
     if (best) {
       best.enmity = Math.min(10_000, best.enmity + 500);
-      pushLog(p, `Shadow Pass — hate slips to ${best.name}.`);
+      pushLog(p, `Shadow Pass: hate slips to ${best.name}.`);
     }
   }
   if (now < p.perpetualUntil) dmg = Math.floor(dmg * 1.15);
@@ -6397,14 +6918,22 @@ function playerSwing(p: Player, now: number) {
   if (playerHasJob(p, "battle_mage")) {
     dmg += battleMageEnSpellBonus(p, now, playerCombatStats(p).int);
   }
+  if (swingKind === "overhead") dmg = Math.max(1, Math.floor(dmg * 1.28));
   dmg = takeMobHit(mob, dmg, "physical", now);
   mob.hp -= dmg;
   noteMobHit(mob, p.wallet);
-  if (swingKind === "spin" && dmg > 0) {
-    const splashR = MELEE_RANGE * SWORD_SPIN_SPLASH_RADIUS_MUL;
+  if ((swingKind === "spin" || swingKind === "overhead") && dmg > 0) {
+    const splashR =
+      swingKind === "spin" ? MELEE_RANGE * SWORD_SPIN_SPLASH_RADIUS_MUL : HEAVY_ATTACK_RANGE;
     for (const other of mobs) {
       if (!other.alive || other.zoneId !== p.zoneId || other.id === mob.id) continue;
       if (dist(p.x, p.z, other.x, other.z) > splashR) continue;
+      if (
+        swingKind === "overhead" &&
+        !inAttackFan({ x: p.x, z: p.z }, p.facing, other, HEAVY_ATTACK_RANGE, HEAVY_ATTACK_ARC)
+      ) {
+        continue;
+      }
       const splash = takeMobHit(
         other,
         Math.max(1, Math.floor(dmg * SWORD_SPIN_SPLASH_DAMAGE_MUL)),
@@ -6760,7 +7289,7 @@ function mobSwing(mob: Mob, now: number) {
   }
   if (now < nearest.ghostStepUntil) {
     mob.nextSwingAt = now + 900;
-    pushLog(nearest, `${mob.name} passes through violet smoke — miss!`);
+    pushLog(nearest, `${mob.name} passes through violet smoke and misses!`);
     return;
   }
 
@@ -6793,6 +7322,10 @@ function mobSwing(mob: Mob, now: number) {
     dmg = absorbHealShield(victim, now, dmg);
     dmg = absorbMereVeil(victim, now, dmg);
     const soaked = Math.max(0, beforeShield - victim.healAbsorbHp);
+    if (victim.dash) {
+      pushLog(victim, `You roll through ${mob.name}'s blow.`);
+      return;
+    }
     dmg = Math.max(0, Math.floor(dmg * fighterDefenseMul(victim, now)));
     const wall = absorbManaWall(victim, now, dmg);
     dmg = wall.dmg;
@@ -6876,12 +7409,12 @@ function mobSwing(mob: Mob, now: number) {
       if (guard) {
         pushLog(nearest, `${guard.name} interposes and takes ${mob.name}'s blow!`);
         if (!roll.hit) {
-          pushLog(guard, `You interpose for ${nearest.name} — ${mob.name} misses you.`);
+          pushLog(guard, `You interpose for ${nearest.name}, and ${mob.name} misses you.`);
           return;
         }
         applyMobDamage(
           roll.dmg,
-          `You interpose for ${nearest.name} — ${mob.name} hits you for ${roll.dmg}`,
+          `You interpose for ${nearest.name}, and ${mob.name} hits you for ${roll.dmg}`,
           guard,
         );
       } else {
@@ -6932,6 +7465,30 @@ function tickLap(name: string) {
 type PendingSeal = { tickIndex: number; guildEvents: { characterId: string; kind: string }[] };
 let pendingSeal: PendingSeal | null = null;
 let pendingSealAt = 0;
+let lastSealAt = 0;
+let sealTimer: ReturnType<typeof setTimeout> | null = null;
+/** BLS of an empty envelope is 150–350 ms; never run it on the sim tick. */
+const SEAL_MIN_GAP_MS = 1000;
+
+function scheduleTickSeal() {
+  if (!pendingSeal || sealTimer) return;
+  const wait = Math.max(0, SEAL_MIN_GAP_MS - (Date.now() - lastSealAt));
+  sealTimer = setTimeout(() => {
+    sealTimer = null;
+    const job = pendingSeal;
+    if (!job) return;
+    pendingSeal = null;
+    pendingSealAt = 0;
+    try {
+      performTickSeal(job);
+    } catch (err) {
+      console.error("[seal] tick batch failed", err);
+      if (job.guildEvents.length > 0) noteGuildActivity(-1, job.guildEvents);
+    }
+    lastSealAt = Date.now();
+    if (pendingSeal) scheduleTickSeal();
+  }, wait);
+}
 
 function performTickSeal(job: PendingSeal) {
   const inputs = tickIndexInputs(job.tickIndex);
@@ -6987,24 +7544,16 @@ function tickSim() {
       for (const err of flushed.errors) console.error("[lok] tick ledger: " + err);
       if (guildEvents.length > 0) noteGuildActivity(-1, guildEvents);
     } else if (!idle) {
-      pendingSeal = { tickIndex: tick, guildEvents };
-      if (!pendingSealAt) pendingSealAt = Date.now();
-    }
-    const bodyMs = performance.now() - started;
-    const sealStale = pendingSeal != null && Date.now() - pendingSealAt > 250;
-    if (pendingSeal && (bodyMs < 20 || sealStale)) {
-      try {
-        performTickSeal(pendingSeal);
-      } catch (err) {
-        console.error("[seal] tick batch failed", err);
-        if (pendingSeal.guildEvents.length > 0) noteGuildActivity(-1, pendingSeal.guildEvents);
+      if (pendingSeal) {
+        pendingSeal.tickIndex = tick;
+        pendingSeal.guildEvents.push(...guildEvents);
+      } else {
+        pendingSeal = { tickIndex: tick, guildEvents };
+        pendingSealAt = Date.now();
       }
-      pendingSeal = null;
-      pendingSealAt = 0;
-      tickLap("seal");
-    } else {
-      tickLap(idle ? "idle" : "defer");
     }
+    tickLap(pendingSeal ? "defer" : "idle");
+    scheduleTickSeal();
     settleGuildPayouts(Date.now());
     executeOnSimTick(tickSp1, () => lok.logDocument());
     const elapsed = performance.now() - started;
@@ -7017,6 +7566,224 @@ function tickIndexInputs(index: number): Uint8Array {
   const out = new Uint8Array(8);
   new DataView(out.buffer).setBigUint64(0, BigInt(index), false);
   return out;
+}
+
+/** Chase and gather: intent that feeds locomotion. Safe to run slower than movement later. */
+function tickPlayerIntent(p: Player, now: number) {
+  chaseEngaged(p);
+  tickGathering(p, now);
+}
+
+/**
+ * Authoritative walk, dash, collision, zone gates, warps, quests.
+ * Intended high-frequency phase (Stage 3: 60 Hz). Uses `dt` so speed is tick-invariant.
+ */
+function tickPlayerLocomotion(p: Player, now: number, dt: number) {
+  if (playerIsRooted(p, now)) {
+    p.moveTo = null;
+    p.movePath = [];
+    p.dash = null;
+  } else if (p.dash) {
+    const at = dashPos(p.dash, now);
+    p.x = at.x;
+    p.z = at.z;
+    syncUnitY(p);
+    if (at.done) {
+      p.dash = null;
+      crossField(p);
+      const resume = p.dashResume;
+      p.dashResume = null;
+      if (p.restQueued) {
+        p.restQueued = false;
+        handleAbility(p, "rest");
+      } else if (resume) assignRoute(p, resume.x, resume.z);
+    }
+  } else if (p.moveTo) {
+    interruptRestForMove(p);
+    const speed = playerMoveSpeed(p, now);
+    let guard = 0;
+    while (p.moveTo && guard++ < 4) {
+      const dx = p.moveTo.x - p.x;
+      const dz = p.moveTo.z - p.z;
+      const d = Math.hypot(dx, dz);
+      if (d < 0.12) {
+        const next = p.movePath.shift();
+        if (next) {
+          p.moveTo = next;
+          continue;
+        }
+        const goal = p.navGoal;
+        p.moveTo = null;
+        if (goal && Math.hypot(goal.x - p.x, goal.z - p.z) > 0.8) p.navHold = true;
+        syncUnitY(p);
+        p.walkUntil = walkUntilAtArrival(now, p.lastMoveInputAt);
+        if (now >= p.animUntil) p.anim = "idle";
+        break;
+      }
+      const step = Math.min(d, speed * dt);
+      const nx = p.x + (dx / d) * step;
+      const nz = p.z + (dz / d) * step;
+      const c = clampPlayerMove(p.x, p.z, nx, nz, p.zoneId);
+      if (Math.hypot(c.x - p.x, c.z - p.z) < 1e-4) {
+        p.moveTo = null;
+        p.movePath = [];
+        if (p.navGoal && Math.hypot(p.navGoal.x - p.x, p.navGoal.z - p.z) > 0.8) p.navHold = true;
+        break;
+      }
+      p.x = c.x;
+      p.z = c.z;
+      if (crossField(p)) {
+        if (now >= p.animUntil) p.anim = "idle";
+        break;
+      }
+      if (d > 0.35) p.facing = facingTo(0, 0, dx, dz);
+      p.walkUntil = walkUntilAfterStep(now);
+      if (now >= p.animUntil) p.anim = "walk";
+      syncUnitY(p);
+      break;
+    }
+  } else {
+    crossField(p);
+    if (p.movePath.length) p.movePath = [];
+    if (p.anim === "walk" && shouldDropWalk(now, p.walkUntil, p.lastMoveInputAt)) {
+      if (now >= p.animUntil) p.anim = "idle";
+    }
+  }
+  touchWarps(p);
+  touchBasinQuests(p);
+  touchPaleHollowQuests(p);
+}
+
+/** Auto-attack and PvP after this tick's movement. Intended 30–60 Hz later.
+ * Engage, directed swing, and this tick all resolve through `playerSwing`.
+ * `nextSwingAt` allows at most one valid melee per configured delay. */
+function tickPlayerOffense(p: Player, now: number) {
+  playerSwing(p, now);
+  notePvpAreaBoundary(p);
+  tickPvpBountyArea(p);
+}
+
+/** Roam, aggro, flee, shiny formation. LOD is decisions; footsteps run every in-play tick. */
+function tickMobBrain(now: number, dt: number, zonePlayers: Map<string, Player[]>) {
+  for (const mob of mobs) {
+    if (!mobInPlay(mob, zonePlayers)) continue;
+    syncUnitY(mob);
+    if (now < (mob.fleeUntil ?? 0)) {
+      const step = 2.2 * dt;
+      const nx = mob.x + Math.sin(mob.facing) * step;
+      const nz = mob.z + Math.cos(mob.facing) * step;
+      const fg = mobGround(mob.zoneId);
+      const c = fg.clampMove(mob.x, mob.z, nx, nz);
+      if (!fg.walkable(c.x, c.z) || fg.inClearing(c.x, c.z)) {
+        mob.facing += (Math.random() > 0.5 ? 1 : -1) * (0.55 + Math.random() * 0.5);
+      } else if (Math.hypot(c.x - mob.x, c.z - mob.z) < 1e-4) {
+        mob.facing += (Math.random() > 0.5 ? 1 : -1) * 0.8;
+      } else {
+        mob.x = c.x;
+        mob.z = c.z;
+        syncUnitY(mob);
+      }
+      mob.anim = "walk";
+      continue;
+    }
+    if (mob.shinyClone && mob.hqId) {
+      const hq = findMob(mob.hqId);
+      if (!hq || !hq.alive) {
+        mob.alive = false;
+        mob.hp = 0;
+        mob.anim = "dead";
+        mob.deathAt = now;
+        mob.respawnAt = now;
+        continue;
+      }
+      const living = hq.cloneIds.filter((id) => {
+        const c = findMob(id);
+        return !!(c && c.alive);
+      }).length;
+      const armyReady = living >= SHINY_CLONE_COUNT;
+      if (hq.targetId && !mob.targetId) mob.targetId = hq.targetId;
+      if (armyReady || hq.targetId) {
+        const slot = Math.max(0, hq.cloneIds.indexOf(mob.id));
+        const off = formationOffset(hq.facing, slot);
+        const tx = hq.x + off.dx;
+        const tz = hq.z + off.dz;
+        const dForm = dist(mob.x, mob.z, tx, tz);
+        if (dForm > 0.35) {
+          const step = Math.min(dForm, 3.4 * dt);
+          const nx = mob.x + ((tx - mob.x) / dForm) * step;
+          const nz = mob.z + ((tz - mob.z) / dForm) * step;
+          const c = mobGround(mob.zoneId).clampMove(mob.x, mob.z, nx, nz);
+          mob.x = c.x;
+          mob.z = c.z;
+          syncUnitY(mob);
+          mob.facing = facingTo(mob.x, mob.z, hq.x + Math.sin(hq.facing), hq.z + Math.cos(hq.facing));
+          mob.anim = "walk";
+        } else if (!mob.targetId) {
+          mob.anim = "idle";
+          mob.facing = hq.facing;
+        }
+        if (!mob.targetId) continue;
+        continue;
+      }
+    }
+    if (mob.aggro === "safe") {
+      if (!(mob.shiny || mob.shinyClone) || !mob.targetId) {
+        mob.targetId = null;
+        tickMobRoam(mob, now, dt);
+        continue;
+      }
+    }
+    if (!mob.targetId) {
+      const watchers = zonePlayers.get(mob.zoneId) ?? [];
+      const lod = simLodTier(minDist(mob.x, mob.z, watchers), SNAPSHOT_INTEREST_M);
+      // LOD gates aggro decisions, not footsteps — wander must not freeze
+      // while the player locomotion phase is busy.
+      if (simLodShouldStep(lod, tick)) {
+        let nearest: Player | null = null;
+        let best = mob.aggroRange ?? 4;
+        for (const pl of watchers) {
+          if (now < pl.ghostStepUntil) continue;
+          const d = dist(mob.x, mob.z, pl.x, pl.z);
+          if (d > best) continue;
+          if (mob.aggro === "sight") {
+            const toPl = facingTo(mob.x, mob.z, pl.x, pl.z);
+            if (Math.abs(angleDelta(mob.facing, toPl)) > 1.15) continue;
+          } else if (mob.aggro === "sound") {
+            const noisy =
+              pl.anim === "walk" ||
+              pl.anim === "melee" ||
+              pl.anim === "cast" ||
+              !!pl.targetId;
+            if (!noisy) continue;
+          } else if (mob.aggro !== "proximity") {
+            continue;
+          }
+          best = d;
+          nearest = pl;
+        }
+        if (nearest) {
+          pullMobOn(mob, nearest.wallet, now);
+        }
+      }
+      if (!mob.targetId) tickMobRoam(mob, now, dt);
+    }
+  }
+}
+
+function tickMobAttacks(now: number, zonePlayers: Map<string, Player[]>): number {
+  let mobsTicked = 0;
+  for (const mob of mobs) {
+    if (!mobInPlay(mob, zonePlayers)) continue;
+    const inCombat = liveMobPrey(mob);
+    if (!inCombat) {
+      const watchers = zonePlayers.get(mob.zoneId) ?? [];
+      const lod = simLodTier(minDist(mob.x, mob.z, watchers), SNAPSHOT_INTEREST_M);
+      if (!simLodShouldStep(lod, tick)) continue;
+    }
+    mobsTicked += 1;
+    mobSwing(mob, now);
+  }
+  return mobsTicked;
 }
 
 function tickSimBody() {
@@ -7033,6 +7800,7 @@ function tickSimBody() {
   if (pulse2s) hz2At = now;
   if (pulse3s) hz3At = now;
   tickPaleHollowWeather(dt);
+  const zonePlayers = playersByZone();
 
   // Remove faded shiny clones (ephemeral — never respawn).
   for (let i = mobs.length - 1; i >= 0; i--) {
@@ -7046,13 +7814,15 @@ function tickSimBody() {
     }
   }
 
-  for (const mob of mobs) {
+  for (let i = 0; i < mobs.length; i++) {
+    const mob = mobs[i]!;
+    if (!mobNeedsMaintain(mob, zonePlayers, now)) continue;
     if (!mob.alive && !mob.shinyClone && now >= mob.respawnAt) {
-      const idx = mobs.indexOf(mob);
       // Drop any leftover clones from a prior shiny life before resetting the slot.
       if (mob.shiny) despawnShinyClones(mob, now);
       forgetStandY(mob);
-      mobs[idx] = respawnFieldMobFromDef(mob.id, mob.name, mob.spawnX, mob.spawnZ, mob.zoneId);
+      mobs[i] = respawnFieldMobFromDef(mob.id, mob.name, mob.spawnX, mob.spawnZ, mob.zoneId);
+      continue;
     }
     if (now >= mob.slowUntil) mob.swingPenalty = 0;
     if (now >= mob.gravityUntil) mob.gravityPct = 0;
@@ -7066,7 +7836,7 @@ function tickSimBody() {
           mob.alive = false;
           mob.anim = "dead";
           mob.deathAt = now;
-          mob.respawnAt = now + MOB_DEATH_FADE_MS + MOB_RESPAWN_MS;
+          mob.respawnAt = now + mobCorpseMs(mob) + MOB_RESPAWN_MS;
           mob.targetId = null;
         }
       }
@@ -7082,12 +7852,17 @@ function tickSimBody() {
           mob.alive = false;
           mob.anim = "dead";
           mob.deathAt = now;
-          mob.respawnAt = now + MOB_DEATH_FADE_MS + MOB_RESPAWN_MS;
+          mob.respawnAt = now + mobCorpseMs(mob) + MOB_RESPAWN_MS;
           mob.targetId = null;
         }
       }
     }
   }
+
+  // Animal footsteps before player locomotion so a long WASD tick cannot
+  // skip roam/chase for the rest of this interval.
+  tickMobBrain(now, dt, zonePlayers);
+  tickLap("mobs-brain");
 
   for (const p of players.values()) {
     // Catch overcapped XP (e.g. earned before leveling existed)
@@ -7151,88 +7926,8 @@ function tickSimBody() {
       }
     }
 
-    // Auto-close to melee while engaged
-    chaseEngaged(p);
-
-    // Gather channel (#67): grant only after interactMs, break on move/damage/engage
-    tickGathering(p, now);
-
-    if (playerIsRooted(p, now)) {
-      p.moveTo = null;
-      p.movePath = [];
-      p.dash = null;
-    } else if (p.dash) {
-      const at = dashPos(p.dash, now);
-      p.x = at.x;
-      p.z = at.z;
-      syncUnitY(p);
-      if (at.done) {
-        p.dash = null;
-        crossField(p);
-        const resume = p.dashResume;
-        p.dashResume = null;
-        if (p.restQueued) {
-          p.restQueued = false;
-          handleAbility(p, "rest");
-        } else if (resume) assignRoute(p, resume.x, resume.z);
-      }
-    } else if (p.moveTo) {
-      interruptRestForMove(p);
-      const speed = playerMoveSpeed(p, now);
-      let guard = 0;
-      while (p.moveTo && guard++ < 4) {
-        const dx = p.moveTo.x - p.x;
-        const dz = p.moveTo.z - p.z;
-        const d = Math.hypot(dx, dz);
-        if (d < 0.12) {
-          const next = p.movePath.shift();
-          if (next) {
-            p.moveTo = next;
-            continue;
-          }
-          const goal = p.navGoal;
-          p.moveTo = null;
-          if (goal && Math.hypot(goal.x - p.x, goal.z - p.z) > 0.8) p.navHold = true;
-          syncUnitY(p);
-          p.walkUntil = walkUntilAtArrival(now, p.lastMoveInputAt);
-          if (now >= p.animUntil) p.anim = "idle";
-          break;
-        }
-        const step = Math.min(d, speed * dt);
-        const nx = p.x + (dx / d) * step;
-        const nz = p.z + (dz / d) * step;
-        const c = clampPlayerMove(p.x, p.z, nx, nz, p.zoneId);
-        // No progress against a blocker — stop. Do not rubber-band through it.
-        if (Math.hypot(c.x - p.x, c.z - p.z) < 1e-4) {
-          p.moveTo = null;
-          p.movePath = [];
-          if (p.navGoal && Math.hypot(p.navGoal.x - p.x, p.navGoal.z - p.z) > 0.8) p.navHold = true;
-          break;
-        }
-        p.x = c.x;
-        p.z = c.z;
-        if (crossField(p)) {
-          if (now >= p.animUntil) p.anim = "idle";
-          break;
-        }
-        // Ignore tiny residual heading noise near the waypoint
-        if (d > 0.35) p.facing = facingTo(0, 0, dx, dz);
-        p.walkUntil = walkUntilAfterStep(now);
-        // Don't stomp an active swing/cast pose
-        if (now >= p.animUntil) p.anim = "walk";
-        syncUnitY(p);
-        break;
-      }
-    } else {
-      crossField(p);
-      if (p.movePath.length) p.movePath = [];
-      if (p.anim === "walk" && shouldDropWalk(now, p.walkUntil, p.lastMoveInputAt)) {
-        if (now >= p.animUntil) p.anim = "idle";
-      }
-    }
-    touchWarps(p);
-    touchBasinQuests(p);
-    touchPaleHollowQuests(p);
+    tickPlayerIntent(p, now);
+    tickPlayerLocomotion(p, now, dt);
 
     if (p.anim === "rest") {
       // Once per second: recover HP/MP, bleed TP
@@ -7250,7 +7945,7 @@ function tickSimBody() {
           );
         }
         if (p.hp >= p.maxHp && p.mp >= p.maxMp && p.tp <= 0) {
-          stopRest(p, "Fully recovered — you rise.");
+          stopRest(p, "Fully recovered. You rise.");
         }
       }
     } else if ((p.anim === "melee" || p.anim === "cast") && now >= p.animUntil) {
@@ -7278,132 +7973,12 @@ function tickSimBody() {
       p.hp = Math.min(p.maxHp, p.hp + diseasedHeal(antler, p.diseaseUntil, now));
     }
 
-    playerSwing(p, now);
-    notePvpAreaBoundary(p);
-    // Leaving Ash Pit with an open bounty auto-cancels (refund mirror).
-    tickPvpBountyArea(p);
+    tickPlayerOffense(p, now);
   }
   tickLap("players");
 
-  const zonePlayers = playersByZone();
-  // Pale Hollow field AI — safe / proximity / sight / sound + link
-  for (const mob of mobs) {
-    if (!mobInPlay(mob, zonePlayers, now)) continue;
-    syncUnitY(mob);
-    if (now < (mob.fleeUntil ?? 0)) {
-      const step = 2.2 * dt;
-      const nx = mob.x + Math.sin(mob.facing) * step;
-      const nz = mob.z + Math.cos(mob.facing) * step;
-      const fg = mobGround(mob.zoneId);
-      const c = fg.clampMove(mob.x, mob.z, nx, nz);
-      if (!fg.walkable(c.x, c.z) || fg.inClearing(c.x, c.z)) {
-        // Nudge off obstacles instead of snapping against bounds each tick.
-        mob.facing += (Math.random() > 0.5 ? 1 : -1) * (0.55 + Math.random() * 0.5);
-      } else if (Math.hypot(c.x - mob.x, c.z - mob.z) < 1e-4) {
-        mob.facing += (Math.random() > 0.5 ? 1 : -1) * 0.8;
-      } else {
-        mob.x = c.x;
-        mob.z = c.z;
-        syncUnitY(mob);
-      }
-      mob.anim = "walk";
-      continue;
-    }
-    // Shiny clones: hold formation on the HQ (little army) when the pack is out.
-    if (mob.shinyClone && mob.hqId) {
-      const hq = findMob(mob.hqId);
-      if (!hq || !hq.alive) {
-        // Orphaned clone — despawn next fade cycle.
-        mob.alive = false;
-        mob.hp = 0;
-        mob.anim = "dead";
-        mob.deathAt = now;
-        mob.respawnAt = now;
-        continue;
-      }
-      const living = hq.cloneIds.filter((id) => {
-        const c = findMob(id);
-        return !!(c && c.alive);
-      }).length;
-      const armyReady = living >= SHINY_CLONE_COUNT;
-      // Share the HQ's current fight target once pulled (still never auto-aggro).
-      if (hq.targetId && !mob.targetId) mob.targetId = hq.targetId;
-      if (armyReady || hq.targetId) {
-        const slot = Math.max(0, hq.cloneIds.indexOf(mob.id));
-        const off = formationOffset(hq.facing, slot);
-        const tx = hq.x + off.dx;
-        const tz = hq.z + off.dz;
-        const dForm = dist(mob.x, mob.z, tx, tz);
-        if (dForm > 0.35) {
-          const step = Math.min(dForm, 3.4 * dt);
-          const nx = mob.x + ((tx - mob.x) / dForm) * step;
-          const nz = mob.z + ((tz - mob.z) / dForm) * step;
-          const c = mobGround(mob.zoneId).clampMove(mob.x, mob.z, nx, nz);
-          mob.x = c.x;
-          mob.z = c.z;
-          syncUnitY(mob);
-          mob.facing = facingTo(mob.x, mob.z, hq.x + Math.sin(hq.facing), hq.z + Math.cos(hq.facing));
-          mob.anim = "walk";
-        } else if (!mob.targetId) {
-          mob.anim = "idle";
-          mob.facing = hq.facing;
-        }
-        // When fighting, fall through to mobSwing via targetId; skip roam.
-        if (!mob.targetId) continue;
-        // Keep formation while chasing — don't run independent aggro roam.
-        continue;
-      }
-    }
-    // Shiny HQ stays passive (safe) until pulled — roam like hares, never auto-aggro.
-    if (mob.aggro === "safe") {
-      if (!(mob.shiny || mob.shinyClone) || !mob.targetId) {
-        mob.targetId = null;
-        tickMobRoam(mob, now, dt);
-        continue;
-      }
-      // Pulled shiny HQ: skip auto-aggro acquisition; chase handled in mobSwing.
-    }
-    if (!mob.targetId) {
-      let nearest: Player | null = null;
-      let best = mob.aggroRange ?? 4;
-      for (const pl of players.values()) {
-        if (unitZone(pl.zoneId) !== mob.zoneId) continue;
-        if (now < pl.ghostStepUntil) continue;
-        const d = dist(mob.x, mob.z, pl.x, pl.z);
-        if (d > best) continue;
-        if (mob.aggro === "sight") {
-          const toPl = facingTo(mob.x, mob.z, pl.x, pl.z);
-          if (Math.abs(angleDelta(mob.facing, toPl)) > 1.15) continue;
-        } else if (mob.aggro === "sound") {
-          const noisy =
-            pl.anim === "walk" ||
-            pl.anim === "melee" ||
-            pl.anim === "cast" ||
-            !!pl.targetId;
-          if (!noisy) continue;
-        } else if (mob.aggro !== "proximity") {
-          continue;
-        }
-        best = d;
-        nearest = pl;
-      }
-      if (nearest) {
-        pullMobOn(mob, nearest.wallet, now);
-      } else {
-        tickMobRoam(mob, now, dt);
-      }
-    }
-  }
-
-  let mobsTicked = 0;
-  for (const mob of mobs) {
-    if (!mobInPlay(mob, zonePlayers, now)) continue;
-    mobsTicked += 1;
-    mobSwing(mob, now);
-  }
-  tickLap("mobs n=" + mobs.length + " tick=" + mobsTicked);
-  broadcastSnapshots();
-  tickLap("snap");
+  const mobsTicked = tickMobAttacks(now, zonePlayers);
+  tickLap("mobs-atk n=" + mobs.length + " tick=" + mobsTicked);
 }
 
 /** Shovel on a harvest node, pickaxe on a mine. Fishing keeps the weapon. */
@@ -7532,7 +8107,7 @@ async function handleCraft(p: Player, itemId: number) {
     return;
   }
   if (!recipeMaterialsComplete(def)) {
-    pushLog(p, "Recipe materials unknown or incomplete — cannot craft.");
+    pushLog(p, "Recipe materials are unknown or incomplete, so you cannot craft.");
     return;
   }
   const goldCost = craftGoldCost(def.craftLevel ?? 0);
@@ -7614,13 +8189,13 @@ function adoptOrphanLogs(wallet: string, ws: WebSocket) {
   const taken = new Set<string>();
   for (const [rosterWallet, slots] of accountRoster.entries()) {
     for (const id of slots.keys()) {
-      if (rosterWallet === owner) {
+      if (rosterWallet.toLowerCase() === owner) {
         taken.add(id);
         continue;
       }
       const tok = lok.tokenFor(id);
       const cached = tok ? nftOwnerCache().get(tok) : null;
-      if (cached && cached === rosterWallet) taken.add(id);
+      if (cached && cached.toLowerCase() === rosterWallet.toLowerCase()) taken.add(id);
       else if (!cached) taken.add(id);
       else releaseCharacterFromRoster(id);
     }
@@ -7748,28 +8323,28 @@ function stripAutoTokenSuffixNames(wallet: string): void {
     });
     const renamed = lok.setBoundName(row.charId, next);
     if (!renamed.ok) continue;
-    const slot = accountRoster.get(owner)?.get(row.charId);
+    const slot = rosterFor(owner)?.get(row.charId);
     if (slot) slot.name = renamed.name;
   }
 }
 
 /** Park the live body on this socket so a wallet switch cannot leave a ghost. */
 function parkLiveWalletOnSocket(ws: WebSocket, wallet: string): void {
-  const p = players.get(wallet);
+  const key = accountWalletKey(wallet);
+  const p = players.get(key) ?? players.get(wallet);
   // A stale close must not unmap a live socket that already replaced this one.
   if (!p || p.ws !== ws) return;
   rememberPlayer(p);
   registerAccountChar(p);
-  const affected = onPlayerDisconnect(wallet);
+  const affected = onPlayerDisconnect(key);
+  players.delete(key);
   players.delete(wallet);
+  walletToPlayer.delete(key);
   walletToPlayer.delete(wallet);
   for (const id of affected) {
-    if (id === wallet.toLowerCase()) continue;
+    if (id === key) continue;
     const ally = players.get(id);
-    if (ally) {
-      pushLog(ally, `${p.name} left the party (disconnected).`);
-      send(ally.ws, snapshotFor(ally));
-    }
+    if (ally) send(ally.ws, snapshotFor(ally));
   }
 }
 
@@ -7779,7 +8354,8 @@ function parkLiveWalletOnSocket(ws: WebSocket, wallet: string): void {
  * A zero summary has no checkpoint and does not trip.
  */
 async function refuseCheckpointAhead(wallet: string, ws: WebSocket): Promise<void> {
-  const slots = accountRoster.get(wallet);
+  const key = accountWalletKey(wallet);
+  const slots = rosterFor(key);
   if (!slots) return;
   for (const p of [...slots.values()]) {
     const token = lok.tokenFor(p.charId);
@@ -7813,16 +8389,38 @@ async function refuseCheckpointAhead(wallet: string, ws: WebSocket): Promise<voi
         " on this journal. It was not loaded.",
     });
   }
-  if (slots.size === 0) accountRoster.delete(wallet);
+  if (slots.size === 0) accountRoster.delete(key);
 }
 
-/** Bind this socket after a signature or a still-valid resume token. */
-async function completeWalletSession(ws: WebSocket, wallet: string): Promise<void> {
-  const sock = ws as WebSocket & { authDeadline?: ReturnType<typeof setTimeout>; wallet?: string };
-  if (sock.authDeadline) {
-    clearTimeout(sock.authDeadline);
-    sock.authDeadline = undefined;
+type GameSocket = WebSocket & {
+  authDeadline?: ReturnType<typeof setTimeout>;
+  authDeadlineAt?: number;
+  wallet?: string;
+  discordUserId?: string;
+  authConnId?: string;
+  authIp?: string;
+};
+
+function closeUnauthedTimeout(ws: GameSocket): void {
+  if (ws.wallet) return;
+  try {
+    ws.close(4002, "auth timeout");
+  } catch {
+    /* ignore */
   }
+}
+
+function mintConfigForSession(discordSession: boolean): CharacterMintClientConfig | null {
+  if (!cachedCharacterMint) return null;
+  if (!discordSession) return cachedCharacterMint;
+  return { ...cachedCharacterMint, skipClientMint: true };
+}
+
+/** Bind this socket after a signature, Discord login, or a still-valid resume token. */
+async function completeWalletSession(ws: WebSocket, wallet: string): Promise<void> {
+  const sock = ws as GameSocket;
+  clearAuthDeadline(sock);
+  wallet = accountWalletKey(wallet);
   const prev = sock.wallet;
   if (prev && prev.toLowerCase() !== wallet.toLowerCase()) {
     parkLiveWalletOnSocket(ws, prev);
@@ -7840,7 +8438,7 @@ async function completeWalletSession(ws: WebSocket, wallet: string): Promise<voi
 
   // Park any live character — keep roster, leave the world until char/enter or char/create.
   // A signature, or a resume token that signature issued, is required to take the session.
-  const live = players.get(wallet);
+  const live = players.get(wallet) ?? (prev ? players.get(prev) : undefined);
   if (live) {
     if (live.ws !== ws) {
       try {
@@ -7857,9 +8455,14 @@ async function completeWalletSession(ws: WebSocket, wallet: string): Promise<voi
     live.ws = ws;
     registerAccountChar(live);
     players.delete(wallet);
+    if (prev) players.delete(prev);
   }
   walletToPlayer.delete(wallet);
+  if (prev) walletToPlayer.delete(prev);
 
+  const discordRow = discordAccountByWallet(wallet, defaultLokDir());
+  if (discordRow) sock.discordUserId = discordRow.discordUserId;
+  const discordSession = !!sock.discordUserId;
   const characters = accountPreviews(wallet);
   const primary = characters[0];
   const replicaAllowlist = (tickOrderer?.replicaHealth?.().peers ?? [])
@@ -7871,9 +8474,10 @@ async function completeWalletSession(ws: WebSocket, wallet: string): Promise<voi
     hasCharacter: characters.length > 0,
     characters,
     character: primary,
-    characterMint: cachedCharacterMint,
+    characterMint: mintConfigForSession(discordSession),
     resumeToken: issueAuthResume(wallet),
     replicaAllowlist,
+    ...(discordSession ? { discordSession: true } : {}),
   });
 }
 
@@ -7912,19 +8516,18 @@ function onMessage(ws: WebSocket, data: string) {
   }
 
   if (msg.type === "ping") {
+    armAuthDeadline(ws as GameSocket, () => closeUnauthedTimeout(ws as GameSocket), WS_AUTH_DEADLINE_MS);
     send(ws, { type: "pong", t: msg.t ?? Date.now() });
     return;
   }
 
   if (msg.type === "auth/hello") {
-    const sock = ws as WebSocket & {
-      wallet?: string;
-      authConnId?: string;
+    const sock = ws as GameSocket & {
       authDomain?: string;
-      authIp?: string;
       authUri?: string;
     };
     if (sock.wallet) return;
+    armAuthDeadline(sock, () => closeUnauthedTimeout(sock), WS_AUTH_SIGN_DEADLINE_MS);
     const challenged = issueAuthChallenge(msg.wallet, {
       connectionId: sock.authConnId,
       domain: sock.authDomain,
@@ -7947,6 +8550,7 @@ function onMessage(ws: WebSocket, data: string) {
   }
 
   if (msg.type === "auth/resume") {
+    armAuthDeadline(ws as GameSocket, () => closeUnauthedTimeout(ws as GameSocket), WS_AUTH_SIGN_DEADLINE_MS);
     const resumed = acceptAuthResume(msg.resumeToken, msg.wallet);
     if (!resumed.ok) {
       send(ws, { type: "error", message: resumed.error });
@@ -7960,7 +8564,8 @@ function onMessage(ws: WebSocket, data: string) {
   }
 
   if (msg.type === "auth") {
-    const sock = ws as WebSocket & { authConnId?: string };
+    const sock = ws as GameSocket;
+    armAuthDeadline(sock, () => closeUnauthedTimeout(sock), WS_AUTH_SIGN_DEADLINE_MS);
     void verifyAuthLogin({
       wallet: msg.wallet,
       signature: msg.signature,
@@ -7979,6 +8584,41 @@ function onMessage(ws: WebSocket, data: string) {
       // terminates the whole Node process and drops every connected player.
       console.error("[bellgrave] auth handler failed", err);
       send(ws, { type: "error", message: "Login failed on the server. Nothing was changed; try again." });
+    });
+    return;
+  }
+
+  if (msg.type === "auth/discord") {
+    const sock = ws as GameSocket;
+    armAuthDeadline(sock, () => closeUnauthedTimeout(sock), WS_AUTH_SIGN_DEADLINE_MS);
+    const budget = consumeLoginAttempt({
+      connectionId: sock.authConnId,
+      clientIp: sock.authIp,
+    });
+    if (!budget.ok) {
+      send(ws, { type: "error", message: budget.error });
+      return;
+    }
+    void (async () => {
+      const identified = await discordUserFromAccessToken(msg.accessToken);
+      if (!identified.ok) {
+        send(ws, { type: "error", message: identified.error });
+        return;
+      }
+      const account = await ensureDiscordAccount({
+        discordUserId: identified.user.id,
+        username: identified.user.username,
+        dataDir: defaultLokDir(),
+      });
+      if (!account.ok) {
+        send(ws, { type: "error", message: account.error });
+        return;
+      }
+      sock.discordUserId = account.row.discordUserId;
+      await completeWalletSession(ws, account.row.wallet);
+    })().catch((err) => {
+      console.error("[bellgrave] Discord login failed", err);
+      send(ws, { type: "error", message: "Discord login failed on the server. Try again." });
     });
     return;
   }
@@ -8181,6 +8821,8 @@ function onMessage(ws: WebSocket, data: string) {
       const gender =
         msg.gender === "female" ? "female" : msg.gender === "pepeka" ? "pepeka" : "male";
 
+      const discordSession = !!(ws as GameSocket).discordUserId || !!discordAccountByWallet(wallet, defaultLokDir());
+
       // L6: only accept a client tokenId when mint is configured (verified on-chain).
       let bindToken: string | undefined;
       let acceptedWallets = [wallet.toLowerCase()];
@@ -8195,6 +8837,57 @@ function onMessage(ws: WebSocket, data: string) {
           typeof msg.tokenId === "string" && /^[1-9][0-9]{0,77}$/.test(msg.tokenId)
             ? msg.tokenId
             : undefined;
+        if (!bindToken && discordSession) {
+          if (!cachedCharacterMint.supportsCreateFor) {
+            send(ws, {
+              type: "error",
+              message: "Sponsored Discord mint needs createCharacterFor on the factory.",
+            });
+            return;
+          }
+          console.log("[bellgrave] Discord sponsored mint for " + wallet);
+          const minted = await sponsorMintCharacterFor(jobIndex < 0 ? 0 : jobIndex, wallet);
+          if (!minted.ok) {
+            console.error("[bellgrave] Discord sponsored mint failed: " + minted.error);
+            send(ws, { type: "error", message: minted.error });
+            return;
+          }
+          bindToken = minted.tokenId;
+          let refundHash: string | undefined;
+          const feeWei = BigInt(cachedCharacterMint.mintFee);
+          const refunded = await refundSponsorMintFee(feeWei);
+          if (refunded.ok) {
+            refundHash = refunded.refundHash ?? undefined;
+            send(ws, { type: "log", message: "Character mint covered. Fee returned to the sponsor." });
+          } else {
+            console.error("[bellgrave] Discord mint refund failed: " + refunded.error);
+            send(ws, {
+              type: "log",
+              message: "Character minted. Sponsor refund is pending.",
+            });
+            setTimeout(() => {
+              void retryPendingDiscordMintRefunds({
+                dataDir: defaultLokDir(),
+                amountWei: feeWei,
+              }).then((again) => {
+                if (!again.attempted) return;
+                if (again.ok) console.log("[bellgrave] Discord mint refund recovered " + again.refundHash);
+                else console.error("[bellgrave] Discord mint refund still pending: " + again.error);
+              });
+            }, 8_000).unref?.();
+          }
+          const discordUserId = (ws as GameSocket).discordUserId;
+          if (discordUserId) {
+            appendDiscordMintJournal(defaultLokDir(), {
+              discordUserId,
+              wallet,
+              tokenId: minted.tokenId,
+              hash: minted.hash,
+              at: Date.now(),
+              ...(refundHash ? { refundHash } : {}),
+            });
+          }
+        }
         if (!bindToken) {
           send(ws, {
             type: "error",
@@ -8258,7 +8951,7 @@ function onMessage(ws: WebSocket, data: string) {
                 type: "error",
                 message:
                   "LOK_DEV_SERVER_MINT needs createCharacterFor on the factory. " +
-                  "This anvil factory predates that method — use the faucet + client createCharacter, " +
+                  "This anvil factory predates that method, so use the faucet + client createCharacter, " +
                   "or wait for the batched redeploy. " +
                   verified.error,
               });
@@ -8436,7 +9129,7 @@ function onMessage(ws: WebSocket, data: string) {
     } else {
       p = ensurePlayer(wallet, ws);
       if (!p) {
-        const slots = accountRoster.get(wallet);
+        const slots = rosterFor(wallet);
         const first = slots ? [...slots.values()][0] : undefined;
         if (first) p = activateCharacter(wallet, first.charId, ws);
       }
@@ -8446,7 +9139,10 @@ function onMessage(ws: WebSocket, data: string) {
       return;
     }
     placeEnteredZone(p, msg);
-    // #271: refuse enter when session wallet no longer owns the character NFT.
+    // Paint the world immediately. Ownership is checked after — a Gnosis RPC
+    // round-trip must not leave play on a blank canvas.
+    send(p.ws, snapshotFor(p));
+    syncPartyState(partyAllyWallets(p.wallet));
     const entered = p;
     void requireLiveCharacterOwner(entered).then((ok) => {
       if (!ok) return;
@@ -8486,9 +9182,14 @@ function onMessage(ws: WebSocket, data: string) {
       if (playerIsRooted(p, t)) break;
       if (p.anim === "cast" && t < p.animUntil) break;
       if (p.gathering && t < p.animUntil) break;
-      // Manual move cancels engage so chase doesn't overwrite the click/WASD
-      if (p.targetId) p.targetId = null;
-      p.lastMoveInputAt = t;
+      if (typeof msg.seq === "number") {
+        if (msg.seq <= p.lastMoveSeq) break;
+        p.lastMoveSeq = msg.seq;
+      }
+      // Click-to-move drops engage so chase does not steal the route.
+      // Held WASD keeps targetId; chaseEngaged skips while keys are down.
+      if (msg.held === false && p.lastMoveInputAt === 0 && p.targetId) p.targetId = null;
+      p.lastMoveInputAt = msg.held === false ? 0 : t;
       interruptRestForMove(p);
       assignRoute(p, msg.x, msg.z);
       if (p.moveTo) warnSoftGate(p, p.movePath.at(-1)?.z ?? p.moveTo.z);
@@ -8497,6 +9198,9 @@ function onMessage(ws: WebSocket, data: string) {
     }
     case "dash":
       handleDash(p, msg.dx, msg.dz, msg.resume !== false);
+      break;
+    case "swing":
+      handleSwing(p, !!msg.heavy, typeof msg.facing === "number" ? msg.facing : undefined);
       break;
     case "warp/use": {
       const used = tryUseWarp(msg.id, p.warpUnlocked);
@@ -8549,14 +9253,17 @@ function onMessage(ws: WebSocket, data: string) {
         pushLog(p, `${mob.name} is too far away to engage.`);
       } else if (mob && mob.alive) {
         stopRest(p, "You break rest to engage.");
+        const now = Date.now();
         p.targetId = mob.id;
-        pullMobOn(mob, p.wallet, Date.now());
+        pullMobOn(mob, p.wallet, now);
         noteMobHit(mob, p.wallet);
+        if (!(p.anim === "melee" && now < p.animUntil)) p.nextSwingAt = 0;
         chaseEngaged(p);
+        playerSwing(p, now);
         pushLog(
           p,
-          dist(p.x, p.z, mob.x, mob.z) > MELEE_RANGE
-            ? `Engaged ${mob.name} — closing in.`
+          dist(p.x, p.z, mob.x, mob.z) > playerSwingReach(p, now)
+            ? `Engaged ${mob.name}, closing in.`
             : `Engaged ${mob.name}.`,
         );
       } else if (foe && foe.wallet !== p.wallet && foe.hp > 0) {
@@ -8568,11 +9275,14 @@ function onMessage(ws: WebSocket, data: string) {
         } else {
           stopRest(p, "You break rest to engage.");
           p.targetId = foe.wallet;
+          const now = Date.now();
+          if (!(p.anim === "melee" && now < p.animUntil)) p.nextSwingAt = 0;
           chaseEngagedPlayer(p, foe);
+          playerSwing(p, now);
           pushLog(
             p,
-            dist(p.x, p.z, foe.x, foe.z) > MELEE_RANGE
-              ? `Engaged ${foe.name} — closing in.`
+            dist(p.x, p.z, foe.x, foe.z) > playerSwingReach(p, now)
+              ? `Engaged ${foe.name}, closing in.`
               : `Engaged ${foe.name}.`,
           );
         }
@@ -8617,6 +9327,9 @@ function onMessage(ws: WebSocket, data: string) {
       break;
     case "npc/interact":
       handleNpcInteract(p, msg.npcId);
+      break;
+    case "npc/reply":
+      handleNpcReply(p, msg.npcId, msg.choiceId);
       break;
     case "job/change":
       handleJobChange(p, msg.job);
@@ -8781,6 +9494,7 @@ const httpServer = createServer((req, res) => {
 const wss = new WebSocketServer({
   server: httpServer,
   maxPayload: WS_MAX_PAYLOAD,
+  perMessageDeflate: false,
   verifyClient: (info: { origin: string; req: import("node:http").IncomingMessage }) => {
     if (!authVerifyClient(info)) return false;
     const ip = clientAddress(info.req);
@@ -8792,13 +9506,11 @@ const wss = new WebSocketServer({
   },
 });
 wss.on("connection", (ws, req) => {
-  const sock = ws as WebSocket & {
-    authConnId?: string;
+  const tcp = (ws as unknown as { _socket?: { setNoDelay?: (v: boolean) => void } })._socket;
+  tcp?.setNoDelay?.(true);
+  const sock = ws as GameSocket & {
     authDomain?: string;
-    authIp?: string;
     authUri?: string;
-    authDeadline?: ReturnType<typeof setTimeout>;
-    wallet?: string;
   };
   const originHeader = req.headers.origin;
   const originValue = Array.isArray(originHeader) ? originHeader[0] : originHeader;
@@ -8814,16 +9526,7 @@ wss.on("connection", (ws, req) => {
   const countedIp =
     (req as { __wsIpCounted?: string }).__wsIpCounted ??
     (wsIpExemptFromCaps(sock.authIp) ? "" : sock.authIp);
-  sock.authDeadline = setTimeout(() => {
-    if (!sock.wallet) {
-      try {
-        ws.close(4002, "auth timeout");
-      } catch {
-        /* ignore */
-      }
-    }
-  }, WS_AUTH_DEADLINE_MS);
-  sock.authDeadline.unref?.();
+  armAuthDeadline(sock, () => closeUnauthedTimeout(sock), WS_AUTH_DEADLINE_MS);
   ws.on("message", (buf) => {
     if (!consumeWsMessage(sock)) {
       try {
@@ -8837,7 +9540,7 @@ wss.on("connection", (ws, req) => {
   });
   ws.on("close", () => {
     clearWsMessageBudget(sock);
-    if (sock.authDeadline) clearTimeout(sock.authDeadline);
+    clearAuthDeadline(sock);
     if (countedIp) noteWsDisconnect(countedIp);
     if (sock.authConnId) dropAuthConnection(sock.authConnId);
     const wallet = sock.wallet;
@@ -8863,9 +9566,25 @@ function runWorldTick() {
   if (tickDue < now) tickDue = now + TICK_MS;
   armWorldTick();
 }
+function armSnapshotTick() {
+  const wait = Math.max(0, snapshotDue - Date.now());
+  setTimeout(runSnapshotTick, wait);
+}
+function runSnapshotTick() {
+  const started = performance.now();
+  broadcastSnapshots();
+  const now = Date.now();
+  snapshotDue += SNAPSHOT_MS;
+  if (snapshotDue < now) snapshotDue = now + SNAPSHOT_MS;
+  const elapsed = performance.now() - started;
+  if (elapsed > 20) console.warn("[snap] " + elapsed.toFixed(1) + "ms");
+  armSnapshotTick();
+}
 if (allow("tick")) {
   tickDue = Date.now() + TICK_MS;
+  snapshotDue = Date.now() + SNAPSHOT_MS;
   armWorldTick();
+  armSnapshotTick();
   console.log("[bellgrave] leader: ticking the world");
 } else if (!allow("login")) {
   console.error("[bellgrave] not ticking: " + NO_WORLD_COPY);
@@ -8887,4 +9606,12 @@ httpServer.listen(PORT, () => {
   console.log(
     `[bellgrave] ops probes http://localhost:${PORT}/health|/ready|/status`,
   );
+  setTimeout(() => {
+    const feeWei = cachedCharacterMint?.mintFee ? BigInt(cachedCharacterMint.mintFee) : 10n ** 18n;
+    void retryPendingDiscordMintRefunds({ dataDir: defaultLokDir(), amountWei: feeWei }).then((again) => {
+      if (!again.attempted) return;
+      if (again.ok) console.log("[bellgrave] Discord mint refund recovered " + again.refundHash);
+      else console.error("[bellgrave] Discord mint refund still pending: " + again.error);
+    });
+  }, 4_000).unref?.();
 });
