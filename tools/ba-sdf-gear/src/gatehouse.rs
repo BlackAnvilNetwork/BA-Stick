@@ -265,17 +265,17 @@ fn curtain_sdf(p: Vec3, s: &GatehouseParams) -> f32 {
     let arch = sd_arch_cut(p, s.arch_w, s.arch_h, s.wall_half.z + 0.35);
     let mut body = wall.max(-arch);
 
-    // Gate buttresses (proud framing pillars from reference)
+    // Gate buttresses — thick framing pillars so the gate mass reads at distance.
     let bl = sd_box(
-        p - Vec3::new(-(s.arch_w + 0.16), s.arch_h * 0.48, s.wall_half.z + 0.10),
-        Vec3::new(0.13, s.arch_h * 0.50, 0.18),
+        p - Vec3::new(-(s.arch_w + 0.22), s.arch_h * 0.52, s.wall_half.z + 0.18),
+        Vec3::new(0.22, s.arch_h * 0.58, 0.32),
     );
     let br = sd_box(
-        p - Vec3::new(s.arch_w + 0.16, s.arch_h * 0.48, s.wall_half.z + 0.10),
-        Vec3::new(0.13, s.arch_h * 0.50, 0.18),
+        p - Vec3::new(s.arch_w + 0.22, s.arch_h * 0.52, s.wall_half.z + 0.18),
+        Vec3::new(0.22, s.arch_h * 0.58, 0.32),
     );
-    body = smin(body, bl, 0.035);
-    body = smin(body, br, 0.035);
+    body = smin(body, bl, 0.04);
+    body = smin(body, br, 0.04);
 
     // Voussoir / arch face ring (stone frame around opening)
     let face_z = s.wall_half.z + 0.04;

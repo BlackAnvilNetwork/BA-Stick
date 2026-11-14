@@ -52,6 +52,7 @@ impl Default for CastleModule {
     fn default() -> Self {
         // Pitch 7.92 (3× old 2.64 / AB_KIT_PITCH) — long curtain spans, fewer towers.
         // Towers ~2.3× old so posts stay chunky without filling the longer wall.
+        // Merlon period ~1.0 so teeth stay readable at distant zoom 0.15.
         Self {
             tower_sep: 3.96,
             tower_r: 1.55,
@@ -59,9 +60,9 @@ impl Default for CastleModule {
             crown_r: 1.90,
             crown_h: 1.05,
             wall_half: Vec3::new(3.35, 2.85, 0.92),
-            battlement: 0.72,
-            merlon_w: 0.42,
-            merlon_gap: 0.28,
+            battlement: 0.98,
+            merlon_w: 0.58,
+            merlon_gap: 0.42,
             wall_shell: 0.28,
             gallery_shell: 0.24,
         }
@@ -82,24 +83,24 @@ impl CastleModule {
     /// Twin-tower gate sized for the south passage clear (3.6 m ≈ `GATE_HALF_W * 2`).
     /// Wider than a curtain bay — bastion layout places it at x≈0 and skips nearby curtains.
     pub fn to_gatehouse(&self, door_open: f32) -> GatehouseParams {
-        let tower_r = (self.tower_r * 1.18).max(1.6);
-        // Keep ~3.7 m arch clear; towers sit outside the passage.
-        let tower_sep = (1.85 + tower_r * 0.85).max(4.2);
+        // Chunky twin drums vs curtain posts; arch clear stays ~3.7 m.
+        let tower_r = (self.tower_r * 1.28).max(1.75);
+        let tower_sep = (1.85 + tower_r * 0.88).max(4.35);
         GatehouseParams {
             tower_sep,
             tower_r,
-            tower_h: self.tower_h * 1.08,
-            crown_r: tower_r * 1.22,
-            crown_h: self.crown_h * 1.05,
+            tower_h: self.tower_h * 1.14,
+            crown_r: tower_r * 1.28,
+            crown_h: self.crown_h * 1.12,
             wall_half: Vec3::new(
-                tower_sep - tower_r * 0.30,
-                self.wall_half.y * 1.06,
-                self.wall_half.z * 1.15,
+                tower_sep - tower_r * 0.28,
+                self.wall_half.y * 1.12,
+                self.wall_half.z * 1.28,
             ),
             arch_w: 1.85,
             arch_h: 2.85,
-            battlement: self.battlement * 1.05,
-            merlon_w: self.merlon_w * 1.10,
+            battlement: self.battlement * 1.08,
+            merlon_w: self.merlon_w * 1.12,
             merlon_gap: self.merlon_gap,
             wall_shell: self.wall_shell,
             door_open: door_open.clamp(0.0, 1.0),
@@ -265,19 +266,20 @@ fn tower_sdf(p: Vec3, cx: f32, m: &CastleModule) -> f32 {
 }
 
 /// Sloping exterior buttresses on +Z (outward face after wall yaw).
+/// Deep ribs so long pitch-7.92 spans cast readable shadow at distant zoom.
 fn exterior_buttresses(p: Vec3, m: &CastleModule) -> f32 {
     let span = (m.tower_sep - m.tower_r * 0.85).max(0.8);
-    // Three piers on the long curtain so the span does not read empty.
-    let xs = [-span * 0.55, 0.0, span * 0.55];
+    // Three chunky piers — rib the curtain without reading as a tower comb.
+    let xs = [-span * 0.58, 0.0, span * 0.58];
     let mut d = 1e3_f32;
-    let h = m.wall_half.y * 1.35;
+    let h = m.wall_half.y * 1.58;
     for &cx in &xs {
         let y = p.y.clamp(0.0, h);
-        let taper = 1.0 - (y / h.max(1e-3)).clamp(0.0, 1.0) * 0.55;
-        let hx = 0.28 * taper;
-        let hz = 0.58 * taper;
+        let taper = 1.0 - (y / h.max(1e-3)).clamp(0.0, 1.0) * 0.48;
+        let hx = 0.40 * taper;
+        let hz = 0.92 * taper;
         let pier = sd_box(
-            p - Vec3::new(cx, h * 0.48, m.wall_half.z + hz * 0.72),
+            p - Vec3::new(cx, h * 0.48, m.wall_half.z + hz * 0.78),
             Vec3::new(hx, h * 0.48, hz),
         );
         d = d.min(pier);
@@ -493,7 +495,7 @@ mod tests {
         let slit = curtain_wall_sdf(Vec3::new(0.0, m.wall_half.y * 1.05, m.wall_half.z * 0.5), &m);
         assert!(slit > -0.05, "wall slit passage d={slit}");
         let buttress = curtain_wall_sdf(
-            Vec3::new(0.0, m.wall_half.y * 0.55, m.wall_half.z + 0.35),
+            Vec3::new(0.0, m.wall_half.y * 0.55, m.wall_half.z + 0.55),
             &m,
         );
         assert!(buttress < 0.05, "exterior buttress d={buttress}");
