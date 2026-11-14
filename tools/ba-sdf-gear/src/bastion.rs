@@ -290,8 +290,8 @@ pub fn bastion_layout(cfg: &BastionConfig) -> BastionLayout {
     );
     stats.curtain_bays += east_n as u32;
 
-    // Vigil Walk — SDF decks inset along the inner curtain face.
-    let walk_inset = 1.65;
+    // Vigil Walk — SDF decks inset along the inner curtain face (thicker 3× walls).
+    let walk_inset = 2.45;
     let before = placements.len();
     // South inner: place decks then drop those over the gate clear.
     {
@@ -397,12 +397,13 @@ mod tests {
             );
         }
         assert!(
-            layout.stats.walkways >= 20,
+            layout.stats.walkways >= 8,
             "walkways={}",
             layout.stats.walkways
         );
+        // Pitch 7.92 → ~14 bays/long side, ~8/short; fewer than the old 2.64 kit.
         assert!(
-            layout.stats.curtain_bays >= 80,
+            layout.stats.curtain_bays >= 28 && layout.stats.curtain_bays <= 55,
             "curtains={}",
             layout.stats.curtain_bays
         );

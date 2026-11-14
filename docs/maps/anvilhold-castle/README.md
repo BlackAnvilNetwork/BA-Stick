@@ -11,16 +11,19 @@ Reference pack for the Ashen Bastion / Anvilhold courtyard build. **Do not copy 
 
 Mirrored under `tools/ba-sdf-gear/art/anvilhold-castle/` for the SDF pipeline.
 
+**Progress framing:** after every castle pass, capture the locked distant overview — see [`SHOT.md`](./SHOT.md). Latest: [`distant-overview.png`](./distant-overview.png).
+
 ## Zone wiring
 
-Playable zone id remains `ashen_bastion` (`packages/config/src/ashen-bastion.ts`). BAM1 meshes ship as `apps/stick-web/public/zones/ashen_bastion.bam` (gitignored bake output — regen locally).
+Playable zone id remains `ashen_bastion` (`packages/config/src/ashen-bastion.ts`). Linked `ring_ward` `east-gap` ↔ bastion `south-lip`. BAM1: `apps/stick-web/public/zones/ashen_bastion.bam`.
 
 ```powershell
 cargo run --release --manifest-path tools/ba-sdf-gear/Cargo.toml -- bastion --out tools/ba-sdf-gear/out/bastion
 Copy-Item -Force tools/ba-sdf-gear/out/bastion/ashen_bastion.bam apps/stick-web/public/zones/
+pnpm --filter @bellgrave/stick-web exec tsx scripts/bake-zones.ts ashen_bastion
 ```
 
-Walls/gate own curtain + gatehouse SDF (`castle.rs` / `gatehouse.rs` / bastion south layout). Houses own archetypes/`HOUSE_PLACES`. Re-bake heightfield only if the walk/gate mask changes.
+Walls/gate: curtain + gatehouse SDF. Houses: archetypes / `HOUSE_PLACES`. Re-bake heightfield when the walk/gate mask changes.
 
 ## Courtyard houses (SDF)
 

@@ -188,6 +188,10 @@ pub struct Scene {
     water_layout_origins: Vec<(f32, f32)>,
     water_dirty: bool,
     props: Vec<props::Prop>,
+    /// Spike-0 SDF structure meshes (BAM1) for the active / concurrent world.
+    mesh_bank: crate::mesh_bank::MeshBank,
+    /// Origins already given to `place_meshes` so a retry does not double banks.
+    mesh_origins: Vec<(f32, f32)>,
     /// Every zone drawn together, already shifted into world coordinates.
     /// The minimap zone above stays in that zone's local coordinates.
     world: Vec<Zone>,
@@ -282,6 +286,8 @@ impl Scene {
             water_layout_origins: Vec::new(),
             water_dirty: false,
             props: Vec::new(),
+            mesh_bank: crate::mesh_bank::MeshBank::default(),
+            mesh_origins: Vec::new(),
             world: Vec::new(),
             world_props: Vec::new(),
             prop_origins: Vec::new(),
@@ -343,6 +349,8 @@ impl Scene {
         self.world_water.clear();
         self.world_props.clear();
         self.prop_origins.clear();
+        self.mesh_bank = crate::mesh_bank::MeshBank::default();
+        self.mesh_origins.clear();
         self.minimap_src = None;
         self.set_cam_mode("iso");
         self.look_yaw = 0.0;
@@ -417,6 +425,11 @@ impl Scene {
         self.cam_y = self.zone_height(x, z);
     }
 
+    /// Direct iso / overview zoom (used by locked progress shots).
+    pub fn set_zoom(&mut self, z: f32) {
+        self.cam.zoom = z.clamp(0.05, 8.0);
+    }
+
     /// Load a baked zone (BAZ1). Replaces any previous zone.
     pub fn load_zone(&mut self, bytes: &[u8]) -> Result<(), String> {
         self.zone = Some(Zone::parse(bytes)?);
@@ -442,6 +455,43 @@ impl Scene {
         self.rebuild_static_lights();
         self.minimap.invalidate();
         Ok(self.props.len())
+    }
+
+    /// Load Spike-0 SDF meshes (BAM1), shifted by `ox`/`oz`. Replaces the bank.
+    pub fn load_meshes(&mut self, bytes: &[u8], ox: f32, oz: f32) -> Result<usize, String> {
+        let mut bank = crate::mesh_bank::parse(bytes)?;
+        for p in &mut bank.places {
+            p.x += ox;
+            p.z += oz;
+        }
+        let n = bank.places.len();
+        self.mesh_bank = bank;
+        self.mesh_origins.clear();
+        self.mesh_origins.push((ox, oz));
+        Ok(n)
+    }
+
+    /// Append BAM1 meshes for a placed zone (same origin as `place_zone`).
+    pub fn place_meshes(&mut self, bytes: &[u8], ox: f32, oz: f32) -> Result<usize, String> {
+        if self
+            .mesh_origins
+            .iter()
+            .any(|(x, z)| (x - ox).abs() < 0.01 && (z - oz).abs() < 0.01)
+        {
+            return Ok(0);
+        }
+        let mut bank = crate::mesh_bank::parse(bytes)?;
+        let mesh_base = self.mesh_bank.meshes.len() as u32;
+        for p in &mut bank.places {
+            p.x += ox;
+            p.z += oz;
+            p.mesh = p.mesh.saturating_add(mesh_base);
+        }
+        let n = bank.places.len();
+        self.mesh_bank.meshes.append(&mut bank.meshes);
+        self.mesh_bank.places.append(&mut bank.places);
+        self.mesh_origins.push((ox, oz));
+        Ok(n)
     }
 
     pub fn prop_count(&self) -> usize { self.props.len() }
@@ -1541,6 +1591,7 @@ impl Scene {
                 melting,
             );
             props::draw_shadows(&mut self.fb, &cam, props, self.cam_y);
+            crate::mesh_bank::draw(&mut self.fb, &cam, self.cam_y, &self.mesh_bank);
         }
         self.build_light_stamps();
         let cy = self.cam_y;

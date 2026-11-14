@@ -41,6 +41,18 @@ impl StickRenderer {
         self.scene.load_props(bytes).map_err(|e| JsValue::from_str(&e))
     }
 
+    /// Load Spike-0 SDF structure meshes (`BAM1` bytes) at world origin; returns placement count.
+    #[wasm_bindgen(js_name = loadMeshes)]
+    pub fn load_meshes(&mut self, bytes: &[u8], ox: f32, oz: f32) -> Result<usize, JsValue> {
+        self.scene.load_meshes(bytes, ox, oz).map_err(|e| JsValue::from_str(&e))
+    }
+
+    /// Props-style place for BAM1 meshes at a world origin.
+    #[wasm_bindgen(js_name = placeMeshes)]
+    pub fn place_meshes(&mut self, bytes: &[u8], ox: f32, oz: f32) -> Result<usize, JsValue> {
+        self.scene.place_meshes(bytes, ox, oz).map_err(|e| JsValue::from_str(&e))
+    }
+
     /// Add a zone to the world without unloading the others. `ox`/`oz` are its world origin.
     #[wasm_bindgen(js_name = placeZone)]
     pub fn place_zone(&mut self, bytes: &[u8], ox: f32, oz: f32) -> Result<(), JsValue> {
@@ -332,6 +344,9 @@ impl StickRenderer {
 
     #[wasm_bindgen(js_name = setCamera)]
     pub fn set_camera(&mut self, x: f32, z: f32) { self.scene.set_camera(x, z); }
+
+    #[wasm_bindgen(js_name = setZoom)]
+    pub fn set_zoom(&mut self, z: f32) { self.scene.set_zoom(z); }
 
     /// Stick-form seed hook. Baked forms ignore this.
     #[wasm_bindgen(js_name = setStickFormSeed)]

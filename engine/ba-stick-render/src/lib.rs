@@ -26,6 +26,7 @@ pub mod gear;
 pub mod ground;
 pub mod lighting;
 pub mod mapfont;
+pub mod mesh_bank;
 pub mod minimap;
 pub mod palette;
 pub mod pixel_water;

@@ -116,6 +116,22 @@ export function fetchWaterLayout(id: string): Promise<Uint8Array | null> {
   return p;
 }
 
+const meshCache = new Map<string, Promise<Uint8Array | null>>();
+/** Fetch SDF structure bank (`public/zones/<id>.bam`); null when the zone has none. */
+export function fetchMeshes(id: string): Promise<Uint8Array | null> {
+  let p = meshCache.get(id);
+  if (!p) {
+    p = fetch(`${import.meta.env.BASE_URL}zones/${id}.bam`)
+      .then(async (res) => (res.ok ? new Uint8Array(await res.arrayBuffer()) : null))
+      .catch(() => {
+        meshCache.delete(id);
+        return null;
+      });
+    meshCache.set(id, p);
+  }
+  return p;
+}
+
 /** Server zone id → baked zone (see zones.ts). */
 export function bakedZoneFor(zoneId: string | undefined): string | null {
   return zoneRender(zoneId).baked;
@@ -130,17 +146,26 @@ export async function placeAllZones(r: {
   placeZone(bytes: Uint8Array, ox: number, oz: number): void;
   placeProps(bytes: Uint8Array, ox: number, oz: number): number;
   setWaterLayout?(bytes: Uint8Array, ox: number, oz: number): void;
+  placeMeshes?(bytes: Uint8Array, ox: number, oz: number): number;
+  loadMeshes?(bytes: Uint8Array, ox: number, oz: number): number;
 }): Promise<void> {
   const jobs = new Map(
-    WORLD_ZONE_IDS.map((id) => [id, Promise.all([fetchZone(id), fetchProps(id), fetchWaterLayout(id)] as const)]),
+    WORLD_ZONE_IDS.map((id) => [
+      id,
+      Promise.all([fetchZone(id), fetchProps(id), fetchWaterLayout(id), fetchMeshes(id)] as const),
+    ]),
   );
   const place = async (id: string) => {
     try {
-      const [baz, bap, wfl] = await jobs.get(id)!;
+      const [baz, bap, wfl, bam] = await jobs.get(id)!;
       const o = zoneOrigin(id);
       r.placeZone(baz, o.x, o.z);
       if (bap) r.placeProps(bap, o.x, o.z);
       if (wfl && r.setWaterLayout) r.setWaterLayout(wfl, o.x, o.z);
+      if (bam) {
+        if (r.placeMeshes) r.placeMeshes(bam, o.x, o.z);
+        else if (r.loadMeshes) r.loadMeshes(bam, o.x, o.z);
+      }
     } catch (err) {
       console.warn(`zone ${id} stayed offline`, err);
     }

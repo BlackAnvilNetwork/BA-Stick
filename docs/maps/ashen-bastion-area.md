@@ -2,7 +2,7 @@
 
 Reference art: `tools/ba-sdf-gear/art/castle-refs/` · **Anvilhold castle images:** [`docs/maps/anvilhold-castle/`](./anvilhold-castle/). **Do not copy reference labels into ids.**
 
-Modular SDF kit (`tools/ba-sdf-gear`): curtain + gate bays, pitch **2.64 m** (`tower_sep` 1.32). Curtain towers **r≈0.68** (~1.7× wall thickness), exterior buttresses, hollow gallery + postern cue. South **twin-tower gatehouse** is wider than one bay (`arch_w` **1.85** → **3.7 m** clear, doors open `1.0`, centred at **x=0** / **z=−14**); nearby curtain bays skipped. **Castle architecture** ships in **`public/zones/ashen_bastion.bam`** (gatehouse, curtain, houses, Vigil Walk decks) — zone walkability is heightfield-only; BAP1 is bridges + light clutter only (no wallBlock massing).
+Modular SDF kit (`tools/ba-sdf-gear`): curtain + gate bays, pitch **7.92 m** (`tower_sep` 3.96, 3× old 2.64). Curtain towers **r≈1.55**, exterior buttresses, hollow gallery + postern cue. South **twin-tower gatehouse** keeps `arch_w` **1.85** → **3.7 m** clear (doors open `1.0`, centred at **x=0** / **z=−14**); nearby curtain bays skipped. **Castle architecture** ships in **`public/zones/ashen_bastion.bam`** (gatehouse, curtain, houses, Vigil Walk decks) — zone walkability is heightfield-only; BAP1 is bridges + light clutter only (no wallBlock massing).
 
 **Sector sheets:** [`ashen-bastion-smolder.md`](./ashen-bastion-smolder.md) · [`ashen-bastion-sablefolio.md`](./ashen-bastion-sablefolio.md) · [`ashen-bastion-kettlestone.md`](./ashen-bastion-kettlestone.md) · [`ashen-bastion-hammergate.md`](./ashen-bastion-hammergate.md)
 

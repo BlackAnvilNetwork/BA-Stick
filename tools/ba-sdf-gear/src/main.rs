@@ -284,12 +284,12 @@ fn run_curtain_wall(out: &PathBuf, preview: bool) -> Result<(), Box<dyn std::err
 fn mesh_house_kind(kind: HouseKind) -> MeshData {
     let house = HouseParams::from_kind(kind);
     let half = house.half_extents();
-    // res < 45 → RES_COARSE=28; many courtyard instances share these meshes.
+    // res 48 → RES_PLAY=40: gables/roofs readable without blowing the CPU triangle budget.
     let opts = MeshOptions {
         min: Vec3::new(-half.x, -0.12, -half.z),
         max: Vec3::new(half.x, half.y, half.z),
         time: 0.0,
-        res: 36,
+        res: 48,
     };
     let mut mesh = mesh_field(
         |p| house_sdf(p, &house),
@@ -309,19 +309,22 @@ fn run_bastion(out_dir: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
     let walk = WalkwayParams::default();
 
     // Keep voxel density on the play grid (res < 80 → RES_PLAY=40).
-    // Wider AABB for the 3.6 m twin-tower gatehouse; curtain uses the same bank size.
     let gate_r = gate_params.tower_sep + gate_params.tower_r * 1.35;
-    let gate_top = gate_params.tower_h + gate_params.crown_h + gate_params.battlement + 0.4;
-    // res ∈ [45, 80) → RES_PLAY=40; res < 45 → coarse 28 (houses only).
+    let gate_top = gate_params.tower_h + gate_params.crown_h + gate_params.battlement + 0.5;
+    let gate_z = gate_params.wall_half.z + gate_params.tower_r * 0.55;
+    // res ∈ [45, 80) → RES_PLAY=40; res < 45 → coarse 28.
     let gate_opts = MeshOptions {
-        min: Vec3::new(-gate_r, -0.25, -1.85),
-        max: Vec3::new(gate_r, gate_top, 1.85),
+        min: Vec3::new(-gate_r, -0.35, -gate_z),
+        max: Vec3::new(gate_r, gate_top, gate_z),
         time: 0.0,
         res: 56,
     };
+    let wall_r = m.tower_sep + m.tower_r * 1.35;
+    let wall_top = m.tower_h + m.crown_h + m.battlement + 0.5;
+    let wall_z = m.wall_half.z + m.tower_r * 0.45;
     let wall_opts = MeshOptions {
-        min: Vec3::new(-2.35, -0.22, -1.75),
-        max: Vec3::new(2.35, 5.1, 1.75),
+        min: Vec3::new(-wall_r, -0.35, -wall_z),
+        max: Vec3::new(wall_r, wall_top, wall_z),
         time: 0.0,
         res: 56,
     };

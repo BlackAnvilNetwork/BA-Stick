@@ -30,12 +30,16 @@ pub struct BamPlacement {
     pub sz: f32,
 }
 
-/// Stone wall palette index in ba-stick-render (`WALL` = 119).
-pub const BAM_PALETTE_STONE: u8 = 119;
-/// Lighter stone (`WALL_L` = 120).
-pub const BAM_PALETTE_STONE_L: u8 = 120;
-/// Wood mid (`WOOD` = 123).
-pub const BAM_PALETTE_WOOD: u8 = 123;
+/// Cool grey ashlar (`ROCK` = 116) — avoids warm beige WALL.
+pub const BAM_PALETTE_STONE: u8 = 116;
+/// Darker ashlar (`ROCK_D` = 115).
+pub const BAM_PALETTE_STONE_D: u8 = 115;
+/// Light ashlar (`ROCK_L` = 117).
+pub const BAM_PALETTE_STONE_L: u8 = 117;
+/// Dark timber (`WOOD_D` = 122).
+pub const BAM_PALETTE_WOOD: u8 = 122;
+/// Plaster / bone (`GEAR_BONE` = 79).
+pub const BAM_PALETTE_PLASTER: u8 = 79;
 
 pub fn write_bam1(path: &Path, meshes: &[MeshData]) -> std::io::Result<()> {
     write_bam1_with_places(path, meshes, &[])
@@ -61,10 +65,14 @@ pub fn write_bam1_with_places(
             let heat = mesh.heats.get(i).copied().unwrap_or(0.35);
             let pal = if heat < 0.2 {
                 BAM_PALETTE_WOOD
-            } else if heat > 0.65 {
+            } else if heat < 0.40 {
+                BAM_PALETTE_STONE_D
+            } else if heat < 0.62 {
+                BAM_PALETTE_STONE
+            } else if heat < 0.72 {
                 BAM_PALETTE_STONE_L
             } else {
-                BAM_PALETTE_STONE
+                BAM_PALETTE_PLASTER
             };
             w.write_all(&[pal, 0, 0, 0])?;
         }

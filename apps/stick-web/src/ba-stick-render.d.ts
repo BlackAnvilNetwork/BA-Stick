@@ -24,6 +24,11 @@ declare module "ba-stick-render" {
     minimapBakes(): number;
     minimapLabels(): string;
     loadProps(bytes: Uint8Array): number;
+    /** Spike-0 SDF structure meshes (`BAM1`); returns placement count. */
+    loadMeshes(bytes: Uint8Array, ox: number, oz: number): number;
+    /** Props-style place for BAM1 meshes at a world origin. */
+    placeMeshes(bytes: Uint8Array, ox: number, oz: number): number;
+    setZoom(z: number): void;
     addFloater(id: string, kind: number, value: number): void;
     isWading(id: string): boolean;
     setAtmosphere(on: boolean): void;

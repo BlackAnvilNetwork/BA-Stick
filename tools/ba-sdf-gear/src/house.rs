@@ -187,25 +187,61 @@ impl HouseParams {
     }
 }
 
+/// Pitched roof prism: ridge along X, triangular YZ section — reads from every angle.
 fn pitched_roof_rect(p: Vec3, hw: f32, hd: f32, eave_y: f32, roof_h: f32) -> f32 {
-    let shell = 0.14_f32;
-    let ridge_y = eave_y + roof_h;
-    let t = (p.z.abs() / hd.max(1e-3)).clamp(0.0, 1.0);
-    let plane_y = ridge_y - (ridge_y - eave_y) * t;
-    let outer = sd_box(
-        p - Vec3::new(0.0, (eave_y + ridge_y) * 0.5 - shell * 0.5, 0.0),
-        Vec3::new(hw + shell, (ridge_y - eave_y) * 0.5 + shell, hd + shell),
-    );
-    let mut body = outer;
-    let under = p.y - plane_y;
-    if under > 0.0 && p.x.abs() < hw + 0.02 && p.z.abs() < hd + shell {
-        body = body.max(under);
+    let shell = 0.16_f32;
+    let q = p - Vec3::new(0.0, eave_y, 0.0);
+    let nx = q.x.abs() - (hw + shell);
+    let nz = q.z.abs() / hd.max(1e-3);
+    let roof_top = roof_h * (1.0 - nz.clamp(0.0, 1.0));
+    let ny_above = q.y - (roof_top + shell * 0.35);
+    let ny_below = -q.y - 0.02;
+    // Outside the gable triangle or past eaves.
+    let d_tri = ny_above.max(ny_below).max(nz - 1.0);
+    let d_x = nx;
+    // Soft exterior thickness so the surface nets a solid slab, not a plane.
+    let outside = d_tri.max(d_x);
+    if outside > 0.0 {
+        return outside;
     }
-    let below = eave_y - p.y;
-    if below > 0.0 {
-        body = body.max(below);
+    // Interior of prism: distance to nearest face (negative).
+    let to_slope = -(roof_top + shell * 0.35 - q.y);
+    let to_eave = -q.y;
+    let to_end = -(hw + shell - q.x.abs());
+    let to_side = -(hd - q.z.abs());
+    to_slope.max(to_eave).max(to_end).max(to_side).min(0.0) - shell * 0.25
+}
+
+/// Filled triangular gable under the roof on ±X — closes the attic from side views.
+fn gable_end(p: Vec3, sx: f32, hw: f32, hd: f32, eave_y: f32, roof_h: f32, thick: f32) -> f32 {
+    let q = p - Vec3::new(sx * (hw - thick * 0.35), eave_y, 0.0);
+    let nz = q.z.abs() / hd.max(1e-3);
+    let roof_top = roof_h * (1.0 - nz.clamp(0.0, 1.0));
+    let ny_above = q.y - roof_top;
+    let ny_below = -q.y - 0.02;
+    let d_tri = ny_above.max(ny_below).max(nz - 1.0);
+    let d_x = q.x.abs() - thick * 0.5;
+    d_tri.max(d_x)
+}
+
+/// Shallow window recesses on long ±Z faces (readable in iso from any yaw).
+fn window_cuts(p: Vec3, hw: f32, hd: f32, sill_y: f32, shell: f32) -> f32 {
+    let wh = 0.38_f32;
+    let ww = 0.32_f32;
+    let mut d = 1e3_f32;
+    for &z_sign in &[-1.0_f32, 1.0] {
+        for &ox in &[-hw * 0.45, hw * 0.45] {
+            if ox.abs() < 0.4 {
+                continue;
+            }
+            let cut = sd_box(
+                p - Vec3::new(ox, sill_y + wh, z_sign * (hd - shell * 0.2)),
+                Vec3::new(ww, wh, shell * 0.85),
+            );
+            d = d.min(cut);
+        }
     }
-    body
+    d
 }
 
 fn chimney_sdf(p: Vec3, cx: f32, cz: f32, base_y: f32) -> f32 {
@@ -281,6 +317,7 @@ fn timber_l_sdf(p: Vec3, h: &HouseParams) -> f32 {
     wing = op_sub(wing, crook_door);
 
     let mut body = op_union(main, wing);
+    body = op_sub(body, window_cuts(p, hw, hd, stone_h * 0.45, shell));
 
     // Half-timber band hint: thin outer plates on upper storey (visual mass via SDF).
     if h.upper_h > 0.1 {
@@ -296,15 +333,23 @@ fn timber_l_sdf(p: Vec3, h: &HouseParams) -> f32 {
         body = op_union(body, op_sub(band, band_in));
     }
 
-    let roof_main = pitched_roof_rect(p, hw + 0.08, hd + 0.08, total_h, h.roof_h);
+    let roof_main = pitched_roof_rect(p, hw + 0.12, hd + 0.12, total_h, h.roof_h);
     let roof_wing = pitched_roof_rect(
         wing_local,
-        wing_hw + 0.08,
-        wing_hd + 0.08,
+        wing_hw + 0.12,
+        wing_hd + 0.12,
         total_h,
         h.roof_h,
     );
     body = op_union(body, op_union(roof_main, roof_wing));
+    body = op_union(
+        body,
+        gable_end(p, -1.0, hw, hd + 0.08, total_h, h.roof_h, shell * 1.2),
+    );
+    body = op_union(
+        body,
+        gable_end(p, 1.0, hw, hd + 0.08, total_h, h.roof_h, shell * 1.2),
+    );
 
     if h.chimney {
         body = op_union(
@@ -344,8 +389,17 @@ fn overhang_sdf(p: Vec3, h: &HouseParams) -> f32 {
     upper = op_sub(upper, floor_gap);
 
     let mut body = op_union(ground, upper);
+    body = op_sub(body, window_cuts(p, hw, hd, h.wall_h * 0.4, shell));
     let eave = h.total_wall_h();
-    body = op_union(body, pitched_roof_rect(p, uhw + 0.06, uhd + 0.06, eave, h.roof_h));
+    body = op_union(body, pitched_roof_rect(p, uhw + 0.14, uhd + 0.14, eave, h.roof_h));
+    body = op_union(
+        body,
+        gable_end(p, -1.0, uhw, uhd + 0.1, eave, h.roof_h, shell * 1.3),
+    );
+    body = op_union(
+        body,
+        gable_end(p, 1.0, uhw, uhd + 0.1, eave, h.roof_h, shell * 1.3),
+    );
     if h.chimney {
         body = op_union(
             body,
@@ -367,14 +421,16 @@ fn workshop_sdf(p: Vec3, h: &HouseParams) -> f32 {
         h.door_half_w,
         hd - h.wall_shell * 0.5,
     );
-    // Timber gable triangles (thin plates on ±X ends).
-    let gable_h = h.roof_h * 0.85;
-    for sx in [-1.0_f32, 1.0] {
-        let gp = p - Vec3::new(sx * (hw - 0.06), h.wall_h + gable_h * 0.5, 0.0);
-        let gable = sd_box(gp, Vec3::new(0.1, gable_h * 0.5, hd * 0.95));
-        body = op_union(body, gable);
-    }
-    body = op_union(body, pitched_roof_rect(p, hw + 0.1, hd + 0.1, h.wall_h, h.roof_h));
+    body = op_sub(body, window_cuts(p, hw, hd, h.wall_h * 0.55, h.wall_shell));
+    body = op_union(
+        body,
+        gable_end(p, -1.0, hw, hd, h.wall_h, h.roof_h, h.wall_shell * 1.2),
+    );
+    body = op_union(
+        body,
+        gable_end(p, 1.0, hw, hd, h.wall_h, h.roof_h, h.wall_shell * 1.2),
+    );
+    body = op_union(body, pitched_roof_rect(p, hw + 0.14, hd + 0.14, h.wall_h, h.roof_h));
     body
 }
 
@@ -398,7 +454,15 @@ fn shed_sdf(p: Vec3, h: &HouseParams) -> f32 {
             body = op_union(body, sd_box(q, Vec3::new(0.18, qh, 0.18)));
         }
     }
-    body = op_union(body, pitched_roof_rect(p, hw + 0.08, hd + 0.08, h.wall_h, h.roof_h));
+    body = op_union(
+        body,
+        gable_end(p, -1.0, hw, hd, h.wall_h, h.roof_h, h.wall_shell * 1.1),
+    );
+    body = op_union(
+        body,
+        gable_end(p, 1.0, hw, hd, h.wall_h, h.roof_h, h.wall_shell * 1.1),
+    );
+    body = op_union(body, pitched_roof_rect(p, hw + 0.12, hd + 0.12, h.wall_h, h.roof_h));
     body
 }
 
@@ -414,12 +478,16 @@ fn stone_gable_sdf(p: Vec3, h: &HouseParams) -> f32 {
         h.door_half_w,
         hd - h.wall_shell * 0.5,
     );
-    let gable_h = h.roof_h * 0.9;
-    for sx in [-1.0_f32, 1.0] {
-        let gp = p - Vec3::new(sx * (hw - 0.08), h.wall_h + gable_h * 0.45, 0.0);
-        body = op_union(body, sd_box(gp, Vec3::new(0.12, gable_h * 0.45, hd * 0.9)));
-    }
-    body = op_union(body, pitched_roof_rect(p, hw + 0.1, hd + 0.1, h.wall_h, h.roof_h));
+    body = op_sub(body, window_cuts(p, hw, hd, h.wall_h * 0.5, h.wall_shell));
+    body = op_union(
+        body,
+        gable_end(p, -1.0, hw, hd, h.wall_h, h.roof_h, h.wall_shell * 1.3),
+    );
+    body = op_union(
+        body,
+        gable_end(p, 1.0, hw, hd, h.wall_h, h.roof_h, h.wall_shell * 1.3),
+    );
+    body = op_union(body, pitched_roof_rect(p, hw + 0.14, hd + 0.14, h.wall_h, h.roof_h));
     if h.chimney {
         body = op_union(
             body,
@@ -490,13 +558,15 @@ pub fn house_mat(p: Vec3, h: &HouseParams) -> f32 {
 pub fn house_stone_rgb(m: f32) -> [f32; 3] {
     let m = m.clamp(0.0, 1.0);
     if m < 0.2 {
-        [0.28, 0.16, 0.10] // timber
+        [0.22, 0.14, 0.09] // dark timber
     } else if m < 0.55 {
         let u = (m - 0.2) / 0.35;
-        [0.42 + 0.10 * u, 0.38 + 0.08 * u, 0.32 + 0.06 * u] // stone
+        // Cool grey stone (ROCK family), not warm beige.
+        [0.42 + 0.14 * u, 0.40 + 0.12 * u, 0.37 + 0.10 * u]
     } else {
         let u = (m - 0.55) / 0.45;
-        [0.72 + 0.08 * u, 0.66 + 0.06 * u, 0.52 + 0.04 * u] // plaster
+        // Off-white plaster / bone.
+        [0.78 + 0.08 * u, 0.74 + 0.06 * u, 0.66 + 0.04 * u]
     }
 }
 

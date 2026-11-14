@@ -20,8 +20,8 @@ export const AB_BOUNDS = { minX: -72, maxX: 72, minZ: -48, maxZ: 64 } as const;
 export const AB_TRAIL_WIDTH = 3.3;
 export const AB_SPAWN = { x: 0, z: -20, facing: Math.PI } as const;
 
-/** Kit pitch — wall props / bay spacing aligned with ba-sdf-gear CastleModule. */
-export const AB_KIT_PITCH = 2.64;
+/** Kit pitch — wall props / bay spacing aligned with ba-sdf-gear CastleModule (3× old 2.64). */
+export const AB_KIT_PITCH = 7.92;
 
 export const AB_YARD_Y = 2.0;
 export const AB_RAMPART_Y = 5.2;

@@ -22,11 +22,12 @@ pub struct WalkwayParams {
 
 impl Default for WalkwayParams {
     fn default() -> Self {
+        // half_len ≈ pitch/2 − overlap for CastleModule pitch 7.92.
         Self {
-            half_len: 1.20,
-            half_width: 0.95,
-            deck_h: 0.10,
-            rail_h: 0.42,
+            half_len: 3.85,
+            half_width: 1.15,
+            deck_h: 0.12,
+            rail_h: 0.55,
         }
     }
 }
@@ -77,9 +78,9 @@ pub fn walkway_mat(p: Vec3, s: &WalkwayParams) -> f32 {
 pub fn walkway_stone_rgb(heat: f32) -> [f32; 3] {
     let t = heat.clamp(0.0, 1.0);
     [
-        0.42 + 0.12 * t,
-        0.40 + 0.10 * t,
-        0.36 + 0.08 * t,
+        0.48 + 0.14 * t,
+        0.46 + 0.12 * t,
+        0.42 + 0.10 * t,
     ]
 }
 

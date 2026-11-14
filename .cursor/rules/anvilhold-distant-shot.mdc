@@ -1,0 +1,16 @@
+---
+description: After every Anvilhold / Ashen Bastion castle pass, capture the locked distant overview shot
+globs: tools/ba-sdf-gear/**/*, packages/config/src/ashen-bastion.ts, apps/stick-web/scripts/zone-props/ashen-bastion.ts, docs/maps/anvilhold-castle/**
+alwaysApply: false
+---
+
+# Anvilhold distant shot
+
+When you finish a pass that changes Anvilhold / `ashen_bastion` (SDF kit, BAM, heightfield, props, or courtyard layout):
+
+1. Follow `docs/maps/anvilhold-castle/SHOT.md` exactly (same URL, zoom **0.15**, camera **(0, 2158)**).
+2. Save `docs/maps/anvilhold-castle/distant-overview.png` and a stamped copy under `docs/maps/anvilhold-castle/passes/`.
+3. Also copy to `/opt/cursor/artifacts/anvilhold-distant-overview.png`.
+4. Include the latest distant overview image in your reply to the user.
+
+Do not invent a new camera angle for progress shots.

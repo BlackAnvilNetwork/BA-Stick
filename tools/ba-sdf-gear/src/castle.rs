@@ -50,20 +50,20 @@ pub struct CastleModule {
 
 impl Default for CastleModule {
     fn default() -> Self {
-        // Pitch stays 2.64 (AB_KIT_PITCH). Proportions lean toward image-03:
-        // round towers ~1.7× wall thickness, taller curtain, chunkier merlons.
+        // Pitch 7.92 (3× old 2.64 / AB_KIT_PITCH) — long curtain spans, fewer towers.
+        // Towers ~2.3× old so posts stay chunky without filling the longer wall.
         Self {
-            tower_sep: 1.32,
-            tower_r: 0.68,
-            tower_h: 4.15,
-            crown_r: 0.84,
-            crown_h: 0.62,
-            wall_half: Vec3::new(0.78, 1.68, 0.40),
-            battlement: 0.38,
-            merlon_w: 0.18,
-            merlon_gap: 0.11,
-            wall_shell: 0.15,
-            gallery_shell: 0.13,
+            tower_sep: 3.96,
+            tower_r: 1.55,
+            tower_h: 7.2,
+            crown_r: 1.90,
+            crown_h: 1.05,
+            wall_half: Vec3::new(3.35, 2.85, 0.92),
+            battlement: 0.72,
+            merlon_w: 0.42,
+            merlon_gap: 0.28,
+            wall_shell: 0.28,
+            gallery_shell: 0.24,
         }
     }
 }
@@ -82,20 +82,24 @@ impl CastleModule {
     /// Twin-tower gate sized for the south passage clear (3.6 m ≈ `GATE_HALF_W * 2`).
     /// Wider than a curtain bay — bastion layout places it at x≈0 and skips nearby curtains.
     pub fn to_gatehouse(&self, door_open: f32) -> GatehouseParams {
-        let tower_r = (self.tower_r * 1.22).max(0.78);
-        let tower_sep = 2.55;
+        let tower_r = (self.tower_r * 1.18).max(1.6);
+        // Keep ~3.7 m arch clear; towers sit outside the passage.
+        let tower_sep = (1.85 + tower_r * 0.85).max(4.2);
         GatehouseParams {
             tower_sep,
             tower_r,
-            tower_h: self.tower_h * 1.10,
-            crown_r: tower_r * 1.24,
-            crown_h: self.crown_h * 1.08,
-            // Curtain block spans between towers; z-thickness matches kit.
-            wall_half: Vec3::new(tower_sep - tower_r * 0.35, self.wall_half.y * 1.08, self.wall_half.z * 1.20),
+            tower_h: self.tower_h * 1.08,
+            crown_r: tower_r * 1.22,
+            crown_h: self.crown_h * 1.05,
+            wall_half: Vec3::new(
+                tower_sep - tower_r * 0.30,
+                self.wall_half.y * 1.06,
+                self.wall_half.z * 1.15,
+            ),
             arch_w: 1.85,
-            arch_h: 2.70,
+            arch_h: 2.85,
             battlement: self.battlement * 1.05,
-            merlon_w: self.merlon_w * 1.15,
+            merlon_w: self.merlon_w * 1.10,
             merlon_gap: self.merlon_gap,
             wall_shell: self.wall_shell,
             door_open: door_open.clamp(0.0, 1.0),
@@ -168,7 +172,7 @@ fn corbel_ring(p: Vec3, y: f32, r: f32, n: f32) -> f32 {
 }
 
 fn corbel_line_x(p: Vec3, y: f32, x0: f32, x1: f32, z: f32) -> f32 {
-    let period = 0.18;
+    let period = 0.48;
     let local_x = p.x - x0;
     let cell = (local_x / period).floor() * period + period * 0.5;
     let cx = x0 + cell;
@@ -176,9 +180,9 @@ fn corbel_line_x(p: Vec3, y: f32, x0: f32, x1: f32, z: f32) -> f32 {
         return 1e3;
     }
     let q = p - Vec3::new(cx, y, z);
-    let bracket = sd_box(q + Vec3::new(0.0, 0.02, 0.0), Vec3::new(0.055, 0.08, 0.10));
-    let scoop = sd_cylinder_y(q + Vec3::new(0.0, 0.09, 0.0), 0.06, 0.05);
-    bracket.max(-scoop + 0.015)
+    let bracket = sd_box(q + Vec3::new(0.0, 0.04, 0.0), Vec3::new(0.12, 0.16, 0.20));
+    let scoop = sd_cylinder_y(q + Vec3::new(0.0, 0.18, 0.0), 0.12, 0.10);
+    bracket.max(-scoop + 0.03)
 }
 
 fn footing_sdf(p: Vec3, m: &CastleModule) -> f32 {
@@ -233,11 +237,11 @@ fn tower_sdf(p: Vec3, cx: f32, m: &CastleModule) -> f32 {
     let slit_y = m.tower_h * 0.48; // mid-span like reference wall piece
     let slit_outer = sd_box(
         local - Vec3::new(0.0, slit_y, m.tower_r * 0.50),
-        Vec3::new(0.055, 0.36, m.tower_r * 0.85),
+        Vec3::new(0.10, 0.55, m.tower_r * 0.85),
     );
     let slit_inner = sd_box(
         local - Vec3::new(0.0, slit_y, 0.05),
-        Vec3::new(0.13, 0.42, inner_r + 0.05),
+        Vec3::new(0.22, 0.65, inner_r + 0.08),
     );
     body = body.max(-slit_outer).max(-slit_inner);
 
@@ -262,15 +266,16 @@ fn tower_sdf(p: Vec3, cx: f32, m: &CastleModule) -> f32 {
 
 /// Sloping exterior buttresses on +Z (outward face after wall yaw).
 fn exterior_buttresses(p: Vec3, m: &CastleModule) -> f32 {
-    let span = (m.tower_sep - m.tower_r * 0.85).max(0.35);
-    let xs = [-span * 0.42, span * 0.42];
+    let span = (m.tower_sep - m.tower_r * 0.85).max(0.8);
+    // Three piers on the long curtain so the span does not read empty.
+    let xs = [-span * 0.55, 0.0, span * 0.55];
     let mut d = 1e3_f32;
     let h = m.wall_half.y * 1.35;
     for &cx in &xs {
         let y = p.y.clamp(0.0, h);
         let taper = 1.0 - (y / h.max(1e-3)).clamp(0.0, 1.0) * 0.55;
-        let hx = 0.13 * taper;
-        let hz = 0.32 * taper;
+        let hx = 0.28 * taper;
+        let hz = 0.58 * taper;
         let pier = sd_box(
             p - Vec3::new(cx, h * 0.48, m.wall_half.z + hz * 0.72),
             Vec3::new(hx, h * 0.48, hz),
@@ -299,18 +304,18 @@ fn curtain_solid_sdf(p: Vec3, m: &CastleModule) -> f32 {
     let slit_y = m.wall_half.y * 1.05;
     let slit = sd_box(
         p - Vec3::new(0.0, slit_y, 0.0),
-        Vec3::new(0.055, 0.38, m.wall_half.z + 0.2),
+        Vec3::new(0.10, 0.55, m.wall_half.z + 0.35),
     );
     let slit_splay = sd_box(
         p - Vec3::new(0.0, slit_y, 0.0),
-        Vec3::new(0.12, 0.44, gal_half.z + 0.05),
+        Vec3::new(0.22, 0.65, gal_half.z + 0.08),
     );
     body = body.max(-slit).max(-slit_splay);
 
     // Courtyard-side postern cue (−Z): small doorway into the hollow gallery.
     let postern = sd_box(
-        p - Vec3::new(0.0, 0.78, -m.wall_half.z * 0.20),
-        Vec3::new(0.26, 0.78, m.wall_half.z + 0.22),
+        p - Vec3::new(0.0, 1.15, -m.wall_half.z * 0.20),
+        Vec3::new(0.42, 1.15, m.wall_half.z + 0.35),
     );
     body = body.max(-postern);
 
@@ -373,12 +378,12 @@ pub fn curtain_wall_mat(p: Vec3, m: &CastleModule) -> f32 {
 
 pub fn curtain_stone_rgb(m: f32) -> [f32; 3] {
     let m = m.clamp(0.0, 1.0);
-    // Charcoal / brown with a hint of moss green in mid tones.
+    // Cool grey ashlar (matches ROCK / ROCK_L palette — not warm beige WALL).
     let u = m;
     [
-        0.22 + 0.20 * u,
-        0.20 + 0.18 * u + 0.04 * (1.0 - u),
-        0.18 + 0.14 * u,
+        0.38 + 0.28 * u,
+        0.36 + 0.26 * u,
+        0.33 + 0.24 * u,
     ]
 }
 
@@ -488,16 +493,16 @@ mod tests {
         let slit = curtain_wall_sdf(Vec3::new(0.0, m.wall_half.y * 1.05, m.wall_half.z * 0.5), &m);
         assert!(slit > -0.05, "wall slit passage d={slit}");
         let buttress = curtain_wall_sdf(
-            Vec3::new(0.35, 0.9, m.wall_half.z + 0.18),
+            Vec3::new(0.0, m.wall_half.y * 0.55, m.wall_half.z + 0.35),
             &m,
         );
         assert!(buttress < 0.05, "exterior buttress d={buttress}");
     }
 
     #[test]
-    fn pitch_unchanged_for_kit_snap() {
+    fn pitch_matches_kit_snap() {
         let m = CastleModule::default();
-        assert!((m.pitch() - 2.64).abs() < 1e-5, "pitch={}", m.pitch());
+        assert!((m.pitch() - 7.92).abs() < 1e-5, "pitch={}", m.pitch());
     }
 
     #[test]

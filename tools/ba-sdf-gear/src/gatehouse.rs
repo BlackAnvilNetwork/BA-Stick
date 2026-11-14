@@ -429,13 +429,15 @@ pub fn stone_rgb(m: f32) -> [f32; 3] {
     let m = m.clamp(0.0, 1.0);
     if m < 0.25 {
         let u = m / 0.25;
-        [0.20 + 0.10 * u, 0.11 + 0.05 * u, 0.06 + 0.03 * u]
+        // Dark timber / iron fittings.
+        [0.22 + 0.08 * u, 0.14 + 0.05 * u, 0.10 + 0.03 * u]
     } else {
         let u = (m - 0.25) / 0.75;
+        // Cool grey ashlar (ROCK), not warm beige.
         [
-            0.34 + 0.26 * u,
-            0.32 + 0.22 * u,
-            0.29 + 0.18 * u,
+            0.40 + 0.28 * u,
+            0.38 + 0.26 * u,
+            0.35 + 0.24 * u,
         ]
     }
 }
