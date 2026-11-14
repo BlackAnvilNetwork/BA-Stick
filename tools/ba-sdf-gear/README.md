@@ -53,6 +53,11 @@ cargo run --release -- castle-run --bays "curtain,gate:0.85,curtain" --out out/c
 
 Curtain + gatehouse + **house kit** + Vigil Walk → `out/bastion/ashen_bastion.bam`.
 
+**Walls / gate** (sheet `art/anvilhold-castle/03-walls-gate-reference.png`):
+
+- Curtain pitch stays **2.64**; denser silhouette at play grid (`res` 56 → `RES_PLAY=40`), not `RES_HI`.
+- Gate uses `CastleModule::to_gatehouse(1.0)` — `arch_w` **1.85**, towers at **±2.55**, open doors; bastion layout places it at **x=0** and skips overlapping south curtains.
+
 House archetypes (`src/house.rs`, kit sheet `art/anvilhold-castle/02-house-kit-reference.png`):
 
 | Mesh | Sheet | Footprint |

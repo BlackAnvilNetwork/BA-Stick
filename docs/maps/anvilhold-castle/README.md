@@ -13,7 +13,14 @@ Mirrored under `tools/ba-sdf-gear/art/anvilhold-castle/` for the SDF pipeline.
 
 ## Zone wiring
 
-Playable zone id remains `ashen_bastion` (`packages/config/src/ashen-bastion.ts`). BAM1 meshes ship as `apps/stick-web/public/zones/ashen_bastion.bam`.
+Playable zone id remains `ashen_bastion` (`packages/config/src/ashen-bastion.ts`). BAM1 meshes ship as `apps/stick-web/public/zones/ashen_bastion.bam` (gitignored bake output — regen locally).
+
+```powershell
+cargo run --release --manifest-path tools/ba-sdf-gear/Cargo.toml -- bastion --out tools/ba-sdf-gear/out/bastion
+Copy-Item -Force tools/ba-sdf-gear/out/bastion/ashen_bastion.bam apps/stick-web/public/zones/
+```
+
+Walls/gate own curtain + gatehouse SDF (`castle.rs` / `gatehouse.rs` / bastion south layout). Houses own archetypes/`HOUSE_PLACES`. Re-bake heightfield only if the walk/gate mask changes.
 
 ## Courtyard houses (SDF)
 
