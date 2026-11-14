@@ -71,8 +71,13 @@ pub fn walkway_sdf(p: Vec3, s: &WalkwayParams) -> f32 {
 }
 
 pub fn walkway_mat(p: Vec3, s: &WalkwayParams) -> f32 {
-    let _ = (p, s);
-    0.55
+    // Deck slab → mid ROCK; rails/posts → ROCK_D so the walk reads as a clean band at distance.
+    // No SDF extent change — material lever only.
+    if p.y <= s.deck_h * 0.35 {
+        0.52
+    } else {
+        0.34
+    }
 }
 
 pub fn walkway_stone_rgb(heat: f32) -> [f32; 3] {
@@ -98,5 +103,14 @@ mod tests {
     fn far_point_positive() {
         let s = WalkwayParams::default();
         assert!(walkway_sdf(Vec3::new(8.0, 0.0, 8.0), &s) > 0.5);
+    }
+
+    #[test]
+    fn deck_mat_cleaner_than_rail() {
+        let s = WalkwayParams::default();
+        let deck = walkway_mat(Vec3::new(0.0, 0.0, 0.0), &s);
+        let rail = walkway_mat(Vec3::new(0.0, s.rail_h * 0.5, s.half_width - 0.06), &s);
+        assert!(deck > 0.45 && deck < 0.58, "deck={deck}");
+        assert!(rail < 0.40, "rail={rail}");
     }
 }

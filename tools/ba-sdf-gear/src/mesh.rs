@@ -41,6 +41,22 @@ pub const BAM_PALETTE_WOOD: u8 = 122;
 /// Plaster / bone (`GEAR_BONE` = 79).
 pub const BAM_PALETTE_PLASTER: u8 = 79;
 
+/// Heat → BAM palette for distant overview: timber / ashlar ramp / plaster.
+/// Matches `house_mat` (wood &lt;0.2, plaster ≥0.65) so bands stay readable at zoom 0.15.
+pub fn bam_palette_from_heat(heat: f32) -> u8 {
+    if heat < 0.2 {
+        BAM_PALETTE_WOOD
+    } else if heat < 0.40 {
+        BAM_PALETTE_STONE_D
+    } else if heat < 0.58 {
+        BAM_PALETTE_STONE
+    } else if heat < 0.65 {
+        BAM_PALETTE_STONE_L
+    } else {
+        BAM_PALETTE_PLASTER
+    }
+}
+
 pub fn write_bam1(path: &Path, meshes: &[MeshData]) -> std::io::Result<()> {
     write_bam1_with_places(path, meshes, &[])
 }
@@ -63,17 +79,7 @@ pub fn write_bam1_with_places(
             write_f32(&mut w, p[1])?;
             write_f32(&mut w, p[2])?;
             let heat = mesh.heats.get(i).copied().unwrap_or(0.35);
-            let pal = if heat < 0.2 {
-                BAM_PALETTE_WOOD
-            } else if heat < 0.40 {
-                BAM_PALETTE_STONE_D
-            } else if heat < 0.62 {
-                BAM_PALETTE_STONE
-            } else if heat < 0.72 {
-                BAM_PALETTE_STONE_L
-            } else {
-                BAM_PALETTE_PLASTER
-            };
+            let pal = bam_palette_from_heat(heat);
             w.write_all(&[pal, 0, 0, 0])?;
         }
         for idx in &mesh.indices {
@@ -254,4 +260,21 @@ pub fn write_stick_disc_ron(
     }
     writeln!(w, "    ],\n)")?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn heat_bands_cool_palette() {
+        assert_eq!(bam_palette_from_heat(0.12), BAM_PALETTE_WOOD);
+        assert_eq!(bam_palette_from_heat(0.35), BAM_PALETTE_STONE_D);
+        assert_eq!(bam_palette_from_heat(0.52), BAM_PALETTE_STONE);
+        assert_eq!(bam_palette_from_heat(0.62), BAM_PALETTE_STONE_L);
+        assert_eq!(bam_palette_from_heat(0.66), BAM_PALETTE_PLASTER);
+        assert_eq!(BAM_PALETTE_STONE, 116);
+        assert_eq!(BAM_PALETTE_WOOD, 122);
+        assert_eq!(BAM_PALETTE_PLASTER, 79);
+    }
 }

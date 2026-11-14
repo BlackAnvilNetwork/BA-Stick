@@ -147,18 +147,30 @@ fn project(cam: &Camera, x: f32, y: f32, z: f32) -> P2 {
     cam.project(v3(x, y, z))
 }
 
+/// Overview reject radius: fat enough for gate / curtain bays when zoomed out to 0.15.
+pub(crate) fn cull_radius(zoom: f32, sx: f32, sz: f32) -> f32 {
+    let z = zoom.max(0.08);
+    // Play zoom ~0.84 → ~22 m; distant overview 0.15 → ~96 m (clamped).
+    ((18.0 / z).clamp(18.0, 96.0)) * sx.max(sz).max(1.0)
+}
+
 /// Draw every placement. Skips meshes whose AABB is outside the iso view box.
 pub fn draw(fb: &mut Framebuffer, cam: &Camera, cam_y: f32, bank: &MeshBank) {
     if bank.places.is_empty() || bank.meshes.is_empty() {
         return;
     }
-    let (vx0, vx1, vz0, vz1) = props::iso_view_box(cam);
+    let (mut vx0, mut vx1, mut vz0, mut vz1) = props::iso_view_box(cam);
+    // Zoomed-out framing shows past iso_prop; pad the reject box so large bays stay.
+    let slack = ((0.84 / cam.zoom.max(0.08)) - 1.0).max(0.0) * 28.0;
+    vx0 -= slack;
+    vx1 += slack;
+    vz0 -= slack;
+    vz1 += slack;
     for place in &bank.places {
         let Some(mesh) = bank.meshes.get(place.mesh as usize) else {
             continue;
         };
-        // Cheap reject: placement origin ± scaled radius (curtain bays span ~8 m).
-        let r = 12.0 * place.sx.max(place.sz).max(1.0);
+        let r = cull_radius(cam.zoom, place.sx, place.sz);
         if place.x + r < vx0 || place.x - r > vx1 || place.z + r < vz0 || place.z - r > vz1 {
             continue;
         }
@@ -222,5 +234,14 @@ mod tests {
         assert_eq!(bank.places.len(), 1);
         assert_eq!(bank.places[0].x, 2.0);
         assert_eq!(bank.places[0].z, 3.0);
+    }
+
+    #[test]
+    fn cull_radius_keeps_large_bays_at_overview_zoom() {
+        let play = cull_radius(0.84, 1.0, 1.0);
+        let overview = cull_radius(0.15, 1.0, 1.0);
+        assert!(play >= 18.0 && play < 40.0, "play={play}");
+        assert!(overview >= 90.0, "overview={overview}");
+        assert!(overview > play * 2.0);
     }
 }
