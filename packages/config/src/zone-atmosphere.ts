@@ -138,6 +138,12 @@ export const ZONE_ATMOSPHERE: Readonly<Record<string, AtmosphereLook>> = {
     scaleH: 12,
     horizonRgb: horizon(pack(mix(unpack(BIOME.grass), unpack(BIOME.mountain), 0.5)), pigment(BIOME.mountain), SEAM, 0.4),
   },
+  ashen_bastion: {
+    hazeBase: 0.01,
+    valleyBeta: 0.012,
+    scaleH: 11,
+    horizonRgb: horizon(pack(mix(unpack(BIOME.mountain), unpack(BIOME.quarry), 0.45)), pigment(BIOME.mountain), SEAM, 0.35),
+  },
   islet_fords: { hazeBase: 0.014, valleyBeta: 0.02, scaleH: 7, horizonRgb: horizon(BIOME.riverbank, pigment(BIOME.riverbank), SEAM, 0.4) },
 };
 

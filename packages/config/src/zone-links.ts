@@ -63,6 +63,8 @@ export const ZONE_LINKS: readonly ZoneLink[] = [
   { id: "pass-to-reach", from: "coil_pass", gate: "south-lip", to: "green_reach", spawn: { x: -10, z: 68, facing: Math.PI } },
   { id: "pass-to-ridge", from: "coil_pass", gate: "north-lip", to: "coil_ridge", spawn: { x: 0, z: -120, facing: 0 } },
   { id: "ridge-to-pass", from: "coil_ridge", gate: "tongue-lip", to: "coil_pass", spawn: { x: 0, z: 156, facing: Math.PI } },
+  { id: "ring-to-bastion", from: "ring_ward", gate: "east-gap", to: "ashen_bastion", spawn: { x: 0, z: -24, facing: 0 } },
+  { id: "bastion-to-ring", from: "ashen_bastion", gate: "south-lip", to: "ring_ward", spawn: { x: 70, z: 0, facing: -Math.PI / 2 } },
 ];
 
 export function zoneLink(from: string, gate: string): ZoneLink | undefined {

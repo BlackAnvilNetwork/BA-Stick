@@ -22,6 +22,7 @@ const BAKED: Partial<Record<ZoneId, string>> = {
   green_reach: "green_reach",
   coil_pass: "coil_pass",
   coil_ridge: "coil_ridge",
+  ashen_bastion: "ashen_bastion",
 };
 
 export function zoneRender(zoneId: string | undefined): ZoneRender {

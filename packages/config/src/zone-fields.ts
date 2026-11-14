@@ -4,6 +4,22 @@
  */
 
 import {
+  AB_BOUNDS,
+  AB_GATES,
+  AB_MAP_LABELS,
+  AB_ROAD_NAMES,
+  AB_SPAWN,
+  AB_TRAIL_WIDTH,
+  ashenBastionBiome,
+  ashenBastionGateSoftLevel,
+  ashenBastionInOpenWater,
+  ashenBastionOnBridge,
+  ashenBastionStandHeight,
+  ashenBastionTrails,
+  ashenBastionWalkable,
+  ashenBastionWaterSurfaceY,
+} from "./ashen-bastion";
+import {
   CR_BOUNDS,
   CR_GATES,
   CR_MAP_LABELS,
@@ -340,6 +356,23 @@ export const ZONE_FIELDS: Readonly<Record<string, ZoneField>> = {
     labels: CR_MAP_LABELS,
     gates: CR_GATES,
     gateSoftLevel: coilRidgeGateSoftLevel,
+  }),
+  ashen_bastion: field({
+    id: "ashen_bastion",
+    bounds: AB_BOUNDS,
+    trailWidth: AB_TRAIL_WIDTH,
+    spawn: AB_SPAWN,
+    walkable: ashenBastionWalkable,
+    stand: ashenBastionStandHeight,
+    water: ashenBastionWaterSurfaceY,
+    openWater: ashenBastionInOpenWater,
+    onBridge: ashenBastionOnBridge,
+    biome: ashenBastionBiome,
+    trails: ashenBastionTrails,
+    roadNames: AB_ROAD_NAMES,
+    labels: AB_MAP_LABELS,
+    gates: AB_GATES,
+    gateSoftLevel: ashenBastionGateSoftLevel,
   }),
 };
 

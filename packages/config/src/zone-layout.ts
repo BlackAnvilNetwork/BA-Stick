@@ -6,6 +6,7 @@
  * origin when it draws, and subtracts it before it sends a move.
  */
 
+import { AB_BOUNDS } from "./ashen-bastion";
 import { CP_BOUNDS } from "./coil-pass";
 import { CR_BOUNDS } from "./coil-ridge";
 import { FOREST_BASIN_BOUNDS } from "./forest-basin";
@@ -30,6 +31,7 @@ const BANDS: readonly Band[] = [
   { id: "green_reach", ...GR_BOUNDS },
   { id: "coil_pass", ...CP_BOUNDS },
   { id: "coil_ridge", ...CR_BOUNDS },
+  { id: "ashen_bastion", ...AB_BOUNDS },
 ];
 
 function stack(): Record<string, ZoneOrigin> {

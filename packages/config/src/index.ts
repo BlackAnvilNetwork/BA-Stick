@@ -442,6 +442,7 @@ export const ZONE_IDS = [
   "green_reach",
   "coil_pass",
   "coil_ridge",
+  "ashen_bastion",
   "shard_dwellings",
   "ashlands",
   "obsidia",
@@ -533,6 +534,12 @@ export const ZONES: Record<ZoneId, ZoneDef> = {
   coil_ridge: {
     id: "coil_ridge",
     name: "The Broken Stair",
+    kind: "field",
+    areaId: "pale_hollow",
+  },
+  ashen_bastion: {
+    id: "ashen_bastion",
+    name: "Ashen Bastion",
     kind: "field",
     areaId: "pale_hollow",
   },
@@ -630,3 +637,4 @@ export * from "./forest-basin-content";
 export * from "./forest-basin-population";
 export * from "./forest-basin-shore";
 export * from "./natural-shore";
+export * from "./ashen-bastion";

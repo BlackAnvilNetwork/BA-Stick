@@ -16,7 +16,7 @@ import { inShoreShallows, inShoreWater, shoreDist, shoreTerrainY } from "./natur
  *    with a 1.35 m carve, wharf surface 0.35. Hard cap 6 m. Beds clamp at -0.5.
  * 4. Widths: radial streets 8 m, ring streets 8 m, canal 12 m
  *    (centre x=-62, z=-40..70), bridge deck 3.9 m at z=20, wharf disc (70, -70) r=18.
- * 5. Exits: north-gap to spur_road, wharf-gap to islet_fords. Spawn (0, 68).
+ * 5. Exits: north-gap to spur_road, wharf-gap to islet_fords, east-gap to ashen_bastion. Spawn (0, 68).
  * 6. Landmarks: Inner Keep, Outer Ring, West Canal, South Wharf.
  *
  * North is +z. A south cut joins the canal to the wharf without entering the gate.
@@ -87,6 +87,16 @@ export const RW_GATES: readonly RingWardGate[] = [
     softLevel: 6,
     blocked: false,
     destZone: linkedDest("ring_ward", "wharf-gap"),
+  },
+  {
+    id: "east-gap",
+    minX: 78,
+    maxX: 90,
+    minZ: -8,
+    maxZ: 8,
+    softLevel: 6,
+    blocked: false,
+    destZone: linkedDest("ring_ward", "east-gap"),
   },
 ];
 
